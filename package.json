@@ -1,15 +1,34 @@
 {
   "name": "dokkaebi",
   "private": true,
-  "version": "0.0.0-reconstructed",
+  "version": "0.1.0",
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "\"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" node_modules/typescript/bin/tsc -p tsconfig.json",
-    "typecheck": "\"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && \"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" --test tests/reconstruction.test.js"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test tests/*.test.js",
+    "desktop": "pnpm run build && electron apps/desktop",
+    "desktop:dev": "pnpm run build && electron apps/desktop",
+    "package:win": "pnpm run build && electron-builder --win nsis"
   },
   "devDependencies": {
     "@types/node": "24.0.0",
-    "typescript": "5.9.3"
+    "@types/ws": "8.5.13",
+    "electron": "39.0.0",
+    "electron-builder": "26.0.12",
+    "typescript": "5.9.3",
+    "ws": "8.18.3"
+  },
+  "build": {
+    "appId": "com.dokkaebi.trader",
+    "productName": "Dokkaebi",
+    "files": [
+      "dist/**/*",
+      "apps/desktop/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
   }
 }
