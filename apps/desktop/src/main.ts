@@ -31,20 +31,18 @@ function createWindow(): void {
       sandbox: true
     }
   });
-  window.loadFile(path.join(__dirname, "../renderer/index.html"));
+  window.loadFile(path.join(app.getAppPath(), "apps/desktop/renderer/index.html"));
   window.on("closed", () => { window = undefined; });
 }
 
 ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: number }) => {
   if (!latestTicker) throw new Error("market price is not available yet");
+  if (input.side !== "BUY" && input.side !== "SELL") throw new Error("invalid paper order side");
   const order = broker.execute(input.side, input.quantity, latestTicker.trade_price);
   return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
 });
 
-ipcMain.handle("paper:snapshot", () => {
-  if (!latestTicker) return null;
-  return broker.snapshot(latestTicker.trade_price);
-});
+ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
 
 app.whenReady().then(() => {
   createWindow();
