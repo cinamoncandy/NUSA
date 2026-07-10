@@ -17,6 +17,20 @@ export interface PaperPosition {
   realizedPnl: number;
 }
 
+export interface PaperRiskPolicy {
+  maxOrderNotional?: number;
+  maxPositionQuantity?: number;
+  maxRealizedLoss?: number;
+}
+
+export interface PaperBrokerState {
+  version: 1;
+  cash: number;
+  feeRate: number;
+  position: PaperPosition;
+  orders: readonly PaperOrder[];
+}
+
 export interface PaperAccountSnapshot {
   cash: number;
   equity: number;
@@ -25,32 +39,70 @@ export interface PaperAccountSnapshot {
   orders: readonly PaperOrder[];
 }
 
+function assertFiniteNonNegative(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
   private readonly position: PaperPosition;
-  private readonly orders: PaperOrder[] = [];
+  private readonly orders: PaperOrder[];
+  private readonly riskPolicy: PaperRiskPolicy;
 
-  constructor(initialCash = 10_000_000, market = "KRW-BTC", feeRate = 0.0005) {
+  constructor(
+    initialCash = 10_000_000,
+    market = "KRW-BTC",
+    feeRate = 0.0005,
+    riskPolicy: PaperRiskPolicy = {},
+    restoredState?: PaperBrokerState
+  ) {
     if (!Number.isFinite(initialCash) || initialCash <= 0) throw new Error("initialCash must be positive");
-    if (!Number.isFinite(feeRate) || feeRate < 0) throw new Error("feeRate must be non-negative");
-    this.cash = initialCash;
-    this.feeRate = feeRate;
-    this.position = { market, quantity: 0, averagePrice: 0, realizedPnl: 0 };
+    assertFiniteNonNegative(feeRate, "feeRate");
+    if (riskPolicy.maxOrderNotional != null) assertFiniteNonNegative(riskPolicy.maxOrderNotional, "maxOrderNotional");
+    if (riskPolicy.maxPositionQuantity != null) assertFiniteNonNegative(riskPolicy.maxPositionQuantity, "maxPositionQuantity");
+    if (riskPolicy.maxRealizedLoss != null) assertFiniteNonNegative(riskPolicy.maxRealizedLoss, "maxRealizedLoss");
+
+    this.riskPolicy = Object.freeze({ ...riskPolicy });
+    if (restoredState) {
+      if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
+      if (restoredState.position.market !== market) throw new Error("paper state market mismatch");
+      if (restoredState.feeRate !== feeRate) throw new Error("paper state fee rate mismatch");
+      this.cash = restoredState.cash;
+      this.feeRate = restoredState.feeRate;
+      this.position = { ...restoredState.position };
+      this.orders = restoredState.orders.map((order) => ({ ...order }));
+    } else {
+      this.cash = initialCash;
+      this.feeRate = feeRate;
+      this.position = { market, quantity: 0, averagePrice: 0, realizedPnl: 0 };
+      this.orders = [];
+    }
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date()): PaperOrder {
+    if (side !== "BUY" && side !== "SELL") throw new Error("invalid paper side");
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
 
     const notional = quantity * price;
     const fee = notional * this.feeRate;
+    if (this.riskPolicy.maxOrderNotional != null && notional > this.riskPolicy.maxOrderNotional) {
+      throw new Error("paper risk: max order notional exceeded");
+    }
+    if (this.riskPolicy.maxRealizedLoss != null && this.position.realizedPnl < -this.riskPolicy.maxRealizedLoss) {
+      throw new Error("paper risk: max realized loss exceeded");
+    }
 
     if (side === "BUY") {
+      const nextQuantity = this.position.quantity + quantity;
+      if (this.riskPolicy.maxPositionQuantity != null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
+        throw new Error("paper risk: max position quantity exceeded");
+      }
       if (notional + fee > this.cash) throw new Error("insufficient paper cash");
       const previousCost = this.position.quantity * this.position.averagePrice;
       this.cash -= notional + fee;
-      this.position.quantity += quantity;
+      this.position.quantity = nextQuantity;
       this.position.averagePrice = (previousCost + notional) / this.position.quantity;
     } else {
       if (quantity > this.position.quantity) throw new Error("insufficient paper position");
@@ -72,6 +124,16 @@ export class PaperBroker {
     });
     this.orders.unshift(order);
     return order;
+  }
+
+  exportState(): PaperBrokerState {
+    return Object.freeze({
+      version: 1 as const,
+      cash: this.cash,
+      feeRate: this.feeRate,
+      position: Object.freeze({ ...this.position }),
+      orders: Object.freeze(this.orders.map((order) => Object.freeze({ ...order })))
+    });
   }
 
   snapshot(markPrice: number): PaperAccountSnapshot {
