@@ -1,0 +1,15 @@
+{
+  "name": "dokkaebi",
+  "private": true,
+  "version": "0.0.0-reconstructed",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "\"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "\"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && \"C:\\Users\\82107\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe\" --test tests/reconstruction.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "typescript": "5.9.3"
+  }
+}

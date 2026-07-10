@@ -1,0 +1,6 @@
+{
+  "name": "@dokkaebi/contracts",
+  "version": "0.0.0-reconstructed",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}
