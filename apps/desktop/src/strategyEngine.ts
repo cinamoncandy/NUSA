@@ -1,0 +1,85 @@
+export type StrategySignalType = "BUY" | "SELL" | "HOLD";
+
+export interface MarketTick {
+  market: string;
+  price: number;
+  timestamp: number;
+}
+
+export interface StrategySignal {
+  type: StrategySignalType;
+  reason: string;
+  confidence: number;
+  timestamp: number;
+}
+
+export interface StrategyContext {
+  readonly market: string;
+  readonly prices: readonly number[];
+  readonly positionQuantity: number;
+}
+
+export interface TradingStrategy {
+  readonly id: string;
+  readonly name: string;
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal;
+  reset(): void;
+}
+
+const average = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+export class SmaCrossoverStrategy implements TradingStrategy {
+  readonly id = "sma-crossover";
+  readonly name = "SMA Crossover";
+  private previousSpread?: number;
+
+  constructor(private readonly shortPeriod = 5, private readonly longPeriod = 20) {
+    if (!Number.isInteger(shortPeriod) || !Number.isInteger(longPeriod) || shortPeriod < 2 || longPeriod <= shortPeriod) {
+      throw new Error("invalid SMA periods");
+    }
+  }
+
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
+    const prices = [...context.prices, tick.price].slice(-this.longPeriod);
+    if (prices.length < this.longPeriod) {
+      return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
+    }
+    const short = average(prices.slice(-this.shortPeriod));
+    const long = average(prices);
+    const spread = short - long;
+    const prior = this.previousSpread;
+    this.previousSpread = spread;
+    if (prior == null) return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
+    if (prior <= 0 && spread > 0) return { type: "BUY", reason: "short-SMA crossed above long-SMA", confidence: Math.min(1, Math.abs(spread) / long), timestamp: tick.timestamp };
+    if (prior >= 0 && spread < 0) return { type: "SELL", reason: "short-SMA crossed below long-SMA", confidence: Math.min(1, Math.abs(spread) / long), timestamp: tick.timestamp };
+    return { type: "HOLD", reason: "no-cross", confidence: Math.min(1, Math.abs(spread) / long), timestamp: tick.timestamp };
+  }
+
+  reset(): void { this.previousSpread = undefined; }
+}
+
+export class StrategyEngine {
+  private readonly prices: number[] = [];
+  private running = false;
+  private latestSignal?: StrategySignal;
+
+  constructor(private strategy: TradingStrategy, private readonly maxHistory = 500) {}
+
+  start(): void { this.running = true; }
+  stop(): void { this.running = false; }
+  isRunning(): boolean { return this.running; }
+  setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; strategy.reset(); }
+  getLatestSignal(): StrategySignal | undefined { return this.latestSignal; }
+  getHistory(): readonly number[] { return [...this.prices]; }
+
+  onTick(tick: MarketTick, positionQuantity: number): StrategySignal {
+    if (!Number.isFinite(tick.price) || tick.price <= 0) throw new Error("tick price must be positive");
+    const signal = this.running
+      ? this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity })
+      : { type: "HOLD" as const, reason: "strategy-stopped", confidence: 0, timestamp: tick.timestamp };
+    this.prices.push(tick.price);
+    if (this.prices.length > this.maxHistory) this.prices.splice(0, this.prices.length - this.maxHistory);
+    this.latestSignal = signal;
+    return signal;
+  }
+}
