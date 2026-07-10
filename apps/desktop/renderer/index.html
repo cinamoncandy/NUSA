@@ -17,9 +17,12 @@
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
     </section>
+    <section class="card chart-card"><div class="section-title"><h2>실시간 가격</h2><span>최근 240틱</span></div><canvas id="chart" width="1100" height="220"></canvas></section>
     <section class="grid">
       <article class="card"><h2>Paper 주문</h2><label>수량 (BTC)<input id="quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /></label><div class="actions"><button id="buy">매수</button><button id="sell" class="sell">매도</button></div><p id="error" class="error"></p></article>
+      <article class="card"><h2>전략 제어</h2><dl><div><dt>상태</dt><dd id="strategy-status">STOPPED</dd></div><div><dt>전략</dt><dd id="strategy-id">sma-crossover</dd></div></dl><label>자동주문 수량<input id="strategy-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /></label><div class="actions"><button id="strategy-start">시작</button><button id="strategy-stop" class="secondary">중지</button></div><label class="toggle"><input id="auto-trade" type="checkbox" /> Paper 자동매매</label></article>
       <article class="card"><h2>계좌</h2><dl><div><dt>현금</dt><dd id="cash">-</dd></div><div><dt>보유 수량</dt><dd id="position">-</dd></div><div><dt>평균 단가</dt><dd id="average">-</dd></div><div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div><div><dt>실현 손익</dt><dd id="realized">-</dd></div></dl></article>
+      <article class="card"><h2>이벤트 로그</h2><ul id="events" class="events"><li>이벤트 없음</li></ul></article>
     </section>
     <section class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead><tbody id="orders"><tr><td colspan="5">체결 없음</td></tr></tbody></table></section>
     <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
