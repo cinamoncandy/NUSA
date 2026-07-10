@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self';" />
+  <title>Dokkaebi Paper Trader</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1>Dokkaebi</h1></div>
+      <span id="status" class="status">연결 준비</span>
+    </header>
+    <section class="hero card">
+      <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
+      <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
+    </section>
+    <section class="grid">
+      <article class="card"><h2>Paper 주문</h2><label>수량 (BTC)<input id="quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /></label><div class="actions"><button id="buy">매수</button><button id="sell" class="sell">매도</button></div><p id="error" class="error"></p></article>
+      <article class="card"><h2>계좌</h2><dl><div><dt>현금</dt><dd id="cash">-</dd></div><div><dt>보유 수량</dt><dd id="position">-</dd></div><div><dt>평균 단가</dt><dd id="average">-</dd></div><div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div><div><dt>실현 손익</dt><dd id="realized">-</dd></div></dl></article>
+    </section>
+    <section class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead><tbody id="orders"><tr><td colspan="5">체결 없음</td></tr></tbody></table></section>
+    <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
