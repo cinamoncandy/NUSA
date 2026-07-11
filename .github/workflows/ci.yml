@@ -22,7 +22,11 @@ jobs:
       - run: pnpm run typecheck
       - name: Build
         run: pnpm run build
-      - name: Control-plane regression tests
-        run: node --test --test-reporter=spec tests/control-audit-ledger.test.js tests/control-command-processor.test.js tests/transactional-control-command-service.test.js
+      - name: Control audit ledger tests
+        run: node --test --test-reporter=spec tests/control-audit-ledger.test.js
+      - name: Control command processor tests
+        run: node --test --test-reporter=spec tests/control-command-processor.test.js
+      - name: Transactional control service tests
+        run: node --test --test-reporter=spec tests/transactional-control-command-service.test.js
       - name: Full test suite
         run: node --test --test-reporter=spec tests/*.test.js
