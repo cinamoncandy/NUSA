@@ -30,13 +30,20 @@ Latest code validation: Windows CI run #139 at `80679e1a1b5e89e1ad814cae7248dcc2
 
 See `docs/implementation/walk-forward-research.md` for the research contract and interpretation limits.
 
+## Research Memory v1 Update
+
+Research Memory v1 now persists append-only hypotheses and immutable experiment records through SQLite migration `002_research_memory`. Each experiment links a dataset ID, full checksum, manifest version, market/interval/range, Walk-Forward configuration JSON, result JSON, and optional hypothesis ID.
+
+Repeated identical inserts are idempotent; reused IDs with changed content, missing hypothesis references, malformed persisted JSON, corrupt databases, and write failures fail closed.
+
+Windows CI run #160 validated frozen install, typecheck, and 112/112 tests. See `docs/implementation/research-memory-v1.md`.
+
 ## Immediate Research Work
 
 1. Define a deterministic candle contract and missing-candle policy.
 2. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
-3. Add a versioned experiment manifest that records Walk Forward candidates, window plan, and dataset checksum.
+3. Add immutable experiment comparison queries and review workflows without changing stored evidence.
 4. Add Sharpe, Sortino, and Calmar only with an explicit sampling-period convention.
-5. Add immutable experiment records and a Hypothesis Registry.
 6. Keep PR #1 Draft and do not merge without owner approval.
 
 ## Research Safety Rules
