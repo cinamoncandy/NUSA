@@ -1,7 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { DatabaseSync } = require("node:sqlite");
+const { mkdtempSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
 const { runMigrations } = require("../dist/packages/storage/src/migrationRunner.js");
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 
 function migration(id, sql) { return Object.freeze({ id, sql }); }
 
@@ -48,4 +52,44 @@ test("migration runner rejects duplicate or unordered migration plans", () => {
     assert.throws(() => runMigrations(db, [migration("001_alpha", "SELECT 1;"), migration("001_alpha", "SELECT 1;")]), /duplicate migration id/);
     assert.throws(() => runMigrations(db, [migration("002_beta", "SELECT 1;"), migration("001_alpha", "SELECT 1;")]), /strictly ordered/);
   } finally { db.close(); }
+});
+
+
+test("SqliteDatabase fresh file applies accounting schema and exposes all tables", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
+  const db = new SqliteDatabase(filename);
+  try {
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting"]);
+    assert.equal(db.migrationResult.currentVersion, "001_position_accounting");
+    const names = db.connection.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?) ORDER BY name"
+    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers")
+      .map((row) => row.name);
+    assert.deepEqual(names, [
+      "applied_ledger_markers",
+      "position_ledger_entries",
+      "schema_migrations",
+      "strategy_position_snapshots",
+      "wallet_position_snapshots"
+    ]);
+    db.connection.prepare("INSERT INTO position_ledger_entries (id, wallet_id, strategy_id, symbol, side, base_qty_raw, quote_qty_raw, ts, created_at, source_trade_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+      "persisted", "wallet", null, "KRW-BTC", "BUY", "1", "100", "2026-01-01", "2026-01-01", null
+    );
+  } finally { db.close(); }
+
+  const reopened = new SqliteDatabase(filename);
+  try {
+    assert.deepEqual(reopened.migrationResult.applied, []);
+    assert.equal(reopened.migrationResult.currentVersion, "001_position_accounting");
+    assert.equal(reopened.connection.prepare("SELECT id FROM position_ledger_entries WHERE id = ?").get("persisted").id, "persisted");
+  } finally { reopened.close(); }
+});
+
+test("SqliteDatabase rejects an unknown applied migration on reopen", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "future.db");
+  const raw = new DatabaseSync(filename);
+  raw.exec("CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+  raw.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("999_future", new Date().toISOString());
+  raw.close();
+  assert.throws(() => new SqliteDatabase(filename), /database contains unknown migration: 999_future/);
 });
