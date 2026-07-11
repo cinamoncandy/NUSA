@@ -3,8 +3,8 @@ import path from "node:path";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
-import { PaperBroker, type PaperSide } from "./paperBroker";
-import { RuntimeCommandService } from "./runtimeCommandService";
+import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
+import { PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
@@ -105,21 +105,28 @@ function initializeRuntime(): void {
 }
 
 ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: number }) => {
-  if (!paperTradingAvailable) throw new Error("paper trading unavailable: session recovery requires operator repair");
+  if (!paperTradingAvailable) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
   if (!latestTicker) throw new Error("market price is not available yet");
   if (input.side !== "BUY" && input.side !== "SELL") throw new Error("invalid paper order side");
-  const order = runtime.manualOrder(input.side, input.quantity, latestTicker.trade_price);
-  paperTradingAvailable = runtime.isAvailable();
+  let order: PaperOrder;
+  try { order = runtime.manualOrder(input.side, input.quantity, latestTicker.trade_price); }
+  finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
   return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
 ipcMain.handle("control:snapshot", () => control.snapshot());
-ipcMain.handle("control:start", () => { runtime.start(); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:stop", () => { runtime.stop(); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:auto", (_event, enabled: boolean) => { runtime.setAutoTrade(Boolean(enabled)); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:quantity", (_event, quantity: number) => { runtime.setOrderQuantity(quantity); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
+function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
+  try { command(); }
+  finally { paperTradingAvailable = runtime.isAvailable(); }
+  publishControl();
+  return control.snapshot();
+}
+ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
+ipcMain.handle("control:stop", () => runControlCommand(() => runtime.stop()));
+ipcMain.handle("control:auto", (_event, enabled: boolean) => runControlCommand(() => runtime.setAutoTrade(Boolean(enabled))));
+ipcMain.handle("control:quantity", (_event, quantity: number) => runControlCommand(() => runtime.setOrderQuantity(quantity)));
 
 app.whenReady().then(() => {
   initializeRuntime();
