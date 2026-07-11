@@ -234,8 +234,8 @@ function diagnostics(candidates: readonly WalkForwardCandidate[], windows: reado
 function warnings(combined: CombinedOutOfSampleMetrics, diagnostic: StabilityDiagnostics): readonly string[] {
   const warnings: string[] = [];
   if (diagnostic.candidates.some((candidate) => diagnostic.candidates.length > 1 && candidate.selectionRatio >= 0.8)) warnings.push("CANDIDATE_SELECTION_DOMINANCE");
-  if (diagnostic.selectionChurnRatio >= 0.75) warnings.push("HIGH_SELECTION_CHURN");
-  if (diagnostic.candidates.some((candidate) => candidate.trainSuccessCount >= 2 && candidate.oosProfitableCount === 0)) warnings.push("TRAIN_OOS_PERFORMANCE_DIVERGENCE");
+  if (diagnostic.selectionChurnRatio >= 0.5) warnings.push("HIGH_SELECTION_CHURN");
+  if (diagnostic.candidates.some((candidate) => candidate.trainSuccessCount >= 1 && candidate.oosProfitableCount < candidate.trainSuccessCount)) warnings.push("TRAIN_OOS_PERFORMANCE_DIVERGENCE");
   if (combined.totalOosClosedTrades < Math.max(2, combined.windowCount)) warnings.push("INSUFFICIENT_CLOSED_TRADE_SAMPLE");
   if (combined.totalTradingCost > combined.fees && combined.netProfit <= 0) warnings.push("COSTS_DOMINATE_OOS_PERFORMANCE");
   const contributions = diagnostic.candidates.map((candidate) => Math.abs((candidate.averageOosReturn ?? 0) * candidate.selectedWindowCount)); const total = contributions.reduce((sum, value) => sum + value, 0);
