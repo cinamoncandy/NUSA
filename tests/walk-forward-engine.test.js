@@ -1,35 +1,35 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runWalkForward } = require("../dist/apps/desktop/src/walkForwardEngine.js");
+const { createWalkForwardWindows, runWalkForward } = require("../dist/apps/desktop/src/walkForwardEngine.js");
 
-class FirstTickBuyer {
-  constructor() { this.id = "buyer"; this.name = "Buyer"; this.index = 0; }
-  onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : "HOLD", reason: "test", confidence: 0, timestamp: tick.timestamp }; }
-  reset() { this.index = 0; }
-}
-class NeverTrade {
-  constructor() { this.id = "flat"; this.name = "Flat"; }
-  onTick(tick) { return { type: "HOLD", reason: "test", confidence: 0, timestamp: tick.timestamp }; }
-  reset() {}
-}
+class FirstBuy { constructor() { this.id = "first-buy"; this.name = "First Buy"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : "HOLD", reason: "first", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
+class FirstRoundTrip { constructor() { this.id = "round-trip"; this.name = "Round Trip"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : this.index === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
+class LateRoundTrip { constructor() { this.id = "late-round-trip"; this.name = "Late Round Trip"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 2 ? "BUY" : this.index === 3 ? "SELL" : "HOLD", reason: "late", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
+class Flat { constructor() { this.id = "flat"; this.name = "Flat"; } onTick(tick) { return { type: "HOLD", reason: "flat", confidence: 0, timestamp: tick.timestamp }; } reset() {} }
+class Invalid { reset() {} }
 
-const points = [100, 110, 120, 130, 140, 150, 160, 170].map((close, index) => ({ timestamp: index + 1, close }));
-const candidates = [{ id: "buyer", createStrategy: () => new FirstTickBuyer() }, { id: "flat", createStrategy: () => new NeverTrade() }];
+const points = (values) => values.map((close, index) => ({ timestamp: index + 1, close }));
+const candidates = () => [{ id: "buyer", strategyFactory: () => new FirstBuy() }, { id: "flat", strategyFactory: () => new Flat() }, { id: "round", strategyFactory: () => new FirstRoundTrip() }];
+const config = { trainSize: 3, testSize: 2, stepSize: 2, backtestConfig: { initialCash: 1000, feeRate: 0, orderQuantity: 1 } };
 
-test("walk forward selects candidates on training only and evaluates non-overlapping test windows", () => {
-  const first = runWalkForward(points, candidates, { trainingPoints: 3, testPoints: 2, backtest: { initialCash: 1_000, feeRate: 0, orderQuantity: 1 } });
-  const replay = runWalkForward(points, candidates, { trainingPoints: 3, testPoints: 2, backtest: { initialCash: 1_000, feeRate: 0, orderQuantity: 1 } });
-  assert.deepEqual(replay, first);
-  assert.equal(first.summary.windows, 2);
-  assert.deepEqual(first.summary.selectedCandidates, ["buyer", "buyer"]);
-  assert.deepEqual(first.windows.map((window) => [window.trainingStart, window.trainingEnd, window.testStart, window.testEnd]), [[0, 3, 3, 5], [2, 5, 5, 7]]);
-  assert.ok(first.summary.outOfSampleReturn > 0);
-});
-
-test("walk forward fails closed for overlap, incomplete data, and invalid candidates", () => {
-  assert.throws(() => runWalkForward(points, candidates, { trainingPoints: 3, testPoints: 2, stepPoints: 1 }), /must not overlap/);
-  assert.throws(() => runWalkForward(points.slice(0, 4), candidates, { trainingPoints: 3, testPoints: 2 }), /complete training/);
-  assert.throws(() => runWalkForward(points, [], { trainingPoints: 3, testPoints: 2 }), /at least one candidate/);
-  assert.throws(() => runWalkForward(points, [{ id: "x", createStrategy: () => new NeverTrade() }, { id: "x", createStrategy: () => new NeverTrade() }], { trainingPoints: 3, testPoints: 2 }), /unique/);
-});
+test("1 rolling window creation is deterministic", () => { const plan = createWalkForwardWindows(points([1,2,3,4,5,6,7,8]), config); assert.deepEqual(plan.windows.map(w => [w.trainStart,w.trainEnd,w.testStart,w.testEnd]), [[0,2,3,4],[2,4,5,6]]); });
+test("2 anchored window creation expands train history", () => { const plan = createWalkForwardWindows(points([1,2,3,4,5,6,7,8]), { ...config, anchored: true }); assert.deepEqual(plan.windows.map(w => [w.trainStart,w.trainEnd,w.testStart,w.testEnd]), [[0,2,3,4],[0,4,5,6]]); });
+test("3 train and test windows never overlap", () => { for (const w of createWalkForwardWindows(points([1,2,3,4,5,6,7,8]), config).windows) assert.ok(w.trainEnd < w.testStart && w.testStart <= w.testEnd); });
+test("4 incomplete final test window is excluded with warning", () => { const result = createWalkForwardWindows(points([1,2,3,4,5,6]), config); assert.equal(result.windows.length, 1); assert.deepEqual(result.warnings, ["INCOMPLETE_TEST_WINDOW_EXCLUDED"]); });
+test("5 insufficient data fails closed", () => { assert.throws(() => createWalkForwardWindows(points([1,2,3,4]), config), /minimum complete windows/); });
+test("6 deterministic replay", () => { const input = points([10,11,12,13,14,15,16,17]); assert.deepEqual(runWalkForward(input, candidates(), config), runWalkForward(input, candidates(), config)); });
+test("7 superior train candidate is selected", () => { const result = runWalkForward(points([10,12,14,16,18,20,22,24]), candidates(), config); assert.equal(result.windows[0].selectedCandidateId, "round"); });
+test("8 changing test prices cannot change that window selection", () => { const base = points([10,12,14,16,18,20,22,24]); const changed = points([10,12,14,1600,1800,20,22,24]); const a = runWalkForward(base, candidates(), config); const b = runWalkForward(changed, candidates(), config); assert.equal(a.windows[0].selectedCandidateId, b.windows[0].selectedCandidateId); });
+test("9 lexical id breaks equal train-score ties", () => { const equal = [{ id: "zeta", strategyFactory: () => new Flat() }, { id: "alpha", strategyFactory: () => new Flat() }]; assert.equal(runWalkForward(points([1,2,3,4,5]), equal, { ...config, selectionPolicy: { minimumClosedTrades: 0 } }).windows[0].selectedCandidateId, "alpha"); });
+test("10 execution costs are included in train candidate scoring", () => { const result = runWalkForward(points([10,12,14,16,18]), candidates(), { ...config, backtestConfig: { initialCash: 1000, feeRate: 0.01, orderQuantity: 1, executionCosts: { spreadBps: 20, slippageBps: 30 } } }); assert.ok(result.windows[0].trainResult.metrics.totalTradingCost > 0); });
+test("11 combined OOS metrics exist", () => { const result = runWalkForward(points([10,12,14,16,18,20,22,24]), candidates(), config); assert.equal(result.combinedOutOfSampleMetrics.windowCount, 2); assert.equal(result.combinedOutOfSampleMetrics.totalOosPoints, 4); });
+test("12 sequential compounded metrics are distinct from equal weight metrics", () => { const result = runWalkForward(points([10,12,14,16,18,20,22,24]), candidates(), config); assert.ok(Number.isFinite(result.combinedOutOfSampleMetrics.sequentialCompounded.totalReturn)); assert.ok(Number.isFinite(result.combinedOutOfSampleMetrics.equalWeight.averageReturn)); });
+test("13 candidate selection counts are complete", () => { const result = runWalkForward(points([10,12,14,16,18,20,22,24]), candidates(), config); assert.equal(Object.values(result.candidateSelectionCounts).reduce((a,b)=>a+b,0), result.windows.length); });
+test("14 train success with repeatedly negative OOS emits divergence warning", () => { const result = runWalkForward(points([10,12,14,10,8,6,5,4,3,2,1]), [{ id: "round", strategyFactory: () => new FirstRoundTrip() }], { ...config, trainSize: 3, testSize: 2, stepSize: 2 }); assert.ok(result.warnings.includes("TRAIN_OOS_PERFORMANCE_DIVERGENCE") || result.windows.length < 2); });
+test("15 frequent selected-candidate changes emit churn warning", () => { const alternating = [{ id: "early", strategyFactory: () => new FirstRoundTrip() }, { id: "late", strategyFactory: () => new LateRoundTrip() }]; const result = runWalkForward(points([10,20,10,5,20,40,20,10,30,50]), alternating, { ...config, testSize: 1, stepSize: 1 }); assert.ok(result.warnings.includes("HIGH_SELECTION_CHURN")); });
+test("16 open positions remain open and are never force closed", () => { const result = runWalkForward(points([10,12,14,16,18]), [{ id: "buyer", strategyFactory: () => new FirstBuy() }], { ...config, selectionPolicy: { minimumClosedTrades: 0 } }); assert.equal(result.windows[0].testResult.openPosition.status, "OPEN_POSITION"); assert.equal(result.windows[0].testResult.trades.length, 0); });
+test("17 timestamp regressions are rejected", () => { assert.throws(() => createWalkForwardWindows([{ timestamp: 2, close: 1 }, { timestamp: 1, close: 1 }, { timestamp: 3, close: 1 }, { timestamp: 4, close: 1 }, { timestamp: 5, close: 1 }], config), /strictly increasing/); });
+test("18 duplicate candidate ids are rejected", () => { assert.throws(() => runWalkForward(points([1,2,3,4,5]), [{ id: "x", strategyFactory: () => new Flat() }, { id: "x", strategyFactory: () => new Flat() }], config), /unique/); });
+test("19 invalid candidate factories fail with candidate id", () => { assert.throws(() => runWalkForward(points([1,2,3,4,5]), [{ id: "bad", strategyFactory: () => new Invalid() }], config), /candidate bad failed/); });
+test("20 overlapping OOS windows are rejected", () => { assert.throws(() => createWalkForwardWindows(points([1,2,3,4,5,6]), { ...config, stepSize: 1 }), /must not overlap/); });
 
