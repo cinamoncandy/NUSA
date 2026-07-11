@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
+import { DesktopPersistenceStore } from "./desktopPersistenceStore";
 import { executeAutomaticPaperSignal } from "./paperAutomation";
 import { PaperBroker, type PaperSide } from "./paperBroker";
 import { PaperSessionStore } from "./paperSessionStore";
@@ -17,12 +18,16 @@ let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
 let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
+let persistenceStore: DesktopPersistenceStore | undefined;
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 const strategy = new StrategyEngine(new SmaCrossoverStrategy(5, 20));
 let control: ControlPlane;
 
-function persistControl(): void { controlStore.save(control.exportState()); }
+function persistRuntime(): void {
+  if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+  persistenceStore.save(broker.exportState(), control.exportState());
+}
 
 function publishControl(): void { window?.webContents.send("control:snapshot", control.snapshot()); }
 function publishPaper(): void {
@@ -37,14 +42,13 @@ function handleTicker(ticker: UpbitTicker): void {
   const signal = strategy.onTick({ market: MARKET, price: ticker.trade_price, timestamp: ticker.trade_timestamp }, position);
   control.record("SIGNAL", `${signal.type}: ${signal.reason}`, signal);
 
-  const automatic = executeAutomaticPaperSignal(control, broker, MARKET, ticker.trade_price, position, signal, persistControl);
+  const automatic = executeAutomaticPaperSignal(control, broker, MARKET, ticker.trade_price, position, signal, persistRuntime);
   if (automatic.outcome === "FILLED" && automatic.order) {
-    sessionStore.save(broker.exportState());
     control.record("ORDER", `automatic ${signal.type} filled`, automatic.order);
   } else if (automatic.outcome === "REJECTED") {
     control.record("RISK", automatic.error ?? "automatic paper order rejected");
   }
-  persistControl();
+  try { persistRuntime(); } catch (error) { paperTradingAvailable = false; control.fault(`SQLite persistence failed: ${String(error)}`); }
   publishPaper();
   publishControl();
 }
@@ -72,14 +76,25 @@ function initializeRuntime(): void {
   controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
   const paperLoad = sessionStore.loadSafe();
   const controlLoad = controlStore.loadSafe();
-  broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, paperLoad.state);
-  control = new ControlPlane("sma-crossover", 200, controlLoad.state);
-  paperTradingAvailable = paperLoad.diagnostic == null;
+  let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
+  let persistenceDiagnostic: string | undefined;
+  try {
+    persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
+    const sqliteState = persistenceStore.load();
+    if (sqliteState) restored = sqliteState;
+    else if (restored) persistenceStore.importLegacy(restored);
+  } catch (error) {
+    persistenceStore = undefined;
+    persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper);
+  control = new ControlPlane("sma-crossover", 200, restored?.control);
+  paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
-  for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic]) {
+  for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
-  persistControl();
+  if (paperTradingAvailable) persistRuntime();
   stream = new UpbitWebSocketClient(MARKET, handleTicker, (status) => window?.webContents.send("market:status", status));
 }
 
@@ -88,19 +103,18 @@ ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: numbe
   if (!latestTicker) throw new Error("market price is not available yet");
   if (input.side !== "BUY" && input.side !== "SELL") throw new Error("invalid paper order side");
   const order = broker.execute(input.side, input.quantity, latestTicker.trade_price);
-  sessionStore.save(broker.exportState());
   control.record("ORDER", `manual ${input.side} filled`, order);
-  persistControl();
+  persistRuntime();
   publishControl();
   return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
 ipcMain.handle("control:snapshot", () => control.snapshot());
-ipcMain.handle("control:start", () => { strategy.start(); control.start(); persistControl(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:stop", () => { strategy.stop(); control.stop(); persistControl(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:auto", (_event, enabled: boolean) => { control.setAutoTrade(Boolean(enabled)); persistControl(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:quantity", (_event, quantity: number) => { control.setOrderQuantity(quantity); persistControl(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:start", () => { strategy.start(); control.start(); persistRuntime(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:stop", () => { strategy.stop(); control.stop(); persistRuntime(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:auto", (_event, enabled: boolean) => { control.setAutoTrade(Boolean(enabled)); persistRuntime(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:quantity", (_event, quantity: number) => { control.setOrderQuantity(quantity); persistRuntime(); publishControl(); return control.snapshot(); });
 
 app.whenReady().then(() => {
   initializeRuntime();
@@ -111,6 +125,7 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   stream?.stop();
+  persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
 });
-
+
