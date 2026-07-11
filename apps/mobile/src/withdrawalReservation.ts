@@ -78,7 +78,7 @@ export const protectWithdrawalCapital = (state: TreasuryState): ProtectedTreasur
     .sort((left, right) => left.requestedAt - right.requestedAt || left.id.localeCompare(right.id)));
 
   const reservedWithdrawalCapital = activeReservations.reduce((sum, reservation) => sum + reservation.amount, 0);
-  const accounted = state.tradingCapital + state.reserveCapital + state.pendingDepositCapital + reservedWithdrawalCapital;
+  const accounted = state.tradingCapital + state.reserveCapital + state.pendingDepositCapital;
 
   if (Math.abs(accounted - state.totalAssets) > 1e-8) {
     throw new Error("treasury capital does not reconcile with totalAssets");
