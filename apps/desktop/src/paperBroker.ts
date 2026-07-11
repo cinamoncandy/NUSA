@@ -138,6 +138,16 @@ export class PaperBroker {
     });
   }
 
+  restoreState(state: PaperBrokerState): void {
+    // Reuse constructor validation so command rollback cannot accept a weaker state shape.
+    const validated = new PaperBroker(1, this.position.market, this.feeRate, this.riskPolicy, state).exportState();
+    this.cash = validated.cash;
+    this.position.quantity = validated.position.quantity;
+    this.position.averagePrice = validated.position.averagePrice;
+    this.position.realizedPnl = validated.position.realizedPnl;
+    this.orders.splice(0, this.orders.length, ...validated.orders.map((order) => ({ ...order })));
+  }
+
   snapshot(markPrice: number): PaperAccountSnapshot {
     if (!Number.isFinite(markPrice) || markPrice <= 0) throw new Error("markPrice must be positive");
     const marketValue = this.position.quantity * markPrice;
@@ -151,4 +161,4 @@ export class PaperBroker {
     });
   }
 }
-
+
