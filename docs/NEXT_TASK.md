@@ -24,7 +24,7 @@ Latest verified baseline:
 
 The main-process desktop runtime now persists Paper account state, orders, Control Plane state, events, and processed automatic signal keys in one versioned SQLite transaction. Strictly validated legacy JSON remains untouched and is imported only when SQLite has no runtime state. Corrupt, partial, unsupported, or failed persistence remains fail-closed, and restart always forces automatic trading OFF.
 
-Windows CI run #79 validated the implementation with frozen install, real TypeScript typecheck, and all 49 tests passing.
+Windows CI run #83 validated the implementation with frozen install, real TypeScript typecheck, and all 51 tests passing. File-backed integration coverage verifies first migration, reopen/no-op behavior, schema tables, retained data, and unknown-version fail-closed startup.
 
 ## Current next task — SQLite persistence audit
 
