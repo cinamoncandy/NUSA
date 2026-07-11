@@ -56,7 +56,7 @@ The current slices do not include:
 - latency, partial-fill, queue-position, or nonlinear market-impact models;
 - forced closing of open positions at experiment end;
 - Sharpe, Sortino, profit factor, expectancy, or trade matching;
-- versioned dataset manifests and immutable experiment records;
+- versioned dataset manifests;\n- immutable experiment comparison queries and review workflows;
 - regime classification;
 - parameter search;
 - strategy ranking or Champion–Challenger promotion;
@@ -90,7 +90,7 @@ Risk-adjusted performance, parameter stability, multiple market regimes, missing
 3. Add Sharpe, Sortino, and Calmar with an explicit sampling-period convention.
 4. Add latency and wider execution-cost stress scenarios.
 5. Add train/test split and rolling walk-forward experiment orchestration.
-6. Add a Hypothesis Registry and immutable experiment records.
+6. Add review queries and comparison views over immutable Research Memory records.
 7. Add Champion–Challenger promotion rules.
 8. Only after sufficient measured evidence, add prediction agents and committee evaluation.
 
