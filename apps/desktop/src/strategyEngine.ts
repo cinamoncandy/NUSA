@@ -68,6 +68,7 @@ export class StrategyEngine {
   start(): void { this.running = true; }
   stop(): void { this.running = false; }
   isRunning(): boolean { return this.running; }
+  restoreRunning(running: boolean): void { this.running = running; }
   setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; strategy.reset(); }
   getLatestSignal(): StrategySignal | undefined { return this.latestSignal; }
   getHistory(): readonly number[] { return [...this.prices]; }
@@ -83,3 +84,4 @@ export class StrategyEngine {
     return signal;
   }
 }
+
