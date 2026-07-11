@@ -87,6 +87,9 @@ export class PaperBroker {
 
     const notional = quantity * price;
     const fee = notional * this.feeRate;
+    if (side === "SELL" && quantity > this.position.quantity) {
+      throw new Error("insufficient paper position");
+    }
     if (this.riskPolicy.maxOrderNotional != null && notional > this.riskPolicy.maxOrderNotional) {
       throw new Error("paper risk: max order notional exceeded");
     }
@@ -105,7 +108,6 @@ export class PaperBroker {
       this.position.quantity = nextQuantity;
       this.position.averagePrice = (previousCost + notional) / this.position.quantity;
     } else {
-      if (quantity > this.position.quantity) throw new Error("insufficient paper position");
       const pnl = (price - this.position.averagePrice) * quantity - fee;
       this.cash += notional - fee;
       this.position.quantity -= quantity;
@@ -149,3 +151,4 @@ export class PaperBroker {
     });
   }
 }
+
