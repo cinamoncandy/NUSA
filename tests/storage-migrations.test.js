@@ -59,15 +59,17 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
-    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting"]);
-    assert.equal(db.migrationResult.currentVersion, "001_position_accounting");
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory"]);
+    assert.equal(db.migrationResult.currentVersion, "002_research_memory");
     const names = db.connection.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?) ORDER BY name"
-    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers")
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?) ORDER BY name"
+    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records")
       .map((row) => row.name);
     assert.deepEqual(names, [
       "applied_ledger_markers",
       "position_ledger_entries",
+      "research_experiment_records",
+      "research_hypotheses",
       "schema_migrations",
       "strategy_position_snapshots",
       "wallet_position_snapshots"
@@ -80,7 +82,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const reopened = new SqliteDatabase(filename);
   try {
     assert.deepEqual(reopened.migrationResult.applied, []);
-    assert.equal(reopened.migrationResult.currentVersion, "001_position_accounting");
+    assert.equal(reopened.migrationResult.currentVersion, "002_research_memory");
     assert.equal(reopened.connection.prepare("SELECT id FROM position_ledger_entries WHERE id = ?").get("persisted").id, "persisted");
   } finally { reopened.close(); }
 });
