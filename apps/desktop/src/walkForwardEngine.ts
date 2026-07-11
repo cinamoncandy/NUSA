@@ -67,6 +67,11 @@ export interface SequentialCompoundedOutOfSampleMetrics {
 }
 
 export interface CombinedOutOfSampleMetrics {
+  readonly closedTradeNetProfit: number;
+  readonly closedTradeProfitFactor?: number;
+  readonly closedTradeExpectancy?: number;
+  readonly markedTotalReturn: number;
+  readonly markedMaximumDrawdown: number;
   readonly windowCount: number;
   readonly totalOosPoints: number;
   readonly totalOosClosedTrades: number;
@@ -210,8 +215,10 @@ function combinedMetrics(windows: readonly WalkForwardWindowResult[]): CombinedO
   const count = tests.length;
   const average = (values: readonly number[]): number => count === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / count;
   return freeze({
+    closedTradeNetProfit: performance.netProfit, closedTradeProfitFactor: performance.profitFactor, closedTradeExpectancy: performance.expectancy,
     windowCount: count, totalOosPoints: windows.reduce((sum, window) => sum + window.window.testPoints.length, 0), totalOosClosedTrades: performance.trades, netProfit: performance.netProfit,
-    totalReturn: sequentialAnalytics.recoveryFactor == null && initialEquity === 0 ? 0 : initialEquity === 0 ? 0 : sequentialEquity / initialEquity - 1,
+    markedTotalReturn: initialEquity === 0 ? 0 : sequentialEquity / initialEquity - 1, markedMaximumDrawdown: sequentialAnalytics.maximumDrawdown,
+    totalReturn: initialEquity === 0 ? 0 : sequentialEquity / initialEquity - 1,
     maximumDrawdown: sequentialAnalytics.maximumDrawdown, profitFactor: performance.profitFactor, expectancy: performance.expectancy, winRate: performance.winRate, averageWin: performance.averageWin, averageLoss: performance.averageLoss, payoffRatio: performance.payoffRatio, turnover: tests.reduce((sum, result) => sum + result.metrics.turnover, 0), exposure,
     fees: tests.reduce((sum, result) => sum + result.metrics.feesPaid, 0), spreadCost: tests.reduce((sum, result) => sum + result.metrics.spreadCost, 0), slippageCost: tests.reduce((sum, result) => sum + result.metrics.slippageCost, 0), totalTradingCost: tests.reduce((sum, result) => sum + result.metrics.totalTradingCost, 0),
     profitableWindowRatio: average(tests.map((result) => result.metrics.totalReturn > 0 ? 1 : 0)), positiveExpectancyWindowRatio: average(tests.map((result) => (result.performance.expectancy ?? 0) > 0 ? 1 : 0)), benchmarkOutperformanceWindowRatio: average(tests.map((result) => result.benchmark.outperformance > 0 ? 1 : 0)),
@@ -252,6 +259,7 @@ export function runWalkForward(points: readonly BacktestPoint[], candidates: rea
     return freeze({ window, selectedCandidateId: candidate.id, trainResult: selection.selected.result, testResult, candidateTrainScores: selection.all, selectionReason: `highest eligible train-only score: ${selection.selected.score}` });
   });
   const combinedOutOfSampleMetrics = combinedMetrics(windows); const stabilityDiagnostics = diagnostics(normalizedCandidates, windows);
-  return freeze({ windows: Object.freeze(windows), combinedOutOfSampleMetrics, candidateSelectionCounts: freeze(Object.fromEntries(normalizedCandidates.map((candidate) => [candidate.id, windows.filter((window) => window.selectedCandidateId === candidate.id).length]))), stabilityDiagnostics, warnings: Object.freeze([...plan.warnings, ...warnings(combinedOutOfSampleMetrics, stabilityDiagnostics)]) });
+  const openPositionWarnings = windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") ? ["OPEN_POSITION_MARKED_AT_WINDOW_END"] : [];
+  return freeze({ windows: Object.freeze(windows), combinedOutOfSampleMetrics, candidateSelectionCounts: freeze(Object.fromEntries(normalizedCandidates.map((candidate) => [candidate.id, windows.filter((window) => window.selectedCandidateId === candidate.id).length]))), stabilityDiagnostics, warnings: Object.freeze([...plan.warnings, ...warnings(combinedOutOfSampleMetrics, stabilityDiagnostics), ...openPositionWarnings]) });
 }
 
