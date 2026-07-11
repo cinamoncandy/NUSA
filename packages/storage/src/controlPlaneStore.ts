@@ -72,15 +72,15 @@ export class SqliteControlPlaneStore {
     if (row == null) return undefined;
     const ledgerHash = String(row.ledger_hash);
     assertHash(ledgerHash, "ledgerHash");
-    return Object.freeze({
-      runtime: Object.freeze({
-        mode: String(row.mode) as ControlRuntimeSnapshot["mode"],
-        killSwitchActive: Number(row.kill_switch_active) === 1,
-        healthy: Number(row.healthy) === 1,
-        lastAcceptedCommandAt: row.last_accepted_command_at == null ? undefined : Number(row.last_accepted_command_at)
-      }),
-      ledgerHash
-    });
+    const runtimeBase = {
+      mode: String(row.mode) as ControlRuntimeSnapshot["mode"],
+      killSwitchActive: Number(row.kill_switch_active) === 1,
+      healthy: Number(row.healthy) === 1
+    };
+    const runtime = row.last_accepted_command_at == null
+      ? Object.freeze(runtimeBase)
+      : Object.freeze({ ...runtimeBase, lastAcceptedCommandAt: Number(row.last_accepted_command_at) });
+    return Object.freeze({ runtime, ledgerHash });
   }
 
   public listAuditRecords(): readonly StoredControlAuditRecord[] {
