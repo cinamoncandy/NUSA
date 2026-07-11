@@ -23,7 +23,12 @@ The first implemented vertical slice is a deterministic Paper backtest engine th
 - maximum drawdown;
 - turnover;
 - fill and rejection counts;
-- final Paper account state.
+- final Paper account state;
+- FIFO-matched closed trades with entry/exit, PnL, fees, and holding duration;
+- explicit open-position status without automatic end-of-run liquidation;
+- profit factor, expectancy, win/loss statistics, payoff ratio, exposure, and holding-time metrics;
+- maximum and longest drawdown, recovery factor, ulcer index, and CSV equity export;
+- explicit strategy-versus-Buy-and-Hold outperformance.
 
 ## Execution-cost semantics
 
@@ -82,7 +87,7 @@ Risk-adjusted performance, parameter stability, multiple market regimes, missing
 
 1. Define a deterministic candle contract and missing-candle policy.
 2. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
-3. Add trade matching and research metrics: expectancy, profit factor, holding time, exposure, Sharpe, Sortino, and Calmar.
+3. Add Sharpe, Sortino, and Calmar with an explicit sampling-period convention.
 4. Add latency and wider execution-cost stress scenarios.
 5. Add train/test split and rolling walk-forward experiment orchestration.
 6. Add a Hypothesis Registry and immutable experiment records.
