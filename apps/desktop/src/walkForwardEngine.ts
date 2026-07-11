@@ -263,3 +263,20 @@ export function runWalkForward(points: readonly BacktestPoint[], candidates: rea
   return freeze({ windows: Object.freeze(windows), combinedOutOfSampleMetrics, candidateSelectionCounts: freeze(Object.fromEntries(normalizedCandidates.map((candidate) => [candidate.id, windows.filter((window) => window.selectedCandidateId === candidate.id).length]))), stabilityDiagnostics, warnings: Object.freeze([...plan.warnings, ...warnings(combinedOutOfSampleMetrics, stabilityDiagnostics), ...openPositionWarnings]) });
 }
 
+export function runWalkForwardFixedSelection(points: readonly BacktestPoint[], candidates: readonly WalkForwardCandidate[], config: WalkForwardConfig, selectedCandidateIds: readonly string[]): WalkForwardResult {
+  const normalizedCandidates = normalizeCandidates(candidates); const plan = createWalkForwardWindows(points, config);
+  if (selectedCandidateIds.length !== plan.windows.length) throw new Error("fixed selection count must match complete walk forward windows");
+  const windows = plan.windows.map((window) => {
+    const selectedCandidateId = selectedCandidateIds[window.index]!;
+    const candidate = normalizedCandidates.find((item) => item.id === selectedCandidateId);
+    if (!candidate) throw new Error(`fixed selection candidate does not exist: ${selectedCandidateId}`);
+    const trainResult = candidateResult(candidate, window.trainPoints, config.backtestConfig ?? {});
+    const testResult = candidateResult(candidate, window.testPoints, config.backtestConfig ?? {});
+    const score = scoreCandidateTrainResult(candidate.id, trainResult, config.selectionPolicy);
+    return freeze({ window, selectedCandidateId: candidate.id, trainResult, testResult, candidateTrainScores: Object.freeze([score]), selectionReason: "fixed baseline train selection" });
+  });
+  const combinedOutOfSampleMetrics = combinedMetrics(windows); const stabilityDiagnostics = diagnostics(normalizedCandidates, windows);
+  const openPositionWarnings = windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") ? ["OPEN_POSITION_MARKED_AT_WINDOW_END"] : [];
+  return freeze({ windows: Object.freeze(windows), combinedOutOfSampleMetrics, candidateSelectionCounts: freeze(Object.fromEntries(normalizedCandidates.map((candidate) => [candidate.id, windows.filter((window) => window.selectedCandidateId === candidate.id).length]))), stabilityDiagnostics, warnings: Object.freeze([...plan.warnings, ...warnings(combinedOutOfSampleMetrics, stabilityDiagnostics), ...openPositionWarnings]) });
+}
+
