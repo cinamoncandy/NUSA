@@ -20,7 +20,13 @@ Latest verified baseline:
 - `pnpm run typecheck`: PASS
 - `pnpm test`: PASS (39/39)
 
-## Current next task — SQLite persistence
+## SQLite persistence implementation update
+
+The main-process desktop runtime now persists Paper account state, orders, Control Plane state, events, and processed automatic signal keys in one versioned SQLite transaction. Strictly validated legacy JSON remains untouched and is imported only when SQLite has no runtime state. Corrupt, partial, unsupported, or failed persistence remains fail-closed, and restart always forces automatic trading OFF.
+
+Windows CI run #79 validated the implementation with frozen install, real TypeScript typecheck, and all 49 tests passing.
+
+## Current next task — SQLite persistence audit
 
 Implement `docs/rfc/0001-sqlite-persistence.md`.
 
