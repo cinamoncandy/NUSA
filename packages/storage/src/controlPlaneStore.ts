@@ -46,6 +46,8 @@ export class SqliteControlPlaneStore {
     `);
   }
 
+  public transaction<T>(fn: () => T): T { return this.db.transaction(fn); }
+
   public initialize(runtime: ControlRuntimeSnapshot): PersistedControlState {
     return this.db.transaction(() => {
       const existing = this.load();
