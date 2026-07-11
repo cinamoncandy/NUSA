@@ -1,9 +1,14 @@
-import { PaperBroker, type PaperOrder, type PaperRiskPolicy } from "./paperBroker";
+import { PaperBroker, type PaperOrder, type PaperRiskPolicy, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal, type TradingStrategy } from "./strategyEngine";
 
 export interface BacktestPoint {
   readonly timestamp: number;
   readonly close: number;
+}
+
+export interface BacktestExecutionCosts {
+  readonly spreadBps?: number;
+  readonly slippageBps?: number;
 }
 
 export interface BacktestConfig {
@@ -12,6 +17,7 @@ export interface BacktestConfig {
   readonly feeRate?: number;
   readonly orderQuantity?: number;
   readonly riskPolicy?: PaperRiskPolicy;
+  readonly executionCosts?: BacktestExecutionCosts;
 }
 
 export type BacktestDecisionOutcome = "HOLD" | "FILLED" | "REJECTED";
@@ -20,6 +26,7 @@ export interface BacktestDecision {
   readonly timestamp: number;
   readonly market: string;
   readonly price: number;
+  readonly executionPrice?: number;
   readonly signal: StrategySignal;
   readonly outcome: BacktestDecisionOutcome;
   readonly equityBefore: number;
@@ -38,6 +45,10 @@ export interface BacktestMetrics {
   readonly turnover: number;
   readonly fillCount: number;
   readonly rejectionCount: number;
+  readonly feesPaid: number;
+  readonly spreadCost: number;
+  readonly slippageCost: number;
+  readonly totalTradingCost: number;
 }
 
 export interface BacktestResult {
@@ -66,6 +77,27 @@ function validatePoints(points: readonly BacktestPoint[]): void {
   }
 }
 
+function validateExecutionCosts(costs: BacktestExecutionCosts): Required<BacktestExecutionCosts> {
+  const spreadBps = costs.spreadBps ?? 0;
+  const slippageBps = costs.slippageBps ?? 0;
+  for (const [name, value] of [["spreadBps", spreadBps], ["slippageBps", slippageBps]] as const) {
+    if (!Number.isFinite(value) || value < 0 || value >= 10_000) {
+      throw new Error(`backtest ${name} must be finite and between 0 and 10000`);
+    }
+  }
+  if (spreadBps / 2 + slippageBps >= 10_000) {
+    throw new Error("backtest execution costs would produce a non-positive sell price");
+  }
+  return Object.freeze({ spreadBps, slippageBps });
+}
+
+function executionPrice(side: PaperSide, marketPrice: number, costs: Required<BacktestExecutionCosts>): number {
+  const halfSpreadRate = costs.spreadBps / 20_000;
+  const slippageRate = costs.slippageBps / 10_000;
+  const adverseRate = halfSpreadRate + slippageRate;
+  return side === "BUY" ? marketPrice * (1 + adverseRate) : marketPrice * (1 - adverseRate);
+}
+
 function computeMaxDrawdown(equityCurve: readonly { equity: number }[]): number {
   let peak = equityCurve[0]?.equity ?? 0;
   let maxDrawdown = 0;
@@ -76,8 +108,15 @@ function computeMaxDrawdown(equityCurve: readonly { equity: number }[]): number 
   return maxDrawdown;
 }
 
-function computeBenchmarkReturn(initialCash: number, feeRate: number, firstPrice: number, finalPrice: number): number {
-  const quantity = initialCash / (firstPrice * (1 + feeRate));
+function computeBenchmarkReturn(
+  initialCash: number,
+  feeRate: number,
+  firstPrice: number,
+  finalPrice: number,
+  costs: Required<BacktestExecutionCosts>
+): number {
+  const entryPrice = executionPrice("BUY", firstPrice, costs);
+  const quantity = initialCash / (entryPrice * (1 + feeRate));
   const finalEquity = quantity * finalPrice;
   return finalEquity / initialCash - 1;
 }
@@ -92,6 +131,7 @@ export function runBacktest(
   const initialCash = config.initialCash ?? DEFAULT_INITIAL_CASH;
   const feeRate = config.feeRate ?? DEFAULT_FEE_RATE;
   const orderQuantity = config.orderQuantity ?? DEFAULT_ORDER_QUANTITY;
+  const costs = validateExecutionCosts(config.executionCosts ?? {});
   if (!market) throw new Error("backtest market is required");
   if (!Number.isFinite(initialCash) || initialCash <= 0) throw new Error("backtest initialCash must be positive");
   if (!Number.isFinite(feeRate) || feeRate < 0) throw new Error("backtest feeRate must be non-negative");
@@ -105,6 +145,9 @@ export function runBacktest(
   let tradedNotional = 0;
   let fillCount = 0;
   let rejectionCount = 0;
+  let feesPaid = 0;
+  let spreadCost = 0;
+  let slippageCost = 0;
 
   for (const point of points) {
     const beforeSnapshot = broker.snapshot(point.close);
@@ -115,6 +158,7 @@ export function runBacktest(
     let outcome: BacktestDecisionOutcome = "HOLD";
     let order: PaperOrder | undefined;
     let rejectionReason: string | undefined;
+    let filledPrice: number | undefined;
 
     if (signal.type !== "HOLD") {
       const quantity = signal.type === "SELL"
@@ -122,8 +166,12 @@ export function runBacktest(
         : orderQuantity;
       if (quantity > 0) {
         try {
-          order = broker.execute(signal.type, quantity, point.close, new Date(point.timestamp));
+          filledPrice = executionPrice(signal.type, point.close, costs);
+          order = broker.execute(signal.type, quantity, filledPrice, new Date(point.timestamp));
           tradedNotional += order.quantity * order.price;
+          feesPaid += order.fee;
+          spreadCost += point.close * order.quantity * costs.spreadBps / 20_000;
+          slippageCost += point.close * order.quantity * costs.slippageBps / 10_000;
           fillCount += 1;
           outcome = "FILLED";
         } catch (error) {
@@ -143,6 +191,7 @@ export function runBacktest(
       timestamp: point.timestamp,
       market,
       price: point.close,
+      executionPrice: filledPrice,
       signal: Object.freeze({ ...signal }),
       outcome,
       equityBefore: beforeSnapshot.equity,
@@ -155,7 +204,13 @@ export function runBacktest(
 
   const finalEquity = equityCurve[equityCurve.length - 1]?.equity ?? initialCash;
   const totalReturn = finalEquity / initialCash - 1;
-  const benchmarkReturn = computeBenchmarkReturn(initialCash, feeRate, points[0]!.close, points[points.length - 1]!.close);
+  const benchmarkReturn = computeBenchmarkReturn(
+    initialCash,
+    feeRate,
+    points[0]!.close,
+    points[points.length - 1]!.close,
+    costs
+  );
   const metrics: BacktestMetrics = Object.freeze({
     initialEquity: initialCash,
     finalEquity,
@@ -165,7 +220,11 @@ export function runBacktest(
     maxDrawdown: computeMaxDrawdown(equityCurve),
     turnover: tradedNotional / initialCash,
     fillCount,
-    rejectionCount
+    rejectionCount,
+    feesPaid,
+    spreadCost,
+    slippageCost,
+    totalTradingCost: feesPaid + spreadCost + slippageCost
   });
 
   return Object.freeze({
