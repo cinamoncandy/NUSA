@@ -1,10 +1,16 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ControlAuditEvent, ControlRuntimeSnapshot } from "../../contracts/src/controlPlane";
-import type { ControlAuditRecord } from "../../../apps/cloud/src/controlAuditLedger";
 
 export interface ControlPlaneDatabase {
   readonly connection: DatabaseSync;
   transaction<T>(fn: () => T): T;
+}
+
+export interface StoredControlAuditRecord {
+  readonly sequence: number;
+  readonly previousHash: string;
+  readonly event: ControlAuditEvent;
+  readonly hash: string;
 }
 
 export interface PersistedControlState {
@@ -77,7 +83,7 @@ export class SqliteControlPlaneStore {
     });
   }
 
-  public listAuditRecords(): readonly ControlAuditRecord[] {
+  public listAuditRecords(): readonly StoredControlAuditRecord[] {
     const rows = this.db.connection.prepare("SELECT * FROM control_audit_records ORDER BY sequence ASC").all() as Record<string, unknown>[];
     return Object.freeze(rows.map((row) => Object.freeze({
       sequence: Number(row.sequence),
@@ -87,7 +93,7 @@ export class SqliteControlPlaneStore {
     })));
   }
 
-  public appendAndSave(record: ControlAuditRecord, runtime: ControlRuntimeSnapshot): PersistedControlState {
+  public appendAndSave(record: StoredControlAuditRecord, runtime: ControlRuntimeSnapshot): PersistedControlState {
     return this.db.transaction(() => {
       assertHash(record.previousHash, "record.previousHash");
       assertHash(record.hash, "record.hash");
