@@ -26,6 +26,11 @@ export interface ControlPlaneState {
   processedSignalKeys: readonly string[];
 }
 
+export interface ControlPlaneRuntimeState {
+  readonly persisted: ControlPlaneState;
+  readonly autoTradeEnabled: boolean;
+}
+
 export class ControlPlane {
   private status: ControlStatus = "STOPPED";
   private autoTradeEnabled = false;
@@ -105,5 +110,19 @@ export class ControlPlane {
       processedSignalKeys: Object.freeze([...this.processedSignalKeys])
     });
   }
+
+  exportRuntimeState(): ControlPlaneRuntimeState {
+    return Object.freeze({ persisted: this.exportState(), autoTradeEnabled: this.autoTradeEnabled });
+  }
+
+  restoreRuntimeState(state: ControlPlaneRuntimeState): void {
+    if (state.persisted.version !== 1 || state.persisted.strategyId !== this.strategyId) throw new Error("invalid control plane state");
+    if (!Number.isFinite(state.persisted.orderQuantity) || state.persisted.orderQuantity <= 0) throw new Error("invalid control order quantity");
+    this.status = state.persisted.status;
+    this.orderQuantity = state.persisted.orderQuantity;
+    this.events.splice(0, this.events.length, ...state.persisted.events.slice(0, this.maxEvents));
+    this.processedSignalKeys.splice(0, this.processedSignalKeys.length, ...state.persisted.processedSignalKeys.slice(0, this.maxEvents));
+    this.autoTradeEnabled = state.autoTradeEnabled;
+  }
 }
-
+
