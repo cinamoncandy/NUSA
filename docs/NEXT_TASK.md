@@ -10,49 +10,91 @@ The stabilization work below is implemented on `agent/electron-upbit-paper-tradi
 - faulted recovery state cannot restart a strategy without operator repair;
 - duplicate automatic signals cannot create duplicate Paper orders;
 - risk rejection is recorded as an outcome without terminating the process;
-- manual and automatic Paper orders continue to use the same broker risk limits.
+- manual and automatic Paper orders continue to use the same broker risk limits;
+- Windows CI installs from a frozen lockfile and passes typecheck and all 39 tests.
 
-Validation after implementation:
+Latest verified baseline:
 
+- commit: `8bc72ab761b2f2e76a684852b48323e1e49dab78`
+- Windows CI run: `#55`
 - `pnpm run typecheck`: PASS
-- `pnpm test`: PASS (39 tests)
+- `pnpm test`: PASS (39/39)
 
-## Current next task
+## Current next task — SQLite persistence
 
-Replace JSON session persistence with a versioned SQLite event and account repository while preserving the recovery and default-off guarantees established here. Build the backtest engine against the same strategy, risk, and accounting contracts.
+Implement `docs/rfc/0001-sqlite-persistence.md`.
 
-## Stabilization objective (completed)
+### Objective
 
-## Objective
+Replace the current Paper and Control JSON session files with a versioned SQLite event/account repository while preserving every existing safety guarantee.
 
-Stabilize the current Upbit spot Paper Trading branch before adding broader features.
+### Required implementation
 
-## Required work
+1. Add a main-process-only persistence abstraction and SQLite implementation.
+2. Add schema versioning and transactional migrations.
+3. Persist:
+   - Paper account state,
+   - Paper orders,
+   - Control Plane state,
+   - Control events,
+   - processed automatic signal keys,
+   - persistence diagnostics.
+4. Make automatic signal-key claiming atomic and durable across restart.
+5. Persist each Paper fill and its resulting account state in one transaction.
+6. Keep automatic trading disabled after every restart.
+7. Fault the Control Plane and block all orders on corrupt, unsupported, ambiguous, or partially migrated state.
+8. Add a one-way JSON-to-SQLite migration path:
+   - validate existing JSON strictly,
+   - import both states in one transaction,
+   - do not import twice,
+   - retain legacy files after successful import by renaming them,
+   - never delete legacy files in this task.
+9. Keep the Electron renderer isolated from direct database access.
+10. Update technical-debt and operation notes with any SQLite/runtime limitations discovered.
 
-1. Run the full TypeScript build and Node test suite on a clean checkout.
-2. Fix any compile, path, packaging, or test failures.
-3. Make the Paper session persistence recover safely from malformed or partially written state.
-4. Persist Control Plane state and events without enabling auto-trading after restart.
-5. Add deterministic tests for:
-   - malformed session recovery,
-   - strategy start/stop state,
-   - automatic-trading default-off behavior,
-   - duplicate signal/order prevention,
-   - risk rejection without process failure.
-6. Replace the renderer's ad-hoc chart only if doing so does not delay stability work.
-7. Update the active PR with actual validation results.
+### Required tests
 
-## Acceptance criteria
+Add deterministic tests covering:
 
+- fresh database creation,
+- migration version tracking,
+- Paper/account/order round trip,
+- Control state/event round trip,
+- transaction rollback,
+- restart default-off behavior,
+- processed signal-key persistence,
+- duplicate signal rejection after restart,
+- valid JSON import,
+- corrupt JSON fail-closed behavior,
+- corrupt SQLite fail-closed behavior,
+- unsupported future schema,
+- interrupted migration without partial data,
+- existing risk and duplicate-order behavior.
+
+### Acceptance criteria
+
+- `pnpm install --frozen-lockfile` passes in Windows CI.
 - `pnpm run typecheck` passes.
-- `pnpm test` passes.
-- App restart restores Paper account state but leaves automated trading disabled.
-- Corrupt state fails closed and produces a visible diagnostic instead of silently resetting or trading.
-- One market event cannot produce duplicate automatic orders.
-- Existing risk limits remain enforced for manual and automatic Paper orders.
-- No live order path, API credential handling, or Binance futures code is added.
+- `pnpm test` passes with all existing and new tests.
+- Existing 39 tests remain green.
+- No live order path, credential handling, or Binance code is added.
+- No legacy JSON file is deleted.
+- Automatic trading remains OFF after restart.
+- One signal cannot create duplicate automatic orders across restarts.
+- Persistence failure produces a visible diagnostic and blocks further orders.
+- PR #1 remains Draft and is not merged without owner approval.
+
+## Implementation order
+
+1. Repository interfaces and migration runner.
+2. SQLite schema and repository tests.
+3. JSON import tests and implementation.
+4. Electron runtime integration.
+5. Full Windows CI verification.
+6. Documentation update and audit report.
 
 ## After this task
 
-Proceed to a versioned SQLite event and account repository, then build the backtest engine against the same strategy and accounting contracts.
-
+1. Build the backtest engine against the same strategy, risk, accounting, and repository contracts.
+2. Add Telegram Remote Center v1 for read-only status and alerts.
+3. Later separate the always-on core service from Electron so the engine can run on a VPS while Electron and Telegram act as clients.
