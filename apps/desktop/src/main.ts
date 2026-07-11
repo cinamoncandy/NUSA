@@ -3,8 +3,8 @@ import path from "node:path";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
-import { executeAutomaticPaperSignal } from "./paperAutomation";
 import { PaperBroker, type PaperSide } from "./paperBroker";
+import { RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
@@ -23,6 +23,7 @@ let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 const strategy = new StrategyEngine(new SmaCrossoverStrategy(5, 20));
 let control: ControlPlane;
+let runtime: RuntimeCommandService;
 
 function persistRuntime(): void {
   if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
@@ -40,15 +41,8 @@ function handleTicker(ticker: UpbitTicker): void {
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
   const position = broker.snapshot(ticker.trade_price).position.quantity;
   const signal = strategy.onTick({ market: MARKET, price: ticker.trade_price, timestamp: ticker.trade_timestamp }, position);
-  control.record("SIGNAL", `${signal.type}: ${signal.reason}`, signal);
-
-  const automatic = executeAutomaticPaperSignal(control, broker, MARKET, ticker.trade_price, position, signal, persistRuntime);
-  if (automatic.outcome === "FILLED" && automatic.order) {
-    control.record("ORDER", `automatic ${signal.type} filled`, automatic.order);
-  } else if (automatic.outcome === "REJECTED") {
-    control.record("RISK", automatic.error ?? "automatic paper order rejected");
-  }
-  try { persistRuntime(); } catch (error) { paperTradingAvailable = false; control.fault(`SQLite persistence failed: ${String(error)}`); }
+  runtime.automaticSignal(MARKET, ticker.trade_price, position, signal);
+  paperTradingAvailable = runtime.isAvailable();
   publishPaper();
   publishControl();
 }
@@ -89,12 +83,24 @@ function initializeRuntime(): void {
   }
   broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
+  runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
+    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    persistenceStore.save(paper, controlState);
+  } });
   paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
-  if (paperTradingAvailable) persistRuntime();
+  if (!paperTradingAvailable) runtime.markUnavailable();
+  if (paperTradingAvailable) {
+    try { persistRuntime(); }
+    catch {
+      paperTradingAvailable = false;
+      control.fault("Local Paper Trading storage failed. Trading was stopped to protect account consistency. Restart after repairing or restoring the local database.");
+      runtime.markUnavailable();
+    }
+  }
   stream = new UpbitWebSocketClient(MARKET, handleTicker, (status) => window?.webContents.send("market:status", status));
 }
 
@@ -102,19 +108,18 @@ ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: numbe
   if (!paperTradingAvailable) throw new Error("paper trading unavailable: session recovery requires operator repair");
   if (!latestTicker) throw new Error("market price is not available yet");
   if (input.side !== "BUY" && input.side !== "SELL") throw new Error("invalid paper order side");
-  const order = broker.execute(input.side, input.quantity, latestTicker.trade_price);
-  control.record("ORDER", `manual ${input.side} filled`, order);
-  persistRuntime();
+  const order = runtime.manualOrder(input.side, input.quantity, latestTicker.trade_price);
+  paperTradingAvailable = runtime.isAvailable();
   publishControl();
   return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
 ipcMain.handle("control:snapshot", () => control.snapshot());
-ipcMain.handle("control:start", () => { strategy.start(); control.start(); persistRuntime(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:stop", () => { strategy.stop(); control.stop(); persistRuntime(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:auto", (_event, enabled: boolean) => { control.setAutoTrade(Boolean(enabled)); persistRuntime(); publishControl(); return control.snapshot(); });
-ipcMain.handle("control:quantity", (_event, quantity: number) => { control.setOrderQuantity(quantity); persistRuntime(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:start", () => { runtime.start(); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:stop", () => { runtime.stop(); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:auto", (_event, enabled: boolean) => { runtime.setAutoTrade(Boolean(enabled)); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
+ipcMain.handle("control:quantity", (_event, quantity: number) => { runtime.setOrderQuantity(quantity); paperTradingAvailable = runtime.isAvailable(); publishControl(); return control.snapshot(); });
 
 app.whenReady().then(() => {
   initializeRuntime();
