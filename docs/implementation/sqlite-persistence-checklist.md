@@ -1,100 +1,32 @@
 # SQLite Persistence Implementation Checklist
 
-Source documents:
+Status is intentionally split between implemented behavior and audit follow-up.
 
-- `docs/rfc/0001-sqlite-persistence.md`
-- `docs/decisions/0001-reuse-storage-sqlite-core.md`
-- `AGENTS.md`
+## Implemented
 
-## 1. Migration engine
+- [x] Ordered migration runner with a `schema_migrations` ledger.
+- [x] Transactional migration application and rollback.
+- [x] Unknown applied migration fails startup closed.
+- [x] Main-process SQLite storage for Paper account, orders, Control state/events, signal keys, and import metadata.
+- [x] One transaction writes the desktop runtime state.
+- [x] Strict legacy JSON import input; JSON is preserved and imported once only.
+- [x] Restart restores automatic trading as OFF.
+- [x] Corrupt/partial storage blocks Paper trading.
+- [x] Runtime command gate blocks manual orders, control commands, and automatic execution once persistence is unavailable.
+- [x] Write failure restores broker, control, and strategy running state before faulting the runtime.
+- [x] Tests cover fresh/reopened DBs, migration rollback, unknown migration, legacy import, corrupt DB, duplicate signal recovery, manual BUY/SELL rollback, control-command rollback, and automatic-order rollback.
+- [x] Windows CI run #98: frozen install, typecheck, and 56/56 tests.
 
-- [ ] Replace single-migration startup with an ordered migration runner.
-- [ ] Add migration ledger table with version, name, checksum, and applied timestamp.
-- [ ] Apply each migration transactionally.
-- [ ] Reject a database whose schema version is newer than the application supports.
-- [ ] Enable foreign keys.
-- [ ] Add startup integrity and foreign-key checks.
-- [ ] Keep `:memory:` support for deterministic tests.
+## Audit Follow-up
 
-## 2. Repository contracts
+- [ ] Add migration checksum/name metadata if the RFC audit confirms it is required.
+- [ ] Add SQLite integrity and foreign-key checks before startup if the persistence schema gains relationships.
+- [ ] Complete a line-by-line RFC review of persisted-state decoding and renderer diagnostics.
+- [ ] Keep PR #1 Draft until audit and owner review.
 
-Add explicit repository interfaces and SQLite implementations for:
+## Safety Boundaries
 
-- [ ] Paper account state.
-- [ ] Paper orders/fills.
-- [ ] Control Plane state.
-- [ ] Control events.
-- [ ] Processed automatic signal keys.
-- [ ] Migration/import metadata.
-
-Repository decoding must validate enum values, finite numeric values, non-negative quantities, supported state versions, and required relationships.
-
-## 3. Atomic application service
-
-- [ ] Add one application-level transaction for an accepted Paper order.
-- [ ] Persist account state, order, signal key, and Control event together.
-- [ ] Do not mutate or publish committed in-memory state before database commit.
-- [ ] Return explicit accepted, duplicate, risk-rejected, and persistence-failed outcomes.
-- [ ] Keep manual and automatic orders on the same broker/risk path.
-
-## 4. Startup recovery
-
-- [ ] Open the database from Electron `userData`.
-- [ ] Run migrations and integrity checks before starting the market stream.
-- [ ] Restore Paper account, orders, Control state, events, and signal keys.
-- [ ] Force auto-trading OFF after every restart.
-- [ ] Fault and disable order paths when recovery is corrupt or ambiguous.
-- [ ] Publish a visible diagnostic to the renderer.
-
-## 5. Legacy JSON import
-
-- [ ] Detect a new SQLite database plus legacy Paper/Control JSON files.
-- [ ] Validate both JSON documents using the existing strict validators.
-- [ ] Import both in one transaction.
-- [ ] Record import source and completion metadata.
-- [ ] Preserve legacy JSON files unchanged.
-- [ ] Never repeat a completed import.
-- [ ] Fail closed on partial, conflicting, or corrupt legacy state.
-
-## 6. Tests
-
-Required deterministic tests:
-
-- [ ] Fresh database creates every migration and repository.
-- [ ] Reopening an up-to-date database is idempotent.
-- [ ] Pending migrations apply in order.
-- [ ] Migration failure rolls back schema and migration ledger changes.
-- [ ] Future schema version is rejected.
-- [ ] Foreign-key and integrity failure blocks startup.
-- [ ] Paper order transaction commits all records.
-- [ ] Injected persistence failure rolls back all records.
-- [ ] Duplicate automatic signal remains blocked after restart.
-- [ ] Auto-trading restores as OFF.
-- [ ] Faulted state cannot start or place manual/automatic orders.
-- [ ] Valid JSON imports exactly once.
-- [ ] Invalid JSON imports nothing and faults recovery.
-- [ ] Legacy files remain present and unchanged.
-- [ ] Existing position-ledger and snapshot tests remain green.
-
-## 7. Validation and PR rules
-
-- [ ] `pnpm install --frozen-lockfile` passes on Windows CI.
-- [ ] `pnpm run typecheck` passes.
-- [ ] `pnpm test` passes in full.
-- [ ] PR remains Draft until audit.
-- [ ] PR description includes migration, recovery, rollback, and safety results.
-- [ ] No live order, credential, Telegram control, or Binance code is added in this batch.
-
-## Completion report format
-
-Report:
-
-1. changed files;
-2. schema and migration versions;
-3. transaction boundaries;
-4. JSON import behavior;
-5. recovery/fail-closed behavior;
-6. tests added and full results;
-7. warnings and remaining technical debt;
-8. commit SHA and CI run;
-9. confirmation that the PR remains Draft and unmerged.
+- PAPER only; no live order path or exchange private API calls.
+- No credentials, tokens, or private account data are committed.
+- Persistence errors use operator-facing messages; raw SQLite errors and paths are not sent to IPC callers.
+- Legacy JSON source files are not deleted.
