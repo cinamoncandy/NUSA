@@ -1,5 +1,28 @@
 # Next Task
 
+## Completion update
+
+The stabilization work below is implemented on `agent/electron-upbit-paper-trading`:
+
+- malformed Paper and Control Plane sessions return visible diagnostics and fail closed;
+- Paper account state, Control Plane status, events, order quantity, and processed automatic signal keys persist atomically;
+- automated trading is always disabled after restart;
+- faulted recovery state cannot restart a strategy without operator repair;
+- duplicate automatic signals cannot create duplicate Paper orders;
+- risk rejection is recorded as an outcome without terminating the process;
+- manual and automatic Paper orders continue to use the same broker risk limits.
+
+Validation after implementation:
+
+- `pnpm run typecheck`: PASS
+- `pnpm test`: PASS (39 tests)
+
+## Current next task
+
+Replace JSON session persistence with a versioned SQLite event and account repository while preserving the recovery and default-off guarantees established here. Build the backtest engine against the same strategy, risk, and accounting contracts.
+
+## Stabilization objective (completed)
+
 ## Objective
 
 Stabilize the current Upbit spot Paper Trading branch before adding broader features.
@@ -32,3 +55,4 @@ Stabilize the current Upbit spot Paper Trading branch before adding broader feat
 ## After this task
 
 Proceed to a versioned SQLite event and account repository, then build the backtest engine against the same strategy and accounting contracts.
+
