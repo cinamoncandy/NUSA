@@ -136,7 +136,8 @@ export function candlesToBacktestPoints(candles: readonly ResearchCandle[]): rea
 
 export function runWalkForwardExperiment(dataset: ResearchDataset, candidates: readonly WalkForwardCandidate[], config: WalkForwardConfig, options: { readonly generatedAt?: string } = {}): ResearchExperimentResult {
   const validated = verifyHistoricalDatasetManifest(dataset.manifest, dataset.candles); const walkForwardResult = runWalkForward(candlesToBacktestPoints(validated.candles), candidates, config);
-  const openWarnings = walkForwardResult.windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") ? ["OPEN_POSITION_MARKED_AT_WINDOW_END"] : [];
-  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt: options.generatedAt ?? "1970-01-01T00:00:00.000Z", warnings: Object.freeze([...validated.warnings, ...walkForwardResult.warnings, ...openWarnings]) });
+  const warnings = [...validated.warnings, ...walkForwardResult.warnings];
+  if (walkForwardResult.windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") && !warnings.includes("OPEN_POSITION_MARKED_AT_WINDOW_END")) warnings.push("OPEN_POSITION_MARKED_AT_WINDOW_END");
+  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt: options.generatedAt ?? "1970-01-01T00:00:00.000Z", warnings: Object.freeze(warnings) });
 }
 
