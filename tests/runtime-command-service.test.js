@@ -28,6 +28,7 @@ test("manual BUY persistence failure restores broker and preserves durable state
   assert.equal(h.durable.length, 0); assert.equal(h.runtime.isAvailable(), false);
   assert.equal(h.control.snapshot().status, "FAULTED"); assert.equal(h.control.snapshot().autoTradeEnabled, false);
   assert.throws(() => h.runtime.manualOrder("BUY", 0.001, 1), new RegExp(PERSISTENCE_REPAIR_MESSAGE));
+  assert.doesNotMatch(PERSISTENCE_REPAIR_MESSAGE, /SQLite|injected|\\|\.db/i);
 });
 
 test("manual SELL persistence failure restores quantity and realized pnl", () => {
