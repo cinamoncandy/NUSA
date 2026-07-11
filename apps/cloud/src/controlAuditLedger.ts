@@ -85,7 +85,9 @@ export const appendControlAuditEvent = (
     event: normalized,
     hash: calculateRecordHash(sequence, previousHash, normalized)
   });
-  return Object.freeze([...records, record]);
+  const nextRecords = Object.freeze([...records, record]);
+  replayControlAuditLedger(nextRecords);
+  return nextRecords;
 };
 
 export const replayControlAuditLedger = (
