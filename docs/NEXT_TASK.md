@@ -1,41 +1,37 @@
 # Next Task
 
-## Current validated research baseline
+## Current Validated Research Baseline
 
-The deterministic Paper backtest vertical slice is implemented and passed Windows CI at head `34b0173716a19a1cb53ddec93cac4bb67d7f00dc` in run `#107`.
+The deterministic Backtest Engine now reports FIFO-matched closed trades, open-position status, performance metrics, equity analytics, and a cost-aware Buy & Hold comparison.
 
-It reuses the production `PaperBroker` and `StrategyEngine`, records replayable decisions, and reports marked equity, total return, passive benchmark return, excess return, maximum drawdown, turnover, fills, and rejections.
+Latest validated head: `13c483665809ec21d8ca9e9b54ef5d5559a14d0d`
 
-## Current in-progress slice
+- Windows CI run #123
+- `pnpm install --frozen-lockfile`: PASS
+- `pnpm run typecheck`: PASS
+- `pnpm test`: PASS (65/65)
 
-The active branch now adds deterministic spread and slippage assumptions to the backtest engine.
+Implemented research outputs:
 
-The cost model:
+- entry/exit time and price, quantity, fees, gross/net PnL, and holding duration per FIFO-matched trade;
+- explicit `OPEN_POSITION` status for unclosed inventory, without forced liquidation;
+- profit factor, expectancy, average win/loss, win/loss rate, payoff ratio, average holding time, exposure, and profit totals;
+- maximum and longest drawdown, recovery factor, ulcer index, and CSV equity curve export;
+- strategy return, cost-aware Buy & Hold return, and outperformance;
+- deterministic modeled spread, slippage, and fee accounting.
 
-- applies half-spread plus slippage adversely to every BUY and SELL;
-- leaves PaperBroker fees and risk checks unchanged;
-- records modeled execution price separately from observed market close;
-- reports fees, spread cost, slippage cost, and total trading cost separately;
-- rejects invalid or impossible cost assumptions;
-- applies entry costs to the marked passive benchmark.
+## Immediate Research Work
 
-The latest head for this slice is not considered validated until Windows CI completes successfully.
+1. Define a deterministic candle contract and missing-candle policy.
+2. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
+3. Add train/test split and rolling walk-forward orchestration.
+4. Add Sharpe, Sortino, and Calmar only with an explicit sampling-period convention.
+5. Add immutable experiment records and a Hypothesis Registry.
+6. Keep PR #1 Draft and do not merge without owner approval.
 
-## Immediate implementation order
+## Research Safety Rules
 
-1. Obtain frozen-install, typecheck, and complete Windows test validation for the cost-aware head.
-2. Resolve the outstanding duplicate-signal and SQLite safety audit findings before Ready.
-3. Define a deterministic candle contract and missing-candle policy.
-4. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
-5. Add trade matching and research metrics: expectancy, profit factor, holding time, exposure, Sharpe, Sortino, and Calmar.
-6. Add train/test split and rolling walk-forward orchestration.
-7. Add immutable experiment records and a Hypothesis Registry.
-8. Add Champion–Challenger rules only after out-of-sample evidence exists.
-
-## Research safety rules
-
-- Do not describe a strategy as profitable from one in-sample run.
-- Report every fee, spread, slippage, benchmark, and data assumption.
-- Require cost-stress stability and out-of-sample evidence before Paper promotion.
-- Keep AI committees, automatic strategy generation, and live trading out of scope until deterministic research controls are mature.
-- Keep PR #1 Draft and do not merge without owner approval.
+- Do not call a strategy profitable or promotable from in-sample backtests alone.
+- Report fees, spread, slippage, benchmark construction, and open-position status for every experiment.
+- Require out-of-sample and walk-forward evidence before Paper promotion.
+- Keep AI committees, automatic strategy generation, and all live trading out of scope.
