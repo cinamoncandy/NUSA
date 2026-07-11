@@ -37,11 +37,33 @@ test("backtest reuses Paper accounting and records replayable decisions", () => 
   assert.equal(first.metrics.fillCount, 2);
   assert.equal(first.metrics.rejectionCount, 0);
   assert.equal(first.metrics.turnover, 0.21);
+  assert.equal(first.metrics.spreadCost, 0);
+  assert.equal(first.metrics.slippageCost, 0);
+  assert.equal(first.metrics.totalTradingCost, first.metrics.feesPaid);
   assert.ok(Math.abs(first.metrics.finalEquity - 1007.9) < 1e-9);
   assert.ok(Math.abs(first.metrics.totalReturn - 0.0079) < 1e-12);
   assert.ok(first.metrics.maxDrawdown > 0);
   assert.ok(first.metrics.benchmarkReturn > first.metrics.totalReturn);
   assert.equal(first.metrics.excessReturn, first.metrics.totalReturn - first.metrics.benchmarkReturn);
+});
+
+test("spread and slippage worsen fills and are reported separately from fees", () => {
+  const result = runBacktest(points, () => new BuyHoldSellStrategy(), {
+    initialCash: 1_000,
+    feeRate: 0.01,
+    orderQuantity: 1,
+    executionCosts: { spreadBps: 20, slippageBps: 30 }
+  });
+
+  assert.ok(Math.abs(result.decisions[0].executionPrice - 100.4) < 1e-12);
+  assert.ok(Math.abs(result.decisions[2].executionPrice - 109.56) < 1e-12);
+  assert.ok(Math.abs(result.metrics.finalEquity - 1007.0604) < 1e-9);
+  assert.ok(Math.abs(result.metrics.turnover - 0.20996) < 1e-12);
+  assert.ok(Math.abs(result.metrics.feesPaid - 2.0996) < 1e-12);
+  assert.ok(Math.abs(result.metrics.spreadCost - 0.21) < 1e-12);
+  assert.ok(Math.abs(result.metrics.slippageCost - 0.63) < 1e-12);
+  assert.ok(Math.abs(result.metrics.totalTradingCost - 2.9396) < 1e-12);
+  assert.ok(result.metrics.totalReturn < 0.0079);
 });
 
 test("backtest risk rejection is logged without mutating Paper account", () => {
@@ -58,7 +80,7 @@ test("backtest risk rejection is logged without mutating Paper account", () => {
   assert.match(result.decisions[0].rejectionReason, /max order notional exceeded/);
 });
 
-test("backtest fails closed for empty, invalid, or time-reversed market data", () => {
+test("backtest fails closed for empty, invalid, time-reversed, or impossible cost inputs", () => {
   assert.throws(() => runBacktest([], () => new AlwaysBuyStrategy()), /at least one point/);
   assert.throws(
     () => runBacktest([{ timestamp: 1, close: 100 }, { timestamp: 1, close: 101 }], () => new AlwaysBuyStrategy()),
@@ -67,5 +89,13 @@ test("backtest fails closed for empty, invalid, or time-reversed market data", (
   assert.throws(
     () => runBacktest([{ timestamp: 1, close: 0 }], () => new AlwaysBuyStrategy()),
     /close must be positive/
+  );
+  assert.throws(
+    () => runBacktest([{ timestamp: 1, close: 100 }], () => new AlwaysBuyStrategy(), { executionCosts: { spreadBps: -1 } }),
+    /spreadBps/
+  );
+  assert.throws(
+    () => runBacktest([{ timestamp: 1, close: 100 }], () => new AlwaysBuyStrategy(), { executionCosts: { spreadBps: 9_000, slippageBps: 6_000 } }),
+    /non-positive sell price/
   );
 });
