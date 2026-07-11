@@ -1,5 +1,6 @@
 import { PaperBroker, type PaperOrder, type PaperRiskPolicy, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal, type TradingStrategy } from "./strategyEngine";
+import { analyzeEquityCurve, calculateExposure, calculatePerformanceMetrics, matchTrades, type EquityAnalytics, type MatchedTrade, type OpenPositionAnalysis, type PerformanceMetrics } from "./backtestAnalytics";
 
 export interface BacktestPoint {
   readonly timestamp: number;
@@ -41,6 +42,7 @@ export interface BacktestMetrics {
   readonly totalReturn: number;
   readonly benchmarkReturn: number;
   readonly excessReturn: number;
+  readonly outperformance: number;
   readonly maxDrawdown: number;
   readonly turnover: number;
   readonly fillCount: number;
@@ -51,10 +53,21 @@ export interface BacktestMetrics {
   readonly totalTradingCost: number;
 }
 
+export interface BacktestBenchmark {
+  readonly strategyReturn: number;
+  readonly buyAndHoldReturn: number;
+  readonly outperformance: number;
+}
+
 export interface BacktestResult {
   readonly metrics: BacktestMetrics;
   readonly decisions: readonly BacktestDecision[];
   readonly equityCurve: readonly { timestamp: number; equity: number }[];
+  readonly trades: readonly MatchedTrade[];
+  readonly performance: PerformanceMetrics;
+  readonly equityAnalytics: EquityAnalytics;
+  readonly benchmark: BacktestBenchmark;
+  readonly openPosition: OpenPositionAnalysis;
   readonly finalPaperState: ReturnType<PaperBroker["exportState"]>;
 }
 
@@ -211,12 +224,18 @@ export function runBacktest(
     points[points.length - 1]!.close,
     costs
   );
+  const matched = matchTrades(decisions.flatMap((decision) => decision.order == null ? [] : [decision.order]));
+  const exposure = calculateExposure(decisions.flatMap((decision) => decision.order == null ? [] : [decision.order]), points[0]!.timestamp, points[points.length - 1]!.timestamp);
+  const performance = calculatePerformanceMetrics(matched.trades, exposure);
+  const equityAnalytics = analyzeEquityCurve(equityCurve, performance.netProfit);
+  const benchmark = Object.freeze({ strategyReturn: totalReturn, buyAndHoldReturn: benchmarkReturn, outperformance: totalReturn - benchmarkReturn });
   const metrics: BacktestMetrics = Object.freeze({
     initialEquity: initialCash,
     finalEquity,
     totalReturn,
     benchmarkReturn,
-    excessReturn: totalReturn - benchmarkReturn,
+    excessReturn: benchmark.outperformance,
+    outperformance: benchmark.outperformance,
     maxDrawdown: computeMaxDrawdown(equityCurve),
     turnover: tradedNotional / initialCash,
     fillCount,
@@ -231,6 +250,11 @@ export function runBacktest(
     metrics,
     decisions: Object.freeze(decisions),
     equityCurve: Object.freeze(equityCurve),
+    trades: matched.trades,
+    performance,
+    equityAnalytics,
+    benchmark,
+    openPosition: matched.openPosition,
     finalPaperState: broker.exportState()
   });
 }
