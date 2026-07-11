@@ -20,5 +20,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
-      - run: pnpm test
-
+      - name: Build
+        run: pnpm run build
+      - name: Control-plane regression tests
+        run: node --test --test-reporter=spec tests/control-audit-ledger.test.js tests/control-command-processor.test.js tests/transactional-control-command-service.test.js
+      - name: Full test suite
+        run: node --test --test-reporter=spec tests/*.test.js
