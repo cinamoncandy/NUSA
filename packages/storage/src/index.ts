@@ -4,6 +4,10 @@ import {
   type StrategyPositionSnapshot, type WalletPositionSnapshot, compareLedgerOrder,
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
+import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
+
+export { runMigrations } from "./migrationRunner";
+export type { MigrationResult, SqliteMigration } from "./migrationRunner";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -76,10 +80,16 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
 
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
+  public readonly migrationResult: MigrationResult;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
-    this.connection.exec(migrations[0].sql);
+    try {
+      this.migrationResult = runMigrations(this.connection, migrations);
+    } catch (error) {
+      this.connection.close();
+      throw error;
+    }
   }
   public transaction<T>(fn: () => T): T {
     if (this.inTransaction) return fn();
@@ -197,7 +207,7 @@ export class StrategyPositionSnapshotService {
   }
 }
 
-export const migrations = [{ id: "001_position_accounting", sql: `
+export const migrations: readonly SqliteMigration[] = [{ id: "001_position_accounting", sql: `
 CREATE TABLE IF NOT EXISTS position_ledger_entries (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, strategy_id TEXT, symbol TEXT NOT NULL, side TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_qty_raw TEXT, ts TEXT NOT NULL, created_at TEXT NOT NULL, source_trade_id TEXT);
 CREATE INDEX IF NOT EXISTS idx_position_ledger_order ON position_ledger_entries (wallet_id, symbol, ts, created_at, id);
 CREATE TABLE IF NOT EXISTS wallet_position_snapshots (wallet_id TEXT NOT NULL, symbol TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_cost_raw TEXT NOT NULL, avg_entry_price_raw TEXT, realized_pnl_raw TEXT NOT NULL, status TEXT NOT NULL, last_ledger_entry_id TEXT, last_ledger_order_key TEXT, version INTEGER NOT NULL, PRIMARY KEY (wallet_id, symbol));
