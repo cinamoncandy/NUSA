@@ -28,7 +28,7 @@ The first implemented vertical slice is a deterministic Paper backtest engine th
 - explicit open-position status without automatic end-of-run liquidation;
 - profit factor, expectancy, win/loss statistics, payoff ratio, exposure, and holding-time metrics;
 - maximum and longest drawdown, recovery factor, ulcer index, and CSV equity export;
-- explicit strategy-versus-Buy-and-Hold outperformance.
+- explicit strategy-versus-Buy-and-Hold outperformance;\n- deterministic rolling Walk Forward candidate selection and non-overlapping out-of-sample aggregation.
 
 ## Execution-cost semantics
 
@@ -56,7 +56,7 @@ The current slices do not include:
 - latency, partial-fill, queue-position, or nonlinear market-impact models;
 - forced closing of open positions at experiment end;
 - Sharpe, Sortino, profit factor, expectancy, or trade matching;
-- train/test splitting or walk-forward analysis;
+- versioned dataset manifests and immutable experiment records;
 - regime classification;
 - parameter search;
 - strategy ranking or Champion–Challenger promotion;
