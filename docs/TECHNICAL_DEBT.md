@@ -14,7 +14,7 @@ Action: review the dependency tree during a dedicated packaging maintenance task
 
 ## Electron install policy
 
-`electron-builder@26.0.12` reaches `@electron/node-gyp` through a Git-hosted transitive dependency. The repository explicitly sets `blockExoticSubdeps: false` so pnpm can consume the reviewed lockfile, while `onlyBuiltDependencies` restricts lifecycle scripts to `electron` and `electron-winstaller`.
+`electron-builder@26.0.12` reaches `@electron/node-gyp` through a Git-hosted transitive dependency. The repository explicitly sets `blockExoticSubdeps: false` so pnpm can consume the reviewed lockfile. pnpm 11.7 does not use the legacy `onlyBuiltDependencies` value for its current lifecycle policy; the verified `allowBuilds` map restricts lifecycle scripts to `electron` and `electron-winstaller` on local and GitHub Actions installs.
 
 Action: retain `--frozen-lockfile` in CI, review any future lockfile change, and fail CI if package resolution drifts.
 
