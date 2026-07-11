@@ -22,15 +22,13 @@ Implemented research outputs:
 
 ## Walk Forward Engine Update
 
-A deterministic rolling Walk Forward Engine is implemented. It evaluates every candidate on each training window, chooses the highest training total return with lexicographic candidate-ID tie breaking, then runs a fresh strategy instance only on the following non-overlapping test window.
+The deterministic Walk-Forward Engine now provides rolling and anchored train/test plans, train-only candidate scoring, independent OOS result records, equal-weight and sequential-compounded OOS aggregation, and candidate stability diagnostics.
 
-- window boundaries are index-based and deterministic;
-- test overlap is rejected rather than double-counted;
-- out-of-sample strategy and Buy & Hold returns are geometrically aggregated;
-- candidates, incomplete data, and invalid window settings fail closed;
-- the engine has no persistence, exchange, live-order, or AI dependencies.
+It rejects timestamp regression, overlapping OOS windows, duplicate candidates, invalid factories, incomplete plans, and windows without an eligible train-only candidate. Final incomplete test windows are excluded with a warning. OOS positions remain marked-to-market and are never forced closed or carried to the next window.
 
-Windows CI run #129 validated the implementation at `5fe0d962230dba81fca3fa3913048a994051c73b`: frozen install, typecheck, and 67/67 tests passed.
+Latest code validation: Windows CI run #139 at `80679e1a1b5e89e1ad814cae7248dcc2e4561507`, frozen install/typecheck PASS, 85/85 tests PASS.
+
+See `docs/implementation/walk-forward-research.md` for the research contract and interpretation limits.
 
 ## Immediate Research Work
 
