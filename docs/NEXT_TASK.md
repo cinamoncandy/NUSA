@@ -38,11 +38,18 @@ Repeated identical inserts are idempotent; reused IDs with changed content, miss
 
 Windows CI run #160 validated frozen install, typecheck, and 112/112 tests. See `docs/implementation/research-memory-v1.md`.
 
+## Execution-Cost Stress Grid Update
+
+The deterministic Execution-Cost Stress Grid now reruns Walk-Forward OOS research under canonical fee/spread/slippage scenarios. It supports scenario-specific train reselection and fixed baseline selections, preserves unfavorable scenarios, estimates grid-dependent break-even crossings, reports cost fragility warnings, and creates a deterministic Research Memory identity.
+
+Windows CI run #174 validated frozen install, typecheck, and the complete suite. See `docs/implementation/execution-cost-stress.md`.
+
 ## Immediate Research Work
 
 1. Define a deterministic candle contract and missing-candle policy.
 2. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
 3. Add immutable experiment comparison queries and review workflows without changing stored evidence.
+4. Add declared latency, partial-fill, and market-impact research assumptions before interpreting stress results as execution evidence.
 4. Add Sharpe, Sortino, and Calmar only with an explicit sampling-period convention.
 6. Keep PR #1 Draft and do not merge without owner approval.
 
