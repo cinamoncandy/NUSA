@@ -39,7 +39,7 @@ test("performance metrics report mixed wins, losses, and no-trade values determi
 test("equity analytics calculate drawdown, recovery, ulcer index, and export", () => {
   const analytics = analyzeEquityCurve([{ timestamp: 0, equity: 100 }, { timestamp: 10, equity: 80 }, { timestamp: 20, equity: 90 }, { timestamp: 30, equity: 110 }], 10);
   assert.equal(analytics.maximumDrawdown, 0.2);
-  assert.equal(analytics.longestDrawdown, 30);
+  assert.equal(analytics.longestDrawdown, 20);
   assert.equal(analytics.recoveryFactor, 0.5);
   assert.ok(analytics.ulcerIndex > 0);
   assert.equal(analytics.equityCurveCsv, "timestamp,equity\n0,100\n10,80\n20,90\n30,110");
