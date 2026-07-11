@@ -8,6 +8,8 @@ import { runMigrations, type MigrationResult, type SqliteMigration } from "./mig
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
+export { SqliteResearchMemoryRepository } from "./researchMemory";
+export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -213,4 +215,8 @@ CREATE INDEX IF NOT EXISTS idx_position_ledger_order ON position_ledger_entries 
 CREATE TABLE IF NOT EXISTS wallet_position_snapshots (wallet_id TEXT NOT NULL, symbol TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_cost_raw TEXT NOT NULL, avg_entry_price_raw TEXT, realized_pnl_raw TEXT NOT NULL, status TEXT NOT NULL, last_ledger_entry_id TEXT, last_ledger_order_key TEXT, version INTEGER NOT NULL, PRIMARY KEY (wallet_id, symbol));
 CREATE TABLE IF NOT EXISTS strategy_position_snapshots (wallet_id TEXT NOT NULL, strategy_id TEXT NOT NULL, symbol TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_cost_raw TEXT NOT NULL, avg_entry_price_raw TEXT, realized_pnl_raw TEXT NOT NULL, status TEXT NOT NULL, last_ledger_entry_id TEXT, last_ledger_order_key TEXT, version INTEGER NOT NULL, PRIMARY KEY (wallet_id, strategy_id, symbol));
 CREATE TABLE IF NOT EXISTS applied_ledger_markers (scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, ledger_entry_id TEXT NOT NULL, ledger_order_key TEXT NOT NULL, PRIMARY KEY (scope_type, scope_id, ledger_entry_id));
+` }, { id: "002_research_memory", sql: `
+CREATE TABLE IF NOT EXISTS research_hypotheses (id TEXT PRIMARY KEY, title TEXT NOT NULL, statement TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_experiment_records (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, content_sha256 TEXT NOT NULL, manifest_schema_version INTEGER NOT NULL, market TEXT NOT NULL, interval TEXT NOT NULL, start_open_time INTEGER NOT NULL, end_close_time INTEGER NOT NULL, walk_forward_config_json TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL, hypothesis_id TEXT);
+CREATE INDEX IF NOT EXISTS idx_research_experiment_dataset ON research_experiment_records (dataset_id, created_at, id);
 ` }];
