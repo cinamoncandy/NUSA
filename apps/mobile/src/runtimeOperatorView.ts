@@ -4,7 +4,7 @@ export interface MobileRuntimeOperatorCard {
   readonly status: RuntimeOperatorViewModel["status"];
   readonly score: number;
   readonly headline: string;
-  readonly latestItems: readonly RuntimeOperatorViewModel["timeline"][number][];
+  readonly latestItems: readonly (RuntimeOperatorViewModel["timeline"][number])[];
   readonly readOnly: true;
 }
 
