@@ -57,6 +57,19 @@ const releaseReadiness = (paperPassed = true, overrides = {}) => {
     ...overrides
   };
 };
+const scenarioEvidenceBundle = () => ({
+  schemaVersion: 1,
+  generatedAt,
+  contentSha256: "a".repeat(64),
+  validation: {
+    profile: "SCENARIO_BASED",
+    generatedAt,
+    status: "PASS",
+    reasons: [],
+    minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
+  }
+});
+
 const input = (overrides = {}) => ({
   now: generatedAt,
   dashboard: dashboard(),
@@ -124,13 +137,7 @@ test("scenario profile replaces calendar duration without weakening other gates"
     validationProfile: "SCENARIO_BASED",
     paperEvidence: paperEvidence({ status: "FAIL", calendarDays: 0, observedDays: 0 }),
     releaseReadiness: releaseReadiness(false, { paperValidationProfile: "SCENARIO_BASED" }),
-    scenarioEvidence: {
-      profile: "SCENARIO_BASED",
-      generatedAt,
-      status: "PASS",
-      reasons: [],
-      minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
-    }
+    scenarioEvidenceBundle: scenarioEvidenceBundle()
   }));
   assert.equal(result.status, "READY_FOR_OWNER_REVIEW");
   assert.equal(result.validationProfile, "SCENARIO_BASED");
@@ -152,14 +159,16 @@ test("release and completion validation profiles must match", () => {
   const result = evaluateOperationalCompletion(input({
     validationProfile: "SCENARIO_BASED",
     releaseReadiness: releaseReadiness(false),
-    scenarioEvidence: {
-      profile: "SCENARIO_BASED",
-      generatedAt,
-      status: "PASS",
-      reasons: [],
-      minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
-    }
+    scenarioEvidenceBundle: scenarioEvidenceBundle()
   }));
   assert.equal(result.status, "BLOCKED");
   assert.ok(result.blockers.includes("RELEASE_VALIDATION_PROFILE_MISMATCH"));
+});
+
+test("scenario completion rejects malformed evidence identity", () => {
+  assert.throws(() => evaluateOperationalCompletion(input({
+    validationProfile: "SCENARIO_BASED",
+    releaseReadiness: releaseReadiness(false, { paperValidationProfile: "SCENARIO_BASED" }),
+    scenarioEvidenceBundle: { ...scenarioEvidenceBundle(), contentSha256: "bad" }
+  })), /SHA-256/);
 });
