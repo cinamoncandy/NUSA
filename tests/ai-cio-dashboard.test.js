@@ -55,6 +55,32 @@ test("committee rejection disables trading", () => {
 });
 
 test("invalid capital and future data fail closed", () => {
-  assert.throws(() => buildAiCioDashboard(input({ portfolio: section({ totalEquity: 10_000, deployableCapital: 9_000, reservedCapital: 2_000, grossExposureRatio: 0.4, netExposureRatio: 0.2 }) }), 1_500), /exceed total equity/);
+  assert.throws(() => buildAiCioDashboard(input({ portfolio: section({ totalEquity: 10_000, deployableCapital: 9_000, reservedCapital: 2_000, grossExposureRatio: 0.4, netExposureRatio: 0.2 }) }), 1_500), /must equal total equity/);
   assert.throws(() => buildAiCioDashboard(input({ risk: section({ generatedAt: 2_000, killSwitchActive: false, dailyDrawdownRatio: 0.01, liquidationBufferRatio: 0.8, portfolioHeatRatio: 0.4 }) }), 1_500), /future/);
+});
+
+
+test("all unavailable sections produce NO_DATA without invented health", () => {
+  const unavailable = (value) => section({ ...value, availability: "UNAVAILABLE" });
+  const result = buildAiCioDashboard(input({
+    portfolio: unavailable({ totalEquity: 100_000, deployableCapital: 70_000, reservedCapital: 30_000, grossExposureRatio: 0.4, netExposureRatio: 0.2 }),
+    opportunities: unavailable({ activeCount: 0, totalAllocatedCapital: 0, reservedCash: 0 }),
+    strategies: unavailable({ totalTrades: 0, totalNetPnl: 0, portfolioCaptureRatio: 0, blockedStrategies: 0, warningStrategies: 0 }),
+    committee: unavailable({ decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "LOW" }),
+    execution: unavailable({ fillQuality: 0, slippageBps: 0, latencyMs: 0 }),
+    research: unavailable({ walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
+    risk: unavailable({ killSwitchActive: false, dailyDrawdownRatio: 0, liquidationBufferRatio: 0, portfolioHeatRatio: 0 })
+  }), 1_500);
+  assert.equal(result.status, "NO_DATA");
+  assert.equal(result.tradingPermitted, false);
+});
+
+test("one unavailable required section blocks and stale availability cautions", () => {
+  assert.equal(buildAiCioDashboard(input({ execution: section({ availability: "UNAVAILABLE", fillQuality: 0, slippageBps: 0, latencyMs: 0 }) }), 1_500).status, "BLOCKED");
+  assert.equal(buildAiCioDashboard(input({ execution: section({ availability: "STALE", fillQuality: 0.9, slippageBps: 2, latencyMs: 50 }) }), 1_500).status, "CAUTION");
+});
+
+test("dashboard rejects section time after aggregation time and both capital mismatch directions", () => {
+  assert.throws(() => buildAiCioDashboard(input({ risk: section({ generatedAt: 1_200, killSwitchActive: false, dailyDrawdownRatio: 0, liquidationBufferRatio: 1, portfolioHeatRatio: 0 }) }), 1_500), /future/);
+  assert.throws(() => buildAiCioDashboard(input({ portfolio: section({ totalEquity: 100_000, deployableCapital: 60_000, reservedCapital: 30_000, grossExposureRatio: 0, netExposureRatio: 0 }) }), 1_500), /must equal/);
 });
