@@ -38,6 +38,16 @@ test("ranks opportunities deterministically and preserves cash", () => {
   assert.ok(Object.isFrozen(result.opportunities));
 });
 
+test("unrelated opportunities are not constrained by the correlation cap", () => {
+  const result = buildOpportunitySchedule(input({
+    maximumCorrelatedAllocation: 0.1,
+    candidates: [candidate("BTC", { maximumAllocation: 0.5 }), candidate("ETH", { maximumAllocation: 0.5, netEdge: 0.08 })],
+    conflicts: []
+  }));
+  assert.equal(result.totalAllocation, 600);
+  assert.deepEqual(result.opportunities.map((item) => item.allocation), [300, 300]);
+});
+
 test("kill switch rejects every opportunity fail closed", () => {
   const result = buildOpportunitySchedule(input({ killSwitchActive: true }));
   assert.equal(result.totalAllocation, 0);
@@ -58,8 +68,8 @@ test("same-direction correlated opportunities share a hard budget", () => {
     maximumCorrelatedAllocation: 0.3,
     conflicts: [{ leftId: "BTC", rightId: "ETH", correlation: 0.95 }]
   }));
-  assert.equal(result.opportunities[0].allocation, 180);
-  assert.ok(result.opportunities.reduce((sum, item) => sum + item.allocation, 0) <= 600);
+  assert.equal(result.opportunities[0].allocation, 300);
+  assert.equal(result.opportunities[1].allocation, 0);
 });
 
 test("opposite directions do not consume same-direction correlation budget", () => {
@@ -69,9 +79,14 @@ test("opposite directions do not consume same-direction correlation budget", () 
     conflicts: [{ leftId: "BTC", rightId: "ETH", correlation: 0.95 }]
   }));
   assert.equal(result.opportunities.length, 2);
+  assert.equal(result.totalAllocation, 600);
 });
 
-test("duplicate ids and invalid conflicts fail closed", () => {
+test("duplicate ids, duplicate conflicts, and invalid conflicts fail closed", () => {
   assert.throws(() => buildOpportunitySchedule(input({ candidates: [candidate("BTC"), candidate("BTC")] })), /duplicate/);
   assert.throws(() => buildOpportunitySchedule(input({ conflicts: [{ leftId: "BTC", rightId: "MISSING", correlation: 0.9 }] })), /invalid opportunity conflict/);
+  assert.throws(() => buildOpportunitySchedule(input({ conflicts: [
+    { leftId: "BTC", rightId: "ETH", correlation: 0.9 },
+    { leftId: "ETH", rightId: "BTC", correlation: 0.9 }
+  ] })), /duplicate opportunity conflict/);
 });
