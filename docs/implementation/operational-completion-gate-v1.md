@@ -39,3 +39,18 @@ Calendar duration is accepted only from `PaperValidationEvidence`. Tests may exe
 ## Safety boundary
 
 This module is read-only deterministic policy. It cannot start trading, promote a strategy, release a Kill Switch, mutate persistence, merge a PR, or enable LIVE execution.
+
+
+## Validation profiles
+
+The default `CALENDAR_30_DAY` profile preserves the original duration policy. An owner may explicitly select `SCENARIO_BASED` instead. The scenario profile does not accept elapsed days as a substitute and requires all of the following:
+
+- 20 observed Paper sessions;
+- 50 completed Paper orders;
+- 3 represented market regimes;
+- 3 successful restart-recovery checks;
+- 10 duplicate-order checks;
+- persistence failure, WebSocket disconnect, partial-write, duplicate-signal, and Kill Switch scenarios;
+- passing Walk-Forward, cost-stress, and integrity checks.
+
+Only the Paper-duration requirement is replaced. CI, typecheck, build, security, runtime, recovery, source coverage, and owner-review requirements remain mandatory. Scenario evidence does not enable LIVE trading.
