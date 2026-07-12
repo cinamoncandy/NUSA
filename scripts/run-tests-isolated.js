@@ -14,14 +14,15 @@ if (files.length === 0) {
 
 for (const file of files) {
   const relativePath = join("tests", file);
+  console.log(`RUN ${relativePath}`);
   const result = spawnSync(
     process.execPath,
     ["--test", "--test-reporter=spec", relativePath],
     {
       cwd: process.cwd(),
-      encoding: "utf8",
       env: { ...process.env },
-      windowsHide: true
+      windowsHide: true,
+      stdio: "inherit"
     }
   );
 
@@ -33,8 +34,6 @@ for (const file of files) {
 
   if (result.status !== 0) {
     console.error(`FAILED_TEST_FILE ${relativePath}`);
-    if (result.stdout) console.error(result.stdout.trimEnd());
-    if (result.stderr) console.error(result.stderr.trimEnd());
     process.exit(result.status || 1);
   }
 }
