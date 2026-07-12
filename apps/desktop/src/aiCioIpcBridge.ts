@@ -1,7 +1,9 @@
+import { AI_CIO_DASHBOARD_CHANNEL } from "../../../packages/contracts/src/aiCioDashboard";
 import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import { validateAiCioCommandCenterEnvelope } from "./aiCioCommandCenterAdapter";
+import { AiCioDashboardService } from "./aiCioDashboardService";
 
-export const AI_CIO_SNAPSHOT_CHANNEL = "ai-cio:snapshot";
+export const AI_CIO_SNAPSHOT_CHANNEL = AI_CIO_DASHBOARD_CHANNEL;
 
 export interface ReadOnlyIpcRegistrar {
   handle(channel: string, listener: () => unknown): void;
@@ -32,9 +34,6 @@ export function registerAiCioReadOnlyIpc(
   source: AiCioEnvelopeSource,
   now: () => number = Date.now
 ): void {
-  registrar.handle(AI_CIO_SNAPSHOT_CHANNEL, () => {
-    const envelope = source.current();
-    if (envelope == null) return null;
-    return validateAiCioCommandCenterEnvelope(envelope, now());
-  });
+  const service = new AiCioDashboardService(source, now);
+  registrar.handle(AI_CIO_SNAPSHOT_CHANNEL, () => service.getAiCioDashboard());
 }
