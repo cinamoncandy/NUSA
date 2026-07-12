@@ -7,7 +7,7 @@ const section = (overrides = {}) => ({ status: "HEALTHY", generatedAt: 1_000, re
 const input = (overrides = {}) => ({
   generatedAt: 1_000,
   maximumSectionAgeMs: 5_000,
-  portfolio: section({ totalEquity: 10_000, deployableCapital: 7_000, reservedCapital: 2_000, grossExposureRatio: 0.4, netExposureRatio: 0.25 }),
+  portfolio: section({ totalEquity: 10_000, deployableCapital: 7_000, reservedCapital: 3_000, grossExposureRatio: 0.4, netExposureRatio: 0.25 }),
   opportunities: section({ activeCount: 2, totalAllocatedCapital: 3_000, reservedCash: 4_000, topOpportunityId: "BTC", topOpportunityScore: 0.8 }),
   strategies: section({ totalTrades: 20, totalNetPnl: 120, portfolioCaptureRatio: 0.8, blockedStrategies: 0, warningStrategies: 0 }),
   committee: section({ decision: "APPROVE", confidence: 0.8, edge: 0.1, risk: 0.2, conflictLevel: "LOW" }),
@@ -36,9 +36,9 @@ test("kill switch blocks dashboard trading", () => {
   assert.ok(result.warnings.includes("KILL_SWITCH_ACTIVE"));
 });
 
-test("stale section fails closed", () => {
+test("stale section cautions and disables trading", () => {
   const result = buildAiCioDashboard(input({ maximumSectionAgeMs: 100 }), 1_500);
-  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.status, "CAUTION");
   assert.equal(result.tradingPermitted, false);
   assert.ok(result.warnings.some((item) => item.includes("STALE")));
 });
