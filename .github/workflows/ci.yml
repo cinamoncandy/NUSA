@@ -46,5 +46,5 @@ jobs:
         run: node --test --test-reporter=spec tests/research-memory.test.js
       - name: AI CIO dashboard read-only tests
         run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
-      - name: Full test suite
-        run: node --test --test-concurrency=1 --test-reporter=spec tests/*.test.js
+      - name: Full isolated test suite
+        run: node scripts/run-tests-isolated.js
