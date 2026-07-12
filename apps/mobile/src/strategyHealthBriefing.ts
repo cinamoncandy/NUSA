@@ -50,15 +50,27 @@ const severityFor = (health: StrategyHealth): StrategyHealthCard["severity"] => 
   }
 };
 
+const severityRank: Readonly<Record<StrategyHealthCard["severity"], number>> = Object.freeze({
+  NORMAL: 0,
+  CAUTION: 1,
+  WARNING: 2,
+  BLOCKED: 3
+});
+
 export function buildStrategyHealthBriefing(
   input: StrategyHealthBriefingInput,
   now: number
 ): StrategyHealthBriefing {
   time(now, "now");
   time(input.maximumAgeMs, "maximumAgeMs");
+  time(input.audit.periodStart, "audit.periodStart");
+  time(input.audit.periodEnd, "audit.periodEnd");
   time(input.audit.generatedAt, "audit.generatedAt");
+  if (input.audit.periodEnd < input.audit.periodStart) throw new Error("audit period is invalid");
+  if (input.audit.generatedAt < input.audit.periodEnd) throw new Error("audit generation time is invalid");
   if (input.audit.generatedAt > now) throw new Error("strategy health audit cannot come from the future");
   if (now - input.audit.generatedAt > input.maximumAgeMs) throw new Error("strategy health audit is stale");
+  if (!Number.isSafeInteger(input.audit.totalTrades) || input.audit.totalTrades < 0) throw new Error("totalTrades is invalid");
 
   for (const [field, value] of Object.entries({
     totalNetPnl: input.audit.totalNetPnl,
@@ -73,6 +85,13 @@ export function buildStrategyHealthBriefing(
     if (!strategyId) throw new Error("strategyId is required");
     if (seen.has(strategyId)) throw new Error("duplicate strategy health summary");
     seen.add(strategyId);
+    if (!Number.isSafeInteger(strategy.tradeCount) || strategy.tradeCount < 0) throw new Error("strategy tradeCount is invalid");
+    for (const [field, value] of Object.entries({
+      netPnl: strategy.netPnl,
+      averageCaptureRatio: strategy.averageCaptureRatio,
+      averageCalibrationError: strategy.averageCalibrationError,
+      executionCostRatio: strategy.executionCostRatio
+    })) finite(value, field);
     const reasons = Object.freeze([...strategy.reasons].sort());
     return Object.freeze({
       strategyId,
@@ -85,7 +104,7 @@ export function buildStrategyHealthBriefing(
       executionCostPercent: percent(strategy.executionCostRatio),
       reasons
     });
-  }).sort((a, b) => b.severity.localeCompare(a.severity) || a.strategyId.localeCompare(b.strategyId));
+  }).sort((a, b) => severityRank[b.severity] - severityRank[a.severity] || a.strategyId.localeCompare(b.strategyId));
 
   const hasBlocked = cards.some((card) => card.severity === "BLOCKED");
   const hasCaution = cards.some((card) => card.severity !== "NORMAL");
