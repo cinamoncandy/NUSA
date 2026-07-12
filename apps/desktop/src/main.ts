@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
+import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
@@ -24,6 +25,11 @@ let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 const strategy = new StrategyEngine(new SmaCrossoverStrategy(5, 20));
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
+const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
+  mode: "PAPER",
+  maximumSectionAgeMs: 60_000,
+  maximumEnvelopeAgeMs: 30_000
+});
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
 
@@ -70,6 +76,7 @@ function createWindow(): void {
 }
 
 function initializeRuntime(): void {
+  aiCioSnapshotPublisher.clear();
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
   controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
   const paperLoad = sessionStore.loadSafe();
@@ -140,6 +147,7 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  aiCioSnapshotPublisher.clear();
   stream?.stop();
   persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
