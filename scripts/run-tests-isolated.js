@@ -1,14 +1,19 @@
-const { readdirSync } = require("node:fs");
+const { readdirSync, writeFileSync, rmSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const testsDirectory = join(process.cwd(), "tests");
+const diagnosticPath = join(process.cwd(), "isolated-test-failure.txt");
+rmSync(diagnosticPath, { force: true });
+
 const files = readdirSync(testsDirectory)
   .filter((name) => name.endsWith(".test.js"))
   .sort((a, b) => a.localeCompare(b));
 
 if (files.length === 0) {
-  console.error("No test files were found.");
+  const message = "No test files were found.";
+  writeFileSync(diagnosticPath, message, "utf8");
+  console.error(message);
   process.exit(1);
 }
 
@@ -28,15 +33,23 @@ for (const file of files) {
   );
 
   if (result.error) {
-    console.error(`FAILED_TO_START ${relativePath}`);
-    console.error(result.error.stack || result.error.message);
+    const diagnostic = [
+      `FAILED_TO_START ${relativePath}`,
+      result.error.stack || result.error.message
+    ].join("\n");
+    writeFileSync(diagnosticPath, diagnostic, "utf8");
+    console.error(diagnostic);
     process.exit(1);
   }
 
   if (result.status !== 0) {
-    console.error(`FAILED_TEST_FILE ${relativePath}`);
-    if (result.stdout) console.error(result.stdout.trimEnd());
-    if (result.stderr) console.error(result.stderr.trimEnd());
+    const diagnostic = [
+      `FAILED_TEST_FILE ${relativePath}`,
+      result.stdout || "",
+      result.stderr || ""
+    ].join("\n").trimEnd();
+    writeFileSync(diagnosticPath, diagnostic, "utf8");
+    console.error(diagnostic);
     process.exit(result.status || 1);
   }
 }
