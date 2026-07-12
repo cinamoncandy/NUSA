@@ -1,6 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { evaluateInvestmentCommittee } = require("../dist/apps/cloud/src/investmentCommittee.js");
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { SqliteInvestmentCommitteeStore } = require("../dist/packages/storage/src/investmentCommitteeStore.js");
 
 const weights = {
   MACRO: 1, NEWS: 1, QUANT: 1, TECHNICAL: 1, ONCHAIN: 1, DERIVATIVES: 1,
@@ -76,4 +78,16 @@ test("same inputs produce identical immutable outputs", () => {
   assert.deepEqual(first, second);
   assert.ok(Object.isFrozen(first.reasons));
   assert.ok(Object.isFrozen(first.consensus.vetoReasons));
+});
+
+
+test("committee store verifies empty startup, replay and snapshot tampering", () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteInvestmentCommitteeStore(db);
+  assert.doesNotThrow(() => store.verify());
+  store.append({ outcome: "PAPER_ONLY", confidence: 0.8, edge: 0.05, risk: 0.2, reasons: Object.freeze(["test"]), decidedAt: 1_100 });
+  assert.doesNotThrow(() => new SqliteInvestmentCommitteeStore(db).verify());
+  db.connection.exec("UPDATE investment_committee_snapshot SET hash = 'tampered' WHERE id = 1");
+  assert.throws(() => store.verify(), /snapshot mismatch/);
+  db.close();
 });
