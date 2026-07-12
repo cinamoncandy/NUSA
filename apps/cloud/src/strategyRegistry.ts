@@ -22,4 +22,5 @@ export class StrategyRegistry {
   getStrategy(strategyId: string, version: string): RegisteredStrategy | undefined { const found = this.values.get(`${strategyId}|${version}`); return found && freeze(found); }
   listStrategyVersions(strategyId: string): readonly RegisteredStrategy[] { return Object.freeze([...this.values.values()].filter((v) => v.identity.strategyId === strategyId).sort((a,b) => compareVersion(a.identity.version,b.identity.version)).map(freeze)); }
   getLatestStrategyVersion(strategyId: string): RegisteredStrategy | undefined { const all=this.listStrategyVersions(strategyId); return all[all.length-1]; }
+  restore(entries: readonly RegisteredStrategy[]): void { for (const entry of [...entries].sort((a,b) => a.identity.createdAt-b.identity.createdAt || a.identity.strategyId.localeCompare(b.identity.strategyId) || compareVersion(a.identity.version,b.identity.version))) this.registerStrategy(entry.identity, entry.lifecycle); }
 }
