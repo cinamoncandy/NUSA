@@ -97,3 +97,16 @@ test("SqliteDatabase rejects an unknown applied migration on reopen", () => {
   raw.close();
   assert.throws(() => new SqliteDatabase(filename), /database contains unknown migration: 999_future/);
 });
+
+
+test("SqliteDatabase applies safety pragmas and passes quick_check", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-pragmas-")), "safe.db");
+  const db = new SqliteDatabase(filename);
+  try {
+    assert.equal(Object.values(db.connection.prepare("PRAGMA foreign_keys").get())[0], 1);
+    assert.equal(Object.values(db.connection.prepare("PRAGMA busy_timeout").get())[0], 5000);
+    assert.equal(String(Object.values(db.connection.prepare("PRAGMA journal_mode").get())[0]).toLowerCase(), "wal");
+    assert.equal(Object.values(db.connection.prepare("PRAGMA synchronous").get())[0], 2);
+    assert.equal(Object.values(db.connection.prepare("PRAGMA quick_check").get())[0], "ok");
+  } finally { db.close(); }
+});
