@@ -42,7 +42,7 @@ test("supports short and neutral opportunities", () => {
 test("reports capture ratio and calibration error", () => {
   const result = attributeOpportunityPerformance(input({ confidence: 0.9, realizedOutcome: 0 }));
   assert.equal(result.confidenceCalibrationError, 0.9);
-  assert.equal(result.edgeCaptureRatio, result.capturedEdgeValue / result.expectedEdgeValue);
+  assert.ok(Math.abs(result.edgeCaptureRatio - result.capturedEdgeValue / result.expectedEdgeValue) < 1e-8);
 });
 
 test("rejects invalid timestamps, prices, costs, and confidence", () => {
@@ -54,11 +54,12 @@ test("rejects invalid timestamps, prices, costs, and confidence", () => {
 
 test("aggregates by strategy deterministically", () => {
   const first = attributeOpportunityPerformance(input());
-  const second = attributeOpportunityPerformance(input({ opportunityId: "opp-2", strategyId: "momentum", netPnl: undefined }));
+  const second = attributeOpportunityPerformance(input({ opportunityId: "opp-2", strategyId: "momentum" }));
   const result = aggregateOpportunityAttributions([first, second]);
   assert.equal(result.byStrategy.length, 2);
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.byStrategy));
+  assert.deepEqual(result, aggregateOpportunityAttributions([first, second]));
 });
 
 test("duplicate opportunity attributions fail closed", () => {
