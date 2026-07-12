@@ -50,3 +50,8 @@ These values describe the simulator, not real exchange execution quality. They p
 ## Stable warning identity
 
 Availability and freshness warnings use stable source names rather than positional indexes, for example `SECTION_COMMITTEE_UNAVAILABLE` and `SECTION_RESEARCH_STALE`. This makes operator evidence and regression logs understandable even if the internal section array is refactored. Warning codes are deterministic, de-duplicated, and lexically sorted.
+
+
+## Aggregate validation boundary
+
+The aggregate rejects zero freshness windows, negative allocation/reserve/slippage values, fractional strategy counts, scores outside `0..1`, blank committee labels, and other non-finite operational metrics. Invalid source data is never normalized into a plausible dashboard value; publication clears the previous envelope and fails closed.
