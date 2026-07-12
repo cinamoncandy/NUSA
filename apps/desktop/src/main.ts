@@ -6,6 +6,7 @@ import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
+import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
@@ -45,6 +46,25 @@ function publishPaper(): void {
   if (latestTicker) window?.webContents.send("paper:snapshot", broker.snapshot(latestTicker.trade_price));
 }
 
+function publishAiCioDashboard(): void {
+  if (!latestTicker) {
+    aiCioSnapshotPublisher.clear();
+    return;
+  }
+  const generatedAt = Date.now();
+  try {
+    aiCioSnapshotPublisher.publishIfComplete(buildPaperDashboardSections({
+      account: broker.snapshot(latestTicker.trade_price),
+      control: control.snapshot(),
+      markPrice: latestTicker.trade_price,
+      runtimeAvailable: paperTradingAvailable,
+      generatedAt
+    }), generatedAt);
+  } catch {
+    aiCioSnapshotPublisher.clear();
+  }
+}
+
 function handleTicker(ticker: UpbitTicker): void {
   latestTicker = ticker;
   window?.webContents.send("market:ticker", ticker);
@@ -55,6 +75,7 @@ function handleTicker(ticker: UpbitTicker): void {
   paperTradingAvailable = runtime.isAvailable();
   publishPaper();
   publishControl();
+  publishAiCioDashboard();
 }
 
 function createWindow(): void {
@@ -123,6 +144,7 @@ ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: numbe
   try { order = runtime.manualOrder(input.side, input.quantity, latestTicker.trade_price); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
+  publishAiCioDashboard();
   return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
 });
 
@@ -132,6 +154,7 @@ function runControlCommand(command: () => void): ReturnType<ControlPlane["snapsh
   try { command(); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
+  publishAiCioDashboard();
   return control.snapshot();
 }
 ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
