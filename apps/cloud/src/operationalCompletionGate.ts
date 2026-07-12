@@ -2,7 +2,8 @@ import type { AiCioDashboardSnapshot } from "./dashboardAggregator";
 import type { RecoveryPlan, RecoveryScenario } from "./disasterRecovery";
 import type { PaperValidationEvidence } from "./paperValidationEvidence";
 import type { ReleaseReadinessReport } from "./releaseReadinessAudit";
-import type { PaperValidationProfile, ScenarioPaperValidationResult } from "./scenarioPaperValidation";
+import type { ScenarioPaperEvidenceBundle } from "./scenarioEvidenceBundle";
+import type { PaperValidationProfile } from "./scenarioPaperValidation";
 
 export type OperationalCompletionStatus = "BLOCKED" | "WAITING_FOR_EVIDENCE" | "READY_FOR_OWNER_REVIEW";
 
@@ -13,7 +14,7 @@ export interface OperationalCompletionInput {
   readonly recoveryPlans: readonly RecoveryPlan[];
   readonly releaseReadiness: ReleaseReadinessReport;
   readonly validationProfile?: PaperValidationProfile;
-  readonly scenarioEvidence?: ScenarioPaperValidationResult;
+  readonly scenarioEvidenceBundle?: ScenarioPaperEvidenceBundle;
 }
 
 export interface OperationalCompletionResult {
@@ -65,9 +66,11 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
 
   const validationProfile = input.validationProfile ?? "CALENDAR_30_DAY";
   if (validationProfile !== "CALENDAR_30_DAY" && validationProfile !== "SCENARIO_BASED") throw new Error("unsupported Paper validation profile");
-  if (input.scenarioEvidence) {
-    assertTime(input.scenarioEvidence.generatedAt, "scenarioEvidence.generatedAt");
-    if (input.scenarioEvidence.generatedAt > input.now) throw new Error("scenarioEvidence.generatedAt cannot be in the future");
+  if (input.scenarioEvidenceBundle) {
+    if (input.scenarioEvidenceBundle.schemaVersion !== 1) throw new Error("unsupported scenario evidence bundle schema");
+    if (!/^[0-9a-f]{64}$/.test(input.scenarioEvidenceBundle.contentSha256)) throw new Error("invalid scenario evidence bundle SHA-256");
+    assertTime(input.scenarioEvidenceBundle.generatedAt, "scenarioEvidenceBundle.generatedAt");
+    if (input.scenarioEvidenceBundle.generatedAt > input.now) throw new Error("scenarioEvidenceBundle.generatedAt cannot be in the future");
   }
 
   const blockers: string[] = [];
@@ -96,7 +99,7 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
 
   const paperEvidenceComplete = validationProfile === "CALENDAR_30_DAY"
     ? input.paperEvidence.status === "PASS"
-    : input.scenarioEvidence?.status === "PASS";
+    : input.scenarioEvidenceBundle?.validation.status === "PASS";
   if (!paperEvidenceComplete) {
     pendingEvidence.push(validationProfile === "CALENDAR_30_DAY"
       ? "PAPER_VALIDATION_EVIDENCE_INCOMPLETE"
