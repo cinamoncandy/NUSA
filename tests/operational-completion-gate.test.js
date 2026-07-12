@@ -123,7 +123,7 @@ test("scenario profile replaces calendar duration without weakening other gates"
   const result = evaluateOperationalCompletion(input({
     validationProfile: "SCENARIO_BASED",
     paperEvidence: paperEvidence({ status: "FAIL", calendarDays: 0, observedDays: 0 }),
-    releaseReadiness: releaseReadiness(false),
+    releaseReadiness: releaseReadiness(false, { paperValidationProfile: "SCENARIO_BASED" }),
     scenarioEvidence: {
       profile: "SCENARIO_BASED",
       generatedAt,
@@ -142,8 +142,24 @@ test("scenario profile replaces calendar duration without weakening other gates"
 test("scenario profile without passing scenario evidence waits fail closed", () => {
   const result = evaluateOperationalCompletion(input({
     validationProfile: "SCENARIO_BASED",
-    releaseReadiness: releaseReadiness(false)
+    releaseReadiness: releaseReadiness(false, { paperValidationProfile: "SCENARIO_BASED" })
   }));
   assert.equal(result.status, "WAITING_FOR_EVIDENCE");
   assert.deepEqual(result.pendingEvidence, ["SCENARIO_PAPER_EVIDENCE_INCOMPLETE", "SCENARIO_RELEASE_EVIDENCE_INCOMPLETE"]);
+});
+
+test("release and completion validation profiles must match", () => {
+  const result = evaluateOperationalCompletion(input({
+    validationProfile: "SCENARIO_BASED",
+    releaseReadiness: releaseReadiness(false),
+    scenarioEvidence: {
+      profile: "SCENARIO_BASED",
+      generatedAt,
+      status: "PASS",
+      reasons: [],
+      minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
+    }
+  }));
+  assert.equal(result.status, "BLOCKED");
+  assert.ok(result.blockers.includes("RELEASE_VALIDATION_PROFILE_MISMATCH"));
 });
