@@ -48,8 +48,8 @@ test("blocks ambiguous, missing, inactive, and malformed symbol metadata", () =>
 test("creates only positive net-carry candidates after all costs", () => {
   const [candidate] = scanFundingCarryCandidates([scan()], scanConfig());
   assert.equal(candidate.expectedFunding, 100);
-  assert.equal(candidate.totalTradingCost, 10);
-  assert.equal(candidate.netCarry, 90);
+  assert.equal(candidate.totalTradingCost, 13);
+  assert.equal(candidate.netCarry, 87);
   assert.ok(candidate.netCarryBps >= 10);
 });
 
