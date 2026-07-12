@@ -45,7 +45,7 @@ jobs:
       - name: Research persistence tests
         run: node --test --test-reporter=spec tests/research-memory.test.js
       - name: AI CIO dashboard read-only tests
-        run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
+        run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-paper-projection.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
       - name: Full isolated test suite
         run: node scripts/run-tests-isolated.js
       - name: Upload isolated test failure
