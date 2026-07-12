@@ -1,7 +1,9 @@
-export type DashboardStatus = "HEALTHY" | "CAUTION" | "BLOCKED";
+export type DashboardStatus = "HEALTHY" | "CAUTION" | "BLOCKED" | "NO_DATA";
+export type DashboardAvailability = "AVAILABLE" | "STALE" | "UNAVAILABLE" | "INVALID";
 
 export interface DashboardSection {
   readonly status: DashboardStatus;
+  readonly availability?: DashboardAvailability;
   readonly generatedAt: number;
   readonly reasons: readonly string[];
 }
@@ -112,7 +114,10 @@ export function buildAiCioDashboard(input: AiCioDashboardInput, now: number): Ai
   const warnings: string[] = [];
   for (const [index, section] of sections.entries()) {
     assertTime(section.generatedAt, `section[${index}].generatedAt`);
-    if (section.generatedAt > now) throw new Error("dashboard section cannot come from the future");
+    if (section.generatedAt > now || section.generatedAt > input.generatedAt) throw new Error("dashboard section cannot come from the future");
+    const availability = section.availability ?? "AVAILABLE";
+    if (!["AVAILABLE", "STALE", "UNAVAILABLE", "INVALID"].includes(availability)) throw new Error("invalid dashboard availability");
+    if (availability !== "AVAILABLE") warnings.push(`SECTION_${index}_${availability}`);
     if (now - section.generatedAt > input.maximumSectionAgeMs) warnings.push(`SECTION_${index}_STALE`);
     for (const reason of section.reasons) if (!reason.trim()) throw new Error("dashboard reason must not be blank");
     if (section.status !== "HEALTHY" && section.status !== "CAUTION" && section.status !== "BLOCKED") throw new Error("invalid dashboard status");
@@ -146,18 +151,22 @@ export function buildAiCioDashboard(input: AiCioDashboardInput, now: number): Ai
   assertRatio(input.risk.liquidationBufferRatio, "liquidationBufferRatio");
   assertRatio(input.risk.portfolioHeatRatio, "portfolioHeatRatio");
 
-  if (input.portfolio.deployableCapital + input.portfolio.reservedCapital > input.portfolio.totalEquity + 1e-8) {
-    throw new Error("deployable and reserved capital exceed total equity");
+  if (Math.abs(input.portfolio.deployableCapital + input.portfolio.reservedCapital - input.portfolio.totalEquity) > 1e-8) {
+    throw new Error("deployable and reserved capital must equal total equity");
   }
 
-  const blocked = warnings.length > 0 || input.risk.killSwitchActive || sections.some((section) => section.status === "BLOCKED") || !input.research.paperPromotionEligible;
-  const caution = sections.some((section) => section.status === "CAUTION") || input.strategies.warningStrategies > 0;
+  const availability = sections.map((section) => section.availability ?? "AVAILABLE");
+  const noData = availability.every((value) => value === "UNAVAILABLE");
+  const unavailableOrInvalid = availability.some((value) => value === "UNAVAILABLE" || value === "INVALID");
+  const stale = availability.some((value) => value === "STALE") || warnings.some((warning) => warning.endsWith("_STALE"));
+  const blocked = !noData && (unavailableOrInvalid || input.risk.killSwitchActive || sections.some((section) => section.status === "BLOCKED") || !input.research.paperPromotionEligible);
+  const caution = stale || sections.some((section) => section.status === "CAUTION") || input.strategies.warningStrategies > 0;
   if (input.risk.killSwitchActive) warnings.push("KILL_SWITCH_ACTIVE");
   if (!input.research.paperPromotionEligible) warnings.push("RESEARCH_GATE_NOT_PASSED");
   if (input.strategies.blockedStrategies > 0) warnings.push("STRATEGY_HEALTH_BLOCKED");
 
-  const status: DashboardStatus = blocked ? "BLOCKED" : caution ? "CAUTION" : "HEALTHY";
-  const tradingPermitted = status !== "BLOCKED" && input.committee.decision !== "REJECT" && input.committee.decision !== "EMERGENCY_EXIT";
+  const status: DashboardStatus = noData ? "NO_DATA" : blocked ? "BLOCKED" : caution ? "CAUTION" : "HEALTHY";
+  const tradingPermitted = status === "HEALTHY" && input.committee.decision !== "REJECT" && input.committee.decision !== "EMERGENCY_EXIT";
 
   return Object.freeze({
     generatedAt: input.generatedAt,
