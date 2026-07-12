@@ -55,3 +55,27 @@ test("validates counters and minimum duration", () => {
   assert.throws(() => buildReleaseReadinessReport(ready({ paperValidationDays: -1 })), /paperValidationDays/);
   assert.throws(() => buildReleaseReadinessReport(ready(), 0), /minimumPaperValidationDays/);
 });
+
+test("scenario profile replaces only the calendar Paper requirement", () => {
+  const passed = buildReleaseReadinessReport(ready({
+    paperValidationDays: 0,
+    paperValidationProfile: "SCENARIO_BASED",
+    scenarioPaperValidationPassed: true
+  }));
+  assert.equal(passed.status, "READY");
+  assert.equal(passed.paperValidationProfile, "SCENARIO_BASED");
+  assert.equal(passed.requirements.find((item) => item.id === "PAPER_VALIDATION").title, "Scenario Paper validation completed");
+
+  const failed = buildReleaseReadinessReport(ready({
+    paperValidationDays: 30,
+    paperValidationProfile: "SCENARIO_BASED",
+    scenarioPaperValidationPassed: false
+  }));
+  assert.equal(failed.status, "BLOCKED");
+  assert.match(failed.blockers.join(" "), /Scenario Paper validation/);
+});
+
+test("invalid validation profile input is rejected", () => {
+  assert.throws(() => buildReleaseReadinessReport(ready({ paperValidationProfile: "UNKNOWN" })), /unsupported/);
+  assert.throws(() => buildReleaseReadinessReport(ready({ scenarioPaperValidationPassed: "yes" })), /boolean/);
+});
