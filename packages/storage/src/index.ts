@@ -87,7 +87,13 @@ export class SqliteDatabase implements TransactionRunner {
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
     try {
+      this.connection.exec("PRAGMA foreign_keys = ON");
+      this.connection.exec("PRAGMA busy_timeout = 5000");
+      if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
+      this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
+      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
     } catch (error) {
       this.connection.close();
       throw error;
