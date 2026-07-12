@@ -97,3 +97,22 @@ test("availability and freshness warnings identify sections by stable names", ()
   }), 1_500);
   assert.ok(stale.warnings.includes("SECTION_RESEARCH_STALE"));
 });
+
+test("invalid operational metrics fail closed before publication", () => {
+  assert.throws(() => buildAiCioDashboard(input({ maximumSectionAgeMs: 0 }), 1_500), /maximumSectionAgeMs/);
+  assert.throws(() => buildAiCioDashboard(input({
+    opportunities: section({ activeCount: 1, totalAllocatedCapital: -1, reservedCash: 0 })
+  }), 1_500), /opportunity capital/);
+  assert.throws(() => buildAiCioDashboard(input({
+    opportunities: section({ activeCount: 1, totalAllocatedCapital: 1, reservedCash: 0, topOpportunityScore: 1.1 })
+  }), 1_500), /topOpportunityScore/);
+  assert.throws(() => buildAiCioDashboard(input({
+    strategies: section({ totalTrades: 1, totalNetPnl: 0, portfolioCaptureRatio: 0, blockedStrategies: 0.5, warningStrategies: 0 })
+  }), 1_500), /safe integers/);
+  assert.throws(() => buildAiCioDashboard(input({
+    execution: section({ fillQuality: 1, slippageBps: -0.1, latencyMs: 0 })
+  }), 1_500), /slippageBps/);
+  assert.throws(() => buildAiCioDashboard(input({
+    committee: section({ decision: " ", confidence: 0, edge: 0, risk: 0, conflictLevel: "LOW" })
+  }), 1_500), /committee labels/);
+});
