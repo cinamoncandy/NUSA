@@ -48,12 +48,14 @@ const CONTROL_TRIGGERS: readonly ControlTrigger[] = Object.freeze([
   "POST_INCIDENT_RESUME_REQUESTED"
 ]);
 
+const layers = (...values: PlatformLayer[]): readonly PlatformLayer[] => Object.freeze(values);
+
 const ALLOWED_LAYER_DEPENDENCIES: Readonly<Record<PlatformLayer, readonly PlatformLayer[]>> = Object.freeze({
-  CORE: Object.freeze(["CORE", "PLUGIN"]),
-  CONTROL: Object.freeze(["CORE", "CONTROL", "OPERATIONS", "PLUGIN"]),
-  OPERATIONS: Object.freeze(["CORE", "CONTROL", "OPERATIONS"]),
-  PLUGIN: Object.freeze(["CORE", "PLUGIN"]),
-  APPLICATION: Object.freeze(["CORE", "CONTROL", "OPERATIONS", "PLUGIN", "APPLICATION"])
+  CORE: layers("CORE", "PLUGIN"),
+  CONTROL: layers("CORE", "CONTROL", "OPERATIONS", "PLUGIN"),
+  OPERATIONS: layers("CORE", "CONTROL", "OPERATIONS"),
+  PLUGIN: layers("CORE", "PLUGIN"),
+  APPLICATION: layers("CORE", "CONTROL", "OPERATIONS", "PLUGIN", "APPLICATION")
 });
 
 const freezeTopology = (topology: PlatformTopology): PlatformTopology => {
