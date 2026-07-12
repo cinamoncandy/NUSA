@@ -54,8 +54,8 @@ const buildVetoReasons = (safety: CommitteeSafetyContext): readonly string[] => 
 
 const conflictLevel = (disagreement: number, vetoCount: number): ConflictLevel => {
   if (vetoCount > 0 || disagreement >= 0.75) return "CRITICAL";
-  if (disagreement >= 0.25) return "HIGH";
-  if (disagreement >= 0.25) return "MEDIUM";
+  if (disagreement >= 0.4) return "HIGH";
+  if (disagreement >= 0.2) return "MEDIUM";
   return "LOW";
 };
 
