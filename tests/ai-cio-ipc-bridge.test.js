@@ -1,0 +1,69 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { buildAiCioCommandCenterEnvelope } = require("../dist/apps/desktop/src/aiCioCommandCenterAdapter.js");
+const { AI_CIO_SNAPSHOT_CHANNEL, InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } = require("../dist/apps/desktop/src/aiCioIpcBridge.js");
+
+const section = (overrides = {}) => ({ status: "HEALTHY", generatedAt: 1_000, reasons: [], ...overrides });
+const snapshot = (overrides = {}) => ({
+  generatedAt: 1_000,
+  status: "HEALTHY",
+  tradingPermitted: true,
+  portfolio: section({ totalEquity: 100, deployableCapital: 80, reservedCapital: 20, grossExposureRatio: 0.2, netExposureRatio: 0.1 }),
+  opportunities: section({ activeCount: 1, totalAllocatedCapital: 10, reservedCash: 70 }),
+  strategies: section({ totalTrades: 5, totalNetPnl: 2, portfolioCaptureRatio: 0.8, blockedStrategies: 0, warningStrategies: 0 }),
+  committee: section({ decision: "APPROVE", confidence: 0.8, edge: 0.1, risk: 0.2, conflictLevel: "LOW" }),
+  execution: section({ fillQuality: 0.95, slippageBps: 2, latencyMs: 30 }),
+  research: section({ walkForwardPassed: true, monteCarloPassed: true, costStressPassed: true, paperPromotionEligible: true }),
+  risk: section({ killSwitchActive: false, dailyDrawdownRatio: 0.01, liquidationBufferRatio: 1, portfolioHeatRatio: 0.2 }),
+  warnings: [],
+  ...overrides
+});
+
+class FakeRegistrar {
+  constructor() { this.handlers = new Map(); }
+  handle(channel, listener) {
+    if (this.handlers.has(channel)) throw new Error("duplicate channel");
+    this.handlers.set(channel, listener);
+  }
+}
+
+test("registers one read-only channel and returns null before a snapshot is published", () => {
+  const registrar = new FakeRegistrar();
+  const source = new InMemoryAiCioEnvelopeSource();
+  registerAiCioReadOnlyIpc(registrar, source, () => 1_000);
+  assert.deepEqual([...registrar.handlers.keys()], [AI_CIO_SNAPSHOT_CHANNEL]);
+  assert.equal(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), null);
+});
+
+test("returns a validated immutable envelope", () => {
+  const realNow = Date.now();
+  const source = new InMemoryAiCioEnvelopeSource();
+  const envelope = buildAiCioCommandCenterEnvelope({ mode: "PAPER", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 1_000 }, realNow);
+  source.publish(envelope);
+  const registrar = new FakeRegistrar();
+  registerAiCioReadOnlyIpc(registrar, source, () => realNow + 1);
+  const result = registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)();
+  assert.equal(result.version, 1);
+  assert.equal(result.mode, "PAPER");
+  assert.ok(Object.isFrozen(result));
+  assert.ok(Object.isFrozen(result.snapshot));
+});
+
+test("fails closed when the published envelope expires", () => {
+  const realNow = Date.now();
+  const source = new InMemoryAiCioEnvelopeSource();
+  source.publish(buildAiCioCommandCenterEnvelope({ mode: "DRY_RUN", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 5 }, realNow));
+  const registrar = new FakeRegistrar();
+  registerAiCioReadOnlyIpc(registrar, source, () => realNow + 6);
+  assert.throws(() => registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), /stale/);
+});
+
+test("clear removes the renderer-visible snapshot", () => {
+  const realNow = Date.now();
+  const source = new InMemoryAiCioEnvelopeSource();
+  source.publish(buildAiCioCommandCenterEnvelope({ mode: "PAPER", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 100 }, realNow));
+  source.clear();
+  const registrar = new FakeRegistrar();
+  registerAiCioReadOnlyIpc(registrar, source, () => realNow);
+  assert.equal(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), null);
+});
