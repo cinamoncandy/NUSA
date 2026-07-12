@@ -219,4 +219,12 @@ CREATE TABLE IF NOT EXISTS applied_ledger_markers (scope_type TEXT NOT NULL, sco
 CREATE TABLE IF NOT EXISTS research_hypotheses (id TEXT PRIMARY KEY, title TEXT NOT NULL, statement TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_experiment_records (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, content_sha256 TEXT NOT NULL, manifest_schema_version INTEGER NOT NULL, market TEXT NOT NULL, interval TEXT NOT NULL, start_open_time INTEGER NOT NULL, end_close_time INTEGER NOT NULL, walk_forward_config_json TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL, hypothesis_id TEXT);
 CREATE INDEX IF NOT EXISTS idx_research_experiment_dataset ON research_experiment_records (dataset_id, created_at, id);
+` }, { id: "003_governance_control", sql: `
+CREATE TABLE IF NOT EXISTS strategy_registry (strategy_id TEXT NOT NULL, version TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(strategy_id, version));
+CREATE TABLE IF NOT EXISTS strategy_governance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS strategy_governance_state (id INTEGER PRIMARY KEY CHECK(id = 1), snapshot_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS champion_assignments (family TEXT PRIMARY KEY, strategy_key TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS strategy_governance_commands (command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS investment_committee_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, decision_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS investment_committee_snapshot (id INTEGER PRIMARY KEY CHECK(id = 1), hash TEXT NOT NULL);
 ` }];
