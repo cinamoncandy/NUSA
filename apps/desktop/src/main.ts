@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
@@ -22,8 +23,11 @@ let persistenceStore: DesktopPersistenceStore | undefined;
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 const strategy = new StrategyEngine(new SmaCrossoverStrategy(5, 20));
+const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
+
+registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
 
 function persistRuntime(): void {
   if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
@@ -140,4 +144,3 @@ app.on("window-all-closed", () => {
   persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
 });
-
