@@ -1,9 +1,9 @@
-import type { RuntimeHealthSnapshot } from "../../cloud/src/runtimeHealthMonitor";
+import type { RuntimeHealthReport } from "../../cloud/src/runtimeHealthMonitor";
 import type { OperatorTimelineItem } from "../../cloud/src/operatorTimeline";
 
 export interface RuntimeOperatorViewModel {
   readonly mode: "PAPER" | "DRY_RUN";
-  readonly status: RuntimeHealthSnapshot["status"];
+  readonly status: RuntimeHealthReport["status"];
   readonly score: number;
   readonly generatedAt: number;
   readonly summary: string;
@@ -12,7 +12,7 @@ export interface RuntimeOperatorViewModel {
 }
 
 export const buildRuntimeOperatorView = (
-  health: RuntimeHealthSnapshot,
+  health: RuntimeHealthReport,
   timeline: readonly OperatorTimelineItem[],
   mode: "PAPER" | "DRY_RUN"
 ): RuntimeOperatorViewModel => {
