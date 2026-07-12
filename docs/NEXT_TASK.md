@@ -1,61 +1,69 @@
 # Next Task
 
-## Current Validated Research Baseline
+## Current Governance Baseline
 
-The deterministic Backtest Engine now reports FIFO-matched closed trades, open-position status, performance metrics, equity analytics, and a cost-aware Buy & Hold comparison.
+Strategy Governance v1 and AI Investment Committee v1 are deterministic PAPER/DRY_RUN control layers. They do not create strategies, call an LLM, submit orders, enable LIVE trading, handle credentials, or override Risk, Probability/Edge, Kelly, Control Plane, Kill Switch, or Strategy Governance gates.
 
-Latest validated head: `13c483665809ec21d8ca9e9b54ef5d5559a14d0d`
+Current hardening priorities:
 
-- Windows CI run #123
-- `pnpm install --frozen-lockfile`: PASS
+1. Persist governance and committee command-id idempotency atomically with their ledgers.
+2. Move governance and committee table creation into a numbered, checksum-reviewed SQLite migration plan.
+3. Reconcile persisted registry state with ledger replay during service startup and fail closed on any difference.
+4. Add operator-facing read-only recovery status; do not add a live execution path.
+5. Keep PR #1 Draft and do not merge without owner review.
+
+## Completion update
+
+The stabilization work below is implemented on `agent/electron-upbit-paper-trading`:
+
+- malformed Paper and Control Plane sessions return visible diagnostics and fail closed;
+- Paper account state, Control Plane status, events, order quantity, and processed automatic signal keys persist atomically;
+- automated trading is always disabled after restart;
+- faulted recovery state cannot restart a strategy without operator repair;
+- duplicate automatic signals cannot create duplicate Paper orders;
+- risk rejection is recorded as an outcome without terminating the process;
+- manual and automatic Paper orders continue to use the same broker risk limits.
+
+Validation after implementation:
+
 - `pnpm run typecheck`: PASS
-- `pnpm test`: PASS (65/65)
+- `pnpm test`: PASS (39 tests)
 
-Implemented research outputs:
+## Current next task
 
-- entry/exit time and price, quantity, fees, gross/net PnL, and holding duration per FIFO-matched trade;
-- explicit `OPEN_POSITION` status for unclosed inventory, without forced liquidation;
-- profit factor, expectancy, average win/loss, win/loss rate, payoff ratio, average holding time, exposure, and profit totals;
-- maximum and longest drawdown, recovery factor, ulcer index, and CSV equity curve export;
-- strategy return, cost-aware Buy & Hold return, and outperformance;
-- deterministic modeled spread, slippage, and fee accounting.
+Replace JSON session persistence with a versioned SQLite event and account repository while preserving the recovery and default-off guarantees established here. Build the backtest engine against the same strategy, risk, and accounting contracts.
 
-## Walk Forward Engine Update
+## Stabilization objective (completed)
 
-The deterministic Walk-Forward Engine now provides rolling and anchored train/test plans, train-only candidate scoring, independent OOS result records, equal-weight and sequential-compounded OOS aggregation, and candidate stability diagnostics.
+## Objective
 
-It rejects timestamp regression, overlapping OOS windows, duplicate candidates, invalid factories, incomplete plans, and windows without an eligible train-only candidate. Final incomplete test windows are excluded with a warning. OOS positions remain marked-to-market and are never forced closed or carried to the next window.
+Stabilize the current Upbit spot Paper Trading branch before adding broader features.
 
-Latest code validation: Windows CI run #139 at `80679e1a1b5e89e1ad814cae7248dcc2e4561507`, frozen install/typecheck PASS, 85/85 tests PASS.
+## Required work
 
-See `docs/implementation/walk-forward-research.md` for the research contract and interpretation limits.
+1. Run the full TypeScript build and Node test suite on a clean checkout.
+2. Fix any compile, path, packaging, or test failures.
+3. Make the Paper session persistence recover safely from malformed or partially written state.
+4. Persist Control Plane state and events without enabling auto-trading after restart.
+5. Add deterministic tests for:
+   - malformed session recovery,
+   - strategy start/stop state,
+   - automatic-trading default-off behavior,
+   - duplicate signal/order prevention,
+   - risk rejection without process failure.
+6. Replace the renderer's ad-hoc chart only if doing so does not delay stability work.
+7. Update the active PR with actual validation results.
 
-## Research Memory v1 Update
+## Acceptance criteria
 
-Research Memory v1 now persists append-only hypotheses and immutable experiment records through SQLite migration `002_research_memory`. Each experiment links a dataset ID, full checksum, manifest version, market/interval/range, Walk-Forward configuration JSON, result JSON, and optional hypothesis ID.
+- `pnpm run typecheck` passes.
+- `pnpm test` passes.
+- App restart restores Paper account state but leaves automated trading disabled.
+- Corrupt state fails closed and produces a visible diagnostic instead of silently resetting or trading.
+- One market event cannot produce duplicate automatic orders.
+- Existing risk limits remain enforced for manual and automatic Paper orders.
+- No live order path, API credential handling, or Binance futures code is added.
 
-Repeated identical inserts are idempotent; reused IDs with changed content, missing hypothesis references, malformed persisted JSON, corrupt databases, and write failures fail closed.
+## After this task
 
-Windows CI run #160 validated frozen install, typecheck, and 112/112 tests. See `docs/implementation/research-memory-v1.md`.
-
-## Execution-Cost Stress Grid Update
-
-The deterministic Execution-Cost Stress Grid now reruns Walk-Forward OOS research under canonical fee/spread/slippage scenarios. It supports scenario-specific train reselection and fixed baseline selections, preserves unfavorable scenarios, estimates grid-dependent break-even crossings, reports cost fragility warnings, and creates a deterministic Research Memory identity.
-
-Windows CI run #174 validated frozen install, typecheck, and the complete suite. See `docs/implementation/execution-cost-stress.md`.
-
-## Immediate Research Work
-
-1. Define a deterministic candle contract and missing-candle policy.
-2. Add a versioned historical dataset manifest with source, market, interval, range, and checksum.
-3. Add immutable experiment comparison queries and review workflows without changing stored evidence.
-4. Add declared latency, partial-fill, and market-impact research assumptions before interpreting stress results as execution evidence.
-4. Add Sharpe, Sortino, and Calmar only with an explicit sampling-period convention.
-6. Keep PR #1 Draft and do not merge without owner approval.
-
-## Research Safety Rules
-
-- Do not call a strategy profitable or promotable from in-sample backtests alone.
-- Report fees, spread, slippage, benchmark construction, and open-position status for every experiment.
-- Require out-of-sample and walk-forward evidence before Paper promotion.
-- Keep AI committees, automatic strategy generation, and all live trading out of scope.
+Proceed to a versioned SQLite event and account repository, then build the backtest engine against the same strategy and accounting contracts.
