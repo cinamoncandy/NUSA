@@ -110,3 +110,27 @@ test("SqliteDatabase applies safety pragmas and passes quick_check", () => {
     assert.equal(Object.values(db.connection.prepare("PRAGMA quick_check").get())[0], "ok");
   } finally { db.close(); }
 });
+
+
+test("migration runner persists checksums and rejects SQL drift", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    runMigrations(db, [migration("001_alpha", "CREATE TABLE alpha (id TEXT);")]);
+    const checksum = db.prepare("SELECT checksum FROM schema_migrations WHERE id = ?").get("001_alpha").checksum;
+    assert.match(checksum, /^[a-f0-9]{64}$/);
+    assert.throws(
+      () => runMigrations(db, [migration("001_alpha", "CREATE TABLE alpha (id TEXT, changed TEXT);")]),
+      /migration checksum mismatch/
+    );
+  } finally { db.close(); }
+});
+
+test("migration runner backfills legacy rows once", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec("CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL); CREATE TABLE alpha (id TEXT);");
+    db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("001_alpha", new Date().toISOString());
+    assert.deepEqual(runMigrations(db, [migration("001_alpha", "CREATE TABLE alpha (id TEXT);")]).applied, []);
+    assert.match(db.prepare("SELECT checksum FROM schema_migrations WHERE id = ?").get("001_alpha").checksum, /^[a-f0-9]{64}$/);
+  } finally { db.close(); }
+});
