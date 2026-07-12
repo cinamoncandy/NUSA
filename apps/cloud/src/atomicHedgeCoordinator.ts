@@ -12,6 +12,7 @@ export interface HedgeOrderReceipt {
   readonly clientOrderId: string;
   readonly accepted: boolean;
   readonly exchangeOrderId?: string;
+  readonly error?: string;
 }
 
 export interface HedgeFill {
@@ -110,6 +111,12 @@ export function planAtomicHedge(plan: HedgePlan): HedgeCoordinatorState {
   });
 }
 
+const failedReceipt = (order: HedgeOrderRequest, reason: unknown): HedgeOrderReceipt => Object.freeze({
+  clientOrderId: order.clientOrderId,
+  accepted: false,
+  error: reason instanceof Error ? reason.message : "UNKNOWN_SUBMISSION_ERROR"
+});
+
 export async function submitAtomicHedge(
   state: HedgeCoordinatorState,
   adapter: HedgeExchangeAdapter,
@@ -117,14 +124,25 @@ export async function submitAtomicHedge(
 ): Promise<Readonly<{ state: HedgeCoordinatorState; receipts: readonly HedgeOrderReceipt[] }>> {
   time(now, "now");
   if (state.status !== "PLANNED") throw new Error("only planned hedges can be submitted");
-  const [spot, perpetual] = await Promise.all([adapter.submit(state.plan.spotOrder), adapter.submit(state.plan.perpetualOrder)]);
-  const receipts = Object.freeze([Object.freeze({ ...spot }), Object.freeze({ ...perpetual })]);
-  const accepted = spot.accepted && perpetual.accepted;
-  const next = freezeState({
-    ...state,
-    status: accepted ? "SUBMITTING" : "FAULTED",
-    audit: [...state.audit, event("ORDERS_SUBMITTED", now, accepted ? "ORDER_ACCEPTANCE_CONFIRMED_AWAITING_FILLS" : "ORDER_ACCEPTANCE_FAILED"), ...(accepted ? [] : [event("FAULTED", now, "ORDER_ACCEPTANCE_FAILED")])]
-  });
+
+  const settled = await Promise.allSettled([
+    adapter.submit(state.plan.spotOrder),
+    adapter.submit(state.plan.perpetualOrder)
+  ]);
+  const spot = settled[0].status === "fulfilled" ? Object.freeze({ ...settled[0].value }) : failedReceipt(state.plan.spotOrder, settled[0].reason);
+  const perpetual = settled[1].status === "fulfilled" ? Object.freeze({ ...settled[1].value }) : failedReceipt(state.plan.perpetualOrder, settled[1].reason);
+  const receipts = Object.freeze([spot, perpetual]);
+  const acceptedCount = Number(spot.accepted) + Number(perpetual.accepted);
+  const accepted = acceptedCount === 2;
+  const audit: HedgeAuditEvent[] = [
+    ...state.audit,
+    event("ORDERS_SUBMITTED", now, accepted ? "ORDER_ACCEPTANCE_CONFIRMED_AWAITING_FILLS" : acceptedCount === 1 ? "PARTIAL_ORDER_ACCEPTANCE" : "ORDER_ACCEPTANCE_FAILED")
+  ];
+  if (!accepted) {
+    if (acceptedCount === 1) audit.push(event("KILL_SWITCH_RECOMMENDED", now, "ONE_HEDGE_LEG_ACCEPTED_OTHER_LEG_FAILED"));
+    audit.push(event("FAULTED", now, acceptedCount === 1 ? "PARTIAL_SUBMISSION_REQUIRES_CANCELLATION_OR_ROLLBACK" : "ORDER_ACCEPTANCE_FAILED"));
+  }
+  const next = freezeState({ ...state, status: accepted ? "SUBMITTING" : "FAULTED", audit });
   return Object.freeze({ state: next, receipts });
 }
 
