@@ -109,6 +109,7 @@ export function buildAiCioDashboard(input: AiCioDashboardInput, now: number): Ai
   assertTime(input.generatedAt, "generatedAt");
   assertTime(input.maximumSectionAgeMs, "maximumSectionAgeMs");
   if (input.generatedAt > now) throw new Error("dashboard cannot come from the future");
+  if (input.maximumSectionAgeMs === 0) throw new Error("maximumSectionAgeMs must be positive");
 
   const sections = [input.portfolio, input.opportunities, input.strategies, input.committee, input.execution, input.research, input.risk] as const;
   const sectionNames = ["PORTFOLIO", "OPPORTUNITIES", "STRATEGIES", "COMMITTEE", "EXECUTION", "RESEARCH", "RISK"] as const;
@@ -138,9 +139,19 @@ export function buildAiCioDashboard(input: AiCioDashboardInput, now: number): Ai
 
   if (input.portfolio.totalEquity < 0 || input.portfolio.deployableCapital < 0 || input.portfolio.reservedCapital < 0) throw new Error("portfolio capital must be non-negative");
   if (input.opportunities.activeCount < 0 || !Number.isSafeInteger(input.opportunities.activeCount)) throw new Error("activeCount must be a non-negative safe integer");
+  if (input.opportunities.totalAllocatedCapital < 0 || input.opportunities.reservedCash < 0) throw new Error("opportunity capital must be non-negative");
+  if (input.opportunities.topOpportunityId !== undefined && !input.opportunities.topOpportunityId.trim()) throw new Error("topOpportunityId must not be blank");
+  if (input.opportunities.topOpportunityScore !== undefined) assertRatio(input.opportunities.topOpportunityScore, "topOpportunityScore");
   if (input.strategies.totalTrades < 0 || !Number.isSafeInteger(input.strategies.totalTrades)) throw new Error("totalTrades must be a non-negative safe integer");
-  if (input.strategies.blockedStrategies < 0 || input.strategies.warningStrategies < 0) throw new Error("strategy counts must be non-negative");
+  if (
+    !Number.isSafeInteger(input.strategies.blockedStrategies) ||
+    !Number.isSafeInteger(input.strategies.warningStrategies) ||
+    input.strategies.blockedStrategies < 0 ||
+    input.strategies.warningStrategies < 0
+  ) throw new Error("strategy counts must be non-negative safe integers");
   if (input.execution.latencyMs < 0) throw new Error("latencyMs must be non-negative");
+  if (input.execution.slippageBps < 0) throw new Error("slippageBps must be non-negative");
+  if (!input.committee.decision.trim() || !input.committee.conflictLevel.trim()) throw new Error("committee labels must not be blank");
 
   assertRatio(input.portfolio.grossExposureRatio, "grossExposureRatio");
   assertRatio(input.portfolio.netExposureRatio, "netExposureRatio");
