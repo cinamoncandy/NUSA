@@ -1,3 +1,5 @@
+import type { PaperValidationProfile } from "./scenarioPaperValidation";
+
 export type ReleaseReadinessStatus = "READY" | "CONDITIONAL" | "BLOCKED";
 
 export interface ReleaseReadinessInput {
@@ -12,6 +14,8 @@ export interface ReleaseReadinessInput {
   readonly recoveryProcedureDocumented: boolean;
   readonly operatorRunbookDocumented: boolean;
   readonly paperValidationDays: number;
+  readonly paperValidationProfile?: PaperValidationProfile;
+  readonly scenarioPaperValidationPassed?: boolean;
   readonly unresolvedCriticalFindings: number;
   readonly unresolvedHighFindings: number;
   readonly liveTradingEnabled: boolean;
@@ -29,6 +33,7 @@ export interface ReleaseReadinessRequirement {
 export interface ReleaseReadinessReport {
   readonly generatedAt: number;
   readonly status: ReleaseReadinessStatus;
+  readonly paperValidationProfile: PaperValidationProfile;
   readonly score: number;
   readonly minimumPaperValidationDays: number;
   readonly requirements: readonly ReleaseReadinessRequirement[];
@@ -57,9 +62,22 @@ export function buildReleaseReadinessReport(
   assertNonNegativeSafeInteger(input.paperValidationDays, "paperValidationDays");
   assertNonNegativeSafeInteger(input.unresolvedCriticalFindings, "unresolvedCriticalFindings");
   assertNonNegativeSafeInteger(input.unresolvedHighFindings, "unresolvedHighFindings");
+  const paperValidationProfile = input.paperValidationProfile ?? "CALENDAR_30_DAY";
+  if (paperValidationProfile !== "CALENDAR_30_DAY" && paperValidationProfile !== "SCENARIO_BASED") throw new Error("unsupported Paper validation profile");
+  if (input.scenarioPaperValidationPassed !== undefined && typeof input.scenarioPaperValidationPassed !== "boolean") throw new Error("scenarioPaperValidationPassed must be boolean");
   if (!Number.isSafeInteger(minimumPaperValidationDays) || minimumPaperValidationDays <= 0) {
     throw new Error("minimumPaperValidationDays must be a positive safe integer");
   }
+
+  const paperValidationPassed = paperValidationProfile === "CALENDAR_30_DAY"
+    ? input.paperValidationDays >= minimumPaperValidationDays
+    : input.scenarioPaperValidationPassed === true;
+  const paperValidationTitle = paperValidationProfile === "CALENDAR_30_DAY"
+    ? "Minimum Paper validation completed"
+    : "Scenario Paper validation completed";
+  const paperValidationReason = paperValidationProfile === "CALENDAR_30_DAY"
+    ? `At least ${minimumPaperValidationDays} days of Paper operation are required`
+    : "All required Paper sessions, orders, regimes, recovery, fault, research and integrity scenarios must pass";
 
   const requirements: ReleaseReadinessRequirement[] = [
     { id: "CI", title: "CI is green", required: true, passed: input.ciGreen, reason: "Latest required workflow must complete successfully" },
@@ -71,7 +89,7 @@ export function buildReleaseReadinessReport(
     { id: "SECURITY_AUDIT", title: "Security audit passed", required: true, passed: input.securityAuditPassed, reason: "PAPER/DRY_RUN boundary must remain intact" },
     { id: "RECOVERY", title: "Recovery procedure documented", required: true, passed: input.recoveryProcedureDocumented, reason: "Operator recovery must be explicit and supported" },
     { id: "RUNBOOK", title: "Operator runbook documented", required: true, passed: input.operatorRunbookDocumented, reason: "Operational checks and escalation paths must be documented" },
-    { id: "PAPER_VALIDATION", title: "Minimum Paper validation completed", required: true, passed: input.paperValidationDays >= minimumPaperValidationDays, reason: `At least ${minimumPaperValidationDays} days of Paper operation are required` },
+    { id: "PAPER_VALIDATION", title: paperValidationTitle, required: true, passed: paperValidationPassed, reason: paperValidationReason },
     { id: "NO_CRITICAL", title: "No unresolved critical findings", required: true, passed: input.unresolvedCriticalFindings === 0, reason: "Critical findings block release" },
     { id: "NO_HIGH", title: "No unresolved high findings", required: false, passed: input.unresolvedHighFindings === 0, reason: "High findings require owner acceptance or remediation" },
     { id: "LIVE_DISABLED", title: "Live trading remains disabled", required: true, passed: !input.liveTradingEnabled, reason: "Release candidate remains PAPER/DRY_RUN only" },
@@ -87,6 +105,7 @@ export function buildReleaseReadinessReport(
   return deepFreeze({
     generatedAt: input.generatedAt,
     status,
+    paperValidationProfile,
     score,
     minimumPaperValidationDays,
     requirements,
