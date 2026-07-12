@@ -26,3 +26,15 @@ The Electron main process republishes the read-only envelope after a market tick
 Only values derived directly from the local Paper account are marked `AVAILABLE`. Engines that are not connected to this runtime projection remain `UNAVAILABLE`; their numeric placeholders must not be interpreted as observations. A partially populated projection is therefore `BLOCKED` with `tradingPermitted=false`, while still allowing the operator to inspect verified Paper equity and exposure.
 
 Any projection, validation, freshness, or serialization failure clears the previous envelope. The renderer then shows `NO_DATA` or `UNAVAILABLE` instead of retaining prior health. This projection cannot submit orders, change controls, release a kill switch, or enable LIVE trading.
+
+
+## Paper risk scope
+
+The Electron projection exposes only risk values that can be derived from the local spot Paper account:
+
+- drawdown relative to configured initial Paper equity;
+- gross/net spot exposure and portfolio heat from marked position value;
+- liquidation buffer fixed to `1` because this runtime is unleveraged spot Paper trading;
+- a local safety lock when persistence or the Paper runtime is unavailable.
+
+The local safety lock is not a substitute for the cloud/global Kill Switch. Committee, execution-quality, research, and cloud runtime-health risk remain `UNAVAILABLE` until their real sources are instantiated and connected. Their absence keeps the aggregate dashboard `BLOCKED`.
