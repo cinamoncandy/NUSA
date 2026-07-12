@@ -45,3 +45,8 @@ The local safety lock is not a substitute for the cloud/global Kill Switch. Comm
 The current PaperBroker fills an accepted order immediately, completely, and at the supplied ticker price. The dashboard therefore reports the execution model assumptions as `PAPER_SYNTHETIC_EXECUTION`: fill quality `100%`, slippage `0 bps`, and latency `0 ms`.
 
 These values describe the simulator, not real exchange execution quality. They provide no evidence about queue position, spread crossing, network latency, partial fills, market impact, or LIVE readiness. A Paper runtime or persistence fault changes the execution section to `INVALID/BLOCKED`.
+
+
+## Stable warning identity
+
+Availability and freshness warnings use stable source names rather than positional indexes, for example `SECTION_COMMITTEE_UNAVAILABLE` and `SECTION_RESEARCH_STALE`. This makes operator evidence and regression logs understandable even if the internal section array is refactored. Warning codes are deterministic, de-duplicated, and lexically sorted.
