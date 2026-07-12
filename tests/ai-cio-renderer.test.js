@@ -8,19 +8,24 @@ const script = readFileSync(join(process.cwd(), "apps/desktop/renderer/renderer.
 const css = readFileSync(join(process.cwd(), "apps/desktop/renderer/styles.css"), "utf8");
 
 test("renderer contains PAPER and live-disabled read-only command center sections", () => {
+  assert.match(html, /id="ai-cio-dashboard"/);
   assert.match(html, /PAPER \/ DRY_RUN/);
   assert.match(html, /LIVE TRADING DISABLED/);
-  for (const section of ["System Status", "Portfolio", "Opportunity", "Strategy Health", "Investment Committee", "Execution", "Risk", "Research", "Warnings"]) assert.match(html, new RegExp(section));
-  assert.match(html, /aria-label="AI CIO ?쎄린 ?꾩슜 ?댁쁺 ??쒕낫??/);
+  for (const section of ["System Status", "Portfolio", "Opportunity", "Strategy Health", "Investment Committee", "Execution", "Risk", "Research", "Warnings"]) {
+    assert.match(html, new RegExp(section));
+  }
+  assert.match(html, /aria-label="AI CIO [^"]+"/);
 });
 
-test("renderer explicitly supports all dashboard states and no-data units", () => {
-  for (const state of ["HEALTHY", "CAUTION", "BLOCKED", "NO_DATA"]) assert.ok(html.includes(state) || script.includes(state) || css.includes(state.toLowerCase().replace("_", "-")));
-  assert.match(script, /?곗씠???놁쓬/);
-  assert.match(script, /bps/);
-  assert.match(script, /ms/);
+test("renderer explicitly supports all dashboard states and typed units", () => {
+  for (const state of ["HEALTHY", "CAUTION", "BLOCKED", "NO_DATA"]) {
+    assert.ok(html.includes(state) || script.includes(state) || css.includes(state.toLowerCase().replace("_", "-")));
+  }
   assert.match(script, /cioPercent/);
   assert.match(script, /cioMoney/);
+  assert.match(script, /bps/);
+  assert.match(script, /ms/);
+  assert.match(script, /renderCioUnavailable/);
 });
 
 test("polling is single-flight, at least five seconds, bounded, and cleaned up", () => {
@@ -33,6 +38,6 @@ test("polling is single-flight, at least five seconds, bounded, and cleaned up",
 
 test("failed reads invalidate prior health instead of silently retaining it", () => {
   assert.match(script, /renderCioUnavailable\("UNAVAILABLE"\)/);
-  assert.match(script, /?댁쟾 ?곹깭???좏슚?섏? ?딆쓬/);
+  assert.match(script, /blocked \? "BLOCKED" : "NO_DATA"/);
   assert.match(script, /className = `cio-status/);
 });
