@@ -41,3 +41,12 @@ test("failed reads invalidate prior health instead of silently retaining it", ()
   assert.match(script, /blocked \? "BLOCKED" : "NO_DATA"/);
   assert.match(script, /className = `cio-status/);
 });
+
+test("unavailable sections never render numeric placeholder observations", () => {
+  assert.match(script, /cioSectionAvailable/);
+  assert.match(script, /section\.availability === "AVAILABLE"/);
+  for (const section of ["portfolio", "opportunities", "strategies", "committee", "execution", "risk", "research"]) {
+    assert.match(script, new RegExp(`cioSectionAvailable\\(snapshot\\.${section}\\)|cioSectionAvailable\\(${section}\\)`));
+  }
+  assert.match(script, /: "데이터 없음"/);
+});
