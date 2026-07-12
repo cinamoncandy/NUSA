@@ -27,12 +27,12 @@ class FakeRegistrar {
   }
 }
 
-test("registers one read-only channel and returns null before a snapshot is published", () => {
+test("registers one read-only channel and returns NO_DATA before publication", () => {
   const registrar = new FakeRegistrar();
   const source = new InMemoryAiCioEnvelopeSource();
   registerAiCioReadOnlyIpc(registrar, source, () => 1_000);
   assert.deepEqual([...registrar.handlers.keys()], [AI_CIO_SNAPSHOT_CHANNEL]);
-  assert.equal(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), null);
+  assert.deepEqual(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), { ok: false, status: "NO_DATA", message: "AI CIO dashboard is not available" });
 });
 
 test("returns a validated immutable envelope", () => {
@@ -43,10 +43,12 @@ test("returns a validated immutable envelope", () => {
   const registrar = new FakeRegistrar();
   registerAiCioReadOnlyIpc(registrar, source, () => realNow + 1);
   const result = registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)();
-  assert.equal(result.version, 1);
-  assert.equal(result.mode, "PAPER");
+  assert.equal(result.ok, true);
+  assert.equal(result.snapshot.version, 1);
+  assert.equal(result.snapshot.mode, "PAPER");
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.snapshot));
+  assert.ok(Object.isFrozen(result.snapshot.snapshot));
 });
 
 test("fails closed when the published envelope expires", () => {
@@ -55,7 +57,7 @@ test("fails closed when the published envelope expires", () => {
   source.publish(buildAiCioCommandCenterEnvelope({ mode: "DRY_RUN", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 5 }, realNow));
   const registrar = new FakeRegistrar();
   registerAiCioReadOnlyIpc(registrar, source, () => realNow + 6);
-  assert.throws(() => registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), /stale/);
+  assert.deepEqual(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), { ok: false, status: "UNAVAILABLE", message: "AI CIO dashboard is not available" });
 });
 
 test("clear removes the renderer-visible snapshot", () => {
@@ -65,5 +67,5 @@ test("clear removes the renderer-visible snapshot", () => {
   source.clear();
   const registrar = new FakeRegistrar();
   registerAiCioReadOnlyIpc(registrar, source, () => realNow);
-  assert.equal(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), null);
+  assert.deepEqual(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), { ok: false, status: "NO_DATA", message: "AI CIO dashboard is not available" });
 });
