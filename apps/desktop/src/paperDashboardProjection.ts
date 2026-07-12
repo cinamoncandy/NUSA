@@ -8,6 +8,7 @@ export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
   readonly control: ControlSnapshot;
   readonly markPrice: number;
+  readonly referenceEquity: number;
   readonly runtimeAvailable: boolean;
   readonly generatedAt: number;
 }
@@ -22,6 +23,7 @@ const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
 export function buildPaperDashboardSections(input: PaperDashboardProjectionInput): Required<AiCioSectionSet> {
   if (!Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("generatedAt must be a non-negative safe integer");
   if (!Number.isFinite(input.markPrice) || input.markPrice <= 0) throw new Error("markPrice must be positive");
+  if (!Number.isFinite(input.referenceEquity) || input.referenceEquity <= 0) throw new Error("referenceEquity must be positive");
   if (!Number.isFinite(input.account.equity) || input.account.equity < 0) throw new Error("paper equity must be finite and non-negative");
   if (!Number.isFinite(input.account.cash) || input.account.cash < 0) throw new Error("paper cash must be finite and non-negative");
 
@@ -31,6 +33,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   if (!Number.isFinite(exposure) || exposure < 0 || exposure > 1) throw new Error("paper exposure must be between zero and one");
 
   const runtimeReasons = input.runtimeAvailable ? [] : ["PAPER_RUNTIME_UNAVAILABLE"];
+  const drawdown = Math.max(0, Math.min(1, (input.referenceEquity - input.account.equity) / input.referenceEquity));
   const unknown = unavailable(input.generatedAt, ["SOURCE_NOT_CONNECTED"]);
   const strategyReasons = input.control.status === "FAULTED" ? ["CONTROL_PLANE_FAULTED"] : [];
 
@@ -62,12 +65,14 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
     execution: Object.freeze({ ...unknown, fillQuality: 0, slippageBps: 0, latencyMs: 0 }),
     research: Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
     risk: Object.freeze({
-      ...unknown,
-      reasons: Object.freeze(input.runtimeAvailable ? ["RISK_SOURCE_NOT_CONNECTED"] : ["PAPER_RUNTIME_UNAVAILABLE"]),
+      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
+      availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
+      generatedAt: input.generatedAt,
+      reasons: Object.freeze([...runtimeReasons]),
       killSwitchActive: !input.runtimeAvailable,
-      dailyDrawdownRatio: 0,
-      liquidationBufferRatio: 0,
-      portfolioHeatRatio: 0
+      dailyDrawdownRatio: drawdown,
+      liquidationBufferRatio: 1,
+      portfolioHeatRatio: exposure
     })
   });
 }
