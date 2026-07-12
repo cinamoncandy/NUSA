@@ -54,3 +54,10 @@ The default `CALENDAR_30_DAY` profile preserves the original duration policy. An
 - passing Walk-Forward, cost-stress, and integrity checks.
 
 Only the Paper-duration requirement is replaced. CI, typecheck, build, security, runtime, recovery, source coverage, and owner-review requirements remain mandatory. Scenario evidence does not enable LIVE trading.
+
+
+## Scenario evidence provenance
+
+Scenario counters are derived from immutable session observations rather than accepted as standalone claims. The canonical bundle sorts records by observation time and record ID, derives order/regime/recovery/duplicate/fault counts, links Walk-Forward, cost-stress, and integrity evidence IDs, and records a SHA-256 identity.
+
+The completion gate requires a schema-v1 bundle with a valid full SHA-256 identity. A raw passing counter object is not accepted as completion evidence. The checksum provides deterministic identity and tamper detection; it does not independently prove that an operator or external source reported truthful observations.
