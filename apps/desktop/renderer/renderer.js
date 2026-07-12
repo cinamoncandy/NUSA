@@ -104,3 +104,76 @@ Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()
   renderSnapshot(paper);
   renderControl(control);
 });
+
+
+const cioPercent = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "데이터 없음";
+const cioMoney = (value) => Number.isFinite(value) ? won.format(value) : "데이터 없음";
+const cioText = (id, value) => { byId(id).textContent = value; };
+let cioRefreshTimer;
+let cioRefreshInFlight = false;
+let cioRefreshStopped = false;
+let cioRefreshDelayMs = 5_000;
+
+function renderCioUnavailable(status) {
+  const blocked = status === "UNAVAILABLE";
+  const label = blocked ? "BLOCKED" : "NO_DATA";
+  const statusNode = byId("cio-status");
+  statusNode.textContent = label;
+  statusNode.className = `cio-status ${blocked ? "blocked" : "no-data"}`;
+  cioText("cio-freshness", blocked ? "Dashboard 조회 실패 · 이전 상태는 유효하지 않음" : "Dashboard 데이터 없음");
+  for (const id of ["cio-system", "cio-opportunity", "cio-strategy", "cio-committee", "cio-execution", "cio-risk", "cio-research"]) cioText(id, "데이터 없음");
+  byId("cio-portfolio").innerHTML = "<div><dt>전체 자본</dt><dd>데이터 없음</dd></div>";
+  byId("cio-warnings").innerHTML = `<li>${blocked ? "Dashboard unavailable" : "Dashboard 데이터 없음"}</li>`;
+}
+
+function renderCioDashboard(envelope) {
+  const snapshot = envelope.snapshot;
+  const statusNode = byId("cio-status");
+  statusNode.textContent = snapshot.status;
+  statusNode.className = `cio-status ${snapshot.status.toLowerCase().replace("_", "-")}`;
+  cioText("cio-freshness", `마지막 갱신 ${new Date(envelope.generatedAt).toLocaleString("ko-KR")} · ${envelope.mode} · 읽기 전용`);
+  cioText("cio-system", `${snapshot.status} · 자동 실행 ${snapshot.tradingPermitted ? "PAPER 허용" : "차단"}`);
+  const portfolio = snapshot.portfolio;
+  byId("cio-portfolio").innerHTML = `<div><dt>전체 자본</dt><dd>${cioMoney(portfolio?.totalEquity)}</dd></div><div><dt>운용 가능</dt><dd>${cioMoney(portfolio?.deployableCapital)}</dd></div><div><dt>출금 예약</dt><dd>${cioMoney(portfolio?.reservedCapital)}</dd></div><div><dt>Gross / Net Exposure</dt><dd>${cioPercent(portfolio?.grossExposureRatio)} / ${cioPercent(portfolio?.netExposureRatio)}</dd></div>`;
+  cioText("cio-opportunity", snapshot.opportunities ? `활성 ${snapshot.opportunities.activeCount} · 배분 ${cioMoney(snapshot.opportunities.totalAllocatedCapital)}` : "데이터 없음");
+  cioText("cio-strategy", snapshot.strategies ? `거래 ${snapshot.strategies.totalTrades} · 차단 ${snapshot.strategies.blockedStrategies} · 경고 ${snapshot.strategies.warningStrategies}` : "데이터 없음");
+  cioText("cio-committee", snapshot.committee ? `${snapshot.committee.decision} · Confidence ${cioPercent(snapshot.committee.confidence)} · Edge ${cioPercent(snapshot.committee.edge)} · Risk ${cioPercent(snapshot.committee.risk)}` : "데이터 없음");
+  cioText("cio-execution", snapshot.execution ? `Fill ${cioPercent(snapshot.execution.fillQuality)} · Slippage ${snapshot.execution.slippageBps.toFixed(2)} bps · Latency ${snapshot.execution.latencyMs} ms` : "데이터 없음");
+  cioText("cio-risk", snapshot.risk ? `Drawdown ${cioPercent(snapshot.risk.dailyDrawdownRatio)} · Heat ${cioPercent(snapshot.risk.portfolioHeatRatio)} · Kill Switch ${snapshot.risk.killSwitchActive ? "ACTIVE" : "OFF"}` : "데이터 없음");
+  cioText("cio-research", snapshot.research ? `Walk-forward ${snapshot.research.walkForwardPassed ? "PASS" : "FAIL"} · Monte Carlo ${snapshot.research.monteCarloPassed ? "PASS" : "FAIL"} · Cost Stress ${snapshot.research.costStressPassed ? "PASS" : "FAIL"}` : "데이터 없음");
+  const list = byId("cio-warnings");
+  list.replaceChildren(...(snapshot.warnings.length ? snapshot.warnings : ["경고 없음"]).map((warning) => { const item = document.createElement("li"); item.textContent = warning; return item; }));
+}
+
+function scheduleCioRefresh() {
+  if (cioRefreshStopped) return;
+  clearTimeout(cioRefreshTimer);
+  cioRefreshTimer = setTimeout(refreshCioDashboard, cioRefreshDelayMs);
+}
+
+async function refreshCioDashboard() {
+  if (cioRefreshInFlight || cioRefreshStopped) return;
+  cioRefreshInFlight = true;
+  try {
+    const result = await window.aiCioDashboard.getAiCioDashboard();
+    if (result.ok) {
+      renderCioDashboard(result.snapshot);
+      cioRefreshDelayMs = 5_000;
+    } else {
+      renderCioUnavailable(result.status);
+      cioRefreshDelayMs = Math.min(30_000, cioRefreshDelayMs * 2);
+    }
+  } catch {
+    renderCioUnavailable("UNAVAILABLE");
+    cioRefreshDelayMs = Math.min(30_000, cioRefreshDelayMs * 2);
+  } finally {
+    cioRefreshInFlight = false;
+    scheduleCioRefresh();
+  }
+}
+
+window.addEventListener("beforeunload", () => {
+  cioRefreshStopped = true;
+  clearTimeout(cioRefreshTimer);
+});
+refreshCioDashboard();
