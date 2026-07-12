@@ -38,3 +38,10 @@ The Electron projection exposes only risk values that can be derived from the lo
 - a local safety lock when persistence or the Paper runtime is unavailable.
 
 The local safety lock is not a substitute for the cloud/global Kill Switch. Committee, execution-quality, research, and cloud runtime-health risk remain `UNAVAILABLE` until their real sources are instantiated and connected. Their absence keeps the aggregate dashboard `BLOCKED`.
+
+
+## Paper execution scope
+
+The current PaperBroker fills an accepted order immediately, completely, and at the supplied ticker price. The dashboard therefore reports the execution model assumptions as `PAPER_SYNTHETIC_EXECUTION`: fill quality `100%`, slippage `0 bps`, and latency `0 ms`.
+
+These values describe the simulator, not real exchange execution quality. They provide no evidence about queue position, spread crossing, network latency, partial fills, market impact, or LIVE readiness. A Paper runtime or persistence fault changes the execution section to `INVALID/BLOCKED`.
