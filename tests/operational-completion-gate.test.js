@@ -118,3 +118,32 @@ test("duplicate recovery scenarios and future evidence are rejected deterministi
   assert.throws(() => evaluateOperationalCompletion(input({ dashboard: dashboard({ generatedAt: generatedAt + 1 }) })), /future/);
   assert.deepEqual(evaluateOperationalCompletion(input()), evaluateOperationalCompletion(input()));
 });
+
+test("scenario profile replaces calendar duration without weakening other gates", () => {
+  const result = evaluateOperationalCompletion(input({
+    validationProfile: "SCENARIO_BASED",
+    paperEvidence: paperEvidence({ status: "FAIL", calendarDays: 0, observedDays: 0 }),
+    releaseReadiness: releaseReadiness(false),
+    scenarioEvidence: {
+      profile: "SCENARIO_BASED",
+      generatedAt,
+      status: "PASS",
+      reasons: [],
+      minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
+    }
+  }));
+  assert.equal(result.status, "READY_FOR_OWNER_REVIEW");
+  assert.equal(result.validationProfile, "SCENARIO_BASED");
+  assert.equal(result.paperEvidenceComplete, true);
+  assert.equal(result.releaseAuditComplete, true);
+  assert.equal(result.liveTradingAllowed, false);
+});
+
+test("scenario profile without passing scenario evidence waits fail closed", () => {
+  const result = evaluateOperationalCompletion(input({
+    validationProfile: "SCENARIO_BASED",
+    releaseReadiness: releaseReadiness(false)
+  }));
+  assert.equal(result.status, "WAITING_FOR_EVIDENCE");
+  assert.deepEqual(result.pendingEvidence, ["SCENARIO_PAPER_EVIDENCE_INCOMPLETE", "SCENARIO_RELEASE_EVIDENCE_INCOMPLETE"]);
+});
