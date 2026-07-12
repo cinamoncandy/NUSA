@@ -68,8 +68,9 @@ test("same-direction correlated opportunities share a hard budget", () => {
     maximumCorrelatedAllocation: 0.3,
     conflicts: [{ leftId: "BTC", rightId: "ETH", correlation: 0.95 }]
   }));
+  assert.equal(result.opportunities.length, 1);
   assert.equal(result.opportunities[0].allocation, 300);
-  assert.equal(result.opportunities[1].allocation, 0);
+  assert.equal(result.rejected[0].reason, "CORRELATION_BUDGET_EXHAUSTED");
 });
 
 test("opposite directions do not consume same-direction correlation budget", () => {
