@@ -71,6 +71,8 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
   }
 
   const blockers: string[] = [];
+  const releaseValidationProfile = input.releaseReadiness.paperValidationProfile ?? "CALENDAR_30_DAY";
+  if (releaseValidationProfile !== validationProfile) blockers.push("RELEASE_VALIDATION_PROFILE_MISMATCH");
   const pendingEvidence: string[] = [];
   const unavailableSources = SECTION_NAMES.filter((name) => (input.dashboard[name].availability ?? "AVAILABLE") !== "AVAILABLE");
   const sourceCoverageComplete = unavailableSources.length === 0 && input.dashboard.status === "HEALTHY";
