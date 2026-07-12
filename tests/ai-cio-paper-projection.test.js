@@ -25,9 +25,12 @@ test("projects only verified Paper portfolio values and marks missing engines un
   assert.equal(result.portfolio.totalEquity, 1_120);
   assert.equal(result.portfolio.deployableCapital + result.portfolio.reservedCapital, result.portfolio.totalEquity);
   assert.equal(result.portfolio.grossExposureRatio, 240 / 1_120);
-  for (const name of ["opportunities", "strategies", "committee", "execution", "research"]) {
+  for (const name of ["opportunities", "strategies", "committee", "research"]) {
     assert.equal(result[name].availability, "UNAVAILABLE");
   }
+  assert.equal(result.execution.availability, "AVAILABLE");
+  assert.equal(result.execution.fillQuality, 1);
+  assert.deepEqual(result.execution.reasons, ["PAPER_SYNTHETIC_EXECUTION"]);
   assert.equal(result.risk.availability, "AVAILABLE");
   assert.equal(result.risk.dailyDrawdownRatio, 0);
   assert.equal(result.risk.portfolioHeatRatio, 240 / 1_120);
@@ -52,6 +55,8 @@ test("incomplete operational sources publish a visible BLOCKED snapshot, never h
 test("runtime failure is represented as blocked risk and immutable evidence", () => {
   const result = buildPaperDashboardSections(input({ runtimeAvailable: false }));
   assert.equal(result.portfolio.status, "BLOCKED");
+  assert.equal(result.execution.availability, "INVALID");
+  assert.equal(result.execution.fillQuality, 0);
   assert.equal(result.risk.availability, "INVALID");
   assert.equal(result.risk.killSwitchActive, true);
   assert.deepEqual(result.risk.reasons, ["PAPER_RUNTIME_UNAVAILABLE"]);
