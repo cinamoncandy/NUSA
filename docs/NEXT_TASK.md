@@ -1,69 +1,52 @@
 # Next Task
 
-## Current Governance Baseline
+## Current baseline
 
-Strategy Governance v1 and AI Investment Committee v1 are deterministic PAPER/DRY_RUN control layers. They do not create strategies, call an LLM, submit orders, enable LIVE trading, handle credentials, or override Risk, Probability/Edge, Kelly, Control Plane, Kill Switch, or Strategy Governance gates.
+Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
-Current hardening priorities:
+Implemented and continuously validated:
 
-1. Persist governance and committee command-id idempotency atomically with their ledgers.
-2. Move governance and committee table creation into a numbered, checksum-reviewed SQLite migration plan.
-3. Reconcile persisted registry state with ledger replay during service startup and fail closed on any difference.
-4. Add operator-facing read-only recovery status; do not add a live execution path.
-5. Keep PR #1 Draft and do not merge without owner review.
+- SQLite-backed Paper and Control persistence with default-off recovery;
+- deterministic backtest, Walk-Forward, dataset provenance, Research Memory, and cost stress;
+- PAPER/DRY_RUN Strategy Governance and Investment Committee controls;
+- read-only AI CIO Electron dashboard with fail-closed source availability;
+- Paper portfolio, bounded risk, and synthetic execution projections;
+- runtime health, recovery, evidence, and release-readiness contracts;
+- operational completion policy with calendar and scenario-based Paper validation profiles.
 
-## Completion update
+## Active validation profile
 
-The stabilization work below is implemented on `agent/electron-upbit-paper-trading`:
+The owner does not plan to wait for a 30-day Paper calendar period. Use `SCENARIO_BASED` explicitly.
 
-- malformed Paper and Control Plane sessions return visible diagnostics and fail closed;
-- Paper account state, Control Plane status, events, order quantity, and processed automatic signal keys persist atomically;
-- automated trading is always disabled after restart;
-- faulted recovery state cannot restart a strategy without operator repair;
-- duplicate automatic signals cannot create duplicate Paper orders;
-- risk rejection is recorded as an outcome without terminating the process;
-- manual and automatic Paper orders continue to use the same broker risk limits.
+Required evidence:
 
-Validation after implementation:
+- 20 observed Paper sessions;
+- 50 completed Paper orders;
+- 3 represented market regimes;
+- 3 restart-recovery passes;
+- 10 duplicate-order checks;
+- persistence failure, WebSocket disconnect, partial-write, duplicate-signal, and Kill Switch scenarios;
+- Walk-Forward, cost-stress, and integrity PASS.
 
-- `pnpm run typecheck`: PASS
-- `pnpm test`: PASS (39 tests)
+This replaces only elapsed calendar duration. It does not replace CI, recovery, source coverage, security review, or owner approval.
 
-## Current next task
+## Remaining work
 
-Replace JSON session persistence with a versioned SQLite event and account repository while preserving the recovery and default-off guarantees established here. Build the backtest engine against the same strategy, risk, and accounting contracts.
+1. Collect real scenario evidence; never manufacture counters or elapsed operation.
+2. Connect actual Opportunity, Committee, Strategy analytics, and Research sources to the read-only dashboard.
+3. Keep unavailable sources explicit and the completion gate blocked until connected.
+4. Run supported SQLite corruption/restore and event-log replay drills and preserve immutable evidence.
+5. Resolve every critical/high audit finding or record explicit owner acceptance.
+6. Keep LIVE trading, private APIs, credentials, withdrawal actions, automatic promotion, and automatic release disabled.
+7. Keep PR #1 Draft and unmerged until owner review.
 
-## Stabilization objective (completed)
+## Validation commands
 
-## Objective
+```text
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run build
+pnpm test
+```
 
-Stabilize the current Upbit spot Paper Trading branch before adding broader features.
-
-## Required work
-
-1. Run the full TypeScript build and Node test suite on a clean checkout.
-2. Fix any compile, path, packaging, or test failures.
-3. Make the Paper session persistence recover safely from malformed or partially written state.
-4. Persist Control Plane state and events without enabling auto-trading after restart.
-5. Add deterministic tests for:
-   - malformed session recovery,
-   - strategy start/stop state,
-   - automatic-trading default-off behavior,
-   - duplicate signal/order prevention,
-   - risk rejection without process failure.
-6. Replace the renderer's ad-hoc chart only if doing so does not delay stability work.
-7. Update the active PR with actual validation results.
-
-## Acceptance criteria
-
-- `pnpm run typecheck` passes.
-- `pnpm test` passes.
-- App restart restores Paper account state but leaves automated trading disabled.
-- Corrupt state fails closed and produces a visible diagnostic instead of silently resetting or trading.
-- One market event cannot produce duplicate automatic orders.
-- Existing risk limits remain enforced for manual and automatic Paper orders.
-- No live order path, API credential handling, or Binance futures code is added.
-
-## After this task
-
-Proceed to a versioned SQLite event and account repository, then build the backtest engine against the same strategy and accounting contracts.
+Windows CI is the authoritative clean-checkout result. Never claim completion while required CI is failing or scenario evidence is incomplete.
