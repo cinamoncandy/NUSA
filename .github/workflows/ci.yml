@@ -47,7 +47,7 @@ jobs:
       - name: AI CIO dashboard read-only tests
         run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-paper-projection.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
       - name: Operational completion policy tests
-        run: node --test --test-reporter=spec tests/scenario-paper-validation.test.js tests/operational-completion-gate.test.js tests/release-readiness-audit.test.js
+        run: node --test --test-reporter=spec tests/scenario-paper-validation.test.js tests/scenario-evidence-bundle.test.js tests/operational-completion-gate.test.js tests/release-readiness-audit.test.js
       - name: Full isolated test suite
         run: node scripts/run-tests-isolated.js
       - name: Upload isolated test failure
