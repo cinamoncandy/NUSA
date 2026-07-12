@@ -48,3 +48,11 @@ jobs:
         run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
       - name: Full isolated test suite
         run: node scripts/run-tests-isolated.js
+      - name: Upload isolated test failure
+        if: failure() && hashFiles('isolated-test-failure.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-test-failure
+          path: isolated-test-failure.txt
+          if-no-files-found: error
+          retention-days: 7
