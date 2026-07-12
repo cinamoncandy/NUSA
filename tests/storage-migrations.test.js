@@ -59,11 +59,11 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
-    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory"]);
-    assert.equal(db.migrationResult.currentVersion, "002_research_memory");
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "003_governance_control", "003_governance_control"]);
+    assert.equal(db.migrationResult.currentVersion, "003_governance_control");
     const names = db.connection.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?) ORDER BY name"
-    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records")
+    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events")
       .map((row) => row.name);
     assert.deepEqual(names, [
       "applied_ledger_markers",
@@ -82,7 +82,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const reopened = new SqliteDatabase(filename);
   try {
     assert.deepEqual(reopened.migrationResult.applied, []);
-    assert.equal(reopened.migrationResult.currentVersion, "002_research_memory");
+    assert.equal(reopened.migrationResult.currentVersion, "003_governance_control");
     assert.equal(reopened.connection.prepare("SELECT id FROM position_ledger_entries WHERE id = ?").get("persisted").id, "persisted");
   } finally { reopened.close(); }
 });
