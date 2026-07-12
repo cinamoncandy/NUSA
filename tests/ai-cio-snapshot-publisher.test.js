@@ -64,7 +64,7 @@ test("invalid complete input clears and rethrows", () => {
   const target = sink();
   assert.throws(() => publisher(target).publishIfComplete(complete({
     portfolio: section({ totalEquity: 100, deployableCapital: 90, reservedCapital: 20, grossExposureRatio: 0.2, netExposureRatio: 0.1 })
-  }), now), /exceed total equity/);
+  }), now), /must equal total equity/);
   assert.equal(target.published, null);
   assert.equal(target.clears, 1);
 });
