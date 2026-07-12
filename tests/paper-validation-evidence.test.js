@@ -39,13 +39,14 @@ test("passes only when duration and quality thresholds are met", () => {
   assert.ok(Object.isFrozen(report));
 });
 
-test("fails closed on short or poor-quality evidence", () => {
+test("fails closed on short evidence and warns on isolated poor-quality days", () => {
   const short = Array.from({ length: 29 }, (_, index) => makeDay(index));
   assert.equal(buildPaperValidationEvidence(short, 29 * DAY, thresholds).status, "FAIL");
 
   const failed = Array.from({ length: 30 }, (_, index) => makeDay(index, index === 10 ? { failedRuns: 10, successfulRuns: 90 } : {}));
   const report = buildPaperValidationEvidence(failed, 30 * DAY, thresholds);
-  assert.equal(report.status, "FAIL");
+  assert.equal(report.status, "WARNING");
+  assert.equal(report.qualifyingDays, 29);
   assert.equal(report.releaseReadinessPaperValidationDays, 0);
 });
 
