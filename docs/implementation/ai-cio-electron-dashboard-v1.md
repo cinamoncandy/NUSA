@@ -17,3 +17,12 @@ Section timestamps cannot be later than the aggregation timestamp or current tim
 The responsive command center displays system, portfolio, opportunity, strategy, committee, execution, risk, research, freshness, and warning sections. Missing values are rendered as `?곗씠???놁쓬`, never invented zeroes. PAPER/DRY_RUN and LIVE TRADING DISABLED are permanently visible. Polling starts at five seconds, prevents overlapping requests, uses bounded backoff, invalidates stale prior health on failure, and clears its timer on unload.
 
 This view does not guarantee investment returns. Responsive web layout supports narrow iPhone and Galaxy widths without introducing Flutter or another UI framework. LIVE activation remains unimplemented and requires separate owner, security, regulatory, and operational review.
+
+
+## Paper runtime projection
+
+The Electron main process republishes the read-only envelope after a market tick, Paper order, or Control Plane state change.
+
+Only values derived directly from the local Paper account are marked `AVAILABLE`. Engines that are not connected to this runtime projection remain `UNAVAILABLE`; their numeric placeholders must not be interpreted as observations. A partially populated projection is therefore `BLOCKED` with `tradingPermitted=false`, while still allowing the operator to inspect verified Paper equity and exposure.
+
+Any projection, validation, freshness, or serialization failure clears the previous envelope. The renderer then shows `NO_DATA` or `UNAVAILABLE` instead of retaining prior health. This projection cannot submit orders, change controls, release a kill switch, or enable LIVE trading.
