@@ -56,24 +56,24 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
   }
 
   let banner: MobileAppShellState["banner"];
-  if (input.dashboard.kind === "ERROR") {
-    banner = Object.freeze({ tone: "DANGER", message: input.dashboard.message });
-  } else if (input.dashboard.kind === "BLOCKED") {
-    banner = Object.freeze({ tone: "DANGER", message: input.dashboard.headline });
-  } else if (input.dashboard.kind === "CAUTION") {
-    banner = Object.freeze({ tone: "WARNING", message: input.dashboard.headline });
-  } else if (input.dashboard.kind === "LOADING") {
+  if (input.dashboard.phase === "ERROR") {
+    banner = Object.freeze({ tone: "DANGER", message: input.dashboard.message ?? input.dashboard.headline });
+  } else if (input.dashboard.phase === "BLOCKED") {
+    banner = Object.freeze({ tone: "DANGER", message: input.dashboard.message ?? input.dashboard.headline });
+  } else if (input.dashboard.phase === "CAUTION") {
+    banner = Object.freeze({ tone: "WARNING", message: input.dashboard.message ?? input.dashboard.headline });
+  } else if (input.dashboard.phase === "LOADING") {
     banner = Object.freeze({ tone: "INFO", message: "최신 운용 상태를 불러오는 중입니다." });
   }
 
-  const canOpenTradingControl = input.dashboard.kind !== "LOADING" && input.dashboard.kind !== "ERROR";
-  const showEmergencyStop = input.dashboard.kind === "READY" || input.dashboard.kind === "CAUTION" || input.dashboard.kind === "BLOCKED";
+  const canOpenTradingControl = input.dashboard.phase !== "LOADING" && input.dashboard.phase !== "ERROR";
+  const showEmergencyStop = input.dashboard.phase === "READY" || input.dashboard.phase === "CAUTION" || input.dashboard.phase === "BLOCKED";
 
   return Object.freeze({
     route: "APP",
     activeTab: input.activeTab,
     title: TITLES[input.activeTab],
-    canRefresh: input.dashboard.kind !== "LOADING",
+    canRefresh: input.dashboard.phase !== "LOADING",
     canOpenTradingControl,
     showEmergencyStop,
     ...(banner ? { banner } : {}),
