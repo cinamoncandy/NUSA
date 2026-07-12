@@ -47,9 +47,10 @@ const candidates = (f: MarketRegimeFeatures): readonly Candidate[] => Object.fre
 
 export function classifyMarketRegime(features: MarketRegimeFeatures): MarketRegimeSnapshot {
   validateFeatures(features);
+  const systemicPanic = features.riskScore >= 0.8 && features.returnZScore <= -2 && features.liquidationZScore >= 2;
   const ordered = [...candidates(features)].sort((a, b) => b.score - a.score || a.regime.localeCompare(b.regime));
-  const first = ordered[0];
-  const second = ordered[1];
+  const first = systemicPanic ? ordered.find((item) => item.regime === "PANIC")! : ordered[0];
+  const second = ordered.find((item) => item.regime !== first.regime)!;
   const confidence = clamp01(first.score / Math.max(1, first.score + second.score));
   const stability = clamp01(1 - Math.min(1, Math.abs(first.score - second.score) < 0.05 ? 0.7 : 0.2));
   return Object.freeze({
