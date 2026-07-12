@@ -111,14 +111,16 @@ export function buildAiCioDashboard(input: AiCioDashboardInput, now: number): Ai
   if (input.generatedAt > now) throw new Error("dashboard cannot come from the future");
 
   const sections = [input.portfolio, input.opportunities, input.strategies, input.committee, input.execution, input.research, input.risk] as const;
+  const sectionNames = ["PORTFOLIO", "OPPORTUNITIES", "STRATEGIES", "COMMITTEE", "EXECUTION", "RESEARCH", "RISK"] as const;
   const warnings: string[] = [];
   for (const [index, section] of sections.entries()) {
-    assertTime(section.generatedAt, `section[${index}].generatedAt`);
+    const sectionName = sectionNames[index];
+    assertTime(section.generatedAt, `${sectionName}.generatedAt`);
     if (section.generatedAt > now || section.generatedAt > input.generatedAt) throw new Error("dashboard section cannot come from the future");
     const availability = section.availability ?? "AVAILABLE";
     if (!["AVAILABLE", "STALE", "UNAVAILABLE", "INVALID"].includes(availability)) throw new Error("invalid dashboard availability");
-    if (availability !== "AVAILABLE") warnings.push(`SECTION_${index}_${availability}`);
-    if (now - section.generatedAt > input.maximumSectionAgeMs) warnings.push(`SECTION_${index}_STALE`);
+    if (availability !== "AVAILABLE") warnings.push(`SECTION_${sectionName}_${availability}`);
+    if (now - section.generatedAt > input.maximumSectionAgeMs) warnings.push(`SECTION_${sectionName}_STALE`);
     for (const reason of section.reasons) if (!reason.trim()) throw new Error("dashboard reason must not be blank");
     if (section.status !== "HEALTHY" && section.status !== "CAUTION" && section.status !== "BLOCKED") throw new Error("invalid dashboard status");
   }
