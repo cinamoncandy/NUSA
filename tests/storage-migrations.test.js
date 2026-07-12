@@ -59,7 +59,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
-    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "003_governance_control", "003_governance_control"]);
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control"]);
     assert.equal(db.migrationResult.currentVersion, "003_governance_control");
     const names = db.connection.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?) ORDER BY name"
