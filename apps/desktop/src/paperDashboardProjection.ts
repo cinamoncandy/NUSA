@@ -62,7 +62,15 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       warningStrategies: input.control.status === "FAULTED" ? 0 : 1
     }),
     committee: Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
-    execution: Object.freeze({ ...unknown, fillQuality: 0, slippageBps: 0, latencyMs: 0 }),
+    execution: Object.freeze({
+      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
+      availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
+      generatedAt: input.generatedAt,
+      reasons: Object.freeze(input.runtimeAvailable ? ["PAPER_SYNTHETIC_EXECUTION"] : ["PAPER_RUNTIME_UNAVAILABLE"]),
+      fillQuality: input.runtimeAvailable ? 1 : 0,
+      slippageBps: 0,
+      latencyMs: 0
+    }),
     research: Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
     risk: Object.freeze({
       status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
