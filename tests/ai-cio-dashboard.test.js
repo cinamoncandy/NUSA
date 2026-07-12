@@ -84,3 +84,16 @@ test("dashboard rejects section time after aggregation time and both capital mis
   assert.throws(() => buildAiCioDashboard(input({ risk: section({ generatedAt: 1_200, killSwitchActive: false, dailyDrawdownRatio: 0, liquidationBufferRatio: 1, portfolioHeatRatio: 0 }) }), 1_500), /future/);
   assert.throws(() => buildAiCioDashboard(input({ portfolio: section({ totalEquity: 100_000, deployableCapital: 60_000, reservedCapital: 30_000, grossExposureRatio: 0, netExposureRatio: 0 }) }), 1_500), /must equal/);
 });
+
+test("availability and freshness warnings identify sections by stable names", () => {
+  const unavailable = buildAiCioDashboard(input({
+    committee: section({ availability: "UNAVAILABLE", decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" })
+  }), 1_500);
+  assert.ok(unavailable.warnings.includes("SECTION_COMMITTEE_UNAVAILABLE"));
+  assert.ok(unavailable.warnings.every((warning) => !/^SECTION_\\d+_/.test(warning)));
+
+  const stale = buildAiCioDashboard(input({
+    research: section({ availability: "STALE", walkForwardPassed: true, monteCarloPassed: true, costStressPassed: true, paperPromotionEligible: true })
+  }), 1_500);
+  assert.ok(stale.warnings.includes("SECTION_RESEARCH_STALE"));
+});
