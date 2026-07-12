@@ -62,7 +62,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
     assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control"]);
     assert.equal(db.migrationResult.currentVersion, "003_governance_control");
     const names = db.connection.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?) ORDER BY name"
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY name"
     ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events")
       .map((row) => row.name);
     assert.deepEqual(names, [
