@@ -67,10 +67,12 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
       .map((row) => row.name);
     assert.deepEqual(names, [
       "applied_ledger_markers",
+      "investment_committee_events",
       "position_ledger_entries",
       "research_experiment_records",
       "research_hypotheses",
       "schema_migrations",
+      "strategy_governance_commands",
       "strategy_position_snapshots",
       "wallet_position_snapshots"
     ]);
