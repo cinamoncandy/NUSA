@@ -57,6 +57,7 @@ function publishAiCioDashboard(): void {
       account: broker.snapshot(latestTicker.trade_price),
       control: control.snapshot(),
       markPrice: latestTicker.trade_price,
+      referenceEquity: INITIAL_CASH,
       runtimeAvailable: paperTradingAvailable,
       generatedAt
     }), generatedAt);
