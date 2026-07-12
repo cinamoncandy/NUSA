@@ -101,9 +101,13 @@ export function buildOpportunitySchedule(input: OpportunityScheduleInput): Oppor
   }
 
   const conflicts = new Map<string, OpportunityConflict[]>();
+  const conflictKeys = new Set<string>();
   for (const conflict of input.conflicts) {
     ratio(conflict.correlation, "correlation");
     if (!ids.has(conflict.leftId) || !ids.has(conflict.rightId) || conflict.leftId === conflict.rightId) throw new Error("invalid opportunity conflict");
+    const conflictKey = [conflict.leftId, conflict.rightId].sort().join("::");
+    if (conflictKeys.has(conflictKey)) throw new Error("duplicate opportunity conflict");
+    conflictKeys.add(conflictKey);
     conflicts.set(conflict.leftId, [...(conflicts.get(conflict.leftId) ?? []), conflict]);
     conflicts.set(conflict.rightId, [...(conflicts.get(conflict.rightId) ?? []), conflict]);
   }
@@ -124,15 +128,20 @@ export function buildOpportunitySchedule(input: OpportunityScheduleInput): Oppor
     }
 
     const related = conflicts.get(item.candidate.id) ?? [];
+    let hasDirectionalConflict = false;
     const conflictingAllocation = accepted.reduce((sum, existing) => {
       const match = related.find((entry) => entry.leftId === existing.candidate.id || entry.rightId === existing.candidate.id);
-      return match && sameDirectionalConflict(item.candidate, existing.candidate, match.correlation) ? sum + existing.allocation : sum;
+      if (match && sameDirectionalConflict(item.candidate, existing.candidate, match.correlation)) {
+        hasDirectionalConflict = true;
+        return sum + existing.allocation;
+      }
+      return sum;
     }, 0);
     const correlatedCap = portfolioBudget * input.maximumCorrelatedAllocation;
-    const availableCorrelated = Math.max(0, correlatedCap - conflictingAllocation);
+    const availableCorrelated = hasDirectionalConflict ? Math.max(0, correlatedCap - conflictingAllocation) : remaining;
     const desired = Math.min(portfolioBudget * item.candidate.maximumAllocation, remaining, availableCorrelated);
     if (desired <= 0) {
-      rejected.push({ id: item.candidate.id, reason: conflictingAllocation >= correlatedCap ? "CORRELATION_BUDGET_EXHAUSTED" : "PORTFOLIO_BUDGET_EXHAUSTED" });
+      rejected.push({ id: item.candidate.id, reason: hasDirectionalConflict && conflictingAllocation >= correlatedCap ? "CORRELATION_BUDGET_EXHAUSTED" : "PORTFOLIO_BUDGET_EXHAUSTED" });
       continue;
     }
     accepted.push({ candidate: item.candidate, score: item.score, allocation: desired, reasons: ["POSITIVE_NET_EDGE", "EXECUTION_AND_REGIME_APPROVED"] });
