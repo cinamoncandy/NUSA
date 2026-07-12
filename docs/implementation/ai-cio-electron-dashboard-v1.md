@@ -1,0 +1,19 @@
+# AI CIO Electron Dashboard v1
+
+## Boundary
+
+The dashboard is a PAPER/DRY_RUN read-only operating view. `window.aiCioDashboard` exposes one input-free method, `getAiCioDashboard`. It has no order, control, promotion, Champion, Kill Switch release, filesystem, database, or Node.js method. The existing trading controls remain outside this namespace. Internal exceptions, paths, stack traces, and secrets are converted to a fixed unavailable response.
+
+## Data flow
+
+Operational evidence flows through capital and withdrawal protection, opportunity scheduling, strategy health, committee, execution, research, and risk sections into the dashboard aggregator. The main process validates a serializable expiring envelope before crossing preload isolation. The renderer receives only that validated read model.
+
+Each section declares `AVAILABLE`, `STALE`, `UNAVAILABLE`, or `INVALID`. Explicit severity is `HEALTHY < CAUTION < BLOCKED`; when every section is unavailable the result is `NO_DATA`. One unavailable or invalid required section blocks. Stale evidence produces at least caution. Kill Switch, research failure, blocked strategy evidence, and capital mismatch block regardless of healthier sections.
+
+Section timestamps cannot be later than the aggregation timestamp or current time. Expired envelopes are unavailable. Capital must reconcile as total equity equals deployable plus reserved within tolerance. Ratios use 0..1 internally and are formatted as percentages only in the renderer.
+
+## Renderer
+
+The responsive command center displays system, portfolio, opportunity, strategy, committee, execution, risk, research, freshness, and warning sections. Missing values are rendered as `?곗씠???놁쓬`, never invented zeroes. PAPER/DRY_RUN and LIVE TRADING DISABLED are permanently visible. Polling starts at five seconds, prevents overlapping requests, uses bounded backoff, invalidates stale prior health on failure, and clears its timer on unload.
+
+This view does not guarantee investment returns. Responsive web layout supports narrow iPhone and Galaxy widths without introducing Flutter or another UI framework. LIVE activation remains unimplemented and requires separate owner, security, regulatory, and operational review.
