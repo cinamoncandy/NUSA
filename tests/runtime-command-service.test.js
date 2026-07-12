@@ -7,7 +7,7 @@ const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/s
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
-function harness() {
+function harness(readiness) {
   const broker = new PaperBroker(1_000_000, "KRW-BTC", 0);
   const control = new ControlPlane("sma-crossover");
   const strategy = new StrategyEngine(new SmaCrossoverStrategy(2, 3));
@@ -17,7 +17,7 @@ function harness() {
     if (fail) throw new Error("injected SQLite write failure");
     durable.push({ paper: clone(paper), control: clone(controlState) });
   } };
-  const runtime = new RuntimeCommandService(broker, control, strategy, persistence);
+  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness);
   return { broker, control, strategy, durable, runtime, failNext: () => { fail = true; } };
 }
 
@@ -76,3 +76,21 @@ test("automatic write failure restores broker and does not consume a signal key"
   assert.equal(h.control.claimAutomaticSignal("KRW-BTC:2:BUY"), true);
 });
 
+test("operational readiness blocks BUY before claiming the signal", () => {
+  const h = harness(() => Object.freeze({ action: "ALLOW_EXIT_ONLY", ready: false, reasons: Object.freeze(["WARMUP_INCOMPLETE"]), evaluatedAt: 1 }));
+  h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
+  const result = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 3 });
+  assert.equal(result.outcome, "REJECTED");
+  assert.match(result.error, /WARMUP_INCOMPLETE/);
+  assert.equal(h.broker.exportState().orders.length, 0);
+  assert.equal(h.control.claimAutomaticSignal("KRW-BTC:3:BUY"), true);
+});
+
+test("exit-only readiness permits SELL while HALT blocks automatic execution", () => {
+  const exitOnly = harness(() => Object.freeze({ action: "ALLOW_EXIT_ONLY", ready: false, reasons: Object.freeze(["PROTECTION_LOCK_ACTIVE"]), evaluatedAt: 1 }));
+  exitOnly.runtime.manualOrder("BUY", 0.01, 50_000_000); exitOnly.runtime.start(); exitOnly.runtime.setOrderQuantity(0.01); exitOnly.runtime.setAutoTrade(true);
+  assert.equal(exitOnly.runtime.automaticSignal("KRW-BTC", 51_000_000, 0.01, { type: "SELL", reason: "exit", confidence: 1, timestamp: 4 }).outcome, "FILLED");
+  const halted = harness(() => Object.freeze({ action: "HALT", ready: false, reasons: Object.freeze(["MARKET_DATA_DISCONNECTED"]), evaluatedAt: 1 }));
+  halted.runtime.start(); halted.runtime.setAutoTrade(true);
+  assert.equal(halted.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 5 }).outcome, "REJECTED");
+});
