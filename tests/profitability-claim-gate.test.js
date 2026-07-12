@@ -53,7 +53,7 @@ test("weak OOS, Paper, stress, ruin, drawdown and benchmark evidence stays insuf
   }));
   assert.equal(result.status, "INSUFFICIENT_EVIDENCE");
   assert.equal(result.allowedClaim, null);
-  assert.equal(result.reasons.length, 9);
+  assert.equal(result.reasons.length, 10);
 });
 
 test("invalid provenance and metrics fail closed", () => {
