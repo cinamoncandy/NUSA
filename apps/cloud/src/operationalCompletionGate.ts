@@ -2,6 +2,7 @@ import type { AiCioDashboardSnapshot } from "./dashboardAggregator";
 import type { RecoveryPlan, RecoveryScenario } from "./disasterRecovery";
 import type { PaperValidationEvidence } from "./paperValidationEvidence";
 import type { ReleaseReadinessReport } from "./releaseReadinessAudit";
+import type { PaperValidationProfile, ScenarioPaperValidationResult } from "./scenarioPaperValidation";
 
 export type OperationalCompletionStatus = "BLOCKED" | "WAITING_FOR_EVIDENCE" | "READY_FOR_OWNER_REVIEW";
 
@@ -11,10 +12,13 @@ export interface OperationalCompletionInput {
   readonly paperEvidence: PaperValidationEvidence;
   readonly recoveryPlans: readonly RecoveryPlan[];
   readonly releaseReadiness: ReleaseReadinessReport;
+  readonly validationProfile?: PaperValidationProfile;
+  readonly scenarioEvidence?: ScenarioPaperValidationResult;
 }
 
 export interface OperationalCompletionResult {
   readonly status: OperationalCompletionStatus;
+  readonly validationProfile: PaperValidationProfile;
   readonly generatedAt: number;
   readonly sourceCoverageComplete: boolean;
   readonly paperEvidenceComplete: boolean;
@@ -59,6 +63,13 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
     if (value > input.now) throw new Error(`${field} cannot be in the future`);
   }
 
+  const validationProfile = input.validationProfile ?? "CALENDAR_30_DAY";
+  if (validationProfile !== "CALENDAR_30_DAY" && validationProfile !== "SCENARIO_BASED") throw new Error("unsupported Paper validation profile");
+  if (input.scenarioEvidence) {
+    assertTime(input.scenarioEvidence.generatedAt, "scenarioEvidence.generatedAt");
+    if (input.scenarioEvidence.generatedAt > input.now) throw new Error("scenarioEvidence.generatedAt cannot be in the future");
+  }
+
   const blockers: string[] = [];
   const pendingEvidence: string[] = [];
   const unavailableSources = SECTION_NAMES.filter((name) => (input.dashboard[name].availability ?? "AVAILABLE") !== "AVAILABLE");
@@ -81,16 +92,23 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
     return plan?.status === "READY" && plan.paperResumeAllowed;
   });
 
-  const paperEvidenceComplete = input.paperEvidence.status === "PASS";
-  if (!paperEvidenceComplete) pendingEvidence.push("PAPER_VALIDATION_EVIDENCE_INCOMPLETE");
+  const paperEvidenceComplete = validationProfile === "CALENDAR_30_DAY"
+    ? input.paperEvidence.status === "PASS"
+    : input.scenarioEvidence?.status === "PASS";
+  if (!paperEvidenceComplete) {
+    pendingEvidence.push(validationProfile === "CALENDAR_30_DAY"
+      ? "PAPER_VALIDATION_EVIDENCE_INCOMPLETE"
+      : "SCENARIO_PAPER_EVIDENCE_INCOMPLETE");
+  }
 
   const nonPaperReleaseBlockers = input.releaseReadiness.requirements
     .filter((requirement) => requirement.required && !requirement.passed && requirement.id !== "PAPER_VALIDATION")
     .map((requirement) => `RELEASE_REQUIREMENT_${requirement.id}_FAILED`);
   blockers.push(...nonPaperReleaseBlockers);
-  const paperRequirementPassed = input.releaseReadiness.requirements.find((requirement) => requirement.id === "PAPER_VALIDATION")?.passed === true;
-  if (!paperRequirementPassed) pendingEvidence.push("RELEASE_PAPER_VALIDATION_INCOMPLETE");
-  const releaseAuditComplete = input.releaseReadiness.status === "READY";
+  const calendarPaperRequirementPassed = input.releaseReadiness.requirements.find((requirement) => requirement.id === "PAPER_VALIDATION")?.passed === true;
+  const paperRequirementPassed = validationProfile === "CALENDAR_30_DAY" ? calendarPaperRequirementPassed : paperEvidenceComplete;
+  if (!paperRequirementPassed) pendingEvidence.push(validationProfile === "CALENDAR_30_DAY" ? "RELEASE_PAPER_VALIDATION_INCOMPLETE" : "SCENARIO_RELEASE_EVIDENCE_INCOMPLETE");
+  const releaseAuditComplete = nonPaperReleaseBlockers.length === 0 && paperRequirementPassed;
 
   const uniqueBlockers = [...new Set(blockers)].sort();
   const uniquePending = [...new Set(pendingEvidence)].sort();
@@ -102,6 +120,7 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
 
   return deepFreeze({
     status,
+    validationProfile,
     generatedAt: input.now,
     sourceCoverageComplete,
     paperEvidenceComplete,
