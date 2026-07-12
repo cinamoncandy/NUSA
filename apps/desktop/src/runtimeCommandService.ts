@@ -1,6 +1,7 @@
 import { ControlPlane, type ControlPlaneRuntimeState } from "./controlPlane";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal } from "./strategyEngine";
+import type { OperationalReadinessDecision } from "../../cloud/src/operationalReadinessGate";
 
 export interface RuntimePersistence {
   save(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>): void;
@@ -23,7 +24,8 @@ export class RuntimeCommandService {
     private readonly broker: PaperBroker,
     private readonly control: ControlPlane,
     private readonly strategy: StrategyEngine,
-    private readonly persistence: RuntimePersistence
+    private readonly persistence: RuntimePersistence,
+    private readonly readiness?: () => OperationalReadinessDecision
   ) {}
 
   isAvailable(): boolean { return this.available; }
@@ -48,6 +50,13 @@ export class RuntimeCommandService {
     try {
       this.control.record("SIGNAL", `${signal.type}: ${signal.reason}`, signal);
       if (!this.control.canAutoTrade() || signal.type === "HOLD") { this.persist(); return { outcome: "SKIPPED" }; }
+      const readiness = this.readiness?.();
+      if (readiness && (readiness.action === "HALT" || (signal.type === "BUY" && readiness.action !== "ALLOW_NEW_ENTRIES"))) {
+        const message = `operational readiness blocked ${signal.type}: ${readiness.reasons.join(",")}`;
+        this.control.record("RISK", message, readiness);
+        this.persist();
+        return { outcome: "REJECTED", error: message };
+      }
       const key = `${market}:${signal.timestamp}:${signal.type}`;
       if (!this.control.claimAutomaticSignal(key)) return { outcome: "DUPLICATE" };
       if (signal.type === "SELL" && positionQuantity <= 0) {
@@ -106,4 +115,3 @@ export class RuntimeCommandService {
     this.control.fault(PERSISTENCE_FAULT_MESSAGE);
   }
 }
-
