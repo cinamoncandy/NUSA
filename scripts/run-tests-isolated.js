@@ -20,9 +20,10 @@ for (const file of files) {
     ["--test", "--test-reporter=spec", relativePath],
     {
       cwd: process.cwd(),
+      encoding: "utf8",
       env: { ...process.env },
       windowsHide: true,
-      stdio: "inherit"
+      maxBuffer: 64 * 1024 * 1024
     }
   );
 
@@ -34,6 +35,8 @@ for (const file of files) {
 
   if (result.status !== 0) {
     console.error(`FAILED_TEST_FILE ${relativePath}`);
+    if (result.stdout) console.error(result.stdout.trimEnd());
+    if (result.stderr) console.error(result.stderr.trimEnd());
     process.exit(result.status || 1);
   }
 }
