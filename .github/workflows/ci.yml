@@ -5,6 +5,14 @@ on:
     branches: [main, "agent/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -18,15 +26,23 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run typecheck
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm run typecheck
       - name: Build
         run: pnpm run build
       - name: Control audit ledger tests
         run: node --test --test-reporter=spec tests/control-audit-ledger.test.js
-      - name: Control command processor tests
-        run: node --test --test-reporter=spec tests/control-command-processor.test.js
       - name: Transactional control service tests
         run: node --test --test-reporter=spec tests/transactional-control-command-service.test.js
+      - name: Funding carry safety tests
+        run: node --test --test-reporter=spec tests/funding-carry-engine.test.js
+      - name: Strategy governance tests
+        run: node --test --test-reporter=spec tests/strategy-governance.test.js
+      - name: Investment committee tests
+        run: node --test --test-reporter=spec tests/investment-committee.test.js
+      - name: Research persistence tests
+        run: node --test --test-reporter=spec tests/research-memory.test.js
       - name: Full test suite
         run: node --test --test-reporter=spec tests/*.test.js
