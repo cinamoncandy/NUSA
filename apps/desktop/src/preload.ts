@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { AI_CIO_DASHBOARD_CHANNEL, type AiCioDashboardReadResult } from "../../../packages/contracts/src/aiCioDashboard";
 import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
@@ -10,7 +11,6 @@ export interface DokkaebiApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
   getSnapshot(): Promise<PaperAccountSnapshot | null>;
   getControlSnapshot(): Promise<ControlSnapshot>;
-  getAiCioSnapshot(): Promise<AiCioCommandCenterEnvelopeV1 | null>;
   startStrategy(): Promise<ControlSnapshot>;
   stopStrategy(): Promise<ControlSnapshot>;
   setAutoTrade(enabled: boolean): Promise<ControlSnapshot>;
@@ -32,7 +32,6 @@ const api: DokkaebiApi = {
   placeOrder: (side, quantity) => ipcRenderer.invoke("paper:order", { side, quantity }),
   getSnapshot: () => ipcRenderer.invoke("paper:snapshot"),
   getControlSnapshot: () => ipcRenderer.invoke("control:snapshot"),
-  getAiCioSnapshot: () => ipcRenderer.invoke("ai-cio:snapshot"),
   startStrategy: () => ipcRenderer.invoke("control:start"),
   stopStrategy: () => ipcRenderer.invoke("control:stop"),
   setAutoTrade: (enabled) => ipcRenderer.invoke("control:auto", enabled),
@@ -44,4 +43,13 @@ const api: DokkaebiApi = {
   onChartPoint: (handler) => subscribe("chart:point", handler)
 };
 
+export interface AiCioDashboardApi {
+  getAiCioDashboard(): Promise<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>;
+}
+
+const aiCioDashboard: AiCioDashboardApi = Object.freeze({
+  getAiCioDashboard: () => ipcRenderer.invoke(AI_CIO_DASHBOARD_CHANNEL)
+});
+
 contextBridge.exposeInMainWorld("dokkaebi", api);
+contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
