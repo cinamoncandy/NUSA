@@ -156,10 +156,7 @@ export const evaluateEdgeDecay = (input: EdgeDecayInput, policy: EdgeDecayPolicy
   }));
 
   const decayScore = round(metrics.reduce((sum, metric) => sum + metric.weightedContribution, 0));
-  const sampleConfidence = clamp01(input.recent.sampleSize / policy.minimumRecentSamples);
-  const temporalConfidence = clamp01((parseTime(input.recent.endAt, "recent.endAt") - parseTime(input.recent.startAt, "recent.startAt")) /
-    Math.max(1, parseTime(input.baseline.endAt, "baseline.endAt") - parseTime(input.baseline.startAt, "baseline.startAt")));
-  const confidence = round(Math.min(sampleConfidence, temporalConfidence));
+  const confidence = round(clamp01(input.recent.sampleSize / policy.minimumRecentSamples));
 
   const reasons: string[] = [];
   if (input.recent.sampleSize < policy.minimumRecentSamples) reasons.push("INSUFFICIENT_RECENT_SAMPLES");
