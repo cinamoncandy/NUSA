@@ -94,7 +94,7 @@ test("rejects when any safety gate fails", () => {
     riskBudgetUsage: 0.95
   }, policy);
   assert.equal(result.decision, "REJECT");
-  assert.deepEqual(result.failedGates.sort(), ["GOVERNANCE", "KILL_SWITCH", "RISK_BUDGET"].sort());
+  assert.deepEqual([...result.failedGates].sort(), ["GOVERNANCE", "KILL_SWITCH", "RISK_BUDGET"].sort());
 });
 
 test("rejects stale data and excessive model disagreement", () => {
