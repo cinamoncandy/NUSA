@@ -61,3 +61,6 @@ Only the Paper-duration requirement is replaced. CI, typecheck, build, security,
 Scenario counters are derived from immutable session observations rather than accepted as standalone claims. The canonical bundle sorts records by observation time and record ID, derives order/regime/recovery/duplicate/fault counts, links Walk-Forward, cost-stress, and integrity evidence IDs, and records a SHA-256 identity.
 
 The completion gate requires a schema-v1 bundle with a valid full SHA-256 identity. A raw passing counter object is not accepted as completion evidence. The checksum provides deterministic identity and tamper detection; it does not independently prove that an operator or external source reported truthful observations.
+
+
+Before evaluation, the gate reconstructs the canonical bundle from its observations and research references. It rejects checksum mismatch, altered derived counters, altered validation output, unsupported schema, and malformed SHA-256 values. Merely attaching any 64-character hash is insufficient.
