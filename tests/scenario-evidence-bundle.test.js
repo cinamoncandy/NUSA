@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildScenarioPaperEvidenceBundle } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
+const { buildScenarioPaperEvidenceBundle, verifyScenarioPaperEvidenceBundle } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
 
 const faults = ["PERSISTENCE_FAILURE", "WEBSOCKET_DISCONNECT", "PARTIAL_WRITE", "DUPLICATE_SIGNAL", "KILL_SWITCH"];
 const observations = () => Array.from({ length: 20 }, (_, index) => ({
@@ -69,4 +69,21 @@ test("duplicate, future and malformed source records are rejected", () => {
 
   assert.throws(() => buildScenarioPaperEvidenceBundle([], research(), 2_000), /at least one/);
   assert.throws(() => buildScenarioPaperEvidenceBundle(observations(), research({ integrityEvidenceId: " " }), 2_000), /integrityEvidenceId/);
+});
+
+test("verifier detects record, counter, validation and checksum tampering", () => {
+  const bundle = buildScenarioPaperEvidenceBundle(observations(), research(), 2_000);
+  assert.equal(verifyScenarioPaperEvidenceBundle(bundle).contentSha256, bundle.contentSha256);
+
+  const changedRecords = bundle.observations.map((record, index) => index === 0 ? { ...record, completedOrders: record.completedOrders + 1 } : record);
+  assert.throws(() => verifyScenarioPaperEvidenceBundle({ ...bundle, observations: changedRecords }), /checksum mismatch/);
+  assert.throws(() => verifyScenarioPaperEvidenceBundle({
+    ...bundle,
+    derivedInput: { ...bundle.derivedInput, completedOrders: bundle.derivedInput.completedOrders + 1 }
+  }), /derived counters mismatch/);
+  assert.throws(() => verifyScenarioPaperEvidenceBundle({
+    ...bundle,
+    validation: { ...bundle.validation, status: "FAIL" }
+  }), /validation mismatch/);
+  assert.throws(() => verifyScenarioPaperEvidenceBundle({ ...bundle, contentSha256: "bad" }), /SHA-256/);
 });
