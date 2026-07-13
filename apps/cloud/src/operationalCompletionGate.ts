@@ -2,7 +2,7 @@ import type { AiCioDashboardSnapshot } from "./dashboardAggregator";
 import type { RecoveryPlan, RecoveryScenario } from "./disasterRecovery";
 import type { PaperValidationEvidence } from "./paperValidationEvidence";
 import type { ReleaseReadinessReport } from "./releaseReadinessAudit";
-import type { ScenarioPaperEvidenceBundle } from "./scenarioEvidenceBundle";
+import { verifyScenarioPaperEvidenceBundle, type ScenarioPaperEvidenceBundle } from "./scenarioEvidenceBundle";
 import type { PaperValidationProfile } from "./scenarioPaperValidation";
 
 export type OperationalCompletionStatus = "BLOCKED" | "WAITING_FOR_EVIDENCE" | "READY_FOR_OWNER_REVIEW";
@@ -71,6 +71,7 @@ export function evaluateOperationalCompletion(input: OperationalCompletionInput)
     if (!/^[0-9a-f]{64}$/.test(input.scenarioEvidenceBundle.contentSha256)) throw new Error("invalid scenario evidence bundle SHA-256");
     assertTime(input.scenarioEvidenceBundle.generatedAt, "scenarioEvidenceBundle.generatedAt");
     if (input.scenarioEvidenceBundle.generatedAt > input.now) throw new Error("scenarioEvidenceBundle.generatedAt cannot be in the future");
+    verifyScenarioPaperEvidenceBundle(input.scenarioEvidenceBundle);
   }
 
   const blockers: string[] = [];
