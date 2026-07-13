@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 
 export type PaperScenarioEventType = "SESSION_OBSERVED" | "ORDER_COMPLETED" | "REGIME_OBSERVED" | "RECOVERY_COMPLETED" | "DUPLICATE_ORDER_CHECKED" | "FAULT_SCENARIO_PASSED";
-export interface PaperScenarioEvent { readonly eventId: string; readonly type: PaperScenarioEventType; readonly occurredAt: number; readonly scenario?: string; }
+export interface PaperScenarioEvent { readonly eventId: string; readonly type: PaperScenarioEventType; readonly occurredAt: number; readonly sessionId?: string; readonly scenario?: string; }
 export interface PaperScenarioRecord { readonly sequence: number; readonly previousHash: string; readonly event: PaperScenarioEvent; readonly hash: string; }
 export interface PaperScenarioEvidenceSummary { readonly sessionCount: number; readonly completedOrderCount: number; readonly regimeCount: number; readonly recoveryPassCount: number; readonly duplicateOrderCheckCount: number; readonly passedFaultScenarios: readonly string[]; readonly firstOccurredAt: number | null; readonly lastOccurredAt: number | null; }
 
 const ZERO = "0".repeat(64);
 const freeze = <T>(value: T): T => { if (value && typeof value === "object" && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value as Record<string, unknown>)) freeze(child); } return value; };
 const hash = (sequence: number, previousHash: string, event: PaperScenarioEvent): string => createHash("sha256").update(JSON.stringify({ sequence, previousHash, event })).digest("hex");
-const validateEvent = (event: PaperScenarioEvent): void => { if (!event.eventId.trim() || !event.type) throw new Error("scenario event identity is required"); if (!Number.isSafeInteger(event.occurredAt) || event.occurredAt < 0) throw new Error("scenario event timestamp is invalid"); if (event.scenario !== undefined && !event.scenario.trim()) throw new Error("scenario event scenario is invalid"); };
+const validateEvent = (event: PaperScenarioEvent): void => { if (!event.eventId.trim() || !event.type) throw new Error("scenario event identity is required"); if (!Number.isSafeInteger(event.occurredAt) || event.occurredAt < 0) throw new Error("scenario event timestamp is invalid"); if (event.sessionId !== undefined && !event.sessionId.trim()) throw new Error("scenario event session is invalid"); if (event.scenario !== undefined && !event.scenario.trim()) throw new Error("scenario event scenario is invalid"); };
 
 export function appendPaperScenarioEvent(records: readonly PaperScenarioRecord[], event: PaperScenarioEvent): readonly PaperScenarioRecord[] {
   validateEvent(event); if (records.some((record) => record.event.eventId === event.eventId)) throw new Error("duplicate scenario event");

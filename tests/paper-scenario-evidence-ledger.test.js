@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { appendPaperScenarioEvent, replayPaperScenarioEvidence } = require("../dist/apps/cloud/src/paperScenarioEvidenceLedger.js");
+const { scenarioObservationsFromLedger } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
 
 const event = (eventId, type, occurredAt, scenario) => ({ eventId, type, occurredAt, ...(scenario ? { scenario } : {}) });
 
@@ -21,4 +22,13 @@ test("rejects duplicate, reverse-time, and tampered evidence", () => {
   assert.throws(() => appendPaperScenarioEvent(records, event("s1", "SESSION_OBSERVED", 11)), /duplicate/);
   assert.throws(() => appendPaperScenarioEvent(records, event("s2", "SESSION_OBSERVED", 9)), /non-decreasing/);
   assert.throws(() => replayPaperScenarioEvidence([{ ...records[0], hash: "f".repeat(64) }]), /hash chain/);
+});
+
+test("converts only explicitly session-bound events into observations", () => {
+  let records = [];
+  records = appendPaperScenarioEvent(records, event("s1", "SESSION_OBSERVED", 1, "TREND"));
+  records = appendPaperScenarioEvent(records, { eventId: "o1", type: "ORDER_COMPLETED", occurredAt: 2, sessionId: "session-1" });
+  assert.throws(() => scenarioObservationsFromLedger(records), /sessionId is required/);
+  records = records.map((record) => ({ ...record, event: { ...record.event, sessionId: "session-1" } }));
+  assert.equal(scenarioObservationsFromLedger(records)[0].completedOrders, 1);
 });

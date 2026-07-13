@@ -5,6 +5,7 @@ import {
   type ScenarioPaperEvidenceInput,
   type ScenarioPaperValidationResult
 } from "./scenarioPaperValidation";
+import type { PaperScenarioRecord } from "./paperScenarioEvidenceLedger";
 
 export interface ScenarioPaperObservation {
   readonly recordId: string;
@@ -33,6 +34,23 @@ export interface ScenarioPaperEvidenceBundle {
   readonly researchEvidence: ScenarioResearchEvidence;
   readonly derivedInput: ScenarioPaperEvidenceInput;
   readonly validation: ScenarioPaperValidationResult;
+}
+
+export function scenarioObservationsFromLedger(records: readonly PaperScenarioRecord[]): readonly ScenarioPaperObservation[] {
+  const groups = new Map<string, { observedAt: number; completedOrders: number; marketRegime?: string; restartRecoveryPassed: boolean; duplicateOrderChecks: number; passedFaultScenarios: RequiredPaperFaultScenario[] }>();
+  for (const record of records) {
+    const sessionId = record.event.sessionId;
+    if (!sessionId) throw new Error("scenario evidence event sessionId is required");
+    const current = groups.get(sessionId) ?? { observedAt: record.event.occurredAt, completedOrders: 0, restartRecoveryPassed: false, duplicateOrderChecks: 0, passedFaultScenarios: [] };
+    current.observedAt = Math.min(current.observedAt, record.event.occurredAt);
+    if (record.event.type === "ORDER_COMPLETED") current.completedOrders++;
+    if (record.event.type === "REGIME_OBSERVED") current.marketRegime = record.event.scenario;
+    if (record.event.type === "RECOVERY_COMPLETED") current.restartRecoveryPassed = true;
+    if (record.event.type === "DUPLICATE_ORDER_CHECKED") current.duplicateOrderChecks++;
+    if (record.event.type === "FAULT_SCENARIO_PASSED") current.passedFaultScenarios.push(record.event.scenario as RequiredPaperFaultScenario);
+    groups.set(sessionId, current);
+  }
+  return Object.freeze([...groups.entries()].map(([sessionId, value]) => Object.freeze({ recordId: sessionId, observedAt: value.observedAt, completedOrders: value.completedOrders, marketRegime: value.marketRegime ?? "UNKNOWN", restartRecoveryPassed: value.restartRecoveryPassed, duplicateOrderChecks: value.duplicateOrderChecks, passedFaultScenarios: Object.freeze([...new Set(value.passedFaultScenarios)]) })));
 }
 
 const count = (value: number, field: string): void => {
