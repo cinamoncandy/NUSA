@@ -7,7 +7,7 @@ const {
   buildAlphaEvidenceRegistry
 } = require("../dist/apps/cloud/src/alphaEvidenceRegistry.js");
 
-const alpha = createAlphaRecord({
+const alphaInput = {
   alphaId: "A-001",
   version: 1,
   name: "Funding Carry",
@@ -23,7 +23,8 @@ const alpha = createAlphaRecord({
   dependencyAlphaIds: [],
   createdAt: "2026-07-13T00:00:00.000Z",
   supersedesVersion: null
-});
+};
+const alpha = createAlphaRecord(alphaInput);
 
 const evidence = createEvidenceRecord({
   evidenceId: "E-001",
@@ -53,7 +54,13 @@ test("builds an immutable deterministic registry", () => {
 });
 
 test("requires explicit version lineage", () => {
-  const version2 = createAlphaRecord({ ...alpha, version: 2, supersedesVersion: 1, status: "PAPER", createdAt: "2026-07-13T00:30:00.000Z" });
+  const version2 = createAlphaRecord({
+    ...alphaInput,
+    version: 2,
+    supersedesVersion: 1,
+    status: "PAPER",
+    createdAt: "2026-07-13T00:30:00.000Z"
+  });
   const snapshot = buildAlphaEvidenceRegistry({ alphas: [alpha, version2], evidence: [evidence], links: [link], generatedAt: "2026-07-13T01:00:00.000Z" });
   assert.equal(snapshot.alphas.length, 2);
   assert.throws(() => buildAlphaEvidenceRegistry({ alphas: [version2], evidence: [], links: [], generatedAt: "2026-07-13T01:00:00.000Z" }), /missing superseded alpha/);
@@ -65,10 +72,26 @@ test("rejects dangling evidence links", () => {
 
 test("rejects duplicate identities and self dependencies", () => {
   assert.throws(() => buildAlphaEvidenceRegistry({ alphas: [alpha, alpha], evidence: [], links: [], generatedAt: "2026-07-13T01:00:00.000Z" }), /duplicate alpha/);
-  assert.throws(() => createAlphaRecord({ ...alpha, dependencyAlphaIds: ["A-001"] }), /cannot depend on itself/);
+  assert.throws(() => createAlphaRecord({ ...alphaInput, dependencyAlphaIds: ["A-001"] }), /cannot depend on itself/);
 });
 
 test("rejects invalid evidence integrity fields", () => {
-  assert.throws(() => createEvidenceRecord({ ...evidence, datasetSha256: "bad" }), /SHA-256/);
-  assert.throws(() => createEvidenceRecord({ ...evidence, confidence: 2 }), /between 0 and 1/);
+  assert.throws(() => createEvidenceRecord({
+    evidenceId: "E-002",
+    source: "research-memory",
+    datasetSha256: "bad",
+    experimentId: "EXP-002",
+    observedAt: "2026-07-13T00:10:00.000Z",
+    confidence: 0.82,
+    summary: "bad"
+  }), /SHA-256/);
+  assert.throws(() => createEvidenceRecord({
+    evidenceId: "E-003",
+    source: "research-memory",
+    datasetSha256: "b".repeat(64),
+    experimentId: "EXP-003",
+    observedAt: "2026-07-13T00:10:00.000Z",
+    confidence: 2,
+    summary: "bad"
+  }), /between 0 and 1/);
 });
