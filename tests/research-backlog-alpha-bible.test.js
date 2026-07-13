@@ -51,8 +51,9 @@ test("builds a deterministic ranked research backlog", () => {
 
 test("rejects missing and cyclic research dependencies", () => {
   assert.throws(() => buildResearchBacklog({ items: [running], generatedAt: "2026-07-13T01:00:00.000Z" }), /missing research dependency/);
-  const a = createResearchBacklogItem({ ...queued, researchId: "A", dependencyResearchIds: ["B"] });
-  const b = createResearchBacklogItem({ ...queued, researchId: "B", dependencyResearchIds: ["A"] });
+  const { contentHash: _queuedHash, ...queuedFields } = queued;
+  const a = createResearchBacklogItem({ ...queuedFields, researchId: "A", dependencyResearchIds: ["B"] });
+  const b = createResearchBacklogItem({ ...queuedFields, researchId: "B", dependencyResearchIds: ["A"] });
   assert.throws(() => buildResearchBacklog({ items: [a, b], generatedAt: "2026-07-13T01:00:00.000Z" }), /cycle detected/);
 });
 
