@@ -122,3 +122,14 @@ export function buildScenarioPaperEvidenceBundle(
     validation: evaluateScenarioPaperEvidence(derivedInput)
   });
 }
+
+
+export function verifyScenarioPaperEvidenceBundle(bundle: ScenarioPaperEvidenceBundle): ScenarioPaperEvidenceBundle {
+  if (bundle.schemaVersion !== 1) throw new Error("unsupported scenario evidence bundle schema");
+  if (!/^[0-9a-f]{64}$/.test(bundle.contentSha256)) throw new Error("invalid scenario evidence bundle SHA-256");
+  const rebuilt = buildScenarioPaperEvidenceBundle(bundle.observations, bundle.researchEvidence, bundle.generatedAt);
+  if (rebuilt.contentSha256 !== bundle.contentSha256) throw new Error("scenario evidence bundle checksum mismatch");
+  if (JSON.stringify(rebuilt.derivedInput) !== JSON.stringify(bundle.derivedInput)) throw new Error("scenario evidence derived counters mismatch");
+  if (JSON.stringify(rebuilt.validation) !== JSON.stringify(bundle.validation)) throw new Error("scenario evidence validation mismatch");
+  return rebuilt;
+}
