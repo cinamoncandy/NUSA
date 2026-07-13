@@ -11,6 +11,7 @@ export class PaperScenarioEvidenceRecorder {
     if (!event.eventId.trim()) throw new Error("Paper evidence eventId is required");
     return this.sink.append(Object.freeze({ ...event, sessionId: this.sessionId }));
   }
+  public bind(event: Omit<PaperScenarioEvent, "sessionId">): PaperScenarioEvent { return Object.freeze({ ...event, sessionId: this.sessionId }); }
 
   public sessionObserved(eventId: string, occurredAt: number): PaperScenarioRecord { return this.record({ eventId, type: "SESSION_OBSERVED", occurredAt }); }
   public orderCompleted(eventId: string, occurredAt: number): PaperScenarioRecord { return this.record({ eventId, type: "ORDER_COMPLETED", occurredAt }); }

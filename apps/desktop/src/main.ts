@@ -9,6 +9,7 @@ import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
+import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 
@@ -33,6 +34,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
 });
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
+let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
 
@@ -107,6 +109,7 @@ function initializeRuntime(): void {
   let persistenceDiagnostic: string | undefined;
   try {
     persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
+    evidenceRecorder = new PaperScenarioEvidenceRecorder({ append: (event) => { persistenceStore!.saveWithScenarioEvent(broker.exportState(), control.exportState(), event); return { sequence: 0, previousHash: "", event, hash: "" }; } }, `paper-${process.pid}-${Date.now()}`);
     const sqliteState = persistenceStore.load();
     if (sqliteState) restored = sqliteState;
     else if (restored) persistenceStore.importLegacy(restored);
@@ -119,7 +122,10 @@ function initializeRuntime(): void {
   runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.save(paper, controlState);
-  } });
+  }, saveWithScenarioEvent: (paper, controlState, event) => {
+    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    persistenceStore.saveWithScenarioEvent(paper, controlState, event);
+  } }, undefined, evidenceRecorder);
   paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {

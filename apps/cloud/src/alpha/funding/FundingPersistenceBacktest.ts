@@ -358,30 +358,33 @@ export const runFundingPersistenceBacktest = (
       nextDecisionIndex += 1;
     }
     const decision = eligibleDecisions.at(-1);
+    const positionBeforeDecision = position as FundingPersistencePosition;
     if (decision) {
-      if (decision.action === "EXIT" && position !== "FLAT") closePosition(candle, decision.decisionId, false);
+      if (decision.action === "EXIT" && positionBeforeDecision !== "FLAT") closePosition(candle, decision.decisionId, false);
       else if (decision.action === "ENTER_LONG" || decision.action === "ENTER_SHORT") {
         const target = decision.action === "ENTER_LONG" ? "LONG" : "SHORT";
-        if (position !== target) {
-          if (position !== "FLAT") closePosition(candle, decision.decisionId, false);
+        if (positionBeforeDecision !== target) {
+          if (positionBeforeDecision !== "FLAT") closePosition(candle, decision.decisionId, false);
           openPosition(candle, decision, target);
         }
       }
     }
 
-    if (openTrade && position !== "FLAT") {
+    const currentPosition = position as FundingPersistencePosition;
+    const currentOpenTrade = openTrade as OpenTradeState | null;
+    if (currentOpenTrade && currentPosition !== "FLAT") {
       exposedPeriods += 1;
-      const notionalAtClose = candle.close * openTrade.quantity;
-      const fundingCashFlow = position === "LONG"
+      const notionalAtClose = candle.close * currentOpenTrade.quantity;
+      const fundingCashFlow = currentPosition === "LONG"
         ? -notionalAtClose * candle.fundingRate
         : notionalAtClose * candle.fundingRate;
-      openTrade.fundingPnl += fundingCashFlow;
-      if (position === "SHORT") openTrade.borrowCost += notionalAtClose * policy.borrowRatePerCandle;
+      currentOpenTrade.fundingPnl += fundingCashFlow;
+      if (currentPosition === "SHORT") currentOpenTrade.borrowCost += notionalAtClose * policy.borrowRatePerCandle;
     }
 
-    const unrealizedPnl = !openTrade || position === "FLAT" ? 0 : position === "LONG"
-      ? (candle.close - openTrade.entryPrice) * openTrade.quantity + openTrade.fundingPnl - openTrade.borrowCost
-      : (openTrade.entryPrice - candle.close) * openTrade.quantity + openTrade.fundingPnl - openTrade.borrowCost;
+    const unrealizedPnl = !currentOpenTrade || currentPosition === "FLAT" ? 0 : currentPosition === "LONG"
+      ? (candle.close - currentOpenTrade.entryPrice) * currentOpenTrade.quantity + currentOpenTrade.fundingPnl - currentOpenTrade.borrowCost
+      : (currentOpenTrade.entryPrice - candle.close) * currentOpenTrade.quantity + currentOpenTrade.fundingPnl - currentOpenTrade.borrowCost;
     const equity = cash + unrealizedPnl;
     finite(equity, "equity");
     if (equity < 0) throw new Error("equity became negative");

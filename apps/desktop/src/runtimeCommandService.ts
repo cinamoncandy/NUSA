@@ -2,9 +2,11 @@ import { ControlPlane, type ControlPlaneRuntimeState } from "./controlPlane";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal } from "./strategyEngine";
 import type { OperationalReadinessDecision } from "../../cloud/src/operationalReadinessGate";
+import type { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 
 export interface RuntimePersistence {
   save(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>): void;
+  saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: Parameters<PaperScenarioEvidenceRecorder["bind"]>[0] extends infer E ? E : never): void;
 }
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
@@ -25,7 +27,8 @@ export class RuntimeCommandService {
     private readonly control: ControlPlane,
     private readonly strategy: StrategyEngine,
     private readonly persistence: RuntimePersistence,
-    private readonly readiness?: () => OperationalReadinessDecision
+    private readonly readiness?: () => OperationalReadinessDecision,
+    private readonly evidence?: PaperScenarioEvidenceRecorder
   ) {}
 
   isAvailable(): boolean { return this.available; }
@@ -36,7 +39,7 @@ export class RuntimeCommandService {
       const order = this.broker.execute(side, quantity, price);
       this.control.record("ORDER", `manual ${side} filled`, order);
       return order;
-    });
+    }, (order) => this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) }));
   }
 
   start(): void { this.commit("control start", () => { this.strategy.start(); this.control.start(); }); }
@@ -83,7 +86,7 @@ export class RuntimeCommandService {
     }
   }
 
-  private commit<T>(_name: string, mutation: () => T): T {
+  private commit<T>(_name: string, mutation: () => T, evidenceFactory?: (result: T) => ReturnType<PaperScenarioEvidenceRecorder["bind"]> | undefined): T {
     if (!this.available) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
     const snapshot = this.capture();
     let result: T;
@@ -92,7 +95,7 @@ export class RuntimeCommandService {
       this.restore(snapshot);
       throw error;
     }
-    try { this.persist(); return result; }
+    try { this.persist(evidenceFactory?.(result)); return result; }
     catch (error) {
       this.restore(snapshot);
       this.failClosed();
@@ -108,7 +111,10 @@ export class RuntimeCommandService {
     this.control.restoreRuntimeState(snapshot.control);
     this.strategy.restoreRunning(snapshot.strategyRunning);
   }
-  private persist(): void { this.persistence.save(this.broker.exportState(), this.control.exportState()); }
+  private persist(event?: ReturnType<PaperScenarioEvidenceRecorder["bind"]>): void {
+    if (event && this.persistence.saveWithScenarioEvent) this.persistence.saveWithScenarioEvent(this.broker.exportState(), this.control.exportState(), event);
+    else this.persistence.save(this.broker.exportState(), this.control.exportState());
+  }
   private failClosed(): void {
     this.available = false;
     this.strategy.stop();
