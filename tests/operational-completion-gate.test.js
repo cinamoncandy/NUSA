@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { evaluateOperationalCompletion } = require("../dist/apps/cloud/src/operationalCompletionGate.js");
+const { buildScenarioPaperEvidenceBundle } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
 
 const generatedAt = 10_000;
 const section = (overrides = {}) => ({ status: "HEALTHY", availability: "AVAILABLE", generatedAt, reasons: [], ...overrides });
@@ -57,18 +58,28 @@ const releaseReadiness = (paperPassed = true, overrides = {}) => {
     ...overrides
   };
 };
-const scenarioEvidenceBundle = () => ({
-  schemaVersion: 1,
-  generatedAt,
-  contentSha256: "a".repeat(64),
-  validation: {
-    profile: "SCENARIO_BASED",
-    generatedAt,
-    status: "PASS",
-    reasons: [],
-    minimums: { observedSessions: 20, completedOrders: 50, marketRegimes: 3, restartRecoveryPasses: 3, duplicateOrderChecks: 10 }
-  }
-});
+const scenarioEvidenceBundle = () => buildScenarioPaperEvidenceBundle(
+  Array.from({ length: 20 }, (_, index) => ({
+    recordId: `session-${index}`,
+    observedAt: 100 + index,
+    completedOrders: 3,
+    marketRegime: ["TREND", "RANGE", "VOLATILE"][index % 3],
+    restartRecoveryPassed: index < 3,
+    duplicateOrderChecks: 1,
+    passedFaultScenarios: index === 0
+      ? ["PERSISTENCE_FAILURE", "WEBSOCKET_DISCONNECT", "PARTIAL_WRITE", "DUPLICATE_SIGNAL", "KILL_SWITCH"]
+      : []
+  })),
+  {
+    walkForwardEvidenceId: "wf-1",
+    costStressEvidenceId: "cost-1",
+    integrityEvidenceId: "integrity-1",
+    walkForwardPassed: true,
+    costStressPassed: true,
+    integrityChecksPassed: true
+  },
+  generatedAt
+);
 
 const input = (overrides = {}) => ({
   now: generatedAt,
