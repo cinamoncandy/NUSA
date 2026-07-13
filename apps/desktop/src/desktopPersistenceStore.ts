@@ -4,6 +4,7 @@ import path from "node:path";
 import { runMigrations } from "../../../packages/storage/src/migrationRunner";
 import type { ControlPlaneState } from "./controlPlane";
 import type { PaperBrokerState, PaperOrder } from "./paperBroker";
+import type { PaperScenarioEvent } from "../../cloud/src/paperScenarioEvidenceLedger";
 
 export interface DesktopPersistenceState { readonly paper: PaperBrokerState; readonly control: ControlPlaneState; }
 
@@ -14,6 +15,8 @@ CREATE TABLE desktop_control_state (id INTEGER PRIMARY KEY CHECK (id = 1), paylo
 CREATE TABLE desktop_control_events (id TEXT PRIMARY KEY, ordinal INTEGER NOT NULL UNIQUE, payload TEXT NOT NULL);
 CREATE TABLE desktop_processed_signal_keys (signal_key TEXT PRIMARY KEY, ordinal INTEGER NOT NULL UNIQUE);
 CREATE TABLE desktop_imports (source TEXT PRIMARY KEY, imported_at TEXT NOT NULL);
+` }, { id: "002_desktop_scenario_evidence", sql: `
+CREATE TABLE desktop_paper_scenario_evidence (sequence INTEGER PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, event_json TEXT NOT NULL);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -52,6 +55,14 @@ export class DesktopPersistenceStore {
 
   save(paper: PaperBrokerState, control: ControlPlaneState): void {
     this.transaction(() => this.write({ paper, control }));
+  }
+
+  saveWithScenarioEvent(paper: PaperBrokerState, control: ControlPlaneState, event: PaperScenarioEvent): void {
+    this.transaction(() => {
+      this.write({ paper, control });
+      const next = Number((this.db.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM desktop_paper_scenario_evidence").get() as { sequence: number }).sequence) + 1;
+      this.db.prepare("INSERT INTO desktop_paper_scenario_evidence (sequence, event_id, event_json) VALUES (?, ?, ?)").run(next, event.eventId, JSON.stringify(event));
+    });
   }
 
   close(): void { this.db.close(); }
