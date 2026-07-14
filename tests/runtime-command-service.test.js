@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { RuntimeCommandService, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/runtimeCommandService.js");
+const { RuntimeCommandService, PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_RECOVERY_STEPS, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/runtimeCommandService.js");
 const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -20,6 +20,24 @@ function harness(readiness) {
   const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness);
   return { broker, control, strategy, durable, runtime, failNext: () => { fail = true; } };
 }
+
+test("persistence recovery guidance matches the supported verified-backup procedure", () => {
+  assert.deepEqual(PERSISTENCE_RECOVERY_STEPS, [
+    "Stop the application and preserve the failed database file unchanged.",
+    "Restore a known-good backup to the original database location while the application is stopped.",
+    "Restart and verify startup integrity checks pass; Paper automatic trading remains OFF.",
+    "Review account, order, control, and audit state before manually resuming Paper operation."
+  ]);
+  for (const message of [PERSISTENCE_REPAIR_MESSAGE, PERSISTENCE_FAULT_MESSAGE]) {
+    assert.match(message, /stop the application/i);
+    assert.match(message, /preserve the failed database/i);
+    assert.match(message, /restore a verified backup/i);
+    assert.match(message, /restart/i);
+    assert.match(message, /manually resuming/i);
+    assert.doesNotMatch(message, /automatic repair|repair the database/i);
+    assert.doesNotMatch(message, /SQLite|injected|\\|\.db/i);
+  }
+});
 
 test("manual BUY persistence failure restores broker and preserves durable state", () => {
   const h = harness(); const before = h.broker.exportState(); h.failNext();
