@@ -26,9 +26,9 @@ export interface PaperRiskPolicy {
 }
 
 interface NormalizedPaperRiskPolicy {
-  readonly maxOrderNotional?: number;
-  readonly maxPositionQuantity?: number;
-  readonly maxRealizedLoss?: number;
+  readonly maxOrderNotional: number | null;
+  readonly maxPositionQuantity: number | null;
+  readonly maxRealizedLoss: number | null;
   readonly quantityStep: number;
   readonly dustThreshold: number;
 }
@@ -55,8 +55,10 @@ function assertFiniteNonNegative(value: number, name: string): void {
 
 function decimalPlaces(value: number): number {
   const text = value.toString().toLowerCase();
-  if (text.includes("e-")) return Number(text.split("e-")[1] ?? 0);
-  return (text.split(".")[1] ?? "").length;
+  const exponentMarker = text.indexOf("e-");
+  if (exponentMarker >= 0) return Number(text.slice(exponentMarker + 2));
+  const decimalMarker = text.indexOf(".");
+  return decimalMarker < 0 ? 0 : text.length - decimalMarker - 1;
 }
 
 function floorToStep(value: number, step: number): number {
@@ -92,9 +94,9 @@ export class PaperBroker {
     if (dustThreshold >= quantityStep) throw new Error("dustThreshold must be smaller than quantityStep");
 
     this.riskPolicy = Object.freeze({
-      ...(riskPolicy.maxOrderNotional == null ? {} : { maxOrderNotional: riskPolicy.maxOrderNotional }),
-      ...(riskPolicy.maxPositionQuantity == null ? {} : { maxPositionQuantity: riskPolicy.maxPositionQuantity }),
-      ...(riskPolicy.maxRealizedLoss == null ? {} : { maxRealizedLoss: riskPolicy.maxRealizedLoss }),
+      maxOrderNotional: riskPolicy.maxOrderNotional ?? null,
+      maxPositionQuantity: riskPolicy.maxPositionQuantity ?? null,
+      maxRealizedLoss: riskPolicy.maxRealizedLoss ?? null,
       quantityStep,
       dustThreshold
     });
@@ -140,16 +142,16 @@ export class PaperBroker {
     if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
       throw new Error("insufficient paper position");
     }
-    if (this.riskPolicy.maxOrderNotional != null && notional > this.riskPolicy.maxOrderNotional) {
+    if (this.riskPolicy.maxOrderNotional !== null && notional > this.riskPolicy.maxOrderNotional) {
       throw new Error("paper risk: max order notional exceeded");
     }
-    if (this.riskPolicy.maxRealizedLoss != null && this.position.realizedPnl < -this.riskPolicy.maxRealizedLoss) {
+    if (this.riskPolicy.maxRealizedLoss !== null && this.position.realizedPnl < -this.riskPolicy.maxRealizedLoss) {
       throw new Error("paper risk: max realized loss exceeded");
     }
 
     if (side === "BUY") {
       const nextQuantity = this.normalizePositionQuantity(this.position.quantity + normalizedQuantity);
-      if (this.riskPolicy.maxPositionQuantity != null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
+      if (this.riskPolicy.maxPositionQuantity !== null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
         throw new Error("paper risk: max position quantity exceeded");
       }
       if (notional + chargedFee > this.cash) throw new Error("insufficient paper cash");
@@ -192,7 +194,15 @@ export class PaperBroker {
   }
 
   restoreState(state: PaperBrokerState): void {
-    const validated = new PaperBroker(1, this.position.market, this.feeRate, this.riskPolicy, state).exportState();
+    const publicPolicy: PaperRiskPolicy = {
+      quantityStep: this.riskPolicy.quantityStep,
+      dustThreshold: this.riskPolicy.dustThreshold
+    };
+    if (this.riskPolicy.maxOrderNotional !== null) publicPolicy.maxOrderNotional = this.riskPolicy.maxOrderNotional;
+    if (this.riskPolicy.maxPositionQuantity !== null) publicPolicy.maxPositionQuantity = this.riskPolicy.maxPositionQuantity;
+    if (this.riskPolicy.maxRealizedLoss !== null) publicPolicy.maxRealizedLoss = this.riskPolicy.maxRealizedLoss;
+
+    const validated = new PaperBroker(1, this.position.market, this.feeRate, publicPolicy, state).exportState();
     this.cash = validated.cash;
     this.position.quantity = validated.position.quantity;
     this.position.averagePrice = validated.position.averagePrice;
