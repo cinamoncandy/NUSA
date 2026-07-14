@@ -29,7 +29,18 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Typecheck
-        run: pnpm run typecheck
+        shell: pwsh
+        run: |
+          pnpm run typecheck 2>&1 | Tee-Object -FilePath typecheck-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload typecheck diagnostics
+        if: failure() && hashFiles('typecheck-output.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-output
+          path: typecheck-output.txt
+          if-no-files-found: error
+          retention-days: 1
       - name: Build
         run: pnpm run build
       - name: Control audit ledger tests
