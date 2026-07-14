@@ -134,3 +134,38 @@ test("migration runner backfills legacy rows once", () => {
     assert.match(db.prepare("SELECT checksum FROM schema_migrations WHERE id = ?").get("001_alpha").checksum, /^[a-f0-9]{64}$/);
   } finally { db.close(); }
 });
+
+test("migration IDs are immutable and a rename fails closed without touching existing data", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    const original = migration("001_alpha", "CREATE TABLE alpha (id TEXT PRIMARY KEY, value TEXT NOT NULL);");
+    runMigrations(db, [original]);
+    db.prepare("INSERT INTO alpha (id, value) VALUES (?, ?)").run("kept", "unchanged");
+    const before = db.prepare("SELECT id, applied_at, checksum FROM schema_migrations WHERE id = ?").get("001_alpha");
+
+    assert.throws(
+      () => runMigrations(db, [migration("001_renamed_alpha", original.sql)]),
+      /database contains unknown migration: 001_alpha/
+    );
+
+    assert.deepEqual({ ...db.prepare("SELECT id, value FROM alpha WHERE id = ?").get("kept") }, { id: "kept", value: "unchanged" });
+    assert.deepEqual({ ...db.prepare("SELECT id, applied_at, checksum FROM schema_migrations WHERE id = ?").get("001_alpha") }, { ...before });
+    assert.equal(db.prepare("SELECT id FROM schema_migrations WHERE id = ?").get("001_renamed_alpha"), undefined);
+  } finally { db.close(); }
+});
+
+test("legacy checksum backfill preserves applied timestamp and existing rows", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    const appliedAt = "2025-01-02T03:04:05.000Z";
+    db.exec("CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL); CREATE TABLE alpha (id TEXT PRIMARY KEY, value TEXT NOT NULL);");
+    db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("001_alpha", appliedAt);
+    db.prepare("INSERT INTO alpha (id, value) VALUES (?, ?)").run("legacy", "preserved");
+
+    assert.deepEqual(runMigrations(db, [migration("001_alpha", "CREATE TABLE alpha (id TEXT PRIMARY KEY, value TEXT NOT NULL);")]).applied, []);
+    const row = db.prepare("SELECT id, applied_at, checksum FROM schema_migrations WHERE id = ?").get("001_alpha");
+    assert.equal(row.applied_at, appliedAt);
+    assert.match(row.checksum, /^[a-f0-9]{64}$/);
+    assert.deepEqual({ ...db.prepare("SELECT id, value FROM alpha WHERE id = ?").get("legacy") }, { id: "legacy", value: "preserved" });
+  } finally { db.close(); }
+});
