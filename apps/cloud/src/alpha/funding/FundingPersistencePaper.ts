@@ -1,9 +1,26 @@
 import { createHash } from "node:crypto";
-import type { FundingPersistenceStressSummary } from "./FundingPersistenceStress";
-import type { FundingPersistenceWalkForwardResult } from "./FundingPersistenceWalkForward";
 
-export type FundingPersistencePaperOrderState = "NEW" | "QUEUED" | "ACCEPTED" | "PARTIAL_FILL" | "FILLED" | "CANCELLED" | "REJECTED" | "CLOSED" | "ARCHIVED";
-export type FundingPersistencePaperEventType = "ORDER_CREATED" | "ORDER_QUEUED" | "ORDER_ACCEPTED" | "ORDER_PARTIALLY_FILLED" | "ORDER_FILLED" | "ORDER_CANCELLED" | "ORDER_REJECTED" | "POSITION_CLOSED" | "ORDER_ARCHIVED";
+export type FundingPersistencePaperOrderState =
+  | "NEW"
+  | "QUEUED"
+  | "ACCEPTED"
+  | "PARTIAL_FILL"
+  | "FILLED"
+  | "CANCELLED"
+  | "REJECTED"
+  | "CLOSED"
+  | "ARCHIVED";
+
+export type FundingPersistencePaperEventType =
+  | "ORDER_CREATED"
+  | "ORDER_QUEUED"
+  | "ORDER_ACCEPTED"
+  | "ORDER_PARTIALLY_FILLED"
+  | "ORDER_FILLED"
+  | "ORDER_CANCELLED"
+  | "ORDER_REJECTED"
+  | "POSITION_CLOSED"
+  | "ORDER_ARCHIVED";
 
 export interface FundingPersistencePaperEvent {
   readonly eventId: string;
@@ -91,28 +108,77 @@ export interface AppendFundingPersistencePaperEventInput {
   readonly reason: string;
 }
 
+export interface FundingPersistenceWalkForwardGate {
+  readonly aggregate: { readonly passed: boolean };
+}
+
+export interface FundingPersistenceStressGate {
+  readonly passed: boolean;
+}
+
 const SHA256 = /^[a-f0-9]{64}$/;
 const round = (value: number): number => Math.round(value * 1_000_000_000) / 1_000_000_000;
-const finite = (value: number, label: string): void => { if (!Number.isFinite(value)) throw new Error(`${label} must be finite`); };
-const parseTime = (value: string, label: string): number => { const parsed = Date.parse(value); if (!Number.isFinite(parsed)) throw new Error(`${label} must be a valid ISO timestamp`); return parsed; };
+const finite = (value: number, label: string): void => {
+  if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
+};
+const parseTime = (value: string, label: string): number => {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) throw new Error(`${label} must be a valid ISO timestamp`);
+  return parsed;
+};
 const canonical = (value: unknown): string => {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+    .join(",")}}`;
 };
 const hash = (value: unknown): string => createHash("sha256").update(canonical(value)).digest("hex");
 
-const nextState: Readonly<Record<FundingPersistencePaperEventType, FundingPersistencePaperOrderState>> = Object.freeze({
-  ORDER_CREATED: "NEW", ORDER_QUEUED: "QUEUED", ORDER_ACCEPTED: "ACCEPTED", ORDER_PARTIALLY_FILLED: "PARTIAL_FILL", ORDER_FILLED: "FILLED", ORDER_CANCELLED: "CANCELLED", ORDER_REJECTED: "REJECTED", POSITION_CLOSED: "CLOSED", ORDER_ARCHIVED: "ARCHIVED"
-});
-const allowedFrom: Readonly<Record<FundingPersistencePaperEventType, readonly FundingPersistencePaperOrderState[]>> = Object.freeze({
-  ORDER_CREATED: Object.freeze([] as FundingPersistencePaperOrderState[]), ORDER_QUEUED: Object.freeze(["NEW"]), ORDER_ACCEPTED: Object.freeze(["QUEUED"]), ORDER_PARTIALLY_FILLED: Object.freeze(["ACCEPTED", "PARTIAL_FILL"]), ORDER_FILLED: Object.freeze(["ACCEPTED", "PARTIAL_FILL"]), ORDER_CANCELLED: Object.freeze(["NEW", "QUEUED", "ACCEPTED", "PARTIAL_FILL"]), ORDER_REJECTED: Object.freeze(["NEW", "QUEUED"]), POSITION_CLOSED: Object.freeze(["FILLED"]), ORDER_ARCHIVED: Object.freeze(["CANCELLED", "REJECTED", "CLOSED"])
-});
+const stateAfter = (type: FundingPersistencePaperEventType): FundingPersistencePaperOrderState => {
+  switch (type) {
+    case "ORDER_CREATED": return "NEW";
+    case "ORDER_QUEUED": return "QUEUED";
+    case "ORDER_ACCEPTED": return "ACCEPTED";
+    case "ORDER_PARTIALLY_FILLED": return "PARTIAL_FILL";
+    case "ORDER_FILLED": return "FILLED";
+    case "ORDER_CANCELLED": return "CANCELLED";
+    case "ORDER_REJECTED": return "REJECTED";
+    case "POSITION_CLOSED": return "CLOSED";
+    case "ORDER_ARCHIVED": return "ARCHIVED";
+  }
+};
 
-export const createFundingPersistencePaperLedger = (engineVersion: number, market: string): FundingPersistencePaperLedger => {
+const canTransition = (
+  state: FundingPersistencePaperOrderState,
+  type: FundingPersistencePaperEventType
+): boolean => {
+  switch (type) {
+    case "ORDER_CREATED": return false;
+    case "ORDER_QUEUED": return state === "NEW";
+    case "ORDER_ACCEPTED": return state === "QUEUED";
+    case "ORDER_PARTIALLY_FILLED": return state === "ACCEPTED" || state === "PARTIAL_FILL";
+    case "ORDER_FILLED": return state === "ACCEPTED" || state === "PARTIAL_FILL";
+    case "ORDER_CANCELLED": return state === "NEW" || state === "QUEUED" || state === "ACCEPTED" || state === "PARTIAL_FILL";
+    case "ORDER_REJECTED": return state === "NEW" || state === "QUEUED";
+    case "POSITION_CLOSED": return state === "FILLED";
+    case "ORDER_ARCHIVED": return state === "CANCELLED" || state === "REJECTED" || state === "CLOSED";
+  }
+};
+
+export const createFundingPersistencePaperLedger = (
+  engineVersion: number,
+  market: string
+): FundingPersistencePaperLedger => {
   if (!Number.isInteger(engineVersion) || engineVersion < 1) throw new Error("engineVersion must be a positive integer");
   if (!market.trim()) throw new Error("market is required");
-  const payload: Omit<FundingPersistencePaperLedger, "contentHash"> = { engineVersion, market: market.trim(), events: Object.freeze([] as FundingPersistencePaperEvent[]), headHash: null };
+  const payload = {
+    engineVersion,
+    market: market.trim(),
+    events: Object.freeze([] as FundingPersistencePaperEvent[]) as readonly FundingPersistencePaperEvent[],
+    headHash: null as string | null
+  };
   return Object.freeze({ ...payload, contentHash: hash(payload) });
 };
 
@@ -120,9 +186,7 @@ export const verifyFundingPersistencePaperLedger = (ledger: FundingPersistencePa
   if (!SHA256.test(ledger.contentHash)) throw new Error("ledger contentHash is invalid");
   const ids = new Set<string>();
   let previous: string | null = null;
-  for (let index = 0; index < ledger.events.length; index += 1) {
-    const event = ledger.events[index];
-    if (!event) throw new Error("ledger event missing");
+  ledger.events.forEach((event, index) => {
     if (event.sequence !== index + 1) throw new Error("ledger sequence is invalid");
     if (ids.has(event.eventId)) throw new Error(`duplicate event ${event.eventId}`);
     ids.add(event.eventId);
@@ -130,25 +194,33 @@ export const verifyFundingPersistencePaperLedger = (ledger: FundingPersistencePa
     const { contentHash, ...payload } = event;
     if (hash(payload) !== contentHash) throw new Error("event contentHash mismatch");
     previous = contentHash;
-  }
+  });
   if (ledger.headHash !== previous) throw new Error("ledger headHash mismatch");
   const { contentHash, ...payload } = ledger;
   if (hash(payload) !== contentHash) throw new Error("ledger contentHash mismatch");
 };
 
-export const replayFundingPersistencePaperLedger = (ledger: FundingPersistencePaperLedger): { readonly orders: readonly FundingPersistencePaperOrderSnapshot[]; readonly replayHash: string } => {
+export const replayFundingPersistencePaperLedger = (
+  ledger: FundingPersistencePaperLedger
+): { readonly orders: readonly FundingPersistencePaperOrderSnapshot[]; readonly replayHash: string } => {
   verifyFundingPersistencePaperLedger(ledger);
   const orders = new Map<string, FundingPersistencePaperOrderSnapshot>();
   for (const event of ledger.events) {
     const current = orders.get(event.orderId);
     if (event.type === "ORDER_CREATED") {
       if (current) throw new Error("duplicate order creation");
-      const created: FundingPersistencePaperOrderSnapshot = Object.freeze({ orderId: event.orderId, state: "NEW", requestedQuantity: event.quantity ?? 0, filledQuantity: 0, averageFillPrice: null, updatedAt: event.occurredAt });
-      orders.set(event.orderId, created);
+      orders.set(event.orderId, Object.freeze({
+        orderId: event.orderId,
+        state: "NEW" as const,
+        requestedQuantity: event.quantity ?? 0,
+        filledQuantity: 0,
+        averageFillPrice: null,
+        updatedAt: event.occurredAt
+      }));
       continue;
     }
     if (!current) throw new Error("order does not exist");
-    if (!allowedFrom[event.type].includes(current.state)) throw new Error(`invalid transition ${current.state} -> ${event.type}`);
+    if (!canTransition(current.state, event.type)) throw new Error(`invalid transition ${current.state} -> ${event.type}`);
     let filledQuantity = current.filledQuantity;
     let averageFillPrice = current.averageFillPrice;
     if (event.type === "ORDER_PARTIALLY_FILLED" || event.type === "ORDER_FILLED") {
@@ -158,16 +230,26 @@ export const replayFundingPersistencePaperLedger = (ledger: FundingPersistencePa
       filledQuantity = round(filledQuantity + quantity);
       averageFillPrice = round(totalCost / filledQuantity);
       if (filledQuantity - current.requestedQuantity > 1e-9) throw new Error("filled quantity exceeds requested quantity");
-      if (event.type === "ORDER_FILLED" && Math.abs(filledQuantity - current.requestedQuantity) > 1e-9) throw new Error("ORDER_FILLED must complete requested quantity");
+      if (event.type === "ORDER_FILLED" && Math.abs(filledQuantity - current.requestedQuantity) > 1e-9) {
+        throw new Error("ORDER_FILLED must complete requested quantity");
+      }
     }
-    const updated: FundingPersistencePaperOrderSnapshot = Object.freeze({ ...current, state: nextState[event.type], filledQuantity, averageFillPrice, updatedAt: event.occurredAt });
-    orders.set(event.orderId, updated);
+    orders.set(event.orderId, Object.freeze({
+      ...current,
+      state: stateAfter(event.type),
+      filledQuantity,
+      averageFillPrice,
+      updatedAt: event.occurredAt
+    }));
   }
-  const snapshots: readonly FundingPersistencePaperOrderSnapshot[] = Object.freeze([...orders.values()].sort((a, b) => a.orderId.localeCompare(b.orderId)));
+  const snapshots = Object.freeze([...orders.values()].sort((left, right) => left.orderId.localeCompare(right.orderId)));
   return Object.freeze({ orders: snapshots, replayHash: hash(snapshots) });
 };
 
-export const appendFundingPersistencePaperEvent = (ledger: FundingPersistencePaperLedger, input: AppendFundingPersistencePaperEventInput): FundingPersistencePaperLedger => {
+export const appendFundingPersistencePaperEvent = (
+  ledger: FundingPersistencePaperLedger,
+  input: AppendFundingPersistencePaperEventInput
+): FundingPersistencePaperLedger => {
   verifyFundingPersistencePaperLedger(ledger);
   if (!input.eventId.trim() || !input.orderId.trim() || !input.reason.trim()) throw new Error("eventId, orderId, and reason are required");
   if (ledger.events.some((event) => event.eventId === input.eventId)) throw new Error(`duplicate event ${input.eventId}`);
@@ -179,22 +261,36 @@ export const appendFundingPersistencePaperEvent = (ledger: FundingPersistencePap
   const realizedPnl = input.realizedPnl ?? 0;
   if (quantity !== null) { finite(quantity, "quantity"); if (quantity <= 0) throw new Error("quantity must be positive"); }
   if (price !== null) { finite(price, "price"); if (price <= 0) throw new Error("price must be positive"); }
-  for (const [label, value] of [["fee", fee], ["slippageCost", slippageCost], ["realizedPnl", realizedPnl]] as const) finite(value, label);
+  finite(fee, "fee"); finite(slippageCost, "slippageCost"); finite(realizedPnl, "realizedPnl");
   if (fee < 0 || slippageCost < 0) throw new Error("fee and slippageCost must be non-negative");
-  if ((input.type === "ORDER_PARTIALLY_FILLED" || input.type === "ORDER_FILLED") && (quantity === null || price === null)) throw new Error("fill events require quantity and price");
+  if ((input.type === "ORDER_PARTIALLY_FILLED" || input.type === "ORDER_FILLED") && (quantity === null || price === null)) {
+    throw new Error("fill events require quantity and price");
+  }
   const current = replayFundingPersistencePaperLedger(ledger).orders.find((order) => order.orderId === input.orderId);
-  if (input.type === "ORDER_CREATED") { if (current) throw new Error("ORDER_CREATED requires a new orderId"); if (quantity === null) throw new Error("ORDER_CREATED requires requested quantity"); }
-  else { if (!current) throw new Error("order does not exist"); if (!allowedFrom[input.type].includes(current.state)) throw new Error(`invalid transition ${current.state} -> ${input.type}`); }
-  const payload: Omit<FundingPersistencePaperEvent, "contentHash"> = { eventId: input.eventId.trim(), sequence: ledger.events.length + 1, orderId: input.orderId.trim(), type: input.type, occurredAt: input.occurredAt, quantity: quantity === null ? null : round(quantity), price: price === null ? null : round(price), fee: round(fee), slippageCost: round(slippageCost), realizedPnl: round(realizedPnl), reason: input.reason.trim(), previousHash: ledger.headHash };
+  if (input.type === "ORDER_CREATED") {
+    if (current) throw new Error("ORDER_CREATED requires a new orderId");
+    if (quantity === null) throw new Error("ORDER_CREATED requires requested quantity");
+  } else {
+    if (!current) throw new Error("order does not exist");
+    if (!canTransition(current.state, input.type)) throw new Error(`invalid transition ${current.state} -> ${input.type}`);
+  }
+  const payload = {
+    eventId: input.eventId.trim(), sequence: ledger.events.length + 1, orderId: input.orderId.trim(), type: input.type,
+    occurredAt: input.occurredAt, quantity: quantity === null ? null : round(quantity), price: price === null ? null : round(price),
+    fee: round(fee), slippageCost: round(slippageCost), realizedPnl: round(realizedPnl), reason: input.reason.trim(), previousHash: ledger.headHash
+  };
   const event: FundingPersistencePaperEvent = Object.freeze({ ...payload, contentHash: hash(payload) });
-  const events: readonly FundingPersistencePaperEvent[] = Object.freeze([...ledger.events, event]);
-  const resultPayload: Omit<FundingPersistencePaperLedger, "contentHash"> = { engineVersion: ledger.engineVersion, market: ledger.market, events, headHash: event.contentHash };
+  const events = Object.freeze([...ledger.events, event]);
+  const resultPayload = { engineVersion: ledger.engineVersion, market: ledger.market, events, headHash: event.contentHash };
   const result: FundingPersistencePaperLedger = Object.freeze({ ...resultPayload, contentHash: hash(resultPayload) });
   replayFundingPersistencePaperLedger(result);
   return result;
 };
 
-export const createFundingPersistencePaperDailyReport = (ledger: FundingPersistencePaperLedger, reportDate: string): FundingPersistencePaperDailyReport => {
+export const createFundingPersistencePaperDailyReport = (
+  ledger: FundingPersistencePaperLedger,
+  reportDate: string
+): FundingPersistencePaperDailyReport => {
   verifyFundingPersistencePaperLedger(ledger);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) throw new Error("reportDate must be YYYY-MM-DD");
   const events = ledger.events.filter((event) => event.occurredAt.slice(0, 10) === reportDate);
@@ -202,11 +298,23 @@ export const createFundingPersistencePaperDailyReport = (ledger: FundingPersiste
   const gross = events.reduce((sum, event) => sum + event.realizedPnl, 0);
   const fees = events.reduce((sum, event) => sum + event.fee, 0);
   const slippage = events.reduce((sum, event) => sum + event.slippageCost, 0);
-  const payload: Omit<FundingPersistencePaperDailyReport, "contentHash"> = { reportDate, market: ledger.market, createdOrders: count("ORDER_CREATED"), filledOrders: count("ORDER_FILLED"), rejectedOrders: count("ORDER_REJECTED"), cancelledOrders: count("ORDER_CANCELLED"), closedPositions: count("POSITION_CLOSED"), grossRealizedPnl: round(gross), fees: round(fees), slippageCost: round(slippage), netRealizedPnl: round(gross - fees - slippage), tradedQuantity: round(events.reduce((sum, event) => sum + (event.quantity ?? 0), 0)), ledgerHeadHash: ledger.headHash };
+  const payload = {
+    reportDate, market: ledger.market, createdOrders: count("ORDER_CREATED"), filledOrders: count("ORDER_FILLED"),
+    rejectedOrders: count("ORDER_REJECTED"), cancelledOrders: count("ORDER_CANCELLED"), closedPositions: count("POSITION_CLOSED"),
+    grossRealizedPnl: round(gross), fees: round(fees), slippageCost: round(slippage), netRealizedPnl: round(gross - fees - slippage),
+    tradedQuantity: round(events.reduce((sum, event) => sum + (event.quantity ?? 0), 0)), ledgerHeadHash: ledger.headHash
+  };
   return Object.freeze({ ...payload, contentHash: hash(payload) });
 };
 
-export const createFundingPersistenceChampionCandidateReport = (ledger: FundingPersistencePaperLedger, dailyReports: readonly FundingPersistencePaperDailyReport[], walkForward: FundingPersistenceWalkForwardResult, stress: FundingPersistenceStressSummary, generatedAt: string, policy: FundingPersistenceChampionPolicy): FundingPersistenceChampionCandidateReport => {
+export const createFundingPersistenceChampionCandidateReport = (
+  ledger: FundingPersistencePaperLedger,
+  dailyReports: readonly FundingPersistencePaperDailyReport[],
+  walkForward: FundingPersistenceWalkForwardGate,
+  stress: FundingPersistenceStressGate,
+  generatedAt: string,
+  policy: FundingPersistenceChampionPolicy
+): FundingPersistenceChampionCandidateReport => {
   verifyFundingPersistencePaperLedger(ledger);
   parseTime(generatedAt, "generatedAt");
   if (!Number.isInteger(policy.minimumPaperDays) || policy.minimumPaperDays < 1) throw new Error("minimumPaperDays must be positive");
@@ -228,6 +336,10 @@ export const createFundingPersistenceChampionCandidateReport = (ledger: FundingP
   if (policy.requireWalkForwardPass && !walkForward.aggregate.passed) reasons.push("WALK_FORWARD_NOT_PASSED");
   if (policy.requireStressPass && !stress.passed) reasons.push("STRESS_NOT_PASSED");
   if (reasons.length === 0) reasons.push("CHAMPION_CANDIDATE_POLICY_PASSED");
-  const payload: Omit<FundingPersistenceChampionCandidateReport, "contentHash"> = { generatedAt, eligible: reasons.length === 1 && reasons[0] === "CHAMPION_CANDIDATE_POLICY_PASSED", reasons: Object.freeze(reasons), paperDays, closedPositions, netRealizedPnl, rejectedOrderRatio: round(rejectedOrderRatio), walkForwardPassed: walkForward.aggregate.passed, stressPassed: stress.passed, ledgerHeadHash: ledger.headHash };
+  const payload = {
+    generatedAt, eligible: reasons.length === 1 && reasons[0] === "CHAMPION_CANDIDATE_POLICY_PASSED", reasons: Object.freeze(reasons),
+    paperDays, closedPositions, netRealizedPnl, rejectedOrderRatio: round(rejectedOrderRatio), walkForwardPassed: walkForward.aggregate.passed,
+    stressPassed: stress.passed, ledgerHeadHash: ledger.headHash
+  };
   return Object.freeze({ ...payload, contentHash: hash(payload) });
 };
