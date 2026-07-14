@@ -5,9 +5,9 @@ const { computeLiquiditySweepFeature } = require("../dist/apps/cloud/src/alpha/l
 const policy = {
   featureVersion: 1,
   depthLevels: 2,
-  minimumSweepNotional: 500,
+  minimumSweepNotional: 250,
   minimumConsumedDepthRatio: 0.2,
-  maximumSpreadRate: 0.01,
+  maximumSpreadRate: 0.03,
   staleAfterMs: 1000
 };
 
