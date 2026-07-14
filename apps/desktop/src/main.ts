@@ -7,7 +7,7 @@ import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
-import { PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
+import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
@@ -136,7 +136,7 @@ function initializeRuntime(): void {
     try { persistRuntime(); }
     catch {
       paperTradingAvailable = false;
-      control.fault("Local Paper Trading storage failed. Trading was stopped to protect account consistency. Restart after repairing or restoring the local database.");
+      control.fault(PERSISTENCE_FAULT_MESSAGE);
       runtime.markUnavailable();
     }
   }
