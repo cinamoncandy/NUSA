@@ -32,6 +32,8 @@ jobs:
         run: pnpm run typecheck
       - name: Build
         run: pnpm run build
+      - name: Runtime persistence atomicity tests
+        run: node --test --test-reporter=spec tests/runtime-command-service.test.js
       - name: Control audit ledger tests
         run: node --test --test-reporter=spec tests/control-audit-ledger.test.js
       - name: Transactional control service tests
