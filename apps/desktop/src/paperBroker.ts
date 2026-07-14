@@ -25,6 +25,14 @@ export interface PaperRiskPolicy {
   dustThreshold?: number;
 }
 
+interface NormalizedPaperRiskPolicy {
+  readonly maxOrderNotional?: number;
+  readonly maxPositionQuantity?: number;
+  readonly maxRealizedLoss?: number;
+  readonly quantityStep: number;
+  readonly dustThreshold: number;
+}
+
 export interface PaperBrokerState {
   version: 1;
   cash: number;
@@ -62,7 +70,7 @@ export class PaperBroker {
   private readonly feeRate: number;
   private readonly position: PaperPosition;
   private readonly orders: PaperOrder[];
-  private readonly riskPolicy: Readonly<Required<Pick<PaperRiskPolicy, "quantityStep" | "dustThreshold">> & Omit<PaperRiskPolicy, "quantityStep" | "dustThreshold">>;
+  private readonly riskPolicy: NormalizedPaperRiskPolicy;
 
   constructor(
     initialCash = 10_000_000,
@@ -83,7 +91,14 @@ export class PaperBroker {
     assertFiniteNonNegative(dustThreshold, "dustThreshold");
     if (dustThreshold >= quantityStep) throw new Error("dustThreshold must be smaller than quantityStep");
 
-    this.riskPolicy = Object.freeze({ ...riskPolicy, quantityStep, dustThreshold });
+    this.riskPolicy = Object.freeze({
+      ...(riskPolicy.maxOrderNotional == null ? {} : { maxOrderNotional: riskPolicy.maxOrderNotional }),
+      ...(riskPolicy.maxPositionQuantity == null ? {} : { maxPositionQuantity: riskPolicy.maxPositionQuantity }),
+      ...(riskPolicy.maxRealizedLoss == null ? {} : { maxRealizedLoss: riskPolicy.maxRealizedLoss }),
+      quantityStep,
+      dustThreshold
+    });
+
     if (restoredState) {
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
       if (restoredState.position.market !== market) throw new Error("paper state market mismatch");
@@ -120,7 +135,8 @@ export class PaperBroker {
 
     const normalizedQuantity = this.normalizeOrderQuantity(quantity);
     const notional = normalizedQuantity * price;
-    const fee = notional * this.feeRate;
+    let chargedFee = notional * this.feeRate;
+
     if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
       throw new Error("insufficient paper position");
     }
@@ -136,17 +152,17 @@ export class PaperBroker {
       if (this.riskPolicy.maxPositionQuantity != null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
         throw new Error("paper risk: max position quantity exceeded");
       }
-      if (notional + fee > this.cash) throw new Error("insufficient paper cash");
+      if (notional + chargedFee > this.cash) throw new Error("insufficient paper cash");
       const previousCost = this.position.quantity * this.position.averagePrice;
-      this.cash -= notional + fee;
+      this.cash -= notional + chargedFee;
       this.position.quantity = nextQuantity;
       this.position.averagePrice = (previousCost + notional) / this.position.quantity;
     } else {
       const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
       const sellNotional = sellQuantity * price;
-      const sellFee = sellNotional * this.feeRate;
-      const pnl = (price - this.position.averagePrice) * sellQuantity - sellFee;
-      this.cash += sellNotional - sellFee;
+      chargedFee = sellNotional * this.feeRate;
+      const pnl = (price - this.position.averagePrice) * sellQuantity - chargedFee;
+      this.cash += sellNotional - chargedFee;
       this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
       this.position.realizedPnl += pnl;
       if (this.position.quantity === 0) this.position.averagePrice = 0;
@@ -158,7 +174,7 @@ export class PaperBroker {
       side,
       quantity: normalizedQuantity,
       price,
-      fee,
+      fee: chargedFee,
       filledAt: now.toISOString()
     });
     this.orders.unshift(order);
