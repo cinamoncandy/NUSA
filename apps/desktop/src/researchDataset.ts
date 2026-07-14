@@ -120,12 +120,16 @@ export function createHistoricalDatasetManifest(candles: readonly ResearchCandle
 
 export function verifyHistoricalDatasetManifest(manifest: HistoricalDatasetManifest, candles: readonly ResearchCandle[]): ResearchDatasetValidation {
   if (manifest.schemaVersion !== 1) throw new ResearchDatasetError("UNSUPPORTED_SCHEMA_VERSION", "manifest schemaVersion is unsupported");
+  if (!manifest.source.trim()) throw new ResearchDatasetError("EMPTY_SOURCE", "manifest source is required");
+  if (!Number.isFinite(Date.parse(manifest.createdAt))) throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt must be a valid timestamp");
   if (manifest.ordering !== "OPEN_TIME_ASC" || manifest.timezone !== "UTC") throw new ResearchDatasetError("INVALID_MANIFEST_ORDERING", "manifest ordering or timezone is unsupported");
   const validated = validateResearchCandles(candles, { allowMissing: manifest.missingCandlePolicy === "ALLOW" }); const first = validated.candles[0]!; const last = validated.candles.at(-1)!;
   if (manifest.market !== first.market || manifest.interval !== first.interval) throw new ResearchDatasetError("MANIFEST_METADATA_MISMATCH", "manifest market or interval does not match candles");
   if (manifest.candleCount !== validated.candles.length || manifest.startOpenTime !== first.openTime || manifest.endCloseTime !== last.closeTime) throw new ResearchDatasetError("MANIFEST_RANGE_MISMATCH", "manifest count or candle range does not match candles");
   if (manifest.missingCandleCount !== validated.missingCandleCount) throw new ResearchDatasetError("MANIFEST_MISSING_POLICY_MISMATCH", "manifest missing candle count does not match candles");
-  if (manifest.contentSha256 !== calculateCandleSha256(validated.candles)) throw new ResearchDatasetError("CHECKSUM_MISMATCH", "manifest checksum does not match candle content");
+  const contentSha256 = calculateCandleSha256(validated.candles);
+  if (manifest.contentSha256 !== contentSha256) throw new ResearchDatasetError("CHECKSUM_MISMATCH", "manifest checksum does not match candle content");
+  if (manifest.datasetId !== datasetId(manifest.source, validated.candles, contentSha256)) throw new ResearchDatasetError("DATASET_ID_MISMATCH", "manifest datasetId does not match source and candle content");
   return validated;
 }
 
@@ -140,4 +144,3 @@ export function runWalkForwardExperiment(dataset: ResearchDataset, candidates: r
   if (walkForwardResult.windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") && !warnings.includes("OPEN_POSITION_MARKED_AT_WINDOW_END")) warnings.push("OPEN_POSITION_MARKED_AT_WINDOW_END");
   return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt: options.generatedAt ?? "1970-01-01T00:00:00.000Z", warnings: Object.freeze(warnings) });
 }
-
