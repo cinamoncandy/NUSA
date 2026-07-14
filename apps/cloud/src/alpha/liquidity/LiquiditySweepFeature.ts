@@ -123,7 +123,7 @@ export const computeLiquiditySweepFeature = (
   const spreadRate = (snapshot.bestAsk - snapshot.bestBid) / mid;
   const priceImpactRate = Math.abs(snapshot.lastTradePrice - mid) / mid;
 
-  const side = snapshot.aggressorSide === "BUY" && snapshot.lastTradePrice >= snapshot.bestAsk
+  const side: LiquiditySweepFeature["side"] = snapshot.aggressorSide === "BUY" && snapshot.lastTradePrice >= snapshot.bestAsk
     ? "UP_SWEEP"
     : snapshot.aggressorSide === "SELL" && snapshot.lastTradePrice <= snapshot.bestBid
       ? "DOWN_SWEEP"
