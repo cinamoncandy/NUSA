@@ -20,14 +20,14 @@ test("desktop persistence applies and verifies required SQLite safety pragmas", 
 
     const db = new DatabaseSync(filename);
     try {
-      assert.equal(Number(db.prepare("PRAGMA foreign_keys").get().foreign_keys), 0, "foreign_keys is connection-local and must be re-enabled by each store connection");
       assert.equal(String(db.prepare("PRAGMA journal_mode").get().journal_mode).toLowerCase(), "wal");
-      assert.equal(Number(db.prepare("PRAGMA synchronous").get().synchronous), 2);
-      assert.equal(Number(db.prepare("PRAGMA quick_check").get().quick_check === "ok"), 1);
+      assert.equal(db.prepare("PRAGMA quick_check").get().quick_check, "ok");
     } finally {
       db.close();
     }
 
+    // Reopening exercises the connection-local foreign_keys, synchronous,
+    // and busy_timeout assertions inside DesktopPersistenceStore again.
     const reopened = new DesktopPersistenceStore(filename);
     reopened.close();
   });
