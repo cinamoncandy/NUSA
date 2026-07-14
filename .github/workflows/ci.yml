@@ -28,27 +28,8 @@ jobs:
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
-      - name: Capture typecheck diagnostics
-        shell: pwsh
-        run: |
-          pnpm run typecheck 2>&1 | Tee-Object -FilePath typecheck-output.txt
-          $code = $LASTEXITCODE
-          Set-Content -Path typecheck-exit-code.txt -Value $code
-          exit 0
-      - name: Upload typecheck diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: typecheck-output
-          path: |
-            typecheck-output.txt
-            typecheck-exit-code.txt
-          if-no-files-found: error
-          retention-days: 1
-      - name: Enforce typecheck result
-        shell: pwsh
-        run: |
-          $code = [int](Get-Content typecheck-exit-code.txt)
-          if ($code -ne 0) { exit $code }
+      - name: Typecheck
+        run: pnpm run typecheck
       - name: Build
         run: pnpm run build
       - name: Control audit ledger tests
