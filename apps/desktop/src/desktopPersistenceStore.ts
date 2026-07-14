@@ -25,8 +25,14 @@ export class DesktopPersistenceStore {
   constructor(filename: string) {
     mkdirSync(path.dirname(filename), { recursive: true });
     this.db = new DatabaseSync(filename);
-    try { runMigrations(this.db, migrations); }
-    catch (error) { this.db.close(); throw error; }
+    try {
+      this.configureSafetyPragmas();
+      this.verifyStartupIntegrity();
+      runMigrations(this.db, migrations);
+    } catch (error) {
+      this.db.close();
+      throw new Error("desktop persistence startup verification failed", { cause: error });
+    }
   }
 
   load(): DesktopPersistenceState | undefined {
@@ -67,6 +73,26 @@ export class DesktopPersistenceStore {
 
   close(): void { this.db.close(); }
 
+  private configureSafetyPragmas(): void {
+    this.db.exec("PRAGMA foreign_keys = ON");
+    this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec("PRAGMA synchronous = FULL");
+    this.db.exec("PRAGMA busy_timeout = 5000");
+
+    const foreignKeys = Number((this.db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys);
+    const journalMode = String((this.db.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode).toLowerCase();
+    const synchronous = Number((this.db.prepare("PRAGMA synchronous").get() as { synchronous: number }).synchronous);
+    const busyTimeout = Number((this.db.prepare("PRAGMA busy_timeout").get() as { timeout: number }).timeout);
+    if (foreignKeys !== 1 || journalMode !== "wal" || synchronous !== 2 || busyTimeout !== 5000) {
+      throw new Error("required SQLite safety pragmas were not applied");
+    }
+  }
+
+  private verifyStartupIntegrity(): void {
+    const rows = this.db.prepare("PRAGMA quick_check").all() as Array<{ quick_check: string }>;
+    if (rows.length !== 1 || rows[0]?.quick_check !== "ok") throw new Error("SQLite quick_check failed");
+  }
+
   private write({ paper, control }: DesktopPersistenceState): void {
     const { orders, ...paperBase } = paper;
     const { events, processedSignalKeys, ...controlBase } = control;
@@ -88,4 +114,3 @@ export class DesktopPersistenceStore {
     catch (error) { try { this.db.exec("ROLLBACK"); } catch { /* preserve original error */ } throw error; }
   }
 }
-
