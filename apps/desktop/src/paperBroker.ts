@@ -21,6 +21,8 @@ export interface PaperRiskPolicy {
   maxOrderNotional?: number;
   maxPositionQuantity?: number;
   maxRealizedLoss?: number;
+  quantityStep?: number;
+  dustThreshold?: number;
 }
 
 export interface PaperBrokerState {
@@ -43,12 +45,24 @@ function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 }
 
+function decimalPlaces(value: number): number {
+  const text = value.toString().toLowerCase();
+  if (text.includes("e-")) return Number(text.split("e-")[1] ?? 0);
+  return (text.split(".")[1] ?? "").length;
+}
+
+function floorToStep(value: number, step: number): number {
+  const precision = Math.min(15, Math.max(decimalPlaces(step), 0));
+  const units = Math.floor((value + Number.EPSILON) / step);
+  return Number((units * step).toFixed(precision));
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
   private readonly position: PaperPosition;
   private readonly orders: PaperOrder[];
-  private readonly riskPolicy: PaperRiskPolicy;
+  private readonly riskPolicy: Readonly<Required<Pick<PaperRiskPolicy, "quantityStep" | "dustThreshold">> & Omit<PaperRiskPolicy, "quantityStep" | "dustThreshold">>;
 
   constructor(
     initialCash = 10_000_000,
@@ -63,7 +77,13 @@ export class PaperBroker {
     if (riskPolicy.maxPositionQuantity != null) assertFiniteNonNegative(riskPolicy.maxPositionQuantity, "maxPositionQuantity");
     if (riskPolicy.maxRealizedLoss != null) assertFiniteNonNegative(riskPolicy.maxRealizedLoss, "maxRealizedLoss");
 
-    this.riskPolicy = Object.freeze({ ...riskPolicy });
+    const quantityStep = riskPolicy.quantityStep ?? 0.00000001;
+    const dustThreshold = riskPolicy.dustThreshold ?? quantityStep / 2;
+    if (!Number.isFinite(quantityStep) || quantityStep <= 0) throw new Error("quantityStep must be positive");
+    assertFiniteNonNegative(dustThreshold, "dustThreshold");
+    if (dustThreshold >= quantityStep) throw new Error("dustThreshold must be smaller than quantityStep");
+
+    this.riskPolicy = Object.freeze({ ...riskPolicy, quantityStep, dustThreshold });
     if (restoredState) {
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
       if (restoredState.position.market !== market) throw new Error("paper state market mismatch");
@@ -71,6 +91,8 @@ export class PaperBroker {
       this.cash = restoredState.cash;
       this.feeRate = restoredState.feeRate;
       this.position = { ...restoredState.position };
+      this.position.quantity = this.normalizePositionQuantity(this.position.quantity);
+      if (this.position.quantity === 0) this.position.averagePrice = 0;
       this.orders = restoredState.orders.map((order) => ({ ...order }));
     } else {
       this.cash = initialCash;
@@ -80,14 +102,26 @@ export class PaperBroker {
     }
   }
 
+  private normalizeOrderQuantity(quantity: number): number {
+    const normalized = floorToStep(quantity, this.riskPolicy.quantityStep);
+    if (normalized <= this.riskPolicy.dustThreshold) throw new Error("quantity is below market step or dust threshold");
+    return normalized;
+  }
+
+  private normalizePositionQuantity(quantity: number): number {
+    if (quantity <= this.riskPolicy.dustThreshold) return 0;
+    return floorToStep(quantity, this.riskPolicy.quantityStep);
+  }
+
   execute(side: PaperSide, quantity: number, price: number, now = new Date()): PaperOrder {
     if (side !== "BUY" && side !== "SELL") throw new Error("invalid paper side");
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
 
-    const notional = quantity * price;
+    const normalizedQuantity = this.normalizeOrderQuantity(quantity);
+    const notional = normalizedQuantity * price;
     const fee = notional * this.feeRate;
-    if (side === "SELL" && quantity > this.position.quantity) {
+    if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
       throw new Error("insufficient paper position");
     }
     if (this.riskPolicy.maxOrderNotional != null && notional > this.riskPolicy.maxOrderNotional) {
@@ -98,7 +132,7 @@ export class PaperBroker {
     }
 
     if (side === "BUY") {
-      const nextQuantity = this.position.quantity + quantity;
+      const nextQuantity = this.normalizePositionQuantity(this.position.quantity + normalizedQuantity);
       if (this.riskPolicy.maxPositionQuantity != null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
         throw new Error("paper risk: max position quantity exceeded");
       }
@@ -108,9 +142,12 @@ export class PaperBroker {
       this.position.quantity = nextQuantity;
       this.position.averagePrice = (previousCost + notional) / this.position.quantity;
     } else {
-      const pnl = (price - this.position.averagePrice) * quantity - fee;
-      this.cash += notional - fee;
-      this.position.quantity -= quantity;
+      const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
+      const sellNotional = sellQuantity * price;
+      const sellFee = sellNotional * this.feeRate;
+      const pnl = (price - this.position.averagePrice) * sellQuantity - sellFee;
+      this.cash += sellNotional - sellFee;
+      this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
       this.position.realizedPnl += pnl;
       if (this.position.quantity === 0) this.position.averagePrice = 0;
     }
@@ -119,7 +156,7 @@ export class PaperBroker {
       id: `${now.getTime()}-${this.orders.length + 1}`,
       market: this.position.market,
       side,
-      quantity,
+      quantity: normalizedQuantity,
       price,
       fee,
       filledAt: now.toISOString()
@@ -139,7 +176,6 @@ export class PaperBroker {
   }
 
   restoreState(state: PaperBrokerState): void {
-    // Reuse constructor validation so command rollback cannot accept a weaker state shape.
     const validated = new PaperBroker(1, this.position.market, this.feeRate, this.riskPolicy, state).exportState();
     this.cash = validated.cash;
     this.position.quantity = validated.position.quantity;
@@ -161,4 +197,3 @@ export class PaperBroker {
     });
   }
 }
-
