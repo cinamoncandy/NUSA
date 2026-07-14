@@ -10,8 +10,14 @@ export interface RuntimePersistence {
 }
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
-export const PERSISTENCE_REPAIR_MESSAGE = "Paper trading is unavailable because local persistence requires operator repair.";
-export const PERSISTENCE_FAULT_MESSAGE = "Local Paper Trading storage failed. Trading was stopped to protect account consistency. Restart after repairing or restoring the local database.";
+export const PERSISTENCE_RECOVERY_STEPS = Object.freeze([
+  "Stop the application and preserve the failed database file unchanged.",
+  "Restore a known-good backup to the original database location while the application is stopped.",
+  "Restart and verify startup integrity checks pass; Paper automatic trading remains OFF.",
+  "Review account, order, control, and audit state before manually resuming Paper operation."
+] as const);
+export const PERSISTENCE_REPAIR_MESSAGE = "Paper trading is unavailable. Stop the application, preserve the failed database, restore a verified backup, then restart and review state before manually resuming.";
+export const PERSISTENCE_FAULT_MESSAGE = "Local Paper Trading storage failed. Trading was stopped to protect account consistency. Stop the application, preserve the failed database, restore a verified backup, then restart and review state before manually resuming.";
 
 interface RuntimeSnapshot {
   readonly paper: ReturnType<PaperBroker["exportState"]>;
