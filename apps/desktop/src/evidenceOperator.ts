@@ -59,29 +59,37 @@ function replayFromStore(store: DesktopPersistenceStore): { records: readonly Pa
 }
 
 export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
-  if (databasePath == null) {
-    return {
-      database: "not evaluated",
-      observedSessions: { current: 0, required: 20 },
-      completedOrders: { current: 0, required: 50 },
-      representedRegimes: { current: 0, required: 3 },
-      restartRecoveryPasses: { current: 0, required: 3 },
-      duplicateChecks: { current: 0, required: 10 },
-      faultScenarios: "NOT_EVALUATED",
-      walkForward: "NOT_EVALUATED",
-      costStress: "NOT_EVALUATED",
-      integrity: "NOT_EVALUATED",
-      bundle: "NOT_EVALUATED",
-      ownerReview: reviews.length > 0 ? "COMPLETED" : "NOT_COMPLETED",
-      releaseStatus: "BLOCKED",
-      blockingReasons: ["DATABASE_NOT_EVALUATED", "REAL_PAPER_EVIDENCE_NOT_EVALUATED", "OWNER_REVIEW_REQUIRED"]
-    };
-  }
+  const notEvaluated = (reason: string): EvidenceStatus => ({
+    database: "not evaluated",
+    observedSessions: { current: 0, required: 20 },
+    completedOrders: { current: 0, required: 50 },
+    representedRegimes: { current: 0, required: 3 },
+    restartRecoveryPasses: { current: 0, required: 3 },
+    duplicateChecks: { current: 0, required: 10 },
+    faultScenarios: "NOT_EVALUATED",
+    walkForward: "NOT_EVALUATED",
+    costStress: "NOT_EVALUATED",
+    integrity: "NOT_EVALUATED",
+    bundle: "NOT_EVALUATED",
+    ownerReview: "NOT_COMPLETED",
+    releaseStatus: "BLOCKED",
+    blockingReasons: Object.freeze([reason, "OWNER_REVIEW_REQUIRED"])
+  });
+
+  if (databasePath == null) return notEvaluated("DATABASE_NOT_EVALUATED");
 
   let store: DesktopPersistenceStore | undefined;
   try {
     store = openReadOnly(databasePath);
-    const { counters } = replayFromStore(store);
+    const { records, counters } = replayFromStore(store);
+    const reports = store.loadResearchValidationReports();
+    const reviews = store.loadOwnerReviews();
+    const statusFor = (runType: "WALK_FORWARD" | "COST_STRESS" | "INTEGRITY_CHECK"): "PASS" | "FAIL" | "NOT_EVALUATED" => {
+      const matching = reports.filter((report) => report.runType === runType);
+      if (matching.length === 0) return "NOT_EVALUATED";
+      return matching.some((report) => report.status === "PASS") ? "PASS" : "FAIL";
+    };
+    const representedRegimeCount = new Set(records.map((record) => record.event.type === "REGIME_OBSERVED" ? record.event.scenario : undefined).filter((value): value is string => value != null)).size;
     return {
       database: "evaluated",
       observedSessions: { current: counters.sessionCount, required: 20 },
@@ -90,31 +98,20 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       restartRecoveryPasses: { current: counters.recoveryPassCount, required: 3 },
       duplicateChecks: { current: counters.duplicateOrderCheckCount, required: 10 },
       faultScenarios: Object.freeze([...counters.passedFaultScenarios].sort()),
-      walkForward: "NOT_EVALUATED",
-      costStress: "NOT_EVALUATED",
-      integrity: "NOT_EVALUATED",
+      walkForward: statusFor("WALK_FORWARD"),
+      costStress: statusFor("COST_STRESS"),
+      integrity: statusFor("INTEGRITY_CHECK"),
       bundle: "NOT_EVALUATED",
-      ownerReview: "NOT_COMPLETED",
+      ownerReview: reviews.length > 0 ? "COMPLETED" : "NOT_COMPLETED",
       releaseStatus: "BLOCKED",
-      blockingReasons: Object.freeze(["REAL_PAPER_EVIDENCE_REQUIRES_OPERATOR_REVIEW", ...(reports.length === 0 ? ["RESEARCH_REPORTS_NOT_EVALUATED"] : []), ...(reviews.length === 0 ? ["OWNER_REVIEW_REQUIRED"] : [])])
+      blockingReasons: Object.freeze([
+        "REAL_PAPER_EVIDENCE_REQUIRES_OPERATOR_REVIEW",
+        ...(reports.length === 0 ? ["RESEARCH_REPORTS_NOT_EVALUATED"] : []),
+        ...(reviews.length === 0 ? ["OWNER_REVIEW_REQUIRED"] : [])
+      ])
     };
   } catch {
-    return {
-      database: "not evaluated",
-      observedSessions: { current: 0, required: 20 },
-      completedOrders: { current: 0, required: 50 },
-      representedRegimes: { current: 0, required: 3 },
-      restartRecoveryPasses: { current: 0, required: 3 },
-      duplicateChecks: { current: 0, required: 10 },
-      faultScenarios: "NOT_EVALUATED",
-      walkForward: "NOT_EVALUATED",
-      costStress: "NOT_EVALUATED",
-      integrity: "NOT_EVALUATED",
-      bundle: "NOT_EVALUATED",
-      ownerReview: "NOT_COMPLETED",
-      releaseStatus: "BLOCKED",
-      blockingReasons: ["DATABASE_NOT_EVALUATED", "DATABASE_READ_FAILED", "OWNER_REVIEW_REQUIRED"]
-    };
+    return notEvaluated("DATABASE_READ_FAILED");
   } finally {
     store?.close();
   }
