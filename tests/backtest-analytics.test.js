@@ -25,13 +25,13 @@ test("trade matcher uses FIFO lots for multiple partial exits", () => {
   assert.equal(matched.openPosition.averageEntryPrice, 110);
 });
 
-test("performance metrics report mixed wins, losses, and no-trade values deterministically", () => {
+test("performance metrics keep gross price PnL separate from net fee-aware outcomes", () => {
   const trades = [
-    { entryTime: 1, exitTime: 2, entryPrice: 10, exitPrice: 13, quantity: 1, fees: 0, grossPnL: 3, netPnL: 3, holdingDuration: 1 },
-    { entryTime: 3, exitTime: 5, entryPrice: 10, exitPrice: 8, quantity: 1, fees: 0, grossPnL: -2, netPnL: -2, holdingDuration: 2 }
+    { entryTime: 1, exitTime: 2, entryPrice: 10, exitPrice: 13, quantity: 1, fees: 1, grossPnL: 3, netPnL: 2, holdingDuration: 1 },
+    { entryTime: 3, exitTime: 5, entryPrice: 10, exitPrice: 8, quantity: 1, fees: 1, grossPnL: -2, netPnL: -3, holdingDuration: 2 }
   ];
   const metrics = calculatePerformanceMetrics(trades, 0.5);
-  assert.deepEqual(metrics, { profitFactor: 1.5, expectancy: 0.5, averageWin: 3, averageLoss: 2, winRate: 0.5, lossRate: 0.5, payoffRatio: 1.5, averageHoldingTime: 1.5, exposure: 0.5, trades: 2, grossProfit: 3, grossLoss: 2, netProfit: 1 });
+  assert.deepEqual(metrics, { profitFactor: 2 / 3, expectancy: -0.5, averageWin: 2, averageLoss: 3, winRate: 0.5, lossRate: 0.5, payoffRatio: 2 / 3, averageHoldingTime: 1.5, exposure: 0.5, trades: 2, grossProfit: 3, grossLoss: 2, netWinningProfit: 2, netLosingLoss: 3, netProfit: -1 });
   const empty = calculatePerformanceMetrics([], 0);
   assert.equal(empty.trades, 0); assert.equal(empty.expectancy, undefined); assert.equal(empty.profitFactor, undefined);
 });
