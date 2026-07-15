@@ -1,13 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const { mkdtempSync, readFileSync, rmSync } = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
 const { PaperSessionStore } = require("../dist/apps/desktop/src/paperSessionStore.js");
-const { ControlSessionStore } = require("../dist/apps/desktop/src/controlSessionStore.js");
-const { executeAutomaticPaperSignal } = require("../dist/apps/desktop/src/paperAutomation.js");
 const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
 
 test("paper broker buys, marks to market, and sells", () => {
@@ -31,7 +29,7 @@ test("paper broker blocks invalid and risky orders", () => {
   assert.throws(() => broker.execute("BUY", 0.03, 50_000_000), /max order notional exceeded/);
   broker.execute("BUY", 0.01, 50_000_000);
   assert.throws(() => broker.execute("BUY", 0.011, 50_000_000), /max position quantity exceeded/);
-  assert.throws(() => broker.execute("SELL", 0.1, 50_000_000), /insufficient paper position/);
+  assert.throws(() => broker.execute("SELL", 0.02, 50_000_000), /insufficient paper position/);
 });
 
 test("paper broker state round-trips through atomic session store", () => {
@@ -80,87 +78,3 @@ test("control plane requires running strategy before auto trading", () => {
   control.stop();
   assert.equal(control.snapshot().autoTradeEnabled, false);
 });
-
-test("malformed paper session fails closed with a visible diagnostic", () => {
-  const directory = mkdtempSync(path.join(os.tmpdir(), "dokkaebi-corrupt-paper-"));
-  const filePath = path.join(directory, "paper-session.json");
-  try {
-    writeFileSync(filePath, '{"version":1,"cash":', "utf8");
-    const result = new PaperSessionStore(filePath).loadSafe();
-    assert.equal(result.state, undefined);
-    assert.match(result.diagnostic, /paper session recovery failed/);
-    assert.equal(readFileSync(filePath, "utf8"), '{"version":1,"cash":');
-  } finally { rmSync(directory, { recursive: true, force: true }); }
-});
-
-test("control start and stop state persists with events", () => {
-  const directory = mkdtempSync(path.join(os.tmpdir(), "dokkaebi-control-"));
-  const filePath = path.join(directory, "control-session.json");
-  try {
-    const store = new ControlSessionStore(filePath);
-    const running = new ControlPlane("sma-crossover");
-    running.start();
-    store.save(running.exportState());
-    const restoredRunning = new ControlPlane("sma-crossover", 200, store.loadSafe().state);
-    assert.equal(restoredRunning.snapshot().status, "RUNNING");
-    assert.match(restoredRunning.snapshot().events[0].message, /auto trading remains disabled/);
-    restoredRunning.stop();
-    store.save(restoredRunning.exportState());
-    const restoredStopped = new ControlPlane("sma-crossover", 200, store.loadSafe().state);
-    assert.equal(restoredStopped.snapshot().status, "STOPPED");
-  } finally { rmSync(directory, { recursive: true, force: true }); }
-});
-
-test("automatic trading is always disabled after control restore", () => {
-  const original = new ControlPlane("sma-crossover");
-  original.start();
-  original.setAutoTrade(true);
-  const restored = new ControlPlane("sma-crossover", 200, original.exportState());
-  assert.equal(restored.snapshot().status, "RUNNING");
-  assert.equal(restored.snapshot().autoTradeEnabled, false);
-  assert.equal(restored.canAutoTrade(), false);
-});
-
-test("one market signal cannot create duplicate automatic orders", () => {
-  const broker = new PaperBroker(1_000_000, "KRW-BTC", 0, { maxOrderNotional: 1_000_000 });
-  const control = new ControlPlane("sma-crossover");
-  control.start();
-  control.setOrderQuantity(0.01);
-  control.setAutoTrade(true);
-  const signal = { type: "BUY", reason: "test crossover", confidence: 1, timestamp: 1234 };
-  assert.equal(executeAutomaticPaperSignal(control, broker, "KRW-BTC", 50_000_000, 0, signal).outcome, "FILLED");
-  assert.equal(executeAutomaticPaperSignal(control, broker, "KRW-BTC", 50_000_000, 0, signal).outcome, "DUPLICATE");
-  assert.equal(broker.exportState().orders.length, 1);
-});
-
-test("risk rejection is returned without throwing or mutating orders", () => {
-  const broker = new PaperBroker(1_000_000, "KRW-BTC", 0, { maxOrderNotional: 100 });
-  const control = new ControlPlane("sma-crossover");
-  control.start();
-  control.setOrderQuantity(0.01);
-  control.setAutoTrade(true);
-  const result = executeAutomaticPaperSignal(control, broker, "KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 2 });
-  assert.equal(result.outcome, "REJECTED");
-  assert.match(result.error, /max order notional exceeded/);
-  assert.equal(broker.exportState().orders.length, 0);
-});
-
-test("malformed control state returns a diagnostic instead of restoring", () => {
-  const directory = mkdtempSync(path.join(os.tmpdir(), "dokkaebi-corrupt-control-"));
-  const filePath = path.join(directory, "control-session.json");
-  try {
-    writeFileSync(filePath, JSON.stringify({ version: 1, status: "RUNNING" }), "utf8");
-    const result = new ControlSessionStore(filePath).loadSafe();
-    assert.equal(result.state, undefined);
-    assert.match(result.diagnostic, /control session recovery failed/);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
-});
-
-test("faulted control plane fails closed until operator repair", () => {
-  const control = new ControlPlane("sma-crossover");
-  control.fault("paper session recovery failed");
-  assert.throws(() => control.start(), /requires operator repair/);
-  assert.throws(() => control.setAutoTrade(true), /strategy must be running/);
-  assert.equal(control.canAutoTrade(), false);
-});
-

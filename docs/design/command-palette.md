@@ -1,12 +1,26 @@
 # Command Palette
 
-The renderer provides a keyboard-first command palette for existing Paper-only controls.
+The Electron renderer provides a keyboard-first command palette for Paper Trading operations.
 
-- Open with `Ctrl+K` or `Cmd+K`; close with `Escape`, the close button, or the backdrop.
-- Arrow keys, `Home`, `End`, and `Enter` operate enabled results. `Tab` and `Shift+Tab` stay within the dialog: search moves to enabled results and the last result returns to search. The close control remains reachable with reverse tabbing. Focus returns to the element that opened the palette when closed.
-- Commands reuse Focus Mode and existing strategy/auto-trade controls. Start and stop remain visible when unavailable, are disabled, and expose an `Unavailable` reason. Disabled results cannot be selected or executed.
-- Order-related commands only focus quantity fields. The palette never creates a buy or sell path.
-- Navigation commands focus their target after scrolling. Event, fill, and operations panels use programmatic-only `tabindex="-1"` targets, so normal tab order is unchanged.
-- Recent command IDs are local-only, capped at five, de-duplicated, newest-first, and ignored when stored JSON or storage access fails.
+## Access
 
-Options are created with `createElement`, `textContent`, and `append`; the palette does not use HTML-string insertion. The component uses the existing renderer tokens, supports reduced motion, and remains within the viewport on compact windows.
+- `Ctrl+K` on Windows/Linux or `Cmd+K` on macOS opens or closes the palette.
+- `Escape`, the close button, or the backdrop closes it and restores the prior focus.
+- Arrow keys, `Home`, `End`, and `Enter` operate the command list. `Tab` remains inside the dialog.
+
+## Available commands
+
+- Toggle Focus Mode.
+- Start or stop the existing Paper strategy control.
+- Toggle the existing Paper auto-trade control.
+- Move focus to Paper order quantity, strategy quantity, events, fills, operations detail, or the top of the page.
+
+The palette intentionally has no buy or sell command. It may only move focus to the order quantity field; the existing Paper order buttons and their safety controls remain the only order path.
+
+## Safety and accessibility
+
+- Commands reuse existing renderer controls and do not add IPC channels, exchange adapters, credentials, or live-trading behavior.
+- Start and stop commands are hidden when their corresponding existing button is disabled.
+- Results use semantic tokens and `role="dialog"`, `aria-modal`, listbox semantics, and a polite live region.
+- Recent command identifiers are stored locally, capped at five, de-duplicated, and ignored safely when storage is malformed.
+- Focus Mode is presentation-only and does not change strategy, risk, position, or execution state.

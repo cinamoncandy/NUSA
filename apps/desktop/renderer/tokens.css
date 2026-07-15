@@ -1,74 +1,142 @@
-:root {
+/* DOKKAEBI Design System: dark-first primitive and semantic tokens. */
+:root,
+:root[data-theme="dark"] {
   color-scheme: dark;
+  --palette-white: 0 0% 100%;
+  --palette-slate-50: 220 23% 97%;
+  --palette-slate-200: 220 14% 82%;
+  --palette-slate-400: 219 10% 58%;
+  --palette-slate-600: 218 13% 31%;
+  --palette-slate-700: 220 15% 23%;
+  --palette-slate-800: 222 18% 16%;
+  --palette-slate-900: 222 24% 10%;
+  --palette-slate-950: 224 25% 6%;
+  --palette-blue: 220 100% 62%;
+  --palette-blue-soft: 218 100% 72%;
+  --palette-green: 151 66% 63%;
+  --palette-amber: 42 94% 62%;
+  --palette-rose: 348 82% 62%;
+  --palette-rose-soft: 349 100% 72%;
 
-  /* Typography */
-  --font-sans: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-md: 14px;
-  --font-size-lg: 17px;
-  --font-size-xl: 20px;
-  --font-size-2xl: 29px;
-  --font-size-display: clamp(27px, 3.2vw, 44px);
-  --line-tight: 1.05;
-  --line-body: 1.55;
+  --color-bg: var(--palette-slate-950);
+  --color-fg: var(--palette-slate-50);
+  --color-surface: var(--palette-slate-900);
+  --color-surface-raised: var(--palette-slate-800);
+  --color-surface-hover: var(--palette-slate-700);
+  --color-border: var(--palette-slate-700);
+  --color-border-strong: var(--palette-slate-600);
+  --color-text-muted: var(--palette-slate-400);
+  --color-primary: var(--palette-blue);
+  --color-primary-fg: var(--palette-white);
+  --color-success: var(--palette-green);
+  --color-warning: var(--palette-amber);
+  --color-danger: var(--palette-rose);
+  --color-danger-fg: var(--palette-white);
+  --color-buy: var(--palette-blue-soft);
+  --color-sell: var(--palette-rose-soft);
+  --color-focus: var(--palette-blue-soft);
 
-  /* Surfaces */
-  --color-bg: #0b0d10;
-  --color-bg-deep: #090b0e;
-  --color-surface: #12161c;
-  --color-surface-raised: #171c23;
-  --color-surface-input: #0c0f13;
-  --color-surface-subtle: rgba(255, 255, 255, 0.045);
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-fg);
+  --popover: var(--color-surface-raised);
+  --popover-foreground: var(--color-fg);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-fg);
+  --secondary: var(--color-surface-raised);
+  --secondary-foreground: var(--color-fg);
+  --muted: var(--color-surface-raised);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-surface-hover);
+  --accent-foreground: var(--color-fg);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-danger-fg);
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-focus);
 
-  /* Content */
-  --color-text: #f6f7f9;
-  --color-text-secondary: #aeb6c1;
-  --color-text-muted: #8f99a8;
-  --color-text-faint: #697381;
+  --font-sans: Inter, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-size-caption: 0.75rem;
+  --font-size-body-sm: 0.8125rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.25rem;
+  --font-size-heading: 1.5rem;
+  --font-size-display: 2.25rem;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
-  /* Semantic */
-  --color-accent: #62c8f5;
-  --color-accent-soft: rgba(98, 200, 245, 0.1);
-  --color-positive: #58d6ad;
-  --color-positive-soft: rgba(88, 214, 173, 0.1);
-  --color-warning: #efbd66;
-  --color-warning-soft: rgba(239, 189, 102, 0.1);
-  --color-critical: #ff7474;
-  --color-critical-soft: rgba(255, 116, 116, 0.1);
+  --space-0: 0;
+  --space-4: 0.25rem;
+  --space-8: 0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+  --space-64: 4rem;
+  --space-80: 5rem;
+  --space-96: 6rem;
 
-  /* Borders */
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
-  --color-focus: rgba(98, 200, 245, 0.65);
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+  --radius: var(--radius-md);
 
-  /* Spacing: 4px base, 8px rhythm */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
+  --shadow-xs: 0 1px 2px hsl(0 0% 0% / 0.16);
+  --shadow-sm: 0 2px 6px hsl(0 0% 0% / 0.18);
+  --shadow-md: 0 8px 24px hsl(0 0% 0% / 0.24);
+  --shadow-lg: 0 18px 55px hsl(0 0% 0% / 0.3);
+  --shadow-focus: 0 0 0 3px hsl(var(--color-focus) / 0.32);
 
-  /* Shape */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --radius-pill: 999px;
-
-  /* Depth */
-  --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.18);
-  --shadow-focus: 0 0 0 3px rgba(98, 200, 245, 0.09);
-
-  /* Motion */
-  --duration-fast: 120ms;
-  --duration-normal: 180ms;
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 280ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1.2);
+  --transition-colors: color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+  --transition-transform: transform var(--motion-fast) var(--ease-standard);
 
-  /* Layout */
-  --content-max: 1440px;
-  --control-column: 360px;
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 20;
+  --z-sticky: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --opacity-disabled: 0.48;
+  --opacity-subtle: 0.72;
+  --opacity-overlay: 0.64;
+  --opacity-tint: 0.16;
+  --opacity-shimmer: 0.08;
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+}
+
+:root[data-theme="contrast"] {
+  --color-bg: var(--palette-slate-950);
+  --color-fg: var(--palette-white);
+  --color-surface: var(--palette-slate-900);
+  --color-surface-raised: var(--palette-slate-800);
+  --color-surface-hover: var(--palette-slate-700);
+  --color-border: var(--palette-slate-200);
+  --color-border-strong: var(--palette-white);
+  --color-text-muted: var(--palette-slate-200);
+  --color-primary: var(--palette-blue-soft);
+  --color-focus: var(--palette-white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
 }

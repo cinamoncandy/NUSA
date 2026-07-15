@@ -1,164 +1,78 @@
+/* global module */
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.DokkaebiCommandPalette = api;
-})(globalThis, function () {
-  const key = "dokkaebi.command-palette.recent";
-  const limit = 5;
-  const unavailableLabel = "Unavailable";
+}(globalThis, function () {
+  const RECENT_KEY = "dokkaebi.commandPalette.recent.v1";
+  const MAX_RECENT = 5;
 
-  const normal = (value) => String(value || "").trim().toLowerCase();
-  const isEnabled = (command) => command != null && command.enabled !== false;
-  const keywords = (command) => Array.isArray(command.keywords) ? command.keywords : [];
-
-  const filter = (commands, query) => {
-    const search = normal(query);
-    return commands.filter((command) => !search || normal([command.title, ...keywords(command)].join(" ")).includes(search));
-  };
-
-  const nextEnabledIndex = (commands, current, action) => {
-    const enabled = commands.map((command, index) => isEnabled(command) ? index : -1).filter((index) => index >= 0);
-    if (!enabled.length) return -1;
-    if (action === "FIRST") return enabled[0];
-    if (action === "LAST") return enabled.at(-1);
-    const currentPosition = enabled.indexOf(current);
-    if (currentPosition < 0) return action === "PREVIOUS" ? enabled.at(-1) : enabled[0];
-    const base = currentPosition;
-    return enabled[(base + (action === "NEXT" ? 1 : -1) + enabled.length) % enabled.length];
-  };
-
-  const read = (storage) => {
-    try {
-      const stored = JSON.parse(storage.getItem(key) || "[]");
-      return Array.isArray(stored) ? stored.filter((id) => typeof id === "string").slice(0, limit) : [];
-    } catch { return []; }
-  };
-
-  const write = (storage, id) => {
-    try {
-      const recent = [id, ...read(storage).filter((value) => value !== id)].slice(0, limit);
-      storage.setItem(key, JSON.stringify(recent));
-    } catch {
-      // Recent command history is convenience-only. Storage failures must not affect controls.
-    }
-  };
-
-  const textNode = (ownerDocument, tag, value, className) => {
-    const node = ownerDocument.createElement(tag);
-    if (className) node.className = className;
-    node.textContent = value;
-    return node;
-  };
-
-  function create({ document, storage, commands }) {
+  function normalize(value) { return String(value || "").trim().toLocaleLowerCase(); }
+  function filterCommands(commands, query) {
+    const needle = normalize(query);
+    return commands.filter((command) => command.enabled !== false && (!needle || normalize([command.title, ...(command.keywords || [])].join(" ")).includes(needle)));
+  }
+  function readRecent(storage) {
+    try { const value = JSON.parse(storage.getItem(RECENT_KEY) || "[]"); return Array.isArray(value) ? value.filter((id) => typeof id === "string").slice(0, MAX_RECENT) : []; }
+    catch { return []; }
+  }
+  function writeRecent(storage, id) {
+    try { storage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent(storage).filter((item) => item !== id)].slice(0, MAX_RECENT))); }
+    catch { /* Storage failures must not block paper controls. */ }
+  }
+  function createCommandPalette(options) {
+    const document = options.document;
+    const storage = options.storage;
     const root = document.getElementById("command-palette");
     const search = document.getElementById("command-palette-search");
     const list = document.getElementById("command-palette-list");
     const empty = document.getElementById("command-palette-empty");
     const status = document.getElementById("command-palette-status");
     const trigger = document.getElementById("command-palette-trigger");
-    const closeButton = document.getElementById("command-palette-close");
-    const backdrop = root.querySelector("[data-command-palette-close]");
-    let previousFocus;
-    let selected = -1;
+    const close = document.getElementById("command-palette-close");
+    let previousFocus = null;
+    let selected = 0;
     let visible = [];
-
-    const enabledOptions = () => Array.from(list.querySelectorAll("button:not(:disabled)"));
-    const focusSearch = () => search.focus();
-
-    const render = () => {
-      visible = filter(commands(), search.value);
-      if (!isEnabled(visible[selected])) selected = nextEnabledIndex(visible, selected, "FIRST");
-      const options = visible.map((command, index) => {
-        const disabled = !isEnabled(command);
+    const focusables = () => Array.from(root.querySelectorAll("button:not(:disabled), input:not(:disabled)"));
+    const commands = () => options.commands();
+    function update() {
+      visible = filterCommands(commands(), search.value);
+      selected = Math.min(selected, Math.max(visible.length - 1, 0));
+      list.innerHTML = "";
+      visible.forEach((command, index) => {
         const option = document.createElement("button");
-        option.type = "button";
-        option.className = disabled ? "command-palette__option command-palette__option--disabled" : "command-palette__option";
-        option.id = `command-palette-option-${command.id}`;
-        option.disabled = disabled;
-        option.setAttribute("role", "option");
-        option.setAttribute("aria-selected", String(index === selected));
-        option.setAttribute("aria-disabled", String(disabled));
-        const reason = disabled ? (command.disabledReason || unavailableLabel) : (command.hint || "");
-        option.append(textNode(document, "span", command.title), textNode(document, "span", reason, "command-palette__meta"));
-        if (!disabled) option.addEventListener("click", () => execute(index));
-        return option;
+        option.type = "button"; option.className = "command-palette__option"; option.id = `command-palette-option-${command.id}`;
+        option.setAttribute("role", "option"); option.setAttribute("aria-selected", String(index === selected));
+        option.innerHTML = `<span class="command-palette__option-title">${command.title}</span><span class="command-palette__option-meta">${command.hint || ""}</span>`;
+        option.addEventListener("click", () => execute(index)); list.appendChild(option);
       });
-      list.replaceChildren(...options);
-      empty.hidden = visible.length > 0;
-      status.textContent = visible.length ? `${visible.length} commands` : "No matching commands";
-      search.setAttribute("aria-activedescendant", selected >= 0 ? `command-palette-option-${visible[selected].id}` : "");
+      empty.hidden = visible.length !== 0;
+      status.textContent = visible.length ? `${visible.length}개 명령` : "검색 결과 없음";
+      search.setAttribute("aria-activedescendant", visible[selected] ? `command-palette-option-${visible[selected].id}` : "");
       list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
-    };
-
-    const close = () => {
+    }
+    function execute(index) {
+      const command = visible[index]; if (!command) return;
+      command.run(); writeRecent(storage, command.id); status.textContent = `${command.title} 실행됨`; closePalette();
+    }
+    function openPalette() { if (!root.hidden) return; previousFocus = document.activeElement; root.hidden = false; document.body.classList.add("command-palette-open"); search.value = ""; selected = 0; update(); search.focus(); }
+    function closePalette() { if (root.hidden) return; root.hidden = true; document.body.classList.remove("command-palette-open"); previousFocus?.focus?.(); }
+    function keydown(event) {
+      const shortcut = (event.ctrlKey || event.metaKey) && normalize(event.key) === "k";
+      if (shortcut) { event.preventDefault(); root.hidden ? openPalette() : closePalette(); return; }
       if (root.hidden) return;
-      root.hidden = true;
-      document.body.classList.remove("command-palette-open");
-      previousFocus?.focus?.();
-    };
-
-    const execute = (index) => {
-      const command = visible[index];
-      if (!command || !isEnabled(command)) return;
-      command.run();
-      write(storage, command.id);
-      status.textContent = `${command.title} executed`;
-      close();
-    };
-
-    const open = () => {
-      if (!root.hidden) return;
-      previousFocus = document.activeElement;
-      root.hidden = false;
-      document.body.classList.add("command-palette-open");
-      search.value = "";
-      selected = -1;
-      render();
-      focusSearch();
-    };
-
-    const moveSelection = (action) => {
-      selected = nextEnabledIndex(visible, selected, action);
-      render();
-    };
-
-    const trapFocus = (event) => {
-      const options = enabledOptions();
-      const active = document.activeElement;
-      if (event.shiftKey) {
-        if (active === closeButton) { event.preventDefault(); (options.at(-1) || search).focus(); }
-        else if (active === search) { event.preventDefault(); closeButton.focus(); }
-        else if (active === options[0]) { event.preventDefault(); focusSearch(); }
-        return;
+      if (event.key === "Escape") { event.preventDefault(); closePalette(); return; }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") {
+        event.preventDefault(); if (!visible.length) return;
+        selected = event.key === "Home" ? 0 : event.key === "End" ? visible.length - 1 : (selected + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % visible.length; update(); return;
       }
-      if (active === closeButton) { event.preventDefault(); focusSearch(); }
-      else if (active === search) { event.preventDefault(); (options[0] || closeButton).focus(); }
-      else if (active === options.at(-1)) { event.preventDefault(); focusSearch(); }
-    };
-
-    trigger.addEventListener("click", open);
-    closeButton.addEventListener("click", close);
-    backdrop.addEventListener("click", close);
-    search.addEventListener("input", () => { selected = -1; render(); });
-    document.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && normal(event.key) === "k") {
-        event.preventDefault();
-        root.hidden ? open() : close();
-        return;
-      }
-      if (root.hidden) return;
-      if (event.key === "Escape") { event.preventDefault(); close(); return; }
-      if (event.key === "ArrowDown") { event.preventDefault(); moveSelection("NEXT"); return; }
-      if (event.key === "ArrowUp") { event.preventDefault(); moveSelection("PREVIOUS"); return; }
-      if (event.key === "Home") { event.preventDefault(); moveSelection("FIRST"); return; }
-      if (event.key === "End") { event.preventDefault(); moveSelection("LAST"); return; }
       if (event.key === "Enter" && document.activeElement === search) { event.preventDefault(); execute(selected); return; }
-      if (event.key === "Tab") trapFocus(event);
-    });
-
-    return Object.freeze({ open, close, recent: () => read(storage) });
+      if (event.key === "Tab") { const items = focusables(); if (!items.length) return; const index = items.indexOf(document.activeElement); if (event.shiftKey && index <= 0) { event.preventDefault(); items.at(-1).focus(); } else if (!event.shiftKey && index === items.length - 1) { event.preventDefault(); items[0].focus(); } }
+    }
+    trigger.addEventListener("click", openPalette); close.addEventListener("click", closePalette);
+    root.querySelector("[data-command-palette-close]").addEventListener("click", closePalette); search.addEventListener("input", () => { selected = 0; update(); });
+    document.addEventListener("keydown", keydown);
+    return { open: openPalette, close: closePalette, update, recent: () => readRecent(storage) };
   }
-
-  return Object.freeze({ key, filter, nextEnabledIndex, read, write, create });
-});
+  return { RECENT_KEY, filterCommands, readRecent, writeRecent, createCommandPalette };
+}));
