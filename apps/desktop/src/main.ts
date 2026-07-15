@@ -177,6 +177,9 @@ function initializeRuntime(): void {
   }, saveWithScenarioEvent: (paper, controlState, event) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.saveWithScenarioEvent(paper, controlState, event);
+  }, saveWithScenarioEvents: (paper, controlState, events) => {
+    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    persistenceStore.saveWithScenarioEvents(paper, controlState, events);
   } }, undefined, evidenceRecorder);
   paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
