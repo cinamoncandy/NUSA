@@ -33,6 +33,15 @@ function sideForSpotAction(action: DecisionAction): PaperSide {
   throw new Error(`decision action ${action} is not executable on Upbit spot`);
 }
 
+function assertIntentUnused(existing: readonly DecisionExecutionReceipt[], intent: DecisionExecutionIntent): void {
+  if (existing.some((receipt) => receipt.intentId === intent.intentId)) {
+    throw new Error("execution intent already has a receipt");
+  }
+  if (existing.some((receipt) => receipt.idempotencyKey === intent.idempotencyKey)) {
+    throw new Error("idempotency key already recorded");
+  }
+}
+
 export function executeSpotPaperDecision(input: ExecuteSpotPaperDecisionInput): SpotPaperDecisionExecution {
   const nowIso = input.now.toISOString();
   if (!verifyDecisionExecutionIntent(input.intent, input.authorization, input.envelope, nowIso)) {
@@ -40,6 +49,9 @@ export function executeSpotPaperDecision(input: ExecuteSpotPaperDecisionInput): 
   }
   if (input.intent.market !== input.envelope.record.market) throw new Error("decision market mismatch");
   if (!Number.isFinite(input.markPrice) || input.markPrice <= 0) throw new Error("markPrice must be positive");
+
+  const existingReceipts = input.existingReceipts ?? [];
+  assertIntentUnused(existingReceipts, input.intent);
 
   const quantity = Number(input.intent.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("intent quantity must be positive");
@@ -56,6 +68,6 @@ export function executeSpotPaperDecision(input: ExecuteSpotPaperDecisionInput): 
     recordedAt: order.filledAt
   });
 
-  assertUniqueDecisionExecutionReceipt(input.existingReceipts ?? [], receipt);
+  assertUniqueDecisionExecutionReceipt(existingReceipts, receipt);
   return Object.freeze({ order, receipt });
 }
