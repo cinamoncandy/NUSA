@@ -86,8 +86,8 @@ function validateStatusFields(input: CreateDecisionExecutionReceiptInput, filled
   if (input.status === DecisionExecutionReceiptStatus.PARTIALLY_FILLED && !(filled > 0 && filled < requested)) {
     throw new Error("PARTIALLY_FILLED requires a positive partial quantity");
   }
-  if ((input.status === DecisionExecutionReceiptStatus.REJECTED || input.status === DecisionExecutionReceiptStatus.CANCELLED) && filled !== 0) {
-    throw new Error(`${input.status} requires zero filled quantity`);
+  if (input.status === DecisionExecutionReceiptStatus.REJECTED && filled !== 0) {
+    throw new Error("REJECTED requires zero filled quantity");
   }
   if (input.status === DecisionExecutionReceiptStatus.ACCEPTED && filled !== 0) {
     throw new Error("ACCEPTED requires zero filled quantity");
@@ -146,11 +146,39 @@ export function verifyDecisionExecutionReceipt(receipt: DecisionExecutionReceipt
   }
 }
 
-export function assertUniqueDecisionExecutionReceipt(
+const terminalReceiptStatuses = new Set<DecisionExecutionReceiptStatus>([
+  DecisionExecutionReceiptStatus.FILLED,
+  DecisionExecutionReceiptStatus.REJECTED,
+  DecisionExecutionReceiptStatus.CANCELLED
+]);
+
+export function isTerminalDecisionExecutionReceipt(receipt: DecisionExecutionReceipt): boolean {
+  return terminalReceiptStatuses.has(receipt.status);
+}
+
+export function assertDecisionExecutionReceiptSequence(
   existing: readonly DecisionExecutionReceipt[],
   candidate: DecisionExecutionReceipt
 ): void {
   if (existing.some((receipt) => receipt.receiptId === candidate.receiptId)) throw new Error("duplicate execution receipt id");
-  if (existing.some((receipt) => receipt.intentId === candidate.intentId)) throw new Error("execution intent already has a receipt");
-  if (existing.some((receipt) => receipt.idempotencyKey === candidate.idempotencyKey)) throw new Error("idempotency key already recorded");
+  if (existing.some((receipt) => receipt.checksum === candidate.checksum)) throw new Error("duplicate execution receipt checksum");
+  if (existing.length === 0) return;
+
+  const previous = existing[existing.length - 1];
+  if (previous.intentId !== candidate.intentId || previous.intentChecksum !== candidate.intentChecksum) {
+    throw new Error("receipt sequence must belong to one execution intent");
+  }
+  if (isTerminalDecisionExecutionReceipt(previous)) throw new Error("terminal execution receipt cannot be followed");
+  if (Date.parse(candidate.recordedAt) <= Date.parse(previous.recordedAt)) throw new Error("receipt timestamps must increase");
+  if (Number(candidate.filledQuantity) < Number(previous.filledQuantity)) throw new Error("filled quantity cannot decrease");
+  if (previous.paperOrderId && candidate.paperOrderId !== previous.paperOrderId) throw new Error("paper order id cannot change");
+  if (previous.paperFillIds.some((id) => !candidate.paperFillIds.includes(id))) throw new Error("paper fill ids must be cumulative");
+  if (candidate.status === DecisionExecutionReceiptStatus.ACCEPTED) throw new Error("ACCEPTED can only be the first receipt");
+}
+
+export function assertUniqueDecisionExecutionReceipt(
+  existing: readonly DecisionExecutionReceipt[],
+  candidate: DecisionExecutionReceipt
+): void {
+  assertDecisionExecutionReceiptSequence(existing, candidate);
 }
