@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ControlPlane, type ControlPlaneRuntimeState } from "./controlPlane";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal } from "./strategyEngine";
@@ -67,7 +68,15 @@ export class RuntimeCommandService {
         return { outcome: "REJECTED", error: message };
       }
       const key = `${market}:${signal.timestamp}:${signal.type}`;
-      if (!this.control.claimAutomaticSignal(key)) return { outcome: "DUPLICATE" };
+      if (!this.control.claimAutomaticSignal(key)) {
+        const duplicateEvidence = this.evidence?.bind({
+          eventId: `duplicate-${randomUUID()}`,
+          type: "DUPLICATE_ORDER_CHECKED",
+          occurredAt: signal.timestamp
+        });
+        this.persist(duplicateEvidence);
+        return { outcome: "DUPLICATE" };
+      }
       if (signal.type === "SELL" && positionQuantity <= 0) {
         this.control.record("RISK", "insufficient paper position");
         this.persist();
@@ -83,7 +92,8 @@ export class RuntimeCommandService {
         return { outcome: "REJECTED", error: message };
       }
       this.control.record("ORDER", `automatic ${signal.type} filled`, order);
-      this.persist();
+      const orderEvidence = this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) });
+      this.persist(orderEvidence);
       return { outcome: "FILLED", order };
     } catch (error) {
       this.restore(snapshot);
