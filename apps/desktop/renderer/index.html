@@ -7,6 +7,7 @@
   <title>Dokkaebi Paper Trader</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="command-palette.css" />
 </head>
 <body>
   <main>
@@ -16,6 +17,7 @@
         <h1>운용 현황</h1>
       </div>
       <div class="header-actions">
+        <button id="command-palette-trigger" class="ui-button ui-button--secondary command-trigger" type="button" aria-haspopup="dialog" aria-controls="command-palette">명령 <kbd>Ctrl K</kbd></button>
         <button id="focus-mode" class="ui-button ui-button--secondary focus-button" type="button" aria-pressed="false" aria-label="집중 모드 켜기">
           <span class="focus-button__dot" aria-hidden="true"></span>
           <span id="focus-mode-label">집중 모드</span>
@@ -83,15 +85,15 @@
         <section id="ai-cio-dashboard" class="ui-card cio-panel" aria-label="AI CIO 읽기 전용 운영 대시보드">
           <div class="cio-header">
             <div><p class="eyebrow">DEEP INSPECTION · READ ONLY</p><h2>운영 상세</h2></div>
-            <div class="badges"><span class="ui-badge ui-badge--paper badge paper">PAPER / DRY_RUN</span><span class="ui-badge ui-badge--critical badge disabled">LIVE DISABLED</span><strong id="cio-status" class="ui-badge cio-status no-data" aria-live="polite">NO_DATA</strong></div>
+            <div class="badges"><span class="ui-badge ui-badge--paper badge paper">PAPER / DRY_RUN</span><span class="ui-badge ui-badge--critical badge disabled">LIVE TRADING DISABLED</span><strong id="cio-status" class="ui-badge cio-status no-data" aria-live="polite">NO_DATA</strong></div>
           </div>
           <p id="cio-freshness" class="cio-freshness">Dashboard 데이터 없음</p>
           <div class="cio-grid">
-            <section><h3>System</h3><p id="cio-system">데이터 없음</p></section>
+            <section><h3>System Status</h3><p id="cio-system">데이터 없음</p></section>
             <section><h3>Portfolio</h3><dl id="cio-portfolio"><div><dt>전체 자본</dt><dd>데이터 없음</dd></div></dl></section>
             <section><h3>Opportunity</h3><p id="cio-opportunity">데이터 없음</p></section>
-            <section><h3>Strategy</h3><p id="cio-strategy">데이터 없음</p></section>
-            <section><h3>Committee</h3><p id="cio-committee">데이터 없음</p></section>
+            <section><h3>Strategy Health</h3><p id="cio-strategy">데이터 없음</p></section>
+            <section><h3>Investment Committee</h3><p id="cio-committee">데이터 없음</p></section>
             <section><h3>Execution</h3><p id="cio-execution">데이터 없음</p></section>
             <section><h3>Risk</h3><p id="cio-risk">데이터 없음</p></section>
             <section><h3>Research</h3><p id="cio-research">데이터 없음</p></section>
@@ -133,6 +135,18 @@
     <p id="focus-hint" class="focus-hint" hidden>집중 모드가 켜졌습니다. 현재 전략 행동과 계좌 핵심 지표만 표시합니다.</p>
     <footer class="focus-detail">실거래 주문 경로는 제공하지 않습니다. 자동매매를 켜더라도 모든 주문은 로컬 Paper Trading으로만 처리됩니다.</footer>
   </main>
+  <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
+    <div class="command-palette__backdrop" data-command-palette-close></div>
+    <section class="command-palette__surface" role="document">
+      <header class="command-palette__header"><h2 id="command-palette-title">명령</h2><button id="command-palette-close" class="ui-button ui-button--secondary" type="button" aria-label="명령 팔레트 닫기">닫기 <kbd>Esc</kbd></button></header>
+      <label class="command-palette__label" for="command-palette-search">명령 검색</label>
+      <input id="command-palette-search" type="search" autocomplete="off" placeholder="명령 검색" aria-controls="command-palette-list" aria-activedescendant="" />
+      <p id="command-palette-status" class="command-palette__status" aria-live="polite"></p>
+      <ul id="command-palette-list" class="command-palette__list" role="listbox" aria-label="사용 가능한 명령"></ul>
+      <p id="command-palette-empty" class="command-palette__empty" hidden>일치하는 명령이 없습니다. 다른 검색어를 입력하세요.</p>
+    </section>
+  </div>
+  <script src="command-palette.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
