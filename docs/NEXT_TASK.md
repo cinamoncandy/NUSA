@@ -47,8 +47,8 @@ This replaces only elapsed calendar duration. It does not replace CI, recovery, 
 ## Remaining Codex work
 
 1. Keep the latest branch HEAD green in Windows CI.
-2. Connect actual Opportunity, Committee, Strategy analytics, and Research sources to the read-only dashboard only under an explicitly approved scope.
-3. Keep unavailable sources explicit and the completion gate blocked until they are connected.
+2. Connect actual Opportunity, Committee, and Strategy analytics sources to the read-only dashboard only under an explicitly approved scope.
+3. The Research section now reads persisted manifest/report pairs with checksum matching. Keep Monte Carlo evidence, and every other unavailable source, explicit and the completion gate blocked until they are connected.
 4. Improve operator tooling only when it generates typed, immutable, independently verifiable Paper evidence.
 5. Resolve new Critical/High findings or record an explicit owner decision.
 6. Keep LIVE trading, private APIs, credentials, withdrawal actions, automatic promotion, and automatic release disabled.

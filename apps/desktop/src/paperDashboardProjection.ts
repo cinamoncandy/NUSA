@@ -1,6 +1,7 @@
 import type {
   AiCioSectionSet,
 } from "./aiCioSnapshotPublisher";
+import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
 
@@ -11,6 +12,7 @@ export interface PaperDashboardProjectionInput {
   readonly referenceEquity: number;
   readonly runtimeAvailable: boolean;
   readonly generatedAt: number;
+  readonly research?: ResearchDashboardSection;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -71,7 +73,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       slippageBps: 0,
       latencyMs: 0
     }),
-    research: Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
+    research: input.research ?? Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
     risk: Object.freeze({
       status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
       availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,

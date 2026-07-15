@@ -8,6 +8,7 @@ import { DesktopPersistenceStore } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
+import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
@@ -74,7 +75,12 @@ function publishAiCioDashboard(): void {
       markPrice: latestTicker.trade_price,
       referenceEquity: INITIAL_CASH,
       runtimeAvailable: paperTradingAvailable,
-      generatedAt
+      generatedAt,
+      research: persistenceStore == null ? undefined : buildPersistedResearchDashboardSection({
+        manifests: persistenceStore.loadResearchRunManifests(),
+        reports: persistenceStore.loadResearchValidationReports(),
+        generatedAt
+      })
     }), generatedAt);
   } catch {
     aiCioSnapshotPublisher.clear();
