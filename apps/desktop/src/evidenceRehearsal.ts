@@ -3,10 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { appendPaperScenarioEvent, replayPaperScenarioEvidence, type PaperScenarioEvent, type PaperScenarioRecord } from "./paperScenarioEvidenceLedger";
-import { buildScenarioPaperEvidenceBundle, scenarioObservationsFromLedger } from "./scenarioEvidenceBundle";
-import { createResearchRunManifest, type ResearchValidationReport } from "./researchRunValidation";
-import { exportOperatorEvidenceBundle, type OperatorEvidenceBundle } from "./operatorEvidenceBundle";
+import { appendPaperScenarioEvent, replayPaperScenarioEvidence, type PaperScenarioEvent, type PaperScenarioRecord } from "../../cloud/src/paperScenarioEvidenceLedger";
+import { buildScenarioPaperEvidenceBundle, scenarioObservationsFromLedger } from "../../cloud/src/scenarioEvidenceBundle";
+import { createResearchRunManifest, type ResearchValidationReport } from "../../cloud/src/researchRunValidation";
+import { exportOperatorEvidenceBundle, type OperatorEvidenceBundle } from "../../cloud/src/operatorEvidenceBundle";
 
 export interface EvidenceRehearsalOptions {
   readonly outputPath?: string;
