@@ -15,9 +15,16 @@
         <p class="eyebrow">DOKKAEBI · TODAY</p>
         <h1>운용 현황</h1>
       </div>
-      <div class="header-status" aria-label="연결 및 거래 모드">
-        <span class="ui-badge ui-badge--paper paper-lock">PAPER ONLY</span>
-        <span id="status" class="ui-badge status" aria-live="polite">연결 준비</span>
+      <div class="header-actions">
+        <button id="focus-mode" class="ui-button ui-button--secondary focus-button" type="button" aria-pressed="false" aria-label="집중 모드 켜기">
+          <span class="focus-button__dot" aria-hidden="true"></span>
+          <span id="focus-mode-label">집중 모드</span>
+          <kbd>F</kbd>
+        </button>
+        <div class="header-status" aria-label="연결 및 거래 모드">
+          <span class="ui-badge ui-badge--paper paper-lock">PAPER ONLY</span>
+          <span id="status" class="ui-badge status" aria-live="polite">연결 준비</span>
+        </div>
       </div>
     </header>
 
@@ -50,7 +57,7 @@
       <article class="metric ui-card"><span>실현 손익</span><strong id="realized">-</strong></article>
     </section>
 
-    <section class="workspace">
+    <section class="workspace focus-detail" aria-label="상세 운용 영역">
       <div class="primary-column">
         <section class="ui-card chart-card">
           <div class="section-title">
@@ -123,7 +130,8 @@
       </aside>
     </section>
 
-    <footer>실거래 주문 경로는 제공하지 않습니다. 자동매매를 켜더라도 모든 주문은 로컬 Paper Trading으로만 처리됩니다.</footer>
+    <p id="focus-hint" class="focus-hint" hidden>집중 모드가 켜졌습니다. 현재 전략 행동과 계좌 핵심 지표만 표시합니다.</p>
+    <footer class="focus-detail">실거래 주문 경로는 제공하지 않습니다. 자동매매를 켜더라도 모든 주문은 로컬 Paper Trading으로만 처리됩니다.</footer>
   </main>
   <script src="renderer.js"></script>
 </body>
