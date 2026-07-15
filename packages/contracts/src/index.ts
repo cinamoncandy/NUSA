@@ -1,6 +1,7 @@
 export * from "./decision";
 export * from "./decisionRecord";
 export * from "./decisionAudit";
+export * from "./decisionAuthorization";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
