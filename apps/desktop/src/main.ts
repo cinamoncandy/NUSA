@@ -199,12 +199,16 @@ function initializeRuntime(): void {
   stream = new UpbitWebSocketClient(MARKET, handleTicker, handleMarketStatus);
 }
 
-ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: number }) => {
+ipcMain.handle("paper:order", (_event, input: unknown) => {
   if (!paperTradingAvailable) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
+  if (input == null || typeof input !== "object") throw new Error("invalid paper order input");
+  const candidate = input as { side?: unknown; quantity?: unknown };
+  if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
+  const side = candidate.side as PaperSide;
+  const quantity = candidate.quantity;
   if (!latestTicker) throw new Error("market price is not available yet");
-  if (input.side !== "BUY" && input.side !== "SELL") throw new Error("invalid paper order side");
   let order: PaperOrder;
-  try { order = runtime.manualOrder(input.side, input.quantity, latestTicker.trade_price); }
+  try { order = runtime.manualOrder(side, quantity, latestTicker.trade_price); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
   publishAiCioDashboard();
@@ -222,8 +226,14 @@ function runControlCommand(command: () => void): ReturnType<ControlPlane["snapsh
 }
 ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
 ipcMain.handle("control:stop", () => runControlCommand(() => runtime.stop()));
-ipcMain.handle("control:auto", (_event, enabled: boolean) => runControlCommand(() => runtime.setAutoTrade(Boolean(enabled))));
-ipcMain.handle("control:quantity", (_event, quantity: number) => runControlCommand(() => runtime.setOrderQuantity(quantity)));
+ipcMain.handle("control:auto", (_event, enabled: unknown) => {
+  if (typeof enabled !== "boolean") throw new Error("invalid auto-trade input");
+  return runControlCommand(() => runtime.setAutoTrade(enabled));
+});
+ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
+  if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
+  return runControlCommand(() => runtime.setOrderQuantity(quantity));
+});
 
 app.whenReady().then(() => {
   initializeRuntime();
