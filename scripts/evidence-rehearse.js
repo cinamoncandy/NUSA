@@ -10,7 +10,7 @@ if (outputIndex >= 0 && (!outputPath || outputPath.startsWith("-"))) {
   try {
     const report = runEvidenceRehearsal({
       outputPath,
-      codeVersion: process.env.GITHUB_SHA || "local-rehearsal",
+      codeVersion: "local-rehearsal",
       generatedAt: Date.now()
     });
     console.log(JSON.stringify({
