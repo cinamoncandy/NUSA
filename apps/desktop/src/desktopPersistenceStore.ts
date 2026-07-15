@@ -5,6 +5,7 @@ import { runMigrations } from "../../../packages/storage/src/migrationRunner";
 import type { ControlPlaneState } from "./controlPlane";
 import type { PaperBrokerState, PaperOrder } from "./paperBroker";
 import type { PaperScenarioEvent } from "../../cloud/src/paperScenarioEvidenceLedger";
+import type { ResearchRunManifest, ResearchValidationReport } from "../../cloud/src/researchRunValidation";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 
@@ -107,6 +108,44 @@ export class DesktopPersistenceStore {
 
   loadScenarioEvidenceRecords(): readonly PaperScenarioEvent[] {
     return this.loadScenarioEvents();
+  }
+
+  appendResearchRunManifest(manifest: ResearchRunManifest): void {
+    this.transaction(() => {
+      const existing = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(manifest.runId) as { manifest_json: string } | undefined;
+      const payload = JSON.stringify(manifest);
+      if (existing != null) {
+        if (existing.manifest_json !== payload) throw new Error("research manifest identity conflict");
+        return;
+      }
+      this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(manifest.runId, manifest.runType, manifest.strategyId, manifest.strategyVersion, manifest.datasetId, manifest.datasetChecksum, payload);
+    });
+  }
+
+  loadResearchRunManifests(): readonly ResearchRunManifest[] {
+    const rows = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests ORDER BY run_id ASC").all() as Array<{ manifest_json: string }>;
+    return Object.freeze(rows.map((row) => {
+      try { return Object.freeze(JSON.parse(row.manifest_json) as ResearchRunManifest); } catch (error) { throw new Error("research manifest JSON is invalid", { cause: error }); }
+    }));
+  }
+
+  appendResearchValidationReport(report: ResearchValidationReport): void {
+    this.transaction(() => {
+      const existing = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(report.runId, report.runType) as { report_json: string } | undefined;
+      const payload = JSON.stringify(report);
+      if (existing != null) {
+        if (existing.report_json !== payload) throw new Error("research validation report identity conflict");
+        return;
+      }
+      this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(report.runId, report.runType, payload);
+    });
+  }
+
+  loadResearchValidationReports(): readonly ResearchValidationReport[] {
+    const rows = this.db.prepare("SELECT report_json FROM desktop_research_reports ORDER BY run_id ASC, run_type ASC").all() as Array<{ report_json: string }>;
+    return Object.freeze(rows.map((row) => {
+      try { return Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport); } catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
+    }));
   }
 
   close(): void { this.db.close(); }
