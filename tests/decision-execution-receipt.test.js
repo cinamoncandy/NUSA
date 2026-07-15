@@ -6,7 +6,9 @@ const {
   DecisionExecutionReceiptStatus,
   createDecisionExecutionReceipt,
   verifyDecisionExecutionReceipt,
-  assertUniqueDecisionExecutionReceipt
+  assertUniqueDecisionExecutionReceipt,
+  assertDecisionExecutionReceiptSequence,
+  isTerminalDecisionExecutionReceipt
 } = require("../dist/packages/contracts/src/index.js");
 
 const intent = (overrides = {}) => Object.freeze({
@@ -51,6 +53,7 @@ test("filled Paper receipt is immutable and verifies against its execution inten
   assert.equal(result.decisionId, sourceIntent.decisionId);
   assert.equal(result.intentChecksum, sourceIntent.checksum);
   assert.equal(verifyDecisionExecutionReceipt(result, sourceIntent), true);
+  assert.equal(isTerminalDecisionExecutionReceipt(result), true);
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.paperFillIds));
 });
@@ -71,6 +74,12 @@ test("partial, rejected, cancelled, and accepted receipts enforce quantity seman
     filledQuantity: "0",
     paperFillIds: [],
     reason: "risk gate changed"
+  }));
+  assert.doesNotThrow(() => receipt({
+    status: DecisionExecutionReceiptStatus.CANCELLED,
+    filledQuantity: "0.004",
+    paperFillIds: ["paper-fill-partial"],
+    reason: "remaining quantity cancelled"
   }));
   assert.throws(() => receipt({
     status: DecisionExecutionReceiptStatus.FILLED,
@@ -110,8 +119,63 @@ test("receipt verification fails after intent or receipt tampering", () => {
   assert.equal(verifyDecisionExecutionReceipt({ ...result, filledQuantity: "0.001" }, sourceIntent), false);
 });
 
-test("one execution intent can produce only one durable receipt", () => {
-  const first = receipt();
-  assert.throws(() => assertUniqueDecisionExecutionReceipt([first], receipt({ receiptId: "receipt-2" })), /already has a receipt/);
-  assert.throws(() => assertUniqueDecisionExecutionReceipt([first], receipt()), /duplicate execution receipt id/);
+test("one execution intent supports a monotonic receipt lifecycle", () => {
+  const accepted = receipt({
+    receiptId: "receipt-accepted",
+    status: DecisionExecutionReceiptStatus.ACCEPTED,
+    filledQuantity: "0",
+    paperFillIds: [],
+    recordedAt: "2026-07-16T00:00:01.000Z"
+  });
+  const partial = receipt({
+    receiptId: "receipt-partial",
+    status: DecisionExecutionReceiptStatus.PARTIALLY_FILLED,
+    filledQuantity: "0.004",
+    paperFillIds: ["fill-1"],
+    recordedAt: "2026-07-16T00:00:02.000Z"
+  });
+  const filled = receipt({
+    receiptId: "receipt-filled",
+    status: DecisionExecutionReceiptStatus.FILLED,
+    filledQuantity: "0.0100",
+    paperFillIds: ["fill-1", "fill-2"],
+    recordedAt: "2026-07-16T00:00:03.000Z"
+  });
+
+  assert.doesNotThrow(() => assertDecisionExecutionReceiptSequence([], accepted));
+  assert.doesNotThrow(() => assertDecisionExecutionReceiptSequence([accepted], partial));
+  assert.doesNotThrow(() => assertUniqueDecisionExecutionReceipt([accepted, partial], filled));
+  assert.throws(() => assertDecisionExecutionReceiptSequence([filled], receipt({ receiptId: "later" })), /terminal/);
+});
+
+test("receipt lifecycle rejects time reversal, fill regression, and order mutation", () => {
+  const partial = receipt({
+    receiptId: "partial-1",
+    status: DecisionExecutionReceiptStatus.PARTIALLY_FILLED,
+    filledQuantity: "0.004",
+    paperFillIds: ["fill-1"],
+    recordedAt: "2026-07-16T00:00:02.000Z"
+  });
+  assert.throws(() => assertDecisionExecutionReceiptSequence([partial], receipt({
+    receiptId: "partial-2",
+    status: DecisionExecutionReceiptStatus.PARTIALLY_FILLED,
+    filledQuantity: "0.003",
+    paperFillIds: ["fill-1"],
+    recordedAt: "2026-07-16T00:00:03.000Z"
+  })), /cannot decrease/);
+  assert.throws(() => assertDecisionExecutionReceiptSequence([partial], receipt({
+    receiptId: "partial-3",
+    status: DecisionExecutionReceiptStatus.PARTIALLY_FILLED,
+    filledQuantity: "0.006",
+    paperFillIds: ["fill-1", "fill-2"],
+    paperOrderId: "different-order",
+    recordedAt: "2026-07-16T00:00:03.000Z"
+  })), /cannot change/);
+  assert.throws(() => assertDecisionExecutionReceiptSequence([partial], receipt({
+    receiptId: "partial-4",
+    status: DecisionExecutionReceiptStatus.PARTIALLY_FILLED,
+    filledQuantity: "0.006",
+    paperFillIds: ["fill-1", "fill-2"],
+    recordedAt: "2026-07-16T00:00:01.000Z"
+  })), /timestamps must increase/);
 });
