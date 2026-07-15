@@ -228,7 +228,7 @@ ipcMain.handle("control:quantity", (_event, quantity: number) => runControlComma
 app.whenReady().then(() => {
   initializeRuntime();
   createWindow();
-  stream.start();
+  if (paperTradingAvailable) stream.start();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
