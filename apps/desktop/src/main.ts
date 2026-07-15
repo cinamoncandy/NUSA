@@ -101,6 +101,9 @@ function createWindow(): void {
 
 function initializeRuntime(): void {
   aiCioSnapshotPublisher.clear();
+  evidenceRecorder = undefined;
+  const sessionStartedAt = Date.now();
+  const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
   controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
   const paperLoad = sessionStore.loadSafe();
@@ -109,7 +112,6 @@ function initializeRuntime(): void {
   let persistenceDiagnostic: string | undefined;
   try {
     persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
-    evidenceRecorder = new PaperScenarioEvidenceRecorder({ append: (event) => { persistenceStore!.saveWithScenarioEvent(broker.exportState(), control.exportState(), event); return { sequence: 0, previousHash: "", event, hash: "" }; } }, `paper-${process.pid}-${Date.now()}`);
     const sqliteState = persistenceStore.load();
     if (sqliteState) restored = sqliteState;
     else if (restored) persistenceStore.importLegacy(restored);
@@ -119,6 +121,14 @@ function initializeRuntime(): void {
   }
   broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
+  if (persistenceStore) {
+    evidenceRecorder = new PaperScenarioEvidenceRecorder({
+      append: (event) => {
+        persistenceStore!.saveWithScenarioEvent(broker.exportState(), control.exportState(), event);
+        return { sequence: 0, previousHash: "", event, hash: "" };
+      }
+    }, evidenceSessionId);
+  }
   runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.save(paper, controlState);
@@ -133,8 +143,10 @@ function initializeRuntime(): void {
   }
   if (!paperTradingAvailable) runtime.markUnavailable();
   if (paperTradingAvailable) {
-    try { persistRuntime(); }
-    catch {
+    try {
+      if (!evidenceRecorder) throw new Error("Paper evidence recorder is unavailable");
+      evidenceRecorder.sessionObserved(`session-start:${evidenceSessionId}`, sessionStartedAt);
+    } catch {
       paperTradingAvailable = false;
       control.fault(PERSISTENCE_FAULT_MESSAGE);
       runtime.markUnavailable();
