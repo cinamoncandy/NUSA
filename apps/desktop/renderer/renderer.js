@@ -1,6 +1,23 @@
 const won = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
+const textNode = (tag, value, className) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = value;
+  return node;
+};
+const renderWarnings = (target, warnings) => target.replaceChildren(...warnings.map((warning) => textNode("li", warning)));
+const renderPortfolio = (portfolio, available) => {
+  const entries = available
+    ? [["Total equity", cioMoney(portfolio.totalEquity)], ["Available", cioMoney(portfolio.deployableCapital)], ["Reserved", cioMoney(portfolio.reservedCapital)], ["Gross / Net Exposure", `${cioPercent(portfolio.grossExposureRatio)} / ${cioPercent(portfolio.netExposureRatio)}`]]
+    : [["Total equity", "No data"]];
+  byId("cio-portfolio").replaceChildren(...entries.map(([label, value]) => {
+    const item = document.createElement("div");
+    item.append(textNode("dt", label), textNode("dd", value));
+    return item;
+  }));
+};
 let lastPrice = 0;
 const chartPoints = [];
 const focusModeStorageKey = "dokkaebi.focus-mode";
@@ -13,9 +30,18 @@ function renderSnapshot(snapshot) {
   byId("average").textContent = snapshot.position.averagePrice ? won.format(snapshot.position.averagePrice) : "-";
   byId("unrealized").textContent = won.format(snapshot.unrealizedPnl);
   byId("realized").textContent = won.format(snapshot.position.realizedPnl);
-  byId("orders").innerHTML = snapshot.orders.length
-    ? snapshot.orders.map((order) => `<tr><td>${new Date(order.filledAt).toLocaleTimeString("ko-KR")}</td><td class="${order.side.toLowerCase()}">${order.side}</td><td>${number.format(order.quantity)}</td><td>${won.format(order.price)}</td><td>${won.format(order.fee)}</td></tr>`).join("")
-    : '<tr><td colspan="5">체결 없음</td></tr>';
+  const orders = byId("orders");
+  if (!snapshot.orders.length) {
+    const row = document.createElement("tr");
+    const cell = textNode("td", "No fills");
+    cell.colSpan = 5;
+    row.append(cell);
+    orders.replaceChildren(row);
+  } else orders.replaceChildren(...snapshot.orders.map((order) => {
+    const row = document.createElement("tr");
+    row.append(textNode("td", new Date(order.filledAt).toLocaleTimeString("ko-KR")), textNode("td", order.side, order.side.toLowerCase()), textNode("td", number.format(order.quantity)), textNode("td", won.format(order.price)), textNode("td", won.format(order.fee)));
+    return row;
+  }));
 }
 
 function renderControl(snapshot) {
@@ -26,9 +52,13 @@ function renderControl(snapshot) {
   byId("strategy-quantity").value = String(snapshot.orderQuantity);
   byId("strategy-start").disabled = snapshot.status === "RUNNING";
   byId("strategy-stop").disabled = snapshot.status === "STOPPED";
-  byId("events").innerHTML = snapshot.events.length
-    ? snapshot.events.slice(0, 30).map((event) => `<li><time>${new Date(event.timestamp).toLocaleTimeString("ko-KR")}</time><strong>${event.type}</strong><span>${event.message}</span></li>`).join("")
-    : "<li>이벤트 없음</li>";
+  const events = byId("events");
+  if (!snapshot.events.length) events.replaceChildren(textNode("li", "No events"));
+  else events.replaceChildren(...snapshot.events.slice(0, 30).map((event) => {
+    const item = document.createElement("li");
+    item.append(textNode("time", new Date(event.timestamp).toLocaleTimeString("ko-KR")), textNode("strong", event.type), textNode("span", event.message));
+    return item;
+  }));
 }
 
 function drawChart() {
@@ -196,8 +226,8 @@ function renderCioUnavailable(status) {
   statusNode.className = `cio-status ${blocked ? "blocked" : "no-data"}`;
   cioText("cio-freshness", blocked ? "Dashboard 조회 실패 · 이전 상태는 유효하지 않음" : "Dashboard 데이터 없음");
   for (const id of ["cio-system", "cio-opportunity", "cio-strategy", "cio-committee", "cio-execution", "cio-risk", "cio-research"]) cioText(id, "데이터 없음");
-  byId("cio-portfolio").innerHTML = "<div><dt>전체 자본</dt><dd>데이터 없음</dd></div>";
-  byId("cio-warnings").innerHTML = `<li>${blocked ? "Dashboard unavailable" : "Dashboard 데이터 없음"}</li>`;
+  renderPortfolio(undefined, false);
+  renderWarnings(byId("cio-warnings"), [blocked ? "Dashboard unavailable" : "Dashboard 데이터 없음"]);
 }
 
 function renderCioDashboard(envelope) {
@@ -208,17 +238,14 @@ function renderCioDashboard(envelope) {
   cioText("cio-freshness", `마지막 갱신 ${new Date(envelope.generatedAt).toLocaleString("ko-KR")} · ${envelope.mode} · 읽기 전용`);
   cioText("cio-system", `${snapshot.status} · 자동 실행 ${snapshot.tradingPermitted ? "PAPER 허용" : "차단"}`);
   const portfolio = snapshot.portfolio;
-  byId("cio-portfolio").innerHTML = cioSectionAvailable(portfolio)
-    ? `<div><dt>전체 자본</dt><dd>${cioMoney(portfolio.totalEquity)}</dd></div><div><dt>운용 가능</dt><dd>${cioMoney(portfolio.deployableCapital)}</dd></div><div><dt>출금 예약</dt><dd>${cioMoney(portfolio.reservedCapital)}</dd></div><div><dt>Gross / Net Exposure</dt><dd>${cioPercent(portfolio.grossExposureRatio)} / ${cioPercent(portfolio.netExposureRatio)}</dd></div>`
-    : "<div><dt>전체 자본</dt><dd>데이터 없음</dd></div>";
+  renderPortfolio(portfolio, cioSectionAvailable(portfolio));
   cioText("cio-opportunity", cioSectionAvailable(snapshot.opportunities) ? `활성 ${snapshot.opportunities.activeCount} · 배분 ${cioMoney(snapshot.opportunities.totalAllocatedCapital)}` : "데이터 없음");
   cioText("cio-strategy", cioSectionAvailable(snapshot.strategies) ? `거래 ${snapshot.strategies.totalTrades} · 차단 ${snapshot.strategies.blockedStrategies} · 경고 ${snapshot.strategies.warningStrategies}` : "데이터 없음");
   cioText("cio-committee", cioSectionAvailable(snapshot.committee) ? `${snapshot.committee.decision} · Confidence ${cioPercent(snapshot.committee.confidence)} · Edge ${cioPercent(snapshot.committee.edge)} · Risk ${cioPercent(snapshot.committee.risk)}` : "데이터 없음");
   cioText("cio-execution", cioSectionAvailable(snapshot.execution) ? `Fill ${cioPercent(snapshot.execution.fillQuality)} · Slippage ${snapshot.execution.slippageBps.toFixed(2)} bps · Latency ${snapshot.execution.latencyMs} ms` : "데이터 없음");
   cioText("cio-risk", cioSectionAvailable(snapshot.risk) ? `Drawdown ${cioPercent(snapshot.risk.dailyDrawdownRatio)} · Heat ${cioPercent(snapshot.risk.portfolioHeatRatio)} · Kill Switch ${snapshot.risk.killSwitchActive ? "ACTIVE" : "OFF"}` : "데이터 없음");
   cioText("cio-research", cioSectionAvailable(snapshot.research) ? `Walk-forward ${snapshot.research.walkForwardPassed ? "PASS" : "FAIL"} · Monte Carlo ${snapshot.research.monteCarloPassed ? "PASS" : "FAIL"} · Cost Stress ${snapshot.research.costStressPassed ? "PASS" : "FAIL"}` : "데이터 없음");
-  const list = byId("cio-warnings");
-  list.replaceChildren(...(snapshot.warnings.length ? snapshot.warnings : ["경고 없음"]).map((warning) => { const item = document.createElement("li"); item.textContent = warning; return item; }));
+  renderWarnings(byId("cio-warnings"), snapshot.warnings.length ? snapshot.warnings : ["경고 없음"]);
 }
 
 function scheduleCioRefresh() {

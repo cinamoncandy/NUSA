@@ -53,6 +53,7 @@ This replaces only elapsed calendar duration. It does not replace CI, recovery, 
 5. Resolve new Critical/High findings or record an explicit owner decision.
 6. Keep LIVE trading, private APIs, credentials, withdrawal actions, automatic promotion, and automatic release disabled.
 7. Keep PR #1 Draft and unmerged until latest-HEAD CI, real evidence, and owner review are complete.
+8. Before distribution, provide an application icon, an owner-approved code-signing certificate, a portable-artifact decision, and real Windows GUI measurements for startup time, memory, scaling, keyboard-only, and screen-reader checks. The current unsigned NSIS build is technical packaging evidence only.
 
 ## Remaining operator and owner work
 
@@ -70,6 +71,8 @@ pnpm install --frozen-lockfile
 pnpm run typecheck
 pnpm run build
 pnpm test
+pnpm run release:check
+pnpm package:win
 ```
 
 Windows CI is the authoritative clean-checkout result. Never claim completion while required CI is failing, pending, stale, or scenario evidence is incomplete.

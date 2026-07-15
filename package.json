@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "description": "Windows Electron paper-trading and deterministic research platform",
+  "author": "Dokkaebi contributors",
+  "main": "dist/apps/desktop/src/main.js",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=24.0.0",
@@ -16,6 +18,7 @@
     "desktop": "pnpm run preflight && pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run preflight && pnpm run build && electron apps/desktop",
     "package:win": "pnpm run preflight && pnpm run build && electron-builder --win nsis",
+    "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",
     "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
     "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",
     "evidence:export": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js export",
@@ -38,7 +41,8 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false
     }
   }
 }
