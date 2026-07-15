@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { PaperScenarioEvidenceRecorder } = require("../dist/apps/desktop/src/paperScenarioEvidenceRecorder.js");
 const { RuntimeCommandService, PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_RECOVERY_STEPS, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/runtimeCommandService.js");
 const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
 
@@ -12,13 +13,23 @@ function harness(readiness) {
   const control = new ControlPlane("sma-crossover");
   const strategy = new StrategyEngine(new SmaCrossoverStrategy(2, 3));
   const durable = [];
+  const evidenceEvents = [];
   let fail = false;
-  const persistence = { save(paper, controlState) {
+  const persist = (paper, controlState, event) => {
     if (fail) throw new Error("injected SQLite write failure");
     durable.push({ paper: clone(paper), control: clone(controlState) });
-  } };
-  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness);
-  return { broker, control, strategy, durable, runtime, failNext: () => { fail = true; } };
+    if (event) evidenceEvents.push(clone(event));
+  };
+  const persistence = {
+    save(paper, controlState) { persist(paper, controlState); },
+    saveWithScenarioEvent(paper, controlState, event) { persist(paper, controlState, event); }
+  };
+  const recorder = new PaperScenarioEvidenceRecorder({ append: (event) => {
+    persist(broker.exportState(), control.exportState(), event);
+    return { sequence: evidenceEvents.length, previousHash: "", event, hash: "" };
+  } }, "paper-session-1");
+  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness, recorder);
+  return { broker, control, strategy, durable, evidenceEvents, runtime, failNext: () => { fail = true; } };
 }
 
 test("persistence recovery guidance matches the supported verified-backup procedure", () => {
@@ -92,6 +103,41 @@ test("automatic write failure restores broker and does not consume a signal key"
   assert.equal(result.outcome, "REJECTED"); assert.equal(result.error, PERSISTENCE_REPAIR_MESSAGE);
   assert.equal(h.broker.exportState().orders.length, 0); assert.equal(h.runtime.isAvailable(), false);
   assert.equal(h.control.claimAutomaticSignal("KRW-BTC:2:BUY"), true);
+});
+
+test("automatic fills and duplicate checks persist explicit scenario evidence", () => {
+  const h = harness();
+  h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
+  const signal = { type: "BUY", reason: "test", confidence: 1, timestamp: 20 };
+  const filled = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, signal);
+  assert.equal(filled.outcome, "FILLED");
+  assert.equal(h.evidenceEvents.length, 1);
+  assert.equal(h.evidenceEvents[0].type, "ORDER_COMPLETED");
+  assert.equal(h.evidenceEvents[0].eventId, filled.order.id);
+  assert.equal(h.evidenceEvents[0].sessionId, "paper-session-1");
+
+  const duplicate = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0.01, signal);
+  assert.equal(duplicate.outcome, "DUPLICATE");
+  assert.equal(h.evidenceEvents.length, 2);
+  assert.equal(h.evidenceEvents[1].type, "DUPLICATE_ORDER_CHECKED");
+  assert.match(h.evidenceEvents[1].eventId, /^duplicate-/);
+  assert.equal(h.evidenceEvents[1].occurredAt, signal.timestamp);
+  assert.equal(h.evidenceEvents[1].sessionId, "paper-session-1");
+});
+
+test("duplicate evidence write failure fails closed without mutating the filled account", () => {
+  const h = harness();
+  h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
+  const signal = { type: "BUY", reason: "test", confidence: 1, timestamp: 21 };
+  assert.equal(h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, signal).outcome, "FILLED");
+  const before = h.broker.exportState();
+  h.failNext();
+  const duplicate = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0.01, signal);
+  assert.equal(duplicate.outcome, "REJECTED");
+  assert.equal(duplicate.error, PERSISTENCE_REPAIR_MESSAGE);
+  assert.deepEqual(h.broker.exportState(), before);
+  assert.equal(h.runtime.isAvailable(), false);
+  assert.equal(h.control.snapshot().status, "FAULTED");
 });
 
 test("operational readiness blocks BUY before claiming the signal", () => {
