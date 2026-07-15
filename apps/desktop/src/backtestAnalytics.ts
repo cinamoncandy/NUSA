@@ -37,6 +37,8 @@ export interface PerformanceMetrics {
   readonly trades: number;
   readonly grossProfit: number;
   readonly grossLoss: number;
+  readonly netWinningProfit: number;
+  readonly netLosingLoss: number;
   readonly netProfit: number;
 }
 
@@ -102,20 +104,22 @@ export function calculateExposure(orders: readonly PaperOrder[], startTime: numb
 export function calculatePerformanceMetrics(trades: readonly MatchedTrade[], exposure: number): PerformanceMetrics {
   if (!Number.isFinite(exposure) || exposure < 0 || exposure > 1) throw new Error("exposure must be between 0 and 1");
   const wins = trades.filter((trade) => trade.netPnL > 0); const losses = trades.filter((trade) => trade.netPnL < 0);
-  const grossProfit = wins.reduce((sum, trade) => sum + trade.netPnL, 0);
-  const grossLoss = losses.reduce((sum, trade) => sum + -trade.netPnL, 0);
+  const grossProfit = trades.filter((trade) => trade.grossPnL > 0).reduce((sum, trade) => sum + trade.grossPnL, 0);
+  const grossLoss = trades.filter((trade) => trade.grossPnL < 0).reduce((sum, trade) => sum + -trade.grossPnL, 0);
+  const netWinningProfit = wins.reduce((sum, trade) => sum + trade.netPnL, 0);
+  const netLosingLoss = losses.reduce((sum, trade) => sum + -trade.netPnL, 0);
   const netProfit = trades.reduce((sum, trade) => sum + trade.netPnL, 0);
-  const averageWin = wins.length ? grossProfit / wins.length : undefined;
-  const averageLoss = losses.length ? grossLoss / losses.length : undefined;
+  const averageWin = wins.length ? netWinningProfit / wins.length : undefined;
+  const averageLoss = losses.length ? netLosingLoss / losses.length : undefined;
   return immutable({
-    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : undefined,
+    profitFactor: netLosingLoss > 0 ? netWinningProfit / netLosingLoss : undefined,
     expectancy: trades.length ? netProfit / trades.length : undefined,
     averageWin, averageLoss,
     winRate: trades.length ? wins.length / trades.length : 0,
     lossRate: trades.length ? losses.length / trades.length : 0,
     payoffRatio: averageWin != null && averageLoss != null && averageLoss > 0 ? averageWin / averageLoss : undefined,
     averageHoldingTime: trades.length ? trades.reduce((sum, trade) => sum + trade.holdingDuration, 0) / trades.length : undefined,
-    exposure, trades: trades.length, grossProfit, grossLoss, netProfit
+    exposure, trades: trades.length, grossProfit, grossLoss, netWinningProfit, netLosingLoss, netProfit
   });
 }
 
@@ -139,4 +143,3 @@ export function analyzeEquityCurve(curve: readonly EquityPoint[], netProfit: num
 export function exportEquityCurve(curve: readonly EquityPoint[]): string {
   return `timestamp,equity\n${curve.map((point) => `${point.timestamp},${point.equity}`).join("\n")}`;
 }
-
