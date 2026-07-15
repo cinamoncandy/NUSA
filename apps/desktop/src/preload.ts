@@ -4,6 +4,7 @@ import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
 import type { UpbitTicker } from "./upbitWebSocket";
+import { retryWithTimeout } from "./recovery";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -28,14 +29,17 @@ const subscribe = <T>(channel: string, handler: (value: T) => void): (() => void
   return () => ipcRenderer.removeListener(channel, listener);
 };
 
+const invokeWithRecovery = <T>(channel: string, ...args: readonly unknown[]): Promise<T> =>
+  retryWithTimeout(() => ipcRenderer.invoke(channel, ...args) as Promise<T>, { timeoutMs: 3_000, maximumAttempts: 3 });
+
 const api: DokkaebiApi = {
-  placeOrder: (side, quantity) => ipcRenderer.invoke("paper:order", { side, quantity }),
-  getSnapshot: () => ipcRenderer.invoke("paper:snapshot"),
-  getControlSnapshot: () => ipcRenderer.invoke("control:snapshot"),
-  startStrategy: () => ipcRenderer.invoke("control:start"),
-  stopStrategy: () => ipcRenderer.invoke("control:stop"),
-  setAutoTrade: (enabled) => ipcRenderer.invoke("control:auto", enabled),
-  setStrategyQuantity: (quantity) => ipcRenderer.invoke("control:quantity", quantity),
+  placeOrder: (side, quantity) => invokeWithRecovery("paper:order", { side, quantity }),
+  getSnapshot: () => invokeWithRecovery("paper:snapshot"),
+  getControlSnapshot: () => invokeWithRecovery("control:snapshot"),
+  startStrategy: () => invokeWithRecovery("control:start"),
+  stopStrategy: () => invokeWithRecovery("control:stop"),
+  setAutoTrade: (enabled) => invokeWithRecovery("control:auto", enabled),
+  setStrategyQuantity: (quantity) => invokeWithRecovery("control:quantity", quantity),
   onTicker: (handler) => subscribe("market:ticker", handler),
   onStatus: (handler) => subscribe("market:status", handler),
   onSnapshot: (handler) => subscribe("paper:snapshot", handler),
@@ -48,7 +52,7 @@ export interface AiCioDashboardApi {
 }
 
 const aiCioDashboard: AiCioDashboardApi = Object.freeze({
-  getAiCioDashboard: () => ipcRenderer.invoke(AI_CIO_DASHBOARD_CHANNEL)
+  getAiCioDashboard: () => invokeWithRecovery<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>(AI_CIO_DASHBOARD_CHANNEL)
 });
 
 contextBridge.exposeInMainWorld("dokkaebi", api);

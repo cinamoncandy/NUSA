@@ -1,10 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import type { PaperBrokerState } from "./paperBroker";
+import { loadJsonWithBackup, writeJsonWithBackup } from "./sessionRecovery";
 
 export interface SessionLoadResult<T> {
-  state?: T;
-  diagnostic?: string;
+  readonly state?: T;
+  readonly diagnostic?: string;
+  readonly restoredFromBackup?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -32,33 +32,17 @@ export class PaperSessionStore {
   constructor(private readonly filePath: string) {}
 
   load(): PaperBrokerState | undefined {
-    try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as PaperBrokerState;
-      if (parsed.version !== 1) throw new Error("unsupported paper session version");
-      return parsed;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return undefined;
-      throw error;
-    }
+    const result = loadJsonWithBackup(this.filePath, validatePaperBrokerState, "paper session");
+    if (result.diagnostic) throw new Error(result.diagnostic);
+    return result.state;
   }
 
   loadSafe(): SessionLoadResult<PaperBrokerState> {
-    try {
-      const text = readFileSync(this.filePath, "utf8");
-      return { state: validatePaperBrokerState(JSON.parse(text) as unknown) };
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return {};
-      return { diagnostic: `paper session recovery failed: ${error instanceof Error ? error.message : String(error)}` };
-    }
+    return loadJsonWithBackup(this.filePath, validatePaperBrokerState, "paper session");
   }
 
   save(state: PaperBrokerState): void {
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.tmp`;
-    writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    renameSync(temporaryPath, this.filePath);
+    writeJsonWithBackup(this.filePath, state);
   }
 }
-
+

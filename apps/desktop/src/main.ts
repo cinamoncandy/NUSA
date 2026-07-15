@@ -14,6 +14,7 @@ import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
+import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -39,6 +40,14 @@ let runtime: RuntimeCommandService;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
 let liveMarketRegimeObserver: LiveMarketRegimeObserver;
+let websocketConnected = false;
+let rendererHealthy = true;
+let healthTimer: NodeJS.Timeout | undefined;
+const recoveryLedger = new RecoveryLedger();
+
+function recordRecovery(component: RecoveryComponent, status: RecoveryHealth, message: string): void {
+  recoveryLedger.record({ id: `${component}:${Date.now()}:${recoveryLedger.list().length}`, timestamp: Date.now(), component, status, message });
+}
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
 
@@ -107,7 +116,18 @@ function handleTicker(ticker: UpbitTicker): void {
 }
 
 function handleMarketStatus(status: string): void {
+  websocketConnected = status === "connected";
   window?.webContents.send("market:status", status);
+  if (status === "reconnect-exhausted") {
+    recordRecovery("WEBSOCKET", "CRITICAL", "Market WebSocket recovery exhausted");
+    paperTradingAvailable = false;
+    control.fault("Market WebSocket recovery exhausted");
+    runtime.markUnavailable();
+    publishControl();
+    publishAiCioDashboard();
+    return;
+  }
+  if (status.startsWith("reconnecting") || status.startsWith("error") || status.startsWith("decode-error")) recordRecovery("WEBSOCKET", "WARNING", status);
   const evidence = runtimeEvidenceState.observeMarketStatus(status);
   if (evidence !== "WEBSOCKET_DISCONNECT_RECOVERED" || !paperTradingAvailable || !evidenceRecorder) return;
   const observedAt = Date.now();
@@ -133,7 +153,31 @@ function createWindow(): void {
     }
   });
   window.loadFile(path.join(app.getAppPath(), "apps/desktop/renderer/index.html"));
+  window.webContents.on("did-finish-load", () => {
+    rendererHealthy = true;
+    publishControl();
+    publishPaper();
+    publishAiCioDashboard();
+  });
+  window.webContents.on("render-process-gone", () => {
+    rendererHealthy = false;
+    recordRecovery("RENDERER", "WARNING", "Renderer crashed; recreating the read-only view");
+    const crashedWindow = window;
+    window = undefined;
+    crashedWindow?.destroy();
+    setTimeout(() => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }, 500);
+  });
   window.on("closed", () => { window = undefined; });
+}
+
+function observeHealth(): void {
+  const memory = process.memoryUsage();
+  const report = buildRecoveryHealthReport({
+    now: Date.now(), ipcHealthy: rendererHealthy, websocketConnected, rendererHealthy,
+    storageHealthy: persistenceStore !== undefined, lastMarketDataAt: latestTicker?.trade_timestamp,
+    maximumMarketDataAgeMs: 60_000, heapUsedBytes: memory.heapUsed, maximumHeapUsedBytes: 768 * 1024 * 1024
+  });
+  if (report.status !== "HEALTHY") recordRecovery("MEMORY", report.status, report.reasons.join("; "));
 }
 
 function initializeRuntime(): void {
@@ -239,12 +283,22 @@ app.whenReady().then(() => {
   initializeRuntime();
   createWindow();
   if (paperTradingAvailable) stream.start();
+  healthTimer = setInterval(observeHealth, 30_000);
+  process.on("uncaughtException", (error) => {
+    recordRecovery("STORAGE", "CRITICAL", `Main process error: ${error.message}`);
+    failClosedEvidenceWrite();
+  });
+  process.on("unhandledRejection", (reason) => {
+    recordRecovery("IPC", "CRITICAL", `Unhandled recovery failure: ${reason instanceof Error ? reason.message : String(reason)}`);
+    failClosedEvidenceWrite();
+  });
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
 app.on("window-all-closed", () => {
   aiCioSnapshotPublisher.clear();
   stream?.stop();
+  if (healthTimer) clearInterval(healthTimer);
   persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
 });

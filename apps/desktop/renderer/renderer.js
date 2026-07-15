@@ -175,6 +175,8 @@ commandPalette = window.DokkaebiCommandPalette.create({
 Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()]).then(([paper, control]) => {
   renderSnapshot(paper);
   renderControl(control);
+}).catch(() => {
+  byId("error").textContent = "데이터를 가져오지 못했습니다. 잠시 후 다시 시도합니다.";
 });
 
 const cioPercent = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "데이터 없음";

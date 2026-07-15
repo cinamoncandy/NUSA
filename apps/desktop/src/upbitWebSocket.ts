@@ -21,8 +21,9 @@ export class UpbitWebSocketClient {
   constructor(
     private readonly market: string,
     private readonly onTicker: TickerHandler,
-    private readonly onStatus: StatusHandler = () => undefined
-  ) {}
+    private readonly onStatus: StatusHandler = () => undefined,
+    private readonly maximumReconnectAttempts = 8
+  ) { if (!Number.isSafeInteger(maximumReconnectAttempts) || maximumReconnectAttempts < 1) throw new Error("maximumReconnectAttempts must be a positive safe integer"); }
 
   start(): void {
     this.stopped = false;
@@ -77,6 +78,11 @@ export class UpbitWebSocketClient {
 
   private scheduleReconnect(): void {
     this.reconnectAttempt += 1;
+    if (this.reconnectAttempt > this.maximumReconnectAttempts) {
+      this.stopped = true;
+      this.onStatus("reconnect-exhausted");
+      return;
+    }
     const delay = Math.min(30_000, 1_000 * 2 ** Math.min(this.reconnectAttempt - 1, 5));
     this.onStatus(`reconnecting-in-${delay}ms`);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
