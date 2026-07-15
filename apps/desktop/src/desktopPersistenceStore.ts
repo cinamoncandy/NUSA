@@ -64,10 +64,19 @@ export class DesktopPersistenceStore {
   }
 
   saveWithScenarioEvent(paper: PaperBrokerState, control: ControlPlaneState, event: PaperScenarioEvent): void {
+    this.saveWithScenarioEvents(paper, control, [event]);
+  }
+
+  saveWithScenarioEvents(paper: PaperBrokerState, control: ControlPlaneState, events: readonly PaperScenarioEvent[]): void {
+    if (events.length === 0) throw new Error("scenario evidence batch must not be empty");
     this.transaction(() => {
       this.write({ paper, control });
-      const next = Number((this.db.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM desktop_paper_scenario_evidence").get() as { sequence: number }).sequence) + 1;
-      this.db.prepare("INSERT INTO desktop_paper_scenario_evidence (sequence, event_id, event_json) VALUES (?, ?, ?)").run(next, event.eventId, JSON.stringify(event));
+      let next = Number((this.db.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM desktop_paper_scenario_evidence").get() as { sequence: number }).sequence) + 1;
+      const insert = this.db.prepare("INSERT INTO desktop_paper_scenario_evidence (sequence, event_id, event_json) VALUES (?, ?, ?)");
+      for (const event of events) {
+        insert.run(next, event.eventId, JSON.stringify(event));
+        next += 1;
+      }
     });
   }
 
