@@ -77,7 +77,9 @@ function replayEvents(events: readonly PaperScenarioEvent[]): readonly PaperScen
 
 function validateResearchReports(input: OperatorEvidenceExportInput): { reports: readonly ResearchValidationReport[]; warnings: readonly string[] } {
   const warnings: string[] = [];
-  const target = input.researchManifests.filter((manifest) =>
+  const manifests = input.researchManifests ?? [];
+  const reportsInput = input.researchReports ?? [];
+  const target = manifests.filter((manifest) =>
     manifest.strategyId === input.targetStrategy.strategyId &&
     manifest.strategyVersion === input.targetStrategy.strategyVersion &&
     manifest.datasetId === input.targetDataset.datasetId &&
