@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildScenarioPaperEvidenceBundle, verifyScenarioPaperEvidenceBundle } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
+const { buildScenarioPaperEvidenceBundle, scenarioObservationsFromLedger, verifyScenarioPaperEvidenceBundle } = require("../dist/apps/cloud/src/scenarioEvidenceBundle.js");
+const { appendPaperScenarioEvent } = require("../dist/apps/cloud/src/paperScenarioEvidenceLedger.js");
 
 const faults = ["PERSISTENCE_FAILURE", "WEBSOCKET_DISCONNECT", "PARTIAL_WRITE", "DUPLICATE_SIGNAL", "KILL_SWITCH"];
 const observations = () => Array.from({ length: 20 }, (_, index) => ({
@@ -21,6 +22,8 @@ const research = (overrides = {}) => ({
   integrityChecksPassed: true,
   ...overrides
 });
+
+const append = (records, eventId, type, occurredAt, sessionId, scenario) => appendPaperScenarioEvent(records, { eventId, type, occurredAt, sessionId, scenario });
 
 test("derives passing scenario counters only from immutable source records", () => {
   const bundle = buildScenarioPaperEvidenceBundle(observations(), research(), 2_000);
@@ -86,4 +89,24 @@ test("verifier detects record, counter, validation and checksum tampering", () =
     validation: { ...bundle.validation, status: "FAIL" }
   }), /validation mismatch/);
   assert.throws(() => verifyScenarioPaperEvidenceBundle({ ...bundle, contentSha256: "bad" }), /SHA-256/);
+});
+
+test("ledger conversion rejects sessions without explicit SESSION_OBSERVED evidence", () => {
+  let records = [];
+  records = append(records, "order-1", "ORDER_COMPLETED", 1_000, "session-1");
+  assert.throws(() => scenarioObservationsFromLedger(records), /missing SESSION_OBSERVED/);
+});
+
+test("unclassified sessions count as sessions but never as represented market regimes", () => {
+  let records = [];
+  records = append(records, "session-1", "SESSION_OBSERVED", 1_000, "session-1");
+  records = append(records, "order-1", "ORDER_COMPLETED", 1_001, "session-1");
+  const converted = scenarioObservationsFromLedger(records);
+  assert.equal(converted.length, 1);
+  assert.equal(converted[0].marketRegime, undefined);
+  const bundle = buildScenarioPaperEvidenceBundle(converted, research(), 2_000);
+  assert.equal(bundle.derivedInput.observedSessions, 1);
+  assert.equal(bundle.derivedInput.completedOrders, 1);
+  assert.equal(bundle.derivedInput.marketRegimes, 0);
+  assert.ok(bundle.validation.reasons.includes("INSUFFICIENT_MARKET_REGIMES"));
 });
