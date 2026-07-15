@@ -78,7 +78,7 @@ export function issueDecisionExecutionAuthorization(input: IssueDecisionAuthoriz
   const unsigned = Object.freeze({
     authorizationId: requireText(input.authorizationId, "authorizationId"),
     decisionId: record.decisionId,
-    auditChecksum: input.envelope.checksum,
+    auditChecksum: input.envelope.envelopeChecksum,
     mode: DecisionExecutionMode.PAPER,
     market: record.market,
     action: record.action,
@@ -101,7 +101,7 @@ export function verifyDecisionExecutionAuthorization(
   if (!verifyDecisionAuditEnvelope(envelope)) return false;
   if (authorization.mode !== DecisionExecutionMode.PAPER) return false;
   if (authorization.decisionId !== envelope.record.decisionId) return false;
-  if (authorization.auditChecksum !== envelope.checksum) return false;
+  if (authorization.auditChecksum !== envelope.envelopeChecksum) return false;
   if (authorization.market !== envelope.record.market) return false;
   if (authorization.action !== envelope.record.action) return false;
   if (authorization.policyId !== envelope.record.policyId || authorization.policyVersion !== envelope.record.policyVersion) return false;
