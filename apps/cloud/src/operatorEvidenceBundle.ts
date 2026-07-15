@@ -95,7 +95,9 @@ function validateResearchReports(input: OperatorEvidenceExportInput): { reports:
 export function exportOperatorEvidenceBundle(reader: ScenarioEvidenceReader, input: OperatorEvidenceExportInput): OperatorEvidenceBundle {
   if (!Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("generatedAt is invalid");
   if (!input.applicationVersion.trim() || !input.codeVersion.trim() || !input.databaseIdentity.trim()) throw new Error("export identity is required");
-  const events = Object.freeze([...reader.loadScenarioEvents()]);\n  const persistedManifests = reader.loadResearchRunManifests?.() ?? input.researchManifests ?? [];\n  const persistedReports = reader.loadResearchValidationReports?.() ?? input.researchReports ?? [];
+  const events = Object.freeze([...reader.loadScenarioEvents()]);
+  const persistedManifests = reader.loadResearchRunManifests?.() ?? input.researchManifests ?? [];
+  const persistedReports = reader.loadResearchValidationReports?.() ?? input.researchReports ?? [];
   const records = replayEvents(events);
   const counters = replayPaperScenarioEvidence(records);
   const observations = scenarioObservationsFromLedger(records);
