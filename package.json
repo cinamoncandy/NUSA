@@ -15,7 +15,8 @@
     "test": "pnpm run preflight && pnpm run build && node scripts/run-tests-isolated.js",
     "desktop": "pnpm run preflight && pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run preflight && pnpm run build && electron apps/desktop",
-    "package:win": "pnpm run preflight && pnpm run build && electron-builder --win nsis"
+    "package:win": "pnpm run preflight && pnpm run build && electron-builder --win nsis",
+    "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js"
   },
   "devDependencies": {
     "@types/node": "24.0.0",
