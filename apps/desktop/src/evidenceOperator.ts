@@ -72,7 +72,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       costStress: "NOT_EVALUATED",
       integrity: "NOT_EVALUATED",
       bundle: "NOT_EVALUATED",
-      ownerReview: "NOT_COMPLETED",
+      ownerReview: reviews.length > 0 ? "COMPLETED" : "NOT_COMPLETED",
       releaseStatus: "BLOCKED",
       blockingReasons: ["DATABASE_NOT_EVALUATED", "REAL_PAPER_EVIDENCE_NOT_EVALUATED", "OWNER_REVIEW_REQUIRED"]
     };
@@ -86,7 +86,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       database: "evaluated",
       observedSessions: { current: counters.sessionCount, required: 20 },
       completedOrders: { current: counters.completedOrderCount, required: 50 },
-      representedRegimes: { current: counters.regimeCount, required: 3 },
+      representedRegimes: { current: representedRegimeCount, required: 3 },
       restartRecoveryPasses: { current: counters.recoveryPassCount, required: 3 },
       duplicateChecks: { current: counters.duplicateOrderCheckCount, required: 10 },
       faultScenarios: Object.freeze([...counters.passedFaultScenarios].sort()),
@@ -96,14 +96,14 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       bundle: "NOT_EVALUATED",
       ownerReview: "NOT_COMPLETED",
       releaseStatus: "BLOCKED",
-      blockingReasons: Object.freeze(["RESEARCH_REPORTS_NOT_EVALUATED", "OWNER_REVIEW_REQUIRED", "REAL_PAPER_EVIDENCE_REQUIRES_OPERATOR_REVIEW"])
+      blockingReasons: Object.freeze(["REAL_PAPER_EVIDENCE_REQUIRES_OPERATOR_REVIEW", ...(reports.length === 0 ? ["RESEARCH_REPORTS_NOT_EVALUATED"] : []), ...(reviews.length === 0 ? ["OWNER_REVIEW_REQUIRED"] : [])])
     };
   } catch {
     return {
       database: "not evaluated",
       observedSessions: { current: 0, required: 20 },
       completedOrders: { current: 0, required: 50 },
-      representedRegimes: { current: 0, required: 50 },
+      representedRegimes: { current: 0, required: 3 },
       restartRecoveryPasses: { current: 0, required: 3 },
       duplicateChecks: { current: 0, required: 10 },
       faultScenarios: "NOT_EVALUATED",
