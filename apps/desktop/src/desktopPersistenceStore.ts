@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { runMigrations } from "../../../packages/storage/src/migrationRunner";
@@ -6,6 +7,7 @@ import type { ControlPlaneState } from "./controlPlane";
 import type { PaperBrokerState, PaperOrder } from "./paperBroker";
 import type { PaperScenarioEvent } from "../../cloud/src/paperScenarioEvidenceLedger";
 import type { ResearchRunManifest, ResearchValidationReport } from "../../cloud/src/researchRunValidation";
+import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 
@@ -23,7 +25,9 @@ CREATE TABLE desktop_paper_scenario_evidence (sequence INTEGER PRIMARY KEY, even
 ` }, { id: "003_desktop_research_evidence", sql: `
 CREATE TABLE desktop_research_manifests (run_id TEXT PRIMARY KEY, run_type TEXT NOT NULL, strategy_id TEXT NOT NULL, strategy_version TEXT NOT NULL, dataset_id TEXT NOT NULL, dataset_checksum TEXT NOT NULL, manifest_json TEXT NOT NULL);
 CREATE TABLE desktop_research_reports (run_id TEXT NOT NULL, run_type TEXT NOT NULL, report_json TEXT NOT NULL, PRIMARY KEY (run_id, run_type));
-` }];
+` }, { id: "004_desktop_owner_reviews", sql: `
+CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_checksum TEXT NOT NULL, reviewer_id TEXT NOT NULL, decision TEXT NOT NULL, note TEXT, reviewed_at TEXT NOT NULL, record_checksum TEXT NOT NULL UNIQUE);
+` }
 
 export class DesktopPersistenceStore {
   private readonly db: DatabaseSync;
@@ -149,6 +153,29 @@ export class DesktopPersistenceStore {
     return Object.freeze(rows.map((row) => {
       try { return Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport); } catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
     }));
+  }
+
+  appendOwnerReview(record: OwnerReviewRecord, currentBundleStatus: "BLOCKED" | "READY_FOR_OWNER_REVIEW" | "APPROVED"): void {
+    if (!/^[a-zA-Z0-9._-]{1,64}$/.test(record.reviewerId)) throw new Error("reviewer id must be a local owner alias");
+    if (!/^[a-f0-9]{64}$/i.test(record.bundleChecksum) || !/^[a-f0-9]{64}$/i.test(record.recordChecksum)) throw new Error("review checksum is invalid");
+    if (!["APPROVE", "REJECT", "REQUEST_MORE_EVIDENCE"].includes(record.decision)) throw new Error("review decision is invalid");
+    if (record.decision === "APPROVE" && currentBundleStatus !== "READY_FOR_OWNER_REVIEW") throw new Error("approval requires READY_FOR_OWNER_REVIEW");
+    const canonical = JSON.stringify({ reviewId: record.reviewId, bundleChecksum: record.bundleChecksum, reviewerId: record.reviewerId, decision: record.decision, note: record.note ?? null, reviewedAt: record.reviewedAt });
+    const expectedChecksum = createHash("sha256").update(canonical, "utf8").digest("hex");
+    if (record.recordChecksum !== expectedChecksum) throw new Error("review record checksum mismatch");
+    this.transaction(() => {
+      const existing = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records WHERE review_id = ?").get(record.reviewId) as OwnerReviewRecord | undefined;
+      if (existing != null) {
+        if (JSON.stringify(existing) !== JSON.stringify(record)) throw new Error("review id conflict");
+        return;
+      }
+      this.db.prepare("INSERT INTO desktop_owner_review_records (review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum) VALUES (?, ?, ?, ?, ?, ?, ?)").run(record.reviewId, record.bundleChecksum, record.reviewerId, record.decision, record.note ?? null, record.reviewedAt, record.recordChecksum);
+    });
+  }
+
+  loadOwnerReviews(): readonly OwnerReviewRecord[] {
+    const rows = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records ORDER BY reviewed_at ASC, review_id ASC").all() as OwnerReviewRecord[];
+    return Object.freeze(rows.map((row) => Object.freeze({ ...row, note: row.note == null ? undefined : row.note })));
   }
 
   close(): void { this.db.close(); }
