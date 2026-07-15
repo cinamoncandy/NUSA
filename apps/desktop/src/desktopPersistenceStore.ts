@@ -6,10 +6,12 @@ import { runMigrations } from "../../../packages/storage/src/migrationRunner";
 import type { ControlPlaneState } from "./controlPlane";
 import type { PaperBrokerState, PaperOrder } from "./paperBroker";
 import type { PaperScenarioEvent } from "../../cloud/src/paperScenarioEvidenceLedger";
-import type { ResearchRunManifest, ResearchValidationReport } from "../../cloud/src/researchRunValidation";
+import { validateResearchRunManifest, type ResearchRunManifest, type ResearchValidationReport } from "../../cloud/src/researchRunValidation";
 import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
+const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
+const SHA256 = /^[a-f0-9]{64}$/i;
 
 export interface DesktopPersistenceState { readonly paper: PaperBrokerState; readonly control: ControlPlaneState; }
 
@@ -123,6 +125,7 @@ export class DesktopPersistenceStore {
   }
 
   appendResearchRunManifest(manifest: ResearchRunManifest): void {
+    validateResearchRunManifest(manifest);
     this.transaction(() => {
       const existing = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(manifest.runId) as { manifest_json: string } | undefined;
       const payload = JSON.stringify(manifest);
@@ -136,13 +139,16 @@ export class DesktopPersistenceStore {
 
   loadResearchRunManifests(): readonly ResearchRunManifest[] {
     const rows = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests ORDER BY run_id ASC").all() as Array<{ manifest_json: string }>;
-    return Object.freeze(rows.map((row) => {
-      try { return Object.freeze(JSON.parse(row.manifest_json) as ResearchRunManifest); } catch (error) { throw new Error("research manifest JSON is invalid", { cause: error }); }
-    }));
+    return Object.freeze(rows.map((row) => this.parseResearchManifest(row.manifest_json)));
   }
 
   appendResearchValidationReport(report: ResearchValidationReport): void {
+    this.assertResearchReport(report);
     this.transaction(() => {
+      const manifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(report.runId) as { manifest_json: string } | undefined;
+      if (manifest == null) throw new Error("research report manifest is missing");
+      const parsedManifest = this.parseResearchManifest(manifest.manifest_json);
+      if (parsedManifest.runType !== report.runType || parsedManifest.resultChecksum !== report.resultChecksum) throw new Error("research report does not match manifest");
       const existing = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(report.runId, report.runType) as { report_json: string } | undefined;
       const payload = JSON.stringify(report);
       if (existing != null) {
@@ -154,6 +160,8 @@ export class DesktopPersistenceStore {
   }
 
   appendResearchEvidence(manifest: ResearchRunManifest, report: ResearchValidationReport): void {
+    validateResearchRunManifest(manifest);
+    this.assertResearchReport(report);
     if (manifest.runId !== report.runId || manifest.runType !== report.runType) throw new Error("research evidence manifest/report identity mismatch");
     if (manifest.resultChecksum !== report.resultChecksum) throw new Error("research evidence result checksum mismatch");
     this.transaction(() => {
@@ -173,7 +181,11 @@ export class DesktopPersistenceStore {
   loadResearchValidationReports(): readonly ResearchValidationReport[] {
     const rows = this.db.prepare("SELECT report_json FROM desktop_research_reports ORDER BY run_id ASC, run_type ASC").all() as Array<{ report_json: string }>;
     return Object.freeze(rows.map((row) => {
-      try { return Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport); } catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
+      try {
+        const report = Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport);
+        this.assertResearchReport(report);
+        return report;
+      } catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
     }));
   }
 
@@ -228,6 +240,19 @@ export class DesktopPersistenceStore {
   private verifyStartupIntegrity(): void {
     const rows = this.db.prepare("PRAGMA quick_check").all() as Array<{ quick_check: string }>;
     if (rows.length !== 1 || rows[0]?.quick_check !== "ok") throw new Error("SQLite quick_check failed");
+  }
+
+  private parseResearchManifest(payload: string): ResearchRunManifest {
+    try {
+      const manifest = Object.freeze(JSON.parse(payload) as ResearchRunManifest);
+      validateResearchRunManifest(manifest);
+      return manifest;
+    } catch (error) { throw new Error("research manifest JSON is invalid", { cause: error }); }
+  }
+
+  private assertResearchReport(report: ResearchValidationReport): void {
+    if (!report.runId.trim() || !RESEARCH_RUN_TYPES.has(report.runType) || !["PASS", "FAIL"].includes(report.status)) throw new Error("research validation report identity is invalid");
+    if (!Number.isFinite(Date.parse(report.checkedAt)) || !SHA256.test(report.resultChecksum) || report.reasons.some((reason) => typeof reason !== "string" || !reason.trim())) throw new Error("research validation report content is invalid");
   }
 
   private write({ paper, control }: DesktopPersistenceState): void {

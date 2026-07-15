@@ -18,3 +18,5 @@ Operational Paper observations remain separate from research validation results.
 ## Monte Carlo recording
 
 `persistMonteCarloResearch` accepts an explicit return sample from an approved research workflow, runs the deterministic simulation, validates the result, and writes its immutable manifest and report in one SQLite transaction. It never downloads data, calls an exchange, stores raw returns, or stores the seed string. The persisted manifest contains only the return-sample checksum and seed hash. Repeating an identical `runId` is idempotent; a changed payload for that ID is rejected without a partial write.
+
+The storage boundary independently validates every manifest and report. A report cannot be appended before its manifest, cannot use a different run type or result checksum, and cannot contain unsupported status, malformed timestamps, blank reasons, or an invalid SHA-256 result identity.
