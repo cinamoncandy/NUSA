@@ -10,6 +10,7 @@ import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
+import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 
@@ -35,6 +36,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
+let runtimeEvidenceState: PaperRuntimeEvidenceState;
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
 
@@ -81,6 +83,26 @@ function handleTicker(ticker: UpbitTicker): void {
   publishAiCioDashboard();
 }
 
+function failClosedEvidenceWrite(): void {
+  paperTradingAvailable = false;
+  control.fault(PERSISTENCE_FAULT_MESSAGE);
+  runtime.markUnavailable();
+  publishControl();
+  publishAiCioDashboard();
+}
+
+function handleMarketStatus(status: string): void {
+  window?.webContents.send("market:status", status);
+  const evidence = runtimeEvidenceState.observeMarketStatus(status);
+  if (evidence !== "WEBSOCKET_DISCONNECT_RECOVERED" || !paperTradingAvailable || !evidenceRecorder) return;
+  const observedAt = Date.now();
+  try {
+    evidenceRecorder.faultScenarioPassed(`fault:websocket-disconnect:${observedAt}`, observedAt, "WEBSOCKET_DISCONNECT");
+  } catch {
+    failClosedEvidenceWrite();
+  }
+}
+
 function createWindow(): void {
   window = new BrowserWindow({
     width: 1240,
@@ -102,6 +124,7 @@ function createWindow(): void {
 function initializeRuntime(): void {
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
+  runtimeEvidenceState = new PaperRuntimeEvidenceState();
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
@@ -109,12 +132,15 @@ function initializeRuntime(): void {
   const paperLoad = sessionStore.loadSafe();
   const controlLoad = controlStore.loadSafe();
   let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
+  let restoredFromSqlite = false;
   let persistenceDiagnostic: string | undefined;
   try {
     persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
     const sqliteState = persistenceStore.load();
-    if (sqliteState) restored = sqliteState;
-    else if (restored) persistenceStore.importLegacy(restored);
+    if (sqliteState) {
+      restored = sqliteState;
+      restoredFromSqlite = true;
+    } else if (restored) persistenceStore.importLegacy(restored);
   } catch (error) {
     persistenceStore = undefined;
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -146,13 +172,12 @@ function initializeRuntime(): void {
     try {
       if (!evidenceRecorder) throw new Error("Paper evidence recorder is unavailable");
       evidenceRecorder.sessionObserved(`session-start:${evidenceSessionId}`, sessionStartedAt);
+      if (restoredFromSqlite) evidenceRecorder.recoveryCompleted(`recovery:${evidenceSessionId}`, sessionStartedAt);
     } catch {
-      paperTradingAvailable = false;
-      control.fault(PERSISTENCE_FAULT_MESSAGE);
-      runtime.markUnavailable();
+      failClosedEvidenceWrite();
     }
   }
-  stream = new UpbitWebSocketClient(MARKET, handleTicker, (status) => window?.webContents.send("market:status", status));
+  stream = new UpbitWebSocketClient(MARKET, handleTicker, handleMarketStatus);
 }
 
 ipcMain.handle("paper:order", (_event, input: { side: PaperSide; quantity: number }) => {
