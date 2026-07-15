@@ -15,17 +15,18 @@ function harness(readiness) {
   const durable = [];
   const evidenceEvents = [];
   let fail = false;
-  const persist = (paper, controlState, event) => {
+  const persist = (paper, controlState, events = []) => {
     if (fail) throw new Error("injected SQLite write failure");
     durable.push({ paper: clone(paper), control: clone(controlState) });
-    if (event) evidenceEvents.push(clone(event));
+    evidenceEvents.push(...events.map(clone));
   };
   const persistence = {
     save(paper, controlState) { persist(paper, controlState); },
-    saveWithScenarioEvent(paper, controlState, event) { persist(paper, controlState, event); }
+    saveWithScenarioEvent(paper, controlState, event) { persist(paper, controlState, [event]); },
+    saveWithScenarioEvents(paper, controlState, events) { persist(paper, controlState, events); }
   };
   const recorder = new PaperScenarioEvidenceRecorder({ append: (event) => {
-    persist(broker.exportState(), control.exportState(), event);
+    persist(broker.exportState(), control.exportState(), [event]);
     return { sequence: evidenceEvents.length, previousHash: "", event, hash: "" };
   } }, "paper-session-1");
   const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness, recorder);
@@ -76,7 +77,6 @@ test("failed control commands restore running state and durable command state", 
     (h) => { h.runtime.start(); h.failNext(); h.runtime.setOrderQuantity(0.02); }
   ]) {
     const h = harness();
-    if (command.toString().includes("h.runtime.start()")) { /* command sets its own setup */ }
     if (command.toString().includes("failNext")) {
       assert.throws(() => command(h), new RegExp(PERSISTENCE_REPAIR_MESSAGE));
     } else {
@@ -86,6 +86,20 @@ test("failed control commands restore running state and durable command state", 
     assert.equal(h.strategy.isRunning(), false);
     assert.equal(h.control.snapshot().status, "FAULTED");
   }
+});
+
+test("kill switch records PASS only after strategy and auto trading are safely stopped", () => {
+  const h = harness();
+  h.runtime.start();
+  h.runtime.setAutoTrade(true);
+  h.runtime.stop();
+  assert.equal(h.strategy.isRunning(), false);
+  assert.equal(h.control.snapshot().status, "STOPPED");
+  assert.equal(h.control.snapshot().autoTradeEnabled, false);
+  const evidence = h.evidenceEvents.at(-1);
+  assert.equal(evidence.type, "FAULT_SCENARIO_PASSED");
+  assert.equal(evidence.scenario, "KILL_SWITCH");
+  assert.equal(evidence.sessionId, "paper-session-1");
 });
 
 test("automatic signal does not claim or execute when persistence is unavailable", () => {
@@ -116,26 +130,33 @@ test("automatic fills and duplicate checks persist explicit scenario evidence", 
   assert.equal(h.evidenceEvents[0].eventId, filled.order.id);
   assert.equal(h.evidenceEvents[0].sessionId, "paper-session-1");
 
+  const durableBeforeDuplicate = h.durable.length;
   const duplicate = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0.01, signal);
   assert.equal(duplicate.outcome, "DUPLICATE");
-  assert.equal(h.evidenceEvents.length, 2);
+  assert.equal(h.durable.length, durableBeforeDuplicate + 1, "both duplicate evidence events must share one persistence transaction");
+  assert.equal(h.evidenceEvents.length, 3);
   assert.equal(h.evidenceEvents[1].type, "DUPLICATE_ORDER_CHECKED");
   assert.match(h.evidenceEvents[1].eventId, /^duplicate-/);
   assert.equal(h.evidenceEvents[1].occurredAt, signal.timestamp);
   assert.equal(h.evidenceEvents[1].sessionId, "paper-session-1");
+  assert.equal(h.evidenceEvents[2].type, "FAULT_SCENARIO_PASSED");
+  assert.equal(h.evidenceEvents[2].scenario, "DUPLICATE_SIGNAL");
+  assert.equal(h.evidenceEvents[2].sessionId, "paper-session-1");
 });
 
-test("duplicate evidence write failure fails closed without mutating the filled account", () => {
+test("duplicate evidence batch failure fails closed without partial evidence or account mutation", () => {
   const h = harness();
   h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
   const signal = { type: "BUY", reason: "test", confidence: 1, timestamp: 21 };
   assert.equal(h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, signal).outcome, "FILLED");
   const before = h.broker.exportState();
+  const evidenceBefore = h.evidenceEvents.length;
   h.failNext();
   const duplicate = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0.01, signal);
   assert.equal(duplicate.outcome, "REJECTED");
   assert.equal(duplicate.error, PERSISTENCE_REPAIR_MESSAGE);
   assert.deepEqual(h.broker.exportState(), before);
+  assert.equal(h.evidenceEvents.length, evidenceBefore);
   assert.equal(h.runtime.isAvailable(), false);
   assert.equal(h.control.snapshot().status, "FAULTED");
 });
