@@ -149,17 +149,9 @@ export function verifyOperatorEvidenceBundle(bundle: OperatorEvidenceBundle): Op
   const { bundleChecksum, ...unsigned } = bundle;
   if (bundle.bundleVersion !== 1 || !/^[a-f0-9]{64}$/.test(bundleChecksum)) throw new Error("invalid evidence bundle identity");
   if (checksum(unsigned) !== bundleChecksum) throw new Error("evidence bundle checksum mismatch");
-  const rebuilt = exportOperatorEvidenceBundle({ loadScenarioEvents: () => bundle.events }, {
-    generatedAt: bundle.generatedAt,
-    applicationVersion: bundle.applicationVersion,
-    codeVersion: bundle.codeVersion,
-    databaseIdentity: bundle.databaseIdentity,
-    validationProfile: bundle.validationProfile,
-    targetStrategy: bundle.targetStrategy,
-    targetDataset: bundle.targetDataset,
-    researchManifests: [],
-    researchReports: bundle.researchReports
-  });
-  if (rebuilt.bundleChecksum !== bundle.bundleChecksum) throw new Error("evidence bundle replay mismatch");
+  const records = replayEvents(bundle.events);
+  const replayed = replayPaperScenarioEvidence(records);
+  if (canonical(replayed) !== canonical(bundle.derivedCounters)) throw new Error("evidence counter replay mismatch");
+  if (records.at(-1)?.hash ?? null !== bundle.eventChainHead) throw new Error("evidence chain head mismatch");
   return freeze(bundle);
 }
