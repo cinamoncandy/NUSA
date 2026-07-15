@@ -12,6 +12,7 @@ const complete = (overrides = {}) => ({
   passedFaultScenarios: ["PERSISTENCE_FAILURE", "WEBSOCKET_DISCONNECT", "PARTIAL_WRITE", "DUPLICATE_SIGNAL", "KILL_SWITCH"],
   walkForwardPassed: true,
   costStressPassed: true,
+  monteCarloPassed: true,
   integrityChecksPassed: true,
   ...overrides
 });
@@ -35,6 +36,7 @@ test("fails closed for every missing evidence family", () => {
     passedFaultScenarios: [],
     walkForwardPassed: false,
     costStressPassed: false,
+    monteCarloPassed: false,
     integrityChecksPassed: false
   }));
   assert.equal(result.status, "FAIL");
@@ -46,6 +48,7 @@ test("fails closed for every missing evidence family", () => {
     "INSUFFICIENT_DUPLICATE_ORDER_CHECKS",
     "WALK_FORWARD_NOT_PASSED",
     "COST_STRESS_NOT_PASSED",
+    "MONTE_CARLO_NOT_PASSED",
     "INTEGRITY_CHECK_NOT_PASSED"
   ]) assert.ok(result.reasons.includes(reason));
   assert.equal(result.reasons.filter((reason) => reason.startsWith("FAULT_SCENARIO_")).length, 5);

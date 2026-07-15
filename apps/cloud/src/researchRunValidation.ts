@@ -92,6 +92,7 @@ export interface IntegrityValidationInput {
 }
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+const researchRunTypes = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
 const iso = (value: string): boolean => Number.isFinite(Date.parse(value));
 const sha256Pattern = /^[a-f0-9]{64}$/i;
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
@@ -119,6 +120,7 @@ function report(runId: string, runType: ResearchRunType, checkedAt: string, reas
 
 export function createResearchRunManifest(input: Omit<ResearchRunManifest, "parameterChecksum" | "configChecksum" | "resultChecksum" | "manifestChecksum"> & { readonly config: unknown; readonly result: unknown }): ResearchRunManifest {
   required(input.runId, "runId"); required(input.strategyId, "strategyId"); required(input.strategyVersion, "strategyVersion"); required(input.datasetId, "datasetId"); required(input.codeVersion, "codeVersion");
+  if (!researchRunTypes.has(input.runType)) throw new Error("research runType is invalid");
   if (!iso(input.datasetStart) || !iso(input.datasetEnd) || Date.parse(input.datasetStart) >= Date.parse(input.datasetEnd)) throw new Error("dataset range is invalid");
   if (!iso(input.createdAt) || !Number.isInteger(input.sampleCount) || input.sampleCount <= 0) throw new Error("manifest sample count or timestamp is invalid");
   if (!sha256Pattern.test(input.datasetChecksum)) throw new Error("datasetChecksum must be SHA-256");
@@ -127,6 +129,7 @@ export function createResearchRunManifest(input: Omit<ResearchRunManifest, "para
 }
 
 export function validateResearchRunManifest(manifest: ResearchRunManifest): void {
+  if (!researchRunTypes.has(manifest.runType)) throw new Error("research manifest runType is invalid");
   const base = { ...manifest };
   delete (base as { manifestChecksum?: string }).manifestChecksum;
   if (!sha256Pattern.test(manifest.parameterChecksum) || !sha256Pattern.test(manifest.configChecksum) || !sha256Pattern.test(manifest.resultChecksum) || manifest.manifestChecksum !== sha256(canonical(base))) throw new Error("research manifest checksum mismatch");
@@ -189,6 +192,5 @@ export function validateIntegrity(input: IntegrityValidationInput): ResearchVali
 }
 
 export function allResearchGatesPassed(reports: readonly ResearchValidationReport[]): boolean {
-  const requiredTypes = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
-  return reports.length === requiredTypes.size && reports.every((item) => item.status === "PASS") && reports.every((item) => requiredTypes.has(item.runType));
+  return reports.length === researchRunTypes.size && reports.every((item) => item.status === "PASS") && reports.every((item) => researchRunTypes.has(item.runType));
 }

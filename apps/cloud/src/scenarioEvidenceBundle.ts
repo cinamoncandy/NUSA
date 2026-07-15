@@ -20,9 +20,11 @@ export interface ScenarioPaperObservation {
 export interface ScenarioResearchEvidence {
   readonly walkForwardEvidenceId: string;
   readonly costStressEvidenceId: string;
+  readonly monteCarloEvidenceId: string;
   readonly integrityEvidenceId: string;
   readonly walkForwardPassed: boolean;
   readonly costStressPassed: boolean;
+  readonly monteCarloPassed: boolean;
   readonly integrityChecksPassed: boolean;
 }
 
@@ -114,9 +116,11 @@ export function buildScenarioPaperEvidenceBundle(
   const researchEvidence = {
     walkForwardEvidenceId: text(researchInput.walkForwardEvidenceId, "walkForwardEvidenceId"),
     costStressEvidenceId: text(researchInput.costStressEvidenceId, "costStressEvidenceId"),
+    monteCarloEvidenceId: text(researchInput.monteCarloEvidenceId, "monteCarloEvidenceId"),
     integrityEvidenceId: text(researchInput.integrityEvidenceId, "integrityEvidenceId"),
     walkForwardPassed: researchInput.walkForwardPassed,
     costStressPassed: researchInput.costStressPassed,
+    monteCarloPassed: researchInput.monteCarloPassed,
     integrityChecksPassed: researchInput.integrityChecksPassed
   };
 
@@ -132,6 +136,7 @@ export function buildScenarioPaperEvidenceBundle(
     passedFaultScenarios: faultScenarios,
     walkForwardPassed: researchEvidence.walkForwardPassed,
     costStressPassed: researchEvidence.costStressPassed,
+    monteCarloPassed: researchEvidence.monteCarloPassed,
     integrityChecksPassed: researchEvidence.integrityChecksPassed
   };
 

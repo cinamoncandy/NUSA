@@ -73,9 +73,11 @@ const scenarioEvidenceBundle = () => buildScenarioPaperEvidenceBundle(
   {
     walkForwardEvidenceId: "wf-1",
     costStressEvidenceId: "cost-1",
+    monteCarloEvidenceId: "mc-1",
     integrityEvidenceId: "integrity-1",
     walkForwardPassed: true,
     costStressPassed: true,
+    monteCarloPassed: true,
     integrityChecksPassed: true
   },
   generatedAt

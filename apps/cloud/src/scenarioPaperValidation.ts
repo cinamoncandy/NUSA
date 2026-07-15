@@ -17,6 +17,7 @@ export interface ScenarioPaperEvidenceInput {
   readonly passedFaultScenarios: readonly RequiredPaperFaultScenario[];
   readonly walkForwardPassed: boolean;
   readonly costStressPassed: boolean;
+  readonly monteCarloPassed: boolean;
   readonly integrityChecksPassed: boolean;
 }
 
@@ -65,6 +66,7 @@ export function evaluateScenarioPaperEvidence(input: ScenarioPaperEvidenceInput)
   for (const scenario of REQUIRED_FAULTS) if (!input.passedFaultScenarios.includes(scenario)) reasons.push(`FAULT_SCENARIO_${scenario}_MISSING`);
   if (!input.walkForwardPassed) reasons.push("WALK_FORWARD_NOT_PASSED");
   if (!input.costStressPassed) reasons.push("COST_STRESS_NOT_PASSED");
+  if (!input.monteCarloPassed) reasons.push("MONTE_CARLO_NOT_PASSED");
   if (!input.integrityChecksPassed) reasons.push("INTEGRITY_CHECK_NOT_PASSED");
 
   return Object.freeze({

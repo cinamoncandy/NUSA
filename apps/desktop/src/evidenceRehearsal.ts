@@ -75,7 +75,8 @@ function syntheticEvents(at: number): readonly PaperScenarioEvent[] {
 }
 
 function createReports(codeVersion: string, target: { strategyId: string; strategyVersion: string; datasetId: string; datasetChecksum: string }, at: number): { manifests: readonly ReturnType<typeof createResearchRunManifest>[]; reports: readonly ResearchValidationReport[] } {
-  const types = ["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"] as const;
+  // Rehearsal manifests are synthetic and remain permanently release-ineligible.
+  const types = ["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"] as const;
   const manifests = types.map((runType) => createResearchRunManifest({
     runId: `rehearsal-${runType}`, runType, strategyId: target.strategyId, strategyVersion: target.strategyVersion, parameterSet: { fixture: true },
     datasetId: target.datasetId, datasetChecksum: target.datasetChecksum, datasetStart: new Date(at).toISOString(), datasetEnd: new Date(at + 86_400_000).toISOString(), sampleCount: 100, createdAt: new Date(at).toISOString(), codeVersion, config: { purpose: "REHEARSAL" }, result: { status: "PASS" }

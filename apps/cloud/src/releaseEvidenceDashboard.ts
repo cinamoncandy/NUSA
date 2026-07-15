@@ -59,7 +59,7 @@ export function buildReleaseEvidenceDashboard(bundle: OperatorEvidenceBundle, no
     requirements[`fault:${scenario}`] = req("NOT_EVALUATED", present ? "PRESENT" : "MISSING", "VERIFIED_OPERATOR_FAULT_DRILL", "SQLITE_EVENT_REPLAY", present ? "fault-drill provenance is not persisted in this bundle" : "required fault scenario is missing", counters.lastOccurredAt);
   }
 
-  const reportTypes = ["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"];
+  const reportTypes = ["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"];
   for (const type of reportTypes) {
     const reports = bundle.researchReports.filter((report) => report.runType === type);
     const latest = reports.at(-1);

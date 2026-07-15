@@ -16,9 +16,11 @@ const observations = () => Array.from({ length: 20 }, (_, index) => ({
 const research = (overrides = {}) => ({
   walkForwardEvidenceId: "wf-001",
   costStressEvidenceId: "cost-001",
+  monteCarloEvidenceId: "mc-001",
   integrityEvidenceId: "integrity-001",
   walkForwardPassed: true,
   costStressPassed: true,
+  monteCarloPassed: true,
   integrityChecksPassed: true,
   ...overrides
 });
@@ -56,9 +58,9 @@ test("one source-record mutation changes identity and derived result", () => {
 });
 
 test("missing research evidence fails validation without fabricating a pass", () => {
-  const bundle = buildScenarioPaperEvidenceBundle(observations(), research({ costStressPassed: false }), 2_000);
+  const bundle = buildScenarioPaperEvidenceBundle(observations(), research({ monteCarloPassed: false }), 2_000);
   assert.equal(bundle.validation.status, "FAIL");
-  assert.ok(bundle.validation.reasons.includes("COST_STRESS_NOT_PASSED"));
+  assert.ok(bundle.validation.reasons.includes("MONTE_CARLO_NOT_PASSED"));
 });
 
 test("duplicate, future and malformed source records are rejected", () => {

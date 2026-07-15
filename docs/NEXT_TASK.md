@@ -40,7 +40,7 @@ Required evidence:
 - 3 restart-recovery passes;
 - 10 duplicate-order checks;
 - persistence failure, WebSocket disconnect, partial-write, duplicate-signal, and Kill Switch scenarios;
-- Walk-Forward, cost-stress, and Integrity PASS.
+- Walk-Forward, deterministic Monte Carlo, cost-stress, and Integrity PASS.
 
 This replaces only elapsed calendar duration. It does not replace CI, recovery, source coverage, security review, provenance, checksums, or owner approval.
 

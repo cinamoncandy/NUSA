@@ -144,6 +144,7 @@ Minimum verified evidence:
 - verified `KILL_SWITCH`
 - current Walk-Forward PASS
 - current Cost Stress PASS
+- current deterministic Monte Carlo PASS
 - current Integrity PASS
 
 The profile replaces only a calendar-duration requirement. It does not replace CI, recovery, source coverage, security review, provenance, checksums, or owner approval.

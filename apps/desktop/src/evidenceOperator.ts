@@ -16,6 +16,7 @@ export interface EvidenceStatus {
   readonly faultScenarios: readonly string[] | "NOT_EVALUATED";
   readonly walkForward: "PASS" | "FAIL" | "NOT_EVALUATED";
   readonly costStress: "PASS" | "FAIL" | "NOT_EVALUATED";
+  readonly monteCarlo: "PASS" | "FAIL" | "NOT_EVALUATED";
   readonly integrity: "PASS" | "FAIL" | "NOT_EVALUATED";
   readonly bundle: "PASS" | "FAIL" | "NOT_EVALUATED";
   readonly ownerReview: "COMPLETED" | "NOT_COMPLETED";
@@ -69,6 +70,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
     faultScenarios: "NOT_EVALUATED",
     walkForward: "NOT_EVALUATED",
     costStress: "NOT_EVALUATED",
+    monteCarlo: "NOT_EVALUATED",
     integrity: "NOT_EVALUATED",
     bundle: "NOT_EVALUATED",
     ownerReview: "NOT_COMPLETED",
@@ -84,7 +86,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
     const { records, counters } = replayFromStore(store);
     const reports = store.loadResearchValidationReports();
     const reviews = store.loadOwnerReviews();
-    const statusFor = (runType: "WALK_FORWARD" | "COST_STRESS" | "INTEGRITY_CHECK"): "PASS" | "FAIL" | "NOT_EVALUATED" => {
+    const statusFor = (runType: "WALK_FORWARD" | "COST_STRESS" | "MONTE_CARLO" | "INTEGRITY_CHECK"): "PASS" | "FAIL" | "NOT_EVALUATED" => {
       const matching = reports.filter((report) => report.runType === runType);
       if (matching.length === 0) return "NOT_EVALUATED";
       return matching.some((report) => report.status === "PASS") ? "PASS" : "FAIL";
@@ -100,6 +102,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       faultScenarios: Object.freeze([...counters.passedFaultScenarios].sort()),
       walkForward: statusFor("WALK_FORWARD"),
       costStress: statusFor("COST_STRESS"),
+      monteCarlo: statusFor("MONTE_CARLO"),
       integrity: statusFor("INTEGRITY_CHECK"),
       bundle: "NOT_EVALUATED",
       ownerReview: reviews.length > 0 ? "COMPLETED" : "NOT_COMPLETED",

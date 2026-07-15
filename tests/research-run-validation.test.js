@@ -60,6 +60,7 @@ test("manifest checksum is deterministic and tamper-evident", () => {
   assert.deepEqual(manifest, second);
   validateResearchRunManifest(manifest);
   assert.throws(() => validateResearchRunManifest({ ...manifest, resultChecksum: "b".repeat(64) }));
+  assert.throws(() => createResearchRunManifest({ ...manifest, runType: "UNKNOWN", config: {}, result: {} }), /runType/);
 });
 
 test("walk-forward rejects leakage, incomplete folds, and missing costs", () => {

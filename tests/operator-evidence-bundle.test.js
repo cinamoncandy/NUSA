@@ -40,6 +40,8 @@ test("operator export is read-only and deterministic", () => {
   assert.equal(first.derivedCounters.sessionCount, 1);
   assert.equal(first.derivedCounters.completedOrderCount, 1);
   assert.equal(first.events.length, 5);
+  assert.ok(first.warnings.includes("RESEARCH_MONTE_CARLO_MISSING_OR_FAILED"));
+  assert.equal(first.scenarioValidation.reasons.includes("MONTE_CARLO_NOT_PASSED"), true);
   verifyOperatorEvidenceBundle(first);
 });
 

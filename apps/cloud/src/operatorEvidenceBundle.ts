@@ -88,7 +88,7 @@ function validateResearchReports(input: OperatorEvidenceExportInput): { reports:
   const targetIds = new Set(target.map((manifest) => manifest.runId));
   const reports = reportsInput.filter((report) => targetIds.has(report.runId));
   if (reports.length !== reportsInput.length) warnings.push("RESEARCH_REPORT_OUTSIDE_TARGET_IGNORED");
-  for (const type of ["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"] as const) {
+  for (const type of ["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"] as const) {
     if (!reports.some((report) => report.runType === type && report.status === "PASS")) warnings.push(`RESEARCH_${type}_MISSING_OR_FAILED`);
   }
   return { reports: Object.freeze([...reports]), warnings: Object.freeze(warnings) };
@@ -107,9 +107,11 @@ export function exportOperatorEvidenceBundle(reader: ScenarioEvidenceReader, inp
   const reportEvidence: ScenarioResearchEvidence = {
     walkForwardEvidenceId: research.reports.find((report) => report.runType === "WALK_FORWARD")?.runId ?? "MISSING",
     costStressEvidenceId: research.reports.find((report) => report.runType === "COST_STRESS")?.runId ?? "MISSING",
+    monteCarloEvidenceId: research.reports.find((report) => report.runType === "MONTE_CARLO")?.runId ?? "MISSING",
     integrityEvidenceId: research.reports.find((report) => report.runType === "INTEGRITY_CHECK")?.runId ?? "MISSING",
     walkForwardPassed: research.reports.some((report) => report.runType === "WALK_FORWARD" && report.status === "PASS"),
     costStressPassed: research.reports.some((report) => report.runType === "COST_STRESS" && report.status === "PASS"),
+    monteCarloPassed: research.reports.some((report) => report.runType === "MONTE_CARLO" && report.status === "PASS"),
     integrityChecksPassed: research.reports.some((report) => report.runType === "INTEGRITY_CHECK" && report.status === "PASS")
   };
   const scenarioBundle = buildScenarioPaperEvidenceBundle(observations, reportEvidence, input.generatedAt);
