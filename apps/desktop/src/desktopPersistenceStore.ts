@@ -20,6 +20,9 @@ CREATE TABLE desktop_processed_signal_keys (signal_key TEXT PRIMARY KEY, ordinal
 CREATE TABLE desktop_imports (source TEXT PRIMARY KEY, imported_at TEXT NOT NULL);
 ` }, { id: "002_desktop_scenario_evidence", sql: `
 CREATE TABLE desktop_paper_scenario_evidence (sequence INTEGER PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, event_json TEXT NOT NULL);
+` }, { id: "003_desktop_research_evidence", sql: `
+CREATE TABLE desktop_research_manifests (run_id TEXT PRIMARY KEY, run_type TEXT NOT NULL, strategy_id TEXT NOT NULL, strategy_version TEXT NOT NULL, dataset_id TEXT NOT NULL, dataset_checksum TEXT NOT NULL, manifest_json TEXT NOT NULL);
+CREATE TABLE desktop_research_reports (run_id TEXT NOT NULL, run_type TEXT NOT NULL, report_json TEXT NOT NULL, PRIMARY KEY (run_id, run_type));
 ` }];
 
 export class DesktopPersistenceStore {
