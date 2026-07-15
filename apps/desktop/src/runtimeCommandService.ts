@@ -5,9 +5,12 @@ import { StrategyEngine, type StrategySignal } from "./strategyEngine";
 import type { OperationalReadinessDecision } from "../../cloud/src/operationalReadinessGate";
 import type { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 
+type ScenarioEvent = ReturnType<PaperScenarioEvidenceRecorder["bind"]>;
+
 export interface RuntimePersistence {
   save(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>): void;
-  saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: Parameters<PaperScenarioEvidenceRecorder["bind"]>[0] extends infer E ? E : never): void;
+  saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: ScenarioEvent): void;
+  saveWithScenarioEvents?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, events: readonly ScenarioEvent[]): void;
 }
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
@@ -50,7 +53,19 @@ export class RuntimeCommandService {
   }
 
   start(): void { this.commit("control start", () => { this.strategy.start(); this.control.start(); }); }
-  stop(): void { this.commit("control stop", () => { this.strategy.stop(); this.control.stop(); }); }
+  stop(): void {
+    this.commit("control stop", () => {
+      this.strategy.stop();
+      this.control.stop();
+      const snapshot = this.control.snapshot();
+      if (this.strategy.isRunning() || snapshot.status !== "STOPPED" || snapshot.autoTradeEnabled) throw new Error("kill switch did not reach a safe stopped state");
+    }, () => this.evidence?.bind({
+      eventId: `fault-kill-switch-${randomUUID()}`,
+      type: "FAULT_SCENARIO_PASSED",
+      occurredAt: Date.now(),
+      scenario: "KILL_SWITCH"
+    }));
+  }
   setAutoTrade(enabled: boolean): void { this.commit("control auto", () => this.control.setAutoTrade(enabled)); }
   setOrderQuantity(quantity: number): void { this.commit("control quantity", () => this.control.setOrderQuantity(quantity)); }
 
@@ -69,11 +84,11 @@ export class RuntimeCommandService {
       }
       const key = `${market}:${signal.timestamp}:${signal.type}`;
       if (!this.control.claimAutomaticSignal(key)) {
-        const duplicateEvidence = this.evidence?.bind({
-          eventId: `duplicate-${randomUUID()}`,
-          type: "DUPLICATE_ORDER_CHECKED",
-          occurredAt: signal.timestamp
-        });
+        const suffix = randomUUID();
+        const duplicateEvidence = this.evidence ? [
+          this.evidence.bind({ eventId: `duplicate-${suffix}`, type: "DUPLICATE_ORDER_CHECKED", occurredAt: signal.timestamp }),
+          this.evidence.bind({ eventId: `fault-duplicate-signal-${suffix}`, type: "FAULT_SCENARIO_PASSED", occurredAt: signal.timestamp, scenario: "DUPLICATE_SIGNAL" })
+        ] : undefined;
         this.persist(duplicateEvidence);
         return { outcome: "DUPLICATE" };
       }
@@ -102,7 +117,7 @@ export class RuntimeCommandService {
     }
   }
 
-  private commit<T>(_name: string, mutation: () => T, evidenceFactory?: (result: T) => ReturnType<PaperScenarioEvidenceRecorder["bind"]> | undefined): T {
+  private commit<T>(_name: string, mutation: () => T, evidenceFactory?: (result: T) => ScenarioEvent | readonly ScenarioEvent[] | undefined): T {
     if (!this.available) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
     const snapshot = this.capture();
     let result: T;
@@ -127,9 +142,16 @@ export class RuntimeCommandService {
     this.control.restoreRuntimeState(snapshot.control);
     this.strategy.restoreRunning(snapshot.strategyRunning);
   }
-  private persist(event?: ReturnType<PaperScenarioEvidenceRecorder["bind"]>): void {
-    if (event && this.persistence.saveWithScenarioEvent) this.persistence.saveWithScenarioEvent(this.broker.exportState(), this.control.exportState(), event);
-    else this.persistence.save(this.broker.exportState(), this.control.exportState());
+  private persist(evidence?: ScenarioEvent | readonly ScenarioEvent[]): void {
+    const events = evidence == null ? [] : Array.isArray(evidence) ? evidence : [evidence];
+    if (events.length > 1) {
+      if (!this.persistence.saveWithScenarioEvents) throw new Error("atomic multi-event scenario persistence is unavailable");
+      this.persistence.saveWithScenarioEvents(this.broker.exportState(), this.control.exportState(), events);
+    } else if (events.length === 1 && this.persistence.saveWithScenarioEvent) {
+      this.persistence.saveWithScenarioEvent(this.broker.exportState(), this.control.exportState(), events[0]!);
+    } else {
+      this.persistence.save(this.broker.exportState(), this.control.exportState());
+    }
   }
   private failClosed(): void {
     this.available = false;
