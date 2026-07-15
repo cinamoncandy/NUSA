@@ -10,13 +10,13 @@ export interface PaperFaultDrillState {
 }
 
 export interface PaperFaultDrillHooks {
-  readonly snapshot(): PaperFaultDrillState;
-  readonly injectFault(scenario: PaperFaultScenario): void;
-  readonly restore(state: PaperFaultDrillState): void;
-  readonly stopStrategy(): void;
-  readonly disableAutoTrade(): void;
-  readonly faultControlPlane(): void;
-  readonly isCommandBlocked(): boolean;
+  snapshot(): PaperFaultDrillState;
+  injectFault(scenario: PaperFaultScenario): void;
+  restore(state: PaperFaultDrillState): void;
+  stopStrategy(): void;
+  disableAutoTrade(): void;
+  faultControlPlane(): void;
+  isCommandBlocked(): boolean;
 }
 
 export interface PaperFaultDrillResult {
@@ -56,6 +56,6 @@ export function runPaperFaultDrill(scenario: PaperFaultScenario, hooks: PaperFau
   return result(scenario, errorObserved, rollbackVerified, noPartialPersistenceVerified, strategyStopped, autoTradeDisabled, controlFaulted, commandsBlocked);
 }
 
-function result(scenario: PaperFaultScenario, errorObserved: boolean, rollbackVerified: boolean, noPartialPersistenceVerified: boolean, strategyStopped: boolean, autoTradeDisabled: boolean, controlFaulted: boolean, commandsBlocked: boolean): PaperFaultDrillResult {
-  return Object.freeze({ scenario, status: errorObserved && rollbackVerified && noPartialPersistenceVerified && strategyStopped && autoTradeDisabled && controlFaulted && commandsBlocked ? "PASS" as const : "FAIL" as const, errorObserved, rollbackVerified, noPartialPersistenceVerified, strategyStopped, autoTradeDisabled, controlFaulted, commandsBlocked });
+function result(scenario: PaperFaultScenario, errorObserved: boolean, rollbackVerified: boolean, noPartialPersistenceVerified: boolean, strategyStopped: boolean, autoTradeEnabled: boolean, controlFaulted: boolean, commandsBlocked: boolean): PaperFaultDrillResult {
+  return Object.freeze({ scenario, status: errorObserved && rollbackVerified && noPartialPersistenceVerified && strategyStopped && !autoTradeEnabled && controlFaulted && commandsBlocked ? "PASS" as const : "FAIL" as const, errorObserved, rollbackVerified, noPartialPersistenceVerified, strategyStopped, autoTradeDisabled: !autoTradeEnabled, controlFaulted, commandsBlocked });
 }
