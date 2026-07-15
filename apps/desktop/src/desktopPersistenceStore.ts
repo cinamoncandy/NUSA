@@ -174,8 +174,16 @@ export class DesktopPersistenceStore {
   }
 
   loadOwnerReviews(): readonly OwnerReviewRecord[] {
-    const rows = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records ORDER BY reviewed_at ASC, review_id ASC").all() as OwnerReviewRecord[];
-    return Object.freeze(rows.map((row) => Object.freeze({ ...row, note: row.note == null ? undefined : row.note })));
+    const rows = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records ORDER BY reviewed_at ASC, review_id ASC").all() as Array<Record<string, unknown>>;
+    return Object.freeze(rows.map((row) => Object.freeze({
+      reviewId: String(row.review_id),
+      bundleChecksum: String(row.bundle_checksum),
+      reviewerId: String(row.reviewer_id),
+      decision: String(row.decision) as OwnerReviewRecord["decision"],
+      note: row.note == null ? undefined : String(row.note),
+      reviewedAt: String(row.reviewed_at),
+      recordChecksum: String(row.record_checksum)
+    })));
   }
 
   close(): void { this.db.close(); }
