@@ -19,6 +19,8 @@ import {
 
 export interface ScenarioEvidenceReader {
   loadScenarioEvents(): readonly PaperScenarioEvent[];
+  loadResearchRunManifests?(): readonly ResearchRunManifest[];
+  loadResearchValidationReports?(): readonly ResearchValidationReport[];
 }
 
 export interface OperatorEvidenceExportInput {
@@ -29,8 +31,8 @@ export interface OperatorEvidenceExportInput {
   readonly validationProfile: "CALENDAR_30_DAY" | "SCENARIO_BASED";
   readonly targetStrategy: Readonly<{ strategyId: string; strategyVersion: string }>;
   readonly targetDataset: Readonly<{ datasetId: string; datasetChecksum: string }>;
-  readonly researchManifests: readonly ResearchRunManifest[];
-  readonly researchReports: readonly ResearchValidationReport[];
+  readonly researchManifests?: readonly ResearchRunManifest[];
+  readonly researchReports?: readonly ResearchValidationReport[];
 }
 
 export interface OperatorEvidenceBundle {
