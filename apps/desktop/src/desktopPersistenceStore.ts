@@ -153,6 +153,23 @@ export class DesktopPersistenceStore {
     });
   }
 
+  appendResearchEvidence(manifest: ResearchRunManifest, report: ResearchValidationReport): void {
+    if (manifest.runId !== report.runId || manifest.runType !== report.runType) throw new Error("research evidence manifest/report identity mismatch");
+    if (manifest.resultChecksum !== report.resultChecksum) throw new Error("research evidence result checksum mismatch");
+    this.transaction(() => {
+      const manifestPayload = JSON.stringify(manifest);
+      const reportPayload = JSON.stringify(report);
+      const existingManifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(manifest.runId) as { manifest_json: string } | undefined;
+      const existingReport = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(report.runId, report.runType) as { report_json: string } | undefined;
+      if (existingManifest != null && existingManifest.manifest_json !== manifestPayload) throw new Error("research manifest identity conflict");
+      if (existingReport != null && existingReport.report_json !== reportPayload) throw new Error("research validation report identity conflict");
+      if (existingManifest == null) {
+        this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(manifest.runId, manifest.runType, manifest.strategyId, manifest.strategyVersion, manifest.datasetId, manifest.datasetChecksum, manifestPayload);
+      }
+      if (existingReport == null) this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(report.runId, report.runType, reportPayload);
+    });
+  }
+
   loadResearchValidationReports(): readonly ResearchValidationReport[] {
     const rows = this.db.prepare("SELECT report_json FROM desktop_research_reports ORDER BY run_id ASC, run_type ASC").all() as Array<{ report_json: string }>;
     return Object.freeze(rows.map((row) => {

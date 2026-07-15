@@ -14,3 +14,7 @@ A manifest binds strategy identity, parameter checksum, dataset identity and che
 A PASS is valid only when the persisted report is independently replayable and all required checks pass. Monte Carlo is deterministic, seeded, and records its seed hash; it is a risk-distribution check, not a profitability claim. UI booleans, environment variables, test execution, CI status, and memory-only counters cannot create research evidence. Failed or incomplete reports never create PASS evidence.
 
 Operational Paper observations remain separate from research validation results. Research validation does not increase Paper scenario counters and does not change runtime trading state.
+
+## Monte Carlo recording
+
+`persistMonteCarloResearch` accepts an explicit return sample from an approved research workflow, runs the deterministic simulation, validates the result, and writes its immutable manifest and report in one SQLite transaction. It never downloads data, calls an exchange, stores raw returns, or stores the seed string. The persisted manifest contains only the return-sample checksum and seed hash. Repeating an identical `runId` is idempotent; a changed payload for that ID is rejected without a partial write.
