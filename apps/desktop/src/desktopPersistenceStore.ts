@@ -36,7 +36,7 @@ export class DesktopPersistenceStore {
   constructor(filename: string, options: Readonly<{ readOnly?: boolean }> = {}) {
     this.readOnly = options.readOnly === true;
     if (!this.readOnly) mkdirSync(path.dirname(filename), { recursive: true });
-    this.db = new DatabaseSync(filename, this.readOnly ? { readOnly: true } : undefined);
+    this.db = new DatabaseSync(filename, this.readOnly ? { readOnly: true } : {});
     try {
       if (this.readOnly) this.verifyStartupIntegrity();
       else {
