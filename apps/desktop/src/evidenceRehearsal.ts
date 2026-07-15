@@ -96,7 +96,8 @@ export function runEvidenceRehearsal(options: EvidenceRehearsalOptions): Evidenc
   try {
     const db = new DatabaseSync(databasePath);
     db.exec("CREATE TABLE rehearsal_events (sequence INTEGER PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, event_json TEXT NOT NULL)");
-    const events = syntheticEvents(startedAt);
+    const fixtureAt = startedAt - 86_400_000;
+    const events = syntheticEvents(fixtureAt);
     db.exec("BEGIN IMMEDIATE");
     const insert = db.prepare("INSERT INTO rehearsal_events (sequence, event_id, event_json) VALUES (?, ?, ?)");
     events.forEach((event, index) => insert.run(index + 1, event.eventId, JSON.stringify({ ...event, schemaVersion: 1, provenance: "REHEARSAL_ONLY" })));
@@ -109,7 +110,7 @@ export function runEvidenceRehearsal(options: EvidenceRehearsalOptions): Evidenc
     for (const event of readEvents) records = appendPaperScenarioEvent(records, event);
     const counters = replayPaperScenarioEvidence(records);
     const observations = scenarioObservationsFromLedger(records);
-    const research = createReports(options.codeVersion, target, startedAt);
+    const research = createReports(options.codeVersion, target, fixtureAt);
     const bundle = exportOperatorEvidenceBundle({ loadScenarioEvents: () => readEvents }, {
       generatedAt: startedAt, applicationVersion: "rehearsal", codeVersion: options.codeVersion, databaseIdentity,
       validationProfile: "SCENARIO_BASED", targetStrategy: { strategyId: target.strategyId, strategyVersion: target.strategyVersion },
