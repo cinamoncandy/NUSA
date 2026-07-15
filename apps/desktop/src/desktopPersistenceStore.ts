@@ -31,14 +31,19 @@ CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_ch
 
 export class DesktopPersistenceStore {
   private readonly db: DatabaseSync;
+  private readonly readOnly: boolean;
 
-  constructor(filename: string) {
-    mkdirSync(path.dirname(filename), { recursive: true });
-    this.db = new DatabaseSync(filename);
+  constructor(filename: string, options: Readonly<{ readOnly?: boolean }> = {}) {
+    this.readOnly = options.readOnly === true;
+    if (!this.readOnly) mkdirSync(path.dirname(filename), { recursive: true });
+    this.db = new DatabaseSync(filename, this.readOnly ? { readOnly: true } : undefined);
     try {
-      this.configureSafetyPragmas();
-      this.verifyStartupIntegrity();
-      runMigrations(this.db, migrations);
+      if (this.readOnly) this.verifyStartupIntegrity();
+      else {
+        this.configureSafetyPragmas();
+        this.verifyStartupIntegrity();
+        runMigrations(this.db, migrations);
+      }
     } catch (error) {
       this.db.close();
       throw new Error("desktop persistence startup verification failed", { cause: error });
