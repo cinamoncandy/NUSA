@@ -77,12 +77,12 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead>
-              <tbody id="orders"><tr><td colspan="5">아직 체결된 Paper 주문이 없습니다.</td></tr></tbody>
+              <tbody id="orders" tabindex="-1"><tr><td colspan="5">아직 체결된 Paper 주문이 없습니다.</td></tr></tbody>
             </table>
           </div>
         </section>
 
-        <section id="ai-cio-dashboard" class="ui-card cio-panel" aria-label="AI CIO 읽기 전용 운영 대시보드">
+        <section id="ai-cio-dashboard" class="ui-card cio-panel" aria-label="AI CIO 읽기 전용 운영 대시보드" tabindex="-1">
           <div class="cio-header">
             <div><p class="eyebrow">DEEP INSPECTION · READ ONLY</p><h2>운영 상세</h2></div>
             <div class="badges"><span class="ui-badge ui-badge--paper badge paper">PAPER / DRY_RUN</span><span class="ui-badge ui-badge--critical badge disabled">LIVE TRADING DISABLED</span><strong id="cio-status" class="ui-badge cio-status no-data" aria-live="polite">NO_DATA</strong></div>
@@ -127,7 +127,7 @@
 
         <section class="ui-card event-card">
           <div class="section-title"><div><p class="eyebrow">SYSTEM</p><h2>최근 이벤트</h2></div></div>
-          <ul id="events" class="events"><li>이벤트가 아직 없습니다.</li></ul>
+          <ul id="events" class="events" tabindex="-1"><li>이벤트가 아직 없습니다.</li></ul>
         </section>
       </aside>
     </section>
