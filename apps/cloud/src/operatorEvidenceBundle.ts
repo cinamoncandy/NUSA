@@ -84,8 +84,8 @@ function validateResearchReports(input: OperatorEvidenceExportInput): { reports:
     manifest.datasetChecksum === input.targetDataset.datasetChecksum
   );
   const targetIds = new Set(target.map((manifest) => manifest.runId));
-  const reports = input.researchReports.filter((report) => targetIds.has(report.runId));
-  if (reports.length !== input.researchReports.length) warnings.push("RESEARCH_REPORT_OUTSIDE_TARGET_IGNORED");
+  const reports = reportsInput.filter((report) => targetIds.has(report.runId));
+  if (reports.length !== reportsInput.length) warnings.push("RESEARCH_REPORT_OUTSIDE_TARGET_IGNORED");
   for (const type of ["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"] as const) {
     if (!reports.some((report) => report.runType === type && report.status === "PASS")) warnings.push(`RESEARCH_${type}_MISSING_OR_FAILED`);
   }
