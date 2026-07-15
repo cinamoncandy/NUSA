@@ -5,6 +5,7 @@ import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
+import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
@@ -37,6 +38,7 @@ let control: ControlPlane;
 let runtime: RuntimeCommandService;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
+let liveMarketRegimeObserver: LiveMarketRegimeObserver;
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
 
@@ -70,23 +72,36 @@ function publishAiCioDashboard(): void {
   }
 }
 
+function failClosedEvidenceWrite(): void {
+  paperTradingAvailable = false;
+  control.fault(PERSISTENCE_FAULT_MESSAGE);
+  runtime.markUnavailable();
+  publishControl();
+  publishAiCioDashboard();
+}
+
+function recordLiveMarketRegime(ticker: UpbitTicker): boolean {
+  const regime = liveMarketRegimeObserver.observe(ticker);
+  if (!regime || !paperTradingAvailable || !evidenceRecorder) return true;
+  try {
+    evidenceRecorder.regimeObserved(`regime:${regime}:${ticker.trade_timestamp}`, ticker.trade_timestamp, regime);
+    return true;
+  } catch {
+    failClosedEvidenceWrite();
+    return false;
+  }
+}
+
 function handleTicker(ticker: UpbitTicker): void {
   latestTicker = ticker;
   window?.webContents.send("market:ticker", ticker);
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
+  if (!recordLiveMarketRegime(ticker)) return;
   const position = broker.snapshot(ticker.trade_price).position.quantity;
   const signal = strategy.onTick({ market: MARKET, price: ticker.trade_price, timestamp: ticker.trade_timestamp }, position);
   runtime.automaticSignal(MARKET, ticker.trade_price, position, signal);
   paperTradingAvailable = runtime.isAvailable();
   publishPaper();
-  publishControl();
-  publishAiCioDashboard();
-}
-
-function failClosedEvidenceWrite(): void {
-  paperTradingAvailable = false;
-  control.fault(PERSISTENCE_FAULT_MESSAGE);
-  runtime.markUnavailable();
   publishControl();
   publishAiCioDashboard();
 }
@@ -125,6 +140,7 @@ function initializeRuntime(): void {
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
   runtimeEvidenceState = new PaperRuntimeEvidenceState();
+  liveMarketRegimeObserver = new LiveMarketRegimeObserver();
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
