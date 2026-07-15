@@ -79,3 +79,15 @@ test("Paper drawdown is deterministic and capped for a depleted account", () => 
   assert.equal(loss.risk.dailyDrawdownRatio, 0.75);
   assert.equal(loss.risk.killSwitchActive, false);
 });
+
+test("preserves an explicitly verified research section instead of replacing it with a placeholder", () => {
+  const research = Object.freeze({
+    status: "BLOCKED", availability: "AVAILABLE", generatedAt: 10_000,
+    reasons: Object.freeze(["MONTE_CARLO_EVIDENCE_NOT_RECORDED"]),
+    walkForwardPassed: true, monteCarloPassed: false, costStressPassed: true, paperPromotionEligible: false
+  });
+  const result = buildPaperDashboardSections(input({ research }));
+  assert.equal(result.research, research);
+  assert.equal(result.research.availability, "AVAILABLE");
+  assert.equal(result.research.paperPromotionEligible, false);
+});
