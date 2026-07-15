@@ -152,6 +152,6 @@ export function verifyOperatorEvidenceBundle(bundle: OperatorEvidenceBundle): Op
   const records = replayEvents(bundle.events);
   const replayed = replayPaperScenarioEvidence(records);
   if (canonical(replayed) !== canonical(bundle.derivedCounters)) throw new Error("evidence counter replay mismatch");
-  if (records.at(-1)?.hash ?? null !== bundle.eventChainHead) throw new Error("evidence chain head mismatch");
+  if ((records.at(-1)?.hash ?? null) !== bundle.eventChainHead) throw new Error("evidence chain head mismatch");
   return freeze(bundle);
 }
