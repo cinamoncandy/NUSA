@@ -27,7 +27,7 @@ CREATE TABLE desktop_research_manifests (run_id TEXT PRIMARY KEY, run_type TEXT 
 CREATE TABLE desktop_research_reports (run_id TEXT NOT NULL, run_type TEXT NOT NULL, report_json TEXT NOT NULL, PRIMARY KEY (run_id, run_type));
 ` }, { id: "004_desktop_owner_reviews", sql: `
 CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_checksum TEXT NOT NULL, reviewer_id TEXT NOT NULL, decision TEXT NOT NULL, note TEXT, reviewed_at TEXT NOT NULL, record_checksum TEXT NOT NULL UNIQUE);
-` }
+` }];
 
 export class DesktopPersistenceStore {
   private readonly db: DatabaseSync;
