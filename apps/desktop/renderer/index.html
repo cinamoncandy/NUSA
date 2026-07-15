@@ -12,51 +12,55 @@
   <main>
     <header class="topbar">
       <div>
-        <p class="eyebrow">DOKKAEBI · UPBIT KRW-BTC</p>
-        <h1>Paper Trading</h1>
+        <p class="eyebrow">DOKKAEBI · TODAY</p>
+        <h1>운용 현황</h1>
       </div>
-      <div class="header-status">
-        <span class="paper-lock">실거래 차단</span>
-        <span id="status" class="status">연결 준비</span>
+      <div class="header-status" aria-label="연결 및 거래 모드">
+        <span class="ui-badge ui-badge--paper paper-lock">PAPER ONLY</span>
+        <span id="status" class="ui-badge status" aria-live="polite">연결 준비</span>
       </div>
     </header>
 
-    <section class="hero card" aria-label="핵심 운용 상태">
-      <div class="hero-market">
-        <span class="label">현재 BTC 가격</span>
-        <strong id="price">시세 대기 중</strong>
-        <small id="change">실시간 WebSocket</small>
-      </div>
-      <div class="hero-equity">
-        <span class="label">총 평가 자산</span>
-        <strong id="equity">-</strong>
-        <small>모든 체결은 로컬 Paper 주문입니다.</small>
-      </div>
-      <div class="hero-decision">
-        <span class="label">전략 상태</span>
+    <section class="today-summary ui-card" aria-label="오늘의 핵심 운용 상태">
+      <div class="decision-hero">
+        <p class="eyebrow">CURRENT STATE</p>
+        <span class="label">현재 전략 행동</span>
         <strong id="strategy-status">STOPPED</strong>
-        <small id="strategy-id">sma-crossover</small>
+        <p class="decision-copy">실거래는 차단되어 있습니다. 전략을 시작해도 모든 주문은 로컬 Paper 환경에서만 처리됩니다.</p>
+        <span id="strategy-id" class="strategy-name">sma-crossover</span>
+      </div>
+      <div class="summary-facts">
+        <article>
+          <span class="label">BTC / KRW</span>
+          <strong id="price">시세 대기 중</strong>
+          <small id="change">실시간 WebSocket</small>
+        </article>
+        <article>
+          <span class="label">총 평가 자산</span>
+          <strong id="equity">-</strong>
+          <small>Paper 포트폴리오 기준</small>
+        </article>
       </div>
     </section>
 
     <section class="metrics" aria-label="계좌 핵심 지표">
-      <article class="metric card"><span>현금</span><strong id="cash">-</strong></article>
-      <article class="metric card"><span>보유 수량</span><strong id="position">-</strong></article>
-      <article class="metric card"><span>미실현 손익</span><strong id="unrealized">-</strong></article>
-      <article class="metric card"><span>실현 손익</span><strong id="realized">-</strong></article>
+      <article class="metric ui-card"><span>현금</span><strong id="cash">-</strong></article>
+      <article class="metric ui-card"><span>보유 수량</span><strong id="position">-</strong></article>
+      <article class="metric ui-card"><span>미실현 손익</span><strong id="unrealized">-</strong></article>
+      <article class="metric ui-card"><span>실현 손익</span><strong id="realized">-</strong></article>
     </section>
 
     <section class="workspace">
       <div class="primary-column">
-        <section class="card chart-card">
+        <section class="ui-card chart-card">
           <div class="section-title">
-            <div><p class="eyebrow">MARKET</p><h2>실시간 가격 흐름</h2></div>
+            <div><p class="eyebrow">MARKET EVIDENCE</p><h2>실시간 가격 흐름</h2></div>
             <span>최근 240틱</span>
           </div>
           <canvas id="chart" width="1100" height="260"></canvas>
         </section>
 
-        <section class="card">
+        <section class="ui-card">
           <div class="section-title">
             <div><p class="eyebrow">ACTIVITY</p><h2>최근 체결</h2></div>
             <span>Paper only</span>
@@ -64,15 +68,15 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead>
-              <tbody id="orders"><tr><td colspan="5">체결 없음</td></tr></tbody>
+              <tbody id="orders"><tr><td colspan="5">아직 체결된 Paper 주문이 없습니다.</td></tr></tbody>
             </table>
           </div>
         </section>
 
-        <section id="ai-cio-dashboard" class="card cio-panel" aria-label="AI CIO 읽기 전용 운영 대시보드">
+        <section id="ai-cio-dashboard" class="ui-card cio-panel" aria-label="AI CIO 읽기 전용 운영 대시보드">
           <div class="cio-header">
             <div><p class="eyebrow">DEEP INSPECTION · READ ONLY</p><h2>운영 상세</h2></div>
-            <div class="badges"><span class="badge paper">PAPER / DRY_RUN</span><span class="badge disabled">LIVE DISABLED</span><strong id="cio-status" class="cio-status no-data" aria-live="polite">NO_DATA</strong></div>
+            <div class="badges"><span class="ui-badge ui-badge--paper badge paper">PAPER / DRY_RUN</span><span class="ui-badge ui-badge--critical badge disabled">LIVE DISABLED</span><strong id="cio-status" class="ui-badge cio-status no-data" aria-live="polite">NO_DATA</strong></div>
           </div>
           <p id="cio-freshness" class="cio-freshness">Dashboard 데이터 없음</p>
           <div class="cio-grid">
@@ -89,32 +93,32 @@
         </section>
       </div>
 
-      <aside class="control-column">
-        <section class="card control-card">
+      <aside class="control-column" aria-label="Paper 운용 제어">
+        <section class="ui-card control-card">
           <p class="eyebrow">MANUAL PAPER ORDER</p>
           <h2>가상 주문</h2>
           <label>수량 (BTC)<input id="quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /></label>
-          <div class="actions"><button id="buy">Paper 매수</button><button id="sell" class="sell">Paper 매도</button></div>
-          <p id="error" class="error"></p>
+          <div class="actions"><button id="buy" class="ui-button ui-button--primary">Paper 매수</button><button id="sell" class="ui-button ui-button--danger sell">Paper 매도</button></div>
+          <p id="error" class="error" role="alert"></p>
         </section>
 
-        <section class="card control-card">
+        <section class="ui-card control-card">
           <p class="eyebrow">AUTOMATION</p>
           <h2>전략 제어</h2>
           <label>자동주문 수량<input id="strategy-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /></label>
-          <div class="actions"><button id="strategy-start">전략 시작</button><button id="strategy-stop" class="secondary">전략 중지</button></div>
+          <div class="actions"><button id="strategy-start" class="ui-button ui-button--primary">전략 시작</button><button id="strategy-stop" class="ui-button ui-button--secondary secondary">전략 중지</button></div>
           <label class="toggle"><input id="auto-trade" type="checkbox" /> Paper 자동매매 허용</label>
         </section>
 
-        <section class="card account-card">
+        <section class="ui-card account-card">
           <p class="eyebrow">POSITION</p>
           <h2>포지션 상세</h2>
           <dl><div><dt>평균 단가</dt><dd id="average">-</dd></div></dl>
         </section>
 
-        <section class="card event-card">
+        <section class="ui-card event-card">
           <div class="section-title"><div><p class="eyebrow">SYSTEM</p><h2>최근 이벤트</h2></div></div>
-          <ul id="events" class="events"><li>이벤트 없음</li></ul>
+          <ul id="events" class="events"><li>이벤트가 아직 없습니다.</li></ul>
         </section>
       </aside>
     </section>
