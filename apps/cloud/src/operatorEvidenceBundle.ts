@@ -93,11 +93,11 @@ function validateResearchReports(input: OperatorEvidenceExportInput): { reports:
 export function exportOperatorEvidenceBundle(reader: ScenarioEvidenceReader, input: OperatorEvidenceExportInput): OperatorEvidenceBundle {
   if (!Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("generatedAt is invalid");
   if (!input.applicationVersion.trim() || !input.codeVersion.trim() || !input.databaseIdentity.trim()) throw new Error("export identity is required");
-  const events = Object.freeze([...reader.loadScenarioEvents()]);
+  const events = Object.freeze([...reader.loadScenarioEvents()]);\n  const persistedManifests = reader.loadResearchRunManifests?.() ?? input.researchManifests ?? [];\n  const persistedReports = reader.loadResearchValidationReports?.() ?? input.researchReports ?? [];
   const records = replayEvents(events);
   const counters = replayPaperScenarioEvidence(records);
   const observations = scenarioObservationsFromLedger(records);
-  const research = validateResearchReports(input);
+  const research = validateResearchReports({ ...input, researchManifests: persistedManifests, researchReports: persistedReports });
   const reportEvidence: ScenarioResearchEvidence = {
     walkForwardEvidenceId: research.reports.find((report) => report.runType === "WALK_FORWARD")?.runId ?? "MISSING",
     costStressEvidenceId: research.reports.find((report) => report.runType === "COST_STRESS")?.runId ?? "MISSING",
