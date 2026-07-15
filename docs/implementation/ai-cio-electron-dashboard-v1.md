@@ -29,7 +29,7 @@ Any projection, validation, freshness, or serialization failure clears the previ
 
 ## Persisted research projection
 
-The research section reads only persisted Desktop SQLite research manifests and validation reports. A report is accepted only when its run ID, run type, and result checksum match one immutable manifest. The three persisted report types are Walk-Forward, Cost Stress, and Integrity Check. Missing evidence remains explicitly `UNAVAILABLE`; failed evidence remains visible as `AVAILABLE/BLOCKED` and never becomes a positive gate by omission. The current persisted report contract has no Monte Carlo result, so it is explicitly reported as `MONTE_CARLO_EVIDENCE_NOT_RECORDED` and cannot make the promotion gate pass. This projection creates no research record, changes no strategy lifecycle, and cannot promote a strategy or permit trading.
+The research section reads only persisted Desktop SQLite research manifests and validation reports. A report is accepted only when its run ID, run type, and result checksum match one immutable manifest. The required report types are Walk-Forward, Cost Stress, deterministic Monte Carlo, and Integrity Check. Missing evidence remains explicitly `UNAVAILABLE`; failed evidence remains visible as `AVAILABLE/BLOCKED` and never becomes a positive gate by omission. Monte Carlo uses a seed-derived deterministic bootstrap simulation and records only a SHA-256 seed identity, never a random runtime result. This projection creates no research record, changes no strategy lifecycle, and cannot promote a strategy or permit trading.
 
 
 ## Paper risk scope

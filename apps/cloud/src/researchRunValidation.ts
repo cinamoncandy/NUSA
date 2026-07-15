@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export type ResearchRunType = "WALK_FORWARD" | "COST_STRESS" | "INTEGRITY_CHECK";
+export type ResearchRunType = "WALK_FORWARD" | "COST_STRESS" | "MONTE_CARLO" | "INTEGRITY_CHECK";
 export type ResearchRunStatus = "PASS" | "FAIL";
 
 export interface ResearchRunManifest {
@@ -63,6 +63,17 @@ export interface CostStressValidationInput {
     readonly netReturn: number;
     readonly totalCost: number;
   }[];
+  readonly result: unknown;
+}
+
+export interface MonteCarloValidationInput {
+  readonly runId: string;
+  readonly checkedAt: string;
+  readonly pathCount: number;
+  readonly horizon: number;
+  readonly ruinProbability: number;
+  readonly maximumRuinProbability: number;
+  readonly seedHash: string;
   readonly result: unknown;
 }
 
@@ -154,6 +165,17 @@ export function validateCostStress(input: CostStressValidationInput): ResearchVa
   return report(input.runId, "COST_STRESS", input.checkedAt, reasons, input.result);
 }
 
+export function validateMonteCarlo(input: MonteCarloValidationInput): ResearchValidationReport {
+  const reasons: string[] = [];
+  if (!Number.isSafeInteger(input.pathCount) || input.pathCount < 100) reasons.push("INSUFFICIENT_MONTE_CARLO_PATHS");
+  if (!Number.isSafeInteger(input.horizon) || input.horizon < 1) reasons.push("INVALID_MONTE_CARLO_HORIZON");
+  if (!Number.isFinite(input.ruinProbability) || input.ruinProbability < 0 || input.ruinProbability > 1) reasons.push("INVALID_RUIN_PROBABILITY");
+  if (!Number.isFinite(input.maximumRuinProbability) || input.maximumRuinProbability < 0 || input.maximumRuinProbability > 1) reasons.push("INVALID_RUIN_THRESHOLD");
+  else if (Number.isFinite(input.ruinProbability) && input.ruinProbability > input.maximumRuinProbability) reasons.push("RUIN_PROBABILITY_ABOVE_THRESHOLD");
+  if (!sha256Pattern.test(input.seedHash)) reasons.push("INVALID_MONTE_CARLO_SEED_HASH");
+  return report(input.runId, "MONTE_CARLO", input.checkedAt, reasons, input.result);
+}
+
 export function validateIntegrity(input: IntegrityValidationInput): ResearchValidationReport {
   const reasons: string[] = [];
   if (input.eventIds.length !== new Set(input.eventIds).size) reasons.push("DUPLICATE_EVENT_ID");
@@ -167,6 +189,6 @@ export function validateIntegrity(input: IntegrityValidationInput): ResearchVali
 }
 
 export function allResearchGatesPassed(reports: readonly ResearchValidationReport[]): boolean {
-  const requiredTypes = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"]);
+  const requiredTypes = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
   return reports.length === requiredTypes.size && reports.every((item) => item.status === "PASS") && reports.every((item) => requiredTypes.has(item.runType));
 }

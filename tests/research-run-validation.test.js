@@ -5,6 +5,7 @@ const {
   validateResearchRunManifest,
   validateWalkForward,
   validateCostStress,
+  validateMonteCarlo,
   validateIntegrity,
   allResearchGatesPassed
 } = require("../dist/apps/cloud/src/researchRunValidation.js");
@@ -82,6 +83,14 @@ test("cost stress requires independent passing scenarios and baseline", () => {
   assert.equal(result.status, "PASS");
 });
 
+test("Monte Carlo report is deterministic and blocks excessive ruin probability", () => {
+  const pass = validateMonteCarlo({ runId: "mc-1", checkedAt: now, pathCount: 1_000, horizon: 20, ruinProbability: 0.01, maximumRuinProbability: 0.02, seedHash: "a".repeat(64), result: { ruinProbability: 0.01 } });
+  const fail = validateMonteCarlo({ runId: "mc-2", checkedAt: now, pathCount: 99, horizon: 0, ruinProbability: 0.03, maximumRuinProbability: 0.02, seedHash: "invalid", result: {} });
+  assert.equal(pass.status, "PASS");
+  assert.equal(fail.status, "FAIL");
+  assert.ok(fail.reasons.includes("RUIN_PROBABILITY_ABOVE_THRESHOLD"));
+});
+
 test("integrity rejects duplicate IDs, gaps, orphan runs, and counter drift", () => {
   const result = validateIntegrity({
     runId: "integrity-1", checkedAt: now, eventIds: ["a", "a"], sequenceNumbers: [1, 3],
@@ -94,11 +103,12 @@ test("integrity rejects duplicate IDs, gaps, orphan runs, and counter drift", ()
   assert.ok(result.reasons.includes("ORPHAN_RUN_missing"));
 });
 
-test("all research gates require three independent persisted reports", () => {
+test("all research gates require four independent persisted reports", () => {
   const common = { status: "PASS", reasons: [], checkedAt: now, resultChecksum: "a".repeat(64) };
   assert.equal(allResearchGatesPassed([
     { ...common, runId: "wf", runType: "WALK_FORWARD" },
     { ...common, runId: "stress", runType: "COST_STRESS" },
+    { ...common, runId: "mc", runType: "MONTE_CARLO" },
     { ...common, runId: "integrity", runType: "INTEGRITY_CHECK" }
   ]), true);
   assert.equal(allResearchGatesPassed([{ ...common, runId: "wf", runType: "WALK_FORWARD" }]), false);

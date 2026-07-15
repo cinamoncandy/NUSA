@@ -1,7 +1,7 @@
 import { allResearchGatesPassed, validateResearchRunManifest, type ResearchRunManifest, type ResearchRunType, type ResearchValidationReport } from "../../cloud/src/researchRunValidation";
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 
-const REQUIRED_TYPES = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "INTEGRITY_CHECK"]);
+const REQUIRED_TYPES = new Set<ResearchRunType>(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
 const SHA256 = /^[a-f0-9]{64}$/i;
 
 export interface PersistedResearchDashboardInput {
@@ -73,9 +73,8 @@ export function buildPersistedResearchDashboardSection(input: PersistedResearchD
   const walkForwardPassed = reportsByType.get("WALK_FORWARD")?.status === "PASS";
   const costStressPassed = reportsByType.get("COST_STRESS")?.status === "PASS";
   const integrityPassed = reportsByType.get("INTEGRITY_CHECK")?.status === "PASS";
-  // The persisted report contract has no Monte Carlo report type. Do not infer it from integrity evidence.
-  const monteCarloPassed = false;
-  const paperPromotionEligible = allResearchGatesPassed(reports) && monteCarloPassed;
+  const monteCarloPassed = reportsByType.get("MONTE_CARLO")?.status === "PASS";
+  const paperPromotionEligible = allResearchGatesPassed(reports);
   const reasons = reports.flatMap((report) => report.status === "PASS" ? [] : [
     `RESEARCH_${report.runType}_FAILED`,
     ...report.reasons.map((reason) => `RESEARCH_${report.runType}_${reason}`)
@@ -84,7 +83,7 @@ export function buildPersistedResearchDashboardSection(input: PersistedResearchD
   if (!walkForwardPassed) reasons.push("WALK_FORWARD_NOT_PASSED");
   if (!costStressPassed) reasons.push("COST_STRESS_NOT_PASSED");
   if (!integrityPassed) reasons.push("INTEGRITY_CHECK_NOT_PASSED");
-  if (!monteCarloPassed) reasons.push("MONTE_CARLO_EVIDENCE_NOT_RECORDED");
+  if (!monteCarloPassed) reasons.push("MONTE_CARLO_NOT_PASSED");
   if (!paperPromotionEligible) reasons.push("RESEARCH_GATE_NOT_PASSED");
 
   return freeze({

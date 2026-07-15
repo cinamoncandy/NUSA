@@ -23,23 +23,22 @@ test("shows no persisted research as explicitly unavailable", () => {
   assert.equal(result.paperPromotionEligible, false);
 });
 
-test("derives an available but blocked research section without an invented Monte Carlo result", () => {
-  const manifests = [manifest("wf", "WALK_FORWARD"), manifest("stress", "COST_STRESS"), manifest("integrity", "INTEGRITY_CHECK")];
+test("derives an available healthy research section from four matched persisted reports", () => {
+  const manifests = [manifest("wf", "WALK_FORWARD"), manifest("stress", "COST_STRESS"), manifest("mc", "MONTE_CARLO"), manifest("integrity", "INTEGRITY_CHECK")];
   const result = buildPersistedResearchDashboardSection(input(manifests.map((entry) => report(entry)), manifests));
   assert.equal(result.availability, "AVAILABLE");
-  assert.equal(result.status, "BLOCKED");
-  assert.equal(result.paperPromotionEligible, false);
+  assert.equal(result.status, "HEALTHY");
+  assert.equal(result.paperPromotionEligible, true);
   assert.equal(result.walkForwardPassed, true);
   assert.equal(result.costStressPassed, true);
-  assert.equal(result.monteCarloPassed, false);
-  assert.ok(result.reasons.includes("MONTE_CARLO_EVIDENCE_NOT_RECORDED"));
+  assert.equal(result.monteCarloPassed, true);
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.reasons));
 });
 
 test("failed source evidence remains visible but blocks the research gate", () => {
-  const manifests = [manifest("wf", "WALK_FORWARD"), manifest("stress", "COST_STRESS"), manifest("integrity", "INTEGRITY_CHECK")];
-  const reports = [report(manifests[0]), report(manifests[1], "FAIL", ["HIGH_COST"]), report(manifests[2])];
+  const manifests = [manifest("wf", "WALK_FORWARD"), manifest("stress", "COST_STRESS"), manifest("mc", "MONTE_CARLO"), manifest("integrity", "INTEGRITY_CHECK")];
+  const reports = [report(manifests[0]), report(manifests[1], "FAIL", ["HIGH_COST"]), report(manifests[2]), report(manifests[3])];
   const result = buildPersistedResearchDashboardSection(input(reports, manifests));
   assert.equal(result.availability, "AVAILABLE");
   assert.equal(result.status, "BLOCKED");
