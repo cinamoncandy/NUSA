@@ -11,7 +11,7 @@ export interface ScenarioPaperObservation {
   readonly recordId: string;
   readonly observedAt: number;
   readonly completedOrders: number;
-  readonly marketRegime: string;
+  readonly marketRegime?: string;
   readonly restartRecoveryPassed: boolean;
   readonly duplicateOrderChecks: number;
   readonly passedFaultScenarios: readonly RequiredPaperFaultScenario[];
@@ -37,12 +37,13 @@ export interface ScenarioPaperEvidenceBundle {
 }
 
 export function scenarioObservationsFromLedger(records: readonly PaperScenarioRecord[]): readonly ScenarioPaperObservation[] {
-  const groups = new Map<string, { observedAt: number; completedOrders: number; marketRegime?: string; restartRecoveryPassed: boolean; duplicateOrderChecks: number; passedFaultScenarios: RequiredPaperFaultScenario[] }>();
+  const groups = new Map<string, { observed: boolean; observedAt: number; completedOrders: number; marketRegime?: string; restartRecoveryPassed: boolean; duplicateOrderChecks: number; passedFaultScenarios: RequiredPaperFaultScenario[] }>();
   for (const record of records) {
     const sessionId = record.event.sessionId;
     if (!sessionId) throw new Error("scenario evidence event sessionId is required");
-    const current = groups.get(sessionId) ?? { observedAt: record.event.occurredAt, completedOrders: 0, restartRecoveryPassed: false, duplicateOrderChecks: 0, passedFaultScenarios: [] };
+    const current = groups.get(sessionId) ?? { observed: false, observedAt: record.event.occurredAt, completedOrders: 0, restartRecoveryPassed: false, duplicateOrderChecks: 0, passedFaultScenarios: [] };
     current.observedAt = Math.min(current.observedAt, record.event.occurredAt);
+    if (record.event.type === "SESSION_OBSERVED") current.observed = true;
     if (record.event.type === "ORDER_COMPLETED") current.completedOrders++;
     if (record.event.type === "REGIME_OBSERVED") current.marketRegime = record.event.scenario;
     if (record.event.type === "RECOVERY_COMPLETED") current.restartRecoveryPassed = true;
@@ -50,7 +51,18 @@ export function scenarioObservationsFromLedger(records: readonly PaperScenarioRe
     if (record.event.type === "FAULT_SCENARIO_PASSED") current.passedFaultScenarios.push(record.event.scenario as RequiredPaperFaultScenario);
     groups.set(sessionId, current);
   }
-  return Object.freeze([...groups.entries()].map(([sessionId, value]) => Object.freeze({ recordId: sessionId, observedAt: value.observedAt, completedOrders: value.completedOrders, marketRegime: value.marketRegime ?? "UNKNOWN", restartRecoveryPassed: value.restartRecoveryPassed, duplicateOrderChecks: value.duplicateOrderChecks, passedFaultScenarios: Object.freeze([...new Set(value.passedFaultScenarios)]) })));
+  for (const [sessionId, value] of groups) {
+    if (!value.observed) throw new Error(`scenario evidence session ${sessionId} is missing SESSION_OBSERVED`);
+  }
+  return Object.freeze([...groups.entries()].map(([sessionId, value]) => Object.freeze({
+    recordId: sessionId,
+    observedAt: value.observedAt,
+    completedOrders: value.completedOrders,
+    marketRegime: value.marketRegime,
+    restartRecoveryPassed: value.restartRecoveryPassed,
+    duplicateOrderChecks: value.duplicateOrderChecks,
+    passedFaultScenarios: Object.freeze([...new Set(value.passedFaultScenarios)])
+  })));
 }
 
 const count = (value: number, field: string): void => {
@@ -90,7 +102,7 @@ export function buildScenarioPaperEvidenceBundle(
       recordId,
       observedAt: record.observedAt,
       completedOrders: record.completedOrders,
-      marketRegime: text(record.marketRegime, `${recordId}.marketRegime`).toUpperCase(),
+      marketRegime: record.marketRegime == null ? undefined : text(record.marketRegime, `${recordId}.marketRegime`).toUpperCase(),
       restartRecoveryPassed: record.restartRecoveryPassed,
       duplicateOrderChecks: record.duplicateOrderChecks,
       passedFaultScenarios: [...record.passedFaultScenarios].sort()
@@ -109,11 +121,12 @@ export function buildScenarioPaperEvidenceBundle(
   };
 
   const faultScenarios = [...new Set(observations.flatMap((record) => record.passedFaultScenarios))].sort() as RequiredPaperFaultScenario[];
+  const representedRegimes = observations.flatMap((record) => record.marketRegime == null ? [] : [record.marketRegime]);
   const derivedInput: ScenarioPaperEvidenceInput = {
     generatedAt,
     observedSessions: observations.length,
     completedOrders: observations.reduce((sum, record) => sum + record.completedOrders, 0),
-    marketRegimes: new Set(observations.map((record) => record.marketRegime)).size,
+    marketRegimes: new Set(representedRegimes).size,
     restartRecoveryPasses: observations.filter((record) => record.restartRecoveryPassed).length,
     duplicateOrderChecks: observations.reduce((sum, record) => sum + record.duplicateOrderChecks, 0),
     passedFaultScenarios: faultScenarios,
@@ -140,7 +153,6 @@ export function buildScenarioPaperEvidenceBundle(
     validation: evaluateScenarioPaperEvidence(derivedInput)
   });
 }
-
 
 export function verifyScenarioPaperEvidenceBundle(bundle: ScenarioPaperEvidenceBundle): ScenarioPaperEvidenceBundle {
   if (bundle.schemaVersion !== 1) throw new Error("unsupported scenario evidence bundle schema");
