@@ -3,6 +3,7 @@ const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
 let lastPrice = 0;
 const chartPoints = [];
+const focusModeStorageKey = "dokkaebi.focus-mode";
 
 function renderSnapshot(snapshot) {
   if (!snapshot) return;
@@ -59,6 +60,39 @@ function drawChart() {
   context.stroke();
 }
 
+function readStoredFocusMode() {
+  try {
+    return window.localStorage.getItem(focusModeStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function storeFocusMode(enabled) {
+  try {
+    window.localStorage.setItem(focusModeStorageKey, String(enabled));
+  } catch {
+    // Focus mode remains available for the current session when storage is unavailable.
+  }
+}
+
+function setFocusMode(enabled, { persist = true } = {}) {
+  document.body.classList.toggle("focus-mode", enabled);
+  const button = byId("focus-mode");
+  const label = byId("focus-mode-label");
+  const hint = byId("focus-hint");
+  button.setAttribute("aria-pressed", String(enabled));
+  button.setAttribute("aria-label", enabled ? "집중 모드 끄기" : "집중 모드 켜기");
+  label.textContent = enabled ? "전체 보기" : "집중 모드";
+  hint.hidden = !enabled;
+  if (persist) storeFocusMode(enabled);
+  if (!enabled) window.requestAnimationFrame(drawChart);
+}
+
+function toggleFocusMode() {
+  setFocusMode(!document.body.classList.contains("focus-mode"));
+}
+
 window.dokkaebi.onStatus((status) => {
   byId("status").textContent = status === "connected" ? "Upbit 연결됨" : status;
   byId("status").classList.toggle("online", status === "connected");
@@ -99,12 +133,21 @@ byId("strategy-quantity").addEventListener("change", async (event) => {
   try { renderControl(await window.dokkaebi.setStrategyQuantity(quantity)); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
+byId("focus-mode").addEventListener("click", toggleFocusMode);
+window.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const editing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
+  if (!editing && event.key.toLowerCase() === "f" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    toggleFocusMode();
+  }
+});
+setFocusMode(readStoredFocusMode(), { persist: false });
 
 Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()]).then(([paper, control]) => {
   renderSnapshot(paper);
   renderControl(control);
 });
-
 
 const cioPercent = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "데이터 없음";
 const cioMoney = (value) => Number.isFinite(value) ? won.format(value) : "데이터 없음";
