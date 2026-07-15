@@ -56,6 +56,16 @@ export function runPaperFaultDrill(scenario: PaperFaultScenario, hooks: PaperFau
   return result(scenario, errorObserved, rollbackVerified, noPartialPersistenceVerified, strategyStopped, autoTradeDisabled, controlFaulted, commandsBlocked);
 }
 
-function result(scenario: PaperFaultScenario, errorObserved: boolean, rollbackVerified: boolean, noPartialPersistenceVerified: boolean, strategyStopped: boolean, autoTradeEnabled: boolean, controlFaulted: boolean, commandsBlocked: boolean): PaperFaultDrillResult {
-  return Object.freeze({ scenario, status: errorObserved && rollbackVerified && noPartialPersistenceVerified && strategyStopped && !autoTradeEnabled && controlFaulted && commandsBlocked ? "PASS" as const : "FAIL" as const, errorObserved, rollbackVerified, noPartialPersistenceVerified, strategyStopped, autoTradeDisabled: !autoTradeEnabled, controlFaulted, commandsBlocked });
+function result(scenario: PaperFaultScenario, errorObserved: boolean, rollbackVerified: boolean, noPartialPersistenceVerified: boolean, strategyStopped: boolean, autoTradeDisabled: boolean, controlFaulted: boolean, commandsBlocked: boolean): PaperFaultDrillResult {
+  return Object.freeze({
+    scenario,
+    status: errorObserved && rollbackVerified && noPartialPersistenceVerified && strategyStopped && autoTradeDisabled && controlFaulted && commandsBlocked ? "PASS" as const : "FAIL" as const,
+    errorObserved,
+    rollbackVerified,
+    noPartialPersistenceVerified,
+    strategyStopped,
+    autoTradeDisabled,
+    controlFaulted,
+    commandsBlocked
+  });
 }
