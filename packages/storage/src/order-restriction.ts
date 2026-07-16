@@ -42,6 +42,13 @@ export class SqliteOrderOperationalRestrictionRepository implements OrderOperati
     `);
   }
 
+  public getById(restrictionId: string): OrderOperationalRestriction | undefined {
+    const row = this.db.connection
+      .prepare("SELECT * FROM order_operational_restrictions WHERE restriction_id = ?")
+      .get(restrictionId) as SqlRow | undefined;
+    return row == null ? undefined : decode(row);
+  }
+
   public getActiveForAccount(accountId: string): OrderOperationalRestriction | undefined {
     const row = this.db.connection
       .prepare("SELECT * FROM order_operational_restrictions WHERE account_id = ? AND status = 'ACTIVE'")
@@ -83,7 +90,6 @@ export class SqliteOrderOperationalRestrictionRepository implements OrderOperati
         WHERE restriction_id = ?
       `).run(restriction.status, restriction.releasedAtMs?.toString() ?? null, restriction.restrictionId);
     }
-    const row = this.db.connection.prepare("SELECT * FROM order_operational_restrictions WHERE restriction_id = ?").get(restriction.restrictionId) as SqlRow;
-    return decode(row);
+    return this.getById(restriction.restrictionId)!;
   }
 }
