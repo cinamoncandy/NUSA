@@ -8,6 +8,7 @@ const {
   PositionReconciliationStatus,
   ScriptedSyntheticPositionProvider,
   reconcilePosition,
+  releasePositionMismatchRestriction,
   releaseOrderOperationalRestriction,
   InMemoryOrderExecutionRepository,
   InMemoryOrderOperationalRestrictionReleaseEvidenceRepository
@@ -82,4 +83,39 @@ test("generic restriction release cannot release a position mismatch", () => {
     releaseId: "release-4", restrictionId: "restriction-4", requestedBy: "operator-a", verifiedBy: "operator-b", rationale: "looks fine", nowMs: 2000,
     restrictions, executions: new InMemoryOrderExecutionRepository(), evidence: new InMemoryOrderOperationalRestrictionReleaseEvidenceRepository()
   }), /matched position reconciliation evidence/);
+});
+
+test("position mismatch release requires a later matched reconciliation and separated verification", () => {
+  const restrictions = new InMemoryOrderOperationalRestrictionRepository();
+  const reconciliations = new Evidence();
+  const releaseEvidence = new InMemoryOrderOperationalRestrictionReleaseEvidenceRepository();
+  restrictions.save({ restrictionId: "restriction-5", accountId: "account-1", reason: "POSITION_MISMATCH", sourceRunId: "recon-mismatch", sourceIntentIds: [], blockNewExposure: true, manualReleaseRequired: true, status: "ACTIVE", createdAtMs: 1000 });
+  reconciliations.append({ reconciliationId: "recon-match", accountId: "account-1", symbol: "BTCUSDT", status: PositionReconciliationStatus.MATCHED, localBaseQtyRaw: 2n, providerBaseQtyRaw: 2n, baseQtyDifferenceRaw: 0n, localAvgEntryPriceRaw: 100n, providerAvgEntryPriceRaw: 100n, avgEntryPriceDifferenceRaw: 0n, observedAtMs: 1500 });
+
+  const released = releasePositionMismatchRestriction({
+    releaseId: "release-5", restrictionId: "restriction-5", matchedReconciliationId: "recon-match",
+    requestedBy: "operator-a", verifiedBy: "operator-b", rationale: "position verified against provider", nowMs: 1600,
+    restrictions, reconciliations, releaseEvidence
+  });
+
+  assert.equal(released.status, "RELEASED");
+  const evidence = releaseEvidence.getByRestrictionId("restriction-5");
+  assert.match(evidence.rationale, /matchedReconciliationId=recon-match/);
+  assert.deepEqual(evidence.verifiedIntentIds, []);
+});
+
+test("position mismatch release rejects stale, mismatched, or unavailable reconciliation evidence", () => {
+  const restrictions = new InMemoryOrderOperationalRestrictionRepository();
+  const reconciliations = new Evidence();
+  const releaseEvidence = new InMemoryOrderOperationalRestrictionReleaseEvidenceRepository();
+  restrictions.save({ restrictionId: "restriction-6", accountId: "account-1", reason: "POSITION_MISMATCH", sourceRunId: "recon-source", sourceIntentIds: [], blockNewExposure: true, manualReleaseRequired: true, status: "ACTIVE", createdAtMs: 1000 });
+  reconciliations.append({ reconciliationId: "recon-old", accountId: "account-1", symbol: "BTCUSDT", status: PositionReconciliationStatus.MATCHED, localBaseQtyRaw: 2n, observedAtMs: 900 });
+  reconciliations.append({ reconciliationId: "recon-unavailable", accountId: "account-1", symbol: "BTCUSDT", status: PositionReconciliationStatus.PROVIDER_UNAVAILABLE, localBaseQtyRaw: 2n, observedAtMs: 1500 });
+  reconciliations.append({ reconciliationId: "recon-other-account", accountId: "account-2", symbol: "BTCUSDT", status: PositionReconciliationStatus.MATCHED, localBaseQtyRaw: 2n, observedAtMs: 1500 });
+
+  const base = { releaseId: "release-6", restrictionId: "restriction-6", requestedBy: "operator-a", verifiedBy: "operator-b", rationale: "verified", nowMs: 1600, restrictions, reconciliations, releaseEvidence };
+  assert.throws(() => releasePositionMismatchRestriction({ ...base, matchedReconciliationId: "recon-old" }), /predates restriction/);
+  assert.throws(() => releasePositionMismatchRestriction({ ...base, matchedReconciliationId: "recon-unavailable" }), /is not matched/);
+  assert.throws(() => releasePositionMismatchRestriction({ ...base, matchedReconciliationId: "recon-other-account" }), /account mismatch/);
+  assert.equal(restrictions.getById("restriction-6").status, "ACTIVE");
 });
