@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS order_operational_restrictions (
   restriction_id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('CRITICAL_UNKNOWN_SUBMISSION')),
+  reason TEXT NOT NULL CHECK (reason IN ('CRITICAL_UNKNOWN_SUBMISSION', 'POSITION_MISMATCH')),
   source_run_id TEXT NOT NULL,
   source_intent_ids_json TEXT NOT NULL,
   block_new_exposure INTEGER NOT NULL CHECK (block_new_exposure = 1),
