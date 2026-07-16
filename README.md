@@ -17,7 +17,11 @@ Implemented today:
 - unresolved submission age classified as recent, overdue, or critical
 - append-only SQLite evidence for reconciliation runs and per-order lookup results
 - critical unresolved submissions activate an account-level new-exposure restriction
-- active restrictions require manual release and block admission before idempotency mutation
+- active restrictions block admission before idempotency mutation
+- manual restriction release requires every source execution to be resolved
+- restriction requester and verifier must be different identities
+- release rationale and verified Intent identities are stored as append-only evidence
+- SQLite restriction release and evidence persistence can run in one transaction
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
@@ -27,7 +31,8 @@ Reconciliation safety limits:
 - per-run scan volume is bounded and deterministic
 - overdue and critical counts are operational signals, not permission to change execution state
 - critical unresolved state blocks new exposure but does not automatically close positions
+- restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
-- reconciliation evidence is append-only and duplicate run identities are rejected
+- reconciliation and release evidence are append-only
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
