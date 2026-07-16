@@ -2,7 +2,9 @@ import type { WalletPositionSnapshot } from "../../../packages/contracts/src/ind
 import {
   OrderOperationalRestrictionReason,
   type OrderOperationalRestriction,
-  type OrderOperationalRestrictionRepository
+  type OrderOperationalRestrictionReleaseEvidenceRepository,
+  type OrderOperationalRestrictionRepository,
+  type OrderRestrictionReleaseTransaction
 } from "./order-restriction";
 
 export enum PositionReconciliationStatus {
@@ -135,6 +137,60 @@ export function reconcilePosition(input: {
   });
   input.evidence.append(result);
   return result;
+}
+
+export function releasePositionMismatchRestriction(input: {
+  readonly releaseId: string;
+  readonly restrictionId: string;
+  readonly matchedReconciliationId: string;
+  readonly requestedBy: string;
+  readonly verifiedBy: string;
+  readonly rationale: string;
+  readonly nowMs: number;
+  readonly restrictions: OrderOperationalRestrictionRepository;
+  readonly reconciliations: PositionReconciliationEvidenceRepository;
+  readonly releaseEvidence: OrderOperationalRestrictionReleaseEvidenceRepository;
+  readonly transaction?: OrderRestrictionReleaseTransaction;
+}): OrderOperationalRestriction {
+  if (input.releaseId.trim() === "") throw new Error("releaseId is required");
+  if (input.matchedReconciliationId.trim() === "") throw new Error("matchedReconciliationId is required");
+  if (input.requestedBy.trim() === "" || input.verifiedBy.trim() === "") throw new Error("requester and verifier are required");
+  if (input.requestedBy === input.verifiedBy) throw new Error("requester and verifier must be different");
+  if (input.rationale.trim() === "") throw new Error("release rationale is required");
+
+  const operation = (): OrderOperationalRestriction => {
+    const restriction = input.restrictions.getById(input.restrictionId);
+    if (restriction == null) throw new Error("restriction not found");
+    if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
+    if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH) throw new Error("restriction is not a position mismatch");
+    if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
+
+    const matched = input.reconciliations.getById(input.matchedReconciliationId);
+    if (matched == null) throw new Error("matched reconciliation evidence not found");
+    if (matched.status !== PositionReconciliationStatus.MATCHED) throw new Error("position reconciliation is not matched");
+    if (matched.accountId !== restriction.accountId) throw new Error("matched reconciliation account mismatch");
+    if (matched.observedAtMs < restriction.createdAtMs) throw new Error("matched reconciliation predates restriction");
+    if (matched.reconciliationId === restriction.sourceRunId) throw new Error("source mismatch reconciliation cannot release restriction");
+
+    input.releaseEvidence.append(Object.freeze({
+      releaseId: input.releaseId,
+      restrictionId: restriction.restrictionId,
+      accountId: restriction.accountId,
+      requestedBy: input.requestedBy,
+      verifiedBy: input.verifiedBy,
+      rationale: `${input.rationale.trim()} [matchedReconciliationId=${matched.reconciliationId}]`,
+      verifiedIntentIds: Object.freeze([]),
+      releasedAtMs: input.nowMs
+    }));
+
+    return input.restrictions.save(Object.freeze({
+      ...restriction,
+      status: "RELEASED",
+      releasedAtMs: input.nowMs
+    }));
+  };
+
+  return input.transaction == null ? operation() : input.transaction.transaction(operation);
 }
 
 export class ScriptedSyntheticPositionProvider implements PositionProvider {
