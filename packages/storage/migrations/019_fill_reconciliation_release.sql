@@ -1,0 +1,2 @@
+ALTER TABLE order_operational_restriction_release_evidence
+  ADD COLUMN matched_fill_reconciliation_id TEXT;
