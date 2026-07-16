@@ -32,6 +32,7 @@ export interface UnknownSubmissionReconciliationItem {
 }
 
 export interface UnknownSubmissionReconciliationRun {
+  readonly runId?: string;
   readonly startedAtMs: number;
   readonly scannedCount: number;
   readonly resolvedCount: number;
@@ -40,6 +41,15 @@ export interface UnknownSubmissionReconciliationRun {
   readonly criticalCount: number;
   readonly truncated: boolean;
   readonly items: readonly UnknownSubmissionReconciliationItem[];
+}
+
+export interface UnknownSubmissionReconciliationEvidenceRepository {
+  append(run: UnknownSubmissionReconciliationRun & { readonly runId: string }): void;
+}
+
+export interface UnknownSubmissionReconciliationEvidenceContext {
+  readonly repository: UnknownSubmissionReconciliationEvidenceRepository;
+  readonly createRunId: () => string;
 }
 
 function validatePolicy(policy: UnknownSubmissionReconciliationPolicy): void {
@@ -84,7 +94,8 @@ export function reconcileUnknownSubmissions(
   nowMs: number,
   repository: OrderExecutionStatusRepository,
   provider: OrderProvider,
-  policy: UnknownSubmissionReconciliationPolicy
+  policy: UnknownSubmissionReconciliationPolicy,
+  evidence?: UnknownSubmissionReconciliationEvidenceContext
 ): UnknownSubmissionReconciliationRun {
   validatePolicy(policy);
   const allUnknown = repository.listByStatus(OrderSubmissionStatus.SUBMISSION_UNKNOWN);
@@ -95,7 +106,8 @@ export function reconcileUnknownSubmissions(
     return Object.freeze({ assessment, reconciliation });
   });
 
-  return Object.freeze({
+  const run = Object.freeze({
+    ...(evidence == null ? {} : { runId: evidence.createRunId() }),
     startedAtMs: nowMs,
     scannedCount: selected.length,
     resolvedCount: items.filter(item => item.reconciliation.resolved).length,
@@ -104,5 +116,11 @@ export function reconcileUnknownSubmissions(
     criticalCount: items.filter(item => !item.reconciliation.resolved && item.assessment.ageStatus === UnknownSubmissionAgeStatus.CRITICAL).length,
     truncated: allUnknown.length > selected.length,
     items: Object.freeze(items)
-  });
+  }) as UnknownSubmissionReconciliationRun;
+
+  if (evidence != null) {
+    if (run.runId == null || run.runId.length === 0) throw new Error("reconciliation run id is required");
+    evidence.repository.append(run as UnknownSubmissionReconciliationRun & { readonly runId: string });
+  }
+  return run;
 }
