@@ -18,4 +18,7 @@ export * from "./websocket-recovery";
 export * from "./disaster-recovery";
 export * from "./startup-consistency-gate";
 export * from "./production-readiness";
+export * from "./recovery-evidence";
+export * from "./fault-injection";
+export * from "./chaos-recovery-harness";
 export * from "./final-certification";
