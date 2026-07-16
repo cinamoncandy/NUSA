@@ -122,14 +122,14 @@ export function releasePositionMismatchRestriction(input: {
     const restriction = input.restrictions.getById(input.restrictionId);
     if (restriction == null) throw new Error("restriction not found");
     if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
-    if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH) throw new Error("restriction is not a position mismatch");
+    if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH && restriction.reason !== OrderOperationalRestrictionReason.POSITION_STATE_UNCERTAIN) throw new Error("restriction is not position-related");
     if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
     const matched = input.reconciliations.getById(input.matchedReconciliationId);
     if (matched == null) throw new Error("matched reconciliation evidence not found");
     if (matched.status !== PositionReconciliationStatus.MATCHED) throw new Error("position reconciliation is not matched");
     if (matched.accountId !== restriction.accountId) throw new Error("matched reconciliation account mismatch");
     if (matched.observedAtMs < restriction.createdAtMs) throw new Error("matched reconciliation predates restriction");
-    if (matched.reconciliationId === restriction.sourceRunId) throw new Error("source mismatch reconciliation cannot release restriction");
+    if (matched.reconciliationId === restriction.sourceRunId) throw new Error("source reconciliation cannot release restriction");
 
     input.releaseEvidence.append(Object.freeze({ releaseId: input.releaseId, restrictionId: restriction.restrictionId, accountId: restriction.accountId, requestedBy: input.requestedBy, verifiedBy: input.verifiedBy, rationale: input.rationale.trim(), verifiedIntentIds: Object.freeze([]), matchedReconciliationId: matched.reconciliationId, releasedAtMs: input.nowMs }));
     return input.restrictions.save(Object.freeze({ ...restriction, status: "RELEASED", releasedAtMs: input.nowMs }));
