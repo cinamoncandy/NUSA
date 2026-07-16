@@ -121,19 +121,23 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "packages/storage/src/order-idempotency.ts",
       "packages/storage/src/order-execution.ts",
       "packages/storage/src/order-reconciliation-evidence.ts",
+      "packages/storage/src/order-restriction.ts",
       "packages/storage/migrations/001_positions.sql",
       "packages/storage/migrations/002_order_idempotency.sql",
       "packages/storage/migrations/003_order_executions.sql",
-      "packages/storage/migrations/004_order_reconciliation_evidence.sql"
+      "packages/storage/migrations/004_order_reconciliation_evidence.sql",
+      "packages/storage/migrations/005_order_operational_restrictions.sql"
     ]],
     [3, [
       "apps/execution/src/pre-trade-risk.ts",
       "apps/execution/src/order-admission.ts",
       "apps/execution/src/execution-gateway.ts",
       "apps/execution/src/order-reconciliation.ts",
+      "apps/execution/src/order-restriction.ts",
       "tests/submission-reconciliation.test.js",
       "tests/order-reconciliation-worker.test.js",
-      "tests/order-reconciliation-evidence.test.js"
+      "tests/order-reconciliation-evidence.test.js",
+      "tests/order-operational-restriction.test.js"
     ]]
   ]);
 
