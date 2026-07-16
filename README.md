@@ -34,16 +34,21 @@ Implemented today:
 - closed positions do not create exposure restrictions solely because provider lookup is unavailable
 - position quantity or average-entry mismatch activates an account-level new-exposure restriction
 - position reconciliation results are stored as append-only SQLite evidence
-- synthetic provider/local balance reconciliation compares wallet and available balances independently
-- balance mismatch activates `BALANCE_MISMATCH` and provider absence activates `BALANCE_STATE_UNCERTAIN`
-- balance reconciliation evidence is append-only in SQLite and never rewrites local balances
-- generic restriction release cannot clear a position- or balance-related restriction
+- generic restriction release cannot clear a position-related restriction
 - position restriction release requires a later `MATCHED` reconciliation for the same account
 - position restriction release requires separated requester and verifier identities
 - matched reconciliation identity is stored in a dedicated SQLite evidence field
 - position restriction state and release evidence can be committed atomically
 - failed release evidence persistence leaves the position restriction active
 - stale, cross-account, mismatched, or provider-unavailable evidence cannot clear a position restriction
+- synthetic provider/local wallet and available-balance reconciliation
+- wallet and available balances use separate explicit bigint tolerances
+- balance mismatch or provider-unavailable state activates account-level new-exposure restrictions
+- matched balance evidence is classified as fresh, expiring soon, or stale
+- stale or missing balance evidence can activate `BALANCE_RECONCILIATION_STALE`
+- balance restrictions require a later same-account `MATCHED` balance reconciliation for release
+- balance release requires separated requester and verifier identities
+- matched balance reconciliation identity is stored as dedicated append-only evidence
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
@@ -55,13 +60,14 @@ Reconciliation safety limits:
 - old `MATCHED` evidence expires according to policy and must not authorize indefinite operation
 - open positions without fresh matched evidence block new exposure
 - closed positions are excluded from freshness restrictions
+- balance mismatch, unavailable state, or stale evidence blocks new exposure without rewriting balances
 - overdue and critical counts are operational signals, not permission to change execution state
 - critical unresolved state blocks new exposure but does not automatically close positions
 - restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
 - provider absence for an open local position blocks new exposure until a later matched reconciliation is independently verified
 - provider absence for a closed local position does not invent an exposure restriction
-- position or balance mismatch blocks new exposure but does not automatically rewrite local state or close positions
+- position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
 - reconciliation and release evidence are append-only
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
