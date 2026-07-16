@@ -1,0 +1,65 @@
+import type {
+  OrderOperationalRestrictionReleaseEvidence,
+  OrderOperationalRestrictionReleaseEvidenceRepository
+} from "../../../apps/execution/src/order-restriction";
+import type { SqliteDatabase } from "./index";
+
+type SqlRow = Record<string, string | number | bigint | null>;
+
+function decode(row: SqlRow): OrderOperationalRestrictionReleaseEvidence {
+  return Object.freeze({
+    releaseId: String(row.release_id),
+    restrictionId: String(row.restriction_id),
+    accountId: String(row.account_id),
+    requestedBy: String(row.requested_by),
+    verifiedBy: String(row.verified_by),
+    rationale: String(row.rationale),
+    verifiedIntentIds: Object.freeze(JSON.parse(String(row.verified_intent_ids_json)) as string[]),
+    releasedAtMs: Number(String(row.released_at_ms))
+  });
+}
+
+export class SqliteOrderOperationalRestrictionReleaseEvidenceRepository implements OrderOperationalRestrictionReleaseEvidenceRepository {
+  public constructor(private readonly db: SqliteDatabase) {
+    this.db.connection.exec(`
+      CREATE TABLE IF NOT EXISTS order_operational_restriction_release_evidence (
+        release_id TEXT PRIMARY KEY,
+        restriction_id TEXT NOT NULL UNIQUE,
+        account_id TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        verified_by TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        verified_intent_ids_json TEXT NOT NULL,
+        released_at_ms TEXT NOT NULL,
+        CHECK (requested_by <> verified_by),
+        FOREIGN KEY (restriction_id) REFERENCES order_operational_restrictions(restriction_id)
+      );
+    `);
+  }
+
+  public append(evidence: OrderOperationalRestrictionReleaseEvidence): OrderOperationalRestrictionReleaseEvidence {
+    this.db.connection.prepare(`
+      INSERT INTO order_operational_restriction_release_evidence (
+        release_id, restriction_id, account_id, requested_by, verified_by,
+        rationale, verified_intent_ids_json, released_at_ms
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      evidence.releaseId,
+      evidence.restrictionId,
+      evidence.accountId,
+      evidence.requestedBy,
+      evidence.verifiedBy,
+      evidence.rationale,
+      JSON.stringify([...evidence.verifiedIntentIds].sort()),
+      evidence.releasedAtMs.toString()
+    );
+    return this.getByRestrictionId(evidence.restrictionId)!;
+  }
+
+  public getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined {
+    const row = this.db.connection.prepare(
+      "SELECT * FROM order_operational_restriction_release_evidence WHERE restriction_id = ?"
+    ).get(restrictionId) as SqlRow | undefined;
+    return row == null ? undefined : decode(row);
+  }
+}
