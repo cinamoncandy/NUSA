@@ -1,8 +1,8 @@
 import {
+  OrderSubmissionStatus,
   isAllowedTransition,
   type OrderExecutionRecord,
-  type OrderExecutionStatusRepository,
-  type OrderSubmissionStatus
+  type OrderExecutionStatusRepository
 } from "../../../apps/execution/src/execution-gateway";
 import type { SqliteDatabase } from "./index";
 
@@ -127,7 +127,7 @@ export class SqliteOrderExecutionRepository implements OrderExecutionStatusRepos
       SET status = 'SUBMISSION_UNKNOWN', reason = ?, updated_at_ms = ?
       WHERE status = 'SUBMITTING'
     `).run(reason, nowMs.toString());
-    return this.listByStatus("SUBMISSION_UNKNOWN" as OrderSubmissionStatus);
+    return this.listByStatus(OrderSubmissionStatus.SUBMISSION_UNKNOWN);
   }
 
   public list(): readonly OrderExecutionRecord[] {
