@@ -12,4 +12,7 @@ export * from "./fill-reconciliation";
 export * from "./pnl-reconciliation";
 export * from "./liquidation-guard";
 export * from "./exchange-constraints";
+export * from "./rate-limit-manager";
+export * from "./clock-synchronization";
+export * from "./websocket-recovery";
 export * from "./final-certification";
