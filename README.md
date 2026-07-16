@@ -28,7 +28,9 @@ Implemented today:
 - generic restriction release cannot clear a position mismatch
 - position mismatch release requires a later `MATCHED` reconciliation for the same account
 - position mismatch release requires separated requester and verifier identities
-- matched reconciliation identity is preserved in append-only release evidence
+- matched reconciliation identity is stored in a dedicated SQLite evidence field
+- position restriction state and release evidence can be committed atomically
+- failed release evidence persistence leaves the position restriction active
 - stale, cross-account, mismatched, or provider-unavailable evidence cannot clear a position restriction
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
