@@ -98,6 +98,11 @@ export function reconcileUnknownSubmissions(
   evidence?: UnknownSubmissionReconciliationEvidenceContext
 ): UnknownSubmissionReconciliationRun {
   validatePolicy(policy);
+  const runId = evidence?.createRunId();
+  if (evidence != null && (runId == null || runId.length === 0)) {
+    throw new Error("reconciliation run id is required");
+  }
+
   const allUnknown = repository.listByStatus(OrderSubmissionStatus.SUBMISSION_UNKNOWN);
   const selected = allUnknown.slice(0, policy.maximumRecordsPerRun);
   const items = selected.map(record => {
@@ -107,7 +112,7 @@ export function reconcileUnknownSubmissions(
   });
 
   const run = Object.freeze({
-    ...(evidence == null ? {} : { runId: evidence.createRunId() }),
+    ...(runId == null ? {} : { runId }),
     startedAtMs: nowMs,
     scannedCount: selected.length,
     resolvedCount: items.filter(item => item.reconciliation.resolved).length,
@@ -119,7 +124,6 @@ export function reconcileUnknownSubmissions(
   }) as UnknownSubmissionReconciliationRun;
 
   if (evidence != null) {
-    if (run.runId == null || run.runId.length === 0) throw new Error("reconciliation run id is required");
     evidence.repository.append(run as UnknownSubmissionReconciliationRun & { readonly runId: string });
   }
   return run;
