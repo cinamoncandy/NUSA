@@ -1,5 +1,6 @@
 import { LedgerSide, RiskDecisionType, type RiskReasonCode } from "../../../packages/contracts/src/index";
 import { evaluatePreTradeRisk, type PreTradeRiskContext, type PreTradeRiskPolicy } from "./pre-trade-risk";
+import type { OrderOperationalRestrictionRepository } from "./order-restriction";
 
 export enum OrderAdmissionDecisionType { ALLOW = "ALLOW", BLOCK = "BLOCK", DUPLICATE = "DUPLICATE" }
 export enum OrderAdmissionReasonCode {
@@ -10,6 +11,7 @@ export enum OrderAdmissionReasonCode {
   SYMBOL_NOT_AUTHORIZED = "SYMBOL_NOT_AUTHORIZED",
   ORDER_TYPE_NOT_AUTHORIZED = "ORDER_TYPE_NOT_AUTHORIZED",
   AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED",
+  OPERATIONAL_RESTRICTION_ACTIVE = "OPERATIONAL_RESTRICTION_ACTIVE",
   PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY = "PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY",
   INTENT_REPLAYED_WITH_DIFFERENT_KEY = "INTENT_REPLAYED_WITH_DIFFERENT_KEY",
   RISK_BLOCKED = "RISK_BLOCKED"
@@ -43,6 +45,7 @@ export interface OrderAdmissionContext {
   readonly authorization: OrderAuthorizationScope;
   readonly riskContext: PreTradeRiskContext;
   readonly riskPolicy?: PreTradeRiskPolicy;
+  readonly operationalRestrictions?: OrderOperationalRestrictionRepository;
 }
 
 export interface OrderAdmissionDecision {
@@ -115,6 +118,9 @@ export function admitOrder(intent: OrderIntent, context: OrderAdmissionContext, 
   if (!authorization.strategyIds.includes(intent.strategyId)) return block(OrderAdmissionReasonCode.STRATEGY_NOT_AUTHORIZED, "strategy is outside authorization scope");
   if (!authorization.symbols.includes(intent.symbol)) return block(OrderAdmissionReasonCode.SYMBOL_NOT_AUTHORIZED, "symbol is outside authorization scope");
   if (!authorization.orderTypes.includes(intent.orderType)) return block(OrderAdmissionReasonCode.ORDER_TYPE_NOT_AUTHORIZED, "order type is outside authorization scope");
+  if (context.operationalRestrictions?.getActiveForAccount(intent.accountId)?.blockNewExposure === true) {
+    return block(OrderAdmissionReasonCode.OPERATIONAL_RESTRICTION_ACTIVE, "new exposure is blocked while a critical unknown submission requires manual review");
+  }
 
   const riskDecision = evaluatePreTradeRisk(context.riskContext, intent, context.riskPolicy);
   if (riskDecision.type === RiskDecisionType.BLOCK) return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.RISK_BLOCKED, riskReasonCode: riskDecision.reasonCode, reason: riskDecision.reason, payloadHash });
