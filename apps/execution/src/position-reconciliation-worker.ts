@@ -82,6 +82,70 @@ export function evaluatePositionReconciliationFreshness(input: {
   return PositionReconciliationFreshnessStatus.FRESH;
 }
 
+export interface PositionReconciliationFreshnessGuardResult {
+  readonly checkedCount: number;
+  readonly staleCount: number;
+  readonly missingCount: number;
+  readonly restrictionCount: number;
+  readonly staleScopes: readonly string[];
+}
+
+export function enforcePositionReconciliationFreshness(input: {
+  readonly guardRunId: string;
+  readonly positions: WalletPositionSource;
+  readonly evidence: PositionReconciliationEvidenceRepository;
+  readonly restrictions: OrderOperationalRestrictionRepository;
+  readonly maximumAgeMs: number;
+  readonly warningAgeMs: number;
+  readonly nowMs: number;
+}): PositionReconciliationFreshnessGuardResult {
+  if (input.guardRunId.trim() === "") throw new Error("guardRunId is required");
+  if (!Number.isSafeInteger(input.nowMs) || input.nowMs < 0) throw new Error("nowMs must be a non-negative safe integer");
+  if (!Number.isSafeInteger(input.maximumAgeMs) || input.maximumAgeMs <= 0) throw new Error("maximumAgeMs must be positive");
+  if (!Number.isSafeInteger(input.warningAgeMs) || input.warningAgeMs < 0 || input.warningAgeMs >= input.maximumAgeMs) throw new Error("warningAgeMs must be non-negative and less than maximumAgeMs");
+
+  const openPositions = [...input.positions.list()]
+    .filter(position => position.baseQtyRaw !== 0n)
+    .sort((left, right) => left.walletId.localeCompare(right.walletId) || left.symbol.localeCompare(right.symbol));
+  const staleScopes: string[] = [];
+  let staleCount = 0;
+  let missingCount = 0;
+  let restrictionCount = 0;
+
+  openPositions.forEach((position, index) => {
+    const latest = input.evidence.getLatestForScope(position.walletId, position.symbol);
+    const missing = latest == null;
+    const stale = latest != null && evaluatePositionReconciliationFreshness({ result: latest, nowMs: input.nowMs, maximumAgeMs: input.maximumAgeMs, warningAgeMs: input.warningAgeMs }) === PositionReconciliationFreshnessStatus.STALE;
+    if (!missing && !stale) return;
+
+    if (missing) missingCount += 1;
+    if (stale) staleCount += 1;
+    staleScopes.push(`${position.walletId}:${position.symbol}`);
+    if (input.restrictions.getActiveForAccount(position.walletId) == null) {
+      input.restrictions.save(Object.freeze({
+        restrictionId: `${input.guardRunId}:stale:${index + 1}`,
+        accountId: position.walletId,
+        reason: OrderOperationalRestrictionReason.POSITION_RECONCILIATION_STALE,
+        sourceRunId: latest?.reconciliationId ?? input.guardRunId,
+        sourceIntentIds: Object.freeze([]),
+        blockNewExposure: true,
+        manualReleaseRequired: true,
+        status: "ACTIVE",
+        createdAtMs: input.nowMs
+      }));
+      restrictionCount += 1;
+    }
+  });
+
+  return Object.freeze({
+    checkedCount: openPositions.length,
+    staleCount,
+    missingCount,
+    restrictionCount,
+    staleScopes: Object.freeze(staleScopes)
+  });
+}
+
 function assertWorkerPolicy(policy: PositionReconciliationWorkerPolicy): void {
   if (!Number.isSafeInteger(policy.maxPositionsPerRun) || policy.maxPositionsPerRun <= 0) throw new Error("maxPositionsPerRun must be a positive safe integer");
 }
