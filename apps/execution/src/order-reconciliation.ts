@@ -6,6 +6,10 @@ import {
   type OrderProvider,
   type SubmissionReconciliationResult
 } from "./execution-gateway";
+import {
+  createCriticalUnknownSubmissionRestriction,
+  type OrderOperationalRestrictionRepository
+} from "./order-restriction";
 
 export enum UnknownSubmissionAgeStatus {
   RECENT = "RECENT",
@@ -52,6 +56,12 @@ export interface UnknownSubmissionReconciliationEvidenceContext {
   readonly createRunId: () => string;
 }
 
+export interface UnknownSubmissionRestrictionContext {
+  readonly accountId: string;
+  readonly repository: OrderOperationalRestrictionRepository;
+  readonly createRestrictionId: () => string;
+}
+
 function validatePolicy(policy: UnknownSubmissionReconciliationPolicy): void {
   if (!Number.isSafeInteger(policy.overdueAfterMs) || policy.overdueAfterMs < 0) {
     throw new Error("overdueAfterMs must be a non-negative safe integer");
@@ -95,12 +105,16 @@ export function reconcileUnknownSubmissions(
   repository: OrderExecutionStatusRepository,
   provider: OrderProvider,
   policy: UnknownSubmissionReconciliationPolicy,
-  evidence?: UnknownSubmissionReconciliationEvidenceContext
+  evidence?: UnknownSubmissionReconciliationEvidenceContext,
+  restriction?: UnknownSubmissionRestrictionContext
 ): UnknownSubmissionReconciliationRun {
   validatePolicy(policy);
   const runId = evidence?.createRunId();
   if (evidence != null && (runId == null || runId.length === 0)) {
     throw new Error("reconciliation run id is required");
+  }
+  if (restriction != null && restriction.accountId.trim() === "") {
+    throw new Error("restriction account id is required");
   }
 
   const allUnknown = repository.listByStatus(OrderSubmissionStatus.SUBMISSION_UNKNOWN);
@@ -125,6 +139,19 @@ export function reconcileUnknownSubmissions(
 
   if (evidence != null) {
     evidence.repository.append(run as UnknownSubmissionReconciliationRun & { readonly runId: string });
+  }
+  if (restriction != null && run.criticalCount > 0 && restriction.repository.getActiveForAccount(restriction.accountId) == null) {
+    const restrictionId = restriction.createRestrictionId();
+    const sourceRunId = run.runId ?? `unpersisted-${nowMs}`;
+    restriction.repository.save(createCriticalUnknownSubmissionRestriction({
+      restrictionId,
+      accountId: restriction.accountId,
+      sourceRunId,
+      sourceIntentIds: run.items
+        .filter(item => !item.reconciliation.resolved && item.assessment.ageStatus === UnknownSubmissionAgeStatus.CRITICAL)
+        .map(item => item.assessment.intentId),
+      nowMs
+    }));
   }
   return run;
 }
