@@ -1,5 +1,5 @@
 import { LedgerSide, RiskDecisionType, type RiskReasonCode } from "../../../packages/contracts/src/index";
-import { evaluatePreTradeRisk, type PreTradeRiskContext, type PreTradeRiskPolicy } from "./index";
+import { evaluatePreTradeRisk, type PreTradeRiskContext, type PreTradeRiskPolicy } from "./pre-trade-risk";
 
 export enum OrderAdmissionDecisionType {
   ALLOW = "ALLOW",
