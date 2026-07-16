@@ -22,6 +22,9 @@ Implemented safety baseline:
 - clock-offset, round-trip, recvWindow, and synchronization-freshness validation for signed-request safety
 - WebSocket sequence continuity checks with duplicate suppression, gap detection, and non-regressing snapshot recovery
 - deterministic disaster-recovery replay summaries across named domains
+- append-only recovery-run and startup-gate audit evidence with causal recovery references
+- deterministic fault injection by named crash point and occurrence
+- chaos recovery harness for injected unknown state, count corruption, and controlled exceptions
 - startup consistency gating for recovery, restrictions, unresolved submissions, clock, WebSocket, and migration state
 - production-readiness aggregation that treats `FAIL`, `UNKNOWN`, and `STALE` evidence as blocking
 - even a fully passing synthetic readiness result never enables Production mutation
@@ -33,6 +36,10 @@ Recovery and startup safety limits:
 
 - every recovery domain must have a unique identity and explicit checkpoint
 - failed or unknown replay results produce `SAFE_BLOCK`
+- corrupt replay counts fail before a recovery result is issued
+- recovery and startup audit IDs are append-only and cannot be reused
+- startup audit evidence cannot reference a missing recovery run
+- fault injection is deterministic and synthetic; it never changes provider or Production state
 - active restrictions, unresolved submissions, unsafe clocks, unsynchronized streams, or unknown migration state block startup
 - readiness checks cannot silently omit unknown or stale evidence
 - `READY` means the synthetic baseline passed its declared checks; it does not authorize Production mutation
