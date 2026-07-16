@@ -25,7 +25,10 @@ Implemented today:
 - synthetic provider/local wallet-position reconciliation with explicit matched, mismatch, and provider-unavailable outcomes
 - position quantity or average-entry mismatch activates an account-level new-exposure restriction
 - position reconciliation results are stored as append-only SQLite evidence
-- generic restriction release cannot clear a position mismatch without a dedicated matched-reconciliation release path
+- generic restriction release cannot clear a position mismatch
+- position mismatch release requires a later `MATCHED` reconciliation for the same account
+- position mismatch release requires separated requester and verifier identities
+- matched reconciliation identity is preserved in append-only release evidence
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
@@ -38,6 +41,7 @@ Reconciliation safety limits:
 - restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
 - position provider absence is never treated as a match
+- stale, cross-account, mismatch, or provider-unavailable evidence cannot release a position restriction
 - position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
 - reconciliation and release evidence are append-only
 
