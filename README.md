@@ -10,7 +10,9 @@ Implemented today:
 - bounded order admission with explicit environment/account/strategy/symbol/order-type scope
 - restart-safe SQLite idempotency and economic-intent replay protection
 - synthetic execution gateway with explicit accepted/rejected/submission-unknown outcomes
-- automatic resubmission blocked after any recorded provider submission attempt
+- durable SQLite execution records across database close and reopen
+- stranded `SUBMITTING` attempts recovered as `SUBMISSION_UNKNOWN`, never automatically retried
+- terminal execution identity and status protected from rewriting
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
