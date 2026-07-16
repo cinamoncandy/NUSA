@@ -2,72 +2,31 @@
 
 Reconstructed TypeScript baseline for DOKKAEBI OS trading components.
 
-Implemented today:
+Implemented safety baseline:
 
-- immutable position-ledger contracts
-- SQLite-backed position snapshots and replay markers
-- deterministic pre-trade risk checks
-- bounded order admission with explicit environment/account/strategy/symbol/order-type scope
-- restart-safe SQLite idempotency and economic-intent replay protection
-- synthetic execution gateway with explicit accepted/rejected/submission-unknown outcomes
-- durable SQLite execution records across database close and reopen
-- stranded `SUBMITTING` attempts recovered as `SUBMISSION_UNKNOWN`, never automatically retried
-- provider lookup reconciliation that can resolve unknown submissions without resubmitting orders
-- bounded reconciliation scans for unresolved submissions
-- unresolved submission age classified as recent, overdue, or critical
-- append-only SQLite evidence for reconciliation runs and per-order lookup results
-- critical unresolved submissions activate an account-level new-exposure restriction
-- active restrictions block admission before idempotency mutation
-- manual restriction release requires every source execution to be resolved
-- restriction requester and verifier must be different identities
-- release rationale and verified Intent identities are stored as append-only evidence
-- SQLite restriction release and evidence persistence can run in one transaction
-- synthetic provider/local wallet-position reconciliation with explicit matched, mismatch, and provider-unavailable outcomes
-- deterministic bounded worker for all local wallet-position snapshots
-- append-only SQLite evidence for each position-reconciliation worker run
-- worker evidence preserves counts, truncation state, and reconciliation identities
-- matched position evidence is classified as fresh, expiring soon, or stale under explicit policy
-- stale or missing reconciliation evidence for an open position activates `POSITION_RECONCILIATION_STALE`
-- freshness restrictions block new exposure and require a later matched reconciliation for release
-- mismatch and provider-unavailable evidence can never be treated as a fresh match
-- open positions with unavailable provider state activate `POSITION_STATE_UNCERTAIN`
-- closed positions do not create exposure restrictions solely because provider lookup is unavailable
-- position quantity or average-entry mismatch activates an account-level new-exposure restriction
-- position reconciliation results are stored as append-only SQLite evidence
-- generic restriction release cannot clear a position-related restriction
-- position restriction release requires a later `MATCHED` reconciliation for the same account
-- position restriction release requires separated requester and verifier identities
-- matched reconciliation identity is stored in a dedicated SQLite evidence field
-- position restriction state and release evidence can be committed atomically
-- failed release evidence persistence leaves the position restriction active
-- stale, cross-account, mismatched, or provider-unavailable evidence cannot clear a position restriction
-- synthetic provider/local wallet and available-balance reconciliation
-- wallet and available balances use separate explicit bigint tolerances
-- balance mismatch or provider-unavailable state activates account-level new-exposure restrictions
-- matched balance evidence is classified as fresh, expiring soon, or stale
-- stale or missing balance evidence can activate `BALANCE_RECONCILIATION_STALE`
-- balance restrictions require a later same-account `MATCHED` balance reconciliation for release
-- balance release requires separated requester and verifier identities
-- matched balance reconciliation identity is stored as dedicated append-only evidence
-- accepted and rejected execution outcomes cannot regress to an uncertain state
-- conservative final-certification evaluation that refuses to invent implementation evidence
+- immutable position ledger and SQLite projections
+- bounded order admission, pre-trade risk, durable idempotency, and synthetic execution
+- explicit `SUBMISSION_UNKNOWN` handling without automatic resubmission
+- append-only order reconciliation evidence and account-level new-exposure restrictions
+- position, balance, funding-fee, trade-fee, and fill reconciliation
+- explicit `MATCHED`, missing-record, duplicate, mismatch, and provider-unavailable outcomes
+- bigint tolerance policies for quantities, prices, balances, funding amounts, and fees
+- deterministic latest-evidence lookup and freshness states: `FRESH`, `EXPIRING_SOON`, `STALE`, `NOT_MATCHED`
+- stale or unavailable reconciliation evidence blocks new exposure
+- domain restrictions require a later same-account `MATCHED` result for release
+- restriction release requires separated requester and verifier identities
+- matched position, balance, funding, fee, and fill reconciliation IDs are stored as append-only release evidence
+- reconciliation never rewrites accounting records, positions, balances, fees, or fills
+- no automatic position close, order retry, restriction release, or Production authorization
+- conservative final certification that refuses to invent implementation evidence
 
 Reconciliation safety limits:
 
-- reconciliation performs provider lookup only; it never submits or resubmits an order
-- per-run order and position scan volumes are bounded and deterministic
-- worker run IDs are append-only and cannot be reused
-- old `MATCHED` evidence expires according to policy and must not authorize indefinite operation
-- open positions without fresh matched evidence block new exposure
-- closed positions are excluded from freshness restrictions
-- balance mismatch, unavailable state, or stale evidence blocks new exposure without rewriting balances
-- overdue and critical counts are operational signals, not permission to change execution state
-- critical unresolved state blocks new exposure but does not automatically close positions
-- restriction release is prohibited while any source execution remains uncertain
-- provider absence or lookup failure preserves uncertainty
-- provider absence for an open local position blocks new exposure until a later matched reconciliation is independently verified
-- provider absence for a closed local position does not invent an exposure restriction
-- position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
-- reconciliation and release evidence are append-only
+- provider operations are synthetic and read-only
+- reconciliation never submits or resubmits an order
+- provider absence is not treated as success
+- old `MATCHED` evidence expires according to policy
+- mismatches and uncertainty block new exposure but do not automatically mutate economic state
+- release evidence is append-only and must identify the later matching reconciliation
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
