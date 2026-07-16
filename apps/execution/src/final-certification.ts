@@ -65,12 +65,8 @@ const unsafeRequirementStatuses = new Set<CertificationRequirementStatus>([
 ]);
 
 export function evaluateFinalCertification(input: FinalCertificationInput): FinalCertificationResult {
-  const nonWaivableFailures = input.requirements.filter(
-    requirement => requirement.nonWaivable && unsafeRequirementStatuses.has(requirement.status)
-  );
-  const blockingRequirements = input.requirements.filter(
-    requirement => unsafeRequirementStatuses.has(requirement.status)
-  );
+  const nonWaivableFailures = input.requirements.filter(requirement => requirement.nonWaivable && unsafeRequirementStatuses.has(requirement.status));
+  const blockingRequirements = input.requirements.filter(requirement => unsafeRequirementStatuses.has(requirement.status));
 
   if (nonWaivableFailures.length > 0 || input.openCriticalFindings > 0 || input.independentReview === "CONFLICTED") {
     return Object.freeze({
@@ -121,7 +117,7 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
   const implemented = new Map<number, readonly string[]>([
     [1, ["packages/contracts/src/index.ts"]],
     [2, ["packages/storage/src/index.ts", "packages/storage/migrations/001_positions.sql"]],
-    [3, ["apps/execution/src/index.ts"]]
+    [3, ["apps/execution/src/pre-trade-risk.ts", "apps/execution/src/order-admission.ts"]]
   ]);
 
   return Object.freeze(Array.from({ length: 45 }, (_, index) => {
