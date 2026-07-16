@@ -1,5 +1,7 @@
 import { LedgerSide, RiskDecisionType, RiskReasonCode } from "../../../packages/contracts/src/index";
 
+export * from "./final-certification";
+
 export interface RiskPosition { readonly baseQtyRaw: bigint; readonly realizedPnlRaw: bigint; }
 export interface PreTradeRiskContext { readonly position?: RiskPosition; }
 export interface PreTradeOrder { readonly side: LedgerSide; readonly baseQtyRaw: bigint; readonly quoteQtyRaw?: bigint; }
