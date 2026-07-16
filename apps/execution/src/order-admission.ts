@@ -1,12 +1,7 @@
 import { LedgerSide, RiskDecisionType, type RiskReasonCode } from "../../../packages/contracts/src/index";
 import { evaluatePreTradeRisk, type PreTradeRiskContext, type PreTradeRiskPolicy } from "./pre-trade-risk";
 
-export enum OrderAdmissionDecisionType {
-  ALLOW = "ALLOW",
-  BLOCK = "BLOCK",
-  DUPLICATE = "DUPLICATE"
-}
-
+export enum OrderAdmissionDecisionType { ALLOW = "ALLOW", BLOCK = "BLOCK", DUPLICATE = "DUPLICATE" }
 export enum OrderAdmissionReasonCode {
   INVALID_INTENT = "INVALID_INTENT",
   ENVIRONMENT_MISMATCH = "ENVIRONMENT_MISMATCH",
@@ -16,6 +11,7 @@ export enum OrderAdmissionReasonCode {
   ORDER_TYPE_NOT_AUTHORIZED = "ORDER_TYPE_NOT_AUTHORIZED",
   AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED",
   PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY = "PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY",
+  INTENT_REPLAYED_WITH_DIFFERENT_KEY = "INTENT_REPLAYED_WITH_DIFFERENT_KEY",
   RISK_BLOCKED = "RISK_BLOCKED"
 }
 
@@ -57,20 +53,23 @@ export interface OrderAdmissionDecision {
   readonly payloadHash: string;
 }
 
-export interface IdempotencyRecord {
-  readonly key: string;
-  readonly payloadHash: string;
-}
-
+export interface IdempotencyRecord { readonly key: string; readonly intentId: string; readonly payloadHash: string; }
 export interface IdempotencyStore {
-  get(key: string): IdempotencyRecord | undefined;
+  getByKey(key: string): IdempotencyRecord | undefined;
+  getByIntentId(intentId: string): IdempotencyRecord | undefined;
   save(record: IdempotencyRecord): void;
 }
 
 export class InMemoryIdempotencyStore implements IdempotencyStore {
-  private readonly records = new Map<string, IdempotencyRecord>();
-  get(key: string): IdempotencyRecord | undefined { return this.records.get(key); }
-  save(record: IdempotencyRecord): void { this.records.set(record.key, Object.freeze({ ...record })); }
+  private readonly byKey = new Map<string, IdempotencyRecord>();
+  private readonly byIntentId = new Map<string, IdempotencyRecord>();
+  getByKey(key: string): IdempotencyRecord | undefined { return this.byKey.get(key); }
+  getByIntentId(intentId: string): IdempotencyRecord | undefined { return this.byIntentId.get(intentId); }
+  save(record: IdempotencyRecord): void {
+    const frozen = Object.freeze({ ...record });
+    this.byKey.set(record.key, frozen);
+    this.byIntentId.set(record.intentId, frozen);
+  }
 }
 
 function assertNonEmpty(value: string, name: string): void {
@@ -78,34 +77,16 @@ function assertNonEmpty(value: string, name: string): void {
 }
 
 function stablePayload(intent: OrderIntent): string {
-  return [
-    intent.intentId,
-    intent.environment,
-    intent.accountId,
-    intent.strategyId,
-    intent.symbol,
-    intent.side,
-    intent.orderType,
-    intent.baseQtyRaw.toString(),
-    intent.quoteQtyRaw?.toString() ?? "",
-    intent.createdAtMs.toString()
-  ].join("|");
+  return [intent.intentId, intent.environment, intent.accountId, intent.strategyId, intent.symbol, intent.side, intent.orderType, intent.baseQtyRaw.toString(), intent.quoteQtyRaw?.toString() ?? "", intent.createdAtMs.toString()].join("|");
 }
 
 export function hashOrderIntent(intent: OrderIntent): string {
   let hash = 2166136261;
-  for (const character of stablePayload(intent)) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
+  for (const character of stablePayload(intent)) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export function admitOrder(
-  intent: OrderIntent,
-  context: OrderAdmissionContext,
-  idempotencyStore: IdempotencyStore
-): OrderAdmissionDecision {
+export function admitOrder(intent: OrderIntent, context: OrderAdmissionContext, idempotencyStore: IdempotencyStore): OrderAdmissionDecision {
   assertNonEmpty(intent.intentId, "intent.intentId");
   assertNonEmpty(intent.idempotencyKey, "intent.idempotencyKey");
   assertNonEmpty(intent.accountId, "intent.accountId");
@@ -115,12 +96,15 @@ export function admitOrder(
   if (intent.quoteQtyRaw != null && (typeof intent.quoteQtyRaw !== "bigint" || intent.quoteQtyRaw < 0n)) throw new Error("intent.quoteQtyRaw must be a non-negative bigint");
 
   const payloadHash = hashOrderIntent(intent);
-  const existing = idempotencyStore.get(intent.idempotencyKey);
-  if (existing != null) {
-    if (existing.payloadHash !== payloadHash) {
-      return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY, reason: "idempotency key was reused for a different payload", payloadHash });
-    }
+  const byKey = idempotencyStore.getByKey(intent.idempotencyKey);
+  if (byKey != null) {
+    if (byKey.payloadHash !== payloadHash) return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY, reason: "idempotency key was reused for a different payload", payloadHash });
     return Object.freeze({ type: OrderAdmissionDecisionType.DUPLICATE, payloadHash });
+  }
+  const byIntent = idempotencyStore.getByIntentId(intent.intentId);
+  if (byIntent != null) {
+    if (byIntent.payloadHash === payloadHash) return Object.freeze({ type: OrderAdmissionDecisionType.DUPLICATE, payloadHash });
+    return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.INTENT_REPLAYED_WITH_DIFFERENT_KEY, reason: "economic intent was reused with a different idempotency key or payload", payloadHash });
   }
 
   const authorization = context.authorization;
@@ -133,10 +117,8 @@ export function admitOrder(
   if (!authorization.orderTypes.includes(intent.orderType)) return block(OrderAdmissionReasonCode.ORDER_TYPE_NOT_AUTHORIZED, "order type is outside authorization scope");
 
   const riskDecision = evaluatePreTradeRisk(context.riskContext, intent, context.riskPolicy);
-  if (riskDecision.type === RiskDecisionType.BLOCK) {
-    return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.RISK_BLOCKED, riskReasonCode: riskDecision.reasonCode, reason: riskDecision.reason, payloadHash });
-  }
+  if (riskDecision.type === RiskDecisionType.BLOCK) return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.RISK_BLOCKED, riskReasonCode: riskDecision.reasonCode, reason: riskDecision.reason, payloadHash });
 
-  idempotencyStore.save(Object.freeze({ key: intent.idempotencyKey, payloadHash }));
+  idempotencyStore.save(Object.freeze({ key: intent.idempotencyKey, intentId: intent.intentId, payloadHash }));
   return Object.freeze({ type: OrderAdmissionDecisionType.ALLOW, payloadHash });
 }
