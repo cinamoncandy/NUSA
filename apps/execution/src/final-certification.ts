@@ -131,7 +131,8 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "packages/storage/migrations/005_order_operational_restrictions.sql",
       "packages/storage/migrations/006_order_restriction_release_evidence.sql",
       "packages/storage/migrations/007_position_reconciliation.sql",
-      "packages/storage/migrations/008_position_restriction_release_evidence.sql"
+      "packages/storage/migrations/008_position_restriction_release_evidence.sql",
+      "packages/storage/migrations/009_position_state_uncertainty.sql"
     ]],
     [3, [
       "apps/execution/src/pre-trade-risk.ts",
@@ -140,12 +141,14 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "apps/execution/src/order-reconciliation.ts",
       "apps/execution/src/order-restriction.ts",
       "apps/execution/src/position-reconciliation.ts",
+      "apps/execution/src/position-reconciliation-worker.ts",
       "tests/submission-reconciliation.test.js",
       "tests/order-reconciliation-worker.test.js",
       "tests/order-reconciliation-evidence.test.js",
       "tests/order-operational-restriction.test.js",
       "tests/order-restriction-release.test.js",
       "tests/position-reconciliation.test.js",
+      "tests/position-reconciliation-worker.test.js",
       "tests/position-restriction-release-storage.test.js"
     ]]
   ]);
