@@ -12,7 +12,9 @@ Implemented today:
 - synthetic execution gateway with explicit accepted/rejected/submission-unknown outcomes
 - durable SQLite execution records across database close and reopen
 - stranded `SUBMITTING` attempts recovered as `SUBMISSION_UNKNOWN`, never automatically retried
-- terminal execution identity and status protected from rewriting
+- provider lookup reconciliation that can resolve unknown submissions without resubmitting orders
+- `NOT_FOUND` or lookup failure remains `SUBMISSION_UNKNOWN` and requires further review
+- accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
