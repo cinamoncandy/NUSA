@@ -23,11 +23,14 @@ Implemented today:
 - release rationale and verified Intent identities are stored as append-only evidence
 - SQLite restriction release and evidence persistence can run in one transaction
 - synthetic provider/local wallet-position reconciliation with explicit matched, mismatch, and provider-unavailable outcomes
+- deterministic bounded worker for all local wallet-position snapshots
+- open positions with unavailable provider state activate `POSITION_STATE_UNCERTAIN`
+- closed positions do not create exposure restrictions solely because provider lookup is unavailable
 - position quantity or average-entry mismatch activates an account-level new-exposure restriction
 - position reconciliation results are stored as append-only SQLite evidence
-- generic restriction release cannot clear a position mismatch
-- position mismatch release requires a later `MATCHED` reconciliation for the same account
-- position mismatch release requires separated requester and verifier identities
+- generic restriction release cannot clear a position-related restriction
+- position restriction release requires a later `MATCHED` reconciliation for the same account
+- position restriction release requires separated requester and verifier identities
 - matched reconciliation identity is stored in a dedicated SQLite evidence field
 - position restriction state and release evidence can be committed atomically
 - failed release evidence persistence leaves the position restriction active
@@ -38,13 +41,13 @@ Implemented today:
 Reconciliation safety limits:
 
 - reconciliation performs provider lookup only; it never submits or resubmits an order
-- per-run scan volume is bounded and deterministic
+- per-run order and position scan volumes are bounded and deterministic
 - overdue and critical counts are operational signals, not permission to change execution state
 - critical unresolved state blocks new exposure but does not automatically close positions
 - restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
-- position provider absence is never treated as a match
-- a position restriction remains active until a later matched reconciliation is independently verified
+- provider absence for an open local position blocks new exposure until a later matched reconciliation is independently verified
+- provider absence for a closed local position does not invent an exposure restriction
 - position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
 - reconciliation and release evidence are append-only
 
