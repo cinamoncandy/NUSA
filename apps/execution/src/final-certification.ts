@@ -122,7 +122,11 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "packages/storage/migrations/001_positions.sql",
       "packages/storage/migrations/002_order_idempotency.sql"
     ]],
-    [3, ["apps/execution/src/pre-trade-risk.ts", "apps/execution/src/order-admission.ts"]]
+    [3, [
+      "apps/execution/src/pre-trade-risk.ts",
+      "apps/execution/src/order-admission.ts",
+      "apps/execution/src/execution-gateway.ts"
+    ]]
   ]);
 
   return Object.freeze(Array.from({ length: 45 }, (_, index) => {
