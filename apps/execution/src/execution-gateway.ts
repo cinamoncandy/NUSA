@@ -34,8 +34,7 @@ export interface ProviderOrderResponse {
 export type ProviderOrderLookupResult =
   | Readonly<{ status: "FOUND_ACCEPTED"; providerOrderId: string }>
   | Readonly<{ status: "FOUND_REJECTED"; reason: string }>
-  | Readonly<{ status: "NOT_FOUND"; reason?: string }>
-  | Readonly<{ status: "UNKNOWN"; reason: string }>;
+  | Readonly<{ status: "NOT_FOUND" }>;
 
 export interface OrderProvider {
   readonly environment: "SYNTHETIC" | "TESTNET";
@@ -60,18 +59,21 @@ export interface OrderExecutionRepository {
   save(record: OrderExecutionRecord): OrderExecutionRecord;
 }
 
-function canTransition(previous: OrderSubmissionStatus, next: OrderSubmissionStatus): boolean {
-  if (previous === next) return true;
-  if (previous === OrderSubmissionStatus.SUBMITTING) return true;
-  return previous === OrderSubmissionStatus.SUBMISSION_UNKNOWN
-    && (next === OrderSubmissionStatus.ACCEPTED || next === OrderSubmissionStatus.REJECTED);
+export interface OrderExecutionStatusRepository extends OrderExecutionRepository {
+  listByStatus(status: OrderSubmissionStatus): readonly OrderExecutionRecord[];
 }
 
-export class InMemoryOrderExecutionRepository implements OrderExecutionRepository {
+export class InMemoryOrderExecutionRepository implements OrderExecutionStatusRepository {
   private readonly records = new Map<string, OrderExecutionRecord>();
 
   getByIntentId(intentId: string): OrderExecutionRecord | undefined {
     return this.records.get(intentId);
+  }
+
+  listByStatus(status: OrderSubmissionStatus): readonly OrderExecutionRecord[] {
+    return Object.freeze([...this.records.values()]
+      .filter(record => record.status === status)
+      .sort((left, right) => left.createdAtMs - right.createdAtMs || left.executionId.localeCompare(right.executionId)));
   }
 
   save(record: OrderExecutionRecord): OrderExecutionRecord {
@@ -79,11 +81,15 @@ export class InMemoryOrderExecutionRepository implements OrderExecutionRepositor
     if (previous != null && previous.executionId !== record.executionId) {
       throw new Error("intent already belongs to another execution");
     }
-    if (previous != null && (previous.idempotencyKey !== record.idempotencyKey || previous.payloadHash !== record.payloadHash)) {
-      throw new Error("execution identity cannot be changed");
-    }
-    if (previous != null && !canTransition(previous.status, record.status)) {
+    if (previous != null && !isAllowedTransition(previous.status, record.status)) {
       throw new Error("execution status transition is not allowed");
+    }
+    if (previous != null && (
+      previous.idempotencyKey !== record.idempotencyKey
+      || previous.payloadHash !== record.payloadHash
+      || previous.createdAtMs !== record.createdAtMs
+    )) {
+      throw new Error("execution identity cannot be changed");
     }
     if (previous != null && record.updatedAtMs < previous.updatedAtMs) {
       throw new Error("execution update time cannot regress");
@@ -108,8 +114,21 @@ export interface ExecutionGatewayResult {
 export interface SubmissionReconciliationResult {
   readonly before: OrderExecutionRecord;
   readonly after: OrderExecutionRecord;
-  readonly providerLookup: ProviderOrderLookupResult;
   readonly resolved: boolean;
+  readonly lookupStatus: ProviderOrderLookupResult["status"] | "LOOKUP_FAILED" | "LOOKUP_UNSUPPORTED";
+}
+
+export function isAllowedTransition(previous: OrderSubmissionStatus, next: OrderSubmissionStatus): boolean {
+  if (previous === next) return true;
+  if (previous === OrderSubmissionStatus.SUBMITTING) {
+    return next === OrderSubmissionStatus.ACCEPTED
+      || next === OrderSubmissionStatus.REJECTED
+      || next === OrderSubmissionStatus.SUBMISSION_UNKNOWN;
+  }
+  if (previous === OrderSubmissionStatus.SUBMISSION_UNKNOWN) {
+    return next === OrderSubmissionStatus.ACCEPTED || next === OrderSubmissionStatus.REJECTED;
+  }
+  return false;
 }
 
 function toProviderRequest(intent: OrderIntent): ProviderOrderRequest {
@@ -191,62 +210,38 @@ export function reconcileUnknownSubmission(
   provider: OrderProvider
 ): SubmissionReconciliationResult {
   const before = executionRepository.getByIntentId(intentId);
-  if (before == null) throw new Error("execution does not exist");
+  if (before == null) throw new Error("execution record not found");
   if (before.status !== OrderSubmissionStatus.SUBMISSION_UNKNOWN) {
-    throw new Error("only submission-unknown executions can be reconciled");
+    return Object.freeze({ before, after: before, resolved: true, lookupStatus: before.status === OrderSubmissionStatus.ACCEPTED ? "FOUND_ACCEPTED" : before.status === OrderSubmissionStatus.REJECTED ? "FOUND_REJECTED" : "LOOKUP_UNSUPPORTED" });
   }
   if (provider.lookupByClientOrderId == null) {
-    throw new Error("provider does not support order lookup");
+    return Object.freeze({ before, after: before, resolved: false, lookupStatus: "LOOKUP_UNSUPPORTED" });
   }
 
-  let lookup: ProviderOrderLookupResult;
   try {
-    lookup = provider.lookupByClientOrderId(before.idempotencyKey);
-  } catch (error) {
-    lookup = Object.freeze({
-      status: "UNKNOWN",
-      reason: error instanceof Error ? error.message : "provider lookup failed"
-    });
-  }
-
-  if (lookup.status === "FOUND_ACCEPTED") {
+    const lookup = provider.lookupByClientOrderId(before.idempotencyKey);
+    if (lookup.status === "NOT_FOUND") {
+      return Object.freeze({ before, after: before, resolved: false, lookupStatus: lookup.status });
+    }
     const after = executionRepository.save(Object.freeze({
       ...before,
-      status: OrderSubmissionStatus.ACCEPTED,
-      providerOrderId: lookup.providerOrderId,
-      reason: "resolved by provider lookup",
+      status: lookup.status === "FOUND_ACCEPTED" ? OrderSubmissionStatus.ACCEPTED : OrderSubmissionStatus.REJECTED,
+      providerOrderId: lookup.status === "FOUND_ACCEPTED" ? lookup.providerOrderId : undefined,
+      reason: lookup.status === "FOUND_REJECTED" ? lookup.reason : undefined,
       updatedAtMs: nowMs
     }));
-    return Object.freeze({ before, after, providerLookup: lookup, resolved: true });
+    return Object.freeze({ before, after, resolved: true, lookupStatus: lookup.status });
+  } catch (_error) {
+    return Object.freeze({ before, after: before, resolved: false, lookupStatus: "LOOKUP_FAILED" });
   }
-
-  if (lookup.status === "FOUND_REJECTED") {
-    const after = executionRepository.save(Object.freeze({
-      ...before,
-      status: OrderSubmissionStatus.REJECTED,
-      providerOrderId: undefined,
-      reason: lookup.reason,
-      updatedAtMs: nowMs
-    }));
-    return Object.freeze({ before, after, providerLookup: lookup, resolved: true });
-  }
-
-  const reason = lookup.status === "NOT_FOUND"
-    ? lookup.reason ?? "provider did not find the order; automatic resubmission remains prohibited"
-    : lookup.reason;
-  const after = executionRepository.save(Object.freeze({
-    ...before,
-    status: OrderSubmissionStatus.SUBMISSION_UNKNOWN,
-    reason,
-    updatedAtMs: nowMs
-  }));
-  return Object.freeze({ before, after, providerLookup: lookup, resolved: false });
 }
 
 export type SyntheticProviderOutcome =
   | Readonly<{ type: "ACCEPT"; providerOrderId: string }>
   | Readonly<{ type: "REJECT"; reason: string }>
   | Readonly<{ type: "THROW"; reason: string }>;
+
+export type SyntheticLookupOutcome = ProviderOrderLookupResult | Readonly<{ status: "THROW"; reason: string }>;
 
 export class ScriptedSyntheticOrderProvider implements OrderProvider {
   public readonly environment = "SYNTHETIC" as const;
@@ -255,7 +250,7 @@ export class ScriptedSyntheticOrderProvider implements OrderProvider {
 
   public constructor(
     private readonly outcomes: readonly SyntheticProviderOutcome[],
-    private readonly lookupOutcomes: readonly ProviderOrderLookupResult[] = []
+    private readonly lookupOutcomes: readonly SyntheticLookupOutcome[] = []
   ) {}
 
   submit(_request: ProviderOrderRequest): ProviderOrderResponse {
@@ -270,6 +265,8 @@ export class ScriptedSyntheticOrderProvider implements OrderProvider {
   lookupByClientOrderId(_clientOrderId: string): ProviderOrderLookupResult {
     const outcome = this.lookupOutcomes[this.lookupCount];
     this.lookupCount += 1;
-    return outcome ?? Object.freeze({ status: "UNKNOWN", reason: "no synthetic lookup outcome configured" });
+    if (outcome == null) return Object.freeze({ status: "NOT_FOUND" });
+    if (outcome.status === "THROW") throw new Error(outcome.reason);
+    return outcome;
   }
 }
