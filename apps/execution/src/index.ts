@@ -7,4 +7,5 @@ export * from "./position-reconciliation";
 export * from "./position-reconciliation-worker";
 export * from "./balance-reconciliation";
 export * from "./funding-reconciliation";
+export * from "./fee-reconciliation";
 export * from "./final-certification";
