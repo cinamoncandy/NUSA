@@ -2,8 +2,8 @@ import type { WalletPositionSnapshot } from "../../../packages/contracts/src/ind
 import {
   OrderOperationalRestrictionReason,
   type OrderOperationalRestriction,
-  type OrderOperationalRestrictionReleaseEvidenceRepository,
   type OrderOperationalRestrictionRepository,
+  type OrderOperationalRestrictionReleaseEvidenceRepository,
   type OrderRestrictionReleaseTransaction
 } from "./order-restriction";
 
@@ -42,10 +42,7 @@ export interface PositionReconciliationResult {
   readonly reason?: string;
 }
 
-export interface PositionProvider {
-  getPosition(accountId: string, symbol: string): ProviderPositionSnapshot | undefined;
-}
-
+export interface PositionProvider { getPosition(accountId: string, symbol: string): ProviderPositionSnapshot | undefined; }
 export interface PositionReconciliationEvidenceRepository {
   append(result: PositionReconciliationResult): void;
   getById(reconciliationId: string): PositionReconciliationResult | undefined;
@@ -78,16 +75,7 @@ export function reconcilePosition(input: {
 
   const remote = input.provider.getPosition(input.accountId, input.local.symbol);
   if (remote == null) {
-    const result = Object.freeze({
-      reconciliationId: input.reconciliationId,
-      accountId: input.accountId,
-      symbol: input.local.symbol,
-      status: PositionReconciliationStatus.PROVIDER_UNAVAILABLE,
-      localBaseQtyRaw: input.local.baseQtyRaw,
-      localAvgEntryPriceRaw: input.local.avgEntryPriceRaw,
-      observedAtMs: input.nowMs,
-      reason: "provider position unavailable"
-    });
+    const result = Object.freeze({ reconciliationId: input.reconciliationId, accountId: input.accountId, symbol: input.local.symbol, status: PositionReconciliationStatus.PROVIDER_UNAVAILABLE, localBaseQtyRaw: input.local.baseQtyRaw, localAvgEntryPriceRaw: input.local.avgEntryPriceRaw, observedAtMs: input.nowMs, reason: "provider position unavailable" });
     input.evidence.append(result);
     return result;
   }
@@ -97,44 +85,16 @@ export function reconcilePosition(input: {
   const baseDifference = absolute(input.local.baseQtyRaw - remote.baseQtyRaw);
   const localAverage = input.local.avgEntryPriceRaw;
   const remoteAverage = remote.avgEntryPriceRaw;
-  const averageDifference = localAverage == null && remoteAverage == null
-    ? 0n
-    : localAverage == null || remoteAverage == null
-      ? input.policy.avgEntryPriceToleranceRaw + 1n
-      : absolute(localAverage - remoteAverage);
+  const averageDifference = localAverage == null && remoteAverage == null ? 0n : localAverage == null || remoteAverage == null ? input.policy.avgEntryPriceToleranceRaw + 1n : absolute(localAverage - remoteAverage);
   const mismatch = baseDifference > input.policy.baseQtyToleranceRaw || averageDifference > input.policy.avgEntryPriceToleranceRaw;
 
   let restriction: OrderOperationalRestriction | undefined;
   if (mismatch) {
     const active = input.restrictions.getActiveForAccount(input.accountId);
-    restriction = active ?? input.restrictions.save(Object.freeze({
-      restrictionId: input.restrictionId,
-      accountId: input.accountId,
-      reason: OrderOperationalRestrictionReason.POSITION_MISMATCH,
-      sourceRunId: input.reconciliationId,
-      sourceIntentIds: Object.freeze([]),
-      blockNewExposure: true,
-      manualReleaseRequired: true,
-      status: "ACTIVE",
-      createdAtMs: input.nowMs
-    }));
+    restriction = active ?? input.restrictions.save(Object.freeze({ restrictionId: input.restrictionId, accountId: input.accountId, reason: OrderOperationalRestrictionReason.POSITION_MISMATCH, sourceRunId: input.reconciliationId, sourceIntentIds: Object.freeze([]), blockNewExposure: true, manualReleaseRequired: true, status: "ACTIVE", createdAtMs: input.nowMs }));
   }
 
-  const result = Object.freeze({
-    reconciliationId: input.reconciliationId,
-    accountId: input.accountId,
-    symbol: input.local.symbol,
-    status: mismatch ? PositionReconciliationStatus.MISMATCH : PositionReconciliationStatus.MATCHED,
-    localBaseQtyRaw: input.local.baseQtyRaw,
-    providerBaseQtyRaw: remote.baseQtyRaw,
-    baseQtyDifferenceRaw: baseDifference,
-    localAvgEntryPriceRaw: localAverage,
-    providerAvgEntryPriceRaw: remoteAverage,
-    avgEntryPriceDifferenceRaw: averageDifference,
-    observedAtMs: input.nowMs,
-    ...(restriction == null ? {} : { restrictionId: restriction.restrictionId }),
-    ...(mismatch ? { reason: "provider and local position differ beyond tolerance" } : {})
-  });
+  const result = Object.freeze({ reconciliationId: input.reconciliationId, accountId: input.accountId, symbol: input.local.symbol, status: mismatch ? PositionReconciliationStatus.MISMATCH : PositionReconciliationStatus.MATCHED, localBaseQtyRaw: input.local.baseQtyRaw, providerBaseQtyRaw: remote.baseQtyRaw, baseQtyDifferenceRaw: baseDifference, localAvgEntryPriceRaw: localAverage, providerAvgEntryPriceRaw: remoteAverage, avgEntryPriceDifferenceRaw: averageDifference, observedAtMs: input.nowMs, ...(restriction == null ? {} : { restrictionId: restriction.restrictionId }), ...(mismatch ? { reason: "provider and local position differ beyond tolerance" } : {}) });
   input.evidence.append(result);
   return result;
 }
@@ -164,7 +124,6 @@ export function releasePositionMismatchRestriction(input: {
     if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
     if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH) throw new Error("restriction is not a position mismatch");
     if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
-
     const matched = input.reconciliations.getById(input.matchedReconciliationId);
     if (matched == null) throw new Error("matched reconciliation evidence not found");
     if (matched.status !== PositionReconciliationStatus.MATCHED) throw new Error("position reconciliation is not matched");
@@ -172,30 +131,13 @@ export function releasePositionMismatchRestriction(input: {
     if (matched.observedAtMs < restriction.createdAtMs) throw new Error("matched reconciliation predates restriction");
     if (matched.reconciliationId === restriction.sourceRunId) throw new Error("source mismatch reconciliation cannot release restriction");
 
-    input.releaseEvidence.append(Object.freeze({
-      releaseId: input.releaseId,
-      restrictionId: restriction.restrictionId,
-      accountId: restriction.accountId,
-      requestedBy: input.requestedBy,
-      verifiedBy: input.verifiedBy,
-      rationale: `${input.rationale.trim()} [matchedReconciliationId=${matched.reconciliationId}]`,
-      verifiedIntentIds: Object.freeze([]),
-      releasedAtMs: input.nowMs
-    }));
-
-    return input.restrictions.save(Object.freeze({
-      ...restriction,
-      status: "RELEASED",
-      releasedAtMs: input.nowMs
-    }));
+    input.releaseEvidence.append(Object.freeze({ releaseId: input.releaseId, restrictionId: restriction.restrictionId, accountId: restriction.accountId, requestedBy: input.requestedBy, verifiedBy: input.verifiedBy, rationale: input.rationale.trim(), verifiedIntentIds: Object.freeze([]), matchedReconciliationId: matched.reconciliationId, releasedAtMs: input.nowMs }));
+    return input.restrictions.save(Object.freeze({ ...restriction, status: "RELEASED", releasedAtMs: input.nowMs }));
   };
-
   return input.transaction == null ? operation() : input.transaction.transaction(operation);
 }
 
 export class ScriptedSyntheticPositionProvider implements PositionProvider {
   public constructor(private readonly snapshots: readonly ProviderPositionSnapshot[]) {}
-  public getPosition(accountId: string, symbol: string): ProviderPositionSnapshot | undefined {
-    return this.snapshots.find(snapshot => snapshot.accountId === accountId && snapshot.symbol === symbol);
-  }
+  public getPosition(accountId: string, symbol: string): ProviderPositionSnapshot | undefined { return this.snapshots.find(snapshot => snapshot.accountId === accountId && snapshot.symbol === symbol); }
 }
