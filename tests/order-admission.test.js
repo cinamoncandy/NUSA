@@ -4,13 +4,7 @@ const contracts = require("../dist/packages/contracts/src/index.js");
 const execution = require("../dist/apps/execution/src/index.js");
 
 const { LedgerSide, RiskReasonCode } = contracts;
-const {
-  OrderAdmissionDecisionType,
-  OrderAdmissionReasonCode,
-  InMemoryIdempotencyStore,
-  admitOrder,
-  hashOrderIntent
-} = execution;
+const { OrderAdmissionDecisionType, OrderAdmissionReasonCode, InMemoryIdempotencyStore, admitOrder, hashOrderIntent } = execution;
 
 function intent(overrides = {}) {
   return {
@@ -63,6 +57,14 @@ test("same idempotency key with a changed economic payload is blocked", () => {
   assert.equal(changed.reasonCode, OrderAdmissionReasonCode.PAYLOAD_CHANGED_FOR_IDEMPOTENCY_KEY);
 });
 
+test("same intent cannot be repackaged under a different idempotency key", () => {
+  const store = new InMemoryIdempotencyStore();
+  admitOrder(intent(), context(), store);
+  const replay = admitOrder(intent({ idempotencyKey: "key-2", baseQtyRaw: 2n }), context(), store);
+  assert.equal(replay.type, OrderAdmissionDecisionType.BLOCK);
+  assert.equal(replay.reasonCode, OrderAdmissionReasonCode.INTENT_REPLAYED_WITH_DIFFERENT_KEY);
+});
+
 test("environment mismatch is blocked before risk evaluation", () => {
   const result = admitOrder(intent({ environment: "TESTNET" }), context(), new InMemoryIdempotencyStore());
   assert.equal(result.reasonCode, OrderAdmissionReasonCode.ENVIRONMENT_MISMATCH);
@@ -100,5 +102,5 @@ test("intent hash is deterministic and changes with material payload", () => {
 test("invalid quantity is rejected before storage mutation", () => {
   const store = new InMemoryIdempotencyStore();
   assert.throws(() => admitOrder(intent({ baseQtyRaw: 0n }), context(), store), /positive bigint/);
-  assert.equal(store.get("key-1"), undefined);
+  assert.equal(store.getByKey("key-1"), undefined);
 });
