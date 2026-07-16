@@ -22,6 +22,10 @@ Implemented today:
 - restriction requester and verifier must be different identities
 - release rationale and verified Intent identities are stored as append-only evidence
 - SQLite restriction release and evidence persistence can run in one transaction
+- synthetic provider/local wallet-position reconciliation with explicit matched, mismatch, and provider-unavailable outcomes
+- position quantity or average-entry mismatch activates an account-level new-exposure restriction
+- position reconciliation results are stored as append-only SQLite evidence
+- generic restriction release cannot clear a position mismatch without a dedicated matched-reconciliation release path
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
@@ -33,6 +37,8 @@ Reconciliation safety limits:
 - critical unresolved state blocks new exposure but does not automatically close positions
 - restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
+- position provider absence is never treated as a match
+- position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
 - reconciliation and release evidence are append-only
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
