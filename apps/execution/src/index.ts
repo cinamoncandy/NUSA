@@ -10,4 +10,5 @@ export * from "./funding-reconciliation";
 export * from "./fee-reconciliation";
 export * from "./fill-reconciliation";
 export * from "./pnl-reconciliation";
+export * from "./liquidation-guard";
 export * from "./final-certification";
