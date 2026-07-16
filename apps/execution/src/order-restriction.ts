@@ -39,6 +39,10 @@ export interface OrderOperationalRestrictionReleaseEvidenceRepository {
   getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined;
 }
 
+export interface OrderRestrictionReleaseTransaction {
+  transaction<T>(operation: () => T): T;
+}
+
 export class InMemoryOrderOperationalRestrictionRepository implements OrderOperationalRestrictionRepository {
   private readonly records = new Map<string, OrderOperationalRestriction>();
 
@@ -121,39 +125,44 @@ export function releaseOrderOperationalRestriction(input: {
   readonly restrictions: OrderOperationalRestrictionRepository;
   readonly executions: OrderExecutionRepository;
   readonly evidence: OrderOperationalRestrictionReleaseEvidenceRepository;
+  readonly transaction?: OrderRestrictionReleaseTransaction;
 }): OrderOperationalRestriction {
   if (input.releaseId.trim() === "") throw new Error("releaseId is required");
   if (input.requestedBy.trim() === "" || input.verifiedBy.trim() === "") throw new Error("requester and verifier are required");
   if (input.requestedBy === input.verifiedBy) throw new Error("requester and verifier must be different");
   if (input.rationale.trim() === "") throw new Error("release rationale is required");
 
-  const restriction = input.restrictions.getById(input.restrictionId);
-  if (restriction == null) throw new Error("restriction not found");
-  if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
-  if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
+  const operation = (): OrderOperationalRestriction => {
+    const restriction = input.restrictions.getById(input.restrictionId);
+    if (restriction == null) throw new Error("restriction not found");
+    if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
+    if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
 
-  for (const intentId of restriction.sourceIntentIds) {
-    const execution = input.executions.getByIntentId(intentId);
-    if (execution == null) throw new Error(`source execution missing: ${intentId}`);
-    if (execution.status === OrderSubmissionStatus.SUBMITTING || execution.status === OrderSubmissionStatus.SUBMISSION_UNKNOWN) {
-      throw new Error(`source execution remains unresolved: ${intentId}`);
+    for (const intentId of restriction.sourceIntentIds) {
+      const execution = input.executions.getByIntentId(intentId);
+      if (execution == null) throw new Error(`source execution missing: ${intentId}`);
+      if (execution.status === OrderSubmissionStatus.SUBMITTING || execution.status === OrderSubmissionStatus.SUBMISSION_UNKNOWN) {
+        throw new Error(`source execution remains unresolved: ${intentId}`);
+      }
     }
-  }
 
-  input.evidence.append(Object.freeze({
-    releaseId: input.releaseId,
-    restrictionId: restriction.restrictionId,
-    accountId: restriction.accountId,
-    requestedBy: input.requestedBy,
-    verifiedBy: input.verifiedBy,
-    rationale: input.rationale.trim(),
-    verifiedIntentIds: Object.freeze([...restriction.sourceIntentIds]),
-    releasedAtMs: input.nowMs
-  }));
+    input.evidence.append(Object.freeze({
+      releaseId: input.releaseId,
+      restrictionId: restriction.restrictionId,
+      accountId: restriction.accountId,
+      requestedBy: input.requestedBy,
+      verifiedBy: input.verifiedBy,
+      rationale: input.rationale.trim(),
+      verifiedIntentIds: Object.freeze([...restriction.sourceIntentIds]),
+      releasedAtMs: input.nowMs
+    }));
 
-  return input.restrictions.save(Object.freeze({
-    ...restriction,
-    status: "RELEASED",
-    releasedAtMs: input.nowMs
-  }));
+    return input.restrictions.save(Object.freeze({
+      ...restriction,
+      status: "RELEASED",
+      releasedAtMs: input.nowMs
+    }));
+  };
+
+  return input.transaction == null ? operation() : input.transaction.transaction(operation);
 }
