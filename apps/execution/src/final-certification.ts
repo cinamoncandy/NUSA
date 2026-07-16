@@ -128,7 +128,9 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "apps/execution/src/pre-trade-risk.ts",
       "apps/execution/src/order-admission.ts",
       "apps/execution/src/execution-gateway.ts",
-      "tests/submission-reconciliation.test.js"
+      "apps/execution/src/order-reconciliation.ts",
+      "tests/submission-reconciliation.test.js",
+      "tests/order-reconciliation-worker.test.js"
     ]]
   ]);
 
