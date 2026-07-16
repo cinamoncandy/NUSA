@@ -24,6 +24,10 @@ Implemented today:
 - SQLite restriction release and evidence persistence can run in one transaction
 - synthetic provider/local wallet-position reconciliation with explicit matched, mismatch, and provider-unavailable outcomes
 - deterministic bounded worker for all local wallet-position snapshots
+- append-only SQLite evidence for each position-reconciliation worker run
+- worker evidence preserves counts, truncation state, and reconciliation identities
+- matched position evidence is classified as fresh, expiring soon, or stale under explicit policy
+- mismatch and provider-unavailable evidence can never be treated as a fresh match
 - open positions with unavailable provider state activate `POSITION_STATE_UNCERTAIN`
 - closed positions do not create exposure restrictions solely because provider lookup is unavailable
 - position quantity or average-entry mismatch activates an account-level new-exposure restriction
@@ -42,6 +46,8 @@ Reconciliation safety limits:
 
 - reconciliation performs provider lookup only; it never submits or resubmits an order
 - per-run order and position scan volumes are bounded and deterministic
+- worker run IDs are append-only and cannot be reused
+- old `MATCHED` evidence expires according to policy and must not authorize indefinite operation
 - overdue and critical counts are operational signals, not permission to change execution state
 - critical unresolved state blocks new exposure but does not automatically close positions
 - restriction release is prohibited while any source execution remains uncertain
