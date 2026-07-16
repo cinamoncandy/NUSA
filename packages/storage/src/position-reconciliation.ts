@@ -62,4 +62,13 @@ export class SqlitePositionReconciliationEvidenceRepository implements PositionR
     const row = this.db.connection.prepare("SELECT * FROM position_reconciliation_results WHERE reconciliation_id = ?").get(reconciliationId) as SqlRow | undefined;
     return row == null ? undefined : decode(row);
   }
+  public getLatestForScope(accountId: string, symbol: string): PositionReconciliationResult | undefined {
+    const row = this.db.connection.prepare(`
+      SELECT * FROM position_reconciliation_results
+      WHERE account_id = ? AND symbol = ?
+      ORDER BY CAST(observed_at_ms AS INTEGER) DESC, reconciliation_id DESC
+      LIMIT 1
+    `).get(accountId, symbol) as SqlRow | undefined;
+    return row == null ? undefined : decode(row);
+  }
 }
