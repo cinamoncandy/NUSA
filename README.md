@@ -13,6 +13,8 @@ Implemented today:
 - durable SQLite execution records across database close and reopen
 - stranded `SUBMITTING` attempts recovered as `SUBMISSION_UNKNOWN`, never automatically retried
 - provider lookup reconciliation that can resolve unknown submissions without resubmitting orders
+- bounded reconciliation scans for unresolved submissions
+- unresolved submission age classified as recent, overdue, or critical
 - `NOT_FOUND` or lookup failure remains `SUBMISSION_UNKNOWN` and requires manual review or further reconciliation
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
