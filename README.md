@@ -34,7 +34,10 @@ Implemented today:
 - closed positions do not create exposure restrictions solely because provider lookup is unavailable
 - position quantity or average-entry mismatch activates an account-level new-exposure restriction
 - position reconciliation results are stored as append-only SQLite evidence
-- generic restriction release cannot clear a position-related restriction
+- synthetic provider/local balance reconciliation compares wallet and available balances independently
+- balance mismatch activates `BALANCE_MISMATCH` and provider absence activates `BALANCE_STATE_UNCERTAIN`
+- balance reconciliation evidence is append-only in SQLite and never rewrites local balances
+- generic restriction release cannot clear a position- or balance-related restriction
 - position restriction release requires a later `MATCHED` reconciliation for the same account
 - position restriction release requires separated requester and verifier identities
 - matched reconciliation identity is stored in a dedicated SQLite evidence field
@@ -58,7 +61,7 @@ Reconciliation safety limits:
 - provider absence or lookup failure preserves uncertainty
 - provider absence for an open local position blocks new exposure until a later matched reconciliation is independently verified
 - provider absence for a closed local position does not invent an exposure restriction
-- position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
+- position or balance mismatch blocks new exposure but does not automatically rewrite local state or close positions
 - reconciliation and release evidence are append-only
 
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
