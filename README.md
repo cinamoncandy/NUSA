@@ -19,4 +19,11 @@ Implemented today:
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
+Reconciliation safety limits:
+
+- reconciliation performs provider lookup only; it never submits or resubmits an order
+- per-run scan volume is bounded and deterministic
+- overdue and critical counts are operational signals, not permission to change execution state
+- provider absence or lookup failure preserves uncertainty
+
 This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
