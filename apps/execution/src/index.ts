@@ -4,4 +4,5 @@ export * from "./execution-gateway";
 export * from "./order-reconciliation";
 export * from "./order-restriction";
 export * from "./position-reconciliation";
+export * from "./position-reconciliation-worker";
 export * from "./final-certification";
