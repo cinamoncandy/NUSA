@@ -11,4 +11,5 @@ export * from "./fee-reconciliation";
 export * from "./fill-reconciliation";
 export * from "./pnl-reconciliation";
 export * from "./liquidation-guard";
+export * from "./exchange-constraints";
 export * from "./final-certification";
