@@ -21,9 +21,21 @@ Implemented safety baseline:
 - deterministic weighted token-bucket rate limiting with explicit allow, delay, and block outcomes
 - clock-offset, round-trip, recvWindow, and synchronization-freshness validation for signed-request safety
 - WebSocket sequence continuity checks with duplicate suppression, gap detection, and non-regressing snapshot recovery
+- deterministic disaster-recovery replay summaries across named domains
+- startup consistency gating for recovery, restrictions, unresolved submissions, clock, WebSocket, and migration state
+- production-readiness aggregation that treats `FAIL`, `UNKNOWN`, and `STALE` evidence as blocking
+- even a fully passing synthetic readiness result never enables Production mutation
 - reconciliation never rewrites accounting records, positions, balances, fees, fills, or PnL
 - no automatic position close, order retry, restriction release, or Production authorization
 - conservative final certification that refuses to invent implementation evidence
+
+Recovery and startup safety limits:
+
+- every recovery domain must have a unique identity and explicit checkpoint
+- failed or unknown replay results produce `SAFE_BLOCK`
+- active restrictions, unresolved submissions, unsafe clocks, unsynchronized streams, or unknown migration state block startup
+- readiness checks cannot silently omit unknown or stale evidence
+- `READY` means the synthetic baseline passed its declared checks; it does not authorize Production mutation
 
 Connectivity safety limits:
 
