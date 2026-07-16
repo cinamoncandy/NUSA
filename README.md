@@ -29,6 +29,7 @@ Implemented today:
 - position mismatch release requires a later `MATCHED` reconciliation for the same account
 - position mismatch release requires separated requester and verifier identities
 - matched reconciliation identity is preserved in append-only release evidence
+- stale, cross-account, mismatched, or provider-unavailable evidence cannot clear a position restriction
 - accepted and rejected execution outcomes cannot regress to an uncertain state
 - conservative final-certification evaluation that refuses to invent implementation evidence
 
@@ -41,7 +42,7 @@ Reconciliation safety limits:
 - restriction release is prohibited while any source execution remains uncertain
 - provider absence or lookup failure preserves uncertainty
 - position provider absence is never treated as a match
-- stale, cross-account, mismatch, or provider-unavailable evidence cannot release a position restriction
+- a position restriction remains active until a later matched reconciliation is independently verified
 - position mismatch blocks new exposure but does not automatically rewrite the local ledger or close positions
 - reconciliation and release evidence are append-only
 
