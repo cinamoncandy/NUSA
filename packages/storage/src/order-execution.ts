@@ -7,14 +7,14 @@ import type { SqliteDatabase } from "./index";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 
-const terminalStatuses = new Set<string>([
-  "ACCEPTED",
-  "REJECTED",
-  "SUBMISSION_UNKNOWN"
-]);
-
 function asString(value: string | number | bigint | null): string {
   return String(value);
+}
+
+function canTransition(previous: string, next: string): boolean {
+  if (previous === next) return true;
+  if (previous === "SUBMITTING") return true;
+  return previous === "SUBMISSION_UNKNOWN" && (next === "ACCEPTED" || next === "REJECTED");
 }
 
 function decode(row: SqlRow): OrderExecutionRecord {
@@ -91,8 +91,8 @@ export class SqliteOrderExecutionRepository implements OrderExecutionRepository 
         if (existing.idempotencyKey !== record.idempotencyKey || existing.payloadHash !== record.payloadHash) {
           throw new Error("execution identity cannot be changed");
         }
-        if (terminalStatuses.has(existing.status) && existing.status !== record.status) {
-          throw new Error("terminal execution status cannot be changed");
+        if (!canTransition(existing.status, record.status)) {
+          throw new Error("execution status transition is not allowed");
         }
         if (record.updatedAtMs < existing.updatedAtMs) {
           throw new Error("execution update time cannot regress");
