@@ -16,6 +16,7 @@ function decode(row: SqlRow): OrderOperationalRestrictionReleaseEvidence {
     rationale: String(row.rationale),
     verifiedIntentIds: Object.freeze(JSON.parse(String(row.verified_intent_ids_json)) as string[]),
     matchedReconciliationId: row.matched_reconciliation_id == null ? undefined : String(row.matched_reconciliation_id),
+    matchedBalanceReconciliationId: row.matched_balance_reconciliation_id == null ? undefined : String(row.matched_balance_reconciliation_id),
     releasedAtMs: Number(String(row.released_at_ms))
   });
 }
@@ -32,41 +33,30 @@ export class SqliteOrderOperationalRestrictionReleaseEvidenceRepository implemen
         rationale TEXT NOT NULL,
         verified_intent_ids_json TEXT NOT NULL,
         matched_reconciliation_id TEXT,
+        matched_balance_reconciliation_id TEXT,
         released_at_ms TEXT NOT NULL,
         CHECK (requested_by <> verified_by),
         FOREIGN KEY (restriction_id) REFERENCES order_operational_restrictions(restriction_id)
       );
     `);
     const columns = this.db.connection.prepare("PRAGMA table_info(order_operational_restriction_release_evidence)").all() as SqlRow[];
-    if (!columns.some(column => String(column.name) === "matched_reconciliation_id")) {
-      this.db.connection.exec("ALTER TABLE order_operational_restriction_release_evidence ADD COLUMN matched_reconciliation_id TEXT");
-    }
+    if (!columns.some(column => String(column.name) === "matched_reconciliation_id")) this.db.connection.exec("ALTER TABLE order_operational_restriction_release_evidence ADD COLUMN matched_reconciliation_id TEXT");
+    if (!columns.some(column => String(column.name) === "matched_balance_reconciliation_id")) this.db.connection.exec("ALTER TABLE order_operational_restriction_release_evidence ADD COLUMN matched_balance_reconciliation_id TEXT");
   }
 
   public append(evidence: OrderOperationalRestrictionReleaseEvidence): OrderOperationalRestrictionReleaseEvidence {
     this.db.connection.prepare(`
       INSERT INTO order_operational_restriction_release_evidence (
         release_id, restriction_id, account_id, requested_by, verified_by,
-        rationale, verified_intent_ids_json, matched_reconciliation_id, released_at_ms
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      evidence.releaseId,
-      evidence.restrictionId,
-      evidence.accountId,
-      evidence.requestedBy,
-      evidence.verifiedBy,
-      evidence.rationale,
-      JSON.stringify([...evidence.verifiedIntentIds].sort()),
-      evidence.matchedReconciliationId ?? null,
-      evidence.releasedAtMs.toString()
-    );
+        rationale, verified_intent_ids_json, matched_reconciliation_id,
+        matched_balance_reconciliation_id, released_at_ms
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(evidence.releaseId, evidence.restrictionId, evidence.accountId, evidence.requestedBy, evidence.verifiedBy, evidence.rationale, JSON.stringify([...evidence.verifiedIntentIds].sort()), evidence.matchedReconciliationId ?? null, evidence.matchedBalanceReconciliationId ?? null, evidence.releasedAtMs.toString());
     return this.getByRestrictionId(evidence.restrictionId)!;
   }
 
   public getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined {
-    const row = this.db.connection.prepare(
-      "SELECT * FROM order_operational_restriction_release_evidence WHERE restriction_id = ?"
-    ).get(restrictionId) as SqlRow | undefined;
+    const row = this.db.connection.prepare("SELECT * FROM order_operational_restriction_release_evidence WHERE restriction_id = ?").get(restrictionId) as SqlRow | undefined;
     return row == null ? undefined : decode(row);
   }
 }
