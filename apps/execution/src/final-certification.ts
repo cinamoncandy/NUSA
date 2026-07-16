@@ -125,6 +125,7 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "packages/storage/src/order-restriction-release-evidence.ts",
       "packages/storage/src/position-reconciliation.ts",
       "packages/storage/src/position-reconciliation-run-evidence.ts",
+      "packages/storage/src/balance-reconciliation.ts",
       "packages/storage/migrations/001_positions.sql",
       "packages/storage/migrations/002_order_idempotency.sql",
       "packages/storage/migrations/003_order_executions.sql",
@@ -135,7 +136,8 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "packages/storage/migrations/008_position_restriction_release_evidence.sql",
       "packages/storage/migrations/009_position_state_uncertainty.sql",
       "packages/storage/migrations/010_position_reconciliation_runs.sql",
-      "packages/storage/migrations/011_position_reconciliation_stale.sql"
+      "packages/storage/migrations/011_position_reconciliation_stale.sql",
+      "packages/storage/migrations/012_balance_reconciliation.sql"
     ]],
     [3, [
       "apps/execution/src/pre-trade-risk.ts",
@@ -145,6 +147,7 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "apps/execution/src/order-restriction.ts",
       "apps/execution/src/position-reconciliation.ts",
       "apps/execution/src/position-reconciliation-worker.ts",
+      "apps/execution/src/balance-reconciliation.ts",
       "tests/submission-reconciliation.test.js",
       "tests/order-reconciliation-worker.test.js",
       "tests/order-reconciliation-evidence.test.js",
@@ -154,7 +157,8 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "tests/position-reconciliation-worker.test.js",
       "tests/position-reconciliation-run-evidence.test.js",
       "tests/position-reconciliation-freshness-guard.test.js",
-      "tests/position-restriction-release-storage.test.js"
+      "tests/position-restriction-release-storage.test.js",
+      "tests/balance-reconciliation.test.js"
     ]]
   ]);
 
