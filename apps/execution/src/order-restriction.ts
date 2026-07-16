@@ -26,6 +26,7 @@ export interface OrderOperationalRestrictionReleaseEvidence {
   readonly verifiedBy: string;
   readonly rationale: string;
   readonly verifiedIntentIds: readonly string[];
+  readonly matchedReconciliationId?: string;
   readonly releasedAtMs: number;
 }
 
@@ -40,17 +41,12 @@ export interface OrderOperationalRestrictionReleaseEvidenceRepository {
   getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined;
 }
 
-export interface OrderRestrictionReleaseTransaction {
-  transaction<T>(operation: () => T): T;
-}
+export interface OrderRestrictionReleaseTransaction { transaction<T>(operation: () => T): T; }
 
 export class InMemoryOrderOperationalRestrictionRepository implements OrderOperationalRestrictionRepository {
   private readonly records = new Map<string, OrderOperationalRestriction>();
-
   getById(restrictionId: string): OrderOperationalRestriction | undefined { return this.records.get(restrictionId); }
-  getActiveForAccount(accountId: string): OrderOperationalRestriction | undefined {
-    return [...this.records.values()].find(record => record.accountId === accountId && record.status === "ACTIVE");
-  }
+  getActiveForAccount(accountId: string): OrderOperationalRestriction | undefined { return [...this.records.values()].find(record => record.accountId === accountId && record.status === "ACTIVE"); }
   save(restriction: OrderOperationalRestriction): OrderOperationalRestriction {
     const previous = this.records.get(restriction.restrictionId);
     if (previous != null) {
@@ -78,13 +74,7 @@ export class InMemoryOrderOperationalRestrictionReleaseEvidenceRepository implem
   getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined { return this.byRestriction.get(restrictionId); }
 }
 
-export function createCriticalUnknownSubmissionRestriction(input: {
-  readonly restrictionId: string;
-  readonly accountId: string;
-  readonly sourceRunId: string;
-  readonly sourceIntentIds: readonly string[];
-  readonly nowMs: number;
-}): OrderOperationalRestriction {
+export function createCriticalUnknownSubmissionRestriction(input: { readonly restrictionId: string; readonly accountId: string; readonly sourceRunId: string; readonly sourceIntentIds: readonly string[]; readonly nowMs: number; }): OrderOperationalRestriction {
   if (input.restrictionId.trim() === "") throw new Error("restrictionId is required");
   if (input.accountId.trim() === "") throw new Error("accountId is required");
   if (input.sourceRunId.trim() === "") throw new Error("sourceRunId is required");
@@ -92,18 +82,7 @@ export function createCriticalUnknownSubmissionRestriction(input: {
   return Object.freeze({ restrictionId: input.restrictionId, accountId: input.accountId, reason: OrderOperationalRestrictionReason.CRITICAL_UNKNOWN_SUBMISSION, sourceRunId: input.sourceRunId, sourceIntentIds: Object.freeze([...new Set(input.sourceIntentIds)].sort()), blockNewExposure: true, manualReleaseRequired: true, status: "ACTIVE", createdAtMs: input.nowMs });
 }
 
-export function releaseOrderOperationalRestriction(input: {
-  readonly releaseId: string;
-  readonly restrictionId: string;
-  readonly requestedBy: string;
-  readonly verifiedBy: string;
-  readonly rationale: string;
-  readonly nowMs: number;
-  readonly restrictions: OrderOperationalRestrictionRepository;
-  readonly executions: OrderExecutionRepository;
-  readonly evidence: OrderOperationalRestrictionReleaseEvidenceRepository;
-  readonly transaction?: OrderRestrictionReleaseTransaction;
-}): OrderOperationalRestriction {
+export function releaseOrderOperationalRestriction(input: { readonly releaseId: string; readonly restrictionId: string; readonly requestedBy: string; readonly verifiedBy: string; readonly rationale: string; readonly nowMs: number; readonly restrictions: OrderOperationalRestrictionRepository; readonly executions: OrderExecutionRepository; readonly evidence: OrderOperationalRestrictionReleaseEvidenceRepository; readonly transaction?: OrderRestrictionReleaseTransaction; }): OrderOperationalRestriction {
   if (input.releaseId.trim() === "") throw new Error("releaseId is required");
   if (input.requestedBy.trim() === "" || input.verifiedBy.trim() === "") throw new Error("requester and verifier are required");
   if (input.requestedBy === input.verifiedBy) throw new Error("requester and verifier must be different");
