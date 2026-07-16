@@ -6,7 +6,8 @@ export enum OrderOperationalRestrictionReason {
   POSITION_STATE_UNCERTAIN = "POSITION_STATE_UNCERTAIN",
   POSITION_RECONCILIATION_STALE = "POSITION_RECONCILIATION_STALE",
   BALANCE_MISMATCH = "BALANCE_MISMATCH",
-  BALANCE_STATE_UNCERTAIN = "BALANCE_STATE_UNCERTAIN"
+  BALANCE_STATE_UNCERTAIN = "BALANCE_STATE_UNCERTAIN",
+  BALANCE_RECONCILIATION_STALE = "BALANCE_RECONCILIATION_STALE"
 }
 
 export interface OrderOperationalRestriction {
@@ -31,6 +32,7 @@ export interface OrderOperationalRestrictionReleaseEvidence {
   readonly rationale: string;
   readonly verifiedIntentIds: readonly string[];
   readonly matchedReconciliationId?: string;
+  readonly matchedBalanceReconciliationId?: string;
   readonly releasedAtMs: number;
 }
 
@@ -95,13 +97,7 @@ export function releaseOrderOperationalRestriction(input: { readonly releaseId: 
     const restriction = input.restrictions.getById(input.restrictionId);
     if (restriction == null) throw new Error("restriction not found");
     if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
-    if (
-      restriction.reason === OrderOperationalRestrictionReason.POSITION_MISMATCH ||
-      restriction.reason === OrderOperationalRestrictionReason.POSITION_STATE_UNCERTAIN ||
-      restriction.reason === OrderOperationalRestrictionReason.POSITION_RECONCILIATION_STALE ||
-      restriction.reason === OrderOperationalRestrictionReason.BALANCE_MISMATCH ||
-      restriction.reason === OrderOperationalRestrictionReason.BALANCE_STATE_UNCERTAIN
-    ) throw new Error("reconciliation restriction requires matched domain evidence");
+    if (restriction.reason !== OrderOperationalRestrictionReason.CRITICAL_UNKNOWN_SUBMISSION) throw new Error("reconciliation restriction requires matched domain evidence");
     if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
     for (const intentId of restriction.sourceIntentIds) {
       const execution = input.executions.getByIntentId(intentId);
