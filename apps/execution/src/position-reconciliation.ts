@@ -46,6 +46,7 @@ export interface PositionProvider { getPosition(accountId: string, symbol: strin
 export interface PositionReconciliationEvidenceRepository {
   append(result: PositionReconciliationResult): void;
   getById(reconciliationId: string): PositionReconciliationResult | undefined;
+  getLatestForScope(accountId: string, symbol: string): PositionReconciliationResult | undefined;
 }
 
 function absolute(value: bigint): bigint { return value < 0n ? -value : value; }
@@ -122,7 +123,7 @@ export function releasePositionMismatchRestriction(input: {
     const restriction = input.restrictions.getById(input.restrictionId);
     if (restriction == null) throw new Error("restriction not found");
     if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
-    if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH && restriction.reason !== OrderOperationalRestrictionReason.POSITION_STATE_UNCERTAIN) throw new Error("restriction is not position-related");
+    if (restriction.reason !== OrderOperationalRestrictionReason.POSITION_MISMATCH && restriction.reason !== OrderOperationalRestrictionReason.POSITION_STATE_UNCERTAIN && restriction.reason !== OrderOperationalRestrictionReason.POSITION_RECONCILIATION_STALE) throw new Error("restriction is not position-related");
     if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
     const matched = input.reconciliations.getById(input.matchedReconciliationId);
     if (matched == null) throw new Error("matched reconciliation evidence not found");
