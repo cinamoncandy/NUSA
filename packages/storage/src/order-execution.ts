@@ -1,7 +1,8 @@
-import type {
-  OrderExecutionRecord,
-  OrderExecutionRepository,
-  OrderSubmissionStatus
+import {
+  isAllowedTransition,
+  type OrderExecutionRecord,
+  type OrderExecutionStatusRepository,
+  type OrderSubmissionStatus
 } from "../../../apps/execution/src/execution-gateway";
 import type { SqliteDatabase } from "./index";
 
@@ -9,12 +10,6 @@ type SqlRow = Record<string, string | number | bigint | null>;
 
 function asString(value: string | number | bigint | null): string {
   return String(value);
-}
-
-function canTransition(previous: string, next: string): boolean {
-  if (previous === next) return true;
-  if (previous === "SUBMITTING") return true;
-  return previous === "SUBMISSION_UNKNOWN" && (next === "ACCEPTED" || next === "REJECTED");
 }
 
 function decode(row: SqlRow): OrderExecutionRecord {
@@ -31,7 +26,7 @@ function decode(row: SqlRow): OrderExecutionRecord {
   });
 }
 
-export class SqliteOrderExecutionRepository implements OrderExecutionRepository {
+export class SqliteOrderExecutionRepository implements OrderExecutionStatusRepository {
   public constructor(private readonly db: SqliteDatabase) {
     this.db.connection.exec(`
       CREATE TABLE IF NOT EXISTS order_execution_records (
@@ -64,6 +59,13 @@ export class SqliteOrderExecutionRepository implements OrderExecutionRepository 
     return row == null ? undefined : decode(row);
   }
 
+  public listByStatus(status: OrderSubmissionStatus): readonly OrderExecutionRecord[] {
+    const rows = this.db.connection
+      .prepare("SELECT * FROM order_execution_records WHERE status = ? ORDER BY created_at_ms ASC, execution_id ASC")
+      .all(status) as SqlRow[];
+    return Object.freeze(rows.map(decode));
+  }
+
   public save(record: OrderExecutionRecord): OrderExecutionRecord {
     return this.db.transaction(() => {
       const existing = this.getByIntentId(record.intentId);
@@ -88,10 +90,14 @@ export class SqliteOrderExecutionRepository implements OrderExecutionRepository 
         if (existing.executionId !== record.executionId) {
           throw new Error("intent already belongs to another execution");
         }
-        if (existing.idempotencyKey !== record.idempotencyKey || existing.payloadHash !== record.payloadHash) {
+        if (
+          existing.idempotencyKey !== record.idempotencyKey
+          || existing.payloadHash !== record.payloadHash
+          || existing.createdAtMs !== record.createdAtMs
+        ) {
           throw new Error("execution identity cannot be changed");
         }
-        if (!canTransition(existing.status, record.status)) {
+        if (!isAllowedTransition(existing.status, record.status)) {
           throw new Error("execution status transition is not allowed");
         }
         if (record.updatedAtMs < existing.updatedAtMs) {
@@ -121,11 +127,7 @@ export class SqliteOrderExecutionRepository implements OrderExecutionRepository 
       SET status = 'SUBMISSION_UNKNOWN', reason = ?, updated_at_ms = ?
       WHERE status = 'SUBMITTING'
     `).run(reason, nowMs.toString());
-
-    const rows = this.db.connection
-      .prepare("SELECT * FROM order_execution_records WHERE status = 'SUBMISSION_UNKNOWN' ORDER BY created_at_ms ASC, execution_id ASC")
-      .all() as SqlRow[];
-    return Object.freeze(rows.map(decode));
+    return this.listByStatus("SUBMISSION_UNKNOWN" as OrderSubmissionStatus);
   }
 
   public list(): readonly OrderExecutionRecord[] {
