@@ -119,8 +119,10 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
     [2, [
       "packages/storage/src/index.ts",
       "packages/storage/src/order-idempotency.ts",
+      "packages/storage/src/order-execution.ts",
       "packages/storage/migrations/001_positions.sql",
-      "packages/storage/migrations/002_order_idempotency.sql"
+      "packages/storage/migrations/002_order_idempotency.sql",
+      "packages/storage/migrations/003_order_executions.sql"
     ]],
     [3, [
       "apps/execution/src/pre-trade-risk.ts",
