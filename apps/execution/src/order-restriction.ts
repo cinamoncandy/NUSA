@@ -1,3 +1,5 @@
+import { OrderSubmissionStatus, type OrderExecutionRepository } from "./execution-gateway";
+
 export enum OrderOperationalRestrictionReason {
   CRITICAL_UNKNOWN_SUBMISSION = "CRITICAL_UNKNOWN_SUBMISSION"
 }
@@ -15,13 +17,34 @@ export interface OrderOperationalRestriction {
   readonly releasedAtMs?: number;
 }
 
+export interface OrderOperationalRestrictionReleaseEvidence {
+  readonly releaseId: string;
+  readonly restrictionId: string;
+  readonly accountId: string;
+  readonly requestedBy: string;
+  readonly verifiedBy: string;
+  readonly rationale: string;
+  readonly verifiedIntentIds: readonly string[];
+  readonly releasedAtMs: number;
+}
+
 export interface OrderOperationalRestrictionRepository {
+  getById(restrictionId: string): OrderOperationalRestriction | undefined;
   getActiveForAccount(accountId: string): OrderOperationalRestriction | undefined;
   save(restriction: OrderOperationalRestriction): OrderOperationalRestriction;
 }
 
+export interface OrderOperationalRestrictionReleaseEvidenceRepository {
+  append(evidence: OrderOperationalRestrictionReleaseEvidence): OrderOperationalRestrictionReleaseEvidence;
+  getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined;
+}
+
 export class InMemoryOrderOperationalRestrictionRepository implements OrderOperationalRestrictionRepository {
   private readonly records = new Map<string, OrderOperationalRestriction>();
+
+  getById(restrictionId: string): OrderOperationalRestriction | undefined {
+    return this.records.get(restrictionId);
+  }
 
   getActiveForAccount(accountId: string): OrderOperationalRestriction | undefined {
     return [...this.records.values()].find(record => record.accountId === accountId && record.status === "ACTIVE");
@@ -43,6 +66,24 @@ export class InMemoryOrderOperationalRestrictionRepository implements OrderOpera
     const stored = Object.freeze({ ...restriction, sourceIntentIds: Object.freeze([...restriction.sourceIntentIds]) });
     this.records.set(stored.restrictionId, stored);
     return stored;
+  }
+}
+
+export class InMemoryOrderOperationalRestrictionReleaseEvidenceRepository implements OrderOperationalRestrictionReleaseEvidenceRepository {
+  private readonly byRestriction = new Map<string, OrderOperationalRestrictionReleaseEvidence>();
+  private readonly releaseIds = new Set<string>();
+
+  append(evidence: OrderOperationalRestrictionReleaseEvidence): OrderOperationalRestrictionReleaseEvidence {
+    if (this.releaseIds.has(evidence.releaseId)) throw new Error("release evidence id already exists");
+    if (this.byRestriction.has(evidence.restrictionId)) throw new Error("restriction already has release evidence");
+    const stored = Object.freeze({ ...evidence, verifiedIntentIds: Object.freeze([...evidence.verifiedIntentIds]) });
+    this.releaseIds.add(stored.releaseId);
+    this.byRestriction.set(stored.restrictionId, stored);
+    return stored;
+  }
+
+  getByRestrictionId(restrictionId: string): OrderOperationalRestrictionReleaseEvidence | undefined {
+    return this.byRestriction.get(restrictionId);
   }
 }
 
@@ -68,4 +109,51 @@ export function createCriticalUnknownSubmissionRestriction(input: {
     status: "ACTIVE",
     createdAtMs: input.nowMs
   });
+}
+
+export function releaseOrderOperationalRestriction(input: {
+  readonly releaseId: string;
+  readonly restrictionId: string;
+  readonly requestedBy: string;
+  readonly verifiedBy: string;
+  readonly rationale: string;
+  readonly nowMs: number;
+  readonly restrictions: OrderOperationalRestrictionRepository;
+  readonly executions: OrderExecutionRepository;
+  readonly evidence: OrderOperationalRestrictionReleaseEvidenceRepository;
+}): OrderOperationalRestriction {
+  if (input.releaseId.trim() === "") throw new Error("releaseId is required");
+  if (input.requestedBy.trim() === "" || input.verifiedBy.trim() === "") throw new Error("requester and verifier are required");
+  if (input.requestedBy === input.verifiedBy) throw new Error("requester and verifier must be different");
+  if (input.rationale.trim() === "") throw new Error("release rationale is required");
+
+  const restriction = input.restrictions.getById(input.restrictionId);
+  if (restriction == null) throw new Error("restriction not found");
+  if (restriction.status !== "ACTIVE") throw new Error("only active restrictions can be released");
+  if (!Number.isSafeInteger(input.nowMs) || input.nowMs < restriction.createdAtMs) throw new Error("release time is invalid");
+
+  for (const intentId of restriction.sourceIntentIds) {
+    const execution = input.executions.getByIntentId(intentId);
+    if (execution == null) throw new Error(`source execution missing: ${intentId}`);
+    if (execution.status === OrderSubmissionStatus.SUBMITTING || execution.status === OrderSubmissionStatus.SUBMISSION_UNKNOWN) {
+      throw new Error(`source execution remains unresolved: ${intentId}`);
+    }
+  }
+
+  input.evidence.append(Object.freeze({
+    releaseId: input.releaseId,
+    restrictionId: restriction.restrictionId,
+    accountId: restriction.accountId,
+    requestedBy: input.requestedBy,
+    verifiedBy: input.verifiedBy,
+    rationale: input.rationale.trim(),
+    verifiedIntentIds: Object.freeze([...restriction.sourceIntentIds]),
+    releasedAtMs: input.nowMs
+  }));
+
+  return input.restrictions.save(Object.freeze({
+    ...restriction,
+    status: "RELEASED",
+    releasedAtMs: input.nowMs
+  }));
 }
