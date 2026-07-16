@@ -116,7 +116,12 @@ export function evaluateFinalCertification(input: FinalCertificationInput): Fina
 export function createReconstructedBaselineInventory(): readonly TradingIntegrationPhaseInventoryItem[] {
   const implemented = new Map<number, readonly string[]>([
     [1, ["packages/contracts/src/index.ts"]],
-    [2, ["packages/storage/src/index.ts", "packages/storage/migrations/001_positions.sql"]],
+    [2, [
+      "packages/storage/src/index.ts",
+      "packages/storage/src/order-idempotency.ts",
+      "packages/storage/migrations/001_positions.sql",
+      "packages/storage/migrations/002_order_idempotency.sql"
+    ]],
     [3, ["apps/execution/src/pre-trade-risk.ts", "apps/execution/src/order-admission.ts"]]
   ]);
 
