@@ -41,4 +41,7 @@ export * from "./final-synthetic-release-envelope";
 export * from "./final-envelope-evidence";
 export * from "./evidence-graph-integrity";
 export * from "./synthetic-release-revocation";
+export * from "./revocation-evidence";
+export * from "./evidence-graph-seal";
+export * from "./synthetic-release-status";
 export * from "./final-certification";
