@@ -27,10 +27,21 @@ Implemented safety baseline:
 - chaos recovery harness for injected unknown state, count corruption, and controlled exceptions
 - startup consistency gating for recovery, restrictions, unresolved submissions, clock, WebSocket, and migration state
 - production-readiness aggregation that treats `FAIL`, `UNKNOWN`, and `STALE` evidence as blocking
-- even a fully passing synthetic readiness result never enables Production mutation
+- deterministic invariant monitoring that separates warning failures from critical and unknown state
+- synthetic burn-in evaluation with minimum sample count, duration, critical-failure, and unknown-state thresholds
+- final synthetic certification reports that preserve explicit blockers and limitations
+- even a fully passing synthetic readiness and burn-in result never enables Production mutation
 - reconciliation never rewrites accounting records, positions, balances, fees, fills, or PnL
 - no automatic position close, order retry, restriction release, or Production authorization
 - conservative final certification that refuses to invent implementation evidence
+
+Burn-in and certification safety limits:
+
+- burn-in sample IDs, sequences, and timestamps must be unique and monotonic
+- critical invariant failures and unknown invariant state are separately counted
+- insufficient duration or sample count produces `INCOMPLETE`, not a pass
+- synthetic certification always records `SYNTHETIC_EVIDENCE_ONLY`
+- a passing synthetic baseline still returns `productionMutationAllowed = false`
 
 Recovery and startup safety limits:
 
