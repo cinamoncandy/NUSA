@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { BurnInResult } from "./burn-in-harness";
+import { InvariantMonitorStatus } from "./invariant-monitor";
 import type { SyntheticCertificationReport } from "./synthetic-certification-report";
 
- type Row = Record<string, string | number | bigint | null>;
+type Row = Record<string, string | number | bigint | null>;
 const parseArray = (value: unknown): readonly string[] => Object.freeze(JSON.parse(String(value)) as string[]);
 
 export class SqliteBurnInEvidenceRepository {
@@ -11,14 +12,15 @@ export class SqliteBurnInEvidenceRepository {
     const existing = this.get(result.runId);
     if (existing != null) throw new Error("duplicate burn-in run id");
     this.db.prepare("INSERT INTO burn_in_evidence (run_id, decision, sample_count, duration_ms, critical_failure_samples, unknown_samples, blocking_reasons_json, final_invariant_status, completed_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(result.runId, result.decision, result.sampleCount, result.durationMs, result.criticalFailureSamples, result.unknownSamples, JSON.stringify(result.blockingReasons), result.finalInvariantState.healthy ? "HEALTHY" : "UNHEALTHY", result.completedAtMs);
+      .run(result.runId, result.decision, result.sampleCount, result.durationMs, result.criticalFailureSamples, result.unknownSamples, JSON.stringify(result.blockingReasons), result.finalInvariantState.status, result.completedAtMs);
     return this.get(result.runId)!;
   }
   public get(runId: string): BurnInResult | undefined {
     const row = this.db.prepare("SELECT * FROM burn_in_evidence WHERE run_id = ?").get(runId) as Row | undefined;
     if (row == null) return undefined;
-    const healthy = String(row.final_invariant_status) === "HEALTHY";
-    return Object.freeze({ runId:String(row.run_id), decision:String(row.decision) as BurnInResult["decision"], sampleCount:Number(row.sample_count), durationMs:Number(row.duration_ms), criticalFailureSamples:Number(row.critical_failure_samples), unknownSamples:Number(row.unknown_samples), blockingReasons:parseArray(row.blocking_reasons_json), finalInvariantState:Object.freeze({ healthy, warningFailureIds:Object.freeze([]), criticalFailureIds:Object.freeze([]), unknownIds:Object.freeze([]), observations:Object.freeze([]) }), completedAtMs:Number(row.completed_at_ms) });
+    const status = String(row.final_invariant_status) === InvariantMonitorStatus.HEALTHY ? InvariantMonitorStatus.HEALTHY : InvariantMonitorStatus.UNHEALTHY;
+    const healthy = status === InvariantMonitorStatus.HEALTHY;
+    return Object.freeze({ runId:String(row.run_id), decision:String(row.decision) as BurnInResult["decision"], sampleCount:Number(row.sample_count), durationMs:Number(row.duration_ms), criticalFailureSamples:Number(row.critical_failure_samples), unknownSamples:Number(row.unknown_samples), blockingReasons:parseArray(row.blocking_reasons_json), finalInvariantState:Object.freeze({ healthy, status, warningFailureIds:Object.freeze([]), criticalFailureIds:Object.freeze([]), unknownIds:Object.freeze([]), observations:Object.freeze([]) }), completedAtMs:Number(row.completed_at_ms) });
   }
 }
 
