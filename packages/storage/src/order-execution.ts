@@ -98,6 +98,9 @@ export class SqliteOrderExecutionRepository implements OrderExecutionStatusRepos
           throw new Error("execution identity cannot be changed");
         }
         if (!isAllowedTransition(existing.status, record.status)) {
+          if (existing.status === OrderSubmissionStatus.ACCEPTED || existing.status === OrderSubmissionStatus.REJECTED) {
+            throw new Error("terminal execution status cannot be rewritten");
+          }
           throw new Error("execution status transition is not allowed");
         }
         if (record.updatedAtMs < existing.updatedAtMs) {
