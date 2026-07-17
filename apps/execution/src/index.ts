@@ -24,4 +24,6 @@ export * from "./chaos-recovery-harness";
 export * from "./invariant-monitor";
 export * from "./burn-in-harness";
 export * from "./synthetic-certification-report";
+export * from "./certification-evidence";
+export * from "./release-candidate-freeze";
 export * from "./final-certification";
