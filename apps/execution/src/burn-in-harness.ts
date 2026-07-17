@@ -11,5 +11,5 @@ export function runSyntheticBurnIn(input:{readonly runId:string;readonly samples
  const durationMs=input.samples.length<2?0:input.samples[input.samples.length-1].observedAtMs-input.samples[0].observedAtMs;const reasons:string[]=[];
  if(input.samples.length<p.requiredSamples)reasons.push("INSUFFICIENT_SAMPLES");if(durationMs<p.minimumDurationMs)reasons.push("INSUFFICIENT_DURATION");if(criticalFailureSamples>p.maximumCriticalFailures)reasons.push("CRITICAL_INVARIANT_FAILURES");if(unknownSamples>p.maximumUnknownSamples)reasons.push("UNKNOWN_INVARIANT_SAMPLES");
  const incomplete=reasons.includes("INSUFFICIENT_SAMPLES")||reasons.includes("INSUFFICIENT_DURATION");const decision=reasons.length===0?BurnInDecision.PASS:incomplete&&criticalFailureSamples<=p.maximumCriticalFailures&&unknownSamples<=p.maximumUnknownSamples?BurnInDecision.INCOMPLETE:BurnInDecision.FAIL;
- return Object.freeze({runId:input.runId,decision,sampleCount:input.samples.length,durationMs,criticalFailureSamples,unknownSamples,blockingReasons:Object.freeze(reasons.sort()),finalInvariantState,completedAtMs:input.nowMs});
+ return Object.freeze({runId:input.runId,decision,sampleCount:input.samples.length,durationMs,criticalFailureSamples,unknownSamples,blockingReasons:Object.freeze(reasons.sort()),finalInvariantState:finalState,completedAtMs:input.nowMs});
 }
