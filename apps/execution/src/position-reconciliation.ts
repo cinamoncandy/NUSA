@@ -132,8 +132,7 @@ export function releasePositionMismatchRestriction(input: {
     if (matched.observedAtMs < restriction.createdAtMs) throw new Error("matched reconciliation predates restriction");
     if (matched.reconciliationId === restriction.sourceRunId) throw new Error("source reconciliation cannot release restriction");
 
-    const rationale = `${input.rationale.trim()} matchedReconciliationId=${matched.reconciliationId}`;
-    input.releaseEvidence.append(Object.freeze({ releaseId: input.releaseId, restrictionId: restriction.restrictionId, accountId: restriction.accountId, requestedBy: input.requestedBy, verifiedBy: input.verifiedBy, rationale, verifiedIntentIds: Object.freeze([]), matchedReconciliationId: matched.reconciliationId, releasedAtMs: input.nowMs }));
+    input.releaseEvidence.append(Object.freeze({ releaseId: input.releaseId, restrictionId: restriction.restrictionId, accountId: restriction.accountId, requestedBy: input.requestedBy, verifiedBy: input.verifiedBy, rationale: input.rationale.trim(), verifiedIntentIds: Object.freeze([]), matchedReconciliationId: matched.reconciliationId, releasedAtMs: input.nowMs }));
     return input.restrictions.save(Object.freeze({ ...restriction, status: "RELEASED", releasedAtMs: input.nowMs }));
   };
   return input.transaction == null ? operation() : input.transaction.transaction(operation);
