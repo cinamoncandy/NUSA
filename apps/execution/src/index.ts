@@ -26,4 +26,7 @@ export * from "./burn-in-harness";
 export * from "./synthetic-certification-report";
 export * from "./certification-evidence";
 export * from "./release-candidate-freeze";
+export * from "./release-freeze-evidence";
+export * from "./artifact-manifest";
+export * from "./release-candidate-promotion";
 export * from "./final-certification";
