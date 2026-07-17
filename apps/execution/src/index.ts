@@ -35,4 +35,7 @@ export * from "./deployment-hard-block";
 export * from "./deployment-attempt-evidence";
 export * from "./credential-boundary";
 export * from "./production-adapter-attestation";
+export * from "./deployment-evidence-chain";
+export * from "./evidence-completeness-audit";
+export * from "./final-synthetic-release-envelope";
 export * from "./final-certification";
