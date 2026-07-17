@@ -106,7 +106,6 @@ export function admitOrder(intent: OrderIntent, context: OrderAdmissionContext, 
   }
   const byIntent = idempotencyStore.getByIntentId(intent.intentId);
   if (byIntent != null) {
-    if (byIntent.payloadHash === payloadHash) return Object.freeze({ type: OrderAdmissionDecisionType.DUPLICATE, payloadHash });
     return Object.freeze({ type: OrderAdmissionDecisionType.BLOCK, reasonCode: OrderAdmissionReasonCode.INTENT_REPLAYED_WITH_DIFFERENT_KEY, reason: "economic intent was reused with a different idempotency key or payload", payloadHash });
   }
 
