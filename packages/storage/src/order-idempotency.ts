@@ -34,6 +34,10 @@ export class SqliteOrderIdempotencyRepository {
     return row == null ? undefined : this.decode(row);
   }
 
+  public getByKey(key: string): StoredOrderIdempotencyRecord | undefined {
+    return this.get(key);
+  }
+
   public findByIntent(intentId: string): StoredOrderIdempotencyRecord | undefined {
     const row = this.db.connection
       .prepare("SELECT * FROM order_idempotency_records WHERE intent_id = ?")
@@ -41,12 +45,18 @@ export class SqliteOrderIdempotencyRepository {
     return row == null ? undefined : this.decode(row);
   }
 
-  public save(record: StoredOrderIdempotencyRecord): void {
+  public getByIntentId(intentId: string): StoredOrderIdempotencyRecord | undefined {
+    return this.findByIntent(intentId);
+  }
+
+  public save(record: Omit<StoredOrderIdempotencyRecord, "createdAtMs"> & { readonly createdAtMs?: number }): void {
+    const createdAtMs = record.createdAtMs ?? 0;
+    if (!Number.isSafeInteger(createdAtMs) || createdAtMs < 0) throw new Error("valid idempotency creation time is required");
     this.db.connection.prepare(`
       INSERT INTO order_idempotency_records (
         idempotency_key, intent_id, payload_hash, created_at_ms
       ) VALUES (?, ?, ?, ?)
-    `).run(record.key, record.intentId, record.payloadHash, record.createdAtMs.toString());
+    `).run(record.key, record.intentId, record.payloadHash, createdAtMs.toString());
   }
 
   public list(): readonly StoredOrderIdempotencyRecord[] {
