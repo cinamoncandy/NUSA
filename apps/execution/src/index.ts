@@ -21,4 +21,7 @@ export * from "./production-readiness";
 export * from "./recovery-evidence";
 export * from "./fault-injection";
 export * from "./chaos-recovery-harness";
+export * from "./invariant-monitor";
+export * from "./burn-in-harness";
+export * from "./synthetic-certification-report";
 export * from "./final-certification";
