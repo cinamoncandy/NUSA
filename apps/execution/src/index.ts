@@ -38,4 +38,7 @@ export * from "./production-adapter-attestation";
 export * from "./deployment-evidence-chain";
 export * from "./evidence-completeness-audit";
 export * from "./final-synthetic-release-envelope";
+export * from "./final-envelope-evidence";
+export * from "./evidence-graph-integrity";
+export * from "./synthetic-release-revocation";
 export * from "./final-certification";
