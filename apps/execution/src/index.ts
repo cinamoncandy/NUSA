@@ -32,4 +32,7 @@ export * from "./release-candidate-promotion";
 export * from "./independent-approval";
 export * from "./promotion-evidence";
 export * from "./deployment-hard-block";
+export * from "./deployment-attempt-evidence";
+export * from "./credential-boundary";
+export * from "./production-adapter-attestation";
 export * from "./final-certification";
