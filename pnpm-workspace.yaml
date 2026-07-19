@@ -1,8 +1,7 @@
 packages:
   - "packages/*"
   - "apps/*"
-blockExoticSubdeps: false
 allowBuilds:
   electron: true
   electron-winstaller: true
-
+  esbuild: true
