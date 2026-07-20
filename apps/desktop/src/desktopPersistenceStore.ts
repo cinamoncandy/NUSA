@@ -180,12 +180,15 @@ export class DesktopPersistenceStore {
 
   loadResearchValidationReports(): readonly ResearchValidationReport[] {
     const rows = this.db.prepare("SELECT report_json FROM desktop_research_reports ORDER BY run_id ASC, run_type ASC").all() as Array<{ report_json: string }>;
+    const manifests = new Map(this.loadResearchRunManifests().map((manifest) => [manifest.runId, manifest]));
     return Object.freeze(rows.map((row) => {
-      try {
-        const report = Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport);
-        this.assertResearchReport(report);
-        return report;
-      } catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
+      let report: ResearchValidationReport;
+      try { report = Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport); }
+      catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
+      this.assertResearchReport(report);
+      const manifest = manifests.get(report.runId);
+      if (manifest == null || manifest.runType !== report.runType || manifest.resultChecksum !== report.resultChecksum) throw new Error("research report does not match persisted manifest");
+      return report;
     }));
   }
 

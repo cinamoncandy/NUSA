@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
+const { DatabaseSync } = require("node:sqlite");
 const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
 const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
@@ -30,5 +31,12 @@ test("desktop SQLite persists immutable research manifests and reports", () => {
   assert.throws(() => second.appendResearchValidationReport({ ...report, runId: "missing" }), /manifest is missing/);
   assert.throws(() => second.appendResearchValidationReport({ ...report, resultChecksum: "b".repeat(64) }), /does not match manifest/);
   second.close();
+
+  const db = new DatabaseSync(filename);
+  db.prepare("UPDATE desktop_research_reports SET report_json = ? WHERE run_id = ?").run(JSON.stringify({ ...report, runId: "tampered" }), report.runId);
+  db.close();
+  const third = new DesktopPersistenceStore(filename);
+  assert.throws(() => third.loadResearchValidationReports(), /does not match persisted manifest/);
+  third.close();
   rmSync(directory, { recursive: true, force: true });
 });
