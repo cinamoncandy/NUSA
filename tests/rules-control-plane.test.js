@@ -11,6 +11,7 @@ const {
 } = require("../dist/packages/contracts/src/rules.js");
 const {
   appendRulesEvent,
+  composePolicies,
   createBusinessPolicy,
   createBusinessRule,
   createFormulaDefinition,
@@ -74,6 +75,18 @@ test("published formulas are deterministic, immutable, and fail closed without e
   assert.equal(evaluateFormula({ evaluationId: "formula-unpublished", evaluatedAt: 10, formula: formula({ lifecycleState: RuleLifecycleState.APPROVED }), inputs: { notional: 100, rate: 1 } }).status, "UNKNOWN");
   const registry = new Map([["fee@1.0.0", formula()]]);
   assert.throws(() => registerFormulaVersion(registry, formula({ description: "changed" })), /published formula is immutable/);
+});
+
+test("policy composition is deterministic, preserves strict outcomes, and blocks unknown policy state", () => {
+  const restrictiveRule = rule({ ruleId: "jurisdiction-block", policyId: "regulatory-policy", outputExpression: RuleDecision.BLOCK, activationConditions: [], mandatoryInputs: [] });
+  const restrictivePolicy = policy({ policyId: "regulatory-policy", canonicalName: "regulatory-policy", displayName: "Regulatory policy", ruleReferences: [{ ruleId: "jurisdiction-block", version: "1.0.0" }], hierarchy: 1 });
+  const first = composePolicies({ evaluationId: "composition-1", evaluatedAt: 10, policies: [policy(), restrictivePolicy], rules: [rule(), restrictiveRule], inputs: { eligible: true } });
+  const second = composePolicies({ evaluationId: "composition-1", evaluatedAt: 10, policies: [restrictivePolicy, policy()], rules: [restrictiveRule, rule()], inputs: { eligible: true } });
+  assert.equal(first.decision, RuleDecision.BLOCK);
+  assert.equal(first.selectedPolicy.policyId, "regulatory-policy");
+  assert.deepEqual(first, second);
+  assert.equal(first.productionMutationAllowed, false);
+  assert.equal(composePolicies({ evaluationId: "composition-unknown", evaluatedAt: 10, policies: [policy(), restrictivePolicy], rules: [rule()], inputs: { eligible: true } }).decision, RuleDecision.UNKNOWN);
 });
 
 test("rules events replay exactly and SQLite snapshot tampering fails closed", () => {

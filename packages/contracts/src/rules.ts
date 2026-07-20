@@ -163,6 +163,24 @@ export interface FormulaEvaluation {
   readonly productionMutationAllowed: false;
 }
 
+export interface PolicyCompositionRequest {
+  readonly evaluationId: string;
+  readonly evaluatedAt: number;
+  readonly policies: readonly BusinessPolicy[];
+  readonly rules: readonly BusinessRule[];
+  readonly inputs: Readonly<Record<string, RuleValue>>;
+}
+
+export interface PolicyCompositionResult {
+  readonly evaluationId: string;
+  readonly policyTraces: readonly DecisionTrace[];
+  readonly decision: RuleDecision;
+  readonly selectedPolicy: PolicyReference | undefined;
+  readonly reasonCodes: readonly string[];
+  readonly replayHash: string;
+  readonly productionMutationAllowed: false;
+}
+
 export interface RuleEvaluationRequest {
   readonly evaluationId: string;
   /** Explicit clock supplied by the caller; evaluation never reads wall time. */

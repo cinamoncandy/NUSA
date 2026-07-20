@@ -13,6 +13,8 @@ import {
   type FormulaEvaluation,
   type FormulaEvaluationRequest,
   type FormulaOperand,
+  type PolicyCompositionRequest,
+  type PolicyCompositionResult,
   type RuleCondition,
   type RuleEvaluationRequest,
   type RuleExecution,
@@ -241,6 +243,31 @@ export function evaluatePolicy(request: RuleEvaluationRequest): DecisionTrace {
   const explanation = decision === RuleDecision.UNKNOWN ? "Decision blocked: no unambiguous published rule outcome." : `Decision ${decision} selected by ${matchedReferences.map(ruleKey).join(", ")}.`;
   const seed = { evaluationId: request.evaluationId, policy: { policyId: policy.policyId, version: policy.version }, references, inputs, matchedReferences, decision, evidenceHash };
   return Object.freeze({ evaluationId: request.evaluationId, policy: Object.freeze({ policyId: policy.policyId, version: policy.version }), ruleVersions: references, inputsHash: hash(canonical(inputs)), normalizedInputs: inputs, matchedRules: matchedReferences, skippedRules: freezeArray([]), rejectedRules: rejected, executionOrder: references, decision, explanation, durationMs: 0, evidenceHash, replayHash: hash(canonical(seed)), productionMutationAllowed: false });
+}
+
+function unknownComposition(request: PolicyCompositionRequest, reason: string): PolicyCompositionResult {
+  const seed = { evaluationId: request.evaluationId, reason, decision: RuleDecision.UNKNOWN };
+  return Object.freeze({ evaluationId: request.evaluationId, policyTraces: freezeArray([]), decision: RuleDecision.UNKNOWN, selectedPolicy: undefined, reasonCodes: freezeArray([reason]), replayHash: hash(canonical(seed)), productionMutationAllowed: false });
+}
+
+/**
+ * Combines independent policy recommendations. All policies are evaluated from
+ * the same explicit input/clock; an unknown result blocks the composition.
+ * Restrictive outcomes win before hierarchy breaks equal-severity ties.
+ */
+export function composePolicies(request: PolicyCompositionRequest): PolicyCompositionResult {
+  text(request.evaluationId, "composition evaluationId"); timestamp(request.evaluatedAt, "composition evaluatedAt");
+  const policyKeys = request.policies.map(policy => `${policy.policyId}@${policy.version}`);
+  if (policyKeys.length === 0) return unknownComposition(request, "POLICY_UNAVAILABLE");
+  if (new Set(policyKeys).size !== policyKeys.length) return unknownComposition(request, "DUPLICATE_POLICY_VERSION");
+  const policies = [...request.policies].map(createBusinessPolicy).sort((a, b) => b.hierarchy - a.hierarchy || a.policyId.localeCompare(b.policyId) || a.version.localeCompare(b.version));
+  const traces = policies.map(policy => evaluatePolicy({ evaluationId: `${request.evaluationId}:${policy.policyId}@${policy.version}`, evaluatedAt: request.evaluatedAt, policy, rules: request.rules, inputs: request.inputs }));
+  if (traces.some(trace => trace.decision === RuleDecision.UNKNOWN)) return Object.freeze({ evaluationId: request.evaluationId, policyTraces: freezeArray(traces), decision: RuleDecision.UNKNOWN, selectedPolicy: undefined, reasonCodes: freezeArray(["POLICY_COMPOSITION_UNKNOWN"]), replayHash: hash(canonical({ evaluationId: request.evaluationId, traces: traces.map(trace => trace.replayHash), decision: RuleDecision.UNKNOWN })), productionMutationAllowed: false });
+  const ranked = traces.map((trace, index) => ({ trace, policy: policies[index]! })).sort((a, b) => decisionRank[a.trace.decision] - decisionRank[b.trace.decision] || b.policy.hierarchy - a.policy.hierarchy || a.policy.policyId.localeCompare(b.policy.policyId) || a.policy.version.localeCompare(b.policy.version));
+  const winner = ranked[0]!;
+  const selectedPolicy = Object.freeze({ policyId: winner.policy.policyId, version: winner.policy.version });
+  const seed = { evaluationId: request.evaluationId, traces: traces.map(trace => trace.replayHash), selectedPolicy, decision: winner.trace.decision };
+  return Object.freeze({ evaluationId: request.evaluationId, policyTraces: freezeArray(traces), decision: winner.trace.decision, selectedPolicy, reasonCodes: freezeArray(["POLICY_COMPOSITION_RESOLVED"]), replayHash: hash(canonical(seed)), productionMutationAllowed: false });
 }
 
 function normalizeEvent(event: RulesLedgerEvent): RulesLedgerEvent {

@@ -22,6 +22,16 @@ progression.
 Published rule versions are idempotent only when canonical content is exactly
 the same. Different content with the same rule/version is rejected.
 
+## Policy Composition
+
+`composePolicies` evaluates each supplied published policy using the same
+explicit clock and inputs. Unknown/missing policy state makes the complete
+composition `UNKNOWN`. Otherwise restrictive outcomes win (`BLOCK`, then
+`DENY`, then review/escalation outcomes); hierarchy descending and canonical
+policy id/version provide deterministic tie-breaks. This resolves policy
+recommendations only and cannot relax an existing authorization or safety
+decision.
+
 ## Decision Table Semantics
 
 The evaluator supports deterministic `FIRST_MATCH`, `PRIORITY`, `COLLECT`,
