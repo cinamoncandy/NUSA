@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   DecisionTableHitPolicy,
+  FormulaOperation,
   PolicyLifecycleState,
   RuleComparator,
   RuleDecision,
@@ -12,7 +13,10 @@ const {
   appendRulesEvent,
   createBusinessPolicy,
   createBusinessRule,
+  createFormulaDefinition,
+  evaluateFormula,
   evaluatePolicy,
+  registerFormulaVersion,
   registerRuleVersion,
   replayRulesLedger
 } = require("../dist/apps/cloud/src/rulesControlPlane.js");
@@ -30,6 +34,7 @@ const policy = (overrides = {}) => createBusinessPolicy({
 });
 const request = (overrides = {}) => ({ evaluationId: "evaluation-1", evaluatedAt: 10, policy: policy(), rules: [rule()], inputs: { eligible: true }, ...overrides });
 const event = (type, payload, occurredAt) => ({ eventId: `${type}-${occurredAt}`, type, occurredAt, payload, evidenceHash: evidence });
+const formula = (overrides = {}) => createFormulaDefinition({ formulaId: "fee", canonicalName: "fee", displayName: "Fee", description: "No-authority fee calculation", owner: "owner", approver: "approver", version: "1.0.0", operation: FormulaOperation.MULTIPLY, operands: [{ kind: "INPUT", key: "notional" }, { kind: "INPUT", key: "rate" }], effectiveFrom: 1, lifecycleState: RuleLifecycleState.PUBLISHED, evidenceHash: evidence, ...overrides });
 
 test("published declarative policies are deterministic, immutable, and never create authority", () => {
   const first = evaluatePolicy(request());
@@ -60,19 +65,33 @@ test("conflicts use stable policy semantics and published versions cannot be rep
   assert.throws(() => registerRuleVersion(registry, rule({ description: "changed" })), /published rule is immutable/);
 });
 
+test("published formulas are deterministic, immutable, and fail closed without executable expressions", () => {
+  const calculation = evaluateFormula({ evaluationId: "formula-1", evaluatedAt: 10, formula: formula(), inputs: { notional: 100, rate: 0.01 } });
+  assert.deepEqual(calculation.result, 1);
+  assert.equal(calculation.productionMutationAllowed, false);
+  assert.deepEqual(calculation, evaluateFormula({ evaluationId: "formula-1", evaluatedAt: 10, formula: formula(), inputs: { rate: 0.01, notional: 100 } }));
+  assert.equal(evaluateFormula({ evaluationId: "formula-zero", evaluatedAt: 10, formula: formula({ operation: FormulaOperation.DIVIDE }), inputs: { notional: 100, rate: 0 } }).status, "UNKNOWN");
+  assert.equal(evaluateFormula({ evaluationId: "formula-unpublished", evaluatedAt: 10, formula: formula({ lifecycleState: RuleLifecycleState.APPROVED }), inputs: { notional: 100, rate: 1 } }).status, "UNKNOWN");
+  const registry = new Map([["fee@1.0.0", formula()]]);
+  assert.throws(() => registerFormulaVersion(registry, formula({ description: "changed" })), /published formula is immutable/);
+});
+
 test("rules events replay exactly and SQLite snapshot tampering fails closed", () => {
   const trace = evaluatePolicy(request());
   const first = appendRulesEvent([], event(RulesEventType.RULE_PUBLISHED, { rule: rule() }, 1));
   const second = appendRulesEvent(first, event(RulesEventType.POLICY_PUBLISHED, { policy: policy() }, 2));
-  const records = appendRulesEvent(second, event(RulesEventType.DECISION_EVALUATED, { trace }, 3));
+  const third = appendRulesEvent(second, event(RulesEventType.FORMULA_PUBLISHED, { formula: formula() }, 3));
+  const records = appendRulesEvent(third, event(RulesEventType.DECISION_EVALUATED, { trace }, 4));
   assert.equal(replayRulesLedger(records).traces.get("evaluation-1").replayHash, trace.replayHash);
+  assert.equal(replayRulesLedger(records).formulas.get("fee@1.0.0").canonicalName, "fee");
   assert.throws(() => replayRulesLedger([{ ...records[0], hash: "0".repeat(64) }]), /integrity/);
   const db = new SqliteDatabase(":memory:");
   try {
     const store = new SqliteRulesControlPlaneStore(db);
     store.append(event(RulesEventType.RULE_PUBLISHED, { rule: rule() }, 1));
     store.append(event(RulesEventType.POLICY_PUBLISHED, { policy: policy() }, 2));
-    store.append(event(RulesEventType.DECISION_EVALUATED, { trace }, 3));
+    store.append(event(RulesEventType.FORMULA_PUBLISHED, { formula: formula() }, 3));
+    store.append(event(RulesEventType.DECISION_EVALUATED, { trace }, 4));
     store.verify();
     db.connection.prepare("UPDATE rules_state SET ledger_hash=? WHERE id=1").run("0".repeat(64));
     assert.throws(() => store.verify(), /snapshot mismatch/);

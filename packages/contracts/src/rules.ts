@@ -114,6 +114,55 @@ export interface BusinessPolicy {
   readonly evidenceHash: string;
 }
 
+export enum FormulaOperation {
+  ADD = "ADD",
+  SUBTRACT = "SUBTRACT",
+  MULTIPLY = "MULTIPLY",
+  DIVIDE = "DIVIDE",
+  MIN = "MIN",
+  MAX = "MAX"
+}
+
+export type FormulaOperand =
+  | { readonly kind: "INPUT"; readonly key: string }
+  | { readonly kind: "LITERAL"; readonly value: number };
+
+/** A formula is declarative data, never executable source code. */
+export interface FormulaDefinition {
+  readonly formulaId: string;
+  readonly canonicalName: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly owner: string;
+  readonly approver: string;
+  readonly version: string;
+  readonly operation: FormulaOperation;
+  readonly operands: readonly FormulaOperand[];
+  readonly effectiveFrom: number;
+  readonly expiresAt?: number;
+  readonly lifecycleState: RuleLifecycleState;
+  readonly evidenceHash: string;
+}
+
+export interface FormulaEvaluationRequest {
+  readonly evaluationId: string;
+  readonly evaluatedAt: number;
+  readonly formula: FormulaDefinition | undefined;
+  readonly inputs: Readonly<Record<string, number>>;
+}
+
+export interface FormulaEvaluation {
+  readonly evaluationId: string;
+  readonly formula: RuleReference | undefined;
+  readonly inputHash: string;
+  readonly result: number | undefined;
+  readonly status: "CALCULATED" | "UNKNOWN";
+  readonly reasonCodes: readonly string[];
+  readonly evidenceHash: string;
+  readonly replayHash: string;
+  readonly productionMutationAllowed: false;
+}
+
 export interface RuleEvaluationRequest {
   readonly evaluationId: string;
   /** Explicit clock supplied by the caller; evaluation never reads wall time. */
@@ -160,6 +209,8 @@ export enum RulesEventType {
   DECISION_EVALUATED = "DECISION_EVALUATED",
   DECISION_SIMULATED = "DECISION_SIMULATED",
   DECISION_REPLAYED = "DECISION_REPLAYED",
+  FORMULA_REGISTERED = "FORMULA_REGISTERED",
+  FORMULA_PUBLISHED = "FORMULA_PUBLISHED",
   DECISION_EVIDENCE_GENERATED = "DECISION_EVIDENCE_GENERATED",
   DECISION_CERTIFICATION_ISSUED = "DECISION_CERTIFICATION_ISSUED"
 }

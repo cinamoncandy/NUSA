@@ -33,9 +33,21 @@ slice. Mandatory inputs are validated before matching.
 
 There is deliberately no string expression evaluator, scripting engine, wall
 clock read, external lookup, or formula parser. Conditions are typed scalar
-comparisons only. Formula registry, policy composition across policy versions,
-shadow reports, CLI, dashboard and certification workflows remain later A-80
-work and must preserve this no-authority boundary.
+comparisons only.
+
+## Formula Registry
+
+Formula definitions are also immutable, versioned, published-only records.
+They support only declared `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`, `MIN`, and
+`MAX` operations over finite numeric literals and named numeric inputs. The
+evaluator reads its caller-provided clock, rejects missing/non-finite inputs and
+division by zero as `UNKNOWN`, and does not parse strings or execute code.
+Formula results are calculations, never authorization, pricing authority, or a
+financial mutation.
+
+Policy composition across policy versions, shadow reports, CLI, dashboard and
+certification workflows remain later A-80 work and must preserve this
+no-authority boundary.
 
 ## Trace and Replay
 

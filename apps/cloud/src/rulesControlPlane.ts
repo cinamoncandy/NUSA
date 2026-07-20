@@ -9,13 +9,18 @@ import {
   type BusinessPolicy,
   type BusinessRule,
   type DecisionTrace,
+  type FormulaDefinition,
+  type FormulaEvaluation,
+  type FormulaEvaluationRequest,
+  type FormulaOperand,
   type RuleCondition,
   type RuleEvaluationRequest,
   type RuleExecution,
   type RuleReference,
   type RulesLedgerEvent,
   type RulesLedgerRecord,
-  type RuleValue
+  type RuleValue,
+  FormulaOperation
 } from "../../../packages/contracts/src/rules";
 
 const genesis = "0".repeat(64);
@@ -94,6 +99,68 @@ export function registerRuleVersion(existing: ReadonlyMap<string, BusinessRule>,
   if (current == null) return normalized;
   if (canonical(current) === canonical(normalized)) return current;
   throw new Error(current.lifecycleState === RuleLifecycleState.PUBLISHED ? "published rule is immutable" : "rule version conflict");
+}
+
+const formulaKey = (formula: FormulaDefinition): string => `${formula.formulaId}@${formula.version}`;
+
+function normalizeOperand(operand: FormulaOperand): FormulaOperand {
+  if (operand.kind === "INPUT") return Object.freeze({ kind: "INPUT", key: text(operand.key, "formula input key") });
+  if (operand.kind === "LITERAL" && Number.isFinite(operand.value)) return Object.freeze({ kind: "LITERAL", value: operand.value });
+  throw new Error("formula operand is invalid");
+}
+
+export function createFormulaDefinition(formula: FormulaDefinition): FormulaDefinition {
+  timestamp(formula.effectiveFrom, "formula effectiveFrom");
+  if (formula.expiresAt != null && timestamp(formula.expiresAt, "formula expiresAt") <= formula.effectiveFrom) throw new Error("formula expiresAt must follow effectiveFrom");
+  if (!validHash(formula.evidenceHash)) throw new Error("formula evidenceHash must be sha256");
+  if (formula.operands.length < 2) throw new Error("formula requires at least two operands");
+  return Object.freeze({ ...formula, formulaId: text(formula.formulaId, "formulaId"), canonicalName: text(formula.canonicalName, "formula canonicalName"), displayName: text(formula.displayName, "formula displayName"), description: text(formula.description, "formula description"), owner: text(formula.owner, "formula owner"), approver: text(formula.approver, "formula approver"), version: text(formula.version, "formula version"), operands: freezeArray(formula.operands.map(normalizeOperand)) });
+}
+
+/** Registers a formula version once. Published formula versions are immutable. */
+export function registerFormulaVersion(existing: ReadonlyMap<string, FormulaDefinition>, candidate: FormulaDefinition): FormulaDefinition {
+  const normalized = createFormulaDefinition(candidate); const current = existing.get(formulaKey(normalized));
+  if (current == null) return normalized;
+  if (canonical(current) === canonical(normalized)) return current;
+  throw new Error(current.lifecycleState === RuleLifecycleState.PUBLISHED ? "published formula is immutable" : "formula version conflict");
+}
+
+function unknownFormula(request: FormulaEvaluationRequest, reason: string): FormulaEvaluation {
+  const inputs = Object.freeze(Object.fromEntries(Object.keys(request.inputs).sort().map(key => [key, request.inputs[key]!])) as Record<string, number>);
+  const formula = request.formula == null ? undefined : Object.freeze({ ruleId: request.formula.formulaId, version: request.formula.version });
+  const evidenceHash = request.formula?.evidenceHash ?? genesis;
+  const seed = { evaluationId: request.evaluationId, formula, inputs, reason, status: "UNKNOWN" };
+  return Object.freeze({ evaluationId: request.evaluationId, formula, inputHash: hash(canonical(inputs)), result: undefined, status: "UNKNOWN", reasonCodes: freezeArray([reason]), evidenceHash, replayHash: hash(canonical(seed)), productionMutationAllowed: false });
+}
+
+export function evaluateFormula(request: FormulaEvaluationRequest): FormulaEvaluation {
+  text(request.evaluationId, "formula evaluationId"); timestamp(request.evaluatedAt, "formula evaluatedAt");
+  for (const [key, value] of Object.entries(request.inputs)) { text(key, "formula input key"); if (!Number.isFinite(value)) return unknownFormula(request, "INPUT_INVALID"); }
+  const formula = request.formula == null ? undefined : createFormulaDefinition(request.formula);
+  if (formula == null || formula.lifecycleState !== RuleLifecycleState.PUBLISHED || !active(formula.effectiveFrom, formula.expiresAt, request.evaluatedAt)) return unknownFormula(request, "FORMULA_UNAVAILABLE");
+  const values: number[] = [];
+  for (const operand of formula.operands) {
+    if (operand.kind === "LITERAL") values.push(operand.value);
+    else {
+      const value = request.inputs[operand.key];
+      if (value == null || !Number.isFinite(value)) return unknownFormula(request, `MANDATORY_INPUT_MISSING:${operand.key}`);
+      values.push(value);
+    }
+  }
+  let result: number;
+  if (formula.operation === FormulaOperation.ADD) result = values.reduce((total, value) => total + value, 0);
+  else if (formula.operation === FormulaOperation.SUBTRACT) result = values.slice(1).reduce((total, value) => total - value, values[0]!);
+  else if (formula.operation === FormulaOperation.MULTIPLY) result = values.reduce((total, value) => total * value, 1);
+  else if (formula.operation === FormulaOperation.DIVIDE) {
+    if (values.slice(1).some(value => value === 0)) return unknownFormula(request, "DIVISION_BY_ZERO");
+    result = values.slice(1).reduce((total, value) => total / value, values[0]!);
+  } else if (formula.operation === FormulaOperation.MIN) result = Math.min(...values);
+  else result = Math.max(...values);
+  if (!Number.isFinite(result)) return unknownFormula(request, "RESULT_INVALID");
+  const inputs = Object.freeze(Object.fromEntries(Object.keys(request.inputs).sort().map(key => [key, request.inputs[key]!])) as Record<string, number>);
+  const reference = Object.freeze({ ruleId: formula.formulaId, version: formula.version });
+  const seed = { evaluationId: request.evaluationId, formula: reference, inputs, result, evidenceHash: formula.evidenceHash };
+  return Object.freeze({ evaluationId: request.evaluationId, formula: reference, inputHash: hash(canonical(inputs)), result, status: "CALCULATED", reasonCodes: freezeArray(["FORMULA_CALCULATED"]), evidenceHash: formula.evidenceHash, replayHash: hash(canonical(seed)), productionMutationAllowed: false });
 }
 
 function matches(condition: RuleCondition, inputs: Readonly<Record<string, RuleValue>>): boolean {
@@ -187,11 +254,12 @@ export interface RulesReplayState {
   readonly hash: string;
   readonly rules: ReadonlyMap<string, BusinessRule>;
   readonly policies: ReadonlyMap<string, BusinessPolicy>;
+  readonly formulas: ReadonlyMap<string, FormulaDefinition>;
   readonly traces: ReadonlyMap<string, DecisionTrace>;
 }
 
 export function replayRulesLedger(records: readonly RulesLedgerRecord[]): RulesReplayState {
-  const rules = new Map<string, BusinessRule>(); const policies = new Map<string, BusinessPolicy>(); const traces = new Map<string, DecisionTrace>();
+  const rules = new Map<string, BusinessRule>(); const policies = new Map<string, BusinessPolicy>(); const formulas = new Map<string, FormulaDefinition>(); const traces = new Map<string, DecisionTrace>();
   let previousHash = genesis; let previousTime = -1;
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index]!; const event = normalizeEvent(record.event);
@@ -209,6 +277,12 @@ export function replayRulesLedger(records: readonly RulesLedgerRecord[]): RulesR
       if (event.type === RulesEventType.POLICY_PUBLISHED && policy.lifecycleState !== PolicyLifecycleState.PUBLISHED) throw new Error("published event requires published policy");
       policies.set(key, policy);
     }
+    if (event.type === RulesEventType.FORMULA_REGISTERED || event.type === RulesEventType.FORMULA_PUBLISHED) {
+      const formula = createFormulaDefinition(event.payload.formula as FormulaDefinition); const key = formulaKey(formula); const current = formulas.get(key);
+      if (current != null && canonical(current) !== canonical(formula)) throw new Error("rules ledger formula version conflict");
+      if (event.type === RulesEventType.FORMULA_PUBLISHED && formula.lifecycleState !== RuleLifecycleState.PUBLISHED) throw new Error("published event requires published formula");
+      formulas.set(key, formula);
+    }
     if (event.type === RulesEventType.DECISION_EVALUATED || event.type === RulesEventType.DECISION_SIMULATED || event.type === RulesEventType.DECISION_REPLAYED) {
       const trace = event.payload.trace as DecisionTrace;
       if (trace == null || !validHash(trace.replayHash) || trace.productionMutationAllowed !== false || traces.has(trace.evaluationId)) throw new Error("invalid rules decision trace");
@@ -216,7 +290,7 @@ export function replayRulesLedger(records: readonly RulesLedgerRecord[]): RulesR
     }
     previousHash = record.hash; previousTime = event.occurredAt;
   }
-  return Object.freeze({ hash: previousHash, rules, policies, traces });
+  return Object.freeze({ hash: previousHash, rules, policies, formulas, traces });
 }
 
 export function appendRulesEvent(records: readonly RulesLedgerRecord[], event: RulesLedgerEvent): readonly RulesLedgerRecord[] {
