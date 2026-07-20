@@ -10,6 +10,8 @@ export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
 export { SqliteResearchMemoryRepository } from "./researchMemory";
 export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
+export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
+export type { ComplianceDatabase } from "./complianceControlPlaneStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -233,4 +235,14 @@ CREATE TABLE IF NOT EXISTS champion_assignments (family TEXT PRIMARY KEY, strate
 CREATE TABLE IF NOT EXISTS strategy_governance_commands (command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS investment_committee_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, decision_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS investment_committee_snapshot (id INTEGER PRIMARY KEY CHECK(id = 1), hash TEXT NOT NULL);
+` }, { id: "004_compliance_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS compliance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id = 1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_rules (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
+CREATE TABLE IF NOT EXISTS compliance_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS surveillance_alerts (alert_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_cases (case_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS regulatory_reports (report_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence_packages (evidence_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 ` }];
