@@ -59,17 +59,19 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
-    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control", "004_compliance_control_plane", "005_resilience_control_plane", "006_rules_control_plane"]);
-    assert.equal(db.migrationResult.currentVersion, "006_rules_control_plane");
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control", "004_compliance_control_plane", "005_resilience_control_plane", "006_rules_control_plane", "007_multi_agent_governance"]);
+    assert.equal(db.migrationResult.currentVersion, "007_multi_agent_governance");
     const names = db.connection.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY name"
-    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events", "compliance_events", "compliance_state", "rules_events", "rules_state")
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY name"
+    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events", "compliance_events", "compliance_state", "rules_events", "rules_state", "multi_agent_governance_events", "multi_agent_governance_state")
       .map((row) => row.name);
     assert.deepEqual(names, [
       "applied_ledger_markers",
       "compliance_events",
       "compliance_state",
       "investment_committee_events",
+      "multi_agent_governance_events",
+      "multi_agent_governance_state",
       "position_ledger_entries",
       "research_experiment_records",
       "research_hypotheses",
@@ -88,7 +90,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const reopened = new SqliteDatabase(filename);
   try {
     assert.deepEqual(reopened.migrationResult.applied, []);
-    assert.equal(reopened.migrationResult.currentVersion, "006_rules_control_plane");
+    assert.equal(reopened.migrationResult.currentVersion, "007_multi_agent_governance");
     assert.equal(reopened.connection.prepare("SELECT id FROM position_ledger_entries WHERE id = ?").get("persisted").id, "persisted");
   } finally { reopened.close(); }
 });

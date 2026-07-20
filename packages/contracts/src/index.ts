@@ -7,6 +7,7 @@ export * from "./decisionExecutionReceipt";
 export * from "./compliance";
 export * from "./resilience";
 export * from "./rules";
+export * from "./multiAgentGovernance";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }

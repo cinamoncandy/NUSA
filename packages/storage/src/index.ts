@@ -15,6 +15,8 @@ export type { ComplianceDatabase } from "./complianceControlPlaneStore";
 export { SqliteResilienceControlPlaneStore } from "./resilienceControlPlaneStore";
 export { SqliteRulesControlPlaneStore } from "./rulesControlPlaneStore";
 export type { RulesDatabase } from "./rulesControlPlaneStore";
+export { SqliteMultiAgentGovernanceStore } from "./multiAgentGovernanceStore";
+export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -269,4 +271,16 @@ CREATE TABLE IF NOT EXISTS explanations (evaluation_id TEXT PRIMARY KEY, payload
 CREATE TABLE IF NOT EXISTS simulations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS decision_evidence (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS decision_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "007_multi_agent_governance", sql: `
+CREATE TABLE IF NOT EXISTS multi_agent_governance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS multi_agent_governance_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_definitions (agent_id TEXT NOT NULL, definition_version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(agent_id, definition_version));
+CREATE TABLE IF NOT EXISTS agent_role_contracts (contract_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_evidence (evidence_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_context_snapshots (context_snapshot_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_runs (agent_run_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_orchestration_runs (orchestration_run_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_incidents (incident_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 ` }];
