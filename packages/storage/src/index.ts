@@ -12,6 +12,7 @@ export { SqliteResearchMemoryRepository } from "./researchMemory";
 export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
+export { SqliteResilienceControlPlaneStore } from "./resilienceControlPlaneStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -245,4 +246,10 @@ CREATE TABLE IF NOT EXISTS compliance_cases (case_id TEXT PRIMARY KEY, payload_j
 CREATE TABLE IF NOT EXISTS regulatory_reports (report_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_packages (evidence_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS compliance_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "005_resilience_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS resilience_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS resilience_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS resilience_services (service_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS continuity_plans (plan_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(plan_id,version));
+CREATE TABLE IF NOT EXISTS resilience_evidence_packages (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 ` }];

@@ -1,0 +1,10 @@
+import type { ResilienceLedgerEvent, ResilienceLedgerRecord } from "../../contracts/src/resilience";
+import { appendResilienceEvent, replayResilienceLedger } from "../../../apps/cloud/src/resilienceControlPlane";
+
+export interface ResilienceDatabase { readonly connection: { prepare(sql: string): { all(...args: unknown[]): unknown[]; get(...args: unknown[]): unknown; run(...args: unknown[]): unknown; }; }; transaction<T>(fn: () => T): T; }
+export class SqliteResilienceControlPlaneStore {
+  public constructor(private readonly db: ResilienceDatabase) {}
+  public list(): readonly ResilienceLedgerRecord[] { const rows = this.db.connection.prepare("SELECT sequence,previous_hash,event_json,hash FROM resilience_events ORDER BY sequence").all() as Array<Record<string, unknown>>; return Object.freeze(rows.map(row => Object.freeze({ sequence: Number(row.sequence), previousHash: String(row.previous_hash), event: JSON.parse(String(row.event_json)) as ResilienceLedgerEvent, hash: String(row.hash) }))); }
+  public append(event: ResilienceLedgerEvent): ResilienceLedgerRecord { return this.db.transaction(() => { const record = appendResilienceEvent(this.list(), event).at(-1)!; this.db.connection.prepare("INSERT INTO resilience_events(sequence,previous_hash,event_json,hash) VALUES(?,?,?,?)").run(record.sequence, record.previousHash, JSON.stringify(record.event), record.hash); const hash = this.list().at(-1)!.hash; this.db.connection.prepare("INSERT INTO resilience_state(id,ledger_hash) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET ledger_hash=excluded.ledger_hash").run(hash); return record; }); }
+  public verify(): void { const records = this.list(); const replay = replayResilienceLedger(records); const row = this.db.connection.prepare("SELECT ledger_hash FROM resilience_state WHERE id=1").get() as { ledger_hash: unknown } | undefined; if (row == null) { if (records.length === 0) return; throw new Error("resilience snapshot missing"); } if (String(row.ledger_hash) !== (records.at(-1)?.hash ?? "0".repeat(64)) || replay.size === 0 && records.length > 0) throw new Error("resilience snapshot mismatch"); }
+}
