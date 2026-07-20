@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BusinessServiceCriticality, ResilienceReadiness, type CriticalBusinessService, type ResilienceLedgerEvent, type ResilienceLedgerRecord, type ResilienceReadinessResult } from "../../../packages/contracts/src/resilience";
+import { BusinessServiceCriticality, ResilienceReadiness, type CriticalBusinessService, type FailoverDecision, type FailoverRequest, type ResilienceLedgerEvent, type ResilienceLedgerRecord, type ResilienceReadinessResult } from "../../../packages/contracts/src/resilience";
 
 const freeze = <T>(items: readonly T[]): readonly T[] => Object.freeze([...items]);
 const validHash = (value: string): boolean => /^[a-f0-9]{64}$/.test(value);
@@ -18,6 +18,16 @@ export function evaluateResilienceReadiness(service: CriticalBusinessService, no
   if (!validHash(service.evidenceHash)) blockers.push("EVIDENCE_UNVERIFIED");
   if (service.dependencyIds.some(id => !knownDependencies.has(id))) blockers.push("DEPENDENCY_UNKNOWN");
   return Object.freeze({ serviceId: service.businessServiceId, readiness: blockers.length === 0 ? ResilienceReadiness.READY : blockers.some(code => code.includes("UNKNOWN")) ? ResilienceReadiness.UNKNOWN : ResilienceReadiness.BLOCKED, blockers: freeze([...new Set(blockers)].sort()), productionMutationAllowed: false });
+}
+export function evaluateFailover(request: FailoverRequest): FailoverDecision {
+  const reasons: string[] = [];
+  if (!request.requestId.trim() || !request.tenantId.trim() || !request.legalEntityId.trim() || !request.jurisdiction.trim() || !request.sourceRegion.trim() || !request.targetRegion.trim() || request.sourceRegion === request.targetRegion) reasons.push("BOUNDARY_UNKNOWN");
+  if (!validHash(request.evidenceHash)) reasons.push("EVIDENCE_UNVERIFIED");
+  if (!request.sourceFenced) reasons.push("SOURCE_NOT_FENCED");
+  if (!request.targetSynchronized) reasons.push("TARGET_NOT_SYNCHRONIZED");
+  if (!request.reconciliationHealthy) reasons.push("RECONCILIATION_UNHEALTHY");
+  if (!request.approved) reasons.push("APPROVAL_MISSING");
+  return Object.freeze({ requestId: request.requestId, decision: reasons.length === 0 ? "ALLOW_READ_ONLY_FAILOVER" : reasons.some(reason => reason.endsWith("UNKNOWN") || reason === "EVIDENCE_UNVERIFIED") ? "UNKNOWN" : "DENY", reasons: freeze(reasons.sort()), productionMutationAllowed: false });
 }
 
 const genesis = "0".repeat(64);

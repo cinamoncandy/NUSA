@@ -7,3 +7,5 @@ export interface ContinuityPlan { readonly planId: string; readonly version: str
 export type ResilienceEventType = "PLAN_REGISTERED" | "PLAN_APPROVED" | "PLAN_TESTED" | "PLAN_EXPIRED";
 export interface ResilienceLedgerEvent { readonly eventId: string; readonly type: ResilienceEventType; readonly occurredAt: number; readonly plan: ContinuityPlan; readonly evidenceHash: string; }
 export interface ResilienceLedgerRecord { readonly sequence: number; readonly previousHash: string; readonly event: ResilienceLedgerEvent; readonly hash: string; }
+export interface FailoverRequest { readonly requestId: string; readonly tenantId: string; readonly legalEntityId: string; readonly jurisdiction: string; readonly sourceRegion: string; readonly targetRegion: string; readonly sourceFenced: boolean; readonly targetSynchronized: boolean; readonly reconciliationHealthy: boolean; readonly approved: boolean; readonly evidenceHash: string; }
+export interface FailoverDecision { readonly requestId: string; readonly decision: "ALLOW_READ_ONLY_FAILOVER" | "DENY" | "UNKNOWN"; readonly reasons: readonly string[]; readonly productionMutationAllowed: false; }
