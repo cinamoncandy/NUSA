@@ -13,6 +13,8 @@ export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, Re
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
 export { SqliteResilienceControlPlaneStore } from "./resilienceControlPlaneStore";
+export { SqliteRulesControlPlaneStore } from "./rulesControlPlaneStore";
+export type { RulesDatabase } from "./rulesControlPlaneStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -252,4 +254,19 @@ CREATE TABLE IF NOT EXISTS resilience_state (id INTEGER PRIMARY KEY CHECK(id=1),
 CREATE TABLE IF NOT EXISTS resilience_services (service_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS continuity_plans (plan_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(plan_id,version));
 CREATE TABLE IF NOT EXISTS resilience_evidence_packages (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "006_rules_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS rules_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS rules_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rules (rule_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rule_versions (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
+CREATE TABLE IF NOT EXISTS policies (policy_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS policy_versions (policy_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(policy_id, version));
+CREATE TABLE IF NOT EXISTS decision_tables (policy_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(policy_id, version));
+CREATE TABLE IF NOT EXISTS formulas (formula_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(formula_id, version));
+CREATE TABLE IF NOT EXISTS evaluations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluation_traces (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS explanations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS simulations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS decision_evidence (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS decision_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 ` }];

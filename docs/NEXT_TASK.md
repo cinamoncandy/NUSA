@@ -13,6 +13,7 @@ Implemented and continuously validated:
 - Paper portfolio, bounded risk, and synthetic execution projections;
 - runtime health, recovery, typed fault-drill evidence, and release-readiness contracts;
 - operational completion policy with calendar and scenario-based Paper validation profiles.
+- deterministic Rules Control Plane v0.1 with immutable published rule/policy versions, declarative fail-closed evaluation, replayable decision traces, and SQLite ledger snapshots; it remains recommendation-only and does not create execution authority.
 
 The consolidated lifecycle and explicit command boundaries are documented in `docs/operations/OPERATIONS_PLAYBOOK.md`.
 
@@ -54,6 +55,7 @@ This replaces only elapsed calendar duration. It does not replace CI, recovery, 
 6. Keep LIVE trading, private APIs, credentials, withdrawal actions, automatic promotion, and automatic release disabled.
 7. Keep PR #1 Draft and unmerged until latest-HEAD CI, real evidence, and owner review are complete.
 8. Before distribution, provide an application icon, an owner-approved code-signing certificate, a portable-artifact decision, and real Windows GUI measurements for startup time, memory, scaling, keyboard-only, and screen-reader checks. The current unsigned NSIS build is technical packaging evidence only.
+9. Extend Rules Control Plane v0.1 only through separately reviewed increments: formula registry, policy composition, explicit simulation/shadow reporting, query projections, CLI/dashboard, and certification workflows. Do not introduce dynamic code execution or authority creation.
 
 ## Remaining operator and owner work
 
