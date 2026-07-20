@@ -1,4 +1,5 @@
-import { BusinessServiceCriticality, ResilienceReadiness, type CriticalBusinessService, type ResilienceReadinessResult } from "../../../packages/contracts/src/resilience";
+import { createHash } from "node:crypto";
+import { BusinessServiceCriticality, ResilienceReadiness, type CriticalBusinessService, type ResilienceLedgerEvent, type ResilienceLedgerRecord, type ResilienceReadinessResult } from "../../../packages/contracts/src/resilience";
 
 const freeze = <T>(items: readonly T[]): readonly T[] => Object.freeze([...items]);
 const validHash = (value: string): boolean => /^[a-f0-9]{64}$/.test(value);
@@ -17,4 +18,16 @@ export function evaluateResilienceReadiness(service: CriticalBusinessService, no
   if (!validHash(service.evidenceHash)) blockers.push("EVIDENCE_UNVERIFIED");
   if (service.dependencyIds.some(id => !knownDependencies.has(id))) blockers.push("DEPENDENCY_UNKNOWN");
   return Object.freeze({ serviceId: service.businessServiceId, readiness: blockers.length === 0 ? ResilienceReadiness.READY : blockers.some(code => code.includes("UNKNOWN")) ? ResilienceReadiness.UNKNOWN : ResilienceReadiness.BLOCKED, blockers: freeze([...new Set(blockers)].sort()), productionMutationAllowed: false });
+}
+
+const genesis = "0".repeat(64);
+const eventHash = (sequence: number, previousHash: string, event: ResilienceLedgerEvent): string => createHash("sha256").update(`${sequence}\n${previousHash}\n${JSON.stringify(event)}`, "utf8").digest("hex");
+export function appendResilienceEvent(records: readonly ResilienceLedgerRecord[], event: ResilienceLedgerEvent): readonly ResilienceLedgerRecord[] {
+  replayResilienceLedger(records); if (!event.eventId.trim() || !event.plan.planId.trim() || !event.plan.version.trim() || !validHash(event.evidenceHash) || event.occurredAt < 0 || !Number.isSafeInteger(event.occurredAt)) throw new Error("invalid resilience event");
+  const previousHash = records.at(-1)?.hash ?? genesis; const record = Object.freeze({ sequence: records.length + 1, previousHash, event: Object.freeze({ ...event }), hash: eventHash(records.length + 1, previousHash, event) }); const next = Object.freeze([...records, record]); replayResilienceLedger(next); return next;
+}
+export function replayResilienceLedger(records: readonly ResilienceLedgerRecord[]): ReadonlyMap<string, ResilienceLedgerEvent> {
+  const plans = new Map<string, ResilienceLedgerEvent>(); let previousHash = genesis; let last = -1;
+  for (let index = 0; index < records.length; index += 1) { const record = records[index]!; if (record.sequence !== index + 1 || record.previousHash !== previousHash || record.hash !== eventHash(record.sequence, record.previousHash, record.event) || record.event.occurredAt < last) throw new Error("resilience ledger integrity violation"); const key = `${record.event.plan.planId}|${record.event.plan.version}`; if (record.event.type === "PLAN_TESTED" && record.event.plan.approvedAt == null) throw new Error("untested approval boundary"); plans.set(key, record.event); previousHash = record.hash; last = record.event.occurredAt; }
+  return plans;
 }
