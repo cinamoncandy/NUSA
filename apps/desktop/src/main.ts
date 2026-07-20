@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import { evaluateOperationalReadiness } from "../../cloud/src/operationalReadinessGate";
 import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
 import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
@@ -20,6 +21,9 @@ import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
 const FEE_RATE = 0.0005;
+const MAXIMUM_MARKET_DATA_AGE_MS = 30_000;
+const RECONNECT_COOLDOWN_MS = 5_000;
+const REQUIRED_WARMUP_SAMPLES = 20;
 const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000 };
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
@@ -42,6 +46,8 @@ let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
 let liveMarketRegimeObserver: LiveMarketRegimeObserver;
 let websocketConnected = false;
+let disconnectedAt: number | undefined;
+let reconnectedAt: number | undefined;
 let rendererHealthy = true;
 let healthTimer: NodeJS.Timeout | undefined;
 const recoveryLedger = new RecoveryLedger();
@@ -51,11 +57,6 @@ function recordRecovery(component: RecoveryComponent, status: RecoveryHealth, me
 }
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
-
-function persistRuntime(): void {
-  if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-  persistenceStore.save(broker.exportState(), control.exportState());
-}
 
 function publishControl(): void { window?.webContents.send("control:snapshot", control.snapshot()); }
 function publishPaper(): void {
@@ -95,6 +96,32 @@ function failClosedEvidenceWrite(): void {
   publishAiCioDashboard();
 }
 
+function marketDataIsFresh(now = Date.now()): boolean {
+  return websocketConnected && latestTicker !== undefined && latestTicker.trade_timestamp <= now && now - latestTicker.trade_timestamp <= MAXIMUM_MARKET_DATA_AGE_MS;
+}
+
+function assertFreshMarketData(): UpbitTicker {
+  if (!latestTicker) throw new Error("market price is not available yet");
+  if (!websocketConnected) throw new Error("market data connection is unavailable");
+  const age = Date.now() - latestTicker.trade_timestamp;
+  if (!Number.isSafeInteger(latestTicker.trade_timestamp) || age < 0 || age > MAXIMUM_MARKET_DATA_AGE_MS) {
+    throw new Error("market price is stale; wait for a fresh ticker");
+  }
+  return latestTicker;
+}
+
+function disableAutomaticTradingForMarketFault(status: string): void {
+  if (!control.snapshot().autoTradeEnabled) return;
+  try {
+    runtime.setAutoTrade(false);
+  } finally {
+    paperTradingAvailable = runtime.isAvailable();
+    publishControl();
+    publishAiCioDashboard();
+  }
+  recordRecovery("WEBSOCKET", "WARNING", `Automatic Paper trading disabled: ${status}`);
+}
+
 function recordLiveMarketRegime(ticker: UpbitTicker): boolean {
   const regime = liveMarketRegimeObserver.observe(ticker);
   if (!regime || !paperTradingAvailable || !evidenceRecorder) return true;
@@ -122,8 +149,17 @@ function handleTicker(ticker: UpbitTicker): void {
 }
 
 function handleMarketStatus(status: string): void {
+  const now = Date.now();
   websocketConnected = status === "connected";
   window?.webContents.send("market:status", status);
+
+  if (status === "connected") {
+    reconnectedAt = now;
+  } else {
+    disconnectedAt ??= now;
+    disableAutomaticTradingForMarketFault(status);
+  }
+
   if (status === "reconnect-exhausted") {
     recordRecovery("WEBSOCKET", "CRITICAL", "Market WebSocket recovery exhausted");
     paperTradingAvailable = false;
@@ -133,7 +169,9 @@ function handleMarketStatus(status: string): void {
     publishAiCioDashboard();
     return;
   }
-  if (status.startsWith("reconnecting") || status.startsWith("error") || status.startsWith("decode-error")) recordRecovery("WEBSOCKET", "WARNING", status);
+  if (status.startsWith("reconnecting") || status.startsWith("error") || status.startsWith("decode-error") || status.startsWith("stale")) {
+    recordRecovery("WEBSOCKET", "WARNING", status);
+  }
   const evidence = runtimeEvidenceState.observeMarketStatus(status);
   if (evidence !== "WEBSOCKET_DISCONNECT_RECOVERED" || !paperTradingAvailable || !evidenceRecorder) return;
   const observedAt = Date.now();
@@ -184,6 +222,9 @@ function observeHealth(): void {
     maximumMarketDataAgeMs: 60_000, heapUsedBytes: memory.heapUsed, maximumHeapUsedBytes: 768 * 1024 * 1024
   });
   if (report.status !== "HEALTHY") recordRecovery("MEMORY", report.status, report.reasons.join("; "));
+  if ((report.status === "CRITICAL" || !marketDataIsFresh()) && control.snapshot().autoTradeEnabled) {
+    disableAutomaticTradingForMarketFault(report.reasons.join("; ") || "market data is not fresh");
+  }
 }
 
 function initializeRuntime(): void {
@@ -191,6 +232,8 @@ function initializeRuntime(): void {
   evidenceRecorder = undefined;
   runtimeEvidenceState = new PaperRuntimeEvidenceState();
   liveMarketRegimeObserver = new LiveMarketRegimeObserver();
+  disconnectedAt = undefined;
+  reconnectedAt = undefined;
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
@@ -230,7 +273,26 @@ function initializeRuntime(): void {
   }, saveWithScenarioEvents: (paper, controlState, events) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.saveWithScenarioEvents(paper, controlState, events);
-  } }, undefined, evidenceRecorder);
+  } }, () => {
+    const now = Date.now();
+    const marketDataObservedAt = latestTicker?.trade_timestamp ?? 0;
+    const input = {
+      now,
+      mode: paperTradingAvailable ? "PAPER" as const : "FAULTED" as const,
+      killSwitchActive: control.snapshot().status === "FAULTED",
+      recoveryUnresolved: !paperTradingAvailable,
+      strategySuspended: !strategy.isRunning(),
+      dataFingerprintMatches: true,
+      marketDataObservedAt,
+      maximumDataAgeMs: MAXIMUM_MARKET_DATA_AGE_MS,
+      warmupSamples: strategy.getHistory().length,
+      requiredWarmupSamples: REQUIRED_WARMUP_SAMPLES,
+      reconnectCooldownMs: RECONNECT_COOLDOWN_MS,
+      ...(disconnectedAt === undefined ? {} : { disconnectedAt }),
+      ...(reconnectedAt === undefined ? {} : { reconnectedAt })
+    };
+    return evaluateOperationalReadiness(input);
+  }, evidenceRecorder);
   paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
@@ -256,13 +318,13 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
   if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
   const side = candidate.side as PaperSide;
   const quantity = candidate.quantity;
-  if (!latestTicker) throw new Error("market price is not available yet");
+  const ticker = assertFreshMarketData();
   let order: PaperOrder;
-  try { order = runtime.manualOrder(side, quantity, latestTicker.trade_price); }
+  try { order = runtime.manualOrder(side, quantity, ticker.trade_price); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
   publishAiCioDashboard();
-  return { order, snapshot: broker.snapshot(latestTicker.trade_price) };
+  return { order, snapshot: broker.snapshot(ticker.trade_price) };
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
@@ -278,6 +340,7 @@ ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
 ipcMain.handle("control:stop", () => runControlCommand(() => runtime.stop()));
 ipcMain.handle("control:auto", (_event, enabled: unknown) => {
   if (typeof enabled !== "boolean") throw new Error("invalid auto-trade input");
+  if (enabled) assertFreshMarketData();
   return runControlCommand(() => runtime.setAutoTrade(enabled));
 });
 ipcMain.handle("control:quantity", (_event, quantity: unknown) => {

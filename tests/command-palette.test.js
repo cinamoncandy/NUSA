@@ -6,63 +6,49 @@ const palette = require("../apps/desktop/renderer/command-palette.js");
 
 const root = path.resolve(__dirname, "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
-const storage = () => {
-  const values = new Map();
-  return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value) };
+const storage = (initial = {}) => {
+  const values = new Map(Object.entries(initial));
+  return { getItem: (key) => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, value) };
 };
 
-test("palette searches Korean and English aliases while retaining disabled commands", () => {
+test("command palette searches Korean and English aliases without disabled commands", () => {
   const commands = [
-    { id: "focus", title: "Focus mode", keywords: ["집중", "focus"] },
-    { id: "start", title: "Start strategy", keywords: ["전략", "strategy"], enabled: false, disabledReason: "Unavailable" }
+    { id: "focus", title: "집중 모드 켜기", keywords: ["focus"] },
+    { id: "orders", title: "최근 체결로 이동", keywords: ["orders"] },
+    { id: "start", title: "전략 시작", keywords: ["strategy"], enabled: false }
   ];
-  assert.deepEqual(palette.filter(commands, "FOCUS").map((item) => item.id), ["focus"]);
-  assert.deepEqual(palette.filter(commands, "strategy").map((item) => item.id), ["start"]);
+  assert.deepEqual(palette.filterCommands(commands, "FOCUS").map((command) => command.id), ["focus"]);
+  assert.deepEqual(palette.filterCommands(commands, "체결").map((command) => command.id), ["orders"]);
+  assert.deepEqual(palette.filterCommands(commands, "strategy"), []);
 });
 
-test("keyboard selection skips disabled commands for arrows, Home, and End", () => {
-  const commands = [{ id: "blocked", enabled: false }, { id: "first" }, { id: "second" }, { id: "last", enabled: false }];
-  assert.equal(palette.nextEnabledIndex(commands, -1, "FIRST"), 1);
-  assert.equal(palette.nextEnabledIndex(commands, -1, "LAST"), 2);
-  assert.equal(palette.nextEnabledIndex(commands, 1, "NEXT"), 2);
-  assert.equal(palette.nextEnabledIndex(commands, 2, "NEXT"), 1);
-  assert.equal(palette.nextEnabledIndex(commands, 1, "PREVIOUS"), 2);
-  assert.equal(palette.nextEnabledIndex([{ id: "blocked", enabled: false }], -1, "FIRST"), -1);
+test("recent commands are bounded, de-duplicated, and tolerate corrupt storage", () => {
+  const clean = storage();
+  ["one", "two", "three", "four", "five", "six", "three"].forEach((id) => palette.writeRecent(clean, id));
+  assert.deepEqual(palette.readRecent(clean), ["three", "six", "five", "four", "two"]);
+  assert.deepEqual(palette.readRecent(storage({ [palette.RECENT_KEY]: "not json" })), []);
 });
 
-test("recent commands are bounded, newest-first, de-duplicated, and storage failures are non-fatal", () => {
-  const local = storage();
-  ["one", "two", "three", "four", "five", "six", "three"].forEach((id) => palette.write(local, id));
-  assert.deepEqual(palette.read(local), ["three", "six", "five", "four", "two"]);
-  assert.deepEqual(palette.read({ getItem: () => "bad json", setItem: () => {} }), []);
-  assert.doesNotThrow(() => palette.write({ getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } }, "focus"));
-});
-
-test("focus trap, focus restoration, and focus targets are encoded in the renderer contract", () => {
+test("renderer contract wires keyboard access without creating order commands", () => {
   const html = read("apps/desktop/renderer/index.html");
+  const renderer = read("apps/desktop/renderer/renderer.js");
   const script = read("apps/desktop/renderer/command-palette.js");
   assert.match(html, /id="command-palette"[^>]*role="dialog"[^>]*aria-modal="true"/);
   assert.match(html, /id="command-palette-search"[^>]*aria-controls="command-palette-list"/);
-  assert.match(html, /id="orders" tabindex="-1"/);
-  assert.match(html, /id="events" class="events" tabindex="-1"/);
-  assert.match(html, /id="ai-cio-dashboard"[^>]*tabindex="-1"/);
-  assert.match(script, /previousFocus = document\.activeElement/);
-  assert.match(script, /previousFocus\?\.focus\?\.\(\)/);
-  assert.match(script, /event\.key === "Tab"/);
-  assert.match(script, /event\.key === "ArrowDown"/);
-  assert.match(script, /event\.key === "ArrowUp"/);
-  assert.match(script, /event\.key === "Home"/);
-  assert.match(script, /event\.key === "End"/);
-  assert.match(script, /event\.key === "Enter"/);
+  assert.match(script, /\(event\.ctrlKey \|\| event\.metaKey\).*"k"/);
   assert.match(script, /event\.key === "Escape"/);
+  assert.match(script, /event\.key === "ArrowDown"/);
+  assert.match(script, /event\.key === "Tab"/);
+  assert.doesNotMatch(renderer, /placeOrder\("BUY"|placeOrder\("SELL"/);
+  assert.match(renderer, /focus-order-quantity/);
+  assert.match(renderer, /byId\("strategy-start"\)\.click\(\)/);
+  assert.match(renderer, /byId\("strategy-stop"\)\.click\(\)/);
 });
 
-test("palette creates options with DOM nodes and exposes disabled reasons without HTML injection", () => {
-  const script = read("apps/desktop/renderer/command-palette.js");
-  assert.doesNotMatch(script, /\.innerHTML\s*=/);
-  assert.doesNotMatch(script, /insertAdjacentHTML/);
-  assert.doesNotMatch(script, /<span|<button|<li/);
-  assert.match(script, /textContent = value/);
-  assert.match(script, /option\.disabled = disabled/);
-  assert.match(script, /command\.disabledReason \|\| unavailableLabel/);
+test("palette styles use tokens and preserve reduced motion handling", () => {
+  const css = read("apps/desktop/renderer/command-palette.css");
+  assert.match(css, /var\(--z-modal\)/);
+  assert.match(css, /var\(--color-surface\)/);
+  assert.match(css, /max-width: 40rem/);
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
 });

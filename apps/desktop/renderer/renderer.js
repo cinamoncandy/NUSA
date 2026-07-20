@@ -202,6 +202,41 @@ commandPalette = window.DokkaebiCommandPalette.create({
   }
 });
 
+function focusElement(id) {
+  const element = byId(id);
+  element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  element?.focus?.();
+}
+
+function toggleFocusMode() {
+  const enabled = document.body.classList.toggle("focus-mode");
+  byId("command-palette-trigger").setAttribute("aria-pressed", String(enabled));
+}
+
+const commandPalette = window.DokkaebiCommandPalette.createCommandPalette({
+  document,
+  storage: window.localStorage,
+  commands: () => {
+    const running = !byId("strategy-start").disabled;
+    const stopped = !byId("strategy-stop").disabled;
+    const autoTrade = byId("auto-trade").checked;
+    const commands = [
+      { id: "toggle-focus", title: document.body.classList.contains("focus-mode") ? "집중 모드 끄기" : "집중 모드 켜기", keywords: ["집중", "focus"], hint: "화면 집중", run: toggleFocusMode },
+      { id: "start-strategy", title: "전략 시작", keywords: ["전략", "strategy", "start"], hint: "Paper 전략", enabled: running, run: () => byId("strategy-start").click() },
+      { id: "stop-strategy", title: "전략 중지", keywords: ["전략", "strategy", "stop"], hint: "Paper 전략", enabled: stopped, run: () => byId("strategy-stop").click() },
+      { id: "toggle-auto-trade", title: autoTrade ? "Paper 자동매매 끄기" : "Paper 자동매매 켜기", keywords: ["자동", "auto", "paper"], hint: "Paper only", run: () => byId("auto-trade").click() },
+      { id: "focus-order-quantity", title: "가상 주문 수량으로 이동", keywords: ["주문", "수량", "order", "quantity"], hint: "입력", run: () => focusElement("quantity") },
+      { id: "focus-strategy-quantity", title: "자동주문 수량으로 이동", keywords: ["자동", "수량", "strategy", "quantity"], hint: "입력", run: () => focusElement("strategy-quantity") },
+      { id: "focus-events", title: "최근 이벤트로 이동", keywords: ["이벤트", "events"], hint: "기록", run: () => focusElement("events") },
+      { id: "focus-orders", title: "최근 체결로 이동", keywords: ["체결", "orders", "fills"], hint: "기록", run: () => focusElement("orders") },
+      { id: "focus-operations", title: "운영 상세로 이동", keywords: ["운영", "details", "control"], hint: "제어", run: () => focusElement("operations-detail") },
+      { id: "scroll-top", title: "화면 맨 위로 이동", keywords: ["위", "top", "home"], hint: "탐색", run: () => window.scrollTo({ top: 0, behavior: "smooth" }) }
+    ];
+    const recent = commandPalette?.recent?.() || [];
+    return [...commands.filter((command) => recent.includes(command.id)), ...commands.filter((command) => !recent.includes(command.id))];
+  }
+});
+
 Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()]).then(([paper, control]) => {
   renderSnapshot(paper);
   renderControl(control);
