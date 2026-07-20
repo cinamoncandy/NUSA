@@ -174,43 +174,10 @@ window.addEventListener("keydown", (event) => {
 });
 setFocusMode(readStoredFocusMode(), { persist: false });
 
-function focusPanel(id) {
-  const element = byId(id);
-  element?.scrollIntoView({ behavior: "smooth", block: "center" });
-  element?.focus?.();
-}
-
-let commandPalette;
-commandPalette = window.DokkaebiCommandPalette.create({
-  document,
-  storage: window.localStorage,
-  commands: () => {
-    const recent = commandPalette?.recent?.() || [];
-    const commands = [
-      { id: "focus", title: document.body.classList.contains("focus-mode") ? "집중 모드 끄기" : "집중 모드 켜기", keywords: ["집중", "focus"], hint: "화면", run: toggleFocusMode },
-      { id: "start", title: "전략 시작", keywords: ["전략", "strategy", "start"], hint: "Paper", enabled: !byId("strategy-start").disabled, run: () => byId("strategy-start").click() },
-      { id: "stop", title: "전략 중지", keywords: ["전략", "strategy", "stop"], hint: "Paper", enabled: !byId("strategy-stop").disabled, run: () => byId("strategy-stop").click() },
-      { id: "auto", title: byId("auto-trade").checked ? "Paper 자동매매 끄기" : "Paper 자동매매 켜기", keywords: ["자동", "auto"], hint: "Paper only", run: () => byId("auto-trade").click() },
-      { id: "order-quantity", title: "가상 주문 수량으로 이동", keywords: ["주문", "수량", "order"], hint: "입력", run: () => focusPanel("quantity") },
-      { id: "strategy-quantity", title: "자동주문 수량으로 이동", keywords: ["자동", "수량", "strategy"], hint: "입력", run: () => focusPanel("strategy-quantity") },
-      { id: "events", title: "최근 이벤트로 이동", keywords: ["이벤트", "events"], hint: "기록", run: () => focusPanel("events") },
-      { id: "orders", title: "최근 체결로 이동", keywords: ["체결", "orders"], hint: "기록", run: () => focusPanel("orders") },
-      { id: "details", title: "운영 상세로 이동", keywords: ["운영", "details"], hint: "읽기 전용", run: () => focusPanel("ai-cio-dashboard") },
-      { id: "top", title: "화면 맨 위로 이동", keywords: ["위", "top"], hint: "탐색", run: () => window.scrollTo({ top: 0, behavior: "smooth" }) }
-    ];
-    return [...commands.filter((command) => recent.includes(command.id)), ...commands.filter((command) => !recent.includes(command.id))];
-  }
-});
-
 function focusElement(id) {
   const element = byId(id);
   element?.scrollIntoView({ behavior: "smooth", block: "center" });
   element?.focus?.();
-}
-
-function toggleFocusMode() {
-  const enabled = document.body.classList.toggle("focus-mode");
-  byId("command-palette-trigger").setAttribute("aria-pressed", String(enabled));
 }
 
 const commandPalette = window.DokkaebiCommandPalette.createCommandPalette({

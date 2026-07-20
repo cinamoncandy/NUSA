@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none';" />
   <title>Dokkaebi Paper Trader</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="components.css" />
   <link rel="stylesheet" href="command-palette.css" />
+  <link rel="stylesheet" href="application-state.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="theme-provider.js"></script>
   <script src="component-library.js"></script>
@@ -32,6 +33,32 @@
     </section>
     <section class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead><tbody id="orders"><tr><td colspan="5">체결 없음</td></tr></tbody></table></section>
     <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
+    <section id="ai-cio-dashboard" class="card cio-panel" aria-label="AI CIO read-only command center" tabindex="-1">
+      <div class="cio-header">
+        <div><p class="eyebrow">DEEP INSPECTION · READ ONLY</p><h2>Operations detail</h2></div>
+        <div class="badges"><span class="status">PAPER / DRY_RUN</span><span class="status">LIVE TRADING DISABLED</span><strong id="cio-status" class="cio-status no-data" aria-live="polite">NO_DATA</strong></div>
+      </div>
+      <p id="cio-freshness" class="cio-freshness">Dashboard data is not available.</p>
+      <div class="cio-grid">
+        <section><h3>System Status</h3><p id="cio-system">No data</p></section>
+        <section><h3>Portfolio</h3><dl id="cio-portfolio"><div><dt>Total equity</dt><dd>No data</dd></div></dl></section>
+        <section><h3>Opportunity</h3><p id="cio-opportunity">No data</p></section>
+        <section><h3>Strategy Health</h3><p id="cio-strategy">No data</p></section>
+        <section><h3>Investment Committee</h3><p id="cio-committee">No data</p></section>
+        <section><h3>Execution</h3><p id="cio-execution">No data</p></section>
+        <section><h3>Risk</h3><p id="cio-risk">No data</p></section>
+        <section><h3>Research</h3><p id="cio-research">No data</p></section>
+      </div>
+      <section class="cio-warnings"><h3>Warnings</h3><ul id="cio-warnings"><li>Dashboard data is not available.</li></ul></section>
+    </section>
+    <section id="application-state" class="application-state" role="status" aria-live="polite" aria-atomic="true" data-state="LOADING" data-tone="neutral">
+      <span class="application-state__indicator" aria-hidden="true"></span>
+      <div class="application-state__body">
+        <strong id="application-state-title">Loading operational state</strong>
+        <p id="application-state-description">Checking the Paper account and market connection.</p>
+        <p id="application-state-action" class="application-state__action">Please wait.</p>
+      </div>
+    </section>
   </main>
   <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
     <div class="command-palette__backdrop" data-command-palette-close></div>
@@ -45,5 +72,7 @@
     </section>
   </div>
   <script src="renderer.js"></script>
+  <script src="application-state.js"></script>
+  <script src="application-state-mount.js"></script>
 </body>
 </html>

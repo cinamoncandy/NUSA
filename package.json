@@ -2,19 +2,32 @@
   "name": "dokkaebi",
   "private": true,
   "version": "0.1.0",
+  "description": "Windows Electron paper-trading and deterministic research platform",
+  "author": "Dokkaebi contributors",
+  "main": "dist/apps/desktop/src/main.js",
   "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.7.0"
+  },
   "scripts": {
+    "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint apps/desktop/renderer",
-    "test": "pnpm run build && node --test tests/*.test.js",
+    "test": "pnpm run preflight && pnpm run build && node scripts/run-tests-isolated.js",
     "test:ui": "vitest run --config vitest.config.mjs",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "desktop": "pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run build && electron apps/desktop",
-    "package:win": "pnpm run build && electron-builder --win nsis"
+    "package:win": "pnpm run preflight && pnpm run build && electron-builder --win nsis",
+    "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",
+    "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
+    "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",
+    "evidence:export": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js export",
+    "evidence:verify": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js verify"
   },
   "devDependencies": {
     "@types/node": "24.0.0",
@@ -41,7 +54,8 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false
     }
   }
 }

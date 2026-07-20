@@ -16,6 +16,6 @@ test("dialog and drawer are keyboard accessible", async ({ page }) => {
 test("responsive component preview has no horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/component-preview.html");
-  await expect(page.locator("body")).toEvaluate((body) => body.scrollWidth <= window.innerWidth);
+  expect(await page.locator("body").evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.getByText("No active experiments")).toBeVisible();
 });

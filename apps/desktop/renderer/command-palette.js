@@ -38,12 +38,18 @@
     function update() {
       visible = filterCommands(commands(), search.value);
       selected = Math.min(selected, Math.max(visible.length - 1, 0));
-      list.innerHTML = "";
+      list.replaceChildren();
       visible.forEach((command, index) => {
         const option = document.createElement("button");
         option.type = "button"; option.className = "command-palette__option"; option.id = `command-palette-option-${command.id}`;
         option.setAttribute("role", "option"); option.setAttribute("aria-selected", String(index === selected));
-        option.innerHTML = `<span class="command-palette__option-title">${command.title}</span><span class="command-palette__option-meta">${command.hint || ""}</span>`;
+        const title = document.createElement("span");
+        title.className = "command-palette__option-title";
+        title.textContent = command.title;
+        const meta = document.createElement("span");
+        meta.className = "command-palette__option-meta";
+        meta.textContent = command.hint || "";
+        option.append(title, meta);
         option.addEventListener("click", () => execute(index)); list.appendChild(option);
       });
       empty.hidden = visible.length !== 0;

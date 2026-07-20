@@ -12,7 +12,11 @@ export default [
         document: "readonly",
         window: "readonly",
         Element: "readonly",
-        HTMLDialogElement: "readonly"
+        HTMLDialogElement: "readonly",
+        HTMLInputElement: "readonly",
+        HTMLTextAreaElement: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly"
       }
     },
     rules: {
