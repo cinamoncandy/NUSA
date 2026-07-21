@@ -54,6 +54,10 @@ export type ReviewSeverity = "none" | "low" | "medium" | "high" | "critical";
 export type RiskVerificationResult = "verified" | "denied" | "incomplete";
 export type MultiAgentResult = "preview_candidate" | "deny" | "incomplete" | "escalation_required" | "no_action";
 export type DisagreementType = "evidence-conflict" | "assumption-conflict" | "scope-conflict" | "policy-conflict" | "model-conflict" | "confidence-conflict" | "economic-significance-conflict" | "risk-conflict" | "freshness-conflict" | "unknown";
+export type MultiAgentIncidentType = "fabricated_evidence" | "role_contract_violation" | "risk_veto_override_attempt" | "context_contamination" | "prompt_artifact_mismatch" | "model_mismatch" | "nondeterministic_result" | "correlated_critical_failure" | "unauthorized_capability" | "stale_context" | "schema_bypass" | "trace_loss";
+export type MultiAgentIncidentStatus = "detected" | "contained" | "investigating" | "remediation_pending" | "resolved" | "closed";
+export type MultiAgentContainmentAction = "contain" | "no_action";
+export type MultiAgentCertificationStatus = "requested" | "evaluating" | "failed" | "approval_pending" | "certified_zero_authority" | "restricted" | "invalidated" | "expired" | "revoked";
 
 export interface AgentDefinition {
   readonly agentId: string;
@@ -249,6 +253,89 @@ export interface MultiAgentDecisionResult {
   readonly productionMutationAllowed: false;
 }
 
+/** An immutable finding; containment is recorded separately so the finding is never rewritten. */
+export interface MultiAgentIncident {
+  readonly incidentId: string;
+  readonly type: MultiAgentIncidentType;
+  readonly severity: ReviewSeverity;
+  readonly affectedAgentIds: readonly string[];
+  readonly orchestrationPolicyId: string;
+  readonly detectedAt: number;
+  readonly evidenceReferences: readonly string[];
+  readonly status: MultiAgentIncidentStatus;
+  readonly containmentRequired: boolean;
+  readonly incidentHash: string;
+  readonly productionMutationAllowed: false;
+}
+
+/** A recommendation to stop protected analytical work. It never changes runtime authority itself. */
+export interface MultiAgentContainmentResult {
+  readonly incidentId: string;
+  readonly action: MultiAgentContainmentAction;
+  readonly agentIdsToSuspend: readonly string[];
+  readonly orchestrationPolicySuspended: boolean;
+  readonly reasonCodes: readonly string[];
+  readonly containmentHash: string;
+  readonly productionMutationAllowed: false;
+}
+
+export interface MultiAgentCertificationInput {
+  readonly certificationId: string;
+  readonly issuedAt: number;
+  readonly orchestrationPolicyId: string;
+  readonly agents: readonly AgentDefinition[];
+  readonly roleContracts: readonly AgentRoleContract[];
+  readonly agentDefinitionIds: readonly string[];
+  readonly modelCertificationIds: readonly string[];
+  readonly roleContractIds: readonly string[];
+  readonly contextIsolationPolicyId: string;
+  readonly decisionPolicyId: string;
+  readonly calibrationPolicyId: string;
+  readonly evidenceValidationPolicyId: string;
+  readonly roleSeparationPassed: boolean;
+  readonly contextIsolationPassed: boolean;
+  readonly evidenceValidationPassed: boolean;
+  readonly vetoSemanticsPassed: boolean;
+  readonly deterministicAggregationPassed: boolean;
+  readonly calibrationPassed: boolean;
+  readonly correlatedErrorAssessmentPassed: boolean;
+  readonly replayPassed: boolean;
+  readonly evidenceComplete: boolean;
+  readonly evidenceReferences: readonly string[];
+  readonly evidence: readonly AgentEvidence[];
+  readonly evidenceBundleHash: string;
+}
+
+/** Certification proves analytical control safety only; it cannot authorize an order or transfer. */
+export interface MultiAgentCertification {
+  readonly certificationId: string;
+  readonly issuedAt: number;
+  readonly orchestrationPolicyId: string;
+  readonly agentDefinitionIds: readonly string[];
+  readonly modelCertificationIds: readonly string[];
+  readonly roleContractIds: readonly string[];
+  readonly contextIsolationPolicyId: string;
+  readonly decisionPolicyId: string;
+  readonly calibrationPolicyId: string;
+  readonly evidenceValidationPolicyId: string;
+  readonly status: MultiAgentCertificationStatus;
+  readonly roleSeparationPassed: boolean;
+  readonly contextIsolationPassed: boolean;
+  readonly evidenceValidationPassed: boolean;
+  readonly vetoSemanticsPassed: boolean;
+  readonly deterministicAggregationPassed: boolean;
+  readonly calibrationPassed: boolean;
+  readonly correlatedErrorAssessmentPassed: boolean;
+  readonly replayPassed: boolean;
+  readonly evidenceComplete: boolean;
+  readonly evidenceBundleHash: string;
+  readonly failureReasons: readonly string[];
+  readonly certificationHash: string;
+  readonly realOrderAuthority: false;
+  readonly realTransferAuthority: false;
+  readonly productionMutationAllowed: false;
+}
+
 export enum MultiAgentGovernanceEventType {
   AGENT_REGISTERED = "AGENT_REGISTERED",
   AGENT_VALIDATED = "AGENT_VALIDATED",
@@ -263,7 +350,10 @@ export enum MultiAgentGovernanceEventType {
   MULTI_AGENT_DECISION_EVALUATED = "MULTI_AGENT_DECISION_EVALUATED",
   MULTI_AGENT_DECISION_DENIED = "MULTI_AGENT_DECISION_DENIED",
   MULTI_AGENT_INCIDENT_OPENED = "MULTI_AGENT_INCIDENT_OPENED",
-  MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY = "MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY"
+  MULTI_AGENT_INCIDENT_CONTAINED = "MULTI_AGENT_INCIDENT_CONTAINED",
+  MULTI_AGENT_CERTIFICATION_REQUESTED = "MULTI_AGENT_CERTIFICATION_REQUESTED",
+  MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY = "MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY",
+  MULTI_AGENT_CERTIFICATION_FAILED = "MULTI_AGENT_CERTIFICATION_FAILED"
 }
 
 export interface MultiAgentGovernanceEvent {

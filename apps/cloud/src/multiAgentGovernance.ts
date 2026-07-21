@@ -21,8 +21,12 @@ import {
   type IndependentRiskVerification,
   type MultiAgentDecisionInput,
   type MultiAgentDecisionResult,
+  type MultiAgentCertification,
+  type MultiAgentCertificationInput,
+  type MultiAgentContainmentResult,
   type MultiAgentGovernanceEvent,
   type MultiAgentGovernanceRecord,
+  type MultiAgentIncident,
   type StrategyProposal
 } from "../../../packages/contracts/src/multiAgentGovernance";
 
@@ -252,6 +256,209 @@ export function evaluateMultiAgentDecision(input: MultiAgentDecisionInput): Mult
   return result(input, "preview_candidate", [], []);
 }
 
+const criticalIncidentTypes = new Set<MultiAgentIncident["type"]>([
+  "fabricated_evidence",
+  "risk_veto_override_attempt",
+  "context_contamination",
+  "correlated_critical_failure",
+  "unauthorized_capability",
+  "schema_bypass",
+  "trace_loss"
+]);
+
+const incidentSeed = (incident: Omit<MultiAgentIncident, "incidentHash" | "productionMutationAllowed">): Readonly<Record<string, unknown>> => ({
+  incidentId: incident.incidentId,
+  type: incident.type,
+  severity: incident.severity,
+  affectedAgentIds: incident.affectedAgentIds,
+  orchestrationPolicyId: incident.orchestrationPolicyId,
+  detectedAt: incident.detectedAt,
+  evidenceReferences: incident.evidenceReferences,
+  status: incident.status,
+  containmentRequired: incident.containmentRequired
+});
+
+/** Records a factual finding only. It never mutates an agent, policy, or runtime. */
+export function createMultiAgentIncident(input: Omit<MultiAgentIncident, "incidentHash" | "productionMutationAllowed">): MultiAgentIncident {
+  text(input.incidentId, "incidentId");
+  text(input.orchestrationPolicyId, "incident orchestrationPolicyId");
+  timestamp(input.detectedAt, "incident detectedAt");
+  if (input.status !== "detected") throw new Error("new multi-agent incidents must start detected");
+  const affectedAgentIds = uniqueText(input.affectedAgentIds, "incident affectedAgentId");
+  const evidenceReferences = uniqueText(input.evidenceReferences, "incident evidenceReference");
+  const normalized = Object.freeze({
+    ...input,
+    incidentId: input.incidentId.trim(),
+    orchestrationPolicyId: input.orchestrationPolicyId.trim(),
+    affectedAgentIds,
+    evidenceReferences
+  });
+  return Object.freeze({ ...normalized, incidentHash: hash(canonical(incidentSeed(normalized))), productionMutationAllowed: false });
+}
+
+function verifyRecordedIncident(incident: MultiAgentIncident): MultiAgentIncident {
+  const normalized = createMultiAgentIncident({
+    incidentId: incident.incidentId,
+    type: incident.type,
+    severity: incident.severity,
+    affectedAgentIds: incident.affectedAgentIds,
+    orchestrationPolicyId: incident.orchestrationPolicyId,
+    detectedAt: incident.detectedAt,
+    evidenceReferences: incident.evidenceReferences,
+    status: incident.status,
+    containmentRequired: incident.containmentRequired
+  });
+  if (normalized.incidentHash !== incident.incidentHash || incident.productionMutationAllowed !== false) throw new Error("multi-agent incident integrity violation");
+  return normalized;
+}
+
+/** Critical findings always recommend containment. The result has no mutation authority. */
+export function evaluateMultiAgentContainment(incident: MultiAgentIncident): MultiAgentContainmentResult {
+  const normalized = verifyRecordedIncident(incident);
+  const mustContain = normalized.containmentRequired || criticalIncidentTypes.has(normalized.type) || normalized.severity === "high" || normalized.severity === "critical";
+  const action = mustContain ? "contain" as const : "no_action" as const;
+  const reasonCodes = freeze([
+    ...(normalized.containmentRequired ? ["INCIDENT_CONTAINMENT_REQUIRED"] : []),
+    ...(criticalIncidentTypes.has(normalized.type) ? ["CRITICAL_INCIDENT_TYPE"] : []),
+    ...(normalized.severity === "high" || normalized.severity === "critical" ? ["INCIDENT_SEVERITY_HIGH"] : [])
+  ].sort());
+  const seed = { incidentId: normalized.incidentId, action, agentIdsToSuspend: action === "contain" ? normalized.affectedAgentIds : [], orchestrationPolicySuspended: action === "contain", reasonCodes };
+  return Object.freeze({
+    incidentId: normalized.incidentId,
+    action,
+    agentIdsToSuspend: freeze(action === "contain" ? normalized.affectedAgentIds : []),
+    orchestrationPolicySuspended: action === "contain",
+    reasonCodes,
+    containmentHash: hash(canonical(seed)),
+    productionMutationAllowed: false
+  });
+}
+
+const certificationBooleans: readonly (keyof Pick<MultiAgentCertificationInput,
+  "roleSeparationPassed" | "contextIsolationPassed" | "evidenceValidationPassed" | "vetoSemanticsPassed" |
+  "deterministicAggregationPassed" | "calibrationPassed" | "correlatedErrorAssessmentPassed" | "replayPassed" | "evidenceComplete">)[] = [
+  "roleSeparationPassed",
+  "contextIsolationPassed",
+  "evidenceValidationPassed",
+  "vetoSemanticsPassed",
+  "deterministicAggregationPassed",
+  "calibrationPassed",
+  "correlatedErrorAssessmentPassed",
+  "replayPassed",
+  "evidenceComplete"
+];
+
+const certificationSeed = (certification: Omit<MultiAgentCertification, "certificationHash" | "realOrderAuthority" | "realTransferAuthority" | "productionMutationAllowed">): Readonly<Record<string, unknown>> => ({
+  ...certification,
+  agentDefinitionIds: certification.agentDefinitionIds,
+  modelCertificationIds: certification.modelCertificationIds,
+  roleContractIds: certification.roleContractIds,
+  failureReasons: certification.failureReasons
+});
+
+/** All controls must pass before certification; success is still strictly zero-authority. */
+export function evaluateMultiAgentCertification(input: MultiAgentCertificationInput): MultiAgentCertification {
+  text(input.certificationId, "certificationId");
+  text(input.orchestrationPolicyId, "certification orchestrationPolicyId");
+  timestamp(input.issuedAt, "certification issuedAt");
+  const agentDefinitionIds = uniqueText(input.agentDefinitionIds, "certification agentDefinitionId");
+  const modelCertificationIds = uniqueText(input.modelCertificationIds, "certification modelCertificationId");
+  const roleContractIds = uniqueText(input.roleContractIds, "certification roleContractId");
+  const reasons: string[] = [];
+  const agents = input.agents.map(createAgentDefinition);
+  const contracts = input.roleContracts.map(createAgentRoleContract);
+  if (new Set(agents.map(agent => agent.agentId)).size !== agents.length || canonical(agentDefinitionIds) !== canonical(agents.map(agent => agent.agentId).sort())) reasons.push("AGENT_DEFINITION_SET_MISMATCH");
+  if (canonical(modelCertificationIds) !== canonical(agents.map(agent => agent.modelCertificationId).sort())) reasons.push("MODEL_CERTIFICATION_SET_MISMATCH");
+  if (new Set(contracts.map(contract => contract.contractId)).size !== contracts.length || canonical(roleContractIds) !== canonical(contracts.map(contract => contract.contractId).sort())) reasons.push("ROLE_CONTRACT_SET_MISMATCH");
+  if (agents.some(agent => agent.status !== AgentStatus.ACTIVE)) reasons.push("AGENT_NOT_ACTIVE");
+  if (contracts.some(contract => contract.status !== "active")) reasons.push("ROLE_CONTRACT_NOT_ACTIVE");
+  const protectedRoles = [AgentRole.EVIDENCE_PRODUCER, AgentRole.STRATEGY_PROPOSER, AgentRole.RISK_VERIFIER];
+  const protectedAgents = protectedRoles.map(role => agents.find(agent => agent.role === role));
+  if (protectedAgents.some(agent => agent == null) || new Set(protectedAgents.map(agent => agent?.agentId)).size !== protectedRoles.length) reasons.push("ROLE_SEPARATION_INCOMPLETE");
+  else if (!assessAgentIndependence(protectedAgents as AgentDefinition[]).independent) reasons.push("ROLE_INDEPENDENCE_FAILED");
+  if (!validHash(input.evidenceBundleHash)) reasons.push("EVIDENCE_BUNDLE_HASH_INVALID");
+  if (input.evidenceReferences.length === 0) reasons.push("CERTIFICATION_EVIDENCE_MISSING");
+  const evidenceReasons = validateEvidenceReferences(input.evidenceReferences, input.evidence, input.issuedAt).filter(item => item.status !== EvidenceClaimStatus.VERIFIED);
+  if (evidenceReasons.length > 0) reasons.push("CERTIFICATION_EVIDENCE_INVALID");
+  for (const key of certificationBooleans) if (input[key] !== true) reasons.push(`CONTROL_FAILED:${key}`);
+  const failureReasons = freeze([...new Set(reasons)].sort());
+  const status = failureReasons.length === 0 ? "certified_zero_authority" as const : "failed" as const;
+  const certificate = {
+    certificationId: input.certificationId.trim(),
+    issuedAt: input.issuedAt,
+    orchestrationPolicyId: input.orchestrationPolicyId.trim(),
+    agentDefinitionIds,
+    modelCertificationIds,
+    roleContractIds,
+    contextIsolationPolicyId: text(input.contextIsolationPolicyId, "contextIsolationPolicyId"),
+    decisionPolicyId: text(input.decisionPolicyId, "decisionPolicyId"),
+    calibrationPolicyId: text(input.calibrationPolicyId, "calibrationPolicyId"),
+    evidenceValidationPolicyId: text(input.evidenceValidationPolicyId, "evidenceValidationPolicyId"),
+    status,
+    roleSeparationPassed: input.roleSeparationPassed,
+    contextIsolationPassed: input.contextIsolationPassed,
+    evidenceValidationPassed: input.evidenceValidationPassed,
+    vetoSemanticsPassed: input.vetoSemanticsPassed,
+    deterministicAggregationPassed: input.deterministicAggregationPassed,
+    calibrationPassed: input.calibrationPassed,
+    correlatedErrorAssessmentPassed: input.correlatedErrorAssessmentPassed,
+    replayPassed: input.replayPassed,
+    evidenceComplete: input.evidenceComplete,
+    evidenceBundleHash: input.evidenceBundleHash,
+    failureReasons
+  };
+  return Object.freeze({
+    ...certificate,
+    certificationHash: hash(canonical(certificationSeed(certificate))),
+    realOrderAuthority: false,
+    realTransferAuthority: false,
+    productionMutationAllowed: false
+  });
+}
+
+function verifyRecordedCertification(certification: MultiAgentCertification): MultiAgentCertification {
+  const seed = {
+    certificationId: certification.certificationId,
+    issuedAt: certification.issuedAt,
+    orchestrationPolicyId: certification.orchestrationPolicyId,
+    agentDefinitionIds: certification.agentDefinitionIds,
+    modelCertificationIds: certification.modelCertificationIds,
+    roleContractIds: certification.roleContractIds,
+    contextIsolationPolicyId: certification.contextIsolationPolicyId,
+    decisionPolicyId: certification.decisionPolicyId,
+    calibrationPolicyId: certification.calibrationPolicyId,
+    evidenceValidationPolicyId: certification.evidenceValidationPolicyId,
+    status: certification.status,
+    roleSeparationPassed: certification.roleSeparationPassed,
+    contextIsolationPassed: certification.contextIsolationPassed,
+    evidenceValidationPassed: certification.evidenceValidationPassed,
+    vetoSemanticsPassed: certification.vetoSemanticsPassed,
+    deterministicAggregationPassed: certification.deterministicAggregationPassed,
+    calibrationPassed: certification.calibrationPassed,
+    correlatedErrorAssessmentPassed: certification.correlatedErrorAssessmentPassed,
+    replayPassed: certification.replayPassed,
+    evidenceComplete: certification.evidenceComplete,
+    evidenceBundleHash: certification.evidenceBundleHash,
+    failureReasons: certification.failureReasons
+  };
+  if (
+    !validHash(certification.certificationHash) ||
+    certification.certificationHash !== hash(canonical(certificationSeed(seed))) ||
+    certification.realOrderAuthority !== false ||
+    certification.realTransferAuthority !== false ||
+    certification.productionMutationAllowed !== false ||
+    !validHash(certification.evidenceBundleHash) ||
+    (certification.status !== "certified_zero_authority" && certification.status !== "failed")
+  ) throw new Error("multi-agent certification integrity violation");
+  return Object.freeze({
+    ...certification,
+    agentDefinitionIds: freeze(certification.agentDefinitionIds),
+    modelCertificationIds: freeze(certification.modelCertificationIds),
+    roleContractIds: freeze(certification.roleContractIds),
+    failureReasons: freeze(certification.failureReasons)
+  });
+}
+
 function normalizeEvent(event: MultiAgentGovernanceEvent): MultiAgentGovernanceEvent {
   text(event.eventId, "eventId"); timestamp(event.occurredAt, "event occurredAt");
   if (!validHash(event.evidenceHash)) throw new Error("event evidenceHash must be sha256");
@@ -265,11 +472,15 @@ export interface MultiAgentGovernanceReplayState {
   readonly evidence: ReadonlyMap<string, AgentEvidence>;
   readonly contexts: ReadonlyMap<string, AgentContextSnapshot>;
   readonly decisions: ReadonlyMap<string, MultiAgentDecisionResult>;
+  readonly incidents: ReadonlyMap<string, MultiAgentIncident>;
+  readonly containments: ReadonlyMap<string, MultiAgentContainmentResult>;
+  readonly certifications: ReadonlyMap<string, MultiAgentCertification>;
 }
 
 export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanceRecord[]): MultiAgentGovernanceReplayState {
   let previousHash = genesis; let previousTime = -1;
   const agents = new Map<string, AgentDefinition>(); const evidence = new Map<string, AgentEvidence>(); const contexts = new Map<string, AgentContextSnapshot>(); const decisions = new Map<string, MultiAgentDecisionResult>();
+  const incidents = new Map<string, MultiAgentIncident>(); const containments = new Map<string, MultiAgentContainmentResult>(); const certifications = new Map<string, MultiAgentCertification>();
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index]!; const event = normalizeEvent(record.event);
     if (record.sequence !== index + 1 || record.previousHash !== previousHash || record.hash !== eventHash(record.sequence, record.previousHash, event)) throw new Error("multi-agent ledger integrity violation");
@@ -293,9 +504,30 @@ export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanc
       if (decision == null || decisions.has(decision.decisionId) || decision.realOrderAuthority !== false || decision.realTransferAuthority !== false || decision.productionMutationAllowed !== false || !validHash(decision.decisionHash)) throw new Error("invalid multi-agent decision event");
       decisions.set(decision.decisionId, Object.freeze({ ...decision, vetoReasons: freeze(decision.vetoReasons), unresolvedDisagreements: freeze(decision.unresolvedDisagreements), policyReferences: freeze(decision.policyReferences) }));
     }
+    if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_OPENED) {
+      const incident = verifyRecordedIncident(event.payload.incident as MultiAgentIncident);
+      if (incidents.has(incident.incidentId)) throw new Error("multi-agent incident is immutable");
+      incidents.set(incident.incidentId, incident);
+    }
+    if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED) {
+      const incidentId = text(String(event.payload.incidentId ?? ""), "contained incidentId");
+      const incident = incidents.get(incidentId);
+      const containment = event.payload.containment as MultiAgentContainmentResult;
+      if (incident == null || containments.has(incidentId)) throw new Error("multi-agent containment has no open incident");
+      const expected = evaluateMultiAgentContainment(incident);
+      if (canonical(containment) !== canonical(expected)) throw new Error("multi-agent containment integrity violation");
+      containments.set(incidentId, expected);
+    }
+    if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY || event.type === MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_FAILED) {
+      const certification = verifyRecordedCertification(event.payload.certification as MultiAgentCertification);
+      if (certifications.has(certification.certificationId)) throw new Error("multi-agent certification is immutable");
+      if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY && certification.status !== "certified_zero_authority") throw new Error("invalid zero-authority certification event");
+      if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_FAILED && certification.status !== "failed") throw new Error("invalid failed certification event");
+      certifications.set(certification.certificationId, certification);
+    }
     previousHash = record.hash; previousTime = event.occurredAt;
   }
-  return Object.freeze({ hash: previousHash, agents, evidence, contexts, decisions });
+  return Object.freeze({ hash: previousHash, agents, evidence, contexts, decisions, incidents, containments, certifications });
 }
 
 export function appendMultiAgentGovernanceEvent(records: readonly MultiAgentGovernanceRecord[], event: MultiAgentGovernanceEvent): readonly MultiAgentGovernanceRecord[] {

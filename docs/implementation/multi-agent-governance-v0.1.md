@@ -1,4 +1,4 @@
-# Multi-Agent Decision Governance v0.1
+# Multi-Agent Decision Governance v0.2
 
 ## Scope and Authority Boundary
 
@@ -70,10 +70,37 @@ sequence, timestamps, evidence hashes, immutable evidence, context hashes, and
 authority flags. SQLite migration `007_multi_agent_governance` provides a
 transactional ledger snapshot and non-authoritative query projections.
 
+## Incident Containment and Certification
+
+An incident is an immutable factual record. Fabricated evidence, an attempted
+Risk-veto override, context contamination, unauthorized capability use, schema
+bypass, and trace loss are critical finding types. A deterministic containment
+evaluation may recommend that affected Agents and the orchestration policy are
+contained. It does not suspend an Agent, retry a run, alter a Policy, or mutate
+runtime state itself.
+
+Certification evaluates role separation, context isolation, evidence checks,
+veto semantics, deterministic aggregation, calibration, correlated-error
+assessment, replay, and evidence completeness. Every required control and
+verified reference must pass. The only successful state is
+`certified_zero_authority`; it still carries:
+
+```text
+realOrderAuthority = false
+realTransferAuthority = false
+productionMutationAllowed = false
+```
+
+Incident, containment, and certification events replay through the same
+append-only chain. Any hash, authority flag, event/status mismatch, duplicate,
+or missing incident is rejected fail-closed. The existing SQLite migration has
+non-authoritative incident and certification projection tables, so this
+increment needs no destructive schema migration.
+
 ## Deliberate Limits
 
-This v0.1 does not implement an agent runtime, prompts, external provider
+This v0.2 does not implement an agent runtime, prompts, external provider
 integration, agent conversation, automatic retries, model certification lookup,
-incident workflows, certification issuance, dashboard, CLI, or historical
-correlated-error statistics. Those additions must stay zero-authority, retain
-the independent Risk veto, and preserve deterministic replay.
+automatic incident remediation, dashboard, CLI, or historical correlated-error
+statistics. Those additions must stay zero-authority, retain the independent
+Risk veto, and preserve deterministic replay.

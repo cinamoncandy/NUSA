@@ -14,7 +14,7 @@ Implemented and continuously validated:
 - runtime health, recovery, typed fault-drill evidence, and release-readiness contracts;
 - operational completion policy with calendar and scenario-based Paper validation profiles.
 - deterministic Rules Control Plane v0.1 with immutable published rule/policy versions, declarative fail-closed evaluation, replayable decision traces, and SQLite ledger snapshots; it remains recommendation-only and does not create execution authority.
-- Multi-Agent Decision Governance v0.1 with role-bound Agent Registry, evidence/context integrity checks, independent risk veto, deterministic zero-authority aggregation, and replayable SQLite audit state; no agent runtime or provider access exists.
+- Multi-Agent Decision Governance v0.2 with role-bound Agent Registry, evidence/context integrity checks, independent risk veto, deterministic zero-authority aggregation, immutable incident containment recommendations, zero-authority certification, and replayable SQLite audit state; no agent runtime or provider access exists.
 
 The consolidated lifecycle and explicit command boundaries are documented in `docs/operations/OPERATIONS_PLAYBOOK.md`.
 
@@ -57,7 +57,7 @@ This replaces only elapsed calendar duration. It does not replace CI, recovery, 
 7. Keep PR #1 Draft and unmerged until latest-HEAD CI, real evidence, and owner review are complete.
 8. Before distribution, provide an application icon, an owner-approved code-signing certificate, a portable-artifact decision, and real Windows GUI measurements for startup time, memory, scaling, keyboard-only, and screen-reader checks. The current unsigned NSIS build is technical packaging evidence only.
 9. Extend Rules Control Plane v0.1 only through separately reviewed increments: formula registry, policy composition, explicit simulation/shadow reporting, query projections, CLI/dashboard, and certification workflows. Do not introduce dynamic code execution or authority creation.
-10. Extend Multi-Agent Governance only through reviewed zero-authority increments: governed fixtures, calibration history, incident containment, certification, and read-only projections. Do not add prompt/provider secrets, an order path, majority override, or automatic authority expansion.
+10. Extend Multi-Agent Governance only through reviewed zero-authority increments: governed fixtures, calibration history, read-only projections, and operator-reviewed remediation. Do not add prompt/provider secrets, an order path, majority override, or automatic authority expansion.
 
 ## Remaining operator and owner work
 

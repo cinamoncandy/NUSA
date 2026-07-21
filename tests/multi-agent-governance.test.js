@@ -12,7 +12,10 @@ const {
   assessAgentIndependence,
   createAgentContextSnapshot,
   createAgentDefinition,
+  createMultiAgentIncident,
   evaluateAgentCalibration,
+  evaluateMultiAgentCertification,
+  evaluateMultiAgentContainment,
   evaluateMultiAgentDecision,
   registerAgentDefinition,
   replayMultiAgentGovernance
@@ -44,6 +47,37 @@ function input(overrides = {}) {
     adversarialReview: { reviewId: "review-1", agentRunId: "run-critic", reviewedProposalHash: proposal.proposalHash, counterClaims: [], failedAssumptions: [], missingTests: [], alternativeExplanations: [], severity: "low", reviewHash: "d".repeat(64) },
     riskVerification: { verificationId: "risk-1", agentRunId: "run-verifier", result: "verified", hardDenies: [], warnings: [], missingRequirements: [], requiredEscalations: [], policyReferences: ["risk-policy-1"], evidenceReferences: ["e-1"], verificationHash: "e".repeat(64) },
     disagreements: [], controlVetoReasons: [], ...overrides
+  };
+}
+
+function certificationInput(overrides = {}) {
+  const decisionInput = input();
+  return {
+    certificationId: "certification-1",
+    issuedAt: 10,
+    orchestrationPolicyId: "orchestration-policy-1",
+    agents: decisionInput.agents,
+    roleContracts: decisionInput.roleContracts,
+    agentDefinitionIds: decisionInput.agents.map((item) => item.agentId).sort(),
+    modelCertificationIds: decisionInput.agents.map((item) => item.modelCertificationId).sort(),
+    roleContractIds: decisionInput.roleContracts.map((item) => item.contractId).sort(),
+    contextIsolationPolicyId: "isolated-context-v1",
+    decisionPolicyId: "MULTI_AGENT_ZERO_AUTHORITY_V1",
+    calibrationPolicyId: "calibration-v1",
+    evidenceValidationPolicyId: "evidence-v1",
+    roleSeparationPassed: true,
+    contextIsolationPassed: true,
+    evidenceValidationPassed: true,
+    vetoSemanticsPassed: true,
+    deterministicAggregationPassed: true,
+    calibrationPassed: true,
+    correlatedErrorAssessmentPassed: true,
+    replayPassed: true,
+    evidenceComplete: true,
+    evidenceReferences: ["e-1"],
+    evidence: decisionInput.evidence,
+    evidenceBundleHash: digest,
+    ...overrides
   };
 }
 
@@ -94,13 +128,63 @@ test("calibration and independence diagnostics are deterministic and do not crea
   assert.equal(assessAgentIndependence([agent(AgentRole.EVIDENCE_PRODUCER, "a", { correlatedGroupId: "same" }), agent(AgentRole.RISK_VERIFIER, "b", { correlatedGroupId: "same" })]).independent, false);
 });
 
+test("critical multi-agent incidents recommend containment without creating runtime authority", () => {
+  const critical = createMultiAgentIncident({
+    incidentId: "incident-1",
+    type: "fabricated_evidence",
+    severity: "critical",
+    affectedAgentIds: ["proposer"],
+    orchestrationPolicyId: "orchestration-policy-1",
+    detectedAt: 10,
+    evidenceReferences: ["e-1"],
+    status: "detected",
+    containmentRequired: true
+  });
+  const contained = evaluateMultiAgentContainment(critical);
+  assert.equal(contained.action, "contain");
+  assert.deepEqual(contained.agentIdsToSuspend, ["proposer"]);
+  assert.equal(contained.orchestrationPolicySuspended, true);
+  assert.equal(contained.productionMutationAllowed, false);
+  assert.ok(Object.isFrozen(contained));
+
+  const low = evaluateMultiAgentContainment(createMultiAgentIncident({ ...critical, incidentId: "incident-2", type: "model_mismatch", severity: "low", containmentRequired: false }));
+  assert.equal(low.action, "no_action");
+  assert.equal(low.orchestrationPolicySuspended, false);
+});
+
+test("multi-agent certification is deterministic and can only certify zero-authority controls", () => {
+  const certified = evaluateMultiAgentCertification(certificationInput());
+  assert.equal(certified.status, "certified_zero_authority");
+  assert.equal(certified.realOrderAuthority, false);
+  assert.equal(certified.realTransferAuthority, false);
+  assert.equal(certified.productionMutationAllowed, false);
+  assert.ok(Object.isFrozen(certified));
+  assert.deepEqual(certified, evaluateMultiAgentCertification(certificationInput()));
+
+  const failed = evaluateMultiAgentCertification(certificationInput({ certificationId: "certification-2", calibrationPassed: false }));
+  assert.equal(failed.status, "failed");
+  assert.ok(failed.failureReasons.includes("CONTROL_FAILED:calibrationPassed"));
+
+  const missingEvidence = evaluateMultiAgentCertification(certificationInput({ certificationId: "certification-3", evidenceReferences: [] }));
+  assert.equal(missingEvidence.status, "failed");
+  assert.ok(missingEvidence.failureReasons.includes("CERTIFICATION_EVIDENCE_MISSING"));
+});
+
 test("multi-agent ledger and SQLite state replay deterministically and reject tampering", () => {
   const decision = evaluateMultiAgentDecision(input()); const registered = agent(AgentRole.EVIDENCE_PRODUCER, "ledger"); const snapshot = context("ledger", "ledger");
   const first = appendMultiAgentGovernanceEvent([], event(MultiAgentGovernanceEventType.AGENT_REGISTERED, { agent: registered }, 1));
   const second = appendMultiAgentGovernanceEvent(first, event(MultiAgentGovernanceEventType.AGENT_EVIDENCE_REGISTERED, { evidence: evidence()[0] }, 2));
   const third = appendMultiAgentGovernanceEvent(second, event(MultiAgentGovernanceEventType.AGENT_CONTEXT_SNAPSHOT_CREATED, { context: snapshot }, 3));
-  const records = appendMultiAgentGovernanceEvent(third, event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 4));
+  const decisionRecords = appendMultiAgentGovernanceEvent(third, event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 4));
+  const incident = createMultiAgentIncident({ incidentId: "ledger-incident", type: "fabricated_evidence", severity: "critical", affectedAgentIds: ["ledger"], orchestrationPolicyId: "orchestration-policy-1", detectedAt: 5, evidenceReferences: ["e-1"], status: "detected", containmentRequired: true });
+  const containment = evaluateMultiAgentContainment(incident);
+  const opened = appendMultiAgentGovernanceEvent(decisionRecords, event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_OPENED, { incident }, 5));
+  const contained = appendMultiAgentGovernanceEvent(opened, event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED, { incidentId: incident.incidentId, containment }, 6));
+  const certification = evaluateMultiAgentCertification(certificationInput());
+  const records = appendMultiAgentGovernanceEvent(contained, event(MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY, { certification }, 7));
   assert.equal(replayMultiAgentGovernance(records).decisions.get("decision-1").decisionHash, decision.decisionHash);
+  assert.equal(replayMultiAgentGovernance(records).containments.get(incident.incidentId).action, "contain");
+  assert.equal(replayMultiAgentGovernance(records).certifications.get(certification.certificationId).status, "certified_zero_authority");
   assert.throws(() => replayMultiAgentGovernance([{ ...records[0], hash: "0".repeat(64) }]), /integrity/);
   const db = new SqliteDatabase(":memory:");
   try {
@@ -109,6 +193,9 @@ test("multi-agent ledger and SQLite state replay deterministically and reject ta
     store.append(event(MultiAgentGovernanceEventType.AGENT_EVIDENCE_REGISTERED, { evidence: evidence()[0] }, 2));
     store.append(event(MultiAgentGovernanceEventType.AGENT_CONTEXT_SNAPSHOT_CREATED, { context: snapshot }, 3));
     store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 4));
+    store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_OPENED, { incident }, 5));
+    store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED, { incidentId: incident.incidentId, containment }, 6));
+    store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY, { certification }, 7));
     store.verify();
     db.connection.prepare("UPDATE multi_agent_governance_state SET ledger_hash=? WHERE id=1").run("0".repeat(64));
     assert.throws(() => store.verify(), /snapshot mismatch/);
