@@ -228,7 +228,9 @@ export function createReconstructedBaselineInventory(): readonly TradingIntegrat
       "apps/execution/src/burn-in-harness.ts",
       "apps/execution/src/synthetic-certification-report.ts",
       "apps/execution/src/certification-evidence.ts",
-      "tests/burn-in-certification.test.js"
+      "tests/burn-in-certification.test.js",
+      "tests/burn-in-evidence-persistence.test.js",
+      "packages/storage/migrations/027_burn_in_sample_evidence.sql"
     ]],
     [11, [
       "packages/storage/migrations/025_release_candidate_freeze_evidence.sql",

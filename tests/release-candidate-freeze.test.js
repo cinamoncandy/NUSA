@@ -8,21 +8,28 @@ const {
   ReleaseCandidateFreezeDecision,
   SyntheticCertificationReportDecision,
   BurnInDecision,
-  InvariantMonitorStatus
+  InvariantMonitorStatus,
+  InvariantObservationStatus,
+  InvariantSeverity
 } = require('../apps/execution/src/index');
 
 const schema = `
-CREATE TABLE burn_in_evidence (run_id TEXT PRIMARY KEY, decision TEXT NOT NULL, sample_count INTEGER NOT NULL, duration_ms INTEGER NOT NULL, critical_failure_samples INTEGER NOT NULL, unknown_samples INTEGER NOT NULL, blocking_reasons_json TEXT NOT NULL, final_invariant_status TEXT NOT NULL, completed_at_ms INTEGER NOT NULL);
+CREATE TABLE burn_in_evidence (run_id TEXT PRIMARY KEY, decision TEXT NOT NULL, sample_count INTEGER NOT NULL, duration_ms INTEGER NOT NULL, critical_failure_samples INTEGER NOT NULL, unknown_samples INTEGER NOT NULL, blocking_reasons_json TEXT NOT NULL, final_invariant_status TEXT NOT NULL, completed_at_ms INTEGER NOT NULL, required_samples INTEGER, minimum_duration_ms INTEGER, maximum_critical_failures INTEGER, maximum_unknown_samples INTEGER);
 CREATE TABLE synthetic_certification_reports (report_id TEXT PRIMARY KEY, burn_in_run_id TEXT NOT NULL, decision TEXT NOT NULL, blockers_json TEXT NOT NULL, limitations_json TEXT NOT NULL, generated_at_ms INTEGER NOT NULL, production_mutation_allowed INTEGER NOT NULL CHECK (production_mutation_allowed = 0));`;
 
-const burnIn = Object.freeze({ runId:'burn-1', decision:BurnInDecision.PASS, sampleCount:10, durationMs:9000, criticalFailureSamples:0, unknownSamples:0, blockingReasons:Object.freeze([]), finalInvariantState:Object.freeze({ status:InvariantMonitorStatus.HEALTHY, warningFailureIds:Object.freeze([]), criticalFailureIds:Object.freeze([]), unknownIds:Object.freeze([]) }), completedAtMs:10000 });
+const policy = Object.freeze({ requiredSamples:10, minimumDurationMs:9000, maximumCriticalFailures:0, maximumUnknownSamples:0 });
+const healthySamples = Object.freeze(Array.from({ length:10 }, (_, i) => Object.freeze({
+  sampleId:`s${i}`, sequence:i, observedAtMs:i * 1000,
+  invariants:Object.freeze([{ invariantId:'ledger-balance', status:InvariantObservationStatus.PASS, severity:InvariantSeverity.CRITICAL, observedAtMs:i * 1000 }])
+})));
+const burnIn = Object.freeze({ runId:'burn-1', samples:healthySamples, policy, nowMs:10000 });
 const report = Object.freeze({ reportId:'report-1', decision:SyntheticCertificationReportDecision.PASS_SYNTHETIC_BASELINE, productionMutationAllowed:false, blockers:Object.freeze([]), limitations:Object.freeze(['SYNTHETIC_EVIDENCE_ONLY']), generatedAtMs:11000 });
 
 test('burn-in and certification evidence are append-only and causally linked', () => {
   const db = new DatabaseSync(':memory:'); db.exec(schema);
   const burns = new SqliteBurnInEvidenceRepository(db);
   const reports = new SqliteSyntheticCertificationReportRepository(db, burns);
-  assert.equal(burns.append(burnIn).runId, 'burn-1');
+  assert.equal(burns.append(burnIn).decision, BurnInDecision.PASS);
   assert.throws(() => burns.append(burnIn), /duplicate burn-in/);
   assert.equal(reports.append(report, 'burn-1').reportId, 'report-1');
   assert.throws(() => reports.append({...report, reportId:'report-2'}, 'missing'), /not found/);
