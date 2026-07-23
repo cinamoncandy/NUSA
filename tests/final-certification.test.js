@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const execution = require("../dist/apps/execution/src/index.js");
 
 const {
@@ -71,4 +73,16 @@ test("reconstructed baseline inventory never invents implementation evidence", (
   assert.equal(inventory[2].status, CertificationImplementationStatus.PARTIALLY_IMPLEMENTED);
   assert.equal(inventory[44].status, CertificationImplementationStatus.NOT_FOUND);
   assert.deepEqual(inventory[44].evidence, []);
+});
+
+test("reconstructed baseline inventory never references an evidence path that does not exist on disk", () => {
+  const inventory = createReconstructedBaselineInventory();
+  const repoRoot = path.resolve(__dirname, "..");
+  const missing = [];
+  for (const item of inventory) {
+    for (const evidencePath of item.evidence) {
+      if (!fs.existsSync(path.join(repoRoot, evidencePath))) missing.push(evidencePath);
+    }
+  }
+  assert.deepEqual(missing, [], `phantom evidence paths that do not exist on disk: ${missing.join(", ")}`);
 });
