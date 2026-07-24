@@ -2,6 +2,8 @@
 
 Renderer interaction guidance: [Command Palette](docs/design/command-palette.md).
 
+> **브랜치 안내:** 이 브랜치가 주력 브랜치입니다 — 실제로 실행되는 Paper Trading 앱입니다 (PR #1). `main`은 향후 실거래 게이팅에 재사용할 회계·인증 라이브러리 실험 공간으로 별도 유지됩니다. 이 브랜치의 `packages/storage`, `packages/contracts`는 분기 시점에 `main`의 코드를 기반으로 시작됐지만, 이후로는 자동 동기화 없이 독립적으로 발전해왔습니다.
+
 Electron 기반 Windows Paper Trading 앱입니다. Upbit 공개 WebSocket의 `KRW-BTC` 실시간 시세를 받아 로컬 모의 주문과 손익을 계산합니다.
 
 ## 안전 범위
