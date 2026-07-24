@@ -10,6 +10,7 @@ import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
 import { DefaultPortfolioLedger, type Portfolio } from "../../../packages/core/src/portfolio/portfolio";
 import { DefaultPnLCalculator, type PnLSnapshot } from "../../../packages/core/src/pnl/pnl";
+import { filledExecutionReport, rejectedExecutionReport, type ExecutionReport } from "../../../packages/core/src/execution/executionReport";
 import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/automaticTradingPipeline";
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
@@ -84,6 +85,7 @@ export class PaperRuntime {
    * truth -- see AutomaticTradingPipeline's ReferenceAccounting doc comment. */
   private referencePortfolio: Portfolio;
   private readonly referencePnlCalculator = new DefaultPnLCalculator();
+  private readonly referenceLedger = new DefaultPortfolioLedger();
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -156,7 +158,7 @@ export class PaperRuntime {
       // invented number, just converted from bps to a [0,1] rate.
       { feeRate, slippageRate: (FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2) / 10_000 },
       {
-        ledger: new DefaultPortfolioLedger(),
+        ledger: this.referenceLedger,
         pnlCalculator: this.referencePnlCalculator,
         getPortfolio: () => this.referencePortfolio,
         setPortfolio: (portfolio) => { this.referencePortfolio = portfolio; }
@@ -256,9 +258,35 @@ export class PaperRuntime {
   placeOrder(side: PaperSide, quantity: number): { readonly order: PaperOrder; readonly account: PaperAccountSnapshot } {
     const price = this.assertFreshPrice();
     let order: PaperOrder;
-    try { order = this.runtime.manualOrder(side, quantity, price); }
-    finally { this.paperTradingAvailable = this.runtime.isAvailable(); }
+    try {
+      order = this.runtime.manualOrder(side, quantity, price);
+    } catch (error) {
+      this.paperTradingAvailable = this.runtime.isAvailable();
+      this.recordReferenceExecution(rejectedExecutionReport(error instanceof Error ? error.message : String(error)));
+      throw error;
+    }
+    this.paperTradingAvailable = this.runtime.isAvailable();
+    this.recordReferenceExecution(filledExecutionReport({
+      side: order.side,
+      quantity: order.quantity,
+      price: order.price,
+      fee: order.fee,
+      symbol: this.market
+    }));
     return { order, account: this.broker.snapshot(price) };
+  }
+
+  /**
+   * Folds a manual order's outcome into the same audit-only reference ledger the automatic
+   * pipeline feeds (AutomaticTradingPipeline.recordExecutionReport) -- so /api/reference-accounting
+   * mirrors the *whole* account (manual + automatic), not just automatic-strategy fills. Never
+   * read back into any real decision; PaperBroker remains the sole source of truth.
+   */
+  private recordReferenceExecution(report: ExecutionReport): void {
+    const updateResult = this.referenceLedger.apply(this.referencePortfolio, report);
+    if (updateResult.status !== "UPDATED") return;
+    this.referencePortfolio = updateResult.portfolio;
+    this.control.record("SYSTEM", "execution report (manual)", report);
   }
 
   startStrategy(): ControlSnapshot { return this.runCommand(() => this.runtime.start()); }

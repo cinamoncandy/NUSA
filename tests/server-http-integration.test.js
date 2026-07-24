@@ -80,23 +80,38 @@ test("POST /api/orders places a real order through the full stack and persists i
   });
 });
 
-test("GET /api/reference-accounting reflects manual orders (audit-only, mirrors /api/account)", async (t) => {
+test("GET /api/reference-accounting mirrors a manual order (PaperRuntime folds it in, audit-only)", async (t) => {
   await withServer(t, async (base) => {
     const before = await (await fetch(`${base}/api/reference-accounting`)).json();
     assert.equal(before.portfolio.quantity, 0);
     assert.equal(before.portfolio.cash, 10_000_000);
 
-    // Manual orders bypass AutomaticTradingPipeline entirely (see automaticTradingPipeline.ts's
-    // doc comment), so the reference ledger -- fed only from that pipeline -- should NOT move.
-    await fetch(`${base}/api/orders`, {
+    const orderResponse = await (await fetch(`${base}/api/orders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ side: "BUY", quantity: 0.001 })
-    });
+    })).json();
+
     const after = await (await fetch(`${base}/api/reference-accounting`)).json();
-    assert.equal(after.portfolio.quantity, 0, "manual orders are not folded into the reference ledger");
+    const account = await (await fetch(`${base}/api/account`)).json();
+    assert.equal(after.portfolio.quantity, orderResponse.order.quantity);
+    assert.equal(after.portfolio.quantity, account.position.quantity, "reference mirrors the real account's position");
+    assert.equal(after.portfolio.cash, account.cash, "reference mirrors the real account's cash");
+  });
+});
+
+test("a rejected manual order (insufficient position) is also recorded in the reference ledger as a no-op", async (t) => {
+  await withServer(t, async (base) => {
+    const response = await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "SELL", quantity: 1 })
+    });
+    assert.equal(response.status, 400);
+
+    const after = await (await fetch(`${base}/api/reference-accounting`)).json();
+    assert.equal(after.portfolio.quantity, 0);
     assert.equal(after.portfolio.cash, 10_000_000);
-    assert.equal(after.pnl.totalPnl, 0);
   });
 });
 
