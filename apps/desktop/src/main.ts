@@ -88,7 +88,8 @@ function publishAiCioDashboard(): void {
         manifests: persistenceStore.loadResearchRunManifests(),
         reports: persistenceStore.loadResearchValidationReports(),
         generatedAt
-      })
+      }),
+      strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES }
     }), generatedAt);
   } catch {
     aiCioSnapshotPublisher.clear();
