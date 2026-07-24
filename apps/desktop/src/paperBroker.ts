@@ -10,6 +10,8 @@ export interface PaperOrder {
   filledAt: string;
   requestedQuantity: number;
   quotedPrice: number;
+  spreadCost: number;
+  slippageCost: number;
 }
 
 export interface PaperPosition {
@@ -49,12 +51,15 @@ interface NormalizedPaperRiskPolicy {
 export interface PaperFillModel {
   /** Adverse price movement applied against the trader, in basis points of the quoted price. */
   slippageBps?: number;
+  /** Cost of crossing the bid-ask spread, in basis points of the quoted price. Half the spread is charged, matching apps/desktop/src/backtestEngine.ts's execution-cost convention. */
+  spreadBps?: number;
   /** Fraction (0, 1] of the requested quantity that can fill against one quote. The remainder is rejected, never queued or retried. */
   maxFillRatio?: number;
 }
 
 interface NormalizedPaperFillModel {
   readonly slippageBps: number;
+  readonly spreadBps: number;
   readonly maxFillRatio: number;
 }
 
@@ -140,12 +145,14 @@ export class PaperBroker {
     });
 
     const slippageBps = fillModel.slippageBps ?? 0;
+    const spreadBps = fillModel.spreadBps ?? 0;
     const maxFillRatio = fillModel.maxFillRatio ?? 1;
     assertFiniteNonNegative(slippageBps, "slippageBps");
+    assertFiniteNonNegative(spreadBps, "spreadBps");
     if (!Number.isFinite(maxFillRatio) || maxFillRatio <= 0 || maxFillRatio > 1) {
       throw new Error("maxFillRatio must be in (0, 1]");
     }
-    this.fillModel = Object.freeze({ slippageBps, maxFillRatio });
+    this.fillModel = Object.freeze({ slippageBps, spreadBps, maxFillRatio });
 
     if (restoredState) {
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
@@ -186,11 +193,14 @@ export class PaperBroker {
 
     const liquidityLimitedQuantity = quantity * this.fillModel.maxFillRatio;
     const normalizedQuantity = this.normalizeOrderQuantity(liquidityLimitedQuantity);
+    const adverseBps = this.fillModel.slippageBps + this.fillModel.spreadBps / 2;
     const fillPrice = side === "BUY"
-      ? price * (1 + this.fillModel.slippageBps / 10_000)
-      : price * (1 - this.fillModel.slippageBps / 10_000);
+      ? price * (1 + adverseBps / 10_000)
+      : price * (1 - adverseBps / 10_000);
     const notional = normalizedQuantity * fillPrice;
     let chargedFee = notional * this.feeRate;
+    let spreadCost = price * normalizedQuantity * this.fillModel.spreadBps / 20_000;
+    let slippageCost = price * normalizedQuantity * this.fillModel.slippageBps / 10_000;
 
     if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
       throw new Error("insufficient paper position");
@@ -219,6 +229,8 @@ export class PaperBroker {
       const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
       const sellNotional = sellQuantity * fillPrice;
       chargedFee = sellNotional * this.feeRate;
+      spreadCost = price * sellQuantity * this.fillModel.spreadBps / 20_000;
+      slippageCost = price * sellQuantity * this.fillModel.slippageBps / 10_000;
       const pnl = (fillPrice - this.position.averagePrice) * sellQuantity - chargedFee;
       this.cash += sellNotional - chargedFee;
       this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
@@ -235,7 +247,9 @@ export class PaperBroker {
       fee: chargedFee,
       filledAt: now.toISOString(),
       requestedQuantity: quantity,
-      quotedPrice: price
+      quotedPrice: price,
+      spreadCost,
+      slippageCost
     });
     this.orders.unshift(order);
     return order;
