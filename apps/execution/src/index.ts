@@ -1,24 +1,56 @@
-import { LedgerSide, RiskDecisionType, RiskReasonCode } from "../../../packages/contracts/src/index";
-
-export interface RiskPosition { readonly baseQtyRaw: bigint; readonly realizedPnlRaw: bigint; }
-export interface PreTradeRiskContext { readonly position?: RiskPosition; }
-export interface PreTradeOrder { readonly side: LedgerSide; readonly baseQtyRaw: bigint; readonly quoteQtyRaw?: bigint; }
-export interface PreTradeRiskPolicy { readonly enabled?: boolean; readonly maxOrderQuoteRaw?: bigint; readonly maxPositionBaseRaw?: bigint; readonly maxRealizedLossRaw?: bigint; }
-export interface RiskDecision { readonly type: RiskDecisionType; readonly reasonCode?: RiskReasonCode; readonly reason?: string; }
-
-export function allow(): RiskDecision { return Object.freeze({ type: RiskDecisionType.ALLOW }); }
-export function block(reasonCode: RiskReasonCode, reason: string): RiskDecision { return Object.freeze({ type: RiskDecisionType.BLOCK, reasonCode, reason }); }
-
-export function evaluatePreTradeRisk(context: PreTradeRiskContext, order: PreTradeOrder, policy: PreTradeRiskPolicy = {}): RiskDecision {
-  if (policy.enabled === false) return allow();
-  if (typeof order.baseQtyRaw !== "bigint") throw new Error("order.baseQtyRaw must be bigint");
-  if (order.quoteQtyRaw != null && typeof order.quoteQtyRaw !== "bigint") throw new Error("order.quoteQtyRaw must be bigint");
-  const current = context.position;
-  if (order.side === LedgerSide.SELL && (current == null || current.baseQtyRaw < order.baseQtyRaw)) return block(RiskReasonCode.OVERSOLD, "sell quantity exceeds position");
-  if (policy.maxOrderQuoteRaw != null && order.quoteQtyRaw != null && order.quoteQtyRaw > policy.maxOrderQuoteRaw) return block(RiskReasonCode.MAX_NOTIONAL_EXCEEDED, "order quote exceeds policy");
-  const currentBase = current?.baseQtyRaw ?? 0n;
-  const nextBase = order.side === LedgerSide.BUY ? currentBase + order.baseQtyRaw : currentBase - order.baseQtyRaw;
-  if (policy.maxPositionBaseRaw != null && nextBase > policy.maxPositionBaseRaw) return block(RiskReasonCode.MAX_POSITION_QTY_EXCEEDED, "position base exceeds policy");
-  if (policy.maxRealizedLossRaw != null && current != null && current.realizedPnlRaw < -policy.maxRealizedLossRaw) return block(RiskReasonCode.MAX_LOSS_EXCEEDED, "realized loss exceeds policy");
-  return allow();
-}
+export * from "./pre-trade-risk";
+export * from "./order-admission";
+export * from "./execution-gateway";
+export * from "./order-reconciliation";
+export * from "./order-restriction";
+export * from "./position-reconciliation";
+export * from "./position-reconciliation-worker";
+export * from "./balance-reconciliation";
+export * from "./funding-reconciliation";
+export * from "./fee-reconciliation";
+export * from "./fee-reconciliation-lifecycle";
+export * from "./fill-reconciliation";
+export * from "./pnl-reconciliation";
+export * from "./liquidation-guard";
+export * from "./exchange-constraints";
+export * from "./rate-limit-manager";
+export * from "./clock-synchronization";
+export * from "./websocket-recovery";
+export * from "./disaster-recovery";
+export * from "./startup-consistency-gate";
+export * from "./production-readiness";
+export * from "./recovery-evidence";
+export * from "./fault-injection";
+export * from "./chaos-recovery-harness";
+export * from "./invariant-monitor";
+export * from "./burn-in-harness";
+export * from "./synthetic-certification-report";
+export * from "./certification-evidence";
+export * from "./release-candidate-freeze";
+export * from "./release-freeze-evidence";
+export * from "./artifact-manifest";
+export * from "./release-candidate-promotion";
+export * from "./independent-approval";
+export * from "./independent-approval-evidence";
+export * from "./promotion-evidence";
+export * from "./deployment-hard-block";
+export * from "./deployment-attempt-evidence";
+export * from "./credential-boundary";
+export * from "./credential-boundary-evidence";
+export * from "./production-adapter-attestation";
+export * from "./production-adapter-attestation-evidence";
+export * from "./deployment-evidence-chain";
+export * from "./evidence-completeness-audit";
+export * from "./evidence-completeness-audit-evidence";
+export * from "./final-synthetic-release-envelope";
+export * from "./final-envelope-evidence";
+export * from "./evidence-graph-integrity";
+export * from "./synthetic-release-revocation";
+export * from "./revocation-evidence";
+export * from "./evidence-graph-seal";
+export * from "./evidence-graph-seal-repository";
+export * from "./synthetic-release-status";
+export * from "./synthetic-release-status-evidence";
+export * from "./certification-snapshot";
+export * from "./synthetic-baseline-closure-report";
+export * from "./final-certification";

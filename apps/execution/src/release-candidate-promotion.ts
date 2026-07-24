@@ -1,0 +1,8 @@
+import { ReleaseCandidateFreezeDecision, type ReleaseCandidateFreezeResult } from "./release-candidate-freeze";
+export enum ReleaseCandidatePromotionDecision { PROMOTABLE="PROMOTABLE", BLOCKED="BLOCKED" }
+export interface ReleaseCandidatePromotionResult { readonly candidateId:string;readonly decision:ReleaseCandidatePromotionDecision;readonly productionMutationAllowed:false;readonly blockers:readonly string[];readonly evaluatedAtMs:number; }
+export function evaluateReleaseCandidatePromotion(input:{readonly freeze:ReleaseCandidateFreezeResult;readonly freezeEvidencePresent:boolean;readonly manifestVerified:boolean;readonly requiredCiChecks:number;readonly successfulCiChecks:number;readonly independentApprovalPresent:boolean;readonly nowMs:number;}):ReleaseCandidatePromotionResult{
+ if(!Number.isSafeInteger(input.requiredCiChecks)||input.requiredCiChecks<1||!Number.isSafeInteger(input.successfulCiChecks)||input.successfulCiChecks<0||!Number.isSafeInteger(input.nowMs)||input.nowMs<0)throw new Error("invalid promotion evidence");
+ const blockers:string[]=[];if(input.freeze.decision!==ReleaseCandidateFreezeDecision.FROZEN)blockers.push("CANDIDATE_NOT_FROZEN");if(!input.freezeEvidencePresent)blockers.push("FREEZE_EVIDENCE_MISSING");if(!input.manifestVerified)blockers.push("ARTIFACT_MANIFEST_UNVERIFIED");if(input.successfulCiChecks<input.requiredCiChecks)blockers.push("REQUIRED_CI_CHECKS_MISSING");if(!input.independentApprovalPresent)blockers.push("INDEPENDENT_APPROVAL_MISSING");
+ return Object.freeze({candidateId:input.freeze.candidateId,decision:blockers.length?ReleaseCandidatePromotionDecision.BLOCKED:ReleaseCandidatePromotionDecision.PROMOTABLE,productionMutationAllowed:false,blockers:Object.freeze(blockers.sort()),evaluatedAtMs:input.nowMs});
+}
