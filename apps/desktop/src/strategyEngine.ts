@@ -69,6 +69,18 @@ export class StrategyEngine {
   stop(): void { this.running = false; }
   isRunning(): boolean { return this.running; }
   restoreRunning(running: boolean): void { this.running = running; }
+  /**
+   * Restores tick price history after a restart so warm-up doesn't silently restart
+   * from zero. Does not restore per-strategy internal state (e.g. SmaCrossoverStrategy's
+   * previousSpread), which stays fresh: the first tick after restore establishes a new
+   * baseline (HOLD), and ordinary crossover detection resumes from the second tick
+   * onward rather than after a full requiredWarmupSamples wait.
+   */
+  restoreHistory(prices: readonly number[]): void {
+    if (!prices.every((price) => Number.isFinite(price) && price > 0)) throw new Error("restored price history must contain only positive finite numbers");
+    this.prices.length = 0;
+    this.prices.push(...prices.slice(-this.maxHistory));
+  }
   setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; strategy.reset(); }
   getLatestSignal(): StrategySignal | undefined { return this.latestSignal; }
   getHistory(): readonly number[] { return [...this.prices]; }

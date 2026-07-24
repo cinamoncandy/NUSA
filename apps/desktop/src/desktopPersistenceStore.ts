@@ -29,6 +29,8 @@ CREATE TABLE desktop_research_manifests (run_id TEXT PRIMARY KEY, run_type TEXT 
 CREATE TABLE desktop_research_reports (run_id TEXT NOT NULL, run_type TEXT NOT NULL, report_json TEXT NOT NULL, PRIMARY KEY (run_id, run_type));
 ` }, { id: "004_desktop_owner_reviews", sql: `
 CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_checksum TEXT NOT NULL, reviewer_id TEXT NOT NULL, decision TEXT NOT NULL, note TEXT, reviewed_at TEXT NOT NULL, record_checksum TEXT NOT NULL UNIQUE);
+` }, { id: "005_desktop_strategy_state", sql: `
+CREATE TABLE desktop_strategy_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -78,6 +80,32 @@ export class DesktopPersistenceStore {
 
   save(paper: PaperBrokerState, control: ControlPlaneState): void {
     this.transaction(() => this.write({ paper, control }));
+  }
+
+  /**
+   * Best-effort continuity data only: the strategy's recent tick price history, so a
+   * restart doesn't need to silently re-warm-up from zero. Deliberately independent
+   * of save()/saveWithScenarioEvent(s) -- it carries no accounting or control-audit
+   * meaning, so a failure here must never affect paperTradingAvailable or trigger the
+   * fail-closed evidence path those methods use.
+   */
+  saveStrategyPriceHistory(prices: readonly number[]): void {
+    if (!prices.every((price) => Number.isFinite(price) && price > 0)) {
+      throw new Error("strategy price history must contain only positive finite numbers");
+    }
+    this.transaction(() => {
+      this.db.prepare("INSERT OR REPLACE INTO desktop_strategy_state (id, payload) VALUES (1, ?)").run(JSON.stringify({ version: 1, priceHistory: prices }));
+    });
+  }
+
+  loadStrategyPriceHistory(): readonly number[] | undefined {
+    const row = this.db.prepare("SELECT payload FROM desktop_strategy_state WHERE id = 1").get() as { payload: string } | undefined;
+    if (row == null) return undefined;
+    const parsed = JSON.parse(row.payload) as { version?: number; priceHistory?: unknown };
+    if (parsed.version !== 1 || !Array.isArray(parsed.priceHistory) || !parsed.priceHistory.every((price) => Number.isFinite(price) && price > 0)) {
+      throw new Error("stored strategy price history is invalid");
+    }
+    return parsed.priceHistory as readonly number[];
   }
 
   saveWithScenarioEvent(paper: PaperBrokerState, control: ControlPlaneState, event: PaperScenarioEvent): void {
