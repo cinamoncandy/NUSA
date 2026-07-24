@@ -8,6 +8,7 @@ const { RiskEngine } = require("../dist/apps/server/src/pipeline/riskEngine.js")
 const { OrderPlanner } = require("../dist/apps/server/src/pipeline/orderPlanner.js");
 const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecutor.js");
 const { DefaultRiskEngine: ValueRiskEngine } = require("../dist/packages/core/src/risk/riskEngine.js");
+const { DefaultOrderPlanner: ValueOrderPlanner } = require("../dist/packages/core/src/order/orderPlanner.js");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const intent = (type, timestamp = 1) => ({ type, reason: "test", confidence: 1, timestamp });
@@ -33,7 +34,9 @@ function harness(options = {}) {
     persist,
     () => { failureCalls += 1; },
     options.valueRiskEngine,
-    options.policyFor
+    options.policyFor,
+    options.valueOrderPlanner,
+    options.executionPolicy
   );
   return { broker, control, strategy, pipeline, durable, failNext: () => { fail = true; }, failureCalls: () => failureCalls };
 }
@@ -162,6 +165,55 @@ test("when wired, a plan within the value-based policy still fills normally", ()
 
 test("without valueRiskEngine/policyFor wired, behavior is unchanged from before E02-T002 (opt-in, not a default block)", () => {
   const { control, pipeline, broker } = harness(); // no valueRiskEngine/policyFor
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  assert.ok(broker.snapshot(100_000_000).position.quantity > 0);
+});
+
+test("when wired (E02-T003), a successful plan is recorded as a SYSTEM event and the trade still fills through PaperExecutor's own fill model", () => {
+  const { control, pipeline, broker } = harness({
+    valueRiskEngine: new ValueRiskEngine(),
+    policyFor: () => ({ minimumOrderValue: 0, maximumPositionValue: 100_000_000 }),
+    valueOrderPlanner: new ValueOrderPlanner(),
+    executionPolicy: { feeRate: 0.001, slippageRate: 0.01 }
+  });
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  assert.ok(broker.snapshot(100_000_000).position.quantity > 0);
+  const plannedEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "planned order computed");
+  assert.ok(plannedEvent, "expected a planned-order audit event");
+  assert.equal(plannedEvent.data.side, "BUY");
+  assert.ok(plannedEvent.data.executionPrice > 100_000_000, "BUY executionPrice should be above marketPrice with positive slippageRate");
+});
+
+test("when wired, a FAILED PlannerResult (e.g. slippageRate driving SELL executionPrice to 0) rejects the trade without executing", () => {
+  const { control, pipeline, broker } = harness({
+    valueRiskEngine: new ValueRiskEngine(),
+    policyFor: () => ({ minimumOrderValue: 0, maximumPositionValue: 100_000_000 }),
+    valueOrderPlanner: new ValueOrderPlanner(),
+    executionPolicy: { feeRate: 0.001, slippageRate: 1 }
+  });
+  control.start();
+  control.setAutoTrade(true);
+  // Give the account an open position first (bypassing the pipeline) so a SELL intent is risk-approved.
+  broker.execute("BUY", 0.001, 100_000_000);
+  const before = broker.snapshot(100_000_000);
+  const result = pipeline.process(intent("SELL", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "REJECTED");
+  assert.match(result.reason, /executionPrice/);
+  assert.deepEqual(broker.snapshot(100_000_000).position, before.position, "no execution should occur after a FAILED plan");
+});
+
+test("without valueOrderPlanner/executionPolicy wired, behavior is unchanged (opt-in, not a default block)", () => {
+  const { control, pipeline, broker } = harness({
+    valueRiskEngine: new ValueRiskEngine(),
+    policyFor: () => ({ minimumOrderValue: 0, maximumPositionValue: 100_000_000 })
+    // valueOrderPlanner/executionPolicy intentionally omitted
+  });
   control.start();
   control.setAutoTrade(true);
   const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);

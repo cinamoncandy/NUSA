@@ -7,6 +7,7 @@ import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../.
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
 import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
+import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
 import { AutomaticTradingPipeline } from "./pipeline/automaticTradingPipeline";
 import { OrderPlanner } from "./pipeline/orderPlanner";
 import { PaperExecutor } from "./pipeline/paperExecutor";
@@ -136,7 +137,12 @@ export class PaperRuntime {
       // Reuses PaperBroker's own already-agreed limits (RISK_POLICY above) rather than a new
       // invented threshold: minOrderNotional as-is, maxPositionQuantity converted to a value
       // at the current price since PaperBroker's own limit is quantity-based.
-      (price) => ({ minimumOrderValue: RISK_POLICY.minOrderNotional, maximumPositionValue: RISK_POLICY.maxPositionQuantity * price })
+      (price) => ({ minimumOrderValue: RISK_POLICY.minOrderNotional, maximumPositionValue: RISK_POLICY.maxPositionQuantity * price }),
+      new ValueOrderPlanner(),
+      // Reuses the exact same feeRate/effective-adverse-rate this app already computes for
+      // the dashboard's executionCostBps (FILL_MODEL.slippageBps + spreadBps / 2), not a new
+      // invented number, just converted from bps to a [0,1] rate.
+      { feeRate, slippageRate: (FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2) / 10_000 }
     );
 
     this.paperTradingAvailable = diagnostic === undefined;

@@ -5,6 +5,10 @@ import {
   DefaultRiskEngine as ValueRiskEngine,
   type RiskPolicy as ValueRiskPolicy
 } from "../../../../packages/core/src/risk/riskEngine";
+import {
+  DefaultOrderPlanner as ValueOrderPlanner,
+  type ExecutionPolicy
+} from "../../../../packages/core/src/order/orderPlanner";
 import { OrderPlanner } from "./orderPlanner";
 import { RiskEngine } from "./riskEngine";
 import { PaperExecutor } from "./paperExecutor";
@@ -42,6 +46,18 @@ interface RuntimeSnapshot {
  * apps/server/src/paperRuntime.ts) -- so this is an earlier, additional check using
  * already-agreed limits, not a new invented threshold, and PaperBroker's own checks remain
  * the final word regardless.
+ *
+ * The value-based OrderPlanner (packages/core/src/order/orderPlanner.ts, E02-T003) runs
+ * right after that, once the value RiskDecision it requires exists: it computes a formal
+ * PlannedOrder (executionPrice/orderValue/estimatedFee/estimatedSlippage) from the same
+ * ExecutionPolicy the dashboard already reports (apps/server/src/paperRuntime.ts's
+ * executionCostBps), and that PlannedOrder is recorded for audit purposes only -- the
+ * actual fill still comes from PaperBroker's own, more detailed fill model (spread +
+ * slippage + order-size market impact) inside PaperExecutor, so this never changes what
+ * price an order actually fills at, only what gets recorded as the pre-trade estimate. A
+ * FAILED PlannerResult (e.g. an edge-case slippageRate driving executionPrice to zero)
+ * still rejects the trade, since a plan this pipeline cannot even describe should not be
+ * executed.
  */
 export class AutomaticTradingPipeline {
   constructor(
@@ -58,7 +74,13 @@ export class AutomaticTradingPipeline {
      * entirely (never a silent "always allow" default), matching this constructor's own
      * existing tests that don't need to care about it. */
     private readonly valueRiskEngine?: ValueRiskEngine,
-    private readonly policyFor?: (price: number) => ValueRiskPolicy
+    private readonly policyFor?: (price: number) => ValueRiskPolicy,
+    /** Optional, same opt-in shape as valueRiskEngine/policyFor above: when both are
+     * provided, every value-risk-approved plan is also run through the value-based
+     * OrderPlanner and the resulting PlannedOrder is recorded (audit-only, does not affect
+     * the actual fill -- see class doc comment). */
+    private readonly valueOrderPlanner?: ValueOrderPlanner,
+    private readonly executionPolicy?: ExecutionPolicy
   ) {}
 
   process(intent: TradingIntent, market: string, price: number, equity: number): AutomaticTradingResult {
@@ -96,6 +118,16 @@ export class AutomaticTradingPipeline {
           this.control.record("RISK", `${valueDecision.code}: ${valueDecision.reason}`);
           this.persistNow();
           return { outcome: "REJECTED", reason: valueDecision.reason };
+        }
+
+        if (this.valueOrderPlanner && this.executionPolicy) {
+          const plannerResult = this.valueOrderPlanner.plan(plan, valueDecision, price, this.executionPolicy);
+          if (plannerResult.status === "FAILED") {
+            this.control.record("RISK", `${plannerResult.code}: ${plannerResult.reason}`);
+            this.persistNow();
+            return { outcome: "REJECTED", reason: plannerResult.reason };
+          }
+          this.control.record("SYSTEM", "planned order computed", plannerResult.order);
         }
       }
 
