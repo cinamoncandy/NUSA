@@ -21,6 +21,10 @@ function fakeRuntime(overrides = {}) {
       reconciliation: { consistent: true, discrepancies: [] }
     }),
     getEquityHistory: () => [{ timestamp: 1, equity: 1 }],
+    getTradeStatistics: () => ({
+      totalTrades: 0, buyCount: 0, sellCount: 0, wins: 0, losses: 0,
+      winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null
+    }),
     ...overrides
   };
 }
@@ -41,6 +45,7 @@ test("GET routes dispatch to the matching runtime method", () => {
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/equity-history", body: undefined }, runtime).body, {
     history: [{ timestamp: 1, equity: 1 }]
   });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/trade-statistics", body: undefined }, runtime).body.totalTrades, 0);
 });
 
 test("GET /api/reference-accounting is 503 while market price is not yet available", () => {
@@ -56,6 +61,11 @@ test("POST /api/reference-accounting is 405 (read-only endpoint)", () => {
 test("POST /api/equity-history is 405 (read-only endpoint)", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/equity-history", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/trade-statistics is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/trade-statistics", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

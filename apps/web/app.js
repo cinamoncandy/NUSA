@@ -117,6 +117,20 @@ function renderAccount(account) {
   }));
 }
 
+const percent = new Intl.NumberFormat("ko-KR", { style: "percent", maximumFractionDigits: 1 });
+const pnlText = (value) => (value === null ? "-" : won.format(value));
+
+function renderTradeStatistics(stats) {
+  byId("stats-total").textContent = number.format(stats.totalTrades);
+  byId("stats-buy-sell").textContent = `${number.format(stats.buyCount)} / ${number.format(stats.sellCount)}`;
+  byId("stats-win-rate").textContent = stats.winRate === null ? "-" : percent.format(stats.winRate);
+  byId("stats-win-loss").textContent = `${number.format(stats.wins)} / ${number.format(stats.losses)}`;
+  byId("stats-avg-win").textContent = pnlText(stats.averageWin);
+  byId("stats-avg-loss").textContent = pnlText(stats.averageLoss);
+  byId("stats-largest-win").textContent = pnlText(stats.largestWin);
+  byId("stats-largest-loss").textContent = pnlText(stats.largestLoss);
+}
+
 function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
   byId("ref-cash").textContent = won.format(portfolio.cash);
   byId("ref-position").textContent = `${number.format(portfolio.quantity)} BTC`;
@@ -209,6 +223,7 @@ async function refresh() {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));
       renderReferenceAccounting(await fetchJson("/api/reference-accounting"));
+      renderTradeStatistics(await fetchJson("/api/trade-statistics"));
     } catch {
       // Market price not ready yet (e.g. first few seconds after boot) -- account/dashboard
       // need a price to compute equity/exposure; market/control/chart above degrade independently.

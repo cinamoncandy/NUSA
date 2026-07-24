@@ -18,6 +18,7 @@ import { RiskEngine } from "./pipeline/riskEngine";
 import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
+import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -235,6 +236,12 @@ export class PaperRuntime {
   getEquityHistory(): readonly EquitySample[] { return this.equityHistory.history(); }
 
   getAccountSnapshot(): PaperAccountSnapshot { return this.broker.snapshot(this.assertFreshPrice()); }
+
+  /** account.orders is newest-first (PaperBroker.snapshot()); reversed for chronological replay. */
+  getTradeStatistics(): TradeStatistics {
+    const account = this.broker.snapshot(this.assertFreshPrice());
+    return computeTradeStatistics([...account.orders].reverse());
+  }
 
   getControlSnapshot(): ControlSnapshot & { readonly activeStrategyId: StrategyChoice } {
     return Object.freeze({ ...this.control.snapshot(), activeStrategyId: this.currentStrategyId });

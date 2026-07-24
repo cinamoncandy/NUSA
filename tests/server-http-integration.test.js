@@ -127,6 +127,31 @@ test("GET /api/equity-history records a sample per candle update, starting near 
   });
 });
 
+test("GET /api/trade-statistics reflects a real BUY-then-SELL round trip through the actual server", async (t) => {
+  await withServer(t, async (base) => {
+    const buy = await (await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    })).json();
+
+    const sell = await (await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "SELL", quantity: buy.order.quantity })
+    })).json();
+
+    const stats = await (await fetch(`${base}/api/trade-statistics`)).json();
+    assert.equal(stats.totalTrades, 2);
+    assert.equal(stats.buyCount, 1);
+    assert.equal(stats.sellCount, 1);
+    assert.equal(stats.wins + stats.losses, 1);
+    assert.ok(Number.isFinite(stats.totalRealizedPnl));
+    // The real account's cumulative realizedPnl should match the single closed trade's PnL.
+    assert.ok(Math.abs(stats.totalRealizedPnl - sell.account.position.realizedPnl) < 1e-6);
+  });
+});
+
 test("invalid JSON body returns 400 instead of crashing the server", async (t) => {
   await withServer(t, async (base) => {
     const response = await fetch(`${base}/api/orders`, {
