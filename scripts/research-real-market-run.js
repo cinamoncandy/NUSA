@@ -26,6 +26,21 @@ const WALK_FORWARD_CONFIG = {
   selectionPolicy: { minimumClosedTrades: 0 }
 };
 
+// A modest neighborhood around the live desktop app's SMA(5, 20) crossover, per the
+// investment-strategy audit's "test parameter neighborhoods rather than only 5/20"
+// requirement. Each window's selectCandidate() picks whichever of these scores best on
+// that window's training data; stabilityDiagnostics below reports whether 5-20 actually
+// wins consistently or whether selection churns across the neighborhood (a robustness
+// warning sign, not something to paper over).
+const SMA_PARAMETER_NEIGHBORHOOD = [
+  { shortPeriod: 3, longPeriod: 15 },
+  { shortPeriod: 5, longPeriod: 15 },
+  { shortPeriod: 5, longPeriod: 20 },
+  { shortPeriod: 5, longPeriod: 25 },
+  { shortPeriod: 8, longPeriod: 20 },
+  { shortPeriod: 10, longPeriod: 30 }
+];
+
 async function fetchRealDayCandles() {
   const response = await fetch(`https://api.upbit.com${REQUEST_PATH}`);
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
@@ -43,9 +58,15 @@ async function main() {
     createdAt: new Date().toISOString()
   });
 
+  const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
+    id: `sma-${shortPeriod}-${longPeriod}`,
+    strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod),
+    parameters: { shortPeriod, longPeriod }
+  }));
+
   const result = runWalkForwardExperiment(
     { candles, manifest },
-    [{ id: "sma-5-20", strategyFactory: () => new SmaCrossoverStrategy(5, 20), parameters: { shortPeriod: 5, longPeriod: 20 } }],
+    candidates,
     WALK_FORWARD_CONFIG,
     { generatedAt: new Date().toISOString() }
   );
@@ -63,6 +84,12 @@ async function main() {
       contentSha256: manifest.contentSha256
     },
     windowCount: result.walkForwardResult.windows.length,
+    parameterNeighborhood: {
+      candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts,
+      selectionChurn: result.walkForwardResult.stabilityDiagnostics.selectionChurn,
+      selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio,
+      candidates: result.walkForwardResult.stabilityDiagnostics.candidates
+    },
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
