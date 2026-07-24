@@ -82,21 +82,24 @@
     </section>
 
     <section class="card">
-      <div class="section-title"><h2>포지션 보호 (스탑로스/익절)</h2><span class="status">보유 수량 &gt; 0일 때만 작동</span></div>
-      <dl>
+      <div class="section-title"><h2>포지션 보호 (스탑로스/익절/트레일링)</h2><span class="status">보유 수량 &gt; 0일 때만 작동</span></div>
+      <dl class="inline-stats">
         <div><dt>스탑로스</dt><dd id="protection-stop-loss">미설정</dd></div>
         <div><dt>익절</dt><dd id="protection-take-profit">미설정</dd></div>
+        <div><dt>트레일링 스탑</dt><dd id="protection-trailing">미설정</dd></div>
       </dl>
-      <label for="protection-stop-loss-input">스탑로스 가격 (비우면 해제)</label>
+      <label for="protection-stop-loss-input">스탑로스 가격 (고정, 트레일링과 동시 사용 불가)</label>
       <input id="protection-stop-loss-input" type="number" min="0" step="1" placeholder="예: 90000000" />
-      <label for="protection-take-profit-input">익절 가격 (비우면 해제)</label>
+      <label for="protection-take-profit-input">익절 가격</label>
       <input id="protection-take-profit-input" type="number" min="0" step="1" placeholder="예: 100000000" />
+      <label for="protection-trailing-input">트레일링 스탑 비율 (%, 고점 대비 하락폭)</label>
+      <input id="protection-trailing-input" type="number" min="0.1" max="99" step="0.5" placeholder="예: 5 (고점 대비 -5%)" />
       <div class="actions">
         <button id="protection-set">설정</button>
         <button id="protection-clear" class="secondary">전체 해제</button>
       </div>
       <p id="protection-error" class="error"></p>
-      <p class="hint">서버 재시작 시 초기화됩니다. 트리거되면 전량 시장가 매도 후 자동으로 해제됩니다.</p>
+      <p class="hint">서버 재시작 시 초기화됩니다. 트리거되면 전량 시장가 매도 후 자동으로 해제됩니다. 필드를 비우면 해당 항목만 해제됩니다.</p>
     </section>
 
     <section class="card">

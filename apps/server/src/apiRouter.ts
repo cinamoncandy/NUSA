@@ -124,7 +124,8 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
         const body = asRecord(request.body);
         const stopLossPrice = requireNullableFiniteNumber(body.stopLossPrice, "stopLossPrice");
         const takeProfitPrice = requireNullableFiniteNumber(body.takeProfitPrice, "takeProfitPrice");
-        return ok(runtime.setPositionProtection({ stopLossPrice, takeProfitPrice }));
+        const trailingStopPercent = requireNullableFiniteNumber(body.trailingStopPercent, "trailingStopPercent");
+        return ok(runtime.setPositionProtection({ stopLossPrice, takeProfitPrice, trailingStopPercent }));
       }
       return methodNotAllowed();
     }

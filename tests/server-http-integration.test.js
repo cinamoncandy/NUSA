@@ -275,28 +275,35 @@ test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips
 test("GET /api/position-protection defaults to unset; POST validates and round-trips", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-protection`)).json();
-    assert.deepEqual(initial, { stopLossPrice: null, takeProfitPrice: null });
+    assert.deepEqual(initial, { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null });
 
     const invalid = await fetch(`${base}/api/position-protection`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stopLossPrice: 100, takeProfitPrice: 100 })
+      body: JSON.stringify({ stopLossPrice: 100, takeProfitPrice: 100, trailingStopPercent: null })
     });
     assert.equal(invalid.status, 400, "stopLossPrice must be strictly less than takeProfitPrice");
+
+    const conflict = await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: 90_000_000, takeProfitPrice: null, trailingStopPercent: 0.05 })
+    });
+    assert.equal(conflict.status, 400, "stopLossPrice and trailingStopPercent are mutually exclusive");
 
     const set = await (await fetch(`${base}/api/position-protection`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000 })
+      body: JSON.stringify({ stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000, trailingStopPercent: null })
     })).json();
-    assert.deepEqual(set, { stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000 });
+    assert.deepEqual(set, { stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000, trailingStopPercent: null, currentTrailingStopPrice: null });
 
     const cleared = await (await fetch(`${base}/api/position-protection`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stopLossPrice: null, takeProfitPrice: null })
+      body: JSON.stringify({ stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null })
     })).json();
-    assert.deepEqual(cleared, { stopLossPrice: null, takeProfitPrice: null });
+    assert.deepEqual(cleared, { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null });
   });
 });
 
@@ -317,7 +324,7 @@ test("a stop-loss level crossed on a real candle tick auto-sells and eventually 
     await fetch(`${base}/api/position-protection`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stopLossPrice: priceBox.value, takeProfitPrice: null })
+      body: JSON.stringify({ stopLossPrice: priceBox.value, takeProfitPrice: null, trailingStopPercent: null })
     });
 
     await new Promise((resolve) => {
@@ -336,10 +343,65 @@ test("a stop-loss level crossed on a real candle tick auto-sells and eventually 
     ]);
     assert.ok(account.position.quantity < buy.order.quantity, "the stop-loss sold at least part of the position");
     assert.ok(account.orders.length >= 2, "the original BUY plus at least one stop-loss SELL");
-    assert.deepEqual(protection, { stopLossPrice: null, takeProfitPrice: null }, "the level cleared (fully closed or gave up)");
+    assert.equal(protection.stopLossPrice, null, "the level cleared (fully closed or gave up)");
     assert.ok(
       control.events.some((event) => event.type === "RISK" && event.message.includes("stop-loss")),
       "expected a RISK event recording the trigger"
+    );
+  }, { pollIntervalMs: 200 });
+});
+
+test("a trailing stop ratchets up with price and triggers once price falls back through it", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base, runtime, priceBox) => {
+    const buy = await (await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    })).json();
+    assert.ok(buy.order.quantity > 0);
+
+    await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: 0.05 })
+    });
+
+    // Price rises 10% -- the trailing stop should ratchet up to follow it (95% of the new
+    // peak), well above the original entry price, without triggering (still below the peak).
+    priceBox.value = Math.round(priceBox.value * 1.1);
+    await new Promise((resolve) => {
+      const check = async () => {
+        const protection = await (await fetch(`${base}/api/position-protection`)).json();
+        if (protection.currentTrailingStopPrice !== null && protection.currentTrailingStopPrice > buy.order.price) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+    const afterRise = await (await fetch(`${base}/api/position-protection`)).json();
+    assert.equal(afterRise.trailingStopPercent, 0.05);
+    assert.ok(afterRise.currentTrailingStopPrice > buy.order.price, "the trailing stop ratcheted up above the original entry price");
+    const accountAfterRise = await (await fetch(`${base}/api/account`)).json();
+    assert.ok(accountAfterRise.position.quantity > 0, "not triggered yet -- price is still at the peak");
+
+    // Now crash the price below the ratcheted trailing level to trigger it.
+    priceBox.value = Math.round(afterRise.currentTrailingStopPrice * 0.9);
+    await new Promise((resolve) => {
+      const check = async () => {
+        const protection = await (await fetch(`${base}/api/position-protection`)).json();
+        if (protection.trailingStopPercent === null) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    const [account, control] = await Promise.all([
+      fetch(`${base}/api/account`).then((r) => r.json()),
+      fetch(`${base}/api/control`).then((r) => r.json())
+    ]);
+    assert.ok(account.position.quantity < buy.order.quantity, "the trailing stop sold at least part of the position");
+    assert.ok(
+      control.events.some((event) => event.type === "RISK" && event.message.includes("trailing-stop")),
+      "expected a RISK event recording the trailing-stop trigger"
     );
   }, { pollIntervalMs: 200 });
 });

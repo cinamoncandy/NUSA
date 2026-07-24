@@ -104,6 +104,13 @@ export class PaperRuntime {
   /** In-memory only, cleared once triggered or the position is flat -- see setPositionProtection(). */
   private stopLossPrice: number | null = null;
   private takeProfitPrice: number | null = null;
+  /** Mutually exclusive with stopLossPrice (see setPositionProtection's validation): when set,
+   * the effective stop level ratchets up to trailingPeakPrice * (1 - trailingStopPercent) as
+   * the price rises, and never down. trailingPeakPrice is the highest price observed since
+   * trailing was enabled (or since the position was last flat); null until the first tick
+   * after being enabled. */
+  private trailingStopPercent: number | null = null;
+  private trailingPeakPrice: number | null = null;
   /** In-memory only, same as the fields above. FIXED_FRACTIONAL sizes each automatic trade to
    * riskFraction * equity / price (packages/core's DefaultPositionSizer, E02-T004) instead of
    * ControlPlane's static order quantity -- see the policyFor closure passed into
@@ -255,18 +262,27 @@ export class PaperRuntime {
    * forever) -- never cleared just because a trigger fired once.
    */
   private checkPositionProtection(price: number): void {
-    if (this.stopLossPrice === null && this.takeProfitPrice === null) return;
+    if (this.stopLossPrice === null && this.takeProfitPrice === null && this.trailingStopPercent === null) return;
     const position = this.broker.snapshot(price).position;
     if (position.quantity <= 0) {
       // The position closed some other way (e.g. a manual sell) while a level was set --
-      // nothing left to protect, so drop the now-meaningless level instead of leaving it
+      // nothing left to protect, so drop the now-meaningless level(s) instead of leaving them
       // dormant for whatever position is opened next.
       this.stopLossPrice = null;
       this.takeProfitPrice = null;
+      this.trailingStopPercent = null;
+      this.trailingPeakPrice = null;
       return;
     }
-    const label = this.stopLossPrice !== null && price <= this.stopLossPrice
-      ? "stop-loss"
+
+    let effectiveStopLoss = this.stopLossPrice;
+    if (this.trailingStopPercent !== null) {
+      this.trailingPeakPrice = Math.max(this.trailingPeakPrice ?? price, price);
+      effectiveStopLoss = this.trailingPeakPrice * (1 - this.trailingStopPercent);
+    }
+
+    const label = effectiveStopLoss !== null && price <= effectiveStopLoss
+      ? (this.trailingStopPercent !== null ? "trailing-stop" : "stop-loss")
       : this.takeProfitPrice !== null && price >= this.takeProfitPrice
         ? "take-profit"
         : null;
@@ -284,10 +300,12 @@ export class PaperRuntime {
       }), price);
       // PaperBroker's fill model can cap a single order below the full requested quantity
       // (see FILL_MODEL.maxFillRatio) -- only clear once the position is actually flat;
-      // otherwise leave the level active so the next tick retries closing the remainder.
+      // otherwise leave the level(s) active so the next tick retries closing the remainder.
       if (this.broker.snapshot(price).position.quantity <= 0) {
         this.stopLossPrice = null;
         this.takeProfitPrice = null;
+        this.trailingStopPercent = null;
+        this.trailingPeakPrice = null;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -296,23 +314,46 @@ export class PaperRuntime {
       // retry would just repeat this same failure on every future tick.
       this.stopLossPrice = null;
       this.takeProfitPrice = null;
+      this.trailingStopPercent = null;
+      this.trailingPeakPrice = null;
       this.control.record("RISK", `${label} trigger failed, protection disabled: ${message}`);
     } finally {
       this.paperTradingAvailable = this.runtime.isAvailable();
     }
   }
 
-  getPositionProtection(): { readonly stopLossPrice: number | null; readonly takeProfitPrice: number | null } {
-    return { stopLossPrice: this.stopLossPrice, takeProfitPrice: this.takeProfitPrice };
+  getPositionProtection(): {
+    readonly stopLossPrice: number | null;
+    readonly takeProfitPrice: number | null;
+    readonly trailingStopPercent: number | null;
+    /** The trailing stop's current effective sell level, for display -- null unless trailing
+     * is active and at least one tick has priced it (trailingPeakPrice is set). */
+    readonly currentTrailingStopPrice: number | null;
+  } {
+    return {
+      stopLossPrice: this.stopLossPrice,
+      takeProfitPrice: this.takeProfitPrice,
+      trailingStopPercent: this.trailingStopPercent,
+      currentTrailingStopPrice: this.trailingStopPercent !== null && this.trailingPeakPrice !== null
+        ? this.trailingPeakPrice * (1 - this.trailingStopPercent)
+        : null
+    };
   }
 
   /**
-   * Both fields are required on every call (idempotent full-replace, matching setOrderQuantity's
-   * style) -- null clears that level, a positive finite number sets it. Validated here rather
-   * than in apiRouter.ts, same convention as ControlPlane.setOrderQuantity's own domain checks.
+   * All three fields are required on every call (idempotent full-replace, matching
+   * setOrderQuantity's style) -- null clears that setting. stopLossPrice and
+   * trailingStopPercent are mutually exclusive (both describe "the stop-loss level", just
+   * fixed vs. ratcheting) -- setting both is rejected rather than silently picking one.
+   * Validated here rather than in apiRouter.ts, same convention as ControlPlane's own domain
+   * checks (e.g. setOrderQuantity).
    */
-  setPositionProtection(input: { stopLossPrice: number | null; takeProfitPrice: number | null }): { readonly stopLossPrice: number | null; readonly takeProfitPrice: number | null } {
-    const { stopLossPrice, takeProfitPrice } = input;
+  setPositionProtection(input: {
+    stopLossPrice: number | null;
+    takeProfitPrice: number | null;
+    trailingStopPercent: number | null;
+  }): ReturnType<PaperRuntime["getPositionProtection"]> {
+    const { stopLossPrice, takeProfitPrice, trailingStopPercent } = input;
     if (stopLossPrice !== null && (!Number.isFinite(stopLossPrice) || stopLossPrice <= 0)) {
       throw new Error("stopLossPrice must be a positive number or null");
     }
@@ -322,9 +363,20 @@ export class PaperRuntime {
     if (stopLossPrice !== null && takeProfitPrice !== null && stopLossPrice >= takeProfitPrice) {
       throw new Error("stopLossPrice must be less than takeProfitPrice");
     }
+    if (trailingStopPercent !== null && (!Number.isFinite(trailingStopPercent) || trailingStopPercent <= 0 || trailingStopPercent >= 1)) {
+      throw new Error("trailingStopPercent must be finite and within (0, 1) or null");
+    }
+    if (stopLossPrice !== null && trailingStopPercent !== null) {
+      throw new Error("stopLossPrice and trailingStopPercent are mutually exclusive -- set only one");
+    }
     this.stopLossPrice = stopLossPrice;
     this.takeProfitPrice = takeProfitPrice;
-    this.control.record("STATUS", `position protection set: stopLoss=${stopLossPrice ?? "-"} takeProfit=${takeProfitPrice ?? "-"}`);
+    if (trailingStopPercent !== this.trailingStopPercent) this.trailingPeakPrice = null;
+    this.trailingStopPercent = trailingStopPercent;
+    this.control.record(
+      "STATUS",
+      `position protection set: stopLoss=${stopLossPrice ?? "-"} takeProfit=${takeProfitPrice ?? "-"} trailingStopPercent=${trailingStopPercent ?? "-"}`
+    );
     return this.getPositionProtection();
   }
 

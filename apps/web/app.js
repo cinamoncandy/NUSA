@@ -130,6 +130,9 @@ function renderAccount(account) {
 function renderPositionProtection(protection) {
   byId("protection-stop-loss").textContent = protection.stopLossPrice === null ? "미설정" : won.format(protection.stopLossPrice);
   byId("protection-take-profit").textContent = protection.takeProfitPrice === null ? "미설정" : won.format(protection.takeProfitPrice);
+  byId("protection-trailing").textContent = protection.trailingStopPercent === null
+    ? "미설정"
+    : `-${percent.format(protection.trailingStopPercent)}${protection.currentTrailingStopPrice === null ? "" : ` (현재 ${won.format(protection.currentTrailingStopPrice)})`}`;
 }
 
 const percent = new Intl.NumberFormat("ko-KR", { style: "percent", maximumFractionDigits: 1 });
@@ -297,14 +300,19 @@ byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side:
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
 
 const protectionValue = (id) => { const raw = byId(id).value.trim(); return raw === "" ? null : Number(raw); };
-byId("protection-set").addEventListener("click", () => submitCommand("/api/position-protection", {
-  stopLossPrice: protectionValue("protection-stop-loss-input"),
-  takeProfitPrice: protectionValue("protection-take-profit-input")
-}, "protection-error"));
+byId("protection-set").addEventListener("click", () => {
+  const trailingPercent = protectionValue("protection-trailing-input");
+  submitCommand("/api/position-protection", {
+    stopLossPrice: protectionValue("protection-stop-loss-input"),
+    takeProfitPrice: protectionValue("protection-take-profit-input"),
+    trailingStopPercent: trailingPercent === null ? null : trailingPercent / 100
+  }, "protection-error");
+});
 byId("protection-clear").addEventListener("click", () => {
   byId("protection-stop-loss-input").value = "";
   byId("protection-take-profit-input").value = "";
-  submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null }, "protection-error");
+  byId("protection-trailing-input").value = "";
+  submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null }, "protection-error");
 });
 
 window.addEventListener("beforeunload", () => clearTimeout(refreshTimer));
