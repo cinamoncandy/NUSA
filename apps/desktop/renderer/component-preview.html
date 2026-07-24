@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dokkaebi Component Library</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <link rel="stylesheet" href="component-preview.css" />
+</head>
+<body>
+  <main class="component-preview">
+    <section class="ui-card">
+      <div class="ui-card__header"><div><h1 class="ui-card__title">Component Library</h1><p class="ui-card__description">Presentation-only primitives for the DOKKAEBI operating console.</p></div><span class="ui-status ui-status--healthy">Healthy</span></div>
+      <div class="component-preview__actions"><button id="open-dialog" class="ui-button" data-dialog-open="preview-dialog">Open dialog</button><button id="open-drawer" class="ui-button ui-button--secondary" data-drawer-open="preview-drawer">Open drawer</button><span class="ui-tooltip" data-tooltip="Keyboard-accessible context"><button id="tooltip-target" class="ui-button ui-button--ghost" aria-label="Tooltip example">Info</button></span></div>
+    </section>
+    <section class="component-preview__grid">
+      <article class="ui-metric-card"><span class="ui-metric-card__label">Evidence coverage</span><strong class="ui-metric-card__value">94.2%</strong><span class="ui-metric-card__change">+3.1%</span></article>
+      <article class="ui-decision-card"><div class="ui-decision-card__signal">WAIT</div><div><h2 class="ui-decision-card__title">Evidence first</h2><p class="ui-decision-card__body">This card is informational and does not submit any action.</p><div class="ui-decision-card__meta"><span class="ui-badge ui-badge--warning">Review needed</span></div></div></article>
+    </section>
+    <section class="ui-card"><h2 class="ui-card__title">Timeline</h2><ol class="ui-timeline"><li class="ui-timeline__item"><time class="ui-timeline__time">09:30</time><span class="ui-timeline__title">Evidence recorded</span><span class="ui-timeline__detail">Immutable dataset reference verified.</span></li><li class="ui-timeline__item"><time class="ui-timeline__time">09:42</time><span class="ui-timeline__title">Decision awaiting review</span><span class="ui-timeline__detail">No automatic progression occurs.</span></li></ol></section>
+    <section class="ui-empty-state"><h2 class="ui-empty-state__title">No active experiments</h2><p class="ui-empty-state__body">This is an intentional empty state, not a trading signal.</p></section>
+  </main>
+  <dialog id="preview-dialog" class="ui-dialog" aria-labelledby="preview-dialog-title"><div class="ui-dialog__content"><div class="ui-dialog__header"><div><h2 id="preview-dialog-title" class="ui-dialog__title">Review component</h2><p class="ui-dialog__description">This dialog demonstrates focusable, keyboard-closeable UI only.</p></div><button class="ui-dialog__close" data-dialog-close="preview-dialog" aria-label="Close dialog">Close</button></div><div class="ui-dialog__footer"><button class="ui-button ui-button--secondary" data-dialog-close="preview-dialog">Cancel</button><button class="ui-button" data-dialog-close="preview-dialog">Done</button></div></div></dialog>
+  <aside id="preview-drawer" class="ui-drawer" aria-label="Component drawer" aria-hidden="true" hidden><div class="ui-drawer__header"><strong>Component drawer</strong><button class="ui-drawer__close" data-drawer-close aria-label="Close drawer">Close</button></div><div class="ui-drawer__body"><p>Drawers are presentational containers. They do not change trading state.</p></div></aside>
+  <script src="theme-provider.js"></script>
+  <script src="component-library.js"></script>
+</body>
+</html>

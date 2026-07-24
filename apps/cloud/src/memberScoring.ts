@@ -1,0 +1,3 @@
+import type { CommitteeOpinion } from "../../../packages/contracts/src/investmentCommittee";
+export const COMMITTEE_WEIGHTS:Readonly<Record<CommitteeOpinion["member"],number>>=Object.freeze({MACRO:1,NEWS:.8,QUANT:1.2,TECHNICAL:1,ONCHAIN:.8,DERIVATIVES:1,FLOW:.9,EXECUTION:1.1,RISK:1.4,PORTFOLIO:1.2,CIO:1});
+export function normalizeMemberRecommendation(x:CommitteeOpinion,now:number):CommitteeOpinion{if(!Number.isSafeInteger(x.observedAt)||x.observedAt<0||x.observedAt>now||x.timeHorizonMs<0||x.confidence<0||x.confidence>1||![x.edge,x.expectedReturn,x.expectedRisk].every(Number.isFinite))throw new Error("invalid committee recommendation");return Object.freeze({...x,reasons:Object.freeze([...x.reasons].map(x=>x.trim()).filter(Boolean).sort())});}

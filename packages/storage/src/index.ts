@@ -4,6 +4,19 @@ import {
   type StrategyPositionSnapshot, type WalletPositionSnapshot, compareLedgerOrder,
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
+import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
+
+export { runMigrations } from "./migrationRunner";
+export type { MigrationResult, SqliteMigration } from "./migrationRunner";
+export { SqliteResearchMemoryRepository } from "./researchMemory";
+export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
+export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
+export type { ComplianceDatabase } from "./complianceControlPlaneStore";
+export { SqliteResilienceControlPlaneStore } from "./resilienceControlPlaneStore";
+export { SqliteRulesControlPlaneStore } from "./rulesControlPlaneStore";
+export type { RulesDatabase } from "./rulesControlPlaneStore";
+export { SqliteMultiAgentGovernanceStore } from "./multiAgentGovernanceStore";
+export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -76,10 +89,22 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
 
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
+  public readonly migrationResult: MigrationResult;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
-    this.connection.exec(migrations[0].sql);
+    try {
+      this.connection.exec("PRAGMA foreign_keys = ON");
+      this.connection.exec("PRAGMA busy_timeout = 5000");
+      if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
+      this.connection.exec("PRAGMA synchronous = FULL");
+      this.migrationResult = runMigrations(this.connection, migrations);
+      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
+    } catch (error) {
+      this.connection.close();
+      throw error;
+    }
   }
   public transaction<T>(fn: () => T): T {
     if (this.inTransaction) return fn();
@@ -197,10 +222,65 @@ export class StrategyPositionSnapshotService {
   }
 }
 
-export const migrations = [{ id: "001_position_accounting", sql: `
+export const migrations: readonly SqliteMigration[] = [{ id: "001_position_accounting", sql: `
 CREATE TABLE IF NOT EXISTS position_ledger_entries (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, strategy_id TEXT, symbol TEXT NOT NULL, side TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_qty_raw TEXT, ts TEXT NOT NULL, created_at TEXT NOT NULL, source_trade_id TEXT);
 CREATE INDEX IF NOT EXISTS idx_position_ledger_order ON position_ledger_entries (wallet_id, symbol, ts, created_at, id);
 CREATE TABLE IF NOT EXISTS wallet_position_snapshots (wallet_id TEXT NOT NULL, symbol TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_cost_raw TEXT NOT NULL, avg_entry_price_raw TEXT, realized_pnl_raw TEXT NOT NULL, status TEXT NOT NULL, last_ledger_entry_id TEXT, last_ledger_order_key TEXT, version INTEGER NOT NULL, PRIMARY KEY (wallet_id, symbol));
 CREATE TABLE IF NOT EXISTS strategy_position_snapshots (wallet_id TEXT NOT NULL, strategy_id TEXT NOT NULL, symbol TEXT NOT NULL, base_qty_raw TEXT NOT NULL, quote_cost_raw TEXT NOT NULL, avg_entry_price_raw TEXT, realized_pnl_raw TEXT NOT NULL, status TEXT NOT NULL, last_ledger_entry_id TEXT, last_ledger_order_key TEXT, version INTEGER NOT NULL, PRIMARY KEY (wallet_id, strategy_id, symbol));
 CREATE TABLE IF NOT EXISTS applied_ledger_markers (scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, ledger_entry_id TEXT NOT NULL, ledger_order_key TEXT NOT NULL, PRIMARY KEY (scope_type, scope_id, ledger_entry_id));
+` }, { id: "002_research_memory", sql: `
+CREATE TABLE IF NOT EXISTS research_hypotheses (id TEXT PRIMARY KEY, title TEXT NOT NULL, statement TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_experiment_records (id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, content_sha256 TEXT NOT NULL, manifest_schema_version INTEGER NOT NULL, market TEXT NOT NULL, interval TEXT NOT NULL, start_open_time INTEGER NOT NULL, end_close_time INTEGER NOT NULL, walk_forward_config_json TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL, hypothesis_id TEXT);
+CREATE INDEX IF NOT EXISTS idx_research_experiment_dataset ON research_experiment_records (dataset_id, created_at, id);
+` }, { id: "003_governance_control", sql: `
+CREATE TABLE IF NOT EXISTS strategy_registry (strategy_id TEXT NOT NULL, version TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(strategy_id, version));
+CREATE TABLE IF NOT EXISTS strategy_governance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS strategy_governance_state (id INTEGER PRIMARY KEY CHECK(id = 1), snapshot_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS champion_assignments (family TEXT PRIMARY KEY, strategy_key TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS strategy_governance_commands (command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS investment_committee_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, decision_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS investment_committee_snapshot (id INTEGER PRIMARY KEY CHECK(id = 1), hash TEXT NOT NULL);
+` }, { id: "004_compliance_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS compliance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id = 1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_rules (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
+CREATE TABLE IF NOT EXISTS compliance_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS surveillance_alerts (alert_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_cases (case_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS regulatory_reports (report_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence_packages (evidence_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "005_resilience_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS resilience_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS resilience_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS resilience_services (service_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS continuity_plans (plan_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(plan_id,version));
+CREATE TABLE IF NOT EXISTS resilience_evidence_packages (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "006_rules_control_plane", sql: `
+CREATE TABLE IF NOT EXISTS rules_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS rules_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rules (rule_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rule_versions (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
+CREATE TABLE IF NOT EXISTS policies (policy_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS policy_versions (policy_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(policy_id, version));
+CREATE TABLE IF NOT EXISTS decision_tables (policy_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(policy_id, version));
+CREATE TABLE IF NOT EXISTS formulas (formula_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(formula_id, version));
+CREATE TABLE IF NOT EXISTS evaluations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluation_traces (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS explanations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS simulations (evaluation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS decision_evidence (evidence_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS decision_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "007_multi_agent_governance", sql: `
+CREATE TABLE IF NOT EXISTS multi_agent_governance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS multi_agent_governance_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_definitions (agent_id TEXT NOT NULL, definition_version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(agent_id, definition_version));
+CREATE TABLE IF NOT EXISTS agent_role_contracts (contract_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_evidence (evidence_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_context_snapshots (context_snapshot_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_runs (agent_run_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_orchestration_runs (orchestration_run_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_incidents (incident_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS multi_agent_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 ` }];
