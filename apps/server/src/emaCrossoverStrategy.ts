@@ -1,4 +1,5 @@
 import type { MarketTick, StrategyContext, StrategySignal, TradingStrategy } from "../../desktop/src/strategyEngine";
+import { EmaIndicator } from "./pipeline/emaIndicator";
 
 /**
  * EMA crossover, implementing the same TradingStrategy interface SmaCrossoverStrategy
@@ -6,48 +7,46 @@ import type { MarketTick, StrategyContext, StrategySignal, TradingStrategy } fro
  * either one interchangeably via setStrategy(). Addresses the "EMA 없음" gap: this repo
  * previously had only the SMA crossover strategy.
  *
- * EMA reacts faster to recent prices than SMA (each new price is weighted by a smoothing
- * factor alpha = 2 / (period + 1), rather than every price in the window counting equally).
- * Signal logic (spread sign crossing zero) mirrors SmaCrossoverStrategy exactly so the two
- * are directly comparable -- only the moving-average formula differs.
+ * Composed from two independent EmaIndicator instances (the "Indicator(EMA)" pipeline
+ * stage) -- this class's own job is only crossover detection (spread sign crossing zero),
+ * identical to SmaCrossoverStrategy's logic so the two are directly comparable; only the
+ * moving-average formula each indicator uses differs.
  */
 export class EmaCrossoverStrategy implements TradingStrategy {
   readonly id = "ema-crossover";
   readonly name = "EMA Crossover";
   private previousSpread?: number;
-  private shortEma?: number;
-  private longEma?: number;
-  private readonly shortAlpha: number;
-  private readonly longAlpha: number;
+  private readonly shortIndicator: EmaIndicator;
+  private readonly longIndicator: EmaIndicator;
 
   constructor(private readonly shortPeriod = 5, private readonly longPeriod = 20) {
     if (!Number.isInteger(shortPeriod) || !Number.isInteger(longPeriod) || shortPeriod < 2 || longPeriod <= shortPeriod) {
       throw new Error("invalid EMA periods");
     }
-    this.shortAlpha = 2 / (shortPeriod + 1);
-    this.longAlpha = 2 / (longPeriod + 1);
+    this.shortIndicator = new EmaIndicator(shortPeriod);
+    this.longIndicator = new EmaIndicator(longPeriod);
   }
 
   onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
     const priorCount = context.prices.length;
-    this.shortEma = this.shortEma === undefined ? tick.price : this.shortEma + this.shortAlpha * (tick.price - this.shortEma);
-    this.longEma = this.longEma === undefined ? tick.price : this.longEma + this.longAlpha * (tick.price - this.longEma);
+    const shortEma = this.shortIndicator.update(tick.price);
+    const longEma = this.longIndicator.update(tick.price);
 
     if (priorCount + 1 < this.longPeriod) {
       return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
     }
-    const spread = this.shortEma - this.longEma;
+    const spread = shortEma - longEma;
     const prior = this.previousSpread;
     this.previousSpread = spread;
     if (prior == null) return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
-    if (prior <= 0 && spread > 0) return { type: "BUY", reason: "short-EMA crossed above long-EMA", confidence: Math.min(1, Math.abs(spread) / this.longEma), timestamp: tick.timestamp };
-    if (prior >= 0 && spread < 0) return { type: "SELL", reason: "short-EMA crossed below long-EMA", confidence: Math.min(1, Math.abs(spread) / this.longEma), timestamp: tick.timestamp };
-    return { type: "HOLD", reason: "no-cross", confidence: Math.min(1, Math.abs(spread) / this.longEma), timestamp: tick.timestamp };
+    if (prior <= 0 && spread > 0) return { type: "BUY", reason: "short-EMA crossed above long-EMA", confidence: Math.min(1, Math.abs(spread) / longEma), timestamp: tick.timestamp };
+    if (prior >= 0 && spread < 0) return { type: "SELL", reason: "short-EMA crossed below long-EMA", confidence: Math.min(1, Math.abs(spread) / longEma), timestamp: tick.timestamp };
+    return { type: "HOLD", reason: "no-cross", confidence: Math.min(1, Math.abs(spread) / longEma), timestamp: tick.timestamp };
   }
 
   reset(): void {
     this.previousSpread = undefined;
-    this.shortEma = undefined;
-    this.longEma = undefined;
+    this.shortIndicator.reset();
+    this.longIndicator.reset();
   }
 }

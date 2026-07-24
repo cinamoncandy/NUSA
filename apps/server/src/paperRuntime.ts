@@ -6,6 +6,10 @@ import { RuntimeCommandService, type RuntimePersistence } from "../../desktop/sr
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
 import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { AutomaticTradingPipeline } from "./pipeline/automaticTradingPipeline";
+import { OrderPlanner } from "./pipeline/orderPlanner";
+import { PaperExecutor } from "./pipeline/paperExecutor";
+import { RiskEngine } from "./pipeline/riskEngine";
 import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
@@ -70,6 +74,7 @@ export class PaperRuntime {
   private readonly control: ControlPlane;
   private readonly strategyEngine: StrategyEngine;
   private readonly runtime: RuntimeCommandService;
+  private readonly automaticPipeline: AutomaticTradingPipeline;
   private readonly candleFeed: LiveCandleFeed;
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
@@ -114,6 +119,19 @@ export class PaperRuntime {
       }
     };
     this.runtime = new RuntimeCommandService(this.broker, this.control, this.strategyEngine, persistenceAdapter);
+    this.automaticPipeline = new AutomaticTradingPipeline(
+      this.broker,
+      this.control,
+      this.strategyEngine,
+      new RiskEngine(),
+      new OrderPlanner("FIXED"),
+      new PaperExecutor(this.broker),
+      (paper, control) => {
+        if (!this.persistenceStore) throw new Error("SQLite persistence is unavailable");
+        this.persistenceStore.save(paper, control);
+      },
+      () => { this.runtime.markUnavailable(); this.paperTradingAvailable = false; }
+    );
 
     this.paperTradingAvailable = diagnostic === undefined;
     if (this.control.snapshot().status === "RUNNING") this.strategyEngine.start();
@@ -133,16 +151,23 @@ export class PaperRuntime {
   start(): void { this.candleFeed.start(); }
   dispose(): void { this.candleFeed.stop(); this.persistenceStore?.close(); }
 
+  /**
+   * The Candle -> Indicator -> TradingIntent -> RiskEngine -> OrderPlanner -> PaperExecutor
+   * -> Position/Portfolio pipeline. StrategyEngine.onTick() covers Indicator+TradingIntent
+   * (delegating to SmaCrossoverStrategy or EmaCrossoverStrategy, whichever is selected);
+   * AutomaticTradingPipeline covers RiskEngine through PaperExecutor.
+   */
   private handleCandleUpdate(price: number): void {
     const timestamp = Date.now();
-    const position = this.broker.snapshot(price).position.quantity;
-    const signal = this.strategyEngine.onTick({ market: this.market, price, timestamp }, position);
+    const account = this.broker.snapshot(price);
+    const intent = this.strategyEngine.onTick({ market: this.market, price, timestamp }, account.position.quantity);
     if (this.persistenceStore) {
       try { this.persistenceStore.saveStrategyPriceHistory(this.strategyEngine.getHistory()); } catch {
         // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
       }
     }
-    this.runtime.automaticSignal(this.market, price, position, signal);
+    if (!this.runtime.isAvailable()) return;
+    this.automaticPipeline.process(intent, this.market, price, account.equity);
     this.paperTradingAvailable = this.runtime.isAvailable();
   }
 
