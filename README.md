@@ -2,6 +2,8 @@
 
 Renderer interaction guidance: [Command Palette](docs/design/command-palette.md).
 
+> **Branch note:** This branch (`claude/progress-p13dc7`) carries a ported copy of `agent/electron-upbit-paper-trading`'s code (see PR #1) plus new, additive work: `apps/server`/`apps/web` (single-user web Paper trading) and `packages/core` (RiskEngine/OrderPlanner/PositionSizer/ExecutionReport/Portfolio/PnL). `agent/electron-upbit-paper-trading` is the primary, actively-running app; `main` is kept separately as an accounting/certification-library experiment for future live-trading gating. See PR #6 for the full picture, including why merging PR #1 first and rebasing this branch would shrink its diff.
+
 Electron 기반 Windows Paper Trading 앱입니다. Upbit 공개 WebSocket의 `KRW-BTC` 실시간 시세를 받아 로컬 모의 주문과 손익을 계산합니다.
 
 ## 안전 범위
