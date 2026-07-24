@@ -90,6 +90,9 @@ export class PaperRuntime {
   private readonly referencePnlCalculator = new DefaultPnLCalculator();
   private readonly referenceLedger = new DefaultPortfolioLedger();
   private readonly equityHistory = new EquityHistoryRecorder();
+  /** In-memory only, cleared once triggered or the position is flat -- see setPositionProtection(). */
+  private stopLossPrice: number | null = null;
+  private takeProfitPrice: number | null = null;
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -195,6 +198,7 @@ export class PaperRuntime {
    */
   private handleCandleUpdate(price: number): void {
     const timestamp = Date.now();
+    if (this.runtime.isAvailable()) this.checkPositionProtection(price);
     const account = this.broker.snapshot(price);
     const intent = this.strategyEngine.onTick({ market: this.market, price, timestamp }, account.position.quantity);
     if (this.persistenceStore) {
@@ -210,6 +214,94 @@ export class PaperRuntime {
     this.paperTradingAvailable = this.runtime.isAvailable();
     // Re-snapshot: a trade may have just fired this tick, so this captures post-trade equity.
     this.equityHistory.record(timestamp, this.broker.snapshot(price).equity);
+  }
+
+  /**
+   * Stop-loss/take-profit: an independent safety exit for the *current* position, separate
+   * from (and checked before) the strategy signal pipeline -- it must not depend on the
+   * "Paper 자동매매" toggle, since it can be protecting a manually-opened position. Reuses
+   * RuntimeCommandService.manualOrder() (the exact same tested snapshot/rollback/persistence
+   * path a user's own manual sell takes) rather than the strategy pipeline's OrderPlanner,
+   * since this always closes the *entire* position at market -- not a sized new entry, so
+   * OrderPlanner's fixed/fractional sizing doesn't apply. Levels are in-memory only (reset on
+   * restart, see setPositionProtection). A single order can be capped below the requested
+   * quantity by PaperBroker's own fill model, so the level is only cleared once the position
+   * is actually flat (retried on later ticks otherwise) or a sell attempt fails outright (a
+   * leftover dust remainder can never fill, so protection is disabled rather than retried
+   * forever) -- never cleared just because a trigger fired once.
+   */
+  private checkPositionProtection(price: number): void {
+    if (this.stopLossPrice === null && this.takeProfitPrice === null) return;
+    const position = this.broker.snapshot(price).position;
+    if (position.quantity <= 0) {
+      // The position closed some other way (e.g. a manual sell) while a level was set --
+      // nothing left to protect, so drop the now-meaningless level instead of leaving it
+      // dormant for whatever position is opened next.
+      this.stopLossPrice = null;
+      this.takeProfitPrice = null;
+      return;
+    }
+    const label = this.stopLossPrice !== null && price <= this.stopLossPrice
+      ? "stop-loss"
+      : this.takeProfitPrice !== null && price >= this.takeProfitPrice
+        ? "take-profit"
+        : null;
+    if (!label) return;
+
+    try {
+      const order = this.runtime.manualOrder("SELL", position.quantity, price);
+      this.control.record("RISK", `${label} triggered at ${price}: closed ${order.quantity} ${this.market}`, order);
+      this.recordReferenceExecution(filledExecutionReport({
+        side: order.side,
+        quantity: order.quantity,
+        price: order.price,
+        fee: order.fee,
+        symbol: this.market
+      }), price);
+      // PaperBroker's fill model can cap a single order below the full requested quantity
+      // (see FILL_MODEL.maxFillRatio) -- only clear once the position is actually flat;
+      // otherwise leave the level active so the next tick retries closing the remainder.
+      if (this.broker.snapshot(price).position.quantity <= 0) {
+        this.stopLossPrice = null;
+        this.takeProfitPrice = null;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Give up rather than retry forever: a leftover dust remainder (below the market's
+      // minimum order notional/step) can never be sold via a normal order, so an unconditional
+      // retry would just repeat this same failure on every future tick.
+      this.stopLossPrice = null;
+      this.takeProfitPrice = null;
+      this.control.record("RISK", `${label} trigger failed, protection disabled: ${message}`);
+    } finally {
+      this.paperTradingAvailable = this.runtime.isAvailable();
+    }
+  }
+
+  getPositionProtection(): { readonly stopLossPrice: number | null; readonly takeProfitPrice: number | null } {
+    return { stopLossPrice: this.stopLossPrice, takeProfitPrice: this.takeProfitPrice };
+  }
+
+  /**
+   * Both fields are required on every call (idempotent full-replace, matching setOrderQuantity's
+   * style) -- null clears that level, a positive finite number sets it. Validated here rather
+   * than in apiRouter.ts, same convention as ControlPlane.setOrderQuantity's own domain checks.
+   */
+  setPositionProtection(input: { stopLossPrice: number | null; takeProfitPrice: number | null }): { readonly stopLossPrice: number | null; readonly takeProfitPrice: number | null } {
+    const { stopLossPrice, takeProfitPrice } = input;
+    if (stopLossPrice !== null && (!Number.isFinite(stopLossPrice) || stopLossPrice <= 0)) {
+      throw new Error("stopLossPrice must be a positive number or null");
+    }
+    if (takeProfitPrice !== null && (!Number.isFinite(takeProfitPrice) || takeProfitPrice <= 0)) {
+      throw new Error("takeProfitPrice must be a positive number or null");
+    }
+    if (stopLossPrice !== null && takeProfitPrice !== null && stopLossPrice >= takeProfitPrice) {
+      throw new Error("stopLossPrice must be less than takeProfitPrice");
+    }
+    this.stopLossPrice = stopLossPrice;
+    this.takeProfitPrice = takeProfitPrice;
+    this.control.record("STATUS", `position protection set: stopLoss=${stopLossPrice ?? "-"} takeProfit=${takeProfitPrice ?? "-"}`);
+    return this.getPositionProtection();
   }
 
   private assertFreshPrice(): number {

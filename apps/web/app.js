@@ -117,6 +117,11 @@ function renderAccount(account) {
   }));
 }
 
+function renderPositionProtection(protection) {
+  byId("protection-stop-loss").textContent = protection.stopLossPrice === null ? "미설정" : won.format(protection.stopLossPrice);
+  byId("protection-take-profit").textContent = protection.takeProfitPrice === null ? "미설정" : won.format(protection.takeProfitPrice);
+}
+
 const percent = new Intl.NumberFormat("ko-KR", { style: "percent", maximumFractionDigits: 1 });
 const pnlText = (value) => (value === null ? "-" : won.format(value));
 
@@ -219,6 +224,7 @@ async function refresh() {
     const control = await fetchJson("/api/control");
     renderControl(control);
     renderEvents(control.events);
+    renderPositionProtection(await fetchJson("/api/position-protection"));
     try {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));
@@ -255,6 +261,17 @@ byId("strategy-quantity").addEventListener("change", (event) => submitCommand("/
 byId("strategy-select").addEventListener("change", (event) => submitCommand("/api/strategy/select", { choice: event.target.value }, "control-error"));
 byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
+
+const protectionValue = (id) => { const raw = byId(id).value.trim(); return raw === "" ? null : Number(raw); };
+byId("protection-set").addEventListener("click", () => submitCommand("/api/position-protection", {
+  stopLossPrice: protectionValue("protection-stop-loss-input"),
+  takeProfitPrice: protectionValue("protection-take-profit-input")
+}, "protection-error"));
+byId("protection-clear").addEventListener("click", () => {
+  byId("protection-stop-loss-input").value = "";
+  byId("protection-take-profit-input").value = "";
+  submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null }, "protection-error");
+});
 
 window.addEventListener("beforeunload", () => clearTimeout(refreshTimer));
 refresh();

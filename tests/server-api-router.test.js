@@ -21,6 +21,8 @@ function fakeRuntime(overrides = {}) {
       reconciliation: { consistent: true, discrepancies: [] }
     }),
     getEquityHistory: () => [{ timestamp: 1, equity: 1 }],
+    getPositionProtection: () => ({ stopLossPrice: null, takeProfitPrice: null }),
+    setPositionProtection: (input) => ({ ...input }),
     getTradeStatistics: () => ({
       totalTrades: 0, buyCount: 0, sellCount: 0, wins: 0, losses: 0,
       winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null
@@ -46,6 +48,9 @@ test("GET routes dispatch to the matching runtime method", () => {
     history: [{ timestamp: 1, equity: 1 }]
   });
   assert.equal(handleApiRequest({ method: "GET", pathname: "/api/trade-statistics", body: undefined }, runtime).body.totalTrades, 0);
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/position-protection", body: undefined }, runtime).body, {
+    stopLossPrice: null, takeProfitPrice: null
+  });
 });
 
 test("GET /api/reference-accounting is 503 while market price is not yet available", () => {
@@ -66,6 +71,33 @@ test("POST /api/equity-history is 405 (read-only endpoint)", () => {
 test("POST /api/trade-statistics is 405 (read-only endpoint)", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/trade-statistics", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/position-protection validates stopLossPrice/takeProfitPrice and dispatches", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/position-protection",
+    body: { stopLossPrice: 90, takeProfitPrice: null }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { stopLossPrice: 90, takeProfitPrice: null });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: "x", takeProfitPrice: null }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: null }
+  }, runtime).status, 400, "takeProfitPrice missing entirely is not a valid null");
+
+  const domainRejection = fakeRuntime({ setPositionProtection: () => { throw new Error("stopLossPrice must be less than takeProfitPrice"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: 100, takeProfitPrice: 100 }
+  }, domainRejection).status, 400);
+});
+
+test("DELETE /api/position-protection is 405", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-protection", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

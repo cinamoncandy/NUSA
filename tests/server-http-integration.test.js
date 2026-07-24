@@ -20,12 +20,20 @@ function fakeCandle(overrides = {}) {
   };
 }
 
-async function withServer(t, run) {
+async function withServer(t, run, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), "dokkaebi-server-test-"));
+  // Mutable box so a test can move the "market price" between polls (e.g. to trigger
+  // stop-loss/take-profit); tests that don't touch it just get a fixed 100,000,000 KRW-BTC.
+  const priceBox = { value: options.initialPrice ?? 100_000_000 };
   const runtime = new PaperRuntime({
     databasePath: join(dir, "test.db"),
-    pollIntervalMs: 60_000,
-    candleFetcher: async () => [fakeCandle()]
+    pollIntervalMs: options.pollIntervalMs ?? 60_000,
+    candleFetcher: async () => [fakeCandle({
+      trade_price: priceBox.value,
+      opening_price: priceBox.value,
+      high_price: priceBox.value + 100_000,
+      low_price: priceBox.value - 100_000
+    })]
   });
   const server = createPaperTradingHttpServer(runtime, dir);
   await new Promise((resolveListen) => server.listen(0, resolveListen));
@@ -37,7 +45,7 @@ async function withServer(t, run) {
     check();
   });
   try {
-    await run(`http://127.0.0.1:${port}`, runtime);
+    await run(`http://127.0.0.1:${port}`, runtime, priceBox);
   } finally {
     runtime.dispose();
     server.close();
@@ -150,6 +158,78 @@ test("GET /api/trade-statistics reflects a real BUY-then-SELL round trip through
     // The real account's cumulative realizedPnl should match the single closed trade's PnL.
     assert.ok(Math.abs(stats.totalRealizedPnl - sell.account.position.realizedPnl) < 1e-6);
   });
+});
+
+test("GET /api/position-protection defaults to unset; POST validates and round-trips", async (t) => {
+  await withServer(t, async (base) => {
+    const initial = await (await fetch(`${base}/api/position-protection`)).json();
+    assert.deepEqual(initial, { stopLossPrice: null, takeProfitPrice: null });
+
+    const invalid = await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: 100, takeProfitPrice: 100 })
+    });
+    assert.equal(invalid.status, 400, "stopLossPrice must be strictly less than takeProfitPrice");
+
+    const set = await (await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000 })
+    })).json();
+    assert.deepEqual(set, { stopLossPrice: 90_000_000, takeProfitPrice: 110_000_000 });
+
+    const cleared = await (await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: null, takeProfitPrice: null })
+    })).json();
+    assert.deepEqual(cleared, { stopLossPrice: null, takeProfitPrice: null });
+  });
+});
+
+test("a stop-loss level crossed on a real candle tick auto-sells and eventually clears itself", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base, runtime, priceBox) => {
+    const buy = await (await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    })).json();
+    assert.ok(buy.order.quantity > 0);
+
+    // The stop-loss level equals the current (fixed) market price, so every poll's
+    // "price <= stopLossPrice" check fires. PaperBroker's fill model caps a single order
+    // below the full requested quantity (FILL_MODEL.maxFillRatio), so this may take more
+    // than one poll -- and may end either fully flat or give up on an unsellable dust
+    // remainder (see PaperRuntime.checkPositionProtection); either way the level clears.
+    await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: priceBox.value, takeProfitPrice: null })
+    });
+
+    await new Promise((resolve) => {
+      const check = async () => {
+        const protection = await (await fetch(`${base}/api/position-protection`)).json();
+        if (protection.stopLossPrice === null) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    const [account, protection, control] = await Promise.all([
+      fetch(`${base}/api/account`).then((r) => r.json()),
+      fetch(`${base}/api/position-protection`).then((r) => r.json()),
+      fetch(`${base}/api/control`).then((r) => r.json())
+    ]);
+    assert.ok(account.position.quantity < buy.order.quantity, "the stop-loss sold at least part of the position");
+    assert.ok(account.orders.length >= 2, "the original BUY plus at least one stop-loss SELL");
+    assert.deepEqual(protection, { stopLossPrice: null, takeProfitPrice: null }, "the level cleared (fully closed or gave up)");
+    assert.ok(
+      control.events.some((event) => event.type === "RISK" && event.message.includes("stop-loss")),
+      "expected a RISK event recording the trigger"
+    );
+  }, { pollIntervalMs: 200 });
 });
 
 test("invalid JSON body returns 400 instead of crashing the server", async (t) => {

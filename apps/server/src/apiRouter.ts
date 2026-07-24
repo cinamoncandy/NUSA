@@ -46,6 +46,12 @@ function requireBoolean(value: unknown, name: string): boolean {
   return value;
 }
 
+function requireNullableFiniteNumber(value: unknown, name: string): number | null {
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${name} must be a finite number or null`);
+  return value;
+}
+
 function requireStrategyChoice(value: unknown): StrategyChoice {
   if (typeof value !== "string" || !STRATEGY_CHOICES.includes(value as StrategyChoice)) {
     throw new Error(`choice must be one of: ${STRATEGY_CHOICES.join(", ")}`);
@@ -98,6 +104,16 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
     if (pathname === "/api/trade-statistics") {
       if (method !== "GET") return methodNotAllowed();
       return ok(runtime.getTradeStatistics());
+    }
+    if (pathname === "/api/position-protection") {
+      if (method === "GET") return ok(runtime.getPositionProtection());
+      if (method === "POST") {
+        const body = asRecord(request.body);
+        const stopLossPrice = requireNullableFiniteNumber(body.stopLossPrice, "stopLossPrice");
+        const takeProfitPrice = requireNullableFiniteNumber(body.takeProfitPrice, "takeProfitPrice");
+        return ok(runtime.setPositionProtection({ stopLossPrice, takeProfitPrice }));
+      }
+      return methodNotAllowed();
     }
     if (pathname === "/api/orders") {
       if (method !== "POST") return methodNotAllowed();
