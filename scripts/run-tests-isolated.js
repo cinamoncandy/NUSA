@@ -1,9 +1,10 @@
-const { readdirSync, writeFileSync, rmSync } = require("node:fs");
+const { readdirSync, writeFileSync, rmSync, existsSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const testsDirectory = join(process.cwd(), "tests");
 const diagnosticPath = join(process.cwd(), "isolated-test-failure.txt");
+const registerDistPath = join(testsDirectory, "register-dist.cjs");
 rmSync(diagnosticPath, { force: true });
 
 const files = readdirSync(testsDirectory)
@@ -20,9 +21,12 @@ if (files.length === 0) {
 for (const file of files) {
   const relativePath = join("tests", file);
   console.log(`RUN ${relativePath}`);
+  const args = existsSync(registerDistPath)
+    ? ["--require", registerDistPath, "--test", "--test-reporter=spec", relativePath]
+    : ["--test", "--test-reporter=spec", relativePath];
   const result = spawnSync(
     process.execPath,
-    ["--test", "--test-reporter=spec", relativePath],
+    args,
     {
       cwd: process.cwd(),
       encoding: "utf8",
