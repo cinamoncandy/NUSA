@@ -283,3 +283,31 @@ test("without referenceAccounting wired, no reference-portfolio event is recorde
   const portfolioEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "reference portfolio");
   assert.equal(portfolioEvent, undefined);
 });
+
+test("a diverged reference Portfolio (e.g. a buggy ledger) is recorded as a RISK event, real outcome unaffected", () => {
+  // Deliberately wrong: apply() always returns an untouched-cash portfolio, simulating a
+  // reference-ledger bug so the reconciliation check has something real to catch.
+  let referencePortfolio = { cash: 10_000_000, quantity: 0, averagePrice: 0, realizedPnl: 0 };
+  const brokenLedger = {
+    apply: (portfolio, report) => ({
+      status: "UPDATED",
+      portfolio: { ...portfolio, quantity: report.status === "FILLED" ? report.quantity : portfolio.quantity }
+    })
+  };
+  const { control, pipeline } = harness({
+    referenceAccounting: {
+      ledger: brokenLedger,
+      pnlCalculator: new DefaultPnLCalculator(),
+      getPortfolio: () => referencePortfolio,
+      setPortfolio: (next) => { referencePortfolio = next; }
+    }
+  });
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED", "the real trade still fills correctly despite the broken reference ledger");
+
+  const riskEvent = control.snapshot().events.find((event) => event.type === "RISK" && event.message.includes("reference accounting diverged"));
+  assert.ok(riskEvent, "expected a RISK event for the real-vs-reference divergence");
+  assert.match(riskEvent.message, /cash:/);
+});

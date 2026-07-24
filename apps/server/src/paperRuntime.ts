@@ -264,7 +264,7 @@ export class PaperRuntime {
       order = this.runtime.manualOrder(side, quantity, price);
     } catch (error) {
       this.paperTradingAvailable = this.runtime.isAvailable();
-      this.recordReferenceExecution(rejectedExecutionReport(error instanceof Error ? error.message : String(error)));
+      this.recordReferenceExecution(rejectedExecutionReport(error instanceof Error ? error.message : String(error)), price);
       throw error;
     }
     this.paperTradingAvailable = this.runtime.isAvailable();
@@ -274,7 +274,7 @@ export class PaperRuntime {
       price: order.price,
       fee: order.fee,
       symbol: this.market
-    }));
+    }), price);
     return { order, account: this.broker.snapshot(price) };
   }
 
@@ -282,13 +282,19 @@ export class PaperRuntime {
    * Folds a manual order's outcome into the same audit-only reference ledger the automatic
    * pipeline feeds (AutomaticTradingPipeline.recordExecutionReport) -- so /api/reference-accounting
    * mirrors the *whole* account (manual + automatic), not just automatic-strategy fills. Never
-   * read back into any real decision; PaperBroker remains the sole source of truth.
+   * read back into any real decision; PaperBroker remains the sole source of truth. Reconciles
+   * against the real account immediately after folding, same as the automatic pipeline does,
+   * and records a RISK event if they've diverged.
    */
-  private recordReferenceExecution(report: ExecutionReport): void {
+  private recordReferenceExecution(report: ExecutionReport, price: number): void {
     const updateResult = this.referenceLedger.apply(this.referencePortfolio, report);
     if (updateResult.status !== "UPDATED") return;
     this.referencePortfolio = updateResult.portfolio;
     this.control.record("SYSTEM", "execution report (manual)", report);
+    const reconciliation = reconcileReferenceAccounting(this.broker.snapshot(price), updateResult.portfolio);
+    if (!reconciliation.consistent) {
+      this.control.record("RISK", `reference accounting diverged from the real account: ${reconciliation.discrepancies.join(", ")}`);
+    }
   }
 
   startStrategy(): ControlSnapshot { return this.runCommand(() => this.runtime.start()); }

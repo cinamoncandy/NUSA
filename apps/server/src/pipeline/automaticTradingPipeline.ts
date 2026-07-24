@@ -12,6 +12,7 @@ import {
 import { filledExecutionReport, rejectedExecutionReport, type ExecutionReport } from "../../../../packages/core/src/execution/executionReport";
 import type { Portfolio, PortfolioLedger } from "../../../../packages/core/src/portfolio/portfolio";
 import type { PnLCalculator } from "../../../../packages/core/src/pnl/pnl";
+import { reconcileReferenceAccounting } from "../referenceReconciliation";
 import { OrderPlanner } from "./orderPlanner";
 import { RiskEngine } from "./riskEngine";
 import { PaperExecutor } from "./paperExecutor";
@@ -89,6 +90,9 @@ export interface ReferenceAccounting {
  * PaperBroker's own bookkeeping arithmetic for audit/cross-check purposes -- PaperBroker
  * (via broker.exportState()/persist()) remains the single source of truth for the real
  * account; the reference Portfolio is never read back into this pipeline's own decisions.
+ * Every fold also reconciles the resulting reference Portfolio against PaperBroker's real
+ * account (referenceReconciliation.ts); a detected divergence is recorded as a RISK event
+ * for the operator to notice, but is never auto-corrected and never changes the real outcome.
  */
 export class AutomaticTradingPipeline {
   constructor(
@@ -202,6 +206,10 @@ export class AutomaticTradingPipeline {
     const pnlResult = this.referenceAccounting.pnlCalculator.calculate(updateResult.portfolio, price);
     if (pnlResult.status === "CALCULATED") {
       this.control.record("SYSTEM", "reference portfolio", { portfolio: updateResult.portfolio, pnl: pnlResult.pnl });
+    }
+    const reconciliation = reconcileReferenceAccounting(this.broker.snapshot(price), updateResult.portfolio);
+    if (!reconciliation.consistent) {
+      this.control.record("RISK", `reference accounting diverged from the real account: ${reconciliation.discrepancies.join(", ")}`);
     }
   }
 
