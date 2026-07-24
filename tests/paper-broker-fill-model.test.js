@@ -16,6 +16,38 @@ test("default fill model reproduces exact, unslipped, fully-filled execution", (
   assert.equal(buy.fee, 500);
   assert.equal(buy.spreadCost, 0);
   assert.equal(buy.slippageCost, 0);
+  assert.equal(buy.marketImpactCost, 0);
+});
+
+test("market impact adds adverse price movement that scales with order size", () => {
+  const small = new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { marketImpactBpsPerUnit: 1000 });
+  const smallOrder = small.execute("BUY", 0.01, 1_000_000);
+  // impactBps = quantity * marketImpactBpsPerUnit = 0.01 * 1000 = 10
+  assertClose(smallOrder.price, 1_001_000);
+  assert.equal(smallOrder.marketImpactCost, 10); // 1_000_000 * 0.01 * 10 / 10_000
+
+  const large = new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { marketImpactBpsPerUnit: 1000 });
+  const largeOrder = large.execute("BUY", 0.02, 1_000_000);
+  // impactBps = 0.02 * 1000 = 20
+  assertClose(largeOrder.price, 1_002_000);
+  assert.equal(largeOrder.marketImpactCost, 40); // 1_000_000 * 0.02 * 20 / 10_000 -- quadratic in size, not linear
+
+  const sell = new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { marketImpactBpsPerUnit: 1000 });
+  sell.execute("BUY", 0.01, 1_000_000);
+  const sellOrder = sell.execute("SELL", 0.01, 1_000_000);
+  assertClose(sellOrder.price, 999_000);
+});
+
+test("market impact stacks with slippage and spread in the fill price", () => {
+  const broker = new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { slippageBps: 30, spreadBps: 20, marketImpactBpsPerUnit: 1000 });
+  const order = broker.execute("BUY", 0.01, 1_000_000);
+  // adverse bps = slippageBps + spreadBps/2 + quantity*marketImpactBpsPerUnit = 30 + 10 + 10 = 50
+  assertClose(order.price, 1_005_000);
+  assert.equal(order.marketImpactCost, 10);
+});
+
+test("marketImpactBpsPerUnit must be non-negative", () => {
+  assert.throws(() => new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { marketImpactBpsPerUnit: -1 }), /marketImpactBpsPerUnit must be non-negative/);
 });
 
 test("spread cost charges half the quoted spread against the trader on both sides, itemized separately from slippage", () => {
