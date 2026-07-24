@@ -24,7 +24,10 @@ const FEE_RATE = 0.0005;
 const MAXIMUM_MARKET_DATA_AGE_MS = 30_000;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const REQUIRED_WARMUP_SAMPLES = 20;
-const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000 };
+// minOrderNotional matches Upbit's documented 5,000 KRW minimum order value for KRW markets.
+// priceTick is intentionally left unset: Upbit's KRW tick size is tiered by price range, and an
+// incorrect single-tier constant would incorrectly reject valid Paper orders.
+const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000, minOrderNotional: 5_000 };
 // Conservative Paper fill assumptions: adverse slippage against the trader and a cap on
 // how much of a requested quantity fills against one quote. Both bias results pessimistically
 // rather than assuming unrealistic perfect execution. Paper-only; no live order routing.

@@ -25,6 +25,10 @@ export interface PaperRiskPolicy {
   maxRealizedLoss?: number;
   quantityStep?: number;
   dustThreshold?: number;
+  /** Quoted price must be an exact multiple of this tick. Unset disables the check. */
+  priceTick?: number;
+  /** Minimum notional (quantity x fill price) a single order must reach. Unset disables the check. */
+  minOrderNotional?: number;
 }
 
 interface NormalizedPaperRiskPolicy {
@@ -33,6 +37,8 @@ interface NormalizedPaperRiskPolicy {
   readonly maxRealizedLoss: number | null;
   readonly quantityStep: number;
   readonly dustThreshold: number;
+  readonly priceTick: number | null;
+  readonly minOrderNotional: number | null;
 }
 
 /**
@@ -86,6 +92,11 @@ function floorToStep(value: number, step: number): number {
   return Number((units * step).toFixed(precision));
 }
 
+function isAlignedToTick(value: number, tick: number): boolean {
+  const units = value / tick;
+  return Math.abs(units - Math.round(units)) < 1e-6;
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
@@ -107,6 +118,10 @@ export class PaperBroker {
     if (riskPolicy.maxOrderNotional != null) assertFiniteNonNegative(riskPolicy.maxOrderNotional, "maxOrderNotional");
     if (riskPolicy.maxPositionQuantity != null) assertFiniteNonNegative(riskPolicy.maxPositionQuantity, "maxPositionQuantity");
     if (riskPolicy.maxRealizedLoss != null) assertFiniteNonNegative(riskPolicy.maxRealizedLoss, "maxRealizedLoss");
+    if (riskPolicy.priceTick != null && (!Number.isFinite(riskPolicy.priceTick) || riskPolicy.priceTick <= 0)) {
+      throw new Error("priceTick must be positive");
+    }
+    if (riskPolicy.minOrderNotional != null) assertFiniteNonNegative(riskPolicy.minOrderNotional, "minOrderNotional");
 
     const quantityStep = riskPolicy.quantityStep ?? 0.00000001;
     const dustThreshold = riskPolicy.dustThreshold ?? quantityStep / 2;
@@ -119,7 +134,9 @@ export class PaperBroker {
       maxPositionQuantity: riskPolicy.maxPositionQuantity ?? null,
       maxRealizedLoss: riskPolicy.maxRealizedLoss ?? null,
       quantityStep,
-      dustThreshold
+      dustThreshold,
+      priceTick: riskPolicy.priceTick ?? null,
+      minOrderNotional: riskPolicy.minOrderNotional ?? null
     });
 
     const slippageBps = fillModel.slippageBps ?? 0;
@@ -163,6 +180,9 @@ export class PaperBroker {
     if (side !== "BUY" && side !== "SELL") throw new Error("invalid paper side");
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
+    if (this.riskPolicy.priceTick !== null && !isAlignedToTick(price, this.riskPolicy.priceTick)) {
+      throw new Error("price does not align to tick size");
+    }
 
     const liquidityLimitedQuantity = quantity * this.fillModel.maxFillRatio;
     const normalizedQuantity = this.normalizeOrderQuantity(liquidityLimitedQuantity);
@@ -177,6 +197,9 @@ export class PaperBroker {
     }
     if (this.riskPolicy.maxOrderNotional !== null && notional > this.riskPolicy.maxOrderNotional) {
       throw new Error("paper risk: max order notional exceeded");
+    }
+    if (this.riskPolicy.minOrderNotional !== null && notional < this.riskPolicy.minOrderNotional) {
+      throw new Error("notional is below minimum order notional");
     }
     if (this.riskPolicy.maxRealizedLoss !== null && this.position.realizedPnl < -this.riskPolicy.maxRealizedLoss) {
       throw new Error("paper risk: max realized loss exceeded");
@@ -236,6 +259,8 @@ export class PaperBroker {
     if (this.riskPolicy.maxOrderNotional !== null) publicPolicy.maxOrderNotional = this.riskPolicy.maxOrderNotional;
     if (this.riskPolicy.maxPositionQuantity !== null) publicPolicy.maxPositionQuantity = this.riskPolicy.maxPositionQuantity;
     if (this.riskPolicy.maxRealizedLoss !== null) publicPolicy.maxRealizedLoss = this.riskPolicy.maxRealizedLoss;
+    if (this.riskPolicy.priceTick !== null) publicPolicy.priceTick = this.riskPolicy.priceTick;
+    if (this.riskPolicy.minOrderNotional !== null) publicPolicy.minOrderNotional = this.riskPolicy.minOrderNotional;
 
     const validated = new PaperBroker(1, this.position.market, this.feeRate, publicPolicy, state).exportState();
     this.cash = validated.cash;
