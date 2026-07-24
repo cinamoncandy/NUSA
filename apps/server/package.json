@@ -1,0 +1,6 @@
+{
+  "name": "@dokkaebi/server",
+  "version": "0.1.0",
+  "private": true,
+  "main": "../../dist/apps/server/src/main.js"
+}

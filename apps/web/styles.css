@@ -1,0 +1,69 @@
+:root {
+  --bg: #0f1216;
+  --surface: #171b21;
+  --surface-raised: #1f242c;
+  --border: #2a3038;
+  --fg: #e8ebef;
+  --muted: #8a93a1;
+  --primary: #4f8cff;
+  --success: #33c07f;
+  --warning: #e0a83e;
+  --danger: #e0524d;
+}
+
+* { box-sizing: border-box; }
+html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif; color: var(--fg); background: var(--bg); }
+body { margin: 0; min-height: 100vh; }
+main { width: min(100% - 2rem, 64rem); margin-inline: auto; padding-block: 2rem; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+h1 { margin: 0; font-size: 1.75rem; }
+h2 { margin: 0 0 1.25rem; font-size: 1.125rem; }
+.eyebrow { margin: 0 0 0.25rem; color: var(--primary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em; }
+.status { padding: 0.5rem 0.75rem; border-radius: 999px; background: var(--surface-raised); color: var(--muted); font-size: 0.85rem; }
+.status.connected { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.status.error { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.card { padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+.section-title { display: flex; align-items: baseline; justify-content: space-between; }
+.section-title span { color: var(--muted); font-size: 0.85rem; }
+canvas { width: 100%; height: 220px; display: block; background: var(--surface-raised); border-radius: 0.5rem; }
+label { display: block; margin-top: 1rem; color: var(--muted); font-size: 0.85rem; }
+label:first-of-type { margin-top: 0; }
+input, select { display: block; width: 100%; margin-top: 0.5rem; padding: 0.6rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--bg); color: var(--fg); font: inherit; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-top: 1rem; }
+button { min-height: 2.75rem; padding: 0.6rem; border: 0; border-radius: 0.5rem; background: var(--primary); color: #fff; font-weight: 700; cursor: pointer; }
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.sell { background: var(--danger); }
+button.secondary { background: var(--surface-raised); color: var(--fg); }
+.toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.toggle input { width: auto; margin: 0; }
+.error { min-height: 1.125rem; margin-top: 0.75rem; color: var(--danger); font-size: 0.85rem; }
+dl { margin: 0; }
+dl div { display: flex; justify-content: space-between; padding-block: 0.5rem; border-bottom: 1px solid var(--border); }
+dt { color: var(--muted); }
+dd { margin: 0; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 0.6rem; border-bottom: 1px solid var(--border); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+td.buy { color: var(--success); }
+td.sell { color: var(--danger); }
+footer { padding: 1.5rem; color: var(--muted); font-size: 0.75rem; text-align: center; }
+
+.cio-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+.cio-grid > section { min-width: 0; padding: 1rem; background: var(--surface); }
+.cio-grid h3 { margin: 0 0 0.5rem; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.cio-grid p { margin: 0 0 0.35rem; font-size: 0.85rem; overflow-wrap: anywhere; }
+.cio-badge { display: inline-flex; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+.cio-badge.healthy { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.cio-badge.caution { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
+.cio-badge.blocked { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.cio-badge.no-data, .cio-badge.unavailable { background: var(--surface-raised); color: var(--muted); }
+
+@media (max-width: 47.5rem) {
+  .grid { grid-template-columns: 1fr; }
+  .cio-grid { grid-template-columns: 1fr; }
+}
+@media (min-width: 47.5625rem) and (max-width: 70rem) {
+  .cio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

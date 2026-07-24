@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none';" />
+  <title>Dokkaebi Web Paper Trader</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">DOKKAEBI &middot; Paper Trading (Web, single-user)</p>
+        <h1>KRW-BTC</h1>
+      </div>
+      <span id="market-status" class="status">연결 중...</span>
+    </header>
+
+    <section class="card chart-card">
+      <div class="section-title"><h2>가격 차트 (1분봉, Upbit 실데이터)</h2><span id="chart-price">-</span></div>
+      <canvas id="chart" width="960" height="220"></canvas>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>계좌</h2>
+        <dl>
+          <div><dt>현금</dt><dd id="cash">-</dd></div>
+          <div><dt>평가자산</dt><dd id="equity">-</dd></div>
+          <div><dt>보유 수량</dt><dd id="position">-</dd></div>
+          <div><dt>평균 단가</dt><dd id="average">-</dd></div>
+          <div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div>
+          <div><dt>실현 손익</dt><dd id="realized">-</dd></div>
+        </dl>
+      </article>
+      <article class="card">
+        <h2>전략 제어</h2>
+        <dl>
+          <div><dt>상태</dt><dd id="strategy-status">-</dd></div>
+          <div><dt>활성 전략</dt><dd id="strategy-id">-</dd></div>
+        </dl>
+        <label for="strategy-select">전략 선택</label>
+        <select id="strategy-select">
+          <option value="sma-crossover">SMA Crossover (5/20)</option>
+          <option value="ema-crossover">EMA Crossover (5/20)</option>
+        </select>
+        <label for="strategy-quantity">자동주문 수량</label>
+        <input id="strategy-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+        <div class="actions">
+          <button id="strategy-start">시작</button>
+          <button id="strategy-stop" class="secondary">중지</button>
+        </div>
+        <label class="toggle"><input id="auto-trade" type="checkbox" /> Paper 자동매매</label>
+        <p id="control-error" class="error"></p>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>수동 주문</h2>
+      <label for="order-quantity">수량</label>
+      <input id="order-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+      <div class="actions">
+        <button id="buy">매수</button>
+        <button id="sell" class="sell">매도</button>
+      </div>
+      <p id="order-error" class="error"></p>
+    </section>
+
+    <section class="card">
+      <h2>체결 기록</h2>
+      <table>
+        <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead>
+        <tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="dashboard-card">
+      <h2>AI CIO 대시보드 (읽기 전용)</h2>
+      <div class="cio-grid" id="cio-grid"></div>
+    </section>
+
+    <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다. (단일 사용자, Upbit 공개 REST 데이터 기반)</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
