@@ -11,6 +11,7 @@ import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core
 import { DefaultPortfolioLedger, type Portfolio } from "../../../packages/core/src/portfolio/portfolio";
 import { DefaultPnLCalculator, type PnLSnapshot } from "../../../packages/core/src/pnl/pnl";
 import { filledExecutionReport, rejectedExecutionReport, type ExecutionReport } from "../../../packages/core/src/execution/executionReport";
+import type { SizingMode } from "../../../packages/core/src/position/positionSizer";
 import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/automaticTradingPipeline";
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
@@ -94,6 +95,13 @@ export class PaperRuntime {
   /** In-memory only, cleared once triggered or the position is flat -- see setPositionProtection(). */
   private stopLossPrice: number | null = null;
   private takeProfitPrice: number | null = null;
+  /** In-memory only, same as the fields above. FIXED_FRACTIONAL sizes each automatic trade to
+   * riskFraction * equity / price (packages/core's DefaultPositionSizer, E02-T004) instead of
+   * ControlPlane's static order quantity -- see the policyFor closure passed into
+   * AutomaticTradingPipeline below. Only affects automatic (strategy-driven) trades; manual
+   * orders via placeOrder() always use the exact quantity the caller requests. */
+  private sizingMode: SizingMode = "FIXED";
+  private riskFraction = 0.1;
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -147,8 +155,12 @@ export class PaperRuntime {
       this.strategyEngine,
       new RiskEngine(),
       // The pipeline's "PositionSizer" stage (E02-T004), reproducing the exact prior FIXED
-      // quantity behavior (ControlPlane's static, operator-set order quantity).
-      new PositionSizerOrderPlanner((context) => ({ mode: "FIXED", fixedQuantity: context.fixedOrderQuantity })),
+      // quantity behavior (ControlPlane's static, operator-set order quantity) by default;
+      // reads this.sizingMode/riskFraction at call time, so setPositionSizing() below takes
+      // effect on the very next automatic trade without reconstructing the pipeline.
+      new PositionSizerOrderPlanner((context) => this.sizingMode === "FIXED"
+        ? { mode: "FIXED", fixedQuantity: context.fixedOrderQuantity }
+        : { mode: "FIXED_FRACTIONAL", riskFraction: this.riskFraction }),
       new PaperExecutor(this.broker),
       (paper, control) => {
         if (!this.persistenceStore) throw new Error("SQLite persistence is unavailable");
@@ -303,6 +315,31 @@ export class PaperRuntime {
     this.takeProfitPrice = takeProfitPrice;
     this.control.record("STATUS", `position protection set: stopLoss=${stopLossPrice ?? "-"} takeProfit=${takeProfitPrice ?? "-"}`);
     return this.getPositionProtection();
+  }
+
+  getPositionSizing(): { readonly mode: SizingMode; readonly riskFraction: number } {
+    return { mode: this.sizingMode, riskFraction: this.riskFraction };
+  }
+
+  /**
+   * riskFraction is required only when mode is FIXED_FRACTIONAL (fraction of equity risked
+   * per automatic trade); FIXED keeps using ControlPlane's existing order-quantity setting
+   * and ignores riskFraction entirely if one is passed. Only affects automatic trades -- see
+   * the sizingMode field's own doc comment.
+   */
+  setPositionSizing(input: { mode: SizingMode; riskFraction?: number }): { readonly mode: SizingMode; readonly riskFraction: number } {
+    if (input.mode !== "FIXED" && input.mode !== "FIXED_FRACTIONAL") {
+      throw new Error("mode must be \"FIXED\" or \"FIXED_FRACTIONAL\"");
+    }
+    if (input.mode === "FIXED_FRACTIONAL") {
+      if (input.riskFraction === undefined || !Number.isFinite(input.riskFraction) || input.riskFraction <= 0 || input.riskFraction > 1) {
+        throw new Error("riskFraction must be finite and within (0, 1] when mode is FIXED_FRACTIONAL");
+      }
+      this.riskFraction = input.riskFraction;
+    }
+    this.sizingMode = input.mode;
+    this.control.record("STATUS", `position sizing set: mode=${input.mode}${input.mode === "FIXED_FRACTIONAL" ? ` riskFraction=${this.riskFraction}` : ""}`);
+    return this.getPositionSizing();
   }
 
   private assertFreshPrice(): number {

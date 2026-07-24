@@ -170,6 +170,12 @@ function renderControl(control) {
   byId("strategy-stop").disabled = control.status === "STOPPED";
 }
 
+function renderPositionSizing(sizing) {
+  byId("sizing-mode").value = sizing.mode;
+  byId("sizing-risk-fraction").value = String(sizing.riskFraction);
+  byId("sizing-risk-fraction").disabled = sizing.mode !== "FIXED_FRACTIONAL";
+}
+
 const MAX_EVENT_ROWS = 30;
 
 function renderEvents(events) {
@@ -236,6 +242,7 @@ async function refresh() {
     renderControl(control);
     renderEvents(control.events);
     renderPositionProtection(await fetchJson("/api/position-protection"));
+    renderPositionSizing(await fetchJson("/api/position-sizing"));
     try {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));
@@ -270,6 +277,12 @@ byId("strategy-stop").addEventListener("click", () => submitCommand("/api/strate
 byId("auto-trade").addEventListener("change", (event) => submitCommand("/api/strategy/auto-trade", { enabled: event.target.checked }, "control-error"));
 byId("strategy-quantity").addEventListener("change", (event) => submitCommand("/api/strategy/quantity", { quantity: Number(event.target.value) }, "control-error"));
 byId("strategy-select").addEventListener("change", (event) => submitCommand("/api/strategy/select", { choice: event.target.value }, "control-error"));
+const submitPositionSizing = () => submitCommand("/api/position-sizing", {
+  mode: byId("sizing-mode").value,
+  riskFraction: Number(byId("sizing-risk-fraction").value)
+}, "control-error");
+byId("sizing-mode").addEventListener("change", submitPositionSizing);
+byId("sizing-risk-fraction").addEventListener("change", submitPositionSizing);
 byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
 

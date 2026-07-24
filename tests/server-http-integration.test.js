@@ -193,6 +193,35 @@ test("GET /api/equity-history's drawdown reflects a real equity dip after a manu
   }, { pollIntervalMs: 200 });
 });
 
+test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips to FIXED_FRACTIONAL", async (t) => {
+  await withServer(t, async (base) => {
+    const initial = await (await fetch(`${base}/api/position-sizing`)).json();
+    assert.equal(initial.mode, "FIXED");
+
+    const invalid = await fetch(`${base}/api/position-sizing`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "FIXED_FRACTIONAL", riskFraction: 5 })
+    });
+    assert.equal(invalid.status, 400, "riskFraction must be within (0, 1]");
+
+    const set = await (await fetch(`${base}/api/position-sizing`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "FIXED_FRACTIONAL", riskFraction: 0.25 })
+    })).json();
+    assert.deepEqual(set, { mode: "FIXED_FRACTIONAL", riskFraction: 0.25 });
+
+    const backToFixed = await (await fetch(`${base}/api/position-sizing`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "FIXED" })
+    })).json();
+    assert.equal(backToFixed.mode, "FIXED");
+    assert.equal(backToFixed.riskFraction, 0.25, "riskFraction is preserved even while not in use");
+  });
+});
+
 test("GET /api/position-protection defaults to unset; POST validates and round-trips", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-protection`)).json();

@@ -26,6 +26,8 @@ function fakeRuntime(overrides = {}) {
     }),
     getPositionProtection: () => ({ stopLossPrice: null, takeProfitPrice: null }),
     setPositionProtection: (input) => ({ ...input }),
+    getPositionSizing: () => ({ mode: "FIXED", riskFraction: 0.1 }),
+    setPositionSizing: (input) => ({ mode: input.mode, riskFraction: input.riskFraction ?? 0.1 }),
     getTradeStatistics: () => ({
       totalTrades: 0, buyCount: 0, sellCount: 0, wins: 0, losses: 0,
       winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null
@@ -102,6 +104,33 @@ test("POST /api/position-protection validates stopLossPrice/takeProfitPrice and 
 test("DELETE /api/position-protection is 405", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-protection", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/position-sizing dispatch and validate the mode", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/position-sizing", body: undefined }, runtime).body, {
+    mode: "FIXED", riskFraction: 0.1
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: 0.2 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { mode: "FIXED_FRACTIONAL", riskFraction: 0.2 });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "BOGUS" }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: "x" }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ setPositionSizing: () => { throw new Error("riskFraction must be finite and within (0, 1]"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: 5 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-sizing", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

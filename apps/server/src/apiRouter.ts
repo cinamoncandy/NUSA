@@ -46,6 +46,11 @@ function requireBoolean(value: unknown, name: string): boolean {
   return value;
 }
 
+function requireSizingMode(value: unknown): "FIXED" | "FIXED_FRACTIONAL" {
+  if (value !== "FIXED" && value !== "FIXED_FRACTIONAL") throw new Error("mode must be \"FIXED\" or \"FIXED_FRACTIONAL\"");
+  return value;
+}
+
 function requireNullableFiniteNumber(value: unknown, name: string): number | null {
   if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${name} must be a finite number or null`);
@@ -112,6 +117,16 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
         const stopLossPrice = requireNullableFiniteNumber(body.stopLossPrice, "stopLossPrice");
         const takeProfitPrice = requireNullableFiniteNumber(body.takeProfitPrice, "takeProfitPrice");
         return ok(runtime.setPositionProtection({ stopLossPrice, takeProfitPrice }));
+      }
+      return methodNotAllowed();
+    }
+    if (pathname === "/api/position-sizing") {
+      if (method === "GET") return ok(runtime.getPositionSizing());
+      if (method === "POST") {
+        const body = asRecord(request.body);
+        const mode = requireSizingMode(body.mode);
+        const riskFraction = body.riskFraction === undefined ? undefined : requireFiniteNumber(body.riskFraction, "riskFraction");
+        return ok(runtime.setPositionSizing({ mode, riskFraction }));
       }
       return methodNotAllowed();
     }
