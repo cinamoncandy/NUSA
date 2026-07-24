@@ -1,5 +1,7 @@
 # dokkaebi
 
+> **Branch note:** This is not the primary branch. The primary, actively-running Paper trading app lives on [`agent/electron-upbit-paper-trading`](https://github.com/cinamoncandy/dokkaebi/tree/agent/electron-upbit-paper-trading) (see PR #1). `main` is kept as a reusable accounting/certification-library experiment intended for future live-trading gating. `packages/storage` and `packages/contracts` here share a common history with -- but are no longer kept in sync with -- the copies on `agent/electron-upbit-paper-trading`, which forked from `main` and has since diverged.
+
 Reconstructed TypeScript baseline for DOKKAEBI OS trading components.
 
 Implemented safety baseline:
