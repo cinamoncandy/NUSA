@@ -12,6 +12,7 @@ export interface PaperOrder {
   quotedPrice: number;
   spreadCost: number;
   slippageCost: number;
+  marketImpactCost: number;
 }
 
 export interface PaperPosition {
@@ -55,12 +56,15 @@ export interface PaperFillModel {
   spreadBps?: number;
   /** Fraction (0, 1] of the requested quantity that can fill against one quote. The remainder is rejected, never queued or retried. */
   maxFillRatio?: number;
+  /** Additional adverse price movement, in basis points per unit of quantity filled, modeling that larger orders move the price further. Unset or 0 disables order-size-dependent impact. */
+  marketImpactBpsPerUnit?: number;
 }
 
 interface NormalizedPaperFillModel {
   readonly slippageBps: number;
   readonly spreadBps: number;
   readonly maxFillRatio: number;
+  readonly marketImpactBpsPerUnit: number;
 }
 
 export interface PaperBrokerState {
@@ -147,12 +151,14 @@ export class PaperBroker {
     const slippageBps = fillModel.slippageBps ?? 0;
     const spreadBps = fillModel.spreadBps ?? 0;
     const maxFillRatio = fillModel.maxFillRatio ?? 1;
+    const marketImpactBpsPerUnit = fillModel.marketImpactBpsPerUnit ?? 0;
     assertFiniteNonNegative(slippageBps, "slippageBps");
     assertFiniteNonNegative(spreadBps, "spreadBps");
+    assertFiniteNonNegative(marketImpactBpsPerUnit, "marketImpactBpsPerUnit");
     if (!Number.isFinite(maxFillRatio) || maxFillRatio <= 0 || maxFillRatio > 1) {
       throw new Error("maxFillRatio must be in (0, 1]");
     }
-    this.fillModel = Object.freeze({ slippageBps, spreadBps, maxFillRatio });
+    this.fillModel = Object.freeze({ slippageBps, spreadBps, maxFillRatio, marketImpactBpsPerUnit });
 
     if (restoredState) {
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
@@ -193,7 +199,8 @@ export class PaperBroker {
 
     const liquidityLimitedQuantity = quantity * this.fillModel.maxFillRatio;
     const normalizedQuantity = this.normalizeOrderQuantity(liquidityLimitedQuantity);
-    const adverseBps = this.fillModel.slippageBps + this.fillModel.spreadBps / 2;
+    const impactBps = normalizedQuantity * this.fillModel.marketImpactBpsPerUnit;
+    const adverseBps = this.fillModel.slippageBps + this.fillModel.spreadBps / 2 + impactBps;
     const fillPrice = side === "BUY"
       ? price * (1 + adverseBps / 10_000)
       : price * (1 - adverseBps / 10_000);
@@ -201,6 +208,7 @@ export class PaperBroker {
     let chargedFee = notional * this.feeRate;
     let spreadCost = price * normalizedQuantity * this.fillModel.spreadBps / 20_000;
     let slippageCost = price * normalizedQuantity * this.fillModel.slippageBps / 10_000;
+    let marketImpactCost = price * normalizedQuantity * impactBps / 10_000;
 
     if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
       throw new Error("insufficient paper position");
@@ -231,6 +239,7 @@ export class PaperBroker {
       chargedFee = sellNotional * this.feeRate;
       spreadCost = price * sellQuantity * this.fillModel.spreadBps / 20_000;
       slippageCost = price * sellQuantity * this.fillModel.slippageBps / 10_000;
+      marketImpactCost = price * sellQuantity * impactBps / 10_000;
       const pnl = (fillPrice - this.position.averagePrice) * sellQuantity - chargedFee;
       this.cash += sellNotional - chargedFee;
       this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
@@ -249,7 +258,8 @@ export class PaperBroker {
       requestedQuantity: quantity,
       quotedPrice: price,
       spreadCost,
-      slippageCost
+      slippageCost,
+      marketImpactCost
     });
     this.orders.unshift(order);
     return order;
