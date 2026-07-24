@@ -54,9 +54,14 @@ test("returns a validated immutable envelope", () => {
 test("fails closed when the published envelope expires", () => {
   const realNow = Date.now();
   const source = new InMemoryAiCioEnvelopeSource();
-  source.publish(buildAiCioCommandCenterEnvelope({ mode: "DRY_RUN", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 5 }, realNow));
+  // maximumAgeMs must be wide enough that InMemoryAiCioEnvelopeSource.publish()'s own
+  // validateAiCioCommandCenterEnvelope(envelope, Date.now()) check -- which validates
+  // against the real wall clock, not an injectable one -- reliably still sees the
+  // envelope as fresh on a loaded CI runner, while the injected read-time offset below
+  // still safely exceeds it to exercise the intended stale-at-read behavior.
+  source.publish(buildAiCioCommandCenterEnvelope({ mode: "DRY_RUN", snapshot: snapshot({ generatedAt: realNow }), maximumAgeMs: 200 }, realNow));
   const registrar = new FakeRegistrar();
-  registerAiCioReadOnlyIpc(registrar, source, () => realNow + 6);
+  registerAiCioReadOnlyIpc(registrar, source, () => realNow + 250);
   assert.deepEqual(registrar.handlers.get(AI_CIO_SNAPSHOT_CHANNEL)(), { ok: false, status: "UNAVAILABLE", message: "AI CIO dashboard is not available" });
 });
 
