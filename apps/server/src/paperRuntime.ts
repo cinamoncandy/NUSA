@@ -6,6 +6,7 @@ import { RuntimeCommandService, type RuntimePersistence } from "../../desktop/sr
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
 import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -42,6 +43,8 @@ export interface PaperRuntimeOptions {
   readonly maximumMarketDataAgeMs?: number;
   /** Test injection point: overrides the real Upbit network fetch (default: fetchRecentMinuteCandles). */
   readonly candleFetcher?: CandleFetcher;
+  /** Where the selected strategy (SMA/EMA) is persisted across restarts. Defaults to `${databasePath}.strategy-choice.json`. */
+  readonly strategyChoicePath?: string;
 }
 
 export interface MarketSnapshot extends LiveCandleFeedHealth {
@@ -68,7 +71,8 @@ export class PaperRuntime {
   private readonly strategyEngine: StrategyEngine;
   private readonly runtime: RuntimeCommandService;
   private readonly candleFeed: LiveCandleFeed;
-  private currentStrategyId: StrategyChoice = "sma-crossover";
+  private readonly strategyChoicePath: string;
+  private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
 
   constructor(options: PaperRuntimeOptions) {
@@ -76,6 +80,8 @@ export class PaperRuntime {
     this.initialCash = options.initialCash ?? INITIAL_CASH_DEFAULT;
     const feeRate = options.feeRate ?? FEE_RATE_DEFAULT;
     this.maximumMarketDataAgeMs = options.maximumMarketDataAgeMs ?? 60_000;
+    this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
+    this.currentStrategyId = loadStrategyChoice(this.strategyChoicePath) ?? "sma-crossover";
 
     let diagnostic: string | undefined;
     let restored: ReturnType<DesktopPersistenceStore["load"]>;
@@ -88,7 +94,7 @@ export class PaperRuntime {
     }
     this.persistenceStore = store;
 
-    this.strategyEngine = new StrategyEngine(STRATEGY_FACTORIES["sma-crossover"]());
+    this.strategyEngine = new StrategyEngine(STRATEGY_FACTORIES[this.currentStrategyId]());
     if (store) {
       try {
         const restoredHistory = store.loadStrategyPriceHistory();
@@ -200,6 +206,10 @@ export class PaperRuntime {
     if (!(choice in STRATEGY_FACTORIES)) throw new Error(`unknown strategy: ${choice}`);
     this.strategyEngine.setStrategy(STRATEGY_FACTORIES[choice]());
     this.currentStrategyId = choice;
+    try { saveStrategyChoice(this.strategyChoicePath, choice); } catch {
+      // Best-effort continuity only: a failed write here only means the next restart falls
+      // back to the previously persisted (or default SMA) choice, never an account/control fault.
+    }
     return this.control.snapshot();
   }
 

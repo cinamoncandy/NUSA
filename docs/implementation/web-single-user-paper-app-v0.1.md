@@ -79,12 +79,20 @@ frontend, and stops there.
 - User accounts, signup, login, sessions, multi-tenant data isolation.
 - Real/live order routing, exchange credentials -- still Paper-only,
   identical safety posture to the Electron app (`docs/NEXT_TASK.md` rule 6).
-- Persisting which strategy (SMA/EMA) was last selected across a server
-  restart -- it currently resets to SMA(5, 20) on boot. Everything else
-  (cash, position, orders, control status, price history) survives a
-  restart via `DesktopPersistenceStore`, reused as-is.
 - Tick-level live data -- prices update once per REST poll (~10s), not per
   trade like the WebSocket-driven desktop app.
+
+## Follow-up: strategy-choice persistence
+
+The selected strategy (SMA/EMA) now also survives a server restart. This is
+kept in a small sidecar JSON file (`apps/server/src/strategyChoiceStore.ts`,
+`${databasePath}.strategy-choice.json`) rather than added to
+`DesktopPersistenceStore` -- that store is reused as-is from `apps/desktop`
+and is not otherwise modified by this product. Losing this file only falls
+back to the SMA(5, 20) default, never a fault of account/order/control
+state. Covered by `tests/strategy-choice-store.test.js` and
+`tests/server-strategy-persistence.test.js` (restart round-trip via a real
+`PaperRuntime` instance against a temp SQLite file).
 
 ## Verification
 
