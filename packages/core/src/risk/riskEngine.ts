@@ -10,10 +10,19 @@
 
 export type RiskOrderSide = "BUY" | "SELL";
 
-/** The minimal shape this engine needs from a trading intent: a direction and a quantity. */
+/**
+ * The minimal shape this engine needs from a trading intent: a direction and a quantity.
+ * strategyId/symbol are optional identification metadata -- RiskEngine never reads them,
+ * they exist so E02-T003's OrderPlanner (packages/core/src/order/orderPlanner.ts) can
+ * accept this same TradingIntent and copy them into PlannedOrder without this repo
+ * growing a second, conflicting TradingIntent type. Optional so every existing caller and
+ * test that only supplies {side, quantity} keeps compiling unchanged.
+ */
 export interface TradingIntent {
   readonly side: RiskOrderSide;
   readonly quantity: number;
+  readonly strategyId?: string;
+  readonly symbol?: string;
 }
 
 /** Live account/market state the decision is evaluated against. */
