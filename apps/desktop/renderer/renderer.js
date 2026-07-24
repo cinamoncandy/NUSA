@@ -34,12 +34,13 @@ function renderSnapshot(snapshot) {
   if (!snapshot.orders.length) {
     const row = document.createElement("tr");
     const cell = textNode("td", "No fills");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     row.append(cell);
     orders.replaceChildren(row);
   } else orders.replaceChildren(...snapshot.orders.map((order) => {
     const row = document.createElement("tr");
-    row.append(textNode("td", new Date(order.filledAt).toLocaleTimeString("ko-KR")), textNode("td", order.side, order.side.toLowerCase()), textNode("td", number.format(order.quantity)), textNode("td", won.format(order.price)), textNode("td", won.format(order.fee)));
+    const executionCost = (order.spreadCost ?? 0) + (order.slippageCost ?? 0) + (order.marketImpactCost ?? 0);
+    row.append(textNode("td", new Date(order.filledAt).toLocaleTimeString("ko-KR")), textNode("td", order.side, order.side.toLowerCase()), textNode("td", number.format(order.quantity)), textNode("td", won.format(order.price)), textNode("td", won.format(order.fee)), textNode("td", won.format(executionCost)));
     return row;
   }));
 }
