@@ -25,9 +25,13 @@ test("projects only verified Paper portfolio values and marks missing engines un
   assert.equal(result.portfolio.totalEquity, 1_120);
   assert.equal(result.portfolio.deployableCapital + result.portfolio.reservedCapital, result.portfolio.totalEquity);
   assert.equal(result.portfolio.grossExposureRatio, 240 / 1_120);
-  for (const name of ["opportunities", "strategies", "committee", "research"]) {
+  for (const name of ["strategies", "committee", "research"]) {
     assert.equal(result[name].availability, "UNAVAILABLE");
   }
+  assert.equal(result.opportunities.availability, "AVAILABLE");
+  assert.equal(result.opportunities.activeCount, 1);
+  assert.equal(result.opportunities.totalAllocatedCapital, 240);
+  assert.equal(result.opportunities.topOpportunityId, "paper:KRW-BTC");
   assert.equal(result.execution.availability, "AVAILABLE");
   assert.equal(result.execution.fillQuality, 1);
   assert.deepEqual(result.execution.reasons, ["PAPER_SYNTHETIC_EXECUTION"]);
@@ -61,6 +65,22 @@ test("runtime failure is represented as blocked risk and immutable evidence", ()
   assert.equal(result.risk.killSwitchActive, true);
   assert.deepEqual(result.risk.reasons, ["PAPER_RUNTIME_UNAVAILABLE"]);
   assert.ok(Object.isFrozen(result.risk.reasons));
+  assert.equal(result.opportunities.status, "BLOCKED");
+  assert.equal(result.opportunities.availability, "INVALID");
+});
+
+test("opportunities reports zero active count and omits topOpportunityId with a flat Paper position", () => {
+  const result = buildPaperDashboardSections(input({
+    account: {
+      cash: 1_120, equity: 1_120, unrealizedPnl: 0,
+      position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 10 },
+      orders: []
+    }
+  }));
+  assert.equal(result.opportunities.activeCount, 0);
+  assert.equal(result.opportunities.totalAllocatedCapital, 0);
+  assert.equal(result.opportunities.topOpportunityId, undefined);
+  assert.equal(result.opportunities.availability, "AVAILABLE");
 });
 
 test("projection is deterministic and rejects invalid accounting inputs", () => {

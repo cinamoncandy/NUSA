@@ -96,7 +96,19 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       grossExposureRatio: exposure,
       netExposureRatio: exposure
     }),
-    opportunities: Object.freeze({ ...unknown, activeCount: 0, totalAllocatedCapital: 0, reservedCash: 0 }),
+    opportunities: Object.freeze({
+      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
+      availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
+      generatedAt: input.generatedAt,
+      reasons: Object.freeze([...runtimeReasons]),
+      // The only "opportunity" this desktop app can honestly report is the current open
+      // Paper position itself: one strategy, one market, no independent opportunity-scoring
+      // model. topOpportunityScore is intentionally omitted rather than invented.
+      activeCount: input.account.position.quantity > 0 ? 1 : 0,
+      totalAllocatedCapital: marketValue,
+      reservedCash: 0,
+      ...(input.account.position.quantity > 0 ? { topOpportunityId: `paper:${input.account.position.market}` } : {})
+    }),
     strategies: Object.freeze({
       status: strategyStatus,
       availability: strategyAvailability,
