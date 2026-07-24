@@ -25,6 +25,10 @@ const MAXIMUM_MARKET_DATA_AGE_MS = 30_000;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const REQUIRED_WARMUP_SAMPLES = 20;
 const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000 };
+// Conservative Paper fill assumptions: adverse slippage against the trader and a cap on
+// how much of a requested quantity fills against one quote. Both bias results pessimistically
+// rather than assuming unrealistic perfect execution. Paper-only; no live order routing.
+const FILL_MODEL = { slippageBps: 5, maxFillRatio: 0.9 };
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
@@ -254,7 +258,7 @@ function initializeRuntime(): void {
     persistenceStore = undefined;
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
   }
-  broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper);
+  broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper, FILL_MODEL);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
   if (persistenceStore) {
     evidenceRecorder = new PaperScenarioEvidenceRecorder({

@@ -8,6 +8,8 @@ export interface PaperOrder {
   price: number;
   fee: number;
   filledAt: string;
+  requestedQuantity: number;
+  quotedPrice: number;
 }
 
 export interface PaperPosition {
@@ -31,6 +33,23 @@ interface NormalizedPaperRiskPolicy {
   readonly maxRealizedLoss: number | null;
   readonly quantityStep: number;
   readonly dustThreshold: number;
+}
+
+/**
+ * Conservative Paper fill model. Every field defaults to a value that reproduces
+ * exact, unslipped, fully-filled execution (the prior behavior), so existing
+ * callers and persisted state are unaffected unless a caller opts in.
+ */
+export interface PaperFillModel {
+  /** Adverse price movement applied against the trader, in basis points of the quoted price. */
+  slippageBps?: number;
+  /** Fraction (0, 1] of the requested quantity that can fill against one quote. The remainder is rejected, never queued or retried. */
+  maxFillRatio?: number;
+}
+
+interface NormalizedPaperFillModel {
+  readonly slippageBps: number;
+  readonly maxFillRatio: number;
 }
 
 export interface PaperBrokerState {
@@ -73,13 +92,15 @@ export class PaperBroker {
   private readonly position: PaperPosition;
   private readonly orders: PaperOrder[];
   private readonly riskPolicy: NormalizedPaperRiskPolicy;
+  private readonly fillModel: NormalizedPaperFillModel;
 
   constructor(
     initialCash = 10_000_000,
     market = "KRW-BTC",
     feeRate = 0.0005,
     riskPolicy: PaperRiskPolicy = {},
-    restoredState?: PaperBrokerState
+    restoredState?: PaperBrokerState,
+    fillModel: PaperFillModel = {}
   ) {
     if (!Number.isFinite(initialCash) || initialCash <= 0) throw new Error("initialCash must be positive");
     assertFiniteNonNegative(feeRate, "feeRate");
@@ -100,6 +121,14 @@ export class PaperBroker {
       quantityStep,
       dustThreshold
     });
+
+    const slippageBps = fillModel.slippageBps ?? 0;
+    const maxFillRatio = fillModel.maxFillRatio ?? 1;
+    assertFiniteNonNegative(slippageBps, "slippageBps");
+    if (!Number.isFinite(maxFillRatio) || maxFillRatio <= 0 || maxFillRatio > 1) {
+      throw new Error("maxFillRatio must be in (0, 1]");
+    }
+    this.fillModel = Object.freeze({ slippageBps, maxFillRatio });
 
     if (restoredState) {
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
@@ -135,8 +164,12 @@ export class PaperBroker {
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
 
-    const normalizedQuantity = this.normalizeOrderQuantity(quantity);
-    const notional = normalizedQuantity * price;
+    const liquidityLimitedQuantity = quantity * this.fillModel.maxFillRatio;
+    const normalizedQuantity = this.normalizeOrderQuantity(liquidityLimitedQuantity);
+    const fillPrice = side === "BUY"
+      ? price * (1 + this.fillModel.slippageBps / 10_000)
+      : price * (1 - this.fillModel.slippageBps / 10_000);
+    const notional = normalizedQuantity * fillPrice;
     let chargedFee = notional * this.feeRate;
 
     if (side === "SELL" && normalizedQuantity - this.position.quantity > this.riskPolicy.dustThreshold) {
@@ -161,9 +194,9 @@ export class PaperBroker {
       this.position.averagePrice = (previousCost + notional) / this.position.quantity;
     } else {
       const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
-      const sellNotional = sellQuantity * price;
+      const sellNotional = sellQuantity * fillPrice;
       chargedFee = sellNotional * this.feeRate;
-      const pnl = (price - this.position.averagePrice) * sellQuantity - chargedFee;
+      const pnl = (fillPrice - this.position.averagePrice) * sellQuantity - chargedFee;
       this.cash += sellNotional - chargedFee;
       this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
       this.position.realizedPnl += pnl;
@@ -175,9 +208,11 @@ export class PaperBroker {
       market: this.position.market,
       side,
       quantity: normalizedQuantity,
-      price,
+      price: fillPrice,
       fee: chargedFee,
-      filledAt: now.toISOString()
+      filledAt: now.toISOString(),
+      requestedQuantity: quantity,
+      quotedPrice: price
     });
     this.orders.unshift(order);
     return order;
