@@ -13,6 +13,14 @@ export interface PaperDashboardProjectionInput {
   readonly runtimeAvailable: boolean;
   readonly generatedAt: number;
   readonly research?: ResearchDashboardSection;
+  /**
+   * Real warm-up progress for the single running technical strategy (SMA crossover).
+   * This is the only committee-style input this desktop app has real data for; the
+   * other ten CommitteeMember roles (MACRO, NEWS, ONCHAIN, ...) have no connected
+   * source and must stay reported as unavailable rather than invented. Omitting this
+   * field reproduces the prior "not connected" placeholder behavior exactly.
+   */
+  readonly strategyWarmup?: { readonly current: number; readonly required: number };
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -37,7 +45,44 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   const runtimeReasons = input.runtimeAvailable ? [] : ["PAPER_RUNTIME_UNAVAILABLE"];
   const drawdown = Math.max(0, Math.min(1, (input.referenceEquity - input.account.equity) / input.referenceEquity));
   const unknown = unavailable(input.generatedAt, ["SOURCE_NOT_CONNECTED"]);
-  const strategyReasons = input.control.status === "FAULTED" ? ["CONTROL_PLANE_FAULTED"] : [];
+
+  const warmupComplete = input.strategyWarmup !== undefined && input.strategyWarmup.current >= input.strategyWarmup.required;
+  let strategyReasons: string[];
+  let strategyStatus: "HEALTHY" | "CAUTION" | "BLOCKED";
+  let strategyAvailability: "AVAILABLE" | "UNAVAILABLE";
+  let blockedStrategies: number;
+  let warningStrategies: number;
+  if (input.control.status === "FAULTED") {
+    strategyReasons = ["CONTROL_PLANE_FAULTED"];
+    strategyStatus = "BLOCKED";
+    strategyAvailability = input.strategyWarmup === undefined ? "UNAVAILABLE" : "AVAILABLE";
+    blockedStrategies = 1;
+    warningStrategies = 0;
+  } else if (input.strategyWarmup === undefined) {
+    strategyReasons = ["STRATEGY_ANALYTICS_NOT_CONNECTED"];
+    strategyStatus = "CAUTION";
+    strategyAvailability = "UNAVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 1;
+  } else if (input.control.status === "STOPPED" || input.control.status === "PAUSED") {
+    strategyReasons = [input.control.status === "STOPPED" ? "STRATEGY_STOPPED" : "STRATEGY_PAUSED"];
+    strategyStatus = "CAUTION";
+    strategyAvailability = "AVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 1;
+  } else if (!warmupComplete) {
+    strategyReasons = ["STRATEGY_WARMING_UP"];
+    strategyStatus = "CAUTION";
+    strategyAvailability = "AVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 1;
+  } else {
+    strategyReasons = [];
+    strategyStatus = "HEALTHY";
+    strategyAvailability = "AVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 0;
+  }
 
   return Object.freeze({
     portfolio: Object.freeze({
@@ -53,15 +98,15 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
     }),
     opportunities: Object.freeze({ ...unknown, activeCount: 0, totalAllocatedCapital: 0, reservedCash: 0 }),
     strategies: Object.freeze({
-      status: input.control.status === "FAULTED" ? "BLOCKED" as const : "CAUTION" as const,
-      availability: "UNAVAILABLE" as const,
+      status: strategyStatus,
+      availability: strategyAvailability,
       generatedAt: input.generatedAt,
-      reasons: Object.freeze(strategyReasons.length ? strategyReasons : ["STRATEGY_ANALYTICS_NOT_CONNECTED"]),
+      reasons: Object.freeze(strategyReasons),
       totalTrades: input.account.orders.length,
       totalNetPnl: input.account.position.realizedPnl + input.account.unrealizedPnl,
       portfolioCaptureRatio: 0,
-      blockedStrategies: input.control.status === "FAULTED" ? 1 : 0,
-      warningStrategies: input.control.status === "FAULTED" ? 0 : 1
+      blockedStrategies,
+      warningStrategies
     }),
     committee: Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
     execution: Object.freeze({
