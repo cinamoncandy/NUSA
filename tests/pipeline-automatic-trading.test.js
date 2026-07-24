@@ -7,6 +7,7 @@ const { AutomaticTradingPipeline } = require("../dist/apps/server/src/pipeline/a
 const { RiskEngine } = require("../dist/apps/server/src/pipeline/riskEngine.js");
 const { OrderPlanner } = require("../dist/apps/server/src/pipeline/orderPlanner.js");
 const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecutor.js");
+const { DefaultRiskEngine: ValueRiskEngine } = require("../dist/packages/core/src/risk/riskEngine.js");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const intent = (type, timestamp = 1) => ({ type, reason: "test", confidence: 1, timestamp });
@@ -30,7 +31,9 @@ function harness(options = {}) {
     options.orderPlanner ?? new OrderPlanner("FIXED"),
     new PaperExecutor(broker),
     persist,
-    () => { failureCalls += 1; }
+    () => { failureCalls += 1; },
+    options.valueRiskEngine,
+    options.policyFor
   );
   return { broker, control, strategy, pipeline, durable, failNext: () => { fail = true; }, failureCalls: () => failureCalls };
 }
@@ -129,4 +132,39 @@ test("a persistence failure rolls back broker/control state and reports via the 
   assert.deepEqual(clone(broker.exportState()), before.paper, "broker state must roll back to the pre-attempt snapshot");
   assert.deepEqual(clone(control.exportState()), before.control, "control state must roll back to the pre-attempt snapshot");
   assert.equal(failureCalls(), 1);
+});
+
+test("when wired (E02-T002), the value-based RiskEngine blocks a plan exceeding maximumPositionValue before PaperExecutor runs", () => {
+  const { control, pipeline, broker } = harness({
+    valueRiskEngine: new ValueRiskEngine(),
+    policyFor: (price) => ({ minimumOrderValue: 0, maximumPositionValue: 100 }) // deliberately tiny cap
+  });
+  control.start();
+  control.setAutoTrade(true);
+  const before = broker.snapshot(100_000_000);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "REJECTED");
+  assert.match(result.reason, /maximumPositionValue/);
+  assert.deepEqual(broker.snapshot(100_000_000).position, before.position, "no partial mutation from the blocked plan");
+});
+
+test("when wired, a plan within the value-based policy still fills normally", () => {
+  const { control, pipeline, broker } = harness({
+    valueRiskEngine: new ValueRiskEngine(),
+    policyFor: (price) => ({ minimumOrderValue: 0, maximumPositionValue: 100_000_000 })
+  });
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  assert.ok(broker.snapshot(100_000_000).position.quantity > 0);
+});
+
+test("without valueRiskEngine/policyFor wired, behavior is unchanged from before E02-T002 (opt-in, not a default block)", () => {
+  const { control, pipeline, broker } = harness(); // no valueRiskEngine/policyFor
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  assert.ok(broker.snapshot(100_000_000).position.quantity > 0);
 });

@@ -6,6 +6,7 @@ import { RuntimeCommandService, type RuntimePersistence } from "../../desktop/sr
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
 import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { AutomaticTradingPipeline } from "./pipeline/automaticTradingPipeline";
 import { OrderPlanner } from "./pipeline/orderPlanner";
 import { PaperExecutor } from "./pipeline/paperExecutor";
@@ -130,7 +131,12 @@ export class PaperRuntime {
         if (!this.persistenceStore) throw new Error("SQLite persistence is unavailable");
         this.persistenceStore.save(paper, control);
       },
-      () => { this.runtime.markUnavailable(); this.paperTradingAvailable = false; }
+      () => { this.runtime.markUnavailable(); this.paperTradingAvailable = false; },
+      new ValueRiskEngine(),
+      // Reuses PaperBroker's own already-agreed limits (RISK_POLICY above) rather than a new
+      // invented threshold: minOrderNotional as-is, maxPositionQuantity converted to a value
+      // at the current price since PaperBroker's own limit is quantity-based.
+      (price) => ({ minimumOrderValue: RISK_POLICY.minOrderNotional, maximumPositionValue: RISK_POLICY.maxPositionQuantity * price })
     );
 
     this.paperTradingAvailable = diagnostic === undefined;

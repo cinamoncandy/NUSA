@@ -1,6 +1,10 @@
 import { ControlPlane, type ControlPlaneRuntimeState } from "../../../desktop/src/controlPlane";
 import { PaperBroker, type PaperBrokerState, type PaperOrder } from "../../../desktop/src/paperBroker";
 import { StrategyEngine } from "../../../desktop/src/strategyEngine";
+import {
+  DefaultRiskEngine as ValueRiskEngine,
+  type RiskPolicy as ValueRiskPolicy
+} from "../../../../packages/core/src/risk/riskEngine";
 import { OrderPlanner } from "./orderPlanner";
 import { RiskEngine } from "./riskEngine";
 import { PaperExecutor } from "./paperExecutor";
@@ -20,13 +24,24 @@ interface RuntimeSnapshot {
 
 /**
  * Composes the automatic (candle-driven) trading path exactly as:
- *   TradingIntent -> RiskEngine -> OrderPlanner -> PaperExecutor -> Position/Portfolio
+ *   TradingIntent -> RiskEngine -> OrderPlanner -> RiskEngine (value-based) -> PaperExecutor
+ *   -> Position/Portfolio
  * with the same atomic snapshot/rollback/fail-closed shell already proven in
  * apps/desktop/src/runtimeCommandService.ts's commit()/automaticSignal() -- reimplemented
  * here (not imported) so this pipeline can pass OrderPlanner's planned quantity through to
  * PaperExecutor, which RuntimeCommandService's own automaticSignal() does not expose a way
  * to do. Manual orders are unaffected: they still go through RuntimeCommandService.manualOrder(),
  * unchanged.
+ *
+ * Two RiskEngines run at two different points, deliberately: the state-based one
+ * (./riskEngine.ts) gates the raw TradingIntent before any quantity is known (auto-trade
+ * enabled? HOLD? open position to sell?); the value-based one
+ * (packages/core/src/risk/riskEngine.ts, E02-T002) runs once OrderPlanner has produced a
+ * concrete quantity, checking it against the same notional/position limits PaperBroker
+ * itself enforces (RISK_POLICY.minOrderNotional/maxPositionQuantity in
+ * apps/server/src/paperRuntime.ts) -- so this is an earlier, additional check using
+ * already-agreed limits, not a new invented threshold, and PaperBroker's own checks remain
+ * the final word regardless.
  */
 export class AutomaticTradingPipeline {
   constructor(
@@ -37,7 +52,13 @@ export class AutomaticTradingPipeline {
     private readonly orderPlanner: OrderPlanner,
     private readonly executor: PaperExecutor,
     private readonly persist: (paper: PaperBrokerState, control: ReturnType<ControlPlane["exportState"]>) => void,
-    private readonly onPersistenceFailure: () => void
+    private readonly onPersistenceFailure: () => void,
+    /** Optional: when both are provided, every planned order also passes through the
+     * value-based RiskEngine before execution. Omitting them skips that extra check
+     * entirely (never a silent "always allow" default), matching this constructor's own
+     * existing tests that don't need to care about it. */
+    private readonly valueRiskEngine?: ValueRiskEngine,
+    private readonly policyFor?: (price: number) => ValueRiskPolicy
   ) {}
 
   process(intent: TradingIntent, market: string, price: number, equity: number): AutomaticTradingResult {
@@ -61,6 +82,21 @@ export class AutomaticTradingPipeline {
       if (!plan) {
         this.persistNow();
         return { outcome: "SKIPPED" };
+      }
+
+      if (this.valueRiskEngine && this.policyFor) {
+        const availableQuoteBalance = this.broker.snapshot(price).cash;
+        const currentPositionValue = positionQuantity * price;
+        const valueDecision = this.valueRiskEngine.evaluate(
+          plan,
+          { marketPrice: price, availableQuoteBalance, currentPositionValue },
+          this.policyFor(price)
+        );
+        if (valueDecision.outcome === "BLOCK") {
+          this.control.record("RISK", `${valueDecision.code}: ${valueDecision.reason}`);
+          this.persistNow();
+          return { outcome: "REJECTED", reason: valueDecision.reason };
+        }
       }
 
       let order: PaperOrder;
