@@ -5,7 +5,7 @@ const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
 const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
 const { AutomaticTradingPipeline } = require("../dist/apps/server/src/pipeline/automaticTradingPipeline.js");
 const { RiskEngine } = require("../dist/apps/server/src/pipeline/riskEngine.js");
-const { OrderPlanner } = require("../dist/apps/server/src/pipeline/orderPlanner.js");
+const { FixedOrderPlanner } = require("../dist/apps/server/src/pipeline/orderPlanner.js");
 const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecutor.js");
 const { DefaultRiskEngine: ValueRiskEngine } = require("../dist/packages/core/src/risk/riskEngine.js");
 const { DefaultOrderPlanner: ValueOrderPlanner } = require("../dist/packages/core/src/order/orderPlanner.js");
@@ -29,7 +29,7 @@ function harness(options = {}) {
     control,
     strategy,
     new RiskEngine(),
-    options.orderPlanner ?? new OrderPlanner("FIXED"),
+    options.orderPlanner ?? new FixedOrderPlanner("FIXED"),
     new PaperExecutor(broker),
     persist,
     () => { failureCalls += 1; },
@@ -101,7 +101,7 @@ test("OrderPlanner returning null (sizing decided against trading) skips without
 });
 
 test("FIXED_FRACTIONAL sizing below the broker's dust threshold is rejected by PaperExecutor, not silently skipped", () => {
-  const tinyPlanner = new OrderPlanner("FIXED_FRACTIONAL", 0.000000001);
+  const tinyPlanner = new FixedOrderPlanner("FIXED_FRACTIONAL", 0.000000001);
   const { control, pipeline, broker } = harness({ orderPlanner: tinyPlanner });
   control.start();
   control.setAutoTrade(true);

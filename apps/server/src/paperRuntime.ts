@@ -9,7 +9,7 @@ import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, ty
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
 import { AutomaticTradingPipeline } from "./pipeline/automaticTradingPipeline";
-import { OrderPlanner } from "./pipeline/orderPlanner";
+import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
 import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
@@ -126,7 +126,9 @@ export class PaperRuntime {
       this.control,
       this.strategyEngine,
       new RiskEngine(),
-      new OrderPlanner("FIXED"),
+      // The pipeline's "PositionSizer" stage (E02-T004), reproducing the exact prior FIXED
+      // quantity behavior (ControlPlane's static, operator-set order quantity).
+      new PositionSizerOrderPlanner((context) => ({ mode: "FIXED", fixedQuantity: context.fixedOrderQuantity })),
       new PaperExecutor(this.broker),
       (paper, control) => {
         if (!this.persistenceStore) throw new Error("SQLite persistence is unavailable");

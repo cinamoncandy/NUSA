@@ -17,10 +17,17 @@ export type RiskOrderSide = "BUY" | "SELL";
  * accept this same TradingIntent and copy them into PlannedOrder without this repo
  * growing a second, conflicting TradingIntent type. Optional so every existing caller and
  * test that only supplies {side, quantity} keeps compiling unchanged.
+ *
+ * quantity is also optional: in the full Strategy -> TradingIntent -> PositionSizer ->
+ * RiskEngine pipeline (E02-T004, packages/core/src/position/positionSizer.ts), a Strategy
+ * only decides a direction; PositionSizer is what fills in quantity before RiskEngine ever
+ * sees the intent. RiskEngine.evaluate() treats a missing quantity exactly like an invalid
+ * one (INVALID_QUANTITY) -- calling it on a not-yet-sized intent is a caller error, not a
+ * silent pass.
  */
 export interface TradingIntent {
   readonly side: RiskOrderSide;
-  readonly quantity: number;
+  readonly quantity?: number;
   readonly strategyId?: string;
   readonly symbol?: string;
 }
@@ -63,8 +70,8 @@ export interface RiskEngine {
   evaluate(intent: TradingIntent, context: RiskContext, policy: RiskPolicy): RiskDecision;
 }
 
-function isFinitePositive(value: number): boolean {
-  return Number.isFinite(value) && value > 0;
+function isFinitePositive(value: number | undefined): value is number {
+  return value !== undefined && Number.isFinite(value) && value > 0;
 }
 
 function block(code: RiskRejectionCode, reason: string): RiskBlockDecision {

@@ -100,7 +100,8 @@ export class DefaultOrderPlanner implements OrderPlanner {
     if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
       return failed("INVALID_MARKET_PRICE", "marketPrice must be a finite positive number");
     }
-    if (!Number.isFinite(intent.quantity) || intent.quantity <= 0) {
+    const quantity = intent.quantity;
+    if (quantity === undefined || !Number.isFinite(quantity) || quantity <= 0) {
       return failed("INVALID_QUANTITY", "quantity must be a finite positive number");
     }
 
@@ -111,13 +112,13 @@ export class DefaultOrderPlanner implements OrderPlanner {
       return failed("INVALID_EXECUTION_PRICE", `computed executionPrice (${executionPrice}) must be finite and positive`);
     }
 
-    const orderValue = executionPrice * intent.quantity;
+    const orderValue = executionPrice * quantity;
     if (!Number.isFinite(orderValue) || orderValue <= 0) {
       return failed("INVALID_ORDER_VALUE", `computed orderValue (${orderValue}) must be finite and positive`);
     }
 
     const estimatedFee = orderValue * policy.feeRate;
-    const estimatedSlippage = Math.abs(executionPrice - marketPrice) * intent.quantity;
+    const estimatedSlippage = Math.abs(executionPrice - marketPrice) * quantity;
 
     return {
       status: "PLANNED",
@@ -126,7 +127,7 @@ export class DefaultOrderPlanner implements OrderPlanner {
         ...(intent.symbol === undefined ? {} : { symbol: intent.symbol }),
         side: intent.side,
         orderType: ORDER_TYPE,
-        quantity: intent.quantity,
+        quantity,
         marketPrice,
         executionPrice,
         orderValue,

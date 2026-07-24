@@ -19,21 +19,32 @@ export interface OrderPlan {
 export type SizingMode = "FIXED" | "FIXED_FRACTIONAL";
 
 /**
- * The "OrderPlanner" pipeline stage: turns an already risk-approved TradingIntent into a
- * concrete OrderPlan (side + quantity). PaperExecutor and PaperBroker's own risk-policy
- * checks (maxOrderNotional/maxPositionQuantity/maxRealizedLoss/minOrderNotional/priceTick)
- * remain the final say on whether the plan is actually admissible once fill price/cost are
+ * The "OrderPlanner" pipeline stage's shape: turns an already risk-approved TradingIntent
+ * into a concrete OrderPlan (side + quantity) or null. A plain interface (not the
+ * FixedOrderPlanner class below) so AutomaticTradingPipeline can be constructed with any
+ * implementation -- e.g. apps/server/src/pipeline/positionSizerAdapter.ts's
+ * PositionSizerOrderPlanner, which wraps packages/core/src/position/positionSizer.ts's
+ * PositionSizer (E02-T004) instead of this file's own sizing math.
+ */
+export interface OrderPlanner {
+  plan(intent: TradingIntent, context: OrderPlanningContext): OrderPlan | null;
+}
+
+/**
+ * PaperBroker and PaperBroker's own risk-policy checks
+ * (maxOrderNotional/maxPositionQuantity/maxRealizedLoss/minOrderNotional/priceTick)
+ * remain the final say on whether a plan is actually admissible once fill price/cost are
  * known -- this stage only decides the requested quantity.
  *
  * Default mode ("FIXED") reproduces the exact quantity behavior this app already had
- * (ControlPlane's static, operator-set order quantity), so introducing OrderPlanner does
+ * (ControlPlane's static, operator-set order quantity), so introducing this class does
  * not, by itself, change what automatic trades request. "FIXED_FRACTIONAL" is an explicit
  * opt-in wiring apps/desktop/src/positionSizing.ts's calculateFixedFractionalQuantity --
  * previously left unwired everywhere because doing so silently would have been a real
  * change to automatic-trading behavior deserving its own explicit, reviewable place; this
  * pipeline stage is exactly that place, and it remains off unless explicitly selected.
  */
-export class OrderPlanner {
+export class FixedOrderPlanner implements OrderPlanner {
   constructor(
     private readonly sizingMode: SizingMode = "FIXED",
     private readonly riskFraction?: number
