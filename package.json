@@ -26,6 +26,7 @@
     "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",
     "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
     "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",
+    "evidence:checklist": "pnpm run preflight && pnpm run build && node scripts/evidence-checklist.js",
     "evidence:export": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js export",
     "evidence:verify": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js verify"
   },
