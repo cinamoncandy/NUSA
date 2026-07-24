@@ -103,6 +103,28 @@ function renderControl(control) {
   byId("strategy-stop").disabled = control.status === "STOPPED";
 }
 
+const MAX_EVENT_ROWS = 30;
+
+function renderEvents(events) {
+  const tbody = byId("events");
+  if (!events.length) {
+    const row = document.createElement("tr");
+    const cell = textNode("td", "이벤트 없음");
+    cell.colSpan = 3;
+    tbody.replaceChildren(row);
+    row.append(cell);
+    return;
+  }
+  tbody.replaceChildren(...events.slice(0, MAX_EVENT_ROWS).map((event) => {
+    const row = document.createElement("tr");
+    if (event.type === "RISK") row.className = "event-row-risk";
+    const typeCell = document.createElement("td");
+    typeCell.append(textNode("span", event.type, `event-type ${event.type.toLowerCase()}`));
+    row.append(textNode("td", new Date(event.timestamp).toLocaleTimeString("ko-KR")), typeCell, textNode("td", event.message));
+    return row;
+  }));
+}
+
 const CIO_SECTIONS = [
   ["portfolio", "포트폴리오"],
   ["opportunities", "기회"],
@@ -142,6 +164,7 @@ async function refresh() {
     renderChart(candles);
     const control = await fetchJson("/api/control");
     renderControl(control);
+    renderEvents(control.events);
     try {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));

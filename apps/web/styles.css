@@ -50,6 +50,15 @@ td.buy { color: var(--success); }
 td.sell { color: var(--danger); }
 footer { padding: 1.5rem; color: var(--muted); font-size: 0.75rem; text-align: center; }
 
+.log-table td, .log-table th { text-align: left; }
+.log-table td:nth-child(3) { overflow-wrap: anywhere; }
+.event-type { display: inline-flex; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+.event-type.risk { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.event-type.order { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.event-type.signal { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); }
+.event-type.system, .event-type.status { background: var(--surface-raised); color: var(--muted); }
+tr.event-row-risk { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+
 .cio-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
 .cio-grid > section { min-width: 0; padding: 1rem; background: var(--surface); }
 .cio-grid h3 { margin: 0 0 0.5rem; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
