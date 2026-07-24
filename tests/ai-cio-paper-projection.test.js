@@ -34,6 +34,7 @@ test("projects only verified Paper portfolio values and marks missing engines un
   assert.equal(result.opportunities.topOpportunityId, "paper:KRW-BTC");
   assert.equal(result.execution.availability, "AVAILABLE");
   assert.equal(result.execution.fillQuality, 1);
+  assert.equal(result.execution.slippageBps, 0);
   assert.deepEqual(result.execution.reasons, ["PAPER_SYNTHETIC_EXECUTION"]);
   assert.equal(result.risk.availability, "AVAILABLE");
   assert.equal(result.risk.dailyDrawdownRatio, 0);
@@ -132,6 +133,16 @@ test("strategyWarmup reports a stopped or paused strategy as caution, and a faul
   assert.equal(faulted.strategies.status, "BLOCKED");
   assert.deepEqual(faulted.strategies.reasons, ["CONTROL_PLANE_FAULTED"]);
   assert.equal(faulted.strategies.blockedStrategies, 1);
+});
+
+test("executionCostBps connects the real deterministic fill-model rate, staying labeled synthetic", () => {
+  const connected = buildPaperDashboardSections(input({ executionCostBps: 7.5 }));
+  assert.equal(connected.execution.slippageBps, 7.5);
+  assert.deepEqual(connected.execution.reasons, ["PAPER_SYNTHETIC_EXECUTION"]);
+  assert.equal(connected.execution.latencyMs, 0);
+
+  assert.throws(() => buildPaperDashboardSections(input({ executionCostBps: -1 })), /executionCostBps/);
+  assert.throws(() => buildPaperDashboardSections(input({ executionCostBps: Number.NaN })), /executionCostBps/);
 });
 
 test("preserves an explicitly verified research section instead of replacing it with a placeholder", () => {

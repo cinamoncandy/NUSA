@@ -21,6 +21,14 @@ export interface PaperDashboardProjectionInput {
    * field reproduces the prior "not connected" placeholder behavior exactly.
    */
   readonly strategyWarmup?: { readonly current: number; readonly required: number };
+  /**
+   * The deterministic adverse-price rate (slippageBps + spreadBps / 2) the PaperBroker's
+   * fill model currently applies to every order. This is not an observed market-quality
+   * metric -- it's the exact configured synthetic-execution cost, reported under the
+   * existing PAPER_SYNTHETIC_EXECUTION reason so it is never confused with real fill
+   * quality. Omitting this field reproduces the prior hardcoded-0 placeholder exactly.
+   */
+  readonly executionCostBps?: number;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -36,6 +44,9 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   if (!Number.isFinite(input.referenceEquity) || input.referenceEquity <= 0) throw new Error("referenceEquity must be positive");
   if (!Number.isFinite(input.account.equity) || input.account.equity < 0) throw new Error("paper equity must be finite and non-negative");
   if (!Number.isFinite(input.account.cash) || input.account.cash < 0) throw new Error("paper cash must be finite and non-negative");
+  if (input.executionCostBps !== undefined && (!Number.isFinite(input.executionCostBps) || input.executionCostBps < 0)) {
+    throw new Error("executionCostBps must be finite and non-negative");
+  }
 
   const marketValue = input.account.position.quantity * input.markPrice;
   if (!Number.isFinite(marketValue) || marketValue < 0) throw new Error("paper market value must be finite and non-negative");
@@ -127,7 +138,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       generatedAt: input.generatedAt,
       reasons: Object.freeze(input.runtimeAvailable ? ["PAPER_SYNTHETIC_EXECUTION"] : ["PAPER_RUNTIME_UNAVAILABLE"]),
       fillQuality: input.runtimeAvailable ? 1 : 0,
-      slippageBps: 0,
+      slippageBps: input.executionCostBps ?? 0,
       latencyMs: 0
     }),
     research: input.research ?? Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
