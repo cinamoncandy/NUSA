@@ -8,7 +8,9 @@ import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
 import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
-import { AutomaticTradingPipeline } from "./pipeline/automaticTradingPipeline";
+import { DefaultPortfolioLedger, type Portfolio } from "../../../packages/core/src/portfolio/portfolio";
+import { DefaultPnLCalculator } from "../../../packages/core/src/pnl/pnl";
+import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/automaticTradingPipeline";
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
@@ -78,6 +80,9 @@ export class PaperRuntime {
   private readonly runtime: RuntimeCommandService;
   private readonly automaticPipeline: AutomaticTradingPipeline;
   private readonly candleFeed: LiveCandleFeed;
+  /** Audit-only parallel reference (E02-T006/T007), never the real account's source of
+   * truth -- see AutomaticTradingPipeline's ReferenceAccounting doc comment. */
+  private referencePortfolio: Portfolio;
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -85,6 +90,10 @@ export class PaperRuntime {
   constructor(options: PaperRuntimeOptions) {
     this.market = options.market ?? "KRW-BTC";
     this.initialCash = options.initialCash ?? INITIAL_CASH_DEFAULT;
+    // Audit-only reference state; reset on every restart rather than persisted, since it
+    // exists to cross-check the real account (which does survive restarts via
+    // DesktopPersistenceStore), not to be a second durable ledger.
+    this.referencePortfolio = { cash: this.initialCash, quantity: 0, averagePrice: 0, realizedPnl: 0 };
     const feeRate = options.feeRate ?? FEE_RATE_DEFAULT;
     this.maximumMarketDataAgeMs = options.maximumMarketDataAgeMs ?? 60_000;
     this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
@@ -144,7 +153,13 @@ export class PaperRuntime {
       // Reuses the exact same feeRate/effective-adverse-rate this app already computes for
       // the dashboard's executionCostBps (FILL_MODEL.slippageBps + spreadBps / 2), not a new
       // invented number, just converted from bps to a [0,1] rate.
-      { feeRate, slippageRate: (FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2) / 10_000 }
+      { feeRate, slippageRate: (FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2) / 10_000 },
+      {
+        ledger: new DefaultPortfolioLedger(),
+        pnlCalculator: new DefaultPnLCalculator(),
+        getPortfolio: () => this.referencePortfolio,
+        setPortfolio: (portfolio) => { this.referencePortfolio = portfolio; }
+      } satisfies ReferenceAccounting
     );
 
     this.paperTradingAvailable = diagnostic === undefined;

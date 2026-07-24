@@ -9,7 +9,9 @@ import {
   DefaultOrderPlanner as ValueOrderPlanner,
   type ExecutionPolicy
 } from "../../../../packages/core/src/order/orderPlanner";
-import { filledExecutionReport, rejectedExecutionReport } from "../../../../packages/core/src/execution/executionReport";
+import { filledExecutionReport, rejectedExecutionReport, type ExecutionReport } from "../../../../packages/core/src/execution/executionReport";
+import type { Portfolio, PortfolioLedger } from "../../../../packages/core/src/portfolio/portfolio";
+import type { PnLCalculator } from "../../../../packages/core/src/pnl/pnl";
 import { OrderPlanner } from "./orderPlanner";
 import { RiskEngine } from "./riskEngine";
 import { PaperExecutor } from "./paperExecutor";
@@ -25,6 +27,19 @@ interface RuntimeSnapshot {
   readonly paper: PaperBrokerState;
   readonly control: ControlPlaneRuntimeState;
   readonly strategyRunning: boolean;
+}
+
+/**
+ * Optional, audit-only parallel bookkeeping via packages/core's Portfolio/PnL modules
+ * (E02-T006/T007). getPortfolio/setPortfolio let the caller (PaperRuntime) own where this
+ * reference state actually lives; this pipeline never reads it back to make a decision --
+ * it only feeds ExecutionReports in and records the resulting Portfolio/PnL for audit.
+ */
+export interface ReferenceAccounting {
+  readonly ledger: PortfolioLedger;
+  readonly pnlCalculator: PnLCalculator;
+  readonly getPortfolio: () => Portfolio;
+  readonly setPortfolio: (portfolio: Portfolio) => void;
 }
 
 /**
@@ -66,6 +81,14 @@ interface RuntimeSnapshot {
  * RejectedExecutionReport built from the thrown error. Audit-only, same as the
  * value-based OrderPlanner's PlannedOrder above: it does not change the FILLED/REJECTED
  * outcome already decided by PaperExecutor's own result.
+ *
+ * If referenceAccounting is supplied, that same ExecutionReport is also folded into a
+ * parallel Portfolio via packages/core/src/portfolio/portfolio.ts's PortfolioLedger
+ * (E02-T006), and the resulting Portfolio/PnL (packages/core/src/pnl/pnl.ts, E02-T007) is
+ * recorded too. This reference Portfolio is a formally testable reimplementation of
+ * PaperBroker's own bookkeeping arithmetic for audit/cross-check purposes -- PaperBroker
+ * (via broker.exportState()/persist()) remains the single source of truth for the real
+ * account; the reference Portfolio is never read back into this pipeline's own decisions.
  */
 export class AutomaticTradingPipeline {
   constructor(
@@ -88,7 +111,11 @@ export class AutomaticTradingPipeline {
      * OrderPlanner and the resulting PlannedOrder is recorded (audit-only, does not affect
      * the actual fill -- see class doc comment). */
     private readonly valueOrderPlanner?: ValueOrderPlanner,
-    private readonly executionPolicy?: ExecutionPolicy
+    private readonly executionPolicy?: ExecutionPolicy,
+    /** Optional (E02-T006/T007): when provided, every ExecutionReport is also folded into
+     * a parallel reference Portfolio/PnL, recorded for audit -- never used to decide the
+     * real outcome, which PaperBroker (via PaperExecutor) already fully determined. */
+    private readonly referenceAccounting?: ReferenceAccounting
   ) {}
 
   process(intent: TradingIntent, market: string, price: number, equity: number): AutomaticTradingResult {
@@ -145,24 +172,36 @@ export class AutomaticTradingPipeline {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);
-        this.control.record("SYSTEM", "execution report", rejectedExecutionReport(message));
+        this.recordExecutionReport(rejectedExecutionReport(message), price);
         this.persistNow();
         return { outcome: "REJECTED", reason: message };
       }
       this.control.record("ORDER", `automatic ${plan.side} filled`, order);
-      this.control.record("SYSTEM", "execution report", filledExecutionReport({
+      this.recordExecutionReport(filledExecutionReport({
         side: order.side,
         quantity: order.quantity,
         price: order.price,
         fee: order.fee,
         symbol: market
-      }));
+      }), price);
       this.persistNow();
       return { outcome: "FILLED", order };
     } catch {
       this.restore(snapshot);
       this.onPersistenceFailure();
       return { outcome: "REJECTED", reason: "persistence failure" };
+    }
+  }
+
+  private recordExecutionReport(report: ExecutionReport, price: number): void {
+    this.control.record("SYSTEM", "execution report", report);
+    if (!this.referenceAccounting) return;
+    const updateResult = this.referenceAccounting.ledger.apply(this.referenceAccounting.getPortfolio(), report);
+    if (updateResult.status !== "UPDATED") return;
+    this.referenceAccounting.setPortfolio(updateResult.portfolio);
+    const pnlResult = this.referenceAccounting.pnlCalculator.calculate(updateResult.portfolio, price);
+    if (pnlResult.status === "CALCULATED") {
+      this.control.record("SYSTEM", "reference portfolio", { portfolio: updateResult.portfolio, pnl: pnlResult.pnl });
     }
   }
 

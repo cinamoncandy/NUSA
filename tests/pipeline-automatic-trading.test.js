@@ -9,6 +9,8 @@ const { FixedOrderPlanner } = require("../dist/apps/server/src/pipeline/orderPla
 const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecutor.js");
 const { DefaultRiskEngine: ValueRiskEngine } = require("../dist/packages/core/src/risk/riskEngine.js");
 const { DefaultOrderPlanner: ValueOrderPlanner } = require("../dist/packages/core/src/order/orderPlanner.js");
+const { DefaultPortfolioLedger } = require("../dist/packages/core/src/portfolio/portfolio.js");
+const { DefaultPnLCalculator } = require("../dist/packages/core/src/pnl/pnl.js");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const intent = (type, timestamp = 1) => ({ type, reason: "test", confidence: 1, timestamp });
@@ -36,7 +38,8 @@ function harness(options = {}) {
     options.valueRiskEngine,
     options.policyFor,
     options.valueOrderPlanner,
-    options.executionPolicy
+    options.executionPolicy,
+    options.referenceAccounting
   );
   return { broker, control, strategy, pipeline, durable, failNext: () => { fail = true; }, failureCalls: () => failureCalls };
 }
@@ -245,4 +248,38 @@ test("a REJECTED trade (broker risk-policy violation) also records a REJECTED Ex
   assert.ok(reportEvent, "expected an execution-report audit event even on rejection");
   assert.equal(reportEvent.data.status, "REJECTED");
   assert.match(reportEvent.data.reason, /max order notional/);
+});
+
+test("when wired (E02-T006/T007), a FILLED trade updates the reference Portfolio and records its PnL", () => {
+  let referencePortfolio = { cash: 10_000_000, quantity: 0, averagePrice: 0, realizedPnl: 0 };
+  const { control, pipeline } = harness({
+    referenceAccounting: {
+      ledger: new DefaultPortfolioLedger(),
+      pnlCalculator: new DefaultPnLCalculator(),
+      getPortfolio: () => referencePortfolio,
+      setPortfolio: (next) => { referencePortfolio = next; }
+    }
+  });
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+
+  assert.ok(referencePortfolio.quantity > 0, "the reference portfolio held outside the pipeline must have been updated");
+  assert.ok(referencePortfolio.cash < 10_000_000);
+
+  const portfolioEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "reference portfolio");
+  assert.ok(portfolioEvent, "expected a reference-portfolio audit event");
+  assert.deepEqual(portfolioEvent.data.portfolio, referencePortfolio);
+  assert.equal(typeof portfolioEvent.data.pnl.totalPnl, "number");
+});
+
+test("without referenceAccounting wired, no reference-portfolio event is recorded and behavior is unchanged", () => {
+  const { control, pipeline } = harness(); // referenceAccounting intentionally omitted
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  const portfolioEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "reference portfolio");
+  assert.equal(portfolioEvent, undefined);
 });
