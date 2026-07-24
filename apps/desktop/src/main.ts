@@ -150,6 +150,11 @@ function handleTicker(ticker: UpbitTicker): void {
   if (!recordLiveMarketRegime(ticker)) return;
   const position = broker.snapshot(ticker.trade_price).position.quantity;
   const signal = strategy.onTick({ market: MARKET, price: ticker.trade_price, timestamp: ticker.trade_timestamp }, position);
+  if (persistenceStore) {
+    try { persistenceStore.saveStrategyPriceHistory(strategy.getHistory()); } catch {
+      // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
+    }
+  }
   runtime.automaticSignal(MARKET, ticker.trade_price, position, signal);
   paperTradingAvailable = runtime.isAvailable();
   publishPaper();
@@ -262,6 +267,15 @@ function initializeRuntime(): void {
   } catch (error) {
     persistenceStore = undefined;
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (persistenceStore) {
+    try {
+      const restoredHistory = persistenceStore.loadStrategyPriceHistory();
+      if (restoredHistory) strategy.restoreHistory(restoredHistory);
+    } catch {
+      // Best-effort continuity only: fall back to warming up from empty history.
+      // Must never affect persistenceDiagnostic or paperTradingAvailable.
+    }
   }
   broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper, FILL_MODEL);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
