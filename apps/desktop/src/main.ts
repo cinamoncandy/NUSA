@@ -31,7 +31,7 @@ const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, max
 // Conservative Paper fill assumptions: adverse slippage against the trader and a cap on
 // how much of a requested quantity fills against one quote. Both bias results pessimistically
 // rather than assuming unrealistic perfect execution. Paper-only; no live order routing.
-const FILL_MODEL = { slippageBps: 5, maxFillRatio: 0.9 };
+const FILL_MODEL = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
