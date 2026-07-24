@@ -39,6 +39,7 @@ button.secondary { background: var(--surface-raised); color: var(--fg); }
 .toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; }
 .toggle input { width: auto; margin: 0; }
 .error { min-height: 1.125rem; margin-top: 0.75rem; color: var(--danger); font-size: 0.85rem; }
+.hint { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.75rem; }
 dl { margin: 0; }
 dl div { display: flex; justify-content: space-between; padding-block: 0.5rem; border-bottom: 1px solid var(--border); }
 dt { color: var(--muted); }

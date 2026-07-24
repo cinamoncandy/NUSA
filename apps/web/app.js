@@ -49,6 +49,44 @@ function renderChart(candles) {
   });
 }
 
+function renderEquityCurve(history) {
+  byId("equity-latest").textContent = history.length ? won.format(history[history.length - 1].equity) : "-";
+
+  const canvas = byId("equity-chart");
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  if (history.length < 2) return;
+
+  const values = history.map((sample) => sample.equity);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const range = high - low || 1;
+  const startingEquity = values[0];
+  const x = (index) => (index / (history.length - 1)) * width;
+  const y = (equity) => height - ((equity - low) / range) * height;
+
+  ctx.strokeStyle = values[values.length - 1] >= startingEquity ? "#33c07f" : "#e0524d";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  history.forEach((sample, index) => {
+    const px = x(index);
+    const py = y(sample.equity);
+    if (index === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.stroke();
+
+  ctx.strokeStyle = "#8a93a1";
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, y(startingEquity));
+  ctx.lineTo(width, y(startingEquity));
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 function renderAccount(account) {
   byId("cash").textContent = won.format(account.cash);
   byId("equity").textContent = won.format(account.equity);
@@ -162,6 +200,8 @@ async function refresh() {
     renderMarket(market);
     const { candles } = await fetchJson("/api/chart/candles");
     renderChart(candles);
+    const { history } = await fetchJson("/api/equity-history");
+    renderEquityCurve(history);
     const control = await fetchJson("/api/control");
     renderControl(control);
     renderEvents(control.events);

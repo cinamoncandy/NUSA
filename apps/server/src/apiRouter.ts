@@ -91,6 +91,10 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       if (method !== "GET") return methodNotAllowed();
       return ok(runtime.getReferenceAccounting());
     }
+    if (pathname === "/api/equity-history") {
+      if (method !== "GET") return methodNotAllowed();
+      return ok({ history: runtime.getEquityHistory() });
+    }
     if (pathname === "/api/orders") {
       if (method !== "POST") return methodNotAllowed();
       const body = asRecord(request.body);

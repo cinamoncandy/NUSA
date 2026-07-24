@@ -20,6 +20,7 @@ function fakeRuntime(overrides = {}) {
       pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
       reconciliation: { consistent: true, discrepancies: [] }
     }),
+    getEquityHistory: () => [{ timestamp: 1, equity: 1 }],
     ...overrides
   };
 }
@@ -37,6 +38,9 @@ test("GET routes dispatch to the matching runtime method", () => {
     pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
     reconciliation: { consistent: true, discrepancies: [] }
   });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/equity-history", body: undefined }, runtime).body, {
+    history: [{ timestamp: 1, equity: 1 }]
+  });
 });
 
 test("GET /api/reference-accounting is 503 while market price is not yet available", () => {
@@ -47,6 +51,11 @@ test("GET /api/reference-accounting is 503 while market price is not yet availab
 test("POST /api/reference-accounting is 405 (read-only endpoint)", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/reference-accounting", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/equity-history is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/equity-history", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

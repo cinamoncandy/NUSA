@@ -17,6 +17,7 @@ import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
 import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
+import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -87,6 +88,7 @@ export class PaperRuntime {
   private referencePortfolio: Portfolio;
   private readonly referencePnlCalculator = new DefaultPnLCalculator();
   private readonly referenceLedger = new DefaultPortfolioLedger();
+  private readonly equityHistory = new EquityHistoryRecorder();
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -199,9 +201,14 @@ export class PaperRuntime {
         // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
       }
     }
-    if (!this.runtime.isAvailable()) return;
+    if (!this.runtime.isAvailable()) {
+      this.equityHistory.record(timestamp, account.equity);
+      return;
+    }
     this.automaticPipeline.process(intent, this.market, price, account.equity);
     this.paperTradingAvailable = this.runtime.isAvailable();
+    // Re-snapshot: a trade may have just fired this tick, so this captures post-trade equity.
+    this.equityHistory.record(timestamp, this.broker.snapshot(price).equity);
   }
 
   private assertFreshPrice(): number {
@@ -223,6 +230,9 @@ export class PaperRuntime {
   }
 
   getChartCandles() { return this.candleFeed.latestCandles(); }
+
+  /** In-memory only (see EquityHistoryRecorder) -- resets on restart, same as referencePortfolio. */
+  getEquityHistory(): readonly EquitySample[] { return this.equityHistory.history(); }
 
   getAccountSnapshot(): PaperAccountSnapshot { return this.broker.snapshot(this.assertFreshPrice()); }
 

@@ -118,6 +118,15 @@ test("a rejected manual order (insufficient position) is also recorded in the re
   });
 });
 
+test("GET /api/equity-history records a sample per candle update, starting near the initial cash", async (t) => {
+  await withServer(t, async (base) => {
+    const { history } = await (await fetch(`${base}/api/equity-history`)).json();
+    assert.ok(history.length >= 1, "expected at least the warm-up poll's sample");
+    assert.equal(history[0].equity, 10_000_000);
+    assert.ok(Number.isFinite(history[0].timestamp));
+  });
+});
+
 test("invalid JSON body returns 400 instead of crashing the server", async (t) => {
   await withServer(t, async (base) => {
     const response = await fetch(`${base}/api/orders`, {
