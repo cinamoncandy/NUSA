@@ -10,10 +10,7 @@ const runtime = new PaperRuntime({ databasePath: DATABASE_PATH });
 const server = createPaperTradingHttpServer(runtime, STATIC_ROOT);
 
 runtime.start();
-server.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Dokkaebi single-user Paper web server listening on http://127.0.0.1:${PORT}`);
-});
+server.listen(PORT);
 
 function shutdown(): void {
   server.close();
