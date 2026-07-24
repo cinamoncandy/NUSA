@@ -79,6 +79,15 @@ function renderAccount(account) {
   }));
 }
 
+function renderReferenceAccounting({ portfolio, pnl }) {
+  byId("ref-cash").textContent = won.format(portfolio.cash);
+  byId("ref-position").textContent = `${number.format(portfolio.quantity)} BTC`;
+  byId("ref-average").textContent = portfolio.averagePrice ? won.format(portfolio.averagePrice) : "-";
+  byId("ref-unrealized").textContent = won.format(pnl.unrealizedPnl);
+  byId("ref-realized").textContent = won.format(pnl.realizedPnl);
+  byId("ref-total").textContent = won.format(pnl.totalPnl);
+}
+
 function renderControl(control) {
   byId("strategy-status").textContent = control.status;
   byId("strategy-id").textContent = control.activeStrategyId;
@@ -131,6 +140,7 @@ async function refresh() {
     try {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));
+      renderReferenceAccounting(await fetchJson("/api/reference-accounting"));
     } catch {
       // Market price not ready yet (e.g. first few seconds after boot) -- account/dashboard
       // need a price to compute equity/exposure; market/control/chart above degrade independently.

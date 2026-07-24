@@ -9,7 +9,7 @@ import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, ty
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
 import { DefaultPortfolioLedger, type Portfolio } from "../../../packages/core/src/portfolio/portfolio";
-import { DefaultPnLCalculator } from "../../../packages/core/src/pnl/pnl";
+import { DefaultPnLCalculator, type PnLSnapshot } from "../../../packages/core/src/pnl/pnl";
 import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/automaticTradingPipeline";
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
@@ -83,6 +83,7 @@ export class PaperRuntime {
   /** Audit-only parallel reference (E02-T006/T007), never the real account's source of
    * truth -- see AutomaticTradingPipeline's ReferenceAccounting doc comment. */
   private referencePortfolio: Portfolio;
+  private readonly referencePnlCalculator = new DefaultPnLCalculator();
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
   private paperTradingAvailable: boolean;
@@ -156,7 +157,7 @@ export class PaperRuntime {
       { feeRate, slippageRate: (FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2) / 10_000 },
       {
         ledger: new DefaultPortfolioLedger(),
-        pnlCalculator: new DefaultPnLCalculator(),
+        pnlCalculator: this.referencePnlCalculator,
         getPortfolio: () => this.referencePortfolio,
         setPortfolio: (portfolio) => { this.referencePortfolio = portfolio; }
       } satisfies ReferenceAccounting
@@ -238,6 +239,18 @@ export class PaperRuntime {
       strategyWarmup: { current: this.strategyEngine.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2
     });
+  }
+
+  /**
+   * The audit-only parallel Portfolio/PnL built via packages/core (E02-T006/T007) --
+   * exposed read-only for cross-checking against /api/account, never consulted by any
+   * trading decision. See AutomaticTradingPipeline's ReferenceAccounting doc comment.
+   */
+  getReferenceAccounting(): { readonly portfolio: Portfolio; readonly pnl: PnLSnapshot } {
+    const price = this.assertFreshPrice();
+    const result = this.referencePnlCalculator.calculate(this.referencePortfolio, price);
+    if (result.status !== "CALCULATED") throw new Error(`reference PnL calculation failed: ${result.code}`);
+    return { portfolio: this.referencePortfolio, pnl: result.pnl };
   }
 
   placeOrder(side: PaperSide, quantity: number): { readonly order: PaperOrder; readonly account: PaperAccountSnapshot } {

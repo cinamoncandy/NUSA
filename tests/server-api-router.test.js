@@ -15,6 +15,7 @@ function fakeRuntime(overrides = {}) {
     setAutoTrade: (enabled) => ({ autoTradeEnabled: enabled }),
     setOrderQuantity: (quantity) => ({ orderQuantity: quantity }),
     selectStrategy: (choice) => ({ activeStrategyId: choice }),
+    getReferenceAccounting: () => ({ portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 }, pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 } }),
     ...overrides
   };
 }
@@ -27,6 +28,20 @@ test("GET routes dispatch to the matching runtime method", () => {
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/control", body: undefined }, runtime).body, { status: "STOPPED" });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/dashboard", body: undefined }, runtime).body, { portfolio: {} });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/chart/candles", body: undefined }, runtime).body, { candles: [{ open: 1 }] });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).body, {
+    portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
+    pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 }
+  });
+});
+
+test("GET /api/reference-accounting is 503 while market price is not yet available", () => {
+  const runtime = fakeRuntime({ getReferenceAccounting: () => { throw new Error("market price is not available yet"); } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).status, 503);
+});
+
+test("POST /api/reference-accounting is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/reference-accounting", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {
