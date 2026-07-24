@@ -21,6 +21,9 @@ function fakeRuntime(overrides = {}) {
       reconciliation: { consistent: true, discrepancies: [] }
     }),
     getEquityHistory: () => [{ timestamp: 1, equity: 1 }],
+    getDrawdownStatistics: () => ({
+      maxDrawdown: 0, maxDrawdownPercent: null, currentDrawdown: 0, currentDrawdownPercent: null, peakEquity: 1
+    }),
     getPositionProtection: () => ({ stopLossPrice: null, takeProfitPrice: null }),
     setPositionProtection: (input) => ({ ...input }),
     getTradeStatistics: () => ({
@@ -45,7 +48,8 @@ test("GET routes dispatch to the matching runtime method", () => {
     reconciliation: { consistent: true, discrepancies: [] }
   });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/equity-history", body: undefined }, runtime).body, {
-    history: [{ timestamp: 1, equity: 1 }]
+    history: [{ timestamp: 1, equity: 1 }],
+    drawdown: { maxDrawdown: 0, maxDrawdownPercent: null, currentDrawdown: 0, currentDrawdownPercent: null, peakEquity: 1 }
   });
   assert.equal(handleApiRequest({ method: "GET", pathname: "/api/trade-statistics", body: undefined }, runtime).body.totalTrades, 0);
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/position-protection", body: undefined }, runtime).body, {

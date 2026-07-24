@@ -49,6 +49,16 @@ function renderChart(candles) {
   });
 }
 
+function renderDrawdown(drawdown) {
+  byId("dd-peak").textContent = drawdown.peakEquity === null ? "-" : won.format(drawdown.peakEquity);
+  byId("dd-current").textContent = drawdown.currentDrawdownPercent === null
+    ? "-"
+    : `${won.format(drawdown.currentDrawdown)} (${percent.format(drawdown.currentDrawdownPercent)})`;
+  byId("dd-max").textContent = drawdown.maxDrawdownPercent === null
+    ? "-"
+    : `${won.format(drawdown.maxDrawdown)} (${percent.format(drawdown.maxDrawdownPercent)})`;
+}
+
 function renderEquityCurve(history) {
   byId("equity-latest").textContent = history.length ? won.format(history[history.length - 1].equity) : "-";
 
@@ -219,8 +229,9 @@ async function refresh() {
     renderMarket(market);
     const { candles } = await fetchJson("/api/chart/candles");
     renderChart(candles);
-    const { history } = await fetchJson("/api/equity-history");
+    const { history, drawdown } = await fetchJson("/api/equity-history");
     renderEquityCurve(history);
+    renderDrawdown(drawdown);
     const control = await fetchJson("/api/control");
     renderControl(control);
     renderEvents(control.events);

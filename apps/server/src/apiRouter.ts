@@ -99,7 +99,7 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
     }
     if (pathname === "/api/equity-history") {
       if (method !== "GET") return methodNotAllowed();
-      return ok({ history: runtime.getEquityHistory() });
+      return ok({ history: runtime.getEquityHistory(), drawdown: runtime.getDrawdownStatistics() });
     }
     if (pathname === "/api/trade-statistics") {
       if (method !== "GET") return methodNotAllowed();

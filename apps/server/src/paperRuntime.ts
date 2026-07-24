@@ -19,6 +19,7 @@ import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
+import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -326,6 +327,8 @@ export class PaperRuntime {
 
   /** In-memory only (see EquityHistoryRecorder) -- resets on restart, same as referencePortfolio. */
   getEquityHistory(): readonly EquitySample[] { return this.equityHistory.history(); }
+
+  getDrawdownStatistics(): DrawdownStatistics { return computeDrawdownStatistics(this.equityHistory.history()); }
 
   getAccountSnapshot(): PaperAccountSnapshot { return this.broker.snapshot(this.assertFreshPrice()); }
 

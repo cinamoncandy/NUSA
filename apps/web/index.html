@@ -25,6 +25,11 @@
     <section class="card chart-card">
       <div class="section-title"><h2>자산 곡선 (평가자산 추이)</h2><span id="equity-latest">-</span></div>
       <canvas id="equity-chart" width="960" height="180"></canvas>
+      <dl class="inline-stats">
+        <div><dt>최고점</dt><dd id="dd-peak">-</dd></div>
+        <div><dt>현재 낙폭</dt><dd id="dd-current">-</dd></div>
+        <div><dt>최대 낙폭 (MDD)</dt><dd id="dd-max">-</dd></div>
+      </dl>
       <p class="hint">서버 재시작 시 초기화됩니다 (메모리 기반, 최근 500개 표본).</p>
     </section>
 

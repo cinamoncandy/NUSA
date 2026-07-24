@@ -128,10 +128,12 @@ test("a rejected manual order (insufficient position) is also recorded in the re
 
 test("GET /api/equity-history records a sample per candle update, starting near the initial cash", async (t) => {
   await withServer(t, async (base) => {
-    const { history } = await (await fetch(`${base}/api/equity-history`)).json();
+    const { history, drawdown } = await (await fetch(`${base}/api/equity-history`)).json();
     assert.ok(history.length >= 1, "expected at least the warm-up poll's sample");
     assert.equal(history[0].equity, 10_000_000);
     assert.ok(Number.isFinite(history[0].timestamp));
+    assert.equal(drawdown.peakEquity, 10_000_000);
+    assert.equal(drawdown.maxDrawdown, 0);
   });
 });
 
@@ -158,6 +160,37 @@ test("GET /api/trade-statistics reflects a real BUY-then-SELL round trip through
     // The real account's cumulative realizedPnl should match the single closed trade's PnL.
     assert.ok(Math.abs(stats.totalRealizedPnl - sell.account.position.realizedPnl) < 1e-6);
   });
+});
+
+test("GET /api/equity-history's drawdown reflects a real equity dip after a manual round trip", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base) => {
+    const buy = await (await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    })).json();
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "SELL", quantity: buy.order.quantity })
+    });
+
+    // Equity is only sampled on a candle tick (PaperRuntime.handleCandleUpdate), not on every
+    // manual order -- wait for at least one more tick to pick up the post-trade equity.
+    await new Promise((resolve) => {
+      const check = async () => {
+        const { history } = await (await fetch(`${base}/api/equity-history`)).json();
+        if (history.length >= 2) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    const { drawdown } = await (await fetch(`${base}/api/equity-history`)).json();
+    assert.ok(drawdown.peakEquity >= 10_000_000);
+    assert.ok(drawdown.currentDrawdown > 0, "fees/spread/slippage should leave equity below the peak");
+    assert.ok(drawdown.maxDrawdown >= drawdown.currentDrawdown);
+  }, { pollIntervalMs: 200 });
 });
 
 test("GET /api/position-protection defaults to unset; POST validates and round-trips", async (t) => {
