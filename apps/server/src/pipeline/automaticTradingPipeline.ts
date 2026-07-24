@@ -9,6 +9,7 @@ import {
   DefaultOrderPlanner as ValueOrderPlanner,
   type ExecutionPolicy
 } from "../../../../packages/core/src/order/orderPlanner";
+import { filledExecutionReport, rejectedExecutionReport } from "../../../../packages/core/src/execution/executionReport";
 import { OrderPlanner } from "./orderPlanner";
 import { RiskEngine } from "./riskEngine";
 import { PaperExecutor } from "./paperExecutor";
@@ -58,6 +59,13 @@ interface RuntimeSnapshot {
  * FAILED PlannerResult (e.g. an edge-case slippageRate driving executionPrice to zero)
  * still rejects the trade, since a plan this pipeline cannot even describe should not be
  * executed.
+ *
+ * Finally, whatever PaperExecutor actually does (fill or throw) is recorded as a formal
+ * ExecutionReport (packages/core/src/execution/executionReport.ts, E02-T005) -- a
+ * FilledExecutionReport built from the real order PaperBroker returned, or a
+ * RejectedExecutionReport built from the thrown error. Audit-only, same as the
+ * value-based OrderPlanner's PlannedOrder above: it does not change the FILLED/REJECTED
+ * outcome already decided by PaperExecutor's own result.
  */
 export class AutomaticTradingPipeline {
   constructor(
@@ -137,10 +145,18 @@ export class AutomaticTradingPipeline {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);
+        this.control.record("SYSTEM", "execution report", rejectedExecutionReport(message));
         this.persistNow();
         return { outcome: "REJECTED", reason: message };
       }
       this.control.record("ORDER", `automatic ${plan.side} filled`, order);
+      this.control.record("SYSTEM", "execution report", filledExecutionReport({
+        side: order.side,
+        quantity: order.quantity,
+        price: order.price,
+        fee: order.fee,
+        symbol: market
+      }));
       this.persistNow();
       return { outcome: "FILLED", order };
     } catch {

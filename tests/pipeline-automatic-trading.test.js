@@ -220,3 +220,29 @@ test("without valueOrderPlanner/executionPolicy wired, behavior is unchanged (op
   assert.equal(result.outcome, "FILLED");
   assert.ok(broker.snapshot(100_000_000).position.quantity > 0);
 });
+
+test("a FILLED trade always records a formal ExecutionReport (E02-T005) as a SYSTEM audit event", () => {
+  const { control, pipeline } = harness();
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "FILLED");
+  const reportEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "execution report");
+  assert.ok(reportEvent, "expected an execution-report audit event");
+  assert.equal(reportEvent.data.status, "FILLED");
+  assert.equal(reportEvent.data.side, "BUY");
+  assert.equal(reportEvent.data.symbol, "KRW-BTC");
+  assert.ok(reportEvent.data.orderValue > 0);
+});
+
+test("a REJECTED trade (broker risk-policy violation) also records a REJECTED ExecutionReport", () => {
+  const { control, pipeline } = harness({ riskPolicy: { maxOrderNotional: 1 } });
+  control.start();
+  control.setAutoTrade(true);
+  const result = pipeline.process(intent("BUY", 5), "KRW-BTC", 100_000_000, 10_000_000);
+  assert.equal(result.outcome, "REJECTED");
+  const reportEvent = control.snapshot().events.find((event) => event.type === "SYSTEM" && event.message === "execution report");
+  assert.ok(reportEvent, "expected an execution-report audit event even on rejection");
+  assert.equal(reportEvent.data.status, "REJECTED");
+  assert.match(reportEvent.data.reason, /max order notional/);
+});
