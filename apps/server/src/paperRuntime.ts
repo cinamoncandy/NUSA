@@ -16,7 +16,7 @@ import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/a
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
-import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
+import { loadStrategyChoice, saveStrategyChoice, loadStrategyPeriods, saveStrategyPeriods } from "./strategyChoiceStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
@@ -39,10 +39,19 @@ const REQUIRED_WARMUP_SAMPLES = 20;
 const CONTROL_PLANE_STRATEGY_ID = "web-runtime";
 
 export type StrategyChoice = "sma-crossover" | "ema-crossover";
+export interface StrategyPeriods {
+  readonly shortPeriod: number;
+  readonly longPeriod: number;
+}
+const DEFAULT_STRATEGY_PERIODS: StrategyPeriods = Object.freeze({ shortPeriod: 5, longPeriod: 20 });
 
-const STRATEGY_FACTORIES: Readonly<Record<StrategyChoice, () => TradingStrategy>> = Object.freeze({
-  "sma-crossover": () => new SmaCrossoverStrategy(5, 20),
-  "ema-crossover": () => new EmaCrossoverStrategy(5, 20)
+// Both SmaCrossoverStrategy/EmaCrossoverStrategy validate (integer, shortPeriod >= 2,
+// longPeriod > shortPeriod) in their own constructors and throw on violation -- reused as-is
+// here rather than duplicating that rule, so an invalid setStrategyPeriods() call fails with
+// the exact same message the strategy classes themselves already define.
+const STRATEGY_FACTORIES: Readonly<Record<StrategyChoice, (periods: StrategyPeriods) => TradingStrategy>> = Object.freeze({
+  "sma-crossover": (periods) => new SmaCrossoverStrategy(periods.shortPeriod, periods.longPeriod),
+  "ema-crossover": (periods) => new EmaCrossoverStrategy(periods.shortPeriod, periods.longPeriod)
 });
 
 export interface PaperRuntimeOptions {
@@ -104,6 +113,7 @@ export class PaperRuntime {
   private riskFraction = 0.1;
   private readonly strategyChoicePath: string;
   private currentStrategyId: StrategyChoice;
+  private strategyPeriods: StrategyPeriods;
   private paperTradingAvailable: boolean;
 
   constructor(options: PaperRuntimeOptions) {
@@ -117,6 +127,7 @@ export class PaperRuntime {
     this.maximumMarketDataAgeMs = options.maximumMarketDataAgeMs ?? 60_000;
     this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
     this.currentStrategyId = loadStrategyChoice(this.strategyChoicePath) ?? "sma-crossover";
+    this.strategyPeriods = loadStrategyPeriods(this.strategyChoicePath) ?? DEFAULT_STRATEGY_PERIODS;
 
     let diagnostic: string | undefined;
     let restored: ReturnType<DesktopPersistenceStore["load"]>;
@@ -129,7 +140,7 @@ export class PaperRuntime {
     }
     this.persistenceStore = store;
 
-    this.strategyEngine = new StrategyEngine(STRATEGY_FACTORIES[this.currentStrategyId]());
+    this.strategyEngine = new StrategyEngine(STRATEGY_FACTORIES[this.currentStrategyId](this.strategyPeriods));
     if (store) {
       try {
         const restoredHistory = store.loadStrategyPriceHistory();
@@ -456,13 +467,32 @@ export class PaperRuntime {
 
   selectStrategy(choice: StrategyChoice): ControlSnapshot {
     if (!(choice in STRATEGY_FACTORIES)) throw new Error(`unknown strategy: ${choice}`);
-    this.strategyEngine.setStrategy(STRATEGY_FACTORIES[choice]());
+    this.strategyEngine.setStrategy(STRATEGY_FACTORIES[choice](this.strategyPeriods));
     this.currentStrategyId = choice;
     try { saveStrategyChoice(this.strategyChoicePath, choice); } catch {
       // Best-effort continuity only: a failed write here only means the next restart falls
       // back to the previously persisted (or default SMA) choice, never an account/control fault.
     }
     return this.control.snapshot();
+  }
+
+  getStrategyPeriods(): StrategyPeriods { return this.strategyPeriods; }
+
+  /**
+   * Applies to whichever strategy (SMA/EMA) is currently selected -- validated by
+   * SmaCrossoverStrategy/EmaCrossoverStrategy's own constructors (thrown on invalid periods,
+   * propagated as-is rather than re-validated here). Swapping periods resets the strategy's
+   * warm-up, same as selectStrategy() switching SMA<->EMA does (StrategyEngine.setStrategy()
+   * clears price history and calls the strategy's own reset()).
+   */
+  setStrategyPeriods(periods: StrategyPeriods): StrategyPeriods {
+    this.strategyEngine.setStrategy(STRATEGY_FACTORIES[this.currentStrategyId](periods));
+    this.strategyPeriods = periods;
+    try { saveStrategyPeriods(this.strategyChoicePath, periods); } catch {
+      // Best-effort continuity only, same convention as selectStrategy()'s own save call.
+    }
+    this.control.record("STATUS", `strategy periods set: short=${periods.shortPeriod} long=${periods.longPeriod}`);
+    return this.getStrategyPeriods();
   }
 
   private runCommand(command: () => void): ControlSnapshot {

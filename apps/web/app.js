@@ -170,6 +170,11 @@ function renderControl(control) {
   byId("strategy-stop").disabled = control.status === "STOPPED";
 }
 
+function renderStrategyPeriods(periods) {
+  byId("strategy-short-period").value = String(periods.shortPeriod);
+  byId("strategy-long-period").value = String(periods.longPeriod);
+}
+
 function renderPositionSizing(sizing) {
   byId("sizing-mode").value = sizing.mode;
   byId("sizing-risk-fraction").value = String(sizing.riskFraction);
@@ -243,6 +248,7 @@ async function refresh() {
     renderEvents(control.events);
     renderPositionProtection(await fetchJson("/api/position-protection"));
     renderPositionSizing(await fetchJson("/api/position-sizing"));
+    renderStrategyPeriods(await fetchJson("/api/strategy/periods"));
     try {
       renderAccount(await fetchJson("/api/account"));
       renderDashboard(await fetchJson("/api/dashboard"));
@@ -283,6 +289,10 @@ const submitPositionSizing = () => submitCommand("/api/position-sizing", {
 }, "control-error");
 byId("sizing-mode").addEventListener("change", submitPositionSizing);
 byId("sizing-risk-fraction").addEventListener("change", submitPositionSizing);
+byId("strategy-periods-set").addEventListener("click", () => submitCommand("/api/strategy/periods", {
+  shortPeriod: Number(byId("strategy-short-period").value),
+  longPeriod: Number(byId("strategy-long-period").value)
+}, "control-error"));
 byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
 

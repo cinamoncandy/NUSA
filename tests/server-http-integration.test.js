@@ -193,6 +193,30 @@ test("GET /api/equity-history's drawdown reflects a real equity dip after a manu
   }, { pollIntervalMs: 200 });
 });
 
+test("GET /api/strategy/periods defaults to (5, 20); POST validates and round-trips", async (t) => {
+  await withServer(t, async (base) => {
+    const initial = await (await fetch(`${base}/api/strategy/periods`)).json();
+    assert.deepEqual(initial, { shortPeriod: 5, longPeriod: 20 });
+
+    const invalid = await fetch(`${base}/api/strategy/periods`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shortPeriod: 20, longPeriod: 5 })
+    });
+    assert.equal(invalid.status, 400, "longPeriod must exceed shortPeriod");
+
+    const set = await (await fetch(`${base}/api/strategy/periods`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shortPeriod: 8, longPeriod: 34 })
+    })).json();
+    assert.deepEqual(set, { shortPeriod: 8, longPeriod: 34 });
+
+    const after = await (await fetch(`${base}/api/strategy/periods`)).json();
+    assert.deepEqual(after, { shortPeriod: 8, longPeriod: 34 });
+  });
+});
+
 test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips to FIXED_FRACTIONAL", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-sizing`)).json();

@@ -160,6 +160,16 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       const body = asRecord(request.body);
       return ok(runtime.selectStrategy(requireStrategyChoice(body.choice)));
     }
+    if (pathname === "/api/strategy/periods") {
+      if (method === "GET") return ok(runtime.getStrategyPeriods());
+      if (method === "POST") {
+        const body = asRecord(request.body);
+        const shortPeriod = requireFiniteNumber(body.shortPeriod, "shortPeriod");
+        const longPeriod = requireFiniteNumber(body.longPeriod, "longPeriod");
+        return ok(runtime.setStrategyPeriods({ shortPeriod, longPeriod }));
+      }
+      return methodNotAllowed();
+    }
     return notFound();
   } catch (error) {
     return errorResponse(error);

@@ -15,6 +15,8 @@ function fakeRuntime(overrides = {}) {
     setAutoTrade: (enabled) => ({ autoTradeEnabled: enabled }),
     setOrderQuantity: (quantity) => ({ orderQuantity: quantity }),
     selectStrategy: (choice) => ({ activeStrategyId: choice }),
+    getStrategyPeriods: () => ({ shortPeriod: 5, longPeriod: 20 }),
+    setStrategyPeriods: (periods) => ({ ...periods }),
     getReferenceAccounting: () => ({
       portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
       pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
@@ -131,6 +133,30 @@ test("GET/POST /api/position-sizing dispatch and validate the mode", () => {
   }, domainRejection).status, 400);
 
   assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-sizing", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/strategy/periods dispatch and validate types", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/strategy/periods", body: undefined }, runtime).body, {
+    shortPeriod: 5, longPeriod: 20
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: 10, longPeriod: 30 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { shortPeriod: 10, longPeriod: 30 });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: "x", longPeriod: 30 }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ setStrategyPeriods: () => { throw new Error("invalid SMA periods"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: 20, longPeriod: 5 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/strategy/periods", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {
