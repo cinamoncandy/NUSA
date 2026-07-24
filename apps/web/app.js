@@ -79,13 +79,18 @@ function renderAccount(account) {
   }));
 }
 
-function renderReferenceAccounting({ portfolio, pnl }) {
+function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
   byId("ref-cash").textContent = won.format(portfolio.cash);
   byId("ref-position").textContent = `${number.format(portfolio.quantity)} BTC`;
   byId("ref-average").textContent = portfolio.averagePrice ? won.format(portfolio.averagePrice) : "-";
   byId("ref-unrealized").textContent = won.format(pnl.unrealizedPnl);
   byId("ref-realized").textContent = won.format(pnl.realizedPnl);
   byId("ref-total").textContent = won.format(pnl.totalPnl);
+
+  const badge = byId("ref-consistency");
+  badge.className = `status ${reconciliation.consistent ? "connected" : "error"}`;
+  badge.textContent = reconciliation.consistent ? "실제 계좌와 일치" : "불일치 감지됨";
+  byId("ref-discrepancies").textContent = reconciliation.consistent ? "" : reconciliation.discrepancies.join(" · ");
 }
 
 function renderControl(control) {

@@ -15,7 +15,11 @@ function fakeRuntime(overrides = {}) {
     setAutoTrade: (enabled) => ({ autoTradeEnabled: enabled }),
     setOrderQuantity: (quantity) => ({ orderQuantity: quantity }),
     selectStrategy: (choice) => ({ activeStrategyId: choice }),
-    getReferenceAccounting: () => ({ portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 }, pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 } }),
+    getReferenceAccounting: () => ({
+      portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
+      pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
+      reconciliation: { consistent: true, discrepancies: [] }
+    }),
     ...overrides
   };
 }
@@ -30,7 +34,8 @@ test("GET routes dispatch to the matching runtime method", () => {
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/chart/candles", body: undefined }, runtime).body, { candles: [{ open: 1 }] });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).body, {
     portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
-    pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 }
+    pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
+    reconciliation: { consistent: true, discrepancies: [] }
   });
 });
 

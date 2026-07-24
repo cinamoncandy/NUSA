@@ -97,6 +97,8 @@ test("GET /api/reference-accounting mirrors a manual order (PaperRuntime folds i
     assert.equal(after.portfolio.quantity, orderResponse.order.quantity);
     assert.equal(after.portfolio.quantity, account.position.quantity, "reference mirrors the real account's position");
     assert.equal(after.portfolio.cash, account.cash, "reference mirrors the real account's cash");
+    assert.equal(after.reconciliation.consistent, true);
+    assert.deepEqual(after.reconciliation.discrepancies, []);
   });
 });
 
@@ -112,6 +114,7 @@ test("a rejected manual order (insufficient position) is also recorded in the re
     const after = await (await fetch(`${base}/api/reference-accounting`)).json();
     assert.equal(after.portfolio.quantity, 0);
     assert.equal(after.portfolio.cash, 10_000_000);
+    assert.equal(after.reconciliation.consistent, true);
   });
 });
 

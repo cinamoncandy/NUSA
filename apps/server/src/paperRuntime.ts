@@ -16,6 +16,7 @@ import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
 import { loadStrategyChoice, saveStrategyChoice } from "./strategyChoiceStore";
+import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -248,11 +249,12 @@ export class PaperRuntime {
    * exposed read-only for cross-checking against /api/account, never consulted by any
    * trading decision. See AutomaticTradingPipeline's ReferenceAccounting doc comment.
    */
-  getReferenceAccounting(): { readonly portfolio: Portfolio; readonly pnl: PnLSnapshot } {
+  getReferenceAccounting(): { readonly portfolio: Portfolio; readonly pnl: PnLSnapshot; readonly reconciliation: ReconciliationResult } {
     const price = this.assertFreshPrice();
     const result = this.referencePnlCalculator.calculate(this.referencePortfolio, price);
     if (result.status !== "CALCULATED") throw new Error(`reference PnL calculation failed: ${result.code}`);
-    return { portfolio: this.referencePortfolio, pnl: result.pnl };
+    const reconciliation = reconcileReferenceAccounting(this.broker.snapshot(price), this.referencePortfolio);
+    return { portfolio: this.referencePortfolio, pnl: result.pnl, reconciliation };
   }
 
   placeOrder(side: PaperSide, quantity: number): { readonly order: PaperOrder; readonly account: PaperAccountSnapshot } {
