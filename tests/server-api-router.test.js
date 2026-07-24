@@ -6,7 +6,7 @@ function fakeRuntime(overrides = {}) {
   return {
     getMarket: () => ({ status: "CONNECTED", price: 100 }),
     getChartCandles: () => [{ open: 1 }],
-    getAccountSnapshot: () => ({ cash: 1 }),
+    getAccountSnapshot: () => ({ cash: 1, orders: [] }),
     getControlSnapshot: () => ({ status: "STOPPED" }),
     getDashboard: () => ({ portfolio: {} }),
     placeOrder: (side, quantity) => ({ order: { side, quantity } }),
@@ -42,7 +42,7 @@ test("GET routes dispatch to the matching runtime method", () => {
   const runtime = fakeRuntime();
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/health", body: undefined }, runtime), { status: 200, body: { status: "ok" } });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/market", body: undefined }, runtime).body, { status: "CONNECTED", price: 100 });
-  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/account", body: undefined }, runtime).body, { cash: 1 });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/account", body: undefined }, runtime).body, { cash: 1, orders: [] });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/control", body: undefined }, runtime).body, { status: "STOPPED" });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/dashboard", body: undefined }, runtime).body, { portfolio: {} });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/chart/candles", body: undefined }, runtime).body, { candles: [{ open: 1 }] });
@@ -157,6 +157,28 @@ test("GET/POST /api/strategy/periods dispatch and validate types", () => {
   }, domainRejection).status, 400);
 
   assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/strategy/periods", body: undefined }, runtime).status, 405);
+});
+
+test("GET /api/export/trades.csv returns CSV content-type and a header-only body when there are no orders", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/trades.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-trades\.csv"/);
+  assert.equal(response.body, "id,market,side,quantity,price,fee,filledAt,requestedQuantity,quotedPrice,spreadCost,slippageCost,marketImpactCost\r\n");
+});
+
+test("GET /api/export/equity-history.csv returns CSV content-type", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/equity-history.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.equal(response.body, "timestamp,isoTime,equity\r\n1,1970-01-01T00:00:00.001Z,1\r\n");
+});
+
+test("POST /api/export/trades.csv is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/trades.csv", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

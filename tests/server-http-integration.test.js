@@ -193,6 +193,32 @@ test("GET /api/equity-history's drawdown reflects a real equity dip after a manu
   }, { pollIntervalMs: 200 });
 });
 
+test("GET /api/export/trades.csv and /api/export/equity-history.csv serve real CSV over the actual server", async (t) => {
+  await withServer(t, async (base) => {
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    });
+
+    const tradesResponse = await fetch(`${base}/api/export/trades.csv`);
+    assert.equal(tradesResponse.status, 200);
+    assert.match(tradesResponse.headers.get("content-type"), /text\/csv/);
+    assert.match(tradesResponse.headers.get("content-disposition"), /attachment; filename="dokkaebi-trades\.csv"/);
+    const tradesBody = await tradesResponse.text();
+    const tradesLines = tradesBody.trim().split("\r\n");
+    assert.equal(tradesLines[0], "id,market,side,quantity,price,fee,filledAt,requestedQuantity,quotedPrice,spreadCost,slippageCost,marketImpactCost");
+    assert.equal(tradesLines.length, 2, "header + the one BUY order");
+    assert.ok(tradesLines[1].includes(",BUY,"));
+
+    const equityResponse = await fetch(`${base}/api/export/equity-history.csv`);
+    assert.equal(equityResponse.status, 200);
+    assert.match(equityResponse.headers.get("content-type"), /text\/csv/);
+    const equityBody = await equityResponse.text();
+    assert.equal(equityBody.trim().split("\r\n")[0], "timestamp,isoTime,equity");
+  });
+});
+
 test("GET /api/strategy/periods defaults to (5, 20); POST validates and round-trips", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/strategy/periods`)).json();

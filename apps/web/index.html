@@ -30,7 +30,7 @@
         <div><dt>현재 낙폭</dt><dd id="dd-current">-</dd></div>
         <div><dt>최대 낙폭 (MDD)</dt><dd id="dd-max">-</dd></div>
       </dl>
-      <p class="hint">서버 재시작 시 초기화됩니다 (메모리 기반, 최근 500개 표본).</p>
+      <p class="hint">서버 재시작 시 초기화됩니다 (메모리 기반, 최근 500개 표본). <a href="/api/export/equity-history.csv" download>CSV 다운로드</a></p>
     </section>
 
     <section class="grid">
@@ -111,7 +111,7 @@
     </section>
 
     <section class="card">
-      <h2>체결 기록</h2>
+      <div class="section-title"><h2>체결 기록</h2><a href="/api/export/trades.csv" download>CSV 다운로드</a></div>
       <table>
         <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead>
         <tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody>

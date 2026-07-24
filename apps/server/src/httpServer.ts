@@ -69,6 +69,14 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
         return;
       }
       const result = handleApiRequest({ method, pathname, body }, runtime);
+      if (result.contentType) {
+        response.writeHead(result.status, {
+          "content-type": result.contentType,
+          "cache-control": "no-store, max-age=0",
+          ...(result.contentDisposition ? { "content-disposition": result.contentDisposition } : {})
+        }).end(String(result.body));
+        return;
+      }
       response.writeHead(result.status, {
         "content-type": "application/json; charset=utf-8",
         "cache-control": "no-store, max-age=0"

@@ -1,4 +1,5 @@
 import type { PaperRuntime, StrategyChoice } from "./paperRuntime";
+import { ordersToCsv, equityHistoryToCsv } from "./csvExport";
 
 export interface ApiRequest {
   readonly method: string;
@@ -9,11 +10,18 @@ export interface ApiRequest {
 export interface ApiResponse {
   readonly status: number;
   readonly body: unknown;
+  /** When set, `body` is a pre-serialized string written to the response as-is (httpServer.ts),
+   * instead of the default JSON.stringify -- used only for CSV export below. */
+  readonly contentType?: string;
+  readonly contentDisposition?: string;
 }
 
 const STRATEGY_CHOICES: readonly StrategyChoice[] = ["sma-crossover", "ema-crossover"];
 
 function ok(body: unknown): ApiResponse { return { status: 200, body }; }
+function csv(body: string, filename: string): ApiResponse {
+  return { status: 200, body, contentType: "text/csv; charset=utf-8", contentDisposition: `attachment; filename="${filename}"` };
+}
 function notFound(): ApiResponse { return { status: 404, body: { error: "NOT_FOUND" } }; }
 function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } }; }
 
@@ -129,6 +137,14 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
         return ok(runtime.setPositionSizing({ mode, riskFraction }));
       }
       return methodNotAllowed();
+    }
+    if (pathname === "/api/export/trades.csv") {
+      if (method !== "GET") return methodNotAllowed();
+      return csv(ordersToCsv(runtime.getAccountSnapshot().orders), "dokkaebi-trades.csv");
+    }
+    if (pathname === "/api/export/equity-history.csv") {
+      if (method !== "GET") return methodNotAllowed();
+      return csv(equityHistoryToCsv(runtime.getEquityHistory()), "dokkaebi-equity-history.csv");
     }
     if (pathname === "/api/orders") {
       if (method !== "POST") return methodNotAllowed();
