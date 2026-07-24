@@ -30,7 +30,7 @@ const REQUIRED_WARMUP_SAMPLES = 20;
 const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000, minOrderNotional: 5_000 };
 // Conservative Paper fill assumptions: adverse slippage against the trader and a cap on
 // how much of a requested quantity fills against one quote. Both bias results pessimistically
-// rather than assuming unrealistic perfect execution. Paper-only; no live order routing.
+// rather than assuming unrealistic perfect execution. Simulated fills only; no real exchange order is placed.
 const FILL_MODEL = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
