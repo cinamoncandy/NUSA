@@ -154,6 +154,10 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       const quantity = requireFiniteNumber(body.quantity, "quantity");
       return ok(runtime.placeOrder(side, quantity));
     }
+    if (pathname === "/api/position/close") {
+      if (method !== "POST") return methodNotAllowed();
+      return ok(runtime.closePosition());
+    }
     if (pathname === "/api/limit-orders") {
       if (method === "GET") return ok({ orders: runtime.getLimitOrders() });
       if (method === "POST") {

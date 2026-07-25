@@ -633,6 +633,47 @@ export class PaperRuntime {
   }
 
   /**
+   * Sells the entire current position at market, in one call -- the same "close everything now"
+   * action checkPositionProtection() already performs automatically on a trigger, exposed here
+   * as an explicit manual command (e.g. an operator's own "전량 매도" button) rather than
+   * requiring them to read the exact position quantity off the account panel and retype it into
+   * the manual order form. Reuses placeOrder() as-is, so it goes through the exact same
+   * validated/audited/reference-ledger path a typed manual sell does; also clears any active
+   * position protection level, matching checkPositionProtection()'s own "nothing left to
+   * protect" cleanup when a position closes some other way.
+   *
+   * A single order can be capped below its full requested quantity by PaperBroker's own fill
+   * model (FILL_MODEL.maxFillRatio: every order fills at most 90% of what it requests, by
+   * design -- see PaperBroker.execute()), so this retries immediately with whatever remains,
+   * bounded rather than unbounded. Because each retry again only fills 90% of the (now
+   * smaller) remainder, this converges toward flat but can never reach mathematically exact
+   * zero -- in practice it is stopped well before that anyway, either by the attempt bound or
+   * by the remainder dropping below the market's minimum order notional (unsellable dust,
+   * same as checkPositionProtection()'s own give-up case). Either way protection is cleared
+   * once the attempts are exhausted: a lingering stop-loss/take-profit on a dust remainder
+   * that can never trade further protects nothing.
+   */
+  closePosition(): { readonly order: PaperOrder; readonly account: PaperAccountSnapshot } {
+    const price = this.assertFreshPrice();
+    const initialQuantity = this.broker.snapshot(price).position.quantity;
+    if (initialQuantity <= 0) throw new Error("no open position to close");
+    let result = this.placeOrder("SELL", initialQuantity);
+    for (let attempt = 0; attempt < 9 && result.account.position.quantity > 0; attempt += 1) {
+      try {
+        result = this.placeOrder("SELL", result.account.position.quantity);
+      } catch {
+        break;
+      }
+    }
+    this.stopLossPrice = null;
+    this.takeProfitPrice = null;
+    this.trailingStopPercent = null;
+    this.trailingPeakPrice = null;
+    this.savePositionProtectionState();
+    return result;
+  }
+
+  /**
    * Folds a manual order's outcome into the same audit-only reference ledger the automatic
    * pipeline feeds (AutomaticTradingPipeline.recordExecutionReport) -- so /api/reference-accounting
    * mirrors the *whole* account (manual + automatic), not just automatic-strategy fills. Never

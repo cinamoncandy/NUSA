@@ -88,6 +88,55 @@ test("POST /api/orders places a real order through the full stack and persists i
   });
 });
 
+test("POST /api/position/close converges the open position toward flat (FILL_MODEL.maxFillRatio bounds a single fill to 90%, so it retries)", async (t) => {
+  await withServer(t, async (base) => {
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.002 })
+    });
+    const opened = await (await fetch(`${base}/api/account`)).json();
+    assert.ok(opened.position.quantity > 0, "position open before close");
+
+    const closeResponse = await fetch(`${base}/api/position/close`, { method: "POST" });
+    assert.equal(closeResponse.status, 200);
+    const closed = await closeResponse.json();
+    assert.equal(closed.order.side, "SELL");
+    // A single order can never fill more than 90% of what it requests (see paperRuntime.ts's
+    // closePosition doc comment), so exact zero is unreachable -- the repeated 90% fills
+    // converge the remainder down to an unsellable dust amount a small fraction of the original.
+    assert.ok(closed.account.position.quantity <= opened.position.quantity * 0.02, "converged to dust");
+  });
+});
+
+test("POST /api/position/close with no open position fails with a clear message", async (t) => {
+  await withServer(t, async (base) => {
+    const response = await fetch(`${base}/api/position/close`, { method: "POST" });
+    assert.equal(response.status, 400);
+    const error = await response.json();
+    assert.match(error.error, /no open position/);
+  });
+});
+
+test("POST /api/position/close always clears any active position protection level, even if a dust remainder is left", async (t) => {
+  await withServer(t, async (base) => {
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.002 })
+    });
+    await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: 1, takeProfitPrice: null, trailingStopPercent: null })
+    });
+    await fetch(`${base}/api/position/close`, { method: "POST" });
+
+    const protection = await (await fetch(`${base}/api/position-protection`)).json();
+    assert.deepEqual(protection, { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null });
+  });
+});
+
 test("GET /api/reference-accounting mirrors a manual order (PaperRuntime folds it in, audit-only)", async (t) => {
   await withServer(t, async (base) => {
     const before = await (await fetch(`${base}/api/reference-accounting`)).json();

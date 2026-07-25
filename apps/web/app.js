@@ -373,6 +373,7 @@ byId("strategy-periods-set").addEventListener("click", () => submitCommand("/api
 }, "control-error"));
 byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
+byId("close-position").addEventListener("click", () => submitCommand("/api/position/close", undefined, "order-error"));
 
 byId("limit-order-submit").addEventListener("click", () => submitCommand("/api/limit-orders", {
   side: byId("limit-order-side").value,

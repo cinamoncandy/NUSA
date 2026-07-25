@@ -10,6 +10,7 @@ function fakeRuntime(overrides = {}) {
     getControlSnapshot: () => ({ status: "STOPPED" }),
     getDashboard: () => ({ portfolio: {} }),
     placeOrder: (side, quantity) => ({ order: { side, quantity } }),
+    closePosition: () => ({ order: { side: "SELL", quantity: 0.5 }, account: { cash: 1, orders: [] } }),
     startStrategy: () => ({ status: "RUNNING" }),
     stopStrategy: () => ({ status: "STOPPED" }),
     setAutoTrade: (enabled) => ({ autoTradeEnabled: enabled }),
@@ -244,6 +245,17 @@ test("POST /api/orders validates side and quantity before calling placeOrder", (
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime).status, 400);
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: "1" } }, runtime).status, 400);
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: null }, runtime).status, 400);
+});
+
+test("POST /api/position/close dispatches to closePosition, GET is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "POST", pathname: "/api/position/close", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { order: { side: "SELL", quantity: 0.5 }, account: { cash: 1, orders: [] } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/position/close", body: undefined }, runtime).status, 405);
+
+  const noPosition = fakeRuntime({ closePosition: () => { throw new Error("no open position to close"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/position/close", body: undefined }, noPosition).status, 400);
 });
 
 test("POST /api/strategy/auto-trade and /api/strategy/quantity validate types", () => {
