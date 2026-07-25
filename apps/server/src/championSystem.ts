@@ -2,7 +2,7 @@ import { PaperBroker, type PaperAccountSnapshot, type PaperFillModel, type Paper
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
-import { EquityHistoryRecorder } from "./equityHistory";
+import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import type { StrategyChoice, StrategyPeriods } from "./paperRuntime";
 
@@ -153,5 +153,16 @@ export class ChampionChallengerSystem {
         };
       })
     };
+  }
+
+  /** Exposes each challenger's own equity time series (see the equityHistory field's own doc
+   * comment) for CSV export -- the champion table only shows current-moment drawdown/stats;
+   * this is the raw series that produced them, for offline analysis after a restart clears it. */
+  getEquityHistories(): readonly { readonly id: string; readonly label: string; readonly history: readonly EquitySample[] }[] {
+    return this.challengers.map(({ config, equityHistory }) => ({
+      id: config.id,
+      label: config.label,
+      history: equityHistory.history()
+    }));
   }
 }

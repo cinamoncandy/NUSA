@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ordersToCsv, equityHistoryToCsv } = require("../dist/apps/server/src/csvExport.js");
+const { ordersToCsv, equityHistoryToCsv, championEquityHistoryToCsv } = require("../dist/apps/server/src/csvExport.js");
 
 function order(overrides = {}) {
   return Object.freeze({
@@ -54,4 +54,28 @@ test("equityHistoryToCsv: header and rows include a human-readable ISO timestamp
 
 test("equityHistoryToCsv: empty history is just the header row", () => {
   assert.equal(equityHistoryToCsv([]), "timestamp,isoTime,equity\r\n");
+});
+
+test("championEquityHistoryToCsv: one equity column per challenger, aligned by shared tick timestamp", () => {
+  const csv = championEquityHistoryToCsv([
+    { id: "a", label: "SMA(5,20)", history: [{ timestamp: 1, equity: 10_000_000 }, { timestamp: 2, equity: 10_100_000 }] },
+    { id: "b", label: "EMA(5,20)", history: [{ timestamp: 1, equity: 9_900_000 }, { timestamp: 2, equity: 9_950_000 }] }
+  ]);
+  const lines = csv.trim().split("\r\n");
+  assert.equal(lines.length, 3, "header + 2 aligned rows");
+  assert.equal(lines[0], 'timestamp,isoTime,"SMA(5,20)","EMA(5,20)"');
+  assert.equal(lines[1], `1,${new Date(1).toISOString()},10000000,9900000`);
+  assert.equal(lines[2], `2,${new Date(2).toISOString()},10100000,9950000`);
+});
+
+test("championEquityHistoryToCsv: no challenger has ticked yet -> header-only", () => {
+  const csv = championEquityHistoryToCsv([
+    { id: "a", label: "SMA(5,20)", history: [] },
+    { id: "b", label: "EMA(5,20)", history: [] }
+  ]);
+  assert.equal(csv, 'timestamp,isoTime,"SMA(5,20)","EMA(5,20)"\r\n');
+});
+
+test("championEquityHistoryToCsv: no challengers at all -> just timestamp/isoTime header", () => {
+  assert.equal(championEquityHistoryToCsv([]), "timestamp,isoTime\r\n");
 });

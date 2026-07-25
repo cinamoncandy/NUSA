@@ -29,3 +29,20 @@ export function equityHistoryToCsv(history: readonly EquitySample[]): string {
   const rows = history.map((sample) => [sample.timestamp, new Date(sample.timestamp).toISOString(), sample.equity]);
   return toCsv(["timestamp", "isoTime", "equity"], rows);
 }
+
+/**
+ * Each challenger records an equity sample on the exact same tick (championSystem.ts's
+ * onCandleUpdate loops over all challengers with one shared timestamp per call), so their
+ * histories are always the same length with aligned timestamps -- safe to zip into one wide
+ * CSV (one equity column per challenger) rather than needing a per-challenger join by nearest
+ * timestamp. Falls back to an empty header-only CSV if no challenger has ticked yet.
+ */
+export function championEquityHistoryToCsv(challengers: readonly { readonly id: string; readonly label: string; readonly history: readonly EquitySample[] }[]): string {
+  const header = ["timestamp", "isoTime", ...challengers.map((c) => c.label)];
+  const sampleCount = challengers[0]?.history.length ?? 0;
+  const rows = Array.from({ length: sampleCount }, (_, i) => {
+    const timestamp = challengers[0]!.history[i]!.timestamp;
+    return [timestamp, new Date(timestamp).toISOString(), ...challengers.map((c) => c.history[i]?.equity ?? "")];
+  });
+  return toCsv(header, rows);
+}

@@ -595,6 +595,12 @@ export class PaperRuntime {
 
   getDrawdownStatistics(): DrawdownStatistics { return computeDrawdownStatistics(this.equityHistory.history()); }
 
+  /** Passthrough to the shadow champion/challenger system's own per-challenger equity series,
+   * for CSV export (see csvExport.ts's championEquityHistoryToCsv). */
+  getChampionEquityHistories(): readonly { readonly id: string; readonly label: string; readonly history: readonly EquitySample[] }[] {
+    return this.championSystem.getEquityHistories();
+  }
+
   getAccountSnapshot(): PaperAccountSnapshot { return this.broker.snapshot(this.assertFreshPrice()); }
 
   /** account.orders is newest-first (PaperBroker.snapshot()); reversed for chronological replay. */

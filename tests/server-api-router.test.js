@@ -42,6 +42,7 @@ function fakeRuntime(overrides = {}) {
     getChampionStandings: () => ({ championId: "sma-5-20", challengers: [] }),
     promoteChallenger: (id) => ({ championId: id, challengers: [] }),
     resetChampionSystem: () => ({ championId: "sma-5-20", challengers: [] }),
+    getChampionEquityHistories: () => [{ id: "sma-5-20", label: "SMA(5,20)", history: [{ timestamp: 1, equity: 1 }] }],
     ...overrides
   };
 }
@@ -230,6 +231,18 @@ test("GET /api/export/equity-history.csv returns CSV content-type", () => {
 test("POST /api/export/trades.csv is 405 (read-only endpoint)", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/trades.csv", body: undefined }, runtime).status, 405);
+});
+
+test("GET /api/export/champion-equity-history.csv returns a wide CSV (one column per challenger); POST is 405", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/champion-equity-history.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-champion-equity-history\.csv"/);
+  // The label "SMA(5,20)" contains a comma, so csvField() quotes that header cell.
+  assert.equal(response.body, "timestamp,isoTime,\"SMA(5,20)\"\r\n1,1970-01-01T00:00:00.001Z,1\r\n");
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/champion-equity-history.csv", body: undefined }, runtime).status, 405);
 });
 
 test("unknown path is 404, known path with wrong method is 405", () => {

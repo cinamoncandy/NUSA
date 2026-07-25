@@ -1,5 +1,5 @@
 import type { PaperRuntime, StrategyChoice } from "./paperRuntime";
-import { ordersToCsv, equityHistoryToCsv } from "./csvExport";
+import { ordersToCsv, equityHistoryToCsv, championEquityHistoryToCsv } from "./csvExport";
 import { translateErrorMessage } from "./errorMessages";
 import { translateEventType, translateLogMessage } from "./logMessages";
 
@@ -160,6 +160,10 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
     if (pathname === "/api/export/equity-history.csv") {
       if (method !== "GET") return methodNotAllowed();
       return csv(equityHistoryToCsv(runtime.getEquityHistory()), "dokkaebi-equity-history.csv");
+    }
+    if (pathname === "/api/export/champion-equity-history.csv") {
+      if (method !== "GET") return methodNotAllowed();
+      return csv(championEquityHistoryToCsv(runtime.getChampionEquityHistories()), "dokkaebi-champion-equity-history.csv");
     }
     if (pathname === "/api/orders") {
       if (method !== "POST") return methodNotAllowed();
