@@ -516,7 +516,11 @@ byId("backtest-run").addEventListener("click", async (event) => {
   loadingRow.append(loadingCell);
   byId("backtest-results").replaceChildren(loadingRow);
   try {
-    const { results } = await fetchJson("/api/backtest", { method: "POST" });
+    const { results } = await fetchJson("/api/backtest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ unit: byId("backtest-unit").value })
+    });
     renderBacktestResults(results);
   } catch (error) {
     errorElement.textContent = error.message;

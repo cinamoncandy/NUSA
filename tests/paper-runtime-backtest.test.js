@@ -29,6 +29,20 @@ function historyOldestToNewest(prices) {
   })).reverse();
 }
 
+// Day candles have no `unit` field (see liveCandleFeed.ts's UpbitCandle vs UpbitMinuteCandle).
+function dayCandle(overrides = {}) {
+  const { unit, ...rest } = fakeCandle(overrides);
+  return rest;
+}
+
+function dayHistoryOldestToNewest(prices) {
+  return prices.map((price, index) => dayCandle({
+    candle_date_time_utc: `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00`,
+    trade_price: price,
+    opening_price: price
+  })).reverse();
+}
+
 test("runBacktestComparison() returns one result per champion preset using real historical candles", async () => {
   const dir = mkdtempSync(join(tmpdir(), "dokkaebi-backtest-"));
   const databasePath = join(dir, "test.db");
@@ -54,6 +68,63 @@ test("runBacktestComparison() returns one result per champion preset using real 
       // fill for the fast SMA(5,20) preset -- this is genuine backtestEngine output, not a
       // fabricated number.
       assert.ok(sma5x20.metrics.fillCount > 0, "expected at least one real fill from the crossover");
+    } finally {
+      runtime.dispose();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runBacktestComparison(\"day\") uses the day-candle fetcher, not the minute-candle one", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-backtest-"));
+  const databasePath = join(dir, "test.db");
+  try {
+    const flat = Array.from({ length: 20 }, () => 100_000_000);
+    const rising = [110_000_000, 115_000_000, 120_000_000, 125_000_000, 130_000_000];
+    const falling = [125_000_000, 120_000_000, 110_000_000, 100_000_000, 90_000_000];
+    const dayCandles = dayHistoryOldestToNewest([...flat, ...rising, ...falling]);
+
+    let minuteFetcherCalled = false;
+    let dayFetcherRequestedCount;
+    const runtime = new PaperRuntime({
+      databasePath,
+      pollIntervalMs: 60_000,
+      candleFetcher: async () => { minuteFetcherCalled = true; return []; },
+      dayCandleFetcher: async (market, count) => { dayFetcherRequestedCount = count; return dayCandles; }
+    });
+    try {
+      const results = await runtime.runBacktestComparison("day");
+      assert.equal(minuteFetcherCalled, false, "day backtest must not touch the minute candle fetcher");
+      assert.equal(dayFetcherRequestedCount, 200);
+      assert.equal(results.length, 3);
+      const sma5x20 = results.find((r) => r.id === "sma-5-20");
+      assert.equal(sma5x20.metrics.initialEquity, 10_000_000);
+      assert.ok(sma5x20.metrics.fillCount > 0, "expected at least one real fill from the crossover");
+    } finally {
+      runtime.dispose();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runBacktestComparison() defaults to the minute-candle fetcher when no unit is given", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-backtest-"));
+  const databasePath = join(dir, "test.db");
+  try {
+    let minuteFetcherCalled = false;
+    let dayFetcherCalled = false;
+    const runtime = new PaperRuntime({
+      databasePath,
+      pollIntervalMs: 60_000,
+      candleFetcher: async () => { minuteFetcherCalled = true; return historyOldestToNewest(Array.from({ length: 20 }, () => 100_000_000)); },
+      dayCandleFetcher: async () => { dayFetcherCalled = true; return []; }
+    });
+    try {
+      await runtime.runBacktestComparison();
+      assert.equal(minuteFetcherCalled, true);
+      assert.equal(dayFetcherCalled, false);
     } finally {
       runtime.dispose();
     }

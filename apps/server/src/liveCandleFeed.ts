@@ -12,7 +12,10 @@
  * real Upbit data at a coarser cadence, not simulated/invented data.
  */
 
-export interface UpbitMinuteCandle {
+/** Fields common to every Upbit public candle endpoint (minutes/days/weeks/months) --
+ * mapUpbitMinuteCandlesToChartCandles() only ever reads these, so day candles (which omit
+ * `unit`) are just as valid an input as minute candles. */
+export interface UpbitCandle {
   readonly market: string;
   readonly candle_date_time_utc: string;
   readonly opening_price: number;
@@ -20,6 +23,9 @@ export interface UpbitMinuteCandle {
   readonly low_price: number;
   readonly trade_price: number;
   readonly candle_acc_trade_volume: number;
+}
+
+export interface UpbitMinuteCandle extends UpbitCandle {
   readonly unit: number;
 }
 
@@ -40,7 +46,7 @@ export interface ChartCandle {
  * network-free, mirroring apps/desktop/src/upbitCandleAdapter.ts's mapping conventions
  * (ascending by openTime; Upbit itself returns most-recent-first).
  */
-export function mapUpbitMinuteCandlesToChartCandles(raw: readonly UpbitMinuteCandle[], unitMinutes: number): readonly ChartCandle[] {
+export function mapUpbitMinuteCandlesToChartCandles(raw: readonly UpbitCandle[], unitMinutes: number): readonly ChartCandle[] {
   if (raw.length === 0) throw new Error("upbit candle response is empty");
   if (!Number.isInteger(unitMinutes) || unitMinutes <= 0) throw new Error("unitMinutes must be a positive integer");
   const closeMs = unitMinutes * 60_000;
@@ -82,6 +88,22 @@ export async function fetchRecentMinuteCandles(market: string, unitMinutes: numb
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
   return body as readonly UpbitMinuteCandle[];
+}
+
+/**
+ * Fetches raw day candles from Upbit's public REST API (/v1/candles/days) -- same per-request
+ * count cap (200) as minute candles, but 200 *days* is a far more meaningful window for a
+ * SMA/EMA crossover strategy than 200 minutes (~3.3 hours). Used only for the on-demand
+ * backtest comparison (paperRuntime.ts's runBacktestComparison), as an alternative timeframe
+ * to the default 1-minute candles -- never for live polling/charting, which stays minute-based.
+ */
+export async function fetchRecentDayCandles(market: string, count: number): Promise<readonly UpbitCandle[]> {
+  const url = `https://api.upbit.com/v1/candles/days?market=${encodeURIComponent(market)}&count=${count}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
+  const body = await response.json();
+  if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
+  return body as readonly UpbitCandle[];
 }
 
 export type LiveCandleFeedStatus = "CONNECTING" | "CONNECTED" | "ERROR";

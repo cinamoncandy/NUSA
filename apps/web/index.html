@@ -185,7 +185,12 @@
 
       <section class="card">
         <div class="section-title"><h2>백테스트 (최근 200개 캔들 기준)</h2></div>
-        <p class="hint">Upbit 실제 과거 1분봉 최대 200개(약 3시간)로 각 전략을 즉시 재현합니다. 실시간 챔피언 비교와 달리 결과를 기다릴 필요가 없지만, 짧은 기간의 결과이므로 참고용입니다.</p>
+        <p class="hint">Upbit 실제 과거 데이터 최대 200개로 각 전략을 즉시 재현합니다. 실시간 챔피언 비교와 달리 결과를 기다릴 필요가 없지만, 선택한 기간의 결과이므로 참고용입니다.</p>
+        <label for="backtest-unit">기간</label>
+        <select id="backtest-unit">
+          <option value="minute">1분봉 (최근 약 3시간)</option>
+          <option value="day">일봉 (최근 최대 200일)</option>
+        </select>
         <div class="actions">
           <button id="backtest-run" type="button">백테스트 실행</button>
         </div>

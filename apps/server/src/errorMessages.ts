@@ -35,6 +35,7 @@ const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   "NOT_FOUND": "요청한 경로를 찾을 수 없습니다",
   "METHOD_NOT_ALLOWED": "허용되지 않는 요청 방식입니다",
   "side must be \"BUY\" or \"SELL\"": "구분(side)은 \"BUY\" 또는 \"SELL\"이어야 합니다",
+  "unit must be \"minute\" or \"day\"": "기간(unit)은 \"minute\" 또는 \"day\"여야 합니다",
   "mode must be \"FIXED\" or \"FIXED_FRACTIONAL\"": "사이징 방식(mode)은 \"FIXED\" 또는 \"FIXED_FRACTIONAL\"이어야 합니다",
   "id must be a non-empty string": "id는 비어 있지 않은 문자열이어야 합니다",
 

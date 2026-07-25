@@ -5,7 +5,7 @@ import { buildPaperDashboardSections } from "../../desktop/src/paperDashboardPro
 import { RuntimeCommandService, type RuntimePersistence } from "../../desktop/src/runtimeCommandService";
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
-import { fetchRecentMinuteCandles, LiveCandleFeed, mapUpbitMinuteCandlesToChartCandles, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { fetchRecentDayCandles, fetchRecentMinuteCandles, LiveCandleFeed, mapUpbitMinuteCandlesToChartCandles, type LiveCandleFeedHealth, type UpbitCandle, type UpbitMinuteCandle } from "./liveCandleFeed";
 import { runBacktest, type BacktestMetrics } from "../../desktop/src/backtestEngine";
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
@@ -29,6 +29,8 @@ import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, createChallengerStrategy, strategyLabel, type ChampionStandings, type ChallengerStanding } from "./championSystem";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
+type DayCandleFetcher = (market: string, count: number) => Promise<readonly UpbitCandle[]>;
+export type BacktestUnit = "minute" | "day";
 
 export interface LimitOrder {
   readonly id: string;
@@ -80,6 +82,8 @@ export interface PaperRuntimeOptions {
   readonly maximumMarketDataAgeMs?: number;
   /** Test injection point: overrides the real Upbit network fetch (default: fetchRecentMinuteCandles). */
   readonly candleFetcher?: CandleFetcher;
+  /** Test injection point for the day-candle backtest timeframe (default: fetchRecentDayCandles). */
+  readonly dayCandleFetcher?: DayCandleFetcher;
   /** Where the selected strategy (SMA/EMA) is persisted across restarts. Defaults to `${databasePath}.strategy-choice.json`. */
   readonly strategyChoicePath?: string;
 }
@@ -103,6 +107,7 @@ export class PaperRuntime {
   private readonly initialCash: number;
   private readonly feeRate: number;
   private readonly candleFetcher: CandleFetcher;
+  private readonly dayCandleFetcher: DayCandleFetcher;
   private readonly maximumMarketDataAgeMs: number;
   private readonly persistenceStore: DesktopPersistenceStore | undefined;
   private readonly broker: PaperBroker;
@@ -158,6 +163,7 @@ export class PaperRuntime {
     const feeRate = options.feeRate ?? FEE_RATE_DEFAULT;
     this.feeRate = feeRate;
     this.candleFetcher = options.candleFetcher ?? fetchRecentMinuteCandles;
+    this.dayCandleFetcher = options.dayCandleFetcher ?? fetchRecentDayCandles;
     this.maximumMarketDataAgeMs = options.maximumMarketDataAgeMs ?? 60_000;
     this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
     this.currentStrategyId = loadStrategyChoice(this.strategyChoicePath) ?? "sma-crossover";
@@ -787,17 +793,25 @@ export class PaperRuntime {
 
   /**
    * On-demand historical comparison, independent of the live shadow ChampionChallengerSystem
-   * (which needs real elapsed time to accumulate trades): fetches up to 200 recent real
-   * 1-minute Upbit candles -- the exchange's own per-request maximum, so this is "recent
-   * history" rather than an arbitrarily deep backtest, no pagination attempted -- and runs
-   * each champion/challenger preset through apps/desktop's existing, already-tested
-   * backtestEngine.runBacktest() as-is. No new backtest/metrics logic invented here; reuses
-   * this runtime's own real feeRate/RISK_POLICY/FILL_MODEL costs for consistency with the
-   * real account's execution assumptions.
+   * (which needs real elapsed time to accumulate trades): fetches up to 200 recent real Upbit
+   * candles -- the exchange's own per-request maximum, so this is "recent history" rather than
+   * an arbitrarily deep backtest, no pagination attempted -- and runs each champion/challenger
+   * preset through apps/desktop's existing, already-tested backtestEngine.runBacktest() as-is.
+   * No new backtest/metrics logic invented here; reuses this runtime's own real
+   * feeRate/RISK_POLICY/FILL_MODEL costs for consistency with the real account's execution
+   * assumptions.
+   *
+   * unit selects the candle timeframe: "minute" (default) covers ~3.3 hours, which is fine for
+   * fast checks but a thin window for a crossover strategy meant to run over days; "day" covers
+   * up to ~200 days (Upbit's own per-request cap applies to day candles too), a far more
+   * meaningful backtest horizon for the same SMA/EMA presets.
    */
-  async runBacktestComparison(): Promise<readonly { readonly id: string; readonly label: string; readonly metrics: BacktestMetrics }[]> {
-    const raw = await this.candleFetcher(this.market, 1, 200);
-    const candles = mapUpbitMinuteCandlesToChartCandles(raw, 1);
+  async runBacktestComparison(unit: BacktestUnit = "minute"): Promise<readonly { readonly id: string; readonly label: string; readonly metrics: BacktestMetrics }[]> {
+    const unitMinutes = unit === "day" ? 1440 : 1;
+    const raw: readonly UpbitCandle[] = unit === "day"
+      ? await this.dayCandleFetcher(this.market, 200)
+      : await this.candleFetcher(this.market, 1, 200);
+    const candles = mapUpbitMinuteCandlesToChartCandles(raw, unitMinutes);
     const points = candles.map((candle) => ({ timestamp: candle.openTime, close: candle.close }));
     const backtestConfig = {
       market: this.market,

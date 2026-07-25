@@ -79,8 +79,11 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
       if (pathname === "/api/backtest") {
         if (method !== "POST") { result = methodNotAllowed(); }
         else {
-          try { result = ok({ results: await runtime.runBacktestComparison() }); }
-          catch (error) { result = errorResponse(error); }
+          try {
+            const unit = body != null && typeof body === "object" ? (body as Record<string, unknown>).unit : undefined;
+            if (unit !== undefined && unit !== "minute" && unit !== "day") throw new Error("unit must be \"minute\" or \"day\"");
+            result = ok({ results: await runtime.runBacktestComparison(unit as "minute" | "day" | undefined) });
+          } catch (error) { result = errorResponse(error); }
         }
       } else {
         result = handleApiRequest({ method, pathname, body }, runtime);

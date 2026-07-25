@@ -499,6 +499,19 @@ test("POST /api/backtest adds a 4th result for a custom (non-preset) strategy co
   });
 });
 
+test("POST /api/backtest rejects an invalid unit with a Korean 400 (no network fetch attempted)", async (t) => {
+  await withServer(t, async (base) => {
+    const response = await fetch(`${base}/api/backtest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ unit: "hour" })
+    });
+    assert.equal(response.status, 400);
+    const error = await response.json();
+    assert.equal(error.error, "기간(unit)은 \"minute\" 또는 \"day\"여야 합니다");
+  });
+});
+
 test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips to FIXED_FRACTIONAL", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-sizing`)).json();
