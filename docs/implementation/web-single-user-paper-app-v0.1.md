@@ -160,7 +160,7 @@ and its reasoning, not a changelog.
   `tests/live-candle-feed.test.js`, `tests/server-api-router.test.js`,
   `tests/server-http-integration.test.js` (44/44 passing together with the
   pre-existing `desktop`/`paper-broker`/`runtime-command-service` suites).
-- Current (v0.2, whole repo): 1188/1188 passing (`tests/*.test.js`, minus 3
+- Current (v0.2, whole repo): 1191/1191 passing (`tests/*.test.js`, minus 3
   pre-existing files excluded for unrelated sandbox-environment constraints
   -- `evidence-cli-contract`, `reliability-recovery`, `upbit-websocket` --
   confirmed unrelated to this work). Verified via this sandbox's manual

@@ -30,4 +30,4 @@ provide -- see `docs/NEXT_TASK.md`'s existing "real Windows GUI measurements" it
 
 **Paper 주문 중복 방지**: 50회 동일 signal(같은 market/timestamp/type) 재시도 결과 FILLED=1, DUPLICATE=49, REJECTED=0, SKIPPED=0 -- `ControlPlane.claimAutomaticSignal`의 idempotency key로 구조적으로 보장됨 (`tests/pipeline-automatic-trading.test.js`에도 동일 보장 커버).
 
-**테스트 성공률**: 별도로 `node scripts/run-tests-isolated.js` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1184/1184 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
+**테스트 성공률**: 별도로 `node scripts/run-tests-isolated.js` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1191/1191 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
