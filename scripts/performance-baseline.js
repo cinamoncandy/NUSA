@@ -31,6 +31,7 @@ const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecuto
 const { computeTradeStatistics } = require("../dist/apps/server/src/tradeStatistics.js");
 const { computeDrawdownStatistics } = require("../dist/apps/server/src/drawdown.js");
 const { reconcileReferenceAccounting } = require("../dist/apps/server/src/referenceReconciliation.js");
+const { ChampionChallengerSystem } = require("../dist/apps/server/src/championSystem.js");
 
 function percentile(sorted, p) {
   const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
@@ -216,6 +217,39 @@ function benchmarkReconciliation(iterations) {
   return summarize(samples);
 }
 
+/** ChampionChallengerSystem.onCandleUpdate() now runs unconditionally on *every* real candle
+ * tick (paperRuntime.ts's handleCandleUpdate), independent of the real account's own
+ * availability -- 3 shadow StrategyEngine.onTick() calls plus up to 3 PaperBroker.execute()
+ * calls per tick. Benchmarked with an oscillating price series so crossovers (and therefore
+ * real shadow fills, not just HOLD) actually occur across the run, not a worst-case-only HOLD path. */
+function benchmarkChampionCandleUpdate(iterations) {
+  const riskPolicy = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000, minOrderNotional: 5_000 };
+  const fillModel = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
+  const system = new ChampionChallengerSystem("KRW-BTC", 10_000_000, 0.0005, riskPolicy, fillModel);
+  const samples = [];
+  for (let i = 0; i < iterations; i++) {
+    const price = 100_000_000 + Math.sin(i / 20) * 3_000_000;
+    samples.push(timeSync(() => system.onCandleUpdate("KRW-BTC", price, 1_700_000_000_000 + i * 60_000)));
+  }
+  return summarize(samples);
+}
+
+/** PaperRuntime.runBacktestComparison() end-to-end (3 champion presets x up to 200 candles
+ * each, via apps/desktop's real backtestEngine) -- not a hot path (operator-triggered button
+ * click, not called on every tick), but still measured once to confirm it completes in a
+ * reasonable time rather than assuming so. Uses a fake candleFetcher (an oscillating series,
+ * same as above) to isolate the CPU-bound backtest cost from real network latency to Upbit. */
+async function benchmarkBacktestComparison(iterations) {
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-bench-"));
+  const candles = Array.from({ length: 200 }, (_, i) => fakeCandle(100_000_000 + Math.sin(i / 20) * 3_000_000, 200 - i));
+  const runtime = new PaperRuntime({ databasePath: join(dir, "bench.db"), pollIntervalMs: 60_000, candleFetcher: async () => candles });
+  const samples = [];
+  for (let i = 0; i < iterations; i++) samples.push(await timeAsync(() => runtime.runBacktestComparison()));
+  runtime.dispose();
+  rmSync(dir, { recursive: true, force: true });
+  return summarize(samples);
+}
+
 function formatMs(value) { return `${value.toFixed(3)}ms`; }
 
 async function main() {
@@ -230,6 +264,8 @@ async function main() {
   const tradeStatsLarge = benchmarkTradeStatisticsReplay(500, 2000);
   const drawdown = benchmarkDrawdownStatistics(2000);
   const reconciliation = benchmarkReconciliation(2000);
+  const championTick = benchmarkChampionCandleUpdate(2000);
+  const backtest = await benchmarkBacktestComparison(20);
 
   const rows = [
     ["주문 처리 (PaperBroker.execute)", order],
@@ -239,7 +275,9 @@ async function main() {
     ["거래 통계 재계산 (100개 주문 replay)", tradeStatsSmall],
     ["거래 통계 재계산 (2000개 주문 replay)", tradeStatsLarge],
     ["최대 낙폭 계산 (500개 자산 표본)", drawdown],
-    ["참조 회계 정합성 대조", reconciliation]
+    ["참조 회계 정합성 대조", reconciliation],
+    ["챔피언 시스템 캔들 처리 (매 틱마다 실행)", championTick],
+    ["백테스트 비교 실행 (3개 프리셋 x 200개 캔들)", backtest]
   ];
 
   for (const [label, stats] of rows) {
@@ -251,10 +289,12 @@ async function main() {
   const timestamp = new Date().toISOString();
   const report = `# Performance Baseline (${timestamp})
 
-Second pass: extends the first baseline (order/market-data/SQLite/recovery) with the
-recompute-from-scratch-on-every-call endpoints added since (거래 통계, 최대 낙폭, 참조 회계
-정합성 대조) -- specifically to check whether "replay the whole history on every GET" is
-still cheap enough, since none of those were cached or benchmarked when first built.
+Third pass: extends the second baseline (order/market-data/SQLite/recovery/거래 통계/최대 낙폭/
+참조 회계) with the two hot paths added since -- the champion/challenger shadow system
+(championSystem.ts) now runs unconditionally on *every* real candle tick regardless of the
+real account's own availability, and the on-demand historical backtest
+(runBacktestComparison()) runs 3 full backtest replays per button click. Neither was
+benchmarked when first built; this checks whether either is a real bottleneck.
 
 Measured in this sandbox's container (not a real Windows deployment -- absolute numbers are
 not comparable to production hardware, but are a consistent baseline for detecting regressions
@@ -270,7 +310,7 @@ ${rows.map(([label, s]) => `| ${label} | ${s.count} | ${formatMs(s.p50)} | ${for
 
 **Paper 주문 중복 방지**: ${duplicates.attempts}회 동일 signal(같은 market/timestamp/type) 재시도 결과 FILLED=${duplicates.FILLED}, DUPLICATE=${duplicates.DUPLICATE}, REJECTED=${duplicates.REJECTED}, SKIPPED=${duplicates.SKIPPED} -- \`ControlPlane.claimAutomaticSignal\`의 idempotency key로 구조적으로 보장됨 (\`tests/pipeline-automatic-trading.test.js\`에도 동일 보장 커버).
 
-**테스트 성공률**: 별도로 \`node scripts/run-tests-isolated.js\` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1138/1138 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
+**테스트 성공률**: 별도로 \`node scripts/run-tests-isolated.js\` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1184/1184 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
 `;
   writeFileSync(join(__dirname, "..", "docs", "performance-baseline.md"), report, "utf8");
   console.log("\nSaved docs/performance-baseline.md");
