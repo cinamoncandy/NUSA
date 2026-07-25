@@ -1,4 +1,9 @@
-# Performance Baseline (2026-07-24T23:58:30.429Z)
+# Performance Baseline (2026-07-25T00:33:01.101Z)
+
+Second pass: extends the first baseline (order/market-data/SQLite/recovery) with the
+recompute-from-scratch-on-every-call endpoints added since (거래 통계, 최대 낙폭, 참조 회계
+정합성 대조) -- specifically to check whether "replay the whole history on every GET" is
+still cheap enough, since none of those were cached or benchmarked when first built.
 
 Measured in this sandbox's container (not a real Windows deployment -- absolute numbers are
 not comparable to production hardware, but are a consistent baseline for detecting regressions
@@ -10,11 +15,15 @@ provide -- see `docs/NEXT_TASK.md`'s existing "real Windows GUI measurements" it
 
 | 항목 | n | P50 | P95 | P99 | min | max | mean |
 |---|---|---|---|---|---|---|---|
-| 주문 처리 (PaperBroker.execute) | 2000 | 0.003ms | 0.007ms | 0.023ms | 0.003ms | 1.057ms | 0.006ms |
-| 시장 데이터 처리 (candle mapping) | 2000 | 0.072ms | 0.167ms | 0.320ms | 0.066ms | 1.066ms | 0.097ms |
-| SQLite 쓰기 (DesktopPersistenceStore.save) | 500 | 1.230ms | 2.365ms | 2.668ms | 1.013ms | 9.669ms | 1.408ms |
-| Recovery 시간 (재시작 -> 첫 CONNECTED) | 20 | 7.234ms | 8.831ms | 9.696ms | 6.797ms | 9.696ms | 7.529ms |
+| 주문 처리 (PaperBroker.execute) | 2000 | 0.003ms | 0.006ms | 0.024ms | 0.003ms | 0.988ms | 0.005ms |
+| 시장 데이터 처리 (candle mapping) | 2000 | 0.070ms | 0.150ms | 0.293ms | 0.067ms | 1.027ms | 0.086ms |
+| SQLite 쓰기 (DesktopPersistenceStore.save) | 500 | 1.109ms | 1.986ms | 2.437ms | 0.909ms | 3.942ms | 1.257ms |
+| Recovery 시간 (재시작 -> 첫 CONNECTED) | 20 | 7.061ms | 8.318ms | 10.093ms | 6.478ms | 10.093ms | 7.407ms |
+| 거래 통계 재계산 (100개 주문 replay) | 500 | 0.028ms | 0.124ms | 0.246ms | 0.008ms | 0.979ms | 0.048ms |
+| 거래 통계 재계산 (2000개 주문 replay) | 500 | 0.161ms | 0.292ms | 0.431ms | 0.131ms | 1.136ms | 0.189ms |
+| 최대 낙폭 계산 (500개 자산 표본) | 2000 | 0.001ms | 0.020ms | 0.033ms | 0.001ms | 0.288ms | 0.003ms |
+| 참조 회계 정합성 대조 | 2000 | 0.000ms | 0.001ms | 0.001ms | 0.000ms | 0.148ms | 0.001ms |
 
 **Paper 주문 중복 방지**: 50회 동일 signal(같은 market/timestamp/type) 재시도 결과 FILLED=1, DUPLICATE=49, REJECTED=0, SKIPPED=0 -- `ControlPlane.claimAutomaticSignal`의 idempotency key로 구조적으로 보장됨 (`tests/pipeline-automatic-trading.test.js`에도 동일 보장 커버).
 
-**테스트 성공률**: 별도로 `node scripts/run-tests-isolated.js` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1134/1134 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
+**테스트 성공률**: 별도로 `node scripts/run-tests-isolated.js` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1138/1138 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).

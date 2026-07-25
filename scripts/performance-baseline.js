@@ -28,6 +28,9 @@ const { AutomaticTradingPipeline } = require("../dist/apps/server/src/pipeline/a
 const { RiskEngine } = require("../dist/apps/server/src/pipeline/riskEngine.js");
 const { FixedOrderPlanner } = require("../dist/apps/server/src/pipeline/orderPlanner.js");
 const { PaperExecutor } = require("../dist/apps/server/src/pipeline/paperExecutor.js");
+const { computeTradeStatistics } = require("../dist/apps/server/src/tradeStatistics.js");
+const { computeDrawdownStatistics } = require("../dist/apps/server/src/drawdown.js");
+const { reconcileReferenceAccounting } = require("../dist/apps/server/src/referenceReconciliation.js");
 
 function percentile(sorted, p) {
   const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
@@ -170,6 +173,49 @@ function measureDuplicateOrderPrevention(attempts) {
   return { attempts, ...outcomes };
 }
 
+/** GET /api/trade-statistics replays the *entire* fill history on every call (see
+ * tradeStatistics.ts's doc comment) -- benchmarks that replay against a fill history far
+ * larger than any real single-user Paper session would realistically reach, to find out
+ * whether that "recompute from scratch every time" design decision is actually a bottleneck
+ * or still cheap enough not to matter. */
+function benchmarkTradeStatisticsReplay(iterations, orderCount) {
+  const orders = [];
+  for (let i = 0; i < orderCount / 2; i++) {
+    const price = 100_000_000 + (i % 50) * 10_000;
+    orders.push({ id: `b${i}`, market: "KRW-BTC", side: "BUY", quantity: 0.001, price, fee: 50, filledAt: "2026-01-01T00:00:00.000Z", requestedQuantity: 0.001, quotedPrice: price, spreadCost: 5, slippageCost: 5, marketImpactCost: 0 });
+    orders.push({ id: `s${i}`, market: "KRW-BTC", side: "SELL", quantity: 0.001, price: price + 5_000, fee: 50, filledAt: "2026-01-01T00:00:01.000Z", requestedQuantity: 0.001, quotedPrice: price, spreadCost: 5, slippageCost: 5, marketImpactCost: 0 });
+  }
+  const samples = [];
+  for (let i = 0; i < iterations; i++) samples.push(timeSync(() => computeTradeStatistics(orders)));
+  return summarize(samples);
+}
+
+/** GET /api/equity-history's drawdown is recomputed from the full (up to 500-sample) ring
+ * buffer on every call -- benchmarked at the buffer's actual max size. */
+function benchmarkDrawdownStatistics(iterations) {
+  const history = Array.from({ length: 500 }, (_, i) => ({
+    timestamp: 1_700_000_000_000 + i * 10_000,
+    equity: 10_000_000 + Math.sin(i / 10) * 200_000
+  }));
+  const samples = [];
+  for (let i = 0; i < iterations; i++) samples.push(timeSync(() => computeDrawdownStatistics(history)));
+  return summarize(samples);
+}
+
+/** Runs on every ExecutionReport fold (both the automatic pipeline and every manual order) --
+ * comparing the real account against the reference ledger. */
+function benchmarkReconciliation(iterations) {
+  const account = Object.freeze({
+    cash: 9_915_000, equity: 9_999_900, unrealizedPnl: -63,
+    position: Object.freeze({ market: "KRW-BTC", quantity: 0.0009, averagePrice: 94_000_000, realizedPnl: 0 }),
+    orders: Object.freeze([])
+  });
+  const portfolio = Object.freeze({ cash: 9_915_000, quantity: 0.0009, averagePrice: 94_000_000, realizedPnl: 0 });
+  const samples = [];
+  for (let i = 0; i < iterations; i++) samples.push(timeSync(() => reconcileReferenceAccounting(account, portfolio)));
+  return summarize(samples);
+}
+
 function formatMs(value) { return `${value.toFixed(3)}ms`; }
 
 async function main() {
@@ -180,12 +226,20 @@ async function main() {
   const sqliteWrite = benchmarkSqliteWrite(500);
   const recovery = await benchmarkRecoveryTime(20);
   const duplicates = measureDuplicateOrderPrevention(50);
+  const tradeStatsSmall = benchmarkTradeStatisticsReplay(500, 100);
+  const tradeStatsLarge = benchmarkTradeStatisticsReplay(500, 2000);
+  const drawdown = benchmarkDrawdownStatistics(2000);
+  const reconciliation = benchmarkReconciliation(2000);
 
   const rows = [
     ["주문 처리 (PaperBroker.execute)", order],
     ["시장 데이터 처리 (candle mapping)", marketData],
     ["SQLite 쓰기 (DesktopPersistenceStore.save)", sqliteWrite],
-    ["Recovery 시간 (재시작 -> 첫 CONNECTED)", recovery]
+    ["Recovery 시간 (재시작 -> 첫 CONNECTED)", recovery],
+    ["거래 통계 재계산 (100개 주문 replay)", tradeStatsSmall],
+    ["거래 통계 재계산 (2000개 주문 replay)", tradeStatsLarge],
+    ["최대 낙폭 계산 (500개 자산 표본)", drawdown],
+    ["참조 회계 정합성 대조", reconciliation]
   ];
 
   for (const [label, stats] of rows) {
@@ -196,6 +250,11 @@ async function main() {
 
   const timestamp = new Date().toISOString();
   const report = `# Performance Baseline (${timestamp})
+
+Second pass: extends the first baseline (order/market-data/SQLite/recovery) with the
+recompute-from-scratch-on-every-call endpoints added since (거래 통계, 최대 낙폭, 참조 회계
+정합성 대조) -- specifically to check whether "replay the whole history on every GET" is
+still cheap enough, since none of those were cached or benchmarked when first built.
 
 Measured in this sandbox's container (not a real Windows deployment -- absolute numbers are
 not comparable to production hardware, but are a consistent baseline for detecting regressions
@@ -211,7 +270,7 @@ ${rows.map(([label, s]) => `| ${label} | ${s.count} | ${formatMs(s.p50)} | ${for
 
 **Paper 주문 중복 방지**: ${duplicates.attempts}회 동일 signal(같은 market/timestamp/type) 재시도 결과 FILLED=${duplicates.FILLED}, DUPLICATE=${duplicates.DUPLICATE}, REJECTED=${duplicates.REJECTED}, SKIPPED=${duplicates.SKIPPED} -- \`ControlPlane.claimAutomaticSignal\`의 idempotency key로 구조적으로 보장됨 (\`tests/pipeline-automatic-trading.test.js\`에도 동일 보장 커버).
 
-**테스트 성공률**: 별도로 \`node scripts/run-tests-isolated.js\` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1134/1134 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
+**테스트 성공률**: 별도로 \`node scripts/run-tests-isolated.js\` (또는 이 세션의 수동 tsc+node --test 조합)로 확인 -- 이 리포트 작성 시점 1138/1138 통과 (evidence-cli-contract/reliability-recovery/upbit-websocket 3개 파일은 이 샌드박스 환경 제약으로 제외, 무관한 사전 이슈로 확인됨).
 `;
   writeFileSync(join(__dirname, "..", "docs", "performance-baseline.md"), report, "utf8");
   console.log("\nSaved docs/performance-baseline.md");
