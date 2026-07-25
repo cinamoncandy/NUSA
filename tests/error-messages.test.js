@@ -33,3 +33,18 @@ test("id-carrying and choice-carrying messages keep the dynamic part verbatim", 
 test("an unrecognized message still gets a Korean prefix instead of pure English", () => {
   assert.equal(translateErrorMessage("some brand new error text"), "오류: some brand new error text");
 });
+
+test("liveCandleFeed.ts's Upbit-poll-failure messages (surfaced via /api/market's lastError) translate", () => {
+  assert.equal(translateErrorMessage("Upbit request failed: HTTP 500"), "Upbit 요청 실패: HTTP 500");
+  assert.equal(translateErrorMessage("Upbit returned no candles"), "Upbit에서 캔들 데이터를 받지 못했습니다");
+  assert.equal(translateErrorMessage("upbit candle response is empty"), "Upbit 캔들 응답이 비어 있습니다");
+  assert.equal(translateErrorMessage("upbit candle 3 is missing market"), "업비트 캔들 3번에 market 필드가 없습니다");
+  assert.equal(translateErrorMessage("upbit candle 2 trade_price must be positive and finite"), "업비트 캔들 2번의 trade_price 값이 올바르지 않습니다");
+});
+
+test("httpServer.ts's request-parsing and route-level errors translate", () => {
+  assert.equal(translateErrorMessage("request body too large"), "요청 본문이 너무 큽니다");
+  assert.equal(translateErrorMessage("request body must be valid JSON"), "요청 본문이 올바른 JSON 형식이 아닙니다");
+  assert.equal(translateErrorMessage("NOT_FOUND"), "요청한 경로를 찾을 수 없습니다");
+  assert.equal(translateErrorMessage("METHOD_NOT_ALLOWED"), "허용되지 않는 요청 방식입니다");
+});

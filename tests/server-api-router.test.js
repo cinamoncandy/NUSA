@@ -283,6 +283,18 @@ test("thrown domain errors map to 503 when unavailable/stale, 400 otherwise", ()
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, rejectedOrder).status, 400);
 });
 
+test("GET /api/market translates a real lastError (Upbit poll failure) to Korean", () => {
+  const runtime = fakeRuntime({ getMarket: () => ({ status: "CONNECTING", lastError: "Upbit request failed: HTTP 500" }) });
+  const result = handleApiRequest({ method: "GET", pathname: "/api/market", body: undefined }, runtime);
+  assert.deepEqual(result.body, { status: "CONNECTING", lastError: "Upbit 요청 실패: HTTP 500" });
+});
+
+test("404/405 error bodies are Korean, not the raw NOT_FOUND/METHOD_NOT_ALLOWED constants", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/nope", body: undefined }, runtime).body, { error: "요청한 경로를 찾을 수 없습니다" });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/orders", body: undefined }, runtime).body, { error: "허용되지 않는 요청 방식입니다" });
+});
+
 test("thrown error messages reach the client translated to Korean (한국어 사용 고정 -- see errorMessages.ts)", () => {
   const runtime = fakeRuntime();
   const badBody = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime);

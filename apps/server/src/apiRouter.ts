@@ -23,8 +23,8 @@ function ok(body: unknown): ApiResponse { return { status: 200, body }; }
 function csv(body: string, filename: string): ApiResponse {
   return { status: 200, body, contentType: "text/csv; charset=utf-8", contentDisposition: `attachment; filename="${filename}"` };
 }
-function notFound(): ApiResponse { return { status: 404, body: { error: "NOT_FOUND" } }; }
-function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: "METHOD_NOT_ALLOWED" } }; }
+function notFound(): ApiResponse { return { status: 404, body: { error: translateErrorMessage("NOT_FOUND") } }; }
+function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: translateErrorMessage("METHOD_NOT_ALLOWED") } }; }
 
 /** Maps a thrown domain error to an HTTP status: unavailable/stale market or persistence
  * conditions are 503 (retry later), everything else (bad input, risk-policy rejection,
@@ -92,7 +92,10 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
     }
     if (pathname === "/api/market") {
       if (method !== "GET") return methodNotAllowed();
-      return ok(runtime.getMarket());
+      const market = runtime.getMarket();
+      // lastError is a raw English message from a failed Upbit poll (liveCandleFeed.ts) --
+      // translated here so the always-visible header status pill never switches to English.
+      return ok(market.lastError === undefined ? market : { ...market, lastError: translateErrorMessage(market.lastError) });
     }
     if (pathname === "/api/chart/candles") {
       if (method !== "GET") return methodNotAllowed();

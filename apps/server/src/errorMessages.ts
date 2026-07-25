@@ -28,8 +28,12 @@ function fieldKo(name: string): string {
 }
 
 const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-  // apiRouter.ts request validation
+  // apiRouter.ts request validation / httpServer.ts request-parsing errors
   "request body must be a JSON object": "요청 본문은 JSON 객체여야 합니다",
+  "request body too large": "요청 본문이 너무 큽니다",
+  "request body must be valid JSON": "요청 본문이 올바른 JSON 형식이 아닙니다",
+  "NOT_FOUND": "요청한 경로를 찾을 수 없습니다",
+  "METHOD_NOT_ALLOWED": "허용되지 않는 요청 방식입니다",
   "side must be \"BUY\" or \"SELL\"": "구분(side)은 \"BUY\" 또는 \"SELL\"이어야 합니다",
   "mode must be \"FIXED\" or \"FIXED_FRACTIONAL\"": "사이징 방식(mode)은 \"FIXED\" 또는 \"FIXED_FRACTIONAL\"이어야 합니다",
   "id must be a non-empty string": "id는 비어 있지 않은 문자열이어야 합니다",
@@ -69,7 +73,12 @@ const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 
   // apps/desktop/src/runtimeCommandService.ts's PERSISTENCE_REPAIR_MESSAGE constant
   "Paper trading is unavailable. Stop the application, preserve the failed database, restore a verified backup, then restart and review state before manually resuming.":
-    "Paper 거래를 사용할 수 없습니다. 애플리케이션을 중지하고 손상된 데이터베이스를 보존한 뒤, 검증된 백업으로 복원하고 재시작하여 상태를 검토한 후 수동으로 재개하세요."
+    "Paper 거래를 사용할 수 없습니다. 애플리케이션을 중지하고 손상된 데이터베이스를 보존한 뒤, 검증된 백업으로 복원하고 재시작하여 상태를 검토한 후 수동으로 재개하세요.",
+
+  // apps/server/src/liveCandleFeed.ts -- surfaced via /api/market's lastError field when a
+  // poll of Upbit's public candle API fails, shown in the always-visible header status pill
+  "upbit candle response is empty": "Upbit 캔들 응답이 비어 있습니다",
+  "Upbit returned no candles": "Upbit에서 캔들 데이터를 받지 못했습니다"
 });
 
 const PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly translate: (match: RegExpMatchArray) => string }[] = [
@@ -78,7 +87,12 @@ const PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly transla
   { pattern: /^(\w+) must be a boolean$/, translate: (m) => `${fieldKo(m[1]!)}은(는) true/false 값이어야 합니다` },
   { pattern: /^choice must be one of: (.+)$/, translate: (m) => `전략 선택 값은 다음 중 하나여야 합니다: ${m[1]}` },
   { pattern: /^unknown strategy: (.+)$/, translate: (m) => `알 수 없는 전략입니다: ${m[1]}` },
-  { pattern: /^no pending limit order with id (.+)$/, translate: (m) => `ID가 ${m[1]}인 대기 중인 지정가 주문이 없습니다` }
+  { pattern: /^no pending limit order with id (.+)$/, translate: (m) => `ID가 ${m[1]}인 대기 중인 지정가 주문이 없습니다` },
+  { pattern: /^Upbit request failed: HTTP (\d+)$/, translate: (m) => `Upbit 요청 실패: HTTP ${m[1]}` },
+  { pattern: /^upbit candle (\d+) is missing market$/, translate: (m) => `업비트 캔들 ${m[1]}번에 market 필드가 없습니다` },
+  { pattern: /^upbit candle (\d+) has an invalid candle_date_time_utc$/, translate: (m) => `업비트 캔들 ${m[1]}번의 시각(candle_date_time_utc) 값이 올바르지 않습니다` },
+  { pattern: /^upbit candle (\d+) candle_acc_trade_volume must be finite and non-negative$/, translate: (m) => `업비트 캔들 ${m[1]}번의 거래량(candle_acc_trade_volume) 값이 올바르지 않습니다` },
+  { pattern: /^upbit candle (\d+) (\w+) must be positive and finite$/, translate: (m) => `업비트 캔들 ${m[1]}번의 ${m[2]} 값이 올바르지 않습니다` }
 ];
 
 export function translateErrorMessage(message: string): string {

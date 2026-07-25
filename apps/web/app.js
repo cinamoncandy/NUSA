@@ -9,9 +9,18 @@ const textNode = (tag, value, className) => {
 };
 
 async function fetchJson(path, options) {
-  const response = await fetch(path, options);
+  let response;
+  try {
+    response = await fetch(path, options);
+  } catch {
+    // The server itself is unreachable (down, restarting, network drop) -- the browser's own
+    // fetch() throws a raw English message (e.g. "Failed to fetch") in this case, before any
+    // JSON response exists to translate, so it's replaced here rather than in errorMessages.ts
+    // (which only ever sees text the server actually sent).
+    throw new Error("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+  }
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `request failed: ${response.status}`);
+  if (!response.ok) throw new Error(body.error || `요청 실패 (status ${response.status})`);
   return body;
 }
 

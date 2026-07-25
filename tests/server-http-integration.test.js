@@ -531,7 +531,7 @@ test("a trailing stop ratchets up with price and triggers once price falls back 
   }, { pollIntervalMs: 200 });
 });
 
-test("invalid JSON body returns 400 instead of crashing the server", async (t) => {
+test("invalid JSON body returns 400 (Korean message) instead of crashing the server", async (t) => {
   await withServer(t, async (base) => {
     const response = await fetch(`${base}/api/orders`, {
       method: "POST",
@@ -539,6 +539,8 @@ test("invalid JSON body returns 400 instead of crashing the server", async (t) =
       body: "{not json"
     });
     assert.equal(response.status, 400);
+    const error = await response.json();
+    assert.equal(error.error, "요청 본문이 올바른 JSON 형식이 아닙니다");
     const health = await (await fetch(`${base}/api/health`)).json();
     assert.deepEqual(health, { status: "ok" });
   });

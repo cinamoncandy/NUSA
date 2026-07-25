@@ -3,6 +3,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { handleApiRequest } from "./apiRouter";
 import type { PaperRuntime } from "./paperRuntime";
+import { translateErrorMessage } from "./errorMessages";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -65,7 +66,7 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
         body = await readJsonBody(request);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        response.writeHead(400, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: message }));
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: translateErrorMessage(message) }));
         return;
       }
       const result = handleApiRequest({ method, pathname, body }, runtime);
