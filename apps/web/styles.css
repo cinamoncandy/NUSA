@@ -120,9 +120,15 @@ dl div:last-child { border-bottom: 0; }
 dt { color: var(--muted); font-size: 0.9rem; }
 dd { margin: 0; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table:not(.log-table) { min-width: max-content; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { padding: 0.65rem 0.6rem; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
-th { color: var(--muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+th { color: var(--muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+/* log-table's message column deliberately wraps long event text (see overflow-wrap rule
+   below) instead of forcing the whole table wide -- everywhere else, cells are short
+   (numbers/times) and should never wrap mid-value. */
+table:not(.log-table) td { white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
 td { font-family: var(--font-mono); }
 td:first-child { font-family: inherit; }
@@ -156,4 +162,12 @@ tr.event-row-risk { background: color-mix(in srgb, var(--danger) 8%, transparent
 }
 @media (min-width: 47.5625rem) and (max-width: 70rem) {
   .cio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Phone-width screens: two narrow KPI tiles still isn't enough room for a Korean label plus
+   a currency value on one line (found via a real mobile-viewport audit -- labels wrapped
+   character-by-character), so stack to one full-width tile per row here. */
+@media (max-width: 30rem) {
+  .kpi-strip { grid-template-columns: 1fr; }
+  main { width: min(100% - 1.5rem, 68rem); padding-block: 1.25rem; }
+  .card { padding: 1.15rem; }
 }

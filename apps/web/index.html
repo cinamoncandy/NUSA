@@ -132,10 +132,12 @@
           <button id="limit-order-submit">주문 등록</button>
         </div>
         <p id="limit-order-error" class="error"></p>
-        <table>
-          <thead><tr><th>구분</th><th>수량</th><th>지정가</th><th>등록 시각</th><th></th></tr></thead>
-          <tbody id="limit-orders"><tr><td colspan="5">대기 중인 지정가 주문 없음</td></tr></tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>구분</th><th>수량</th><th>지정가</th><th>등록 시각</th><th></th></tr></thead>
+            <tbody id="limit-orders"><tr><td colspan="5">대기 중인 지정가 주문 없음</td></tr></tbody>
+          </table>
+        </div>
         <p class="hint">캔들 틱마다 확인됩니다 (매수: 시장가 &le; 지정가, 매도: 시장가 &ge; 지정가). 체결 실패 시(잔고 부족 등) 자동 취소됩니다.</p>
       </section>
     </div>
@@ -170,10 +172,12 @@
 
       <section class="card">
         <div class="section-title"><h2>체결 기록</h2><a href="/api/export/trades.csv" download>CSV 다운로드</a></div>
-        <table>
-          <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead>
-          <tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead>
+            <tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody>
+          </table>
+        </div>
       </section>
     </div>
 
@@ -193,10 +197,12 @@
 
       <section class="card">
         <h2>이벤트 로그</h2>
-        <table class="log-table">
-          <thead><tr><th>시간</th><th>유형</th><th>메시지</th></tr></thead>
-          <tbody id="events"><tr><td colspan="3">이벤트 없음</td></tr></tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="log-table">
+            <thead><tr><th>시간</th><th>유형</th><th>메시지</th></tr></thead>
+            <tbody id="events"><tr><td colspan="3">이벤트 없음</td></tr></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="card" id="dashboard-card">
