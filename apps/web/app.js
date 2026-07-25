@@ -38,14 +38,20 @@ function renderChart(candles) {
   candles.forEach((candle, index) => {
     const x = index * slot + slot / 2;
     const up = candle.close >= candle.open;
-    ctx.strokeStyle = ctx.fillStyle = up ? "#33c07f" : "#e0524d";
+    ctx.strokeStyle = ctx.fillStyle = up ? "#34d399" : "#f2596b";
     ctx.beginPath();
     ctx.moveTo(x, y(candle.high));
     ctx.lineTo(x, y(candle.low));
     ctx.stroke();
     const top = y(Math.max(candle.open, candle.close));
     const bodyHeight = Math.max(1, Math.abs(y(candle.open) - y(candle.close)));
-    ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight, Math.min(2, bodyWidth / 2));
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
+    }
   });
 }
 
@@ -76,8 +82,27 @@ function renderEquityCurve(history) {
   const startingEquity = values[0];
   const x = (index) => (index / (history.length - 1)) * width;
   const y = (equity) => height - ((equity - low) / range) * height;
+  const up = values[values.length - 1] >= startingEquity;
+  const lineColor = up ? "#34d399" : "#f2596b";
 
-  ctx.strokeStyle = values[values.length - 1] >= startingEquity ? "#33c07f" : "#e0524d";
+  // gradient area fill under the line, fading to transparent at the bottom
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, up ? "rgba(52, 211, 153, 0.28)" : "rgba(242, 89, 107, 0.28)");
+  gradient.addColorStop(1, "rgba(52, 211, 153, 0)");
+  ctx.beginPath();
+  history.forEach((sample, index) => {
+    const px = x(index);
+    const py = y(sample.equity);
+    if (index === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
   history.forEach((sample, index) => {
@@ -88,13 +113,26 @@ function renderEquityCurve(history) {
   });
   ctx.stroke();
 
-  ctx.strokeStyle = "#8a93a1";
+  ctx.strokeStyle = "#8891a0";
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
   ctx.moveTo(0, y(startingEquity));
   ctx.lineTo(width, y(startingEquity));
   ctx.stroke();
   ctx.setLineDash([]);
+}
+
+function renderKpiStrip(account, control, stats) {
+  byId("kpi-equity").textContent = won.format(account.equity);
+
+  const totalPnl = account.unrealizedPnl + account.position.realizedPnl;
+  const pnlEl = byId("kpi-total-pnl");
+  pnlEl.textContent = won.format(totalPnl);
+  pnlEl.className = totalPnl > 0 ? "positive" : totalPnl < 0 ? "negative" : "";
+
+  byId("kpi-position").textContent = `${number.format(account.position.quantity)} BTC`;
+  byId("kpi-win-rate").textContent = stats.winRate === null ? "-" : percent.format(stats.winRate);
+  byId("kpi-status").textContent = `${control.status}${control.autoTradeEnabled ? " · 자동" : ""}`;
 }
 
 function renderAccount(account) {
@@ -253,10 +291,13 @@ async function refresh() {
     renderPositionSizing(await fetchJson("/api/position-sizing"));
     renderStrategyPeriods(await fetchJson("/api/strategy/periods"));
     try {
-      renderAccount(await fetchJson("/api/account"));
+      const account = await fetchJson("/api/account");
+      renderAccount(account);
       renderDashboard(await fetchJson("/api/dashboard"));
       renderReferenceAccounting(await fetchJson("/api/reference-accounting"));
-      renderTradeStatistics(await fetchJson("/api/trade-statistics"));
+      const stats = await fetchJson("/api/trade-statistics");
+      renderTradeStatistics(stats);
+      renderKpiStrip(account, control, stats);
     } catch {
       // Market price not ready yet (e.g. first few seconds after boot) -- account/dashboard
       // need a price to compute equity/exposure; market/control/chart above degrade independently.
