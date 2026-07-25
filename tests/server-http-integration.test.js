@@ -381,6 +381,10 @@ test("GET /api/champion returns 3 fixed challengers; the default active strategy
     for (const challenger of standings.challengers) {
       assert.equal(challenger.account.cash, 10_000_000, `${challenger.id} starts with the full shadow cash`);
       assert.equal(challenger.stats.totalTrades, 0);
+      // withServer's warm-up poll already fed the champion system one tick, so a single flat
+      // equity sample exists: peak equals the untouched initial cash, no decline yet.
+      assert.equal(challenger.drawdown.peakEquity, 10_000_000);
+      assert.equal(challenger.drawdown.maxDrawdownPercent, 0);
     }
   });
 });

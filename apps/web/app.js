@@ -281,6 +281,7 @@ function renderChampionStandings({ challengers }) {
       pnlCell,
       textNode("td", challenger.stats.winRate === null ? "-" : percent.format(challenger.stats.winRate)),
       textNode("td", number.format(challenger.stats.totalTrades)),
+      textNode("td", challenger.drawdown.maxDrawdownPercent === null ? "-" : percent.format(challenger.drawdown.maxDrawdownPercent)),
       actionCell
     );
     return row;

@@ -1,6 +1,8 @@
 import { PaperBroker, type PaperAccountSnapshot, type PaperFillModel, type PaperRiskPolicy } from "../../desktop/src/paperBroker";
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
+import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
+import { EquityHistoryRecorder } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import type { StrategyChoice, StrategyPeriods } from "./paperRuntime";
 
@@ -43,6 +45,10 @@ interface ChallengerRuntime {
   readonly config: ChallengerConfig;
   readonly engine: StrategyEngine;
   readonly broker: PaperBroker;
+  /** Same in-memory, resets-on-restart posture as PaperRuntime's own equityHistory -- lets the
+   * champion table show each challenger's maxDrawdown next to the real account's, instead of
+   * only exposing drawdown for the backtest table (which recomputes it per-run, not live). */
+  readonly equityHistory: EquityHistoryRecorder;
 }
 
 export interface ChallengerStanding {
@@ -55,6 +61,7 @@ export interface ChallengerStanding {
   readonly isChampion: boolean;
   readonly account: PaperAccountSnapshot;
   readonly stats: TradeStatistics;
+  readonly drawdown: DrawdownStatistics;
 }
 
 export interface ChampionStandings {
@@ -91,27 +98,36 @@ export class ChampionChallengerSystem {
       // stopped the *real* strategy (StrategyEngine.onTick only emits real signals while
       // running() -- see strategyEngine.ts).
       engine.start();
-      return { config, engine, broker: new PaperBroker(initialCash, market, feeRate, riskPolicy, undefined, fillModel) };
+      return {
+        config,
+        engine,
+        broker: new PaperBroker(initialCash, market, feeRate, riskPolicy, undefined, fillModel),
+        equityHistory: new EquityHistoryRecorder()
+      };
     });
   }
 
   onCandleUpdate(market: string, price: number, timestamp: number): void {
-    for (const { engine, broker } of this.challengers) {
+    for (const { engine, broker, equityHistory } of this.challengers) {
       const position = broker.snapshot(price).position.quantity;
       const signal = engine.onTick({ market, price, timestamp }, position);
-      if (signal.type === "HOLD") continue;
-      try {
-        if (signal.type === "BUY" && position <= 0) {
-          const quantity = (broker.snapshot(price).cash * SHADOW_RISK_FRACTION) / price;
-          if (quantity > 0) broker.execute("BUY", quantity, price);
-        } else if (signal.type === "SELL" && position > 0) {
-          broker.execute("SELL", position, price);
+      if (signal.type !== "HOLD") {
+        try {
+          if (signal.type === "BUY" && position <= 0) {
+            const quantity = (broker.snapshot(price).cash * SHADOW_RISK_FRACTION) / price;
+            if (quantity > 0) broker.execute("BUY", quantity, price);
+          } else if (signal.type === "SELL" && position > 0) {
+            broker.execute("SELL", position, price);
+          }
+        } catch {
+          // A shadow fill can fail the same real-world ways a live one can (below min notional,
+          // risk-policy limits) -- skipped rather than retried, matching this app's existing
+          // give-up-on-a-single-failed-attempt convention (see checkPositionProtection).
         }
-      } catch {
-        // A shadow fill can fail the same real-world ways a live one can (below min notional,
-        // risk-policy limits) -- skipped rather than retried, matching this app's existing
-        // give-up-on-a-single-failed-attempt convention (see checkPositionProtection).
       }
+      // Recorded every tick (not just on a fill), same as PaperRuntime's own equityHistory --
+      // a flat HOLD period must still show up as a flat line, not a gap.
+      equityHistory.record(timestamp, broker.snapshot(price).equity);
     }
   }
 
@@ -123,7 +139,7 @@ export class ChampionChallengerSystem {
     const championId = championConfig?.id ?? null;
     return {
       championId,
-      challengers: this.challengers.map(({ config, broker }) => {
+      challengers: this.challengers.map(({ config, broker, equityHistory }) => {
         const account = broker.snapshot(price);
         return {
           id: config.id,
@@ -132,7 +148,8 @@ export class ChampionChallengerSystem {
           periods: config.periods,
           isChampion: config.id === championId,
           account,
-          stats: computeTradeStatistics([...account.orders].reverse())
+          stats: computeTradeStatistics([...account.orders].reverse()),
+          drawdown: computeDrawdownStatistics(equityHistory.history())
         };
       })
     };

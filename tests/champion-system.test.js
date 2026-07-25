@@ -24,6 +24,10 @@ test("before any ticks, every challenger starts flat with the full initial cash"
     assert.equal(challenger.account.cash, 10_000_000);
     assert.equal(challenger.account.position.quantity, 0);
     assert.equal(challenger.stats.totalTrades, 0);
+    // No onCandleUpdate has ever run, so no equity sample exists yet -- computeDrawdownStatistics's
+    // documented empty case (see drawdown.ts), not a zero-drawdown baseline.
+    assert.equal(challenger.drawdown.peakEquity, null);
+    assert.equal(challenger.drawdown.maxDrawdownPercent, null);
   }
 });
 
@@ -53,6 +57,10 @@ test("a real BUY-then-SELL price crossover drives an actual shadow trade for the
   const standings = system.getStandings("sma-crossover", { shortPeriod: 5, longPeriod: 20 }, 80_000_000);
   const sma5x20 = standings.challengers.find((c) => c.id === "sma-5-20");
   assert.ok(sma5x20.stats.totalTrades > 0, "expected at least one shadow BUY to have fired");
+  // The BUY fired near the 130,000,000 peak and price fell all the way to 80,000,000 afterward
+  // -- a real peak-to-trough decline every tick's equity sample must capture.
+  assert.ok(sma5x20.drawdown.peakEquity > 0);
+  assert.ok(sma5x20.drawdown.maxDrawdownPercent > 0, "a real price decline after the BUY must show up as a real drawdown");
 });
 
 test("shadow trading never touches a real broker -- two independent systems produce independent state", () => {

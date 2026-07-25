@@ -772,7 +772,10 @@ export class PaperRuntime {
       periods: this.strategyPeriods,
       isChampion: true,
       account,
-      stats: computeTradeStatistics([...account.orders].reverse())
+      stats: computeTradeStatistics([...account.orders].reverse()),
+      // The real account's own drawdown, not a shadow recomputation -- this entry *is* the
+      // real account (see this method's own doc comment above).
+      drawdown: this.getDrawdownStatistics()
     };
     return { championId: "active", challengers: [activeEntry, ...standings.challengers] };
   }
