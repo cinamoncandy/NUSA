@@ -315,5 +315,23 @@ byId("protection-clear").addEventListener("click", () => {
   submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null }, "protection-error");
 });
 
+const TAB_STORAGE_KEY = "dokkaebi-active-tab";
+const TAB_NAMES = ["trading", "performance", "audit"];
+
+function activateTab(tab) {
+  if (!TAB_NAMES.includes(tab)) tab = "trading";
+  document.querySelectorAll(".tab-panel").forEach((panel) => { panel.hidden = panel.dataset.tab !== tab; });
+  document.querySelectorAll(".tab-button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
+  try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch {
+    // Storage can be unavailable (e.g. private browsing); the tab still switches, it just won't persist.
+  }
+}
+document.querySelectorAll(".tab-button").forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.tab)));
+let savedTab = null;
+try { savedTab = localStorage.getItem(TAB_STORAGE_KEY); } catch {
+  // Same as above -- fall through to the "trading" default.
+}
+activateTab(savedTab ?? "trading");
+
 window.addEventListener("beforeunload", () => clearTimeout(refreshTimer));
 refresh();

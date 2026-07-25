@@ -23,6 +23,11 @@ h2 { margin: 0 0 1.25rem; font-size: 1.125rem; }
 .status.connected { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
 .status.error { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 .card { padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.tab-button { min-height: auto; padding: 0.75rem 1.25rem; border-radius: 0.5rem 0.5rem 0 0; background: transparent; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab-button:hover { filter: none; background: var(--surface-raised); color: var(--fg); }
+.tab-button.active { color: var(--primary); border-bottom-color: var(--primary); background: transparent; }
+.tab-panel[hidden] { display: none; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
 .section-title { display: flex; align-items: baseline; justify-content: space-between; }
 .section-title span { color: var(--muted); font-size: 0.85rem; }
