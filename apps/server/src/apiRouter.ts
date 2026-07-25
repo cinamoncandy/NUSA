@@ -154,6 +154,24 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       const quantity = requireFiniteNumber(body.quantity, "quantity");
       return ok(runtime.placeOrder(side, quantity));
     }
+    if (pathname === "/api/limit-orders") {
+      if (method === "GET") return ok({ orders: runtime.getLimitOrders() });
+      if (method === "POST") {
+        const body = asRecord(request.body);
+        const side = requireSide(body.side);
+        const quantity = requireFiniteNumber(body.quantity, "quantity");
+        const limitPrice = requireFiniteNumber(body.limitPrice, "limitPrice");
+        return ok(runtime.createLimitOrder(side, quantity, limitPrice));
+      }
+      return methodNotAllowed();
+    }
+    if (pathname === "/api/limit-orders/cancel") {
+      if (method !== "POST") return methodNotAllowed();
+      const body = asRecord(request.body);
+      if (typeof body.id !== "string" || body.id.length === 0) throw new Error("id must be a non-empty string");
+      runtime.cancelLimitOrder(body.id);
+      return ok({ cancelled: body.id });
+    }
     if (pathname === "/api/strategy/start") {
       if (method !== "POST") return methodNotAllowed();
       return ok(runtime.startStrategy());

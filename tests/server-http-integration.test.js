@@ -219,6 +219,82 @@ test("GET /api/export/trades.csv and /api/export/equity-history.csv serve real C
   });
 });
 
+test("GET/POST /api/limit-orders round-trips and cancellation removes a pending order", async (t) => {
+  await withServer(t, async (base) => {
+    const initial = await (await fetch(`${base}/api/limit-orders`)).json();
+    assert.deepEqual(initial, { orders: [] });
+
+    const invalid = await fetch(`${base}/api/limit-orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: -1, limitPrice: 90_000_000 })
+    });
+    assert.equal(invalid.status, 400);
+
+    // Far below the fixed test market price (100,000,000), so it stays pending.
+    const created = await (await fetch(`${base}/api/limit-orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001, limitPrice: 50_000_000 })
+    })).json();
+    assert.equal(created.side, "BUY");
+    assert.equal(created.limitPrice, 50_000_000);
+    assert.ok(created.id);
+
+    const afterCreate = await (await fetch(`${base}/api/limit-orders`)).json();
+    assert.equal(afterCreate.orders.length, 1);
+
+    const cancelResponse = await fetch(`${base}/api/limit-orders/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: created.id })
+    });
+    assert.equal(cancelResponse.status, 200);
+
+    const afterCancel = await (await fetch(`${base}/api/limit-orders`)).json();
+    assert.deepEqual(afterCancel.orders, []);
+
+    const cancelAgain = await fetch(`${base}/api/limit-orders/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: created.id })
+    });
+    assert.equal(cancelAgain.status, 400, "cancelling an already-cancelled id fails");
+  });
+});
+
+test("a limit order crossed on a real candle tick fills and disappears from pending", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base, runtime, priceBox) => {
+    // The limit price equals the current (fixed) market price, so the very next poll's
+    // "price <= limitPrice" check fires immediately.
+    const created = await (await fetch(`${base}/api/limit-orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001, limitPrice: priceBox.value })
+    })).json();
+
+    await new Promise((resolve) => {
+      const check = async () => {
+        const { orders } = await (await fetch(`${base}/api/limit-orders`)).json();
+        if (!orders.some((order) => order.id === created.id)) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    const [account, control] = await Promise.all([
+      fetch(`${base}/api/account`).then((r) => r.json()),
+      fetch(`${base}/api/control`).then((r) => r.json())
+    ]);
+    assert.equal(account.orders.length, 1);
+    assert.equal(account.orders[0].side, "BUY");
+    assert.ok(
+      control.events.some((event) => event.type === "RISK" && event.message.includes("limit order triggered")),
+      "expected a RISK event recording the fill"
+    );
+  }, { pollIntervalMs: 200 });
+});
+
 test("GET /api/strategy/periods defaults to (5, 20); POST validates and round-trips", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/strategy/periods`)).json();

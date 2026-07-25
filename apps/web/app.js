@@ -165,6 +165,36 @@ function renderAccount(account) {
   }));
 }
 
+function renderLimitOrders(orders) {
+  const tbody = byId("limit-orders");
+  if (!orders.length) {
+    const row = document.createElement("tr");
+    const cell = textNode("td", "대기 중인 지정가 주문 없음");
+    cell.colSpan = 5;
+    row.append(cell);
+    tbody.replaceChildren(row);
+    return;
+  }
+  tbody.replaceChildren(...orders.map((order) => {
+    const row = document.createElement("tr");
+    const cancelCell = document.createElement("td");
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "secondary";
+    cancelButton.textContent = "취소";
+    cancelButton.addEventListener("click", () => submitCommand("/api/limit-orders/cancel", { id: order.id }, "limit-order-error"));
+    cancelCell.append(cancelButton);
+    row.append(
+      textNode("td", order.side, order.side.toLowerCase()),
+      textNode("td", number.format(order.quantity)),
+      textNode("td", won.format(order.limitPrice)),
+      textNode("td", new Date(order.createdAt).toLocaleTimeString("ko-KR")),
+      cancelCell
+    );
+    return row;
+  }));
+}
+
 function renderPositionProtection(protection) {
   byId("protection-stop-loss").textContent = protection.stopLossPrice === null ? "미설정" : won.format(protection.stopLossPrice);
   byId("protection-take-profit").textContent = protection.takeProfitPrice === null ? "미설정" : won.format(protection.takeProfitPrice);
@@ -288,6 +318,8 @@ async function refresh() {
     renderControl(control);
     renderEvents(control.events);
     renderPositionProtection(await fetchJson("/api/position-protection"));
+    const { orders: limitOrders } = await fetchJson("/api/limit-orders");
+    renderLimitOrders(limitOrders);
     renderPositionSizing(await fetchJson("/api/position-sizing"));
     renderStrategyPeriods(await fetchJson("/api/strategy/periods"));
     try {
@@ -339,6 +371,12 @@ byId("strategy-periods-set").addEventListener("click", () => submitCommand("/api
 }, "control-error"));
 byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
 byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
+
+byId("limit-order-submit").addEventListener("click", () => submitCommand("/api/limit-orders", {
+  side: byId("limit-order-side").value,
+  quantity: Number(byId("limit-order-quantity").value),
+  limitPrice: Number(byId("limit-order-price").value)
+}, "limit-order-error"));
 
 const protectionValue = (id) => { const raw = byId(id).value.trim(); return raw === "" ? null : Number(raw); };
 byId("protection-set").addEventListener("click", () => {

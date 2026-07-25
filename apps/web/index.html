@@ -116,6 +116,28 @@
         </div>
         <p id="order-error" class="error"></p>
       </section>
+
+      <section class="card">
+        <h2>지정가 주문</h2>
+        <label for="limit-order-side">구분</label>
+        <select id="limit-order-side">
+          <option value="BUY">매수</option>
+          <option value="SELL">매도</option>
+        </select>
+        <label for="limit-order-quantity">수량</label>
+        <input id="limit-order-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+        <label for="limit-order-price">지정가</label>
+        <input id="limit-order-price" type="number" min="0" step="1" placeholder="예: 90000000" />
+        <div class="actions">
+          <button id="limit-order-submit">주문 등록</button>
+        </div>
+        <p id="limit-order-error" class="error"></p>
+        <table>
+          <thead><tr><th>구분</th><th>수량</th><th>지정가</th><th>등록 시각</th><th></th></tr></thead>
+          <tbody id="limit-orders"><tr><td colspan="5">대기 중인 지정가 주문 없음</td></tr></tbody>
+        </table>
+        <p class="hint">캔들 틱마다 확인됩니다 (매수: 시장가 &le; 지정가, 매도: 시장가 &ge; 지정가). 체결 실패 시(잔고 부족 등) 자동 취소됩니다.</p>
+      </section>
     </div>
 
     <div class="tab-panel" data-tab="performance">

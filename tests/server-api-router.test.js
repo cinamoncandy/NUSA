@@ -27,6 +27,9 @@ function fakeRuntime(overrides = {}) {
       maxDrawdown: 0, maxDrawdownPercent: null, currentDrawdown: 0, currentDrawdownPercent: null, peakEquity: 1
     }),
     getPositionProtection: () => ({ stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null }),
+    getLimitOrders: () => [],
+    createLimitOrder: (side, quantity, limitPrice) => ({ id: "1-1", side, quantity, limitPrice, createdAt: "2026-01-01T00:00:00.000Z" }),
+    cancelLimitOrder: () => {},
     setPositionProtection: (input) => ({ ...input }),
     getPositionSizing: () => ({ mode: "FIXED", riskFraction: 0.1 }),
     setPositionSizing: (input) => ({ mode: input.mode, riskFraction: input.riskFraction ?? 0.1 }),
@@ -109,6 +112,46 @@ test("POST /api/position-protection validates stopLossPrice/takeProfitPrice/trai
 test("DELETE /api/position-protection is 405", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-protection", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/limit-orders dispatch and validate", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/limit-orders", body: undefined }, runtime).body, { orders: [] });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: 0.001, limitPrice: 90_000_000 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { id: "1-1", side: "BUY", quantity: 0.001, limitPrice: 90_000_000, createdAt: "2026-01-01T00:00:00.000Z" });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "HOLD", quantity: 0.001, limitPrice: 90_000_000 }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: "x", limitPrice: 90_000_000 }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ createLimitOrder: () => { throw new Error("quantity must be a positive number"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: -1, limitPrice: 90_000_000 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/limit-orders", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/limit-orders/cancel validates id and dispatches", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "1-1" } }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { cancelled: "1-1" });
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "" } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: {} }, runtime).status, 400);
+
+  const notFound = fakeRuntime({ cancelLimitOrder: () => { throw new Error("no pending limit order with id nope"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "nope" } }, notFound).status, 400);
+
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/limit-orders/cancel", body: undefined }, runtime).status, 405);
 });
 
 test("GET/POST /api/position-sizing dispatch and validate the mode", () => {

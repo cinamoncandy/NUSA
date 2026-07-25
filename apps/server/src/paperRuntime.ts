@@ -24,6 +24,14 @@ import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
+export interface LimitOrder {
+  readonly id: string;
+  readonly side: PaperSide;
+  readonly quantity: number;
+  readonly limitPrice: number;
+  readonly createdAt: string;
+}
+
 const INITIAL_CASH_DEFAULT = 10_000_000;
 const FEE_RATE_DEFAULT = 0.0005;
 // Same conservative defaults as apps/desktop/src/main.ts's RISK_POLICY/FILL_MODEL: minOrderNotional
@@ -111,6 +119,10 @@ export class PaperRuntime {
    * after being enabled. */
   private trailingStopPercent: number | null = null;
   private trailingPeakPrice: number | null = null;
+  /** In-memory only (reset on restart), same posture as position protection above -- pending
+   * limit orders, checked and filled on candle ticks in checkLimitOrders(). */
+  private readonly limitOrders: LimitOrder[] = [];
+  private limitOrderSequence = 0;
   /** In-memory only, same as the fields above. FIXED_FRACTIONAL sizes each automatic trade to
    * riskFraction * equity / price (packages/core's DefaultPositionSizer, E02-T004) instead of
    * ControlPlane's static order quantity -- see the policyFor closure passed into
@@ -229,7 +241,10 @@ export class PaperRuntime {
    */
   private handleCandleUpdate(price: number): void {
     const timestamp = Date.now();
-    if (this.runtime.isAvailable()) this.checkPositionProtection(price);
+    if (this.runtime.isAvailable()) {
+      this.checkPositionProtection(price);
+      this.checkLimitOrders(price);
+    }
     const account = this.broker.snapshot(price);
     const intent = this.strategyEngine.onTick({ market: this.market, price, timestamp }, account.position.quantity);
     if (this.persistenceStore) {
@@ -320,6 +335,70 @@ export class PaperRuntime {
     } finally {
       this.paperTradingAvailable = this.runtime.isAvailable();
     }
+  }
+
+  /**
+   * Fills a pending limit order at the current market price once its condition is met (BUY:
+   * price <= limitPrice; SELL: price >= limitPrice) -- same simplification stop-loss/take-profit
+   * already use (this app models no real order book, so "the price crossed the level" is the
+   * fill signal, not a simulated matching engine). Reuses RuntimeCommandService.manualOrder()
+   * for the same reason position protection does: it's the exact tested snapshot/rollback/
+   * persistence path a real manual order takes. Checked on every candle tick, independent of
+   * the "Paper 자동매매" toggle -- a limit order is the user's own explicit standing instruction,
+   * not a strategy signal.
+   */
+  private checkLimitOrders(price: number): void {
+    if (this.limitOrders.length === 0) return;
+    for (const order of [...this.limitOrders]) {
+      const triggered = order.side === "BUY" ? price <= order.limitPrice : price >= order.limitPrice;
+      if (!triggered) continue;
+      try {
+        const filled = this.runtime.manualOrder(order.side, order.quantity, price);
+        this.control.record("RISK", `limit order triggered at ${price}: ${order.side} ${filled.quantity} (limit ${order.limitPrice})`, filled);
+        this.recordReferenceExecution(filledExecutionReport({
+          side: filled.side,
+          quantity: filled.quantity,
+          price: filled.price,
+          fee: filled.fee,
+          symbol: this.market
+        }), price);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // Same give-up-rather-than-retry-forever posture as position protection: a limit order
+        // that fails once (e.g. insufficient cash/position) will very likely keep failing, so
+        // silently retrying every future tick would just repeat it.
+        this.control.record("RISK", `limit order failed, cancelled: ${message}`, order);
+      } finally {
+        this.paperTradingAvailable = this.runtime.isAvailable();
+      }
+      const index = this.limitOrders.findIndex((pending) => pending.id === order.id);
+      if (index >= 0) this.limitOrders.splice(index, 1);
+    }
+  }
+
+  getLimitOrders(): readonly LimitOrder[] { return [...this.limitOrders]; }
+
+  createLimitOrder(side: PaperSide, quantity: number, limitPrice: number): LimitOrder {
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be a positive number");
+    if (!Number.isFinite(limitPrice) || limitPrice <= 0) throw new Error("limitPrice must be a positive number");
+    this.limitOrderSequence += 1;
+    const order: LimitOrder = Object.freeze({
+      id: `${Date.now()}-${this.limitOrderSequence}`,
+      side,
+      quantity,
+      limitPrice,
+      createdAt: new Date().toISOString()
+    });
+    this.limitOrders.push(order);
+    this.control.record("STATUS", `limit order placed: ${side} ${quantity} @ ${limitPrice}`, order);
+    return order;
+  }
+
+  cancelLimitOrder(id: string): void {
+    const index = this.limitOrders.findIndex((order) => order.id === id);
+    if (index < 0) throw new Error(`no pending limit order with id ${id}`);
+    const [cancelled] = this.limitOrders.splice(index, 1);
+    this.control.record("STATUS", `limit order cancelled: ${cancelled!.side} ${cancelled!.quantity} @ ${cancelled!.limitPrice}`);
   }
 
   getPositionProtection(): {
