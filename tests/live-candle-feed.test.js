@@ -2,7 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   mapUpbitMinuteCandlesToChartCandles,
-  LiveCandleFeed
+  LiveCandleFeed,
+  fetchRecentMinuteCandles
 } = require("../dist/apps/server/src/liveCandleFeed.js");
 
 function rawCandle(overrides = {}) {
@@ -87,4 +88,84 @@ test("start()/stop() manage the interval without leaking or double-starting", as
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(calls, callsAtStop, "no further polling after stop()");
   assert.ok(callsAtStop >= 1);
+});
+
+function pageOfCandles(count, endTime) {
+  return Array.from({ length: count }, (_, i) =>
+    rawCandle({ candle_date_time_utc: new Date(endTime - i * 60_000).toISOString().slice(0, 19) })
+  );
+}
+
+test("fetchRecentMinuteCandles makes a single request (no `to` cursor) when count is within Upbit's 200 per-page cap", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => pageOfCandles(150, Date.parse("2026-07-24T00:00:00Z")) };
+  };
+  try {
+    const candles = await fetchRecentMinuteCandles("KRW-BTC", 1, 150);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes("count=150"));
+    assert.ok(!calls[0].includes("&to="));
+    assert.equal(candles.length, 150);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchRecentMinuteCandles pages backward via the `to` cursor when count exceeds 200", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const endTime = Date.parse("2026-07-24T12:00:00Z");
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return { ok: true, json: async () => pageOfCandles(200, endTime) };
+    if (calls.length === 2) return { ok: true, json: async () => pageOfCandles(200, endTime - 200 * 60_000) };
+    return { ok: true, json: async () => pageOfCandles(50, endTime - 400 * 60_000) };
+  };
+  try {
+    const candles = await fetchRecentMinuteCandles("KRW-BTC", 1, 450);
+    assert.equal(calls.length, 3, "450 candles at 200/page needs 3 requests");
+    assert.ok(!calls[0].includes("&to="), "first page has no cursor");
+    assert.ok(calls[1].includes("&to="), "later pages page backward via `to`");
+    assert.ok(calls[2].includes("&to="));
+    assert.equal(candles.length, 450);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchRecentMinuteCandles stops early once Upbit runs out of history (a page returns fewer than requested)", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  const endTime = Date.parse("2026-07-24T12:00:00Z");
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls === 1) return { ok: true, json: async () => pageOfCandles(200, endTime) };
+    return { ok: true, json: async () => pageOfCandles(30, endTime - 200 * 60_000) };
+  };
+  try {
+    const candles = await fetchRecentMinuteCandles("KRW-BTC", 1, 1000);
+    assert.equal(calls, 2, "must not keep requesting once a short page signals end of history");
+    assert.equal(candles.length, 230);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchRecentMinuteCandles never exceeds its hard page-count safety cap, even for a huge requested count", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return { ok: true, json: async () => pageOfCandles(200, Date.parse("2026-07-24T12:00:00Z") - (calls - 1) * 200 * 60_000) };
+  };
+  try {
+    const candles = await fetchRecentMinuteCandles("KRW-BTC", 1, 100_000);
+    assert.equal(calls, 10, "must cap at MAX_MINUTE_CANDLE_PAGES requests regardless of requested count");
+    assert.equal(candles.length, 2000);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

@@ -133,7 +133,7 @@ test("runBacktestComparison() defaults to the minute-candle fetcher when no unit
   }
 });
 
-test("runBacktestComparison() fetches at most 200 candles (Upbit's own per-request limit)", async () => {
+test("runBacktestComparison() requests a deep minute-unit window (beyond Upbit's 200-per-request page limit)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "dokkaebi-backtest-"));
   const databasePath = join(dir, "test.db");
   try {
@@ -148,7 +148,10 @@ test("runBacktestComparison() fetches at most 200 candles (Upbit's own per-reque
     });
     try {
       await runtime.runBacktestComparison();
-      assert.equal(requestedCount, 200);
+      // Requests more than Upbit's own 200-per-page cap -- fetchRecentMinuteCandles (the real,
+      // non-injected implementation) pages backward internally to satisfy a count this large;
+      // this test only asserts what PaperRuntime asks the (injected, fake) fetcher for.
+      assert.ok(requestedCount > 200, `expected a deep minute-unit window, got ${requestedCount}`);
     } finally {
       runtime.dispose();
     }

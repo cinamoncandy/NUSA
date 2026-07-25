@@ -48,6 +48,9 @@ const FEE_RATE_DEFAULT = 0.0005;
 const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, maxRealizedLoss: 1_000_000, minOrderNotional: 5_000 };
 const FILL_MODEL = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
 const REQUIRED_WARMUP_SAMPLES = 20;
+// 5 pages of Upbit's 200-per-request cap (fetchRecentMinuteCandles pages automatically) --
+// ~16.6 hours of 1-minute data, a far more meaningful backtest window than a single page.
+const MINUTE_BACKTEST_CANDLE_COUNT = 1000;
 // A fixed placeholder id, independent of which trading strategy (SMA/EMA) is actually
 // selected -- ControlPlane's persisted strategyId must stay constant across restarts for
 // restoreState() to succeed regardless of which strategy the operator has picked; the real
@@ -820,9 +823,13 @@ export class PaperRuntime {
    */
   async runBacktestComparison(unit: BacktestUnit = "minute"): Promise<readonly { readonly id: string; readonly label: string; readonly metrics: BacktestMetrics }[]> {
     const unitMinutes = unit === "day" ? 1440 : 1;
+    // 200 raw 1-minute candles is only ~3.3 hours -- too thin a window for a crossover
+    // strategy backtest to mean much (barely clears SMA(10,30)'s own warmup). Minute-unit
+    // pages backward through fetchRecentMinuteCandles up to MINUTE_BACKTEST_CANDLE_COUNT for a
+    // much deeper window; day-unit stays at 200 (already ~6.6 months, plenty deep on its own).
     const raw: readonly UpbitCandle[] = unit === "day"
       ? await this.dayCandleFetcher(this.market, 200)
-      : await this.candleFetcher(this.market, 1, 200);
+      : await this.candleFetcher(this.market, 1, MINUTE_BACKTEST_CANDLE_COUNT);
     const candles = mapUpbitMinuteCandlesToChartCandles(raw, unitMinutes);
     const points = candles.map((candle) => ({ timestamp: candle.openTime, close: candle.close }));
     const backtestConfig = {

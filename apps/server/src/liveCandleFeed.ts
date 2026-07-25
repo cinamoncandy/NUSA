@@ -80,14 +80,49 @@ export function mapUpbitMinuteCandlesToChartCandles(raw: readonly UpbitCandle[],
   return Object.freeze([...mapped].sort((left, right) => left.openTime - right.openTime));
 }
 
-/** Fetches raw minute candles from Upbit's public REST API. Network I/O lives only here. */
-export async function fetchRecentMinuteCandles(market: string, unitMinutes: number, count: number): Promise<readonly UpbitMinuteCandle[]> {
-  const url = `https://api.upbit.com/v1/candles/minutes/${unitMinutes}?market=${encodeURIComponent(market)}&count=${count}`;
+/** Upbit's own per-request cap on every public candle endpoint. */
+const MAX_CANDLES_PER_PAGE = 200;
+
+/** Hard safety cap on how many pages fetchRecentMinuteCandles will ever issue for one call,
+ * regardless of the requested count -- bounds worst-case request volume against Upbit's
+ * public API (a caller cannot accidentally trigger hundreds of sequential requests). */
+const MAX_MINUTE_CANDLE_PAGES = 10;
+
+async function fetchMinuteCandlePage(market: string, unitMinutes: number, count: number, to?: string): Promise<readonly UpbitMinuteCandle[]> {
+  const toParam = to === undefined ? "" : `&to=${encodeURIComponent(to)}`;
+  const url = `https://api.upbit.com/v1/candles/minutes/${unitMinutes}?market=${encodeURIComponent(market)}&count=${count}${toParam}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
   return body as readonly UpbitMinuteCandle[];
+}
+
+/**
+ * Fetches raw minute candles from Upbit's public REST API. Network I/O lives only here.
+ * Upbit caps a single request at MAX_CANDLES_PER_PAGE (200) candles; a `count` beyond that
+ * pages backward via the `to` cursor param (each page's oldest candle's open time, minus one
+ * unit, becomes the next page's `to`), up to MAX_MINUTE_CANDLE_PAGES pages. This only engages
+ * for the on-demand backtest's minute-unit timeframe (paperRuntime.ts requests more than 200
+ * there -- 200 minutes alone is too thin a window for a crossover strategy backtest to mean
+ * much); the live poll/chart path (LiveCandleFeed) always requests <= 200 and never pages.
+ */
+export async function fetchRecentMinuteCandles(market: string, unitMinutes: number, count: number): Promise<readonly UpbitMinuteCandle[]> {
+  if (count <= MAX_CANDLES_PER_PAGE) return fetchMinuteCandlePage(market, unitMinutes, count);
+  const pages: UpbitMinuteCandle[][] = [];
+  let remaining = count;
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_MINUTE_CANDLE_PAGES && remaining > 0; page++) {
+    const pageCount = Math.min(remaining, MAX_CANDLES_PER_PAGE);
+    const candles = await fetchMinuteCandlePage(market, unitMinutes, pageCount, cursor);
+    pages.push(candles as UpbitMinuteCandle[]);
+    remaining -= candles.length;
+    if (candles.length < pageCount) break;
+    const oldest = candles[candles.length - 1]!;
+    const oldestOpenTime = Date.parse(`${oldest.candle_date_time_utc}Z`);
+    cursor = new Date(oldestOpenTime - unitMinutes * 60_000).toISOString().slice(0, 19);
+  }
+  return Object.freeze(pages.flat());
 }
 
 /**
