@@ -20,17 +20,17 @@ export interface ApiResponse {
 
 const STRATEGY_CHOICES: readonly StrategyChoice[] = ["sma-crossover", "ema-crossover"];
 
-function ok(body: unknown): ApiResponse { return { status: 200, body }; }
+export function ok(body: unknown): ApiResponse { return { status: 200, body }; }
 function csv(body: string, filename: string): ApiResponse {
   return { status: 200, body, contentType: "text/csv; charset=utf-8", contentDisposition: `attachment; filename="${filename}"` };
 }
 function notFound(): ApiResponse { return { status: 404, body: { error: translateErrorMessage("NOT_FOUND") } }; }
-function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: translateErrorMessage("METHOD_NOT_ALLOWED") } }; }
+export function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: translateErrorMessage("METHOD_NOT_ALLOWED") } }; }
 
 /** Maps a thrown domain error to an HTTP status: unavailable/stale market or persistence
  * conditions are 503 (retry later), everything else (bad input, risk-policy rejection,
  * insufficient funds/position) is 400 (caller must change the request). */
-function errorResponse(error: unknown): ApiResponse {
+export function errorResponse(error: unknown): ApiResponse {
   const message = error instanceof Error ? error.message : String(error);
   // Status is decided from the original English message (stable match target for the few
   // recognized unavailable/stale conditions); the response body carries the Korean translation,

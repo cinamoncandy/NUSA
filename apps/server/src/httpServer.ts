@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { handleApiRequest } from "./apiRouter";
+import { errorResponse, handleApiRequest, methodNotAllowed, ok, type ApiResponse } from "./apiRouter";
 import type { PaperRuntime } from "./paperRuntime";
 import { translateErrorMessage } from "./errorMessages";
 
@@ -69,7 +69,22 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
         response.writeHead(400, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: translateErrorMessage(message) }));
         return;
       }
-      const result = handleApiRequest({ method, pathname, body }, runtime);
+      // The only genuinely async route: fetches real Upbit candles + runs backtestEngine
+      // (see paperRuntime.ts's runBacktestComparison() doc comment). Handled here rather than
+      // in apiRouter.ts's handleApiRequest() so that function can stay synchronous -- every
+      // other route is instant, in-memory work, and keeping the whole router async purely for
+      // this one endpoint would mean every existing call site (tests included) awaiting a
+      // Promise it doesn't actually need to.
+      let result: ApiResponse;
+      if (pathname === "/api/backtest") {
+        if (method !== "POST") { result = methodNotAllowed(); }
+        else {
+          try { result = ok({ results: await runtime.runBacktestComparison() }); }
+          catch (error) { result = errorResponse(error); }
+        }
+      } else {
+        result = handleApiRequest({ method, pathname, body }, runtime);
+      }
       if (result.contentType) {
         response.writeHead(result.status, {
           "content-type": result.contentType,

@@ -184,6 +184,21 @@
       </section>
 
       <section class="card">
+        <div class="section-title"><h2>백테스트 (최근 200개 캔들 기준)</h2></div>
+        <p class="hint">Upbit 실제 과거 1분봉 최대 200개(약 3시간)로 각 전략을 즉시 재현합니다. 실시간 챔피언 비교와 달리 결과를 기다릴 필요가 없지만, 짧은 기간의 결과이므로 참고용입니다.</p>
+        <div class="actions">
+          <button id="backtest-run" type="button">백테스트 실행</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>전략</th><th>총 수익률</th><th>매수 후 보유 대비</th><th>최대 낙폭</th><th>체결 수</th><th>거부 수</th><th>총 매매비용</th></tr></thead>
+            <tbody id="backtest-results"><tr><td colspan="7">실행 버튼을 눌러주세요</td></tr></tbody>
+          </table>
+        </div>
+        <p id="backtest-error" class="error"></p>
+      </section>
+
+      <section class="card">
         <div class="section-title"><h2>체결 기록</h2><a href="/api/export/trades.csv" download>CSV 다운로드</a></div>
         <div class="table-scroll">
           <table>

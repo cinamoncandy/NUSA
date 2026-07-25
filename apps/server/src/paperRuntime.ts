@@ -5,7 +5,8 @@ import { buildPaperDashboardSections } from "../../desktop/src/paperDashboardPro
 import { RuntimeCommandService, type RuntimePersistence } from "../../desktop/src/runtimeCommandService";
 import { SmaCrossoverStrategy, StrategyEngine, type TradingStrategy } from "../../desktop/src/strategyEngine";
 import { EmaCrossoverStrategy } from "./emaCrossoverStrategy";
-import { fetchRecentMinuteCandles, LiveCandleFeed, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { fetchRecentMinuteCandles, LiveCandleFeed, mapUpbitMinuteCandlesToChartCandles, type LiveCandleFeedHealth, type UpbitMinuteCandle } from "./liveCandleFeed";
+import { runBacktest, type BacktestMetrics } from "../../desktop/src/backtestEngine";
 import { DefaultRiskEngine as ValueRiskEngine } from "../../../packages/core/src/risk/riskEngine";
 import { DefaultOrderPlanner as ValueOrderPlanner } from "../../../packages/core/src/order/orderPlanner";
 import { DefaultPortfolioLedger, type Portfolio } from "../../../packages/core/src/portfolio/portfolio";
@@ -25,7 +26,7 @@ import { reconcileReferenceAccounting, type ReconciliationResult } from "./refer
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
-import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, type ChampionStandings } from "./championSystem";
+import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, createChallengerStrategy, type ChampionStandings } from "./championSystem";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -100,6 +101,8 @@ export interface MarketSnapshot extends LiveCandleFeedHealth {
 export class PaperRuntime {
   private readonly market: string;
   private readonly initialCash: number;
+  private readonly feeRate: number;
+  private readonly candleFetcher: CandleFetcher;
   private readonly maximumMarketDataAgeMs: number;
   private readonly persistenceStore: DesktopPersistenceStore | undefined;
   private readonly broker: PaperBroker;
@@ -153,6 +156,8 @@ export class PaperRuntime {
     // DesktopPersistenceStore), not to be a second durable ledger.
     this.referencePortfolio = { cash: this.initialCash, quantity: 0, averagePrice: 0, realizedPnl: 0 };
     const feeRate = options.feeRate ?? FEE_RATE_DEFAULT;
+    this.feeRate = feeRate;
+    this.candleFetcher = options.candleFetcher ?? fetchRecentMinuteCandles;
     this.maximumMarketDataAgeMs = options.maximumMarketDataAgeMs ?? 60_000;
     this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
     this.currentStrategyId = loadStrategyChoice(this.strategyChoicePath) ?? "sma-crossover";
@@ -255,7 +260,7 @@ export class PaperRuntime {
       options.candleCount ?? 200,
       (candles) => this.handleCandleUpdate(candles[candles.length - 1]!.close),
       options.pollIntervalMs ?? 10_000,
-      options.candleFetcher ?? fetchRecentMinuteCandles
+      this.candleFetcher
     );
   }
 
@@ -760,6 +765,33 @@ export class PaperRuntime {
     this.setStrategyPeriods(config.periods);
     this.control.record("STATUS", `champion promoted: ${config.label}`);
     return this.getChampionStandings();
+  }
+
+  /**
+   * On-demand historical comparison, independent of the live shadow ChampionChallengerSystem
+   * (which needs real elapsed time to accumulate trades): fetches up to 200 recent real
+   * 1-minute Upbit candles -- the exchange's own per-request maximum, so this is "recent
+   * history" rather than an arbitrarily deep backtest, no pagination attempted -- and runs
+   * each champion/challenger preset through apps/desktop's existing, already-tested
+   * backtestEngine.runBacktest() as-is. No new backtest/metrics logic invented here; reuses
+   * this runtime's own real feeRate/RISK_POLICY/FILL_MODEL costs for consistency with the
+   * real account's execution assumptions.
+   */
+  async runBacktestComparison(): Promise<readonly { readonly id: string; readonly label: string; readonly metrics: BacktestMetrics }[]> {
+    const raw = await this.candleFetcher(this.market, 1, 200);
+    const candles = mapUpbitMinuteCandlesToChartCandles(raw, 1);
+    const points = candles.map((candle) => ({ timestamp: candle.openTime, close: candle.close }));
+    return CHAMPION_CHALLENGER_PRESETS.map((config) => ({
+      id: config.id,
+      label: config.label,
+      metrics: runBacktest(points, () => createChallengerStrategy(config.choice, config.periods), {
+        market: this.market,
+        initialCash: this.initialCash,
+        feeRate: this.feeRate,
+        riskPolicy: RISK_POLICY,
+        executionCosts: { spreadBps: FILL_MODEL.spreadBps, slippageBps: FILL_MODEL.slippageBps }
+      }).metrics
+    }));
   }
 
   private runCommand(command: () => void): ControlSnapshot {

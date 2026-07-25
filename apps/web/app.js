@@ -287,6 +287,27 @@ function renderChampionStandings({ challengers }) {
   }));
 }
 
+function renderBacktestResults(results) {
+  const tbody = byId("backtest-results");
+  tbody.replaceChildren(...results.map(({ label, metrics }) => {
+    const row = document.createElement("tr");
+    const returnCell = textNode("td", percent.format(metrics.totalReturn));
+    returnCell.className = metrics.totalReturn > 0 ? "positive" : metrics.totalReturn < 0 ? "negative" : "";
+    const excessCell = textNode("td", percent.format(metrics.excessReturn));
+    excessCell.className = metrics.excessReturn > 0 ? "positive" : metrics.excessReturn < 0 ? "negative" : "";
+    row.append(
+      textNode("td", label),
+      returnCell,
+      excessCell,
+      textNode("td", percent.format(metrics.maxDrawdown)),
+      textNode("td", number.format(metrics.fillCount)),
+      textNode("td", number.format(metrics.rejectionCount)),
+      textNode("td", won.format(metrics.totalTradingCost))
+    );
+    return row;
+  }));
+}
+
 function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
   byId("ref-cash").textContent = won.format(portfolio.cash);
   byId("ref-position").textContent = `${number.format(portfolio.quantity)} BTC`;
@@ -480,6 +501,29 @@ byId("protection-clear").addEventListener("click", (event) => {
   byId("protection-take-profit-input").value = "";
   byId("protection-trailing-input").value = "";
   submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null }, "protection-error", event.currentTarget);
+});
+
+// Not part of the periodic refresh() cycle -- an on-demand action (real network fetch to
+// Upbit + a backtest run), triggered only by this button, not hammered every 5s like everything else.
+byId("backtest-run").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const errorElement = byId("backtest-error");
+  errorElement.textContent = "";
+  button.disabled = true;
+  const loadingRow = document.createElement("tr");
+  const loadingCell = textNode("td", "실행 중...");
+  loadingCell.colSpan = 7;
+  loadingRow.append(loadingCell);
+  byId("backtest-results").replaceChildren(loadingRow);
+  try {
+    const { results } = await fetchJson("/api/backtest", { method: "POST" });
+    renderBacktestResults(results);
+  } catch (error) {
+    errorElement.textContent = error.message;
+    loadingCell.textContent = "실행 버튼을 눌러주세요";
+  } finally {
+    button.disabled = false;
+  }
 });
 
 const TAB_STORAGE_KEY = "dokkaebi-active-tab";

@@ -24,7 +24,9 @@ export const CHAMPION_CHALLENGER_PRESETS: readonly ChallengerConfig[] = Object.f
   Object.freeze({ id: "ema-5-20", label: "EMA(5,20)", choice: "ema-crossover" as const, periods: Object.freeze({ shortPeriod: 5, longPeriod: 20 }) })
 ]);
 
-function createStrategy(choice: StrategyChoice, periods: StrategyPeriods): TradingStrategy {
+/** Exported so paperRuntime.ts's on-demand historical backtest can build the exact same
+ * strategy instances for each preset, without a second copy of this if/else. */
+export function createChallengerStrategy(choice: StrategyChoice, periods: StrategyPeriods): TradingStrategy {
   return choice === "sma-crossover"
     ? new SmaCrossoverStrategy(periods.shortPeriod, periods.longPeriod)
     : new EmaCrossoverStrategy(periods.shortPeriod, periods.longPeriod);
@@ -77,7 +79,7 @@ export class ChampionChallengerSystem {
 
   constructor(market: string, initialCash: number, feeRate: number, riskPolicy: PaperRiskPolicy, fillModel: PaperFillModel) {
     this.challengers = CHAMPION_CHALLENGER_PRESETS.map((config) => {
-      const engine = new StrategyEngine(createStrategy(config.choice, config.periods));
+      const engine = new StrategyEngine(createChallengerStrategy(config.choice, config.periods));
       // Always-on: shadow evaluation must not depend on whether the operator has started/
       // stopped the *real* strategy (StrategyEngine.onTick only emits real signals while
       // running() -- see strategyEngine.ts).

@@ -459,6 +459,24 @@ test("shadow challengers keep trading on real candle ticks even while the real s
   }, { pollIntervalMs: 20 });
 });
 
+test("GET /api/backtest is 405; POST returns one result per champion preset with a real metrics shape", async (t) => {
+  await withServer(t, async (base) => {
+    assert.equal((await fetch(`${base}/api/backtest`)).status, 405);
+
+    const response = await fetch(`${base}/api/backtest`, { method: "POST" });
+    assert.equal(response.status, 200);
+    const { results } = await response.json();
+    assert.equal(results.length, 3);
+    assert.deepEqual(results.map((r) => r.id).sort(), ["ema-5-20", "sma-10-30", "sma-5-20"]);
+    for (const result of results) {
+      assert.equal(result.metrics.initialEquity, 10_000_000);
+      assert.ok(Number.isFinite(result.metrics.finalEquity));
+      assert.ok(Number.isFinite(result.metrics.totalReturn));
+      assert.ok(Number.isFinite(result.metrics.maxDrawdown));
+    }
+  });
+});
+
 test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips to FIXED_FRACTIONAL", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-sizing`)).json();
