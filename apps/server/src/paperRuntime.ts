@@ -26,7 +26,7 @@ import { reconcileReferenceAccounting, type ReconciliationResult } from "./refer
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
-import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, createChallengerStrategy, type ChampionStandings } from "./championSystem";
+import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, createChallengerStrategy, strategyLabel, type ChampionStandings, type ChallengerStanding } from "./championSystem";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -744,10 +744,28 @@ export class PaperRuntime {
     return this.getStrategyPeriods();
   }
 
-  /** See championSystem.ts's own doc comment -- fully isolated shadow comparison, read-only. */
+  /**
+   * See championSystem.ts's own doc comment -- fully isolated shadow comparison, read-only.
+   * When the real active strategy is a custom (non-preset) config, none of the 3 fixed
+   * challengers can represent it -- an operator who tuned their own periods would otherwise
+   * see no row for what's actually running. Prepends one using the *real* account's own data
+   * in that case (not a redundant shadow clone; this is the account already being tracked).
+   */
   getChampionStandings(): ChampionStandings {
     const price = this.assertFreshPrice();
-    return this.championSystem.getStandings(this.currentStrategyId, this.strategyPeriods, price);
+    const standings = this.championSystem.getStandings(this.currentStrategyId, this.strategyPeriods, price);
+    if (standings.championId !== null) return standings;
+    const account = this.broker.snapshot(price);
+    const activeEntry: ChallengerStanding = {
+      id: "active",
+      label: strategyLabel(this.currentStrategyId, this.strategyPeriods),
+      choice: this.currentStrategyId,
+      periods: this.strategyPeriods,
+      isChampion: true,
+      account,
+      stats: computeTradeStatistics([...account.orders].reverse())
+    };
+    return { championId: "active", challengers: [activeEntry, ...standings.challengers] };
   }
 
   /**
@@ -781,17 +799,32 @@ export class PaperRuntime {
     const raw = await this.candleFetcher(this.market, 1, 200);
     const candles = mapUpbitMinuteCandlesToChartCandles(raw, 1);
     const points = candles.map((candle) => ({ timestamp: candle.openTime, close: candle.close }));
-    return CHAMPION_CHALLENGER_PRESETS.map((config) => ({
+    const backtestConfig = {
+      market: this.market,
+      initialCash: this.initialCash,
+      feeRate: this.feeRate,
+      riskPolicy: RISK_POLICY,
+      executionCosts: { spreadBps: FILL_MODEL.spreadBps, slippageBps: FILL_MODEL.slippageBps }
+    };
+    const results = CHAMPION_CHALLENGER_PRESETS.map((config) => ({
       id: config.id,
       label: config.label,
-      metrics: runBacktest(points, () => createChallengerStrategy(config.choice, config.periods), {
-        market: this.market,
-        initialCash: this.initialCash,
-        feeRate: this.feeRate,
-        riskPolicy: RISK_POLICY,
-        executionCosts: { spreadBps: FILL_MODEL.spreadBps, slippageBps: FILL_MODEL.slippageBps }
-      }).metrics
+      metrics: runBacktest(points, () => createChallengerStrategy(config.choice, config.periods), backtestConfig).metrics
     }));
+    // Same "represent the operator's actual custom config" reasoning as getChampionStandings()
+    // above -- otherwise a non-preset (choice, periods) never appears in this table at all.
+    const isPreset = CHAMPION_CHALLENGER_PRESETS.some((config) =>
+      config.choice === this.currentStrategyId
+      && config.periods.shortPeriod === this.strategyPeriods.shortPeriod
+      && config.periods.longPeriod === this.strategyPeriods.longPeriod);
+    if (!isPreset) {
+      results.push({
+        id: "active",
+        label: `${strategyLabel(this.currentStrategyId, this.strategyPeriods)} (현재 설정)`,
+        metrics: runBacktest(points, () => createChallengerStrategy(this.currentStrategyId, this.strategyPeriods), backtestConfig).metrics
+      });
+    }
+    return results;
   }
 
   private runCommand(command: () => void): ControlSnapshot {

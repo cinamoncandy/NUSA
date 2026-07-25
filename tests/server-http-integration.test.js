@@ -385,7 +385,7 @@ test("GET /api/champion returns 3 fixed challengers; the default active strategy
   });
 });
 
-test("GET /api/champion reports no champion once the real strategy periods no longer match any preset", async (t) => {
+test("GET /api/champion adds a 4th 'active' entry (real account data) once the real strategy periods no longer match any preset", async (t) => {
   await withServer(t, async (base) => {
     await fetch(`${base}/api/strategy/periods`, {
       method: "POST",
@@ -393,8 +393,15 @@ test("GET /api/champion reports no champion once the real strategy periods no lo
       body: JSON.stringify({ shortPeriod: 7, longPeriod: 21 })
     });
     const standings = await (await fetch(`${base}/api/champion`)).json();
-    assert.equal(standings.championId, null);
-    assert.ok(standings.challengers.every((c) => !c.isChampion));
+    assert.equal(standings.championId, "active");
+    assert.equal(standings.challengers.length, 4, "3 fixed presets plus the real active config");
+    const activeEntry = standings.challengers.find((c) => c.id === "active");
+    assert.equal(activeEntry.label, "SMA(7,21)");
+    assert.equal(activeEntry.isChampion, true);
+    assert.equal(standings.challengers.filter((c) => c.isChampion).length, 1);
+    // The 3 fixed presets are still present and correctly not marked champion.
+    assert.equal(standings.challengers.filter((c) => c.id !== "active").length, 3);
+    assert.ok(standings.challengers.filter((c) => c.id !== "active").every((c) => !c.isChampion));
   });
 });
 
@@ -474,6 +481,21 @@ test("GET /api/backtest is 405; POST returns one result per champion preset with
       assert.ok(Number.isFinite(result.metrics.totalReturn));
       assert.ok(Number.isFinite(result.metrics.maxDrawdown));
     }
+  });
+});
+
+test("POST /api/backtest adds a 4th result for a custom (non-preset) strategy config", async (t) => {
+  await withServer(t, async (base) => {
+    await fetch(`${base}/api/strategy/periods`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shortPeriod: 7, longPeriod: 21 })
+    });
+    const { results } = await (await fetch(`${base}/api/backtest`, { method: "POST" })).json();
+    assert.equal(results.length, 4);
+    const active = results.find((r) => r.id === "active");
+    assert.equal(active.label, "SMA(7,21) (현재 설정)");
+    assert.equal(active.metrics.initialEquity, 10_000_000);
   });
 });
 

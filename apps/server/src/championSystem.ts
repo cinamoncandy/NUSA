@@ -32,6 +32,13 @@ export function createChallengerStrategy(choice: StrategyChoice, periods: Strate
     : new EmaCrossoverStrategy(periods.shortPeriod, periods.longPeriod);
 }
 
+/** Same "TYPE(short,long)" format as the fixed presets' own labels, for the operator's current
+ * (possibly custom, non-preset) strategy config -- see paperRuntime.ts's getChampionStandings()
+ * and runBacktestComparison(). */
+export function strategyLabel(choice: StrategyChoice, periods: StrategyPeriods): string {
+  return `${choice === "sma-crossover" ? "SMA" : "EMA"}(${periods.shortPeriod},${periods.longPeriod})`;
+}
+
 interface ChallengerRuntime {
   readonly config: ChallengerConfig;
   readonly engine: StrategyEngine;
