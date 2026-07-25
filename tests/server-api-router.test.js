@@ -282,3 +282,17 @@ test("thrown domain errors map to 503 when unavailable/stale, 400 otherwise", ()
   const rejectedOrder = fakeRuntime({ placeOrder: () => { throw new Error("insufficient paper cash"); } });
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, rejectedOrder).status, 400);
 });
+
+test("thrown error messages reach the client translated to Korean (한국어 사용 고정 -- see errorMessages.ts)", () => {
+  const runtime = fakeRuntime();
+  const badBody = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime);
+  assert.equal(badBody.body.error, "구분(side)은 \"BUY\" 또는 \"SELL\"이어야 합니다");
+
+  const rejectedOrder = fakeRuntime({ placeOrder: () => { throw new Error("insufficient paper cash"); } });
+  const rejected = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, rejectedOrder);
+  assert.equal(rejected.body.error, "현금 잔고가 부족합니다");
+
+  const unrecognized = fakeRuntime({ placeOrder: () => { throw new Error("some future error text not yet in the dictionary"); } });
+  const fallback = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, unrecognized);
+  assert.equal(fallback.body.error, "오류: some future error text not yet in the dictionary");
+});

@@ -109,12 +109,12 @@ test("POST /api/position/close converges the open position toward flat (FILL_MOD
   });
 });
 
-test("POST /api/position/close with no open position fails with a clear message", async (t) => {
+test("POST /api/position/close with no open position fails with a clear (Korean) message", async (t) => {
   await withServer(t, async (base) => {
     const response = await fetch(`${base}/api/position/close`, { method: "POST" });
     assert.equal(response.status, 400);
     const error = await response.json();
-    assert.match(error.error, /no open position/);
+    assert.equal(error.error, "청산할 보유 포지션이 없습니다");
   });
 });
 

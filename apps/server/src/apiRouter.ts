@@ -1,5 +1,6 @@
 import type { PaperRuntime, StrategyChoice } from "./paperRuntime";
 import { ordersToCsv, equityHistoryToCsv } from "./csvExport";
+import { translateErrorMessage } from "./errorMessages";
 
 export interface ApiRequest {
   readonly method: string;
@@ -30,8 +31,11 @@ function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: 
  * insufficient funds/position) is 400 (caller must change the request). */
 function errorResponse(error: unknown): ApiResponse {
   const message = error instanceof Error ? error.message : String(error);
+  // Status is decided from the original English message (stable match target for the few
+  // recognized unavailable/stale conditions); the response body carries the Korean translation,
+  // since that's what apps/web/app.js's submitCommand writes straight into the page.
   const status = /unavailable|not available yet|stale/i.test(message) ? 503 : 400;
-  return { status, body: { error: message } };
+  return { status, body: { error: translateErrorMessage(message) } };
 }
 
 function asRecord(body: unknown): Record<string, unknown> {
