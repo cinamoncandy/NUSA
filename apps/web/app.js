@@ -219,7 +219,7 @@ function renderLimitOrders(orders) {
     cancelButton.type = "button";
     cancelButton.className = "secondary";
     cancelButton.textContent = "취소";
-    cancelButton.addEventListener("click", () => submitCommand("/api/limit-orders/cancel", { id: order.id }, "limit-order-error"));
+    cancelButton.addEventListener("click", (event) => submitCommand("/api/limit-orders/cancel", { id: order.id }, "limit-order-error", event.currentTarget));
     cancelCell.append(cancelButton);
     row.append(
       textNode("td", sideKo(order.side), order.side.toLowerCase()),
@@ -387,19 +387,30 @@ async function refresh() {
   }
 }
 
-async function submitCommand(path, body, errorElementId) {
+// triggerButton (optional) is disabled for the duration of the request -- manual orders have
+// no server-side idempotency key the way automatic-strategy signals do
+// (ControlPlane.claimAutomaticSignal), so a rapid double-click on 매수/매도/전량 청산/주문 등록
+// without this would place two genuinely separate orders, not a deduplicated retry.
+async function submitCommand(path, body, errorElementId, triggerButton) {
   const errorElement = byId(errorElementId);
   errorElement.textContent = "";
+  if (triggerButton) triggerButton.disabled = true;
   try {
     await fetchJson(path, body === undefined ? { method: "POST" } : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await refresh();
   } catch (error) {
     errorElement.textContent = error.message;
+  } finally {
+    // refresh() may have already set a button's disabled state from server truth (e.g.
+    // strategy-start/stop based on control.status) -- only clear the flag this call itself set,
+    // never force it back on if something else legitimately still wants it disabled... in
+    // practice renderControl() re-runs inside refresh() and re-derives this correctly either way.
+    if (triggerButton) triggerButton.disabled = false;
   }
 }
 
-byId("strategy-start").addEventListener("click", () => submitCommand("/api/strategy/start", undefined, "control-error"));
-byId("strategy-stop").addEventListener("click", () => submitCommand("/api/strategy/stop", undefined, "control-error"));
+byId("strategy-start").addEventListener("click", (event) => submitCommand("/api/strategy/start", undefined, "control-error", event.currentTarget));
+byId("strategy-stop").addEventListener("click", (event) => submitCommand("/api/strategy/stop", undefined, "control-error", event.currentTarget));
 byId("auto-trade").addEventListener("change", (event) => submitCommand("/api/strategy/auto-trade", { enabled: event.target.checked }, "control-error"));
 byId("strategy-quantity").addEventListener("change", (event) => submitCommand("/api/strategy/quantity", { quantity: Number(event.target.value) }, "control-error"));
 byId("strategy-select").addEventListener("change", (event) => submitCommand("/api/strategy/select", { choice: event.target.value }, "control-error"));
@@ -409,34 +420,34 @@ const submitPositionSizing = () => submitCommand("/api/position-sizing", {
 }, "control-error");
 byId("sizing-mode").addEventListener("change", submitPositionSizing);
 byId("sizing-risk-fraction").addEventListener("change", submitPositionSizing);
-byId("strategy-periods-set").addEventListener("click", () => submitCommand("/api/strategy/periods", {
+byId("strategy-periods-set").addEventListener("click", (event) => submitCommand("/api/strategy/periods", {
   shortPeriod: Number(byId("strategy-short-period").value),
   longPeriod: Number(byId("strategy-long-period").value)
-}, "control-error"));
-byId("buy").addEventListener("click", () => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error"));
-byId("sell").addEventListener("click", () => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error"));
-byId("close-position").addEventListener("click", () => submitCommand("/api/position/close", undefined, "order-error"));
+}, "control-error", event.currentTarget));
+byId("buy").addEventListener("click", (event) => submitCommand("/api/orders", { side: "BUY", quantity: Number(byId("order-quantity").value) }, "order-error", event.currentTarget));
+byId("sell").addEventListener("click", (event) => submitCommand("/api/orders", { side: "SELL", quantity: Number(byId("order-quantity").value) }, "order-error", event.currentTarget));
+byId("close-position").addEventListener("click", (event) => submitCommand("/api/position/close", undefined, "order-error", event.currentTarget));
 
-byId("limit-order-submit").addEventListener("click", () => submitCommand("/api/limit-orders", {
+byId("limit-order-submit").addEventListener("click", (event) => submitCommand("/api/limit-orders", {
   side: byId("limit-order-side").value,
   quantity: Number(byId("limit-order-quantity").value),
   limitPrice: Number(byId("limit-order-price").value)
-}, "limit-order-error"));
+}, "limit-order-error", event.currentTarget));
 
 const protectionValue = (id) => { const raw = byId(id).value.trim(); return raw === "" ? null : Number(raw); };
-byId("protection-set").addEventListener("click", () => {
+byId("protection-set").addEventListener("click", (event) => {
   const trailingPercent = protectionValue("protection-trailing-input");
   submitCommand("/api/position-protection", {
     stopLossPrice: protectionValue("protection-stop-loss-input"),
     takeProfitPrice: protectionValue("protection-take-profit-input"),
     trailingStopPercent: trailingPercent === null ? null : trailingPercent / 100
-  }, "protection-error");
+  }, "protection-error", event.currentTarget);
 });
-byId("protection-clear").addEventListener("click", () => {
+byId("protection-clear").addEventListener("click", (event) => {
   byId("protection-stop-loss-input").value = "";
   byId("protection-take-profit-input").value = "";
   byId("protection-trailing-input").value = "";
-  submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null }, "protection-error");
+  submitCommand("/api/position-protection", { stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null }, "protection-error", event.currentTarget);
 });
 
 const TAB_STORAGE_KEY = "dokkaebi-active-tab";
