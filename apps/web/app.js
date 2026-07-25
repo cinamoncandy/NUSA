@@ -184,7 +184,7 @@ function renderAccount(account) {
     cell.colSpan = 6;
     row.append(cell);
     orders.replaceChildren(row);
-  } else orders.replaceChildren(...account.orders.map((order) => {
+  } else orders.replaceChildren(...account.orders.slice(0, MAX_ORDER_ROWS).map((order) => {
     const row = document.createElement("tr");
     const executionCost = (order.spreadCost ?? 0) + (order.slippageCost ?? 0) + (order.marketImpactCost ?? 0);
     row.append(
@@ -197,6 +197,9 @@ function renderAccount(account) {
     );
     return row;
   }));
+  byId("orders-hint").textContent = account.orders.length > MAX_ORDER_ROWS
+    ? `최근 ${MAX_ORDER_ROWS}건만 표시됩니다 (전체 ${number.format(account.orders.length)}건). 전체 내역은 CSV 다운로드로 확인하세요.`
+    : "";
 }
 
 function renderLimitOrders(orders) {
@@ -289,6 +292,11 @@ function renderPositionSizing(sizing) {
 }
 
 const MAX_EVENT_ROWS = 30;
+// account.orders can grow unbounded over a long-running session (PaperBroker keeps full
+// history) -- capped here the same way the event log already is, since account.orders is
+// already newest-first (see paperRuntime.ts's getTradeStatistics() doc comment); the full
+// history remains available via the existing CSV export, unaffected by this display cap.
+const MAX_ORDER_ROWS = 50;
 
 function renderEvents(events) {
   const tbody = byId("events");
