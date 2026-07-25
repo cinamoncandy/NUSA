@@ -95,6 +95,7 @@ const LOG_PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly tra
   },
   { pattern: /^position sizing set: mode=(.+)$/, translate: (m) => `포지션 사이징 설정: 모드=${m[1]}` },
   { pattern: /^strategy periods set: short=(.+) long=(.+)$/, translate: (m) => `전략 기간 설정: 단기=${m[1]} 장기=${m[2]}` },
+  { pattern: /^champion promoted: (.+)$/, translate: (m) => `챔피언 승격: ${m[1]}` },
   { pattern: /^reference accounting diverged from the real account: (.+)$/, translate: (m) => `참조 회계가 실제 계좌와 불일치함: ${m[1]}` },
   // "CODE: reason text" from the value-based audit-only RiskEngine/OrderPlanner estimate --
   // translates the known code prefix, keeps the (numeric-heavy, already-language-neutral)

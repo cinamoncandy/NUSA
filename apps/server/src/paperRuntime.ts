@@ -25,6 +25,7 @@ import { reconcileReferenceAccounting, type ReconciliationResult } from "./refer
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
+import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, type ChampionStandings } from "./championSystem";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 
@@ -113,6 +114,10 @@ export class PaperRuntime {
   private readonly referencePnlCalculator = new DefaultPnLCalculator();
   private readonly referenceLedger = new DefaultPortfolioLedger();
   private readonly equityHistory = new EquityHistoryRecorder();
+  /** Shadow strategy comparison (see championSystem.ts) -- fully isolated from the real
+   * account, never persisted (resets on restart, same posture as equityHistory/referencePortfolio
+   * above), never read back into any real trading decision. Promotion is manual-only. */
+  private readonly championSystem: ChampionChallengerSystem;
   /** Persisted best-effort to strategyChoicePath (see runtimeSettingsStore.ts); cleared once
    * triggered or the position is flat -- see setPositionProtection(). */
   private stopLossPrice: number | null = null;
@@ -194,6 +199,7 @@ export class PaperRuntime {
 
     this.broker = new PaperBroker(this.initialCash, this.market, feeRate, RISK_POLICY, restored?.paper, FILL_MODEL);
     this.control = new ControlPlane(CONTROL_PLANE_STRATEGY_ID, 200, restored?.control);
+    this.championSystem = new ChampionChallengerSystem(this.market, this.initialCash, feeRate, RISK_POLICY, FILL_MODEL);
 
     const persistenceAdapter: RuntimePersistence = {
       save: (paper, control) => {
@@ -264,6 +270,9 @@ export class PaperRuntime {
    */
   private handleCandleUpdate(price: number): void {
     const timestamp = Date.now();
+    // Always runs, independent of the real account's availability -- fully isolated shadow
+    // state (see championSystem.ts), so a real-account fault has no reason to pause it.
+    this.championSystem.onCandleUpdate(this.market, price, timestamp);
     if (this.runtime.isAvailable()) {
       this.checkPositionProtection(price);
       this.checkLimitOrders(price);
@@ -728,6 +737,29 @@ export class PaperRuntime {
     }
     this.control.record("STATUS", `strategy periods set: short=${periods.shortPeriod} long=${periods.longPeriod}`);
     return this.getStrategyPeriods();
+  }
+
+  /** See championSystem.ts's own doc comment -- fully isolated shadow comparison, read-only. */
+  getChampionStandings(): ChampionStandings {
+    const price = this.assertFreshPrice();
+    return this.championSystem.getStandings(this.currentStrategyId, this.strategyPeriods, price);
+  }
+
+  /**
+   * Switches the *real* active strategy to match a challenger preset -- reuses
+   * selectStrategy()/setStrategyPeriods() as-is (the exact same validated/persisted path the
+   * operator's own dropdown takes), so this only ever changes *which* strategy governs the
+   * real account; it never touches cash/position/orders. Always an explicit operator action
+   * (this method itself is never called automatically) -- promotion has no autonomous trigger,
+   * matching this project's standing "no automatic promotion" policy (docs/NEXT_TASK.md).
+   */
+  promoteChallenger(id: string): ChampionStandings {
+    const config = CHAMPION_CHALLENGER_PRESETS.find((candidate) => candidate.id === id);
+    if (!config) throw new Error(`unknown challenger id: ${id}`);
+    this.selectStrategy(config.choice);
+    this.setStrategyPeriods(config.periods);
+    this.control.record("STATUS", `champion promoted: ${config.label}`);
+    return this.getChampionStandings();
   }
 
   private runCommand(command: () => void): ControlSnapshot {

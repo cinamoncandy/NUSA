@@ -88,6 +88,7 @@ const PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly transla
   { pattern: /^choice must be one of: (.+)$/, translate: (m) => `전략 선택 값은 다음 중 하나여야 합니다: ${m[1]}` },
   { pattern: /^unknown strategy: (.+)$/, translate: (m) => `알 수 없는 전략입니다: ${m[1]}` },
   { pattern: /^no pending limit order with id (.+)$/, translate: (m) => `ID가 ${m[1]}인 대기 중인 지정가 주문이 없습니다` },
+  { pattern: /^unknown challenger id: (.+)$/, translate: (m) => `알 수 없는 챌린저 ID입니다: ${m[1]}` },
   { pattern: /^Upbit request failed: HTTP (\d+)$/, translate: (m) => `Upbit 요청 실패: HTTP ${m[1]}` },
   { pattern: /^upbit candle (\d+) is missing market$/, translate: (m) => `업비트 캔들 ${m[1]}번에 market 필드가 없습니다` },
   { pattern: /^upbit candle (\d+) has an invalid candle_date_time_utc$/, translate: (m) => `업비트 캔들 ${m[1]}번의 시각(candle_date_time_utc) 값이 올바르지 않습니다` },

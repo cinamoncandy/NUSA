@@ -256,6 +256,37 @@ function renderTradeStatistics(stats) {
   byId("stats-expectancy").textContent = pnlText(stats.expectancy);
 }
 
+function renderChampionStandings({ challengers }) {
+  const tbody = byId("champion-standings");
+  tbody.replaceChildren(...challengers.map((challenger) => {
+    const row = document.createElement("tr");
+    const totalPnl = challenger.account.unrealizedPnl + challenger.account.position.realizedPnl;
+    const nameCell = document.createElement("td");
+    nameCell.append(textNode("span", challenger.label));
+    if (challenger.isChampion) nameCell.append(" ", Object.assign(textNode("span", "챔피언"), { className: "cio-badge healthy" }));
+    const actionCell = document.createElement("td");
+    if (!challenger.isChampion) {
+      const promoteButton = document.createElement("button");
+      promoteButton.type = "button";
+      promoteButton.className = "secondary";
+      promoteButton.textContent = "승격";
+      promoteButton.addEventListener("click", (event) => submitCommand("/api/champion/promote", { id: challenger.id }, "champion-error", event.currentTarget));
+      actionCell.append(promoteButton);
+    }
+    const pnlCell = textNode("td", pnlText(totalPnl));
+    pnlCell.className = totalPnl > 0 ? "positive" : totalPnl < 0 ? "negative" : "";
+    row.append(
+      nameCell,
+      textNode("td", won.format(challenger.account.equity)),
+      pnlCell,
+      textNode("td", challenger.stats.winRate === null ? "-" : percent.format(challenger.stats.winRate)),
+      textNode("td", number.format(challenger.stats.totalTrades)),
+      actionCell
+    );
+    return row;
+  }));
+}
+
 function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
   byId("ref-cash").textContent = won.format(portfolio.cash);
   byId("ref-position").textContent = `${number.format(portfolio.quantity)} BTC`;
@@ -374,6 +405,7 @@ async function refresh() {
       const stats = await fetchJson("/api/trade-statistics");
       renderTradeStatistics(stats);
       renderKpiStrip(account, control, stats);
+      renderChampionStandings(await fetchJson("/api/champion"));
     } catch {
       // Market price not ready yet (e.g. first few seconds after boot) -- account/dashboard
       // need a price to compute equity/exposure; market/control/chart above degrade independently.

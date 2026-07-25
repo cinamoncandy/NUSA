@@ -368,6 +368,97 @@ test("GET /api/strategy/periods defaults to (5, 20); POST validates and round-tr
   });
 });
 
+test("GET /api/champion returns 3 fixed challengers; the default active strategy (SMA 5,20) is the champion", async (t) => {
+  await withServer(t, async (base) => {
+    const standings = await (await fetch(`${base}/api/champion`)).json();
+    assert.equal(standings.championId, "sma-5-20", "default periods (5, 20) match the sma-5-20 preset");
+    assert.equal(standings.challengers.length, 3);
+    const ids = standings.challengers.map((c) => c.id).sort();
+    assert.deepEqual(ids, ["ema-5-20", "sma-10-30", "sma-5-20"]);
+    const champion = standings.challengers.find((c) => c.id === "sma-5-20");
+    assert.equal(champion.isChampion, true);
+    assert.equal(standings.challengers.filter((c) => c.isChampion).length, 1);
+    for (const challenger of standings.challengers) {
+      assert.equal(challenger.account.cash, 10_000_000, `${challenger.id} starts with the full shadow cash`);
+      assert.equal(challenger.stats.totalTrades, 0);
+    }
+  });
+});
+
+test("GET /api/champion reports no champion once the real strategy periods no longer match any preset", async (t) => {
+  await withServer(t, async (base) => {
+    await fetch(`${base}/api/strategy/periods`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shortPeriod: 7, longPeriod: 21 })
+    });
+    const standings = await (await fetch(`${base}/api/champion`)).json();
+    assert.equal(standings.championId, null);
+    assert.ok(standings.challengers.every((c) => !c.isChampion));
+  });
+});
+
+test("POST /api/champion/promote switches the real active strategy to the challenger's preset", async (t) => {
+  await withServer(t, async (base) => {
+    const before = await (await fetch(`${base}/api/control`)).json();
+    assert.equal(before.activeStrategyId, "sma-crossover");
+
+    const promoteResponse = await fetch(`${base}/api/champion/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: "ema-5-20" })
+    });
+    assert.equal(promoteResponse.status, 200);
+    const promoted = await promoteResponse.json();
+    assert.equal(promoted.championId, "ema-5-20");
+
+    const control = await (await fetch(`${base}/api/control`)).json();
+    assert.equal(control.activeStrategyId, "ema-crossover", "the real strategy actually switched");
+    const periods = await (await fetch(`${base}/api/strategy/periods`)).json();
+    assert.deepEqual(periods, { shortPeriod: 5, longPeriod: 20 });
+    assert.ok(
+      control.events.some((event) => event.type === "상태" && event.message === "챔피언 승격: EMA(5,20)"),
+      "expected a translated STATUS event recording the promotion"
+    );
+
+    const unknownId = await fetch(`${base}/api/champion/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: "does-not-exist" })
+    });
+    assert.equal(unknownId.status, 400);
+    const error = await unknownId.json();
+    assert.equal(error.error, "알 수 없는 챌린저 ID입니다: does-not-exist");
+  });
+});
+
+test("shadow challengers keep trading on real candle ticks even while the real strategy is stopped", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base, runtime, priceBox) => {
+    // The real strategy is never started in this test -- champion system shadow evaluation
+    // must be independent of that (see paperRuntime.ts's handleCandleUpdate doc comment).
+    const prices = [
+      ...Array.from({ length: 20 }, () => 100_000_000),
+      110_000_000, 115_000_000, 120_000_000, 125_000_000, 130_000_000
+    ];
+    for (const price of prices) {
+      priceBox.value = price;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    await new Promise((resolve) => {
+      const check = async () => {
+        const standings = await (await fetch(`${base}/api/champion`)).json();
+        if (standings.challengers.some((c) => c.stats.totalTrades > 0)) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+    const control = await (await fetch(`${base}/api/control`)).json();
+    // control.status itself is untranslated (only events[].type/message are, in apiRouter.ts --
+    // app.js's controlStatusKo() translates this field client-side for display, same as the KPI strip).
+    assert.equal(control.status, "STOPPED", "the real strategy was indeed never started");
+  }, { pollIntervalMs: 20 });
+});
+
 test("GET /api/position-sizing defaults to FIXED; POST validates and round-trips to FIXED_FRACTIONAL", async (t) => {
   await withServer(t, async (base) => {
     const initial = await (await fetch(`${base}/api/position-sizing`)).json();

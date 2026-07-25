@@ -223,6 +223,16 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       }
       return methodNotAllowed();
     }
+    if (pathname === "/api/champion") {
+      if (method !== "GET") return methodNotAllowed();
+      return ok(runtime.getChampionStandings());
+    }
+    if (pathname === "/api/champion/promote") {
+      if (method !== "POST") return methodNotAllowed();
+      const body = asRecord(request.body);
+      if (typeof body.id !== "string" || body.id.length === 0) throw new Error("id must be a non-empty string");
+      return ok(runtime.promoteChallenger(body.id));
+    }
     return notFound();
   } catch (error) {
     return errorResponse(error);

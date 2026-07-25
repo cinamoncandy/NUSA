@@ -39,6 +39,8 @@ function fakeRuntime(overrides = {}) {
       winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null,
       profitFactor: null, expectancy: null
     }),
+    getChampionStandings: () => ({ championId: "sma-5-20", challengers: [] }),
+    promoteChallenger: (id) => ({ championId: id, challengers: [] }),
     ...overrides
   };
 }
@@ -245,6 +247,30 @@ test("POST /api/orders validates side and quantity before calling placeOrder", (
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime).status, 400);
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: "1" } }, runtime).status, 400);
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: null }, runtime).status, 400);
+});
+
+test("GET /api/champion dispatches to getChampionStandings; POST is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "GET", pathname: "/api/champion", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { championId: "sma-5-20", challengers: [] });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/champion/promote validates id and dispatches to promoteChallenger", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "ema-5-20" } }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { championId: "ema-5-20", challengers: [] });
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "" } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: {} }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/champion/promote", body: undefined }, runtime).status, 405);
+
+  const unknown = fakeRuntime({ promoteChallenger: () => { throw new Error("unknown challenger id: nope"); } });
+  const rejected = handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "nope" } }, unknown);
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.body.error, "알 수 없는 챌린저 ID입니다: nope");
 });
 
 test("POST /api/position/close dispatches to closePosition, GET is 405", () => {
