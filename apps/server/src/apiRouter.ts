@@ -1,6 +1,7 @@
 import type { PaperRuntime, StrategyChoice } from "./paperRuntime";
 import { ordersToCsv, equityHistoryToCsv } from "./csvExport";
 import { translateErrorMessage } from "./errorMessages";
+import { translateEventType, translateLogMessage } from "./logMessages";
 
 export interface ApiRequest {
   readonly method: string;
@@ -107,7 +108,13 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
     }
     if (pathname === "/api/control") {
       if (method !== "GET") return methodNotAllowed();
-      return ok(runtime.getControlSnapshot());
+      const control = runtime.getControlSnapshot();
+      // events[].type/message are raw English (ControlPlane.record(), see logMessages.ts's own
+      // doc comment) -- translated here so the 감사 탭's 이벤트 로그 table renders in Korean.
+      return ok({
+        ...control,
+        events: control.events.map((event) => ({ ...event, type: translateEventType(event.type), message: translateLogMessage(event.message) }))
+      });
     }
     if (pathname === "/api/dashboard") {
       if (method !== "GET") return methodNotAllowed();

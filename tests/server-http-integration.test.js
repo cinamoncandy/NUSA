@@ -338,8 +338,8 @@ test("a limit order crossed on a real candle tick fills and disappears from pend
     assert.equal(account.orders.length, 1);
     assert.equal(account.orders[0].side, "BUY");
     assert.ok(
-      control.events.some((event) => event.type === "RISK" && event.message.includes("limit order triggered")),
-      "expected a RISK event recording the fill"
+      control.events.some((event) => event.type === "리스크" && event.message.includes("지정가 주문 체결")),
+      "expected a translated 리스크 event recording the fill"
     );
   }, { pollIntervalMs: 200 });
 });
@@ -470,8 +470,8 @@ test("a stop-loss level crossed on a real candle tick auto-sells and eventually 
     assert.ok(account.orders.length >= 2, "the original BUY plus at least one stop-loss SELL");
     assert.equal(protection.stopLossPrice, null, "the level cleared (fully closed or gave up)");
     assert.ok(
-      control.events.some((event) => event.type === "RISK" && event.message.includes("stop-loss")),
-      "expected a RISK event recording the trigger"
+      control.events.some((event) => event.type === "리스크" && event.message.includes("스탑로스")),
+      "expected a translated 리스크 event recording the trigger"
     );
   }, { pollIntervalMs: 200 });
 });
@@ -525,8 +525,8 @@ test("a trailing stop ratchets up with price and triggers once price falls back 
     ]);
     assert.ok(account.position.quantity < buy.order.quantity, "the trailing stop sold at least part of the position");
     assert.ok(
-      control.events.some((event) => event.type === "RISK" && event.message.includes("trailing-stop")),
-      "expected a RISK event recording the trailing-stop trigger"
+      control.events.some((event) => event.type === "리스크" && event.message.includes("트레일링 스탑")),
+      "expected a translated 리스크 event recording the trailing-stop trigger"
     );
   }, { pollIntervalMs: 200 });
 });

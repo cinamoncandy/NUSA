@@ -7,7 +7,7 @@ function fakeRuntime(overrides = {}) {
     getMarket: () => ({ status: "CONNECTED", price: 100 }),
     getChartCandles: () => [{ open: 1 }],
     getAccountSnapshot: () => ({ cash: 1, orders: [] }),
-    getControlSnapshot: () => ({ status: "STOPPED" }),
+    getControlSnapshot: () => ({ status: "STOPPED", events: [] }),
     getDashboard: () => ({ portfolio: {} }),
     placeOrder: (side, quantity) => ({ order: { side, quantity } }),
     closePosition: () => ({ order: { side: "SELL", quantity: 0.5 }, account: { cash: 1, orders: [] } }),
@@ -48,7 +48,7 @@ test("GET routes dispatch to the matching runtime method", () => {
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/health", body: undefined }, runtime), { status: 200, body: { status: "ok" } });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/market", body: undefined }, runtime).body, { status: "CONNECTED", price: 100 });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/account", body: undefined }, runtime).body, { cash: 1, orders: [] });
-  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/control", body: undefined }, runtime).body, { status: "STOPPED" });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/control", body: undefined }, runtime).body, { status: "STOPPED", events: [] });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/dashboard", body: undefined }, runtime).body, { portfolio: {} });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/chart/candles", body: undefined }, runtime).body, { candles: [{ open: 1 }] });
   assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).body, {

@@ -1,6 +1,31 @@
 const won = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
+const sideKo = (side) => (side === "BUY" ? "매수" : "매도");
+const CONTROL_STATUS_KO = { STOPPED: "중지됨", RUNNING: "실행 중", PAUSED: "일시정지", FAULTED: "오류 발생" };
+const controlStatusKo = (status) => CONTROL_STATUS_KO[status] ?? status;
+const STRATEGY_NAME_KO = { "sma-crossover": "SMA 크로스오버", "ema-crossover": "EMA 크로스오버" };
+const strategyNameKo = (choice) => STRATEGY_NAME_KO[choice] ?? choice;
+
+// AI CIO dashboard (apps/desktop/src/paperDashboardProjection.ts) status/availability/reason
+// codes -- a fixed, fully enumerated set (see that file), translated here rather than server
+// side since these are read-only display codes, not thrown errors (errorMessages.ts covers those).
+const CIO_BADGE_KO = {
+  HEALTHY: "정상", CAUTION: "주의", BLOCKED: "차단됨",
+  AVAILABLE: "사용 가능", UNAVAILABLE: "사용 불가", INVALID: "무효", NO_DATA: "데이터 없음"
+};
+const CIO_REASON_KO = {
+  PAPER_RUNTIME_UNAVAILABLE: "Paper 실행 환경을 사용할 수 없음",
+  SOURCE_NOT_CONNECTED: "데이터 소스가 연결되지 않음",
+  CONTROL_PLANE_FAULTED: "제어 시스템이 오류 상태임",
+  STRATEGY_ANALYTICS_NOT_CONNECTED: "전략 분석 데이터가 연결되지 않음",
+  STRATEGY_STOPPED: "전략이 중지됨",
+  STRATEGY_PAUSED: "전략이 일시정지됨",
+  STRATEGY_WARMING_UP: "전략이 워밍업 중임",
+  PAPER_SYNTHETIC_EXECUTION: "Paper 합성 체결(시뮬레이션) 사용 중"
+};
+const cioBadgeKo = (code) => CIO_BADGE_KO[code] ?? code;
+const cioReasonKo = (code) => CIO_REASON_KO[code] ?? code;
 const textNode = (tag, value, className) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -141,7 +166,7 @@ function renderKpiStrip(account, control, stats) {
 
   byId("kpi-position").textContent = `${number.format(account.position.quantity)} BTC`;
   byId("kpi-win-rate").textContent = stats.winRate === null ? "-" : percent.format(stats.winRate);
-  byId("kpi-status").textContent = `${control.status}${control.autoTradeEnabled ? " · 자동" : ""}`;
+  byId("kpi-status").textContent = `${controlStatusKo(control.status)}${control.autoTradeEnabled ? " · 자동" : ""}`;
 }
 
 function renderAccount(account) {
@@ -164,7 +189,7 @@ function renderAccount(account) {
     const executionCost = (order.spreadCost ?? 0) + (order.slippageCost ?? 0) + (order.marketImpactCost ?? 0);
     row.append(
       textNode("td", new Date(order.filledAt).toLocaleTimeString("ko-KR")),
-      textNode("td", order.side, order.side.toLowerCase()),
+      textNode("td", sideKo(order.side), order.side.toLowerCase()),
       textNode("td", number.format(order.quantity)),
       textNode("td", won.format(order.price)),
       textNode("td", won.format(order.fee)),
@@ -194,7 +219,7 @@ function renderLimitOrders(orders) {
     cancelButton.addEventListener("click", () => submitCommand("/api/limit-orders/cancel", { id: order.id }, "limit-order-error"));
     cancelCell.append(cancelButton);
     row.append(
-      textNode("td", order.side, order.side.toLowerCase()),
+      textNode("td", sideKo(order.side), order.side.toLowerCase()),
       textNode("td", number.format(order.quantity)),
       textNode("td", won.format(order.limitPrice)),
       textNode("td", new Date(order.createdAt).toLocaleTimeString("ko-KR")),
@@ -243,8 +268,8 @@ function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
 }
 
 function renderControl(control) {
-  byId("strategy-status").textContent = control.status;
-  byId("strategy-id").textContent = control.activeStrategyId;
+  byId("strategy-status").textContent = controlStatusKo(control.status);
+  byId("strategy-id").textContent = strategyNameKo(control.activeStrategyId);
   byId("strategy-select").value = control.activeStrategyId;
   byId("auto-trade").checked = control.autoTradeEnabled;
   byId("strategy-quantity").value = String(control.orderQuantity);
@@ -303,8 +328,8 @@ function renderDashboard(dashboard) {
     const badgeClass = section.status ? section.status.toLowerCase() : section.availability === "UNAVAILABLE" ? "unavailable" : "no-data";
     el.append(
       textNode("h3", label),
-      Object.assign(textNode("span", section.status ?? section.availability ?? "NO_DATA", `cio-badge ${badgeClass}`), {}),
-      ...(section.reasons && section.reasons.length ? [textNode("p", section.reasons.join(", "))] : [])
+      Object.assign(textNode("span", cioBadgeKo(section.status ?? section.availability ?? "NO_DATA"), `cio-badge ${badgeClass}`), {}),
+      ...(section.reasons && section.reasons.length ? [textNode("p", section.reasons.map(cioReasonKo).join(", "))] : [])
     );
     return el;
   }));
