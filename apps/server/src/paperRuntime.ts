@@ -125,7 +125,7 @@ export class PaperRuntime {
   /** Shadow strategy comparison (see championSystem.ts) -- fully isolated from the real
    * account, never persisted (resets on restart, same posture as equityHistory/referencePortfolio
    * above), never read back into any real trading decision. Promotion is manual-only. */
-  private readonly championSystem: ChampionChallengerSystem;
+  private championSystem: ChampionChallengerSystem;
   /** Persisted best-effort to strategyChoicePath (see runtimeSettingsStore.ts); cleared once
    * triggered or the position is flat -- see setPositionProtection(). */
   private stopLossPrice: number | null = null;
@@ -788,6 +788,18 @@ export class PaperRuntime {
     this.selectStrategy(config.choice);
     this.setStrategyPeriods(config.periods);
     this.control.record("STATUS", `champion promoted: ${config.label}`);
+    return this.getChampionStandings();
+  }
+
+  /**
+   * Discards the live shadow challengers' accumulated state and starts them fresh (flat, full
+   * initial cash, no trade history) -- the only way to do this short of a full server restart,
+   * since championSystem is never persisted (see its own field doc comment). Never touches the
+   * real account; the real active strategy/periods are unaffected.
+   */
+  resetChampionSystem(): ChampionStandings {
+    this.championSystem = new ChampionChallengerSystem(this.market, this.initialCash, this.feeRate, RISK_POLICY, FILL_MODEL);
+    this.control.record("STATUS", "champion system reset");
     return this.getChampionStandings();
   }
 

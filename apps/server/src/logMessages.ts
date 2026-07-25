@@ -52,6 +52,7 @@ const PROTECTION_LABEL_KO: Readonly<Record<string, string>> = Object.freeze({
 });
 
 const EXACT_LOG_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  "champion system reset": "챔피언 시스템 초기화됨",
   "strategy started": "전략이 시작됨",
   "strategy stopped": "전략이 중지됨",
   "strategy paused": "전략이 일시정지됨",

@@ -69,3 +69,8 @@ test("value-based audit-only RiskEngine/OrderPlanner CODE: reason messages trans
 test("an unrecognized log message passes through unchanged (not misrepresented as an error)", () => {
   assert.equal(translateLogMessage("some brand new status message"), "some brand new status message");
 });
+
+test("champion/challenger system messages translate", () => {
+  assert.equal(translateLogMessage("champion promoted: EMA(5,20)"), "챔피언 승격: EMA(5,20)");
+  assert.equal(translateLogMessage("champion system reset"), "챔피언 시스템 초기화됨");
+});

@@ -41,6 +41,7 @@ function fakeRuntime(overrides = {}) {
     }),
     getChampionStandings: () => ({ championId: "sma-5-20", challengers: [] }),
     promoteChallenger: (id) => ({ championId: id, challengers: [] }),
+    resetChampionSystem: () => ({ championId: "sma-5-20", challengers: [] }),
     ...overrides
   };
 }
@@ -271,6 +272,14 @@ test("POST /api/champion/promote validates id and dispatches to promoteChallenge
   const rejected = handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "nope" } }, unknown);
   assert.equal(rejected.status, 400);
   assert.equal(rejected.body.error, "알 수 없는 챌린저 ID입니다: nope");
+});
+
+test("POST /api/champion/reset dispatches to resetChampionSystem; GET is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "POST", pathname: "/api/champion/reset", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { championId: "sma-5-20", challengers: [] });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/champion/reset", body: undefined }, runtime).status, 405);
 });
 
 test("POST /api/position/close dispatches to closePosition, GET is 405", () => {

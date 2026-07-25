@@ -466,6 +466,44 @@ test("shadow challengers keep trading on real candle ticks even while the real s
   }, { pollIntervalMs: 20 });
 });
 
+test("POST /api/champion/reset discards accumulated shadow trades without touching the real account", { timeout: 10_000 }, async (t) => {
+  await withServer(t, async (base, runtime, priceBox) => {
+    const prices = [
+      ...Array.from({ length: 20 }, () => 100_000_000),
+      110_000_000, 115_000_000, 120_000_000, 125_000_000, 130_000_000
+    ];
+    for (const price of prices) {
+      priceBox.value = price;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    await new Promise((resolve) => {
+      const check = async () => {
+        const standings = await (await fetch(`${base}/api/champion`)).json();
+        if (standings.challengers.some((c) => c.stats.totalTrades > 0)) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    const accountBefore = await (await fetch(`${base}/api/account`)).json();
+
+    const resetResponse = await fetch(`${base}/api/champion/reset`, { method: "POST" });
+    assert.equal(resetResponse.status, 200);
+    const afterReset = await resetResponse.json();
+    assert.ok(afterReset.challengers.every((c) => c.stats.totalTrades === 0), "every shadow challenger is flat again");
+    assert.ok(afterReset.challengers.every((c) => c.account.cash === 10_000_000), "every shadow challenger has the full initial cash again");
+
+    const accountAfter = await (await fetch(`${base}/api/account`)).json();
+    assert.deepEqual(accountAfter, accountBefore, "the real account is completely untouched by a champion reset");
+
+    const control = await (await fetch(`${base}/api/control`)).json();
+    assert.ok(
+      control.events.some((event) => event.type === "상태" && event.message === "챔피언 시스템 초기화됨"),
+      "expected a translated STATUS event recording the reset"
+    );
+  }, { pollIntervalMs: 20 });
+});
+
 test("GET /api/backtest is 405; POST returns one result per champion preset with a real metrics shape", async (t) => {
   await withServer(t, async (base) => {
     assert.equal((await fetch(`${base}/api/backtest`)).status, 405);

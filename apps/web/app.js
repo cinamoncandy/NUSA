@@ -530,6 +530,8 @@ byId("backtest-run").addEventListener("click", async (event) => {
   }
 });
 
+byId("champion-reset").addEventListener("click", (event) => submitCommand("/api/champion/reset", undefined, "champion-error", event.currentTarget));
+
 const TAB_STORAGE_KEY = "dokkaebi-active-tab";
 const TAB_NAMES = ["trading", "performance", "audit"];
 

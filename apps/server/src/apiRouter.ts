@@ -233,6 +233,10 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
       if (typeof body.id !== "string" || body.id.length === 0) throw new Error("id must be a non-empty string");
       return ok(runtime.promoteChallenger(body.id));
     }
+    if (pathname === "/api/champion/reset") {
+      if (method !== "POST") return methodNotAllowed();
+      return ok(runtime.resetChampionSystem());
+    }
     return notFound();
   } catch (error) {
     return errorResponse(error);
