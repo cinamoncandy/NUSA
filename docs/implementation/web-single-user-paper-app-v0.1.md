@@ -85,21 +85,87 @@ frontend, and stops there.
 ## Follow-up: strategy-choice persistence
 
 The selected strategy (SMA/EMA) now also survives a server restart. This is
-kept in a small sidecar JSON file (`apps/server/src/strategyChoiceStore.ts`,
+kept in a small sidecar JSON file (originally
+`apps/server/src/strategyChoiceStore.ts`, later renamed to
+`runtimeSettingsStore.ts` -- see "expanded feature set" below --
 `${databasePath}.strategy-choice.json`) rather than added to
 `DesktopPersistenceStore` -- that store is reused as-is from `apps/desktop`
 and is not otherwise modified by this product. Losing this file only falls
 back to the SMA(5, 20) default, never a fault of account/order/control
-state. Covered by `tests/strategy-choice-store.test.js` and
+state. Covered by `tests/runtime-settings-store.test.js` and
 `tests/server-strategy-persistence.test.js` (restart round-trip via a real
 `PaperRuntime` instance against a temp SQLite file).
 
+## Follow-up: expanded feature set (v0.2, this same branch)
+
+Everything below landed as incremental, independently-verified commits on
+`claude/progress-p13dc7` after the v0.1 baseline above -- each with its own
+compile + full test-suite pass + real-server/real-browser check, same rigor
+as v0.1's own Verification section. Summarized here rather than rewritten
+into the sections above, since those describe the original scope decision
+and its reasoning, not a changelog.
+
+- **`packages/core` domain layer** (RiskEngine/OrderPlanner/PositionSizer/
+  ExecutionReport/Portfolio/PnL) wired into the automatic-trading pipeline
+  as a value-based audit/risk layer alongside `PaperBroker`.
+- **Audit trail**: reference accounting + real-vs-reference reconciliation,
+  equity curve + drawdown, trade statistics (win rate, profit factor,
+  expectancy), event log -- all read-only, all reusing tested pure
+  functions rather than reimplementing arithmetic.
+- **Risk/order features**: stop-loss/take-profit/trailing-stop position
+  protection, configurable position sizing (FIXED/FIXED_FRACTIONAL),
+  configurable strategy periods, limit orders, one-click position close
+  (전량 청산) -- all persisted across restarts (`runtimeSettingsStore.ts`),
+  all correctly handling `PaperBroker`'s `maxFillRatio` fill cap (retry
+  until flat, or give up and disable on a genuinely unsellable remainder).
+- **Champion/challenger system** (`championSystem.ts`): 3 fixed alternate
+  strategy presets run as isolated shadow `PaperBroker`s against live
+  ticks, compared against the real active strategy, with a manual-only
+  promote action (never automatic -- `docs/NEXT_TASK.md` rule 6's
+  "no automatic promotion" policy applies here too even though that rule
+  was written for the Electron app's own governance surface).
+- **On-demand backtest** (`runBacktestComparison`): reuses
+  `apps/desktop/src/backtestEngine.ts`'s existing `runBacktest()` as-is
+  against up to 200 real recent Upbit candles, selectable as 1-minute
+  (~3.3 hours) or day (~200 days) via `fetchRecentDayCandles`.
+  Independent of the live shadow system -- instant, not accumulated over
+  real elapsed time.
+- **CSV export**, mobile-responsive layout (verified via Playwright at a
+  390px viewport), a tabbed (거래/성과/감사) redesign, and a bounded-row cap
+  on the fills table (event log already had one) to keep a long-running
+  session's DOM from growing unbounded.
+- **Korean-only UI, exhaustively**: every error message (validation,
+  domain rejection, 404/405, JSON-parse failure, Upbit poll failure),
+  every event-log entry, every status/side/strategy-name label is
+  translated via `errorMessages.ts`/`logMessages.ts` -- not just the
+  static UI copy. Unrecognized messages degrade to a Korean-prefixed
+  fallback (errors) or pass through unchanged (routine log entries, so an
+  unrecognized one isn't misrepresented as a failure) rather than ever
+  showing raw English.
+- **Reliability**: buttons that place real orders (매수/매도/전량 청산/
+  지정가 등록/취소/포지션 보호) are disabled for the duration of their
+  request, since manual orders have no server-side idempotency key the
+  way automatic signals do.
+- **Performance**: `scripts/performance-baseline.js` /
+  `docs/performance-baseline.md` measure every hot path added along the
+  way (order processing, market-data mapping, SQLite writes, recovery
+  time, trade-stats/drawdown/reconciliation replay, champion-system
+  candle-tick processing, backtest execution) -- P50/P95/P99, not just an
+  average. No bottleneck found at any point; explicitly excludes
+  GUI-dependent metrics this sandbox cannot honestly measure.
+
 ## Verification
 
-- `tests/ema-crossover-strategy.test.js`, `tests/live-candle-feed.test.js`,
-  `tests/server-api-router.test.js`, `tests/server-http-integration.test.js`
-  (44/44 passing together with the pre-existing `desktop`/`paper-broker`/
-  `runtime-command-service` suites -- no regressions).
+- v0.1 baseline: `tests/ema-crossover-strategy.test.js`,
+  `tests/live-candle-feed.test.js`, `tests/server-api-router.test.js`,
+  `tests/server-http-integration.test.js` (44/44 passing together with the
+  pre-existing `desktop`/`paper-broker`/`runtime-command-service` suites).
+- Current (v0.2, whole repo): 1188/1188 passing (`tests/*.test.js`, minus 3
+  pre-existing files excluded for unrelated sandbox-environment constraints
+  -- `evidence-cli-contract`, `reliability-recovery`, `upbit-websocket` --
+  confirmed unrelated to this work). Verified via this sandbox's manual
+  `tsc` + `node --test` combination (`pnpm install`/`pnpm test` still
+  cannot run here -- see "Why a new, separate surface" above).
 - Manually started the real server (`DOKKAEBI_SERVER_PORT=... node
   dist/apps/server/src/main.js`) against real Upbit market data and: hit
   every endpoint with `curl`, confirmed state (cash/position/orders/control
@@ -108,4 +174,7 @@ state. Covered by `tests/strategy-choice-store.test.js` and
   loaded the dashboard, started the strategy, placed a manual buy, switched
   SMA to EMA, enabled auto-trade, and confirmed the fills table, account
   panel, and AI CIO grid all updated correctly with no console errors other
-  than the browser's routine `favicon.ico` 404.
+  than the browser's routine `favicon.ico` 404. Every v0.2 feature above
+  received the same real-server/real-browser verification individually at
+  the time it was added (see each feature's own commit message for its
+  specific verification details).
