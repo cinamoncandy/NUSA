@@ -35,7 +35,8 @@ function fakeRuntime(overrides = {}) {
     setPositionSizing: (input) => ({ mode: input.mode, riskFraction: input.riskFraction ?? 0.1 }),
     getTradeStatistics: () => ({
       totalTrades: 0, buyCount: 0, sellCount: 0, wins: 0, losses: 0,
-      winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null
+      winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null,
+      profitFactor: null, expectancy: null
     }),
     ...overrides
   };

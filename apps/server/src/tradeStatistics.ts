@@ -15,6 +15,13 @@ export interface TradeStatistics {
   readonly averageLoss: number | null;
   readonly largestWin: number | null;
   readonly largestLoss: number | null;
+  /** sum(wins) / abs(sum(losses)). null when there are no closed trades yet, or no losses yet
+   * (an all-wins profit factor is mathematically unbounded -- not reported as a fabricated
+   * finite number or as Infinity, which JSON can't represent anyway). */
+  readonly profitFactor: number | null;
+  /** Average realized PnL per closed trade (totalRealizedPnl / sellCount) -- null when no
+   * SELL has closed any position yet. */
+  readonly expectancy: number | null;
 }
 
 // Large enough that a real historical fill (which, by definition, already succeeded against
@@ -68,6 +75,7 @@ export function computeTradeStatistics(ordersOldestFirst: readonly PaperOrder[])
 
   const wins = realizedDeltas.filter((pnl) => pnl > 0);
   const losses = realizedDeltas.filter((pnl) => pnl < 0);
+  const totalRealizedPnl = sum(realizedDeltas);
 
   return Object.freeze({
     totalTrades: ordersOldestFirst.length,
@@ -76,10 +84,12 @@ export function computeTradeStatistics(ordersOldestFirst: readonly PaperOrder[])
     wins: wins.length,
     losses: losses.length,
     winRate: realizedDeltas.length ? wins.length / realizedDeltas.length : null,
-    totalRealizedPnl: sum(realizedDeltas),
+    totalRealizedPnl,
     averageWin: average(wins),
     averageLoss: average(losses),
     largestWin: wins.length ? Math.max(...wins) : null,
-    largestLoss: losses.length ? Math.min(...losses) : null
+    largestLoss: losses.length ? Math.min(...losses) : null,
+    profitFactor: losses.length === 0 ? null : sum(wins) / Math.abs(sum(losses)),
+    expectancy: sellCount > 0 ? totalRealizedPnl / sellCount : null
   });
 }

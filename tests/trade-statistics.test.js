@@ -31,6 +31,8 @@ test("no orders: everything is zero/null", () => {
   assert.equal(stats.averageLoss, null);
   assert.equal(stats.largestWin, null);
   assert.equal(stats.largestLoss, null);
+  assert.equal(stats.profitFactor, null);
+  assert.equal(stats.expectancy, null);
 });
 
 test("only BUYs (no closed position): winRate is null, no wins/losses", () => {
@@ -56,6 +58,8 @@ test("a single winning round-trip (BUY then SELL above cost)", () => {
   assert.equal(stats.averageWin, 49);
   assert.equal(stats.largestWin, 49);
   assert.equal(stats.averageLoss, null);
+  assert.equal(stats.profitFactor, null, "no losses yet -- an all-wins ratio is unbounded, not reported as a fabricated number");
+  assert.equal(stats.expectancy, 49);
 });
 
 test("a single losing round-trip (SELL below cost)", () => {
@@ -71,6 +75,8 @@ test("a single losing round-trip (SELL below cost)", () => {
   assert.equal(stats.totalRealizedPnl, -11);
   assert.equal(stats.averageLoss, -11);
   assert.equal(stats.largestLoss, -11);
+  assert.equal(stats.profitFactor, 0, "zero wins / 11 in losses");
+  assert.equal(stats.expectancy, -11);
 });
 
 test("a break-even trade (realizedPnl exactly 0) counts toward the denominator but not wins or losses", () => {
@@ -104,6 +110,10 @@ test("mixed wins and losses across multiple round-trips computes win rate and av
   assert.equal(stats.averageLoss, -20);
   assert.equal(stats.largestWin, 20);
   assert.equal(stats.largestLoss, -20);
+  // wins sum = 30, losses sum = -20 -> 30 / 20
+  assert.equal(stats.profitFactor, 1.5);
+  // totalRealizedPnl 10 / sellCount 3
+  assert.equal(stats.expectancy, 10 / 3);
 });
 
 test("a weighted-average BUY cost is used for the realized PnL on a later partial SELL", () => {

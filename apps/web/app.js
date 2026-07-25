@@ -215,6 +215,8 @@ function renderTradeStatistics(stats) {
   byId("stats-avg-loss").textContent = pnlText(stats.averageLoss);
   byId("stats-largest-win").textContent = pnlText(stats.largestWin);
   byId("stats-largest-loss").textContent = pnlText(stats.largestLoss);
+  byId("stats-profit-factor").textContent = stats.profitFactor === null ? "-" : stats.profitFactor.toFixed(2);
+  byId("stats-expectancy").textContent = pnlText(stats.expectancy);
 }
 
 function renderReferenceAccounting({ portfolio, pnl, reconciliation }) {
