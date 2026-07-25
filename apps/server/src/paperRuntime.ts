@@ -16,7 +16,11 @@ import { AutomaticTradingPipeline, type ReferenceAccounting } from "./pipeline/a
 import { PositionSizerOrderPlanner } from "./pipeline/positionSizerAdapter";
 import { PaperExecutor } from "./pipeline/paperExecutor";
 import { RiskEngine } from "./pipeline/riskEngine";
-import { loadStrategyChoice, saveStrategyChoice, loadStrategyPeriods, saveStrategyPeriods } from "./strategyChoiceStore";
+import {
+  loadStrategyChoice, saveStrategyChoice, loadStrategyPeriods, saveStrategyPeriods,
+  loadPositionProtection, savePositionProtection, loadPositionSizing, savePositionSizing,
+  loadLimitOrders, saveLimitOrders
+} from "./runtimeSettingsStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
@@ -109,7 +113,8 @@ export class PaperRuntime {
   private readonly referencePnlCalculator = new DefaultPnLCalculator();
   private readonly referenceLedger = new DefaultPortfolioLedger();
   private readonly equityHistory = new EquityHistoryRecorder();
-  /** In-memory only, cleared once triggered or the position is flat -- see setPositionProtection(). */
+  /** Persisted best-effort to strategyChoicePath (see runtimeSettingsStore.ts); cleared once
+   * triggered or the position is flat -- see setPositionProtection(). */
   private stopLossPrice: number | null = null;
   private takeProfitPrice: number | null = null;
   /** Mutually exclusive with stopLossPrice (see setPositionProtection's validation): when set,
@@ -119,13 +124,13 @@ export class PaperRuntime {
    * after being enabled. */
   private trailingStopPercent: number | null = null;
   private trailingPeakPrice: number | null = null;
-  /** In-memory only (reset on restart), same posture as position protection above -- pending
-   * limit orders, checked and filled on candle ticks in checkLimitOrders(). */
+  /** Persisted best-effort (see runtimeSettingsStore.ts), same posture as position protection
+   * above -- pending limit orders, checked and filled on candle ticks in checkLimitOrders(). */
   private readonly limitOrders: LimitOrder[] = [];
   private limitOrderSequence = 0;
-  /** In-memory only, same as the fields above. FIXED_FRACTIONAL sizes each automatic trade to
-   * riskFraction * equity / price (packages/core's DefaultPositionSizer, E02-T004) instead of
-   * ControlPlane's static order quantity -- see the policyFor closure passed into
+  /** Persisted best-effort, same as the fields above. FIXED_FRACTIONAL sizes each automatic
+   * trade to riskFraction * equity / price (packages/core's DefaultPositionSizer, E02-T004)
+   * instead of ControlPlane's static order quantity -- see the policyFor closure passed into
    * AutomaticTradingPipeline below. Only affects automatic (strategy-driven) trades; manual
    * orders via placeOrder() always use the exact quantity the caller requests. */
   private sizingMode: SizingMode = "FIXED";
@@ -147,6 +152,24 @@ export class PaperRuntime {
     this.strategyChoicePath = options.strategyChoicePath ?? `${options.databasePath}.strategy-choice.json`;
     this.currentStrategyId = loadStrategyChoice(this.strategyChoicePath) ?? "sma-crossover";
     this.strategyPeriods = loadStrategyPeriods(this.strategyChoicePath) ?? DEFAULT_STRATEGY_PERIODS;
+
+    const restoredProtection = loadPositionProtection(this.strategyChoicePath);
+    if (restoredProtection) {
+      this.stopLossPrice = restoredProtection.stopLossPrice;
+      this.takeProfitPrice = restoredProtection.takeProfitPrice;
+      this.trailingStopPercent = restoredProtection.trailingStopPercent;
+      this.trailingPeakPrice = restoredProtection.trailingPeakPrice;
+    }
+    const restoredSizing = loadPositionSizing(this.strategyChoicePath);
+    if (restoredSizing) {
+      this.sizingMode = restoredSizing.mode;
+      this.riskFraction = restoredSizing.riskFraction;
+    }
+    const restoredLimitOrders = loadLimitOrders(this.strategyChoicePath);
+    if (restoredLimitOrders) {
+      this.limitOrders.push(...restoredLimitOrders.orders);
+      this.limitOrderSequence = restoredLimitOrders.sequence;
+    }
 
     let diagnostic: string | undefined;
     let restored: ReturnType<DesktopPersistenceStore["load"]>;
@@ -287,6 +310,7 @@ export class PaperRuntime {
       this.takeProfitPrice = null;
       this.trailingStopPercent = null;
       this.trailingPeakPrice = null;
+      this.savePositionProtectionState();
       return;
     }
 
@@ -322,6 +346,7 @@ export class PaperRuntime {
         this.trailingStopPercent = null;
         this.trailingPeakPrice = null;
       }
+      this.savePositionProtectionState();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // Give up rather than retry forever: a leftover dust remainder (below the market's
@@ -331,6 +356,7 @@ export class PaperRuntime {
       this.takeProfitPrice = null;
       this.trailingStopPercent = null;
       this.trailingPeakPrice = null;
+      this.savePositionProtectionState();
       this.control.record("RISK", `${label} trigger failed, protection disabled: ${message}`);
     } finally {
       this.paperTradingAvailable = this.runtime.isAvailable();
@@ -373,6 +399,7 @@ export class PaperRuntime {
       }
       const index = this.limitOrders.findIndex((pending) => pending.id === order.id);
       if (index >= 0) this.limitOrders.splice(index, 1);
+      this.saveLimitOrdersState();
     }
   }
 
@@ -390,6 +417,7 @@ export class PaperRuntime {
       createdAt: new Date().toISOString()
     });
     this.limitOrders.push(order);
+    this.saveLimitOrdersState();
     this.control.record("STATUS", `limit order placed: ${side} ${quantity} @ ${limitPrice}`, order);
     return order;
   }
@@ -398,7 +426,40 @@ export class PaperRuntime {
     const index = this.limitOrders.findIndex((order) => order.id === id);
     if (index < 0) throw new Error(`no pending limit order with id ${id}`);
     const [cancelled] = this.limitOrders.splice(index, 1);
+    this.saveLimitOrdersState();
     this.control.record("STATUS", `limit order cancelled: ${cancelled!.side} ${cancelled!.quantity} @ ${cancelled!.limitPrice}`);
+  }
+
+  /** Best-effort persistence, same convention as selectStrategy()/setStrategyPeriods()'s own
+   * save calls -- a failed write here only means the next restart falls back to defaults,
+   * never an account/control fault. */
+  private savePositionProtectionState(): void {
+    try {
+      savePositionProtection(this.strategyChoicePath, {
+        stopLossPrice: this.stopLossPrice,
+        takeProfitPrice: this.takeProfitPrice,
+        trailingStopPercent: this.trailingStopPercent,
+        trailingPeakPrice: this.trailingPeakPrice
+      });
+    } catch {
+      // Best-effort continuity only.
+    }
+  }
+
+  private savePositionSizingState(): void {
+    try {
+      savePositionSizing(this.strategyChoicePath, { mode: this.sizingMode, riskFraction: this.riskFraction });
+    } catch {
+      // Best-effort continuity only.
+    }
+  }
+
+  private saveLimitOrdersState(): void {
+    try {
+      saveLimitOrders(this.strategyChoicePath, { orders: this.limitOrders, sequence: this.limitOrderSequence });
+    } catch {
+      // Best-effort continuity only.
+    }
   }
 
   getPositionProtection(): {
@@ -452,6 +513,7 @@ export class PaperRuntime {
     this.takeProfitPrice = takeProfitPrice;
     if (trailingStopPercent !== this.trailingStopPercent) this.trailingPeakPrice = null;
     this.trailingStopPercent = trailingStopPercent;
+    this.savePositionProtectionState();
     this.control.record(
       "STATUS",
       `position protection set: stopLoss=${stopLossPrice ?? "-"} takeProfit=${takeProfitPrice ?? "-"} trailingStopPercent=${trailingStopPercent ?? "-"}`
@@ -480,6 +542,7 @@ export class PaperRuntime {
       this.riskFraction = input.riskFraction;
     }
     this.sizingMode = input.mode;
+    this.savePositionSizingState();
     this.control.record("STATUS", `position sizing set: mode=${input.mode}${input.mode === "FIXED_FRACTIONAL" ? ` riskFraction=${this.riskFraction}` : ""}`);
     return this.getPositionSizing();
   }
