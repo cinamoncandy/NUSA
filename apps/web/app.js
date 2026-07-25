@@ -351,6 +351,13 @@ const MAX_EVENT_ROWS = 30;
 // history remains available via the existing CSV export, unaffected by this display cap.
 const MAX_ORDER_ROWS = 50;
 
+// apiRouter.ts's /api/control handler already translates events[].type to Korean
+// (신호/상태/시스템/주문/리스크) server-side -- this maps that Korean label back to the CSS
+// class suffix .event-type/.event-row-risk actually expect (styles.css only defines
+// .event-type.risk/.order/.signal/.system/.status), since comparing against the old raw
+// English values here would never match once the server started translating them.
+const EVENT_TYPE_CSS_CLASS = Object.freeze({ "신호": "signal", "상태": "status", "시스템": "system", "주문": "order", "리스크": "risk" });
+
 function renderEvents(events) {
   const tbody = byId("events");
   if (!events.length) {
@@ -363,9 +370,9 @@ function renderEvents(events) {
   }
   tbody.replaceChildren(...events.slice(0, MAX_EVENT_ROWS).map((event) => {
     const row = document.createElement("tr");
-    if (event.type === "RISK") row.className = "event-row-risk";
+    if (event.type === "리스크") row.className = "event-row-risk";
     const typeCell = document.createElement("td");
-    typeCell.append(textNode("span", event.type, `event-type ${event.type.toLowerCase()}`));
+    typeCell.append(textNode("span", event.type, `event-type ${EVENT_TYPE_CSS_CLASS[event.type] ?? ""}`));
     row.append(textNode("td", new Date(event.timestamp).toLocaleTimeString("ko-KR")), typeCell, textNode("td", event.message));
     return row;
   }));
