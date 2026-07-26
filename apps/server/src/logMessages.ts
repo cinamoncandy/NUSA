@@ -94,7 +94,12 @@ const LOG_PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly tra
     pattern: /^position protection set: stopLoss=(.+) takeProfit=(.+) trailingStopPercent=(.+)$/,
     translate: (m) => `포지션 보호 설정: 스탑로스=${m[1]} 익절=${m[2]} 트레일링 스탑 비율=${m[3]}`
   },
-  { pattern: /^position sizing set: mode=(.+)$/, translate: (m) => `포지션 사이징 설정: 모드=${m[1]}` },
+  // riskFraction is only appended to the source message when mode is FIXED_FRACTIONAL (see
+  // paperRuntime.ts's setPositionSizing()) -- the field-name label gets the same Korean
+  // treatment "strategy periods set"'s short=/long=/단기=/장기= already gets below, even though
+  // the mode *value* itself (FIXED/FIXED_FRACTIONAL) stays as the raw enum, same convention as
+  // index.html's <option value="FIXED_FRACTIONAL"> keeping its value attribute in English.
+  { pattern: /^position sizing set: mode=([A-Z_]+)(?: riskFraction=(.+))?$/, translate: (m) => `포지션 사이징 설정: 모드=${m[1]}${m[2] === undefined ? "" : ` 리스크 비율=${m[2]}`}` },
   { pattern: /^strategy periods set: short=(.+) long=(.+)$/, translate: (m) => `전략 기간 설정: 단기=${m[1]} 장기=${m[2]}` },
   { pattern: /^champion promoted: (.+)$/, translate: (m) => `챔피언 승격: ${m[1]}` },
   { pattern: /^reference accounting diverged from the real account: (.+)$/, translate: (m) => `참조 회계가 실제 계좌와 불일치함: ${m[1]}` },

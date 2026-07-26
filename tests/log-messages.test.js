@@ -45,6 +45,16 @@ test("position protection trigger/set messages translate with embedded values pr
   );
 });
 
+test("position sizing messages translate the riskFraction field label, not just mode=", () => {
+  // FIXED mode never appends riskFraction (see paperRuntime.ts's setPositionSizing()).
+  assert.equal(translateLogMessage("position sizing set: mode=FIXED"), "포지션 사이징 설정: 모드=FIXED");
+  // FIXED_FRACTIONAL does -- previously left as raw English "riskFraction=0.1" mid-sentence.
+  assert.equal(
+    translateLogMessage("position sizing set: mode=FIXED_FRACTIONAL riskFraction=0.1"),
+    "포지션 사이징 설정: 모드=FIXED_FRACTIONAL 리스크 비율=0.1"
+  );
+});
+
 test("limit order lifecycle messages translate", () => {
   assert.equal(translateLogMessage("limit order placed: BUY 0.001 @ 90000000"), "지정가 주문 등록: 매수 0.001 @ 90000000");
   assert.equal(translateLogMessage("limit order cancelled: SELL 0.001 @ 100000000"), "지정가 주문 취소됨: 매도 0.001 @ 100000000");
