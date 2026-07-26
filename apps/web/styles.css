@@ -66,7 +66,11 @@ h2 { margin: 0 0 1.25rem; font-size: 1.1rem; letter-spacing: -0.005em; }
 .kpi-tile dd.negative { color: var(--danger); }
 
 .tabs { display: inline-flex; gap: 0.2rem; padding: 0.25rem; margin-bottom: 1.5rem; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 999px; }
-.tab-button { min-height: auto; padding: 0.6rem 1.3rem; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; box-shadow: none; }
+/* No min-height override: inherits the base button rule's 2.75rem (44px) minimum -- a real
+   touch-target gap found via a live Playwright measurement pass (this was the one interactive
+   element in the whole app under the 44px accessible tap-target guideline; every other button
+   already meets it). */
+.tab-button { padding: 0.6rem 1.3rem; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; box-shadow: none; }
 .tab-button:hover { transform: none; filter: none; background: rgba(255, 255, 255, 0.04); color: var(--fg); }
 .tab-button.active { background: var(--primary); color: #fff; box-shadow: 0 4px 14px -4px var(--primary-glow); }
 .tab-panel[hidden] { display: none; }

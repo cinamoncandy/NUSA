@@ -582,3 +582,10 @@ activateTab(savedTab ?? "trading");
 
 window.addEventListener("beforeunload", () => clearTimeout(refreshTimer));
 refresh();
+
+// PWA installability (sw.js only ever caches the static shell, never /api/ -- see its own doc
+// comment). Best-effort only: a failed registration (unsupported browser, blocked, ...) never
+// affects the app itself, which works identically with or without it.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+}
