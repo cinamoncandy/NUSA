@@ -10,6 +10,7 @@ import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
+import { resolveRendererIndexPath } from "./rendererPath";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
@@ -210,7 +211,7 @@ function createWindow(): void {
       sandbox: true
     }
   });
-  window.loadFile(path.resolve(__dirname, "../../../../apps/desktop/renderer/index.html"));
+  window.loadFile(resolveRendererIndexPath(__dirname));
   window.webContents.on("did-finish-load", () => {
     rendererHealthy = true;
     publishControl();
