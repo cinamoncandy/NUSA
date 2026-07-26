@@ -18,6 +18,23 @@ Implemented and continuously validated:
 
 The consolidated lifecycle and explicit command boundaries are documented in `docs/operations/OPERATIONS_PLAYBOOK.md`.
 
+### WO-0027: Walk-Forward request/result contract layer
+
+`scripts/lib/walk-forward-runner.js` and `scripts/lib/walk-forward-verifier.js` add a
+request/result contract (training+validation+test windows, an explicit SMA parameter
+grid, `FIXED_PARAMETER_5_20`/buy-and-hold/cash benchmarks, deterministic hashing, and an
+independent verifier) on top of the existing `walkForwardEngine.ts`/`backtestEngine.ts`/
+`researchDataset.ts` lineage referenced above -- it does not replace that lineage, and it
+does not introduce the `MarketCandle`/`HistoricalDatasetDescriptor` contracts that a
+prior work-order draft assumed already existed (they do not; see
+`docs/research/walk-forward-contract.md` for the full scope decision and disclosed
+deviations, chiefly: same-candle-close fill rather than next-candle, and a single
+dataset content hash rather than a source/normalized pair). Only synthetic fixtures have
+been run so far (`tests/fixtures/walk-forward/basic-walk-forward.json`); no real
+historical dataset has been executed through this layer, and no production SMA
+parameter has changed as a result of this work. Owner review is still required before
+any of this research feeds a Paper-promotion decision.
+
 ## Current verified GitHub state
 
 At the last repository inspection:
