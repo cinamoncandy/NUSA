@@ -28,7 +28,16 @@ html {
     var(--bg);
   background-attachment: fixed;
 }
-body { margin: 0; min-height: 100vh; }
+/* Only matters once the manifest's display:standalone is actually installed (viewport-fit=cover
+   in index.html makes these env() values non-zero) -- a normal browser tab keeps its own chrome
+   around the notch/home-indicator and these all resolve to 0, changing nothing. Installed
+   fullscreen on a notched phone, content would otherwise render under the notch/dynamic island
+   or the bottom gesture-swipe area. */
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
 main { width: min(100% - 2rem, 68rem); margin-inline: auto; padding-block: 2rem; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
 h1 { margin: 0; font-size: 1.85rem; letter-spacing: -0.01em; }
