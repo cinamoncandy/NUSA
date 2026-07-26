@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "KILL_SWITCH_001",
+  "initialCash": 10000000,
+  "market": "KRW-BTC",
+  "feeRate": 0.0005,
+  "events": [
+    {
+      "id": "EVT-001",
+      "type": "CONTROL_COMMAND",
+      "action": "START"
+    },
+    {
+      "id": "EVT-002",
+      "type": "CONTROL_COMMAND",
+      "action": "SET_ORDER_QUANTITY",
+      "quantity": 5
+    },
+    {
+      "id": "EVT-003",
+      "type": "CONTROL_COMMAND",
+      "action": "SET_AUTO_TRADE",
+      "enabled": true
+    },
+    {
+      "id": "EVT-004",
+      "type": "AUTOMATIC_SIGNAL",
+      "signalType": "BUY",
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:01.000Z",
+      "expectOutcome": "FILLED"
+    },
+    {
+      "id": "EVT-005",
+      "type": "CONTROL_COMMAND",
+      "action": "STOP"
+    },
+    {
+      "id": "EVT-006",
+      "type": "AUTOMATIC_SIGNAL",
+      "signalType": "BUY",
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:02.000Z",
+      "expectOutcome": "SKIPPED"
+    }
+  ],
+  "expected": {
+    "finalCash": 9499750,
+    "positionQuantity": 5,
+    "averageEntryPrice": 100000,
+    "realizedPnl": 0,
+    "totalFees": 250,
+    "orderCount": 1
+  }
+}

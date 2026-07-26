@@ -8,11 +8,23 @@
  * This module does not reimplement any trading calculation -- it only supplies
  * deterministic inputs (fixed clock, fixed prices) and observes real outputs. Independent
  * verification of those outputs happens separately, in paper-ledger-verifier.js.
+ *
+ * Event types: MANUAL_ORDER, INJECT_PERSISTENCE_FAILURE, RESTART, CONTROL_COMMAND
+ * (start/stop/auto-trade/order-quantity -- STOP is the Kill Switch), and AUTOMATIC_SIGNAL
+ * (drives RuntimeCommandService.automaticSignal() the same way a real market tick would).
  */
 const path = require("node:path");
 const { verifyPaperLedger } = require("./paper-ledger-verifier.js");
 
-const ALLOWED_EVENT_TYPES = new Set(["MANUAL_ORDER", "INJECT_PERSISTENCE_FAILURE", "RESTART"]);
+const ALLOWED_EVENT_TYPES = new Set([
+  "MANUAL_ORDER",
+  "INJECT_PERSISTENCE_FAILURE",
+  "RESTART",
+  "CONTROL_COMMAND",
+  "AUTOMATIC_SIGNAL"
+]);
+const CONTROL_COMMAND_ACTIONS = new Set(["START", "STOP", "SET_AUTO_TRADE", "SET_ORDER_QUANTITY"]);
+const AUTOMATIC_SIGNAL_OUTCOMES = new Set(["FILLED", "SKIPPED", "REJECTED", "DUPLICATE"]);
 
 function validateFixture(fixture) {
   const errors = [];
@@ -37,6 +49,17 @@ function validateFixture(fixture) {
       if (!Number.isFinite(event.price) || event.price <= 0) errors.push(`event ${event.id}: price must be a positive finite number`);
       if (typeof event.timestamp !== "string" || Number.isNaN(Date.parse(event.timestamp))) errors.push(`event ${event.id}: timestamp must be a parseable ISO string`);
     }
+    if (event.type === "CONTROL_COMMAND") {
+      if (!CONTROL_COMMAND_ACTIONS.has(event.action)) errors.push(`event ${event.id}: action must be one of ${[...CONTROL_COMMAND_ACTIONS].join(", ")}`);
+      if (event.action === "SET_AUTO_TRADE" && typeof event.enabled !== "boolean") errors.push(`event ${event.id}: enabled must be a boolean for SET_AUTO_TRADE`);
+      if (event.action === "SET_ORDER_QUANTITY" && (!Number.isFinite(event.quantity) || event.quantity <= 0)) errors.push(`event ${event.id}: quantity must be a positive finite number for SET_ORDER_QUANTITY`);
+    }
+    if (event.type === "AUTOMATIC_SIGNAL") {
+      if (event.signalType !== "BUY" && event.signalType !== "SELL" && event.signalType !== "HOLD") errors.push(`event ${event.id}: signalType must be BUY, SELL, or HOLD`);
+      if (!Number.isFinite(event.price) || event.price <= 0) errors.push(`event ${event.id}: price must be a positive finite number`);
+      if (typeof event.timestamp !== "string" || Number.isNaN(Date.parse(event.timestamp))) errors.push(`event ${event.id}: timestamp must be a parseable ISO string`);
+      if (event.expectOutcome !== undefined && !AUTOMATIC_SIGNAL_OUTCOMES.has(event.expectOutcome)) errors.push(`event ${event.id}: expectOutcome must be one of ${[...AUTOMATIC_SIGNAL_OUTCOMES].join(", ")}`);
+    }
   }
 
   if (!errors.length && !fixture.expected) errors.push("fixture.expected is required");
@@ -56,14 +79,17 @@ function loadProductionModules(repositoryRoot) {
 
 /** A normalized, JSON-stable snapshot excluding fields that legitimately vary run to run
  * (order/fill ids embed Date.now()-based timestamps in this codebase's real ID scheme --
- * they are compared for uniqueness and count, not for a specific literal value). */
-function normalizeState(brokerState, controlState) {
+ * they are compared for uniqueness and count, not for a specific literal value).
+ * `controlRuntimeState` must be ControlPlane.exportRuntimeState(), not exportState() --
+ * only the runtime shape carries autoTradeEnabled (exportState()'s persisted shape omits
+ * it, since autoTradeEnabled is never durable: restoring always forces it back to false). */
+function normalizeState(brokerState, controlRuntimeState) {
   return {
     cash: brokerState.cash,
     position: brokerState.position,
     orderCount: brokerState.orders.length,
-    controlStatus: controlState.status,
-    autoTradeEnabled: controlState.autoTradeEnabled
+    controlStatus: controlRuntimeState.persisted.status,
+    autoTradeEnabled: controlRuntimeState.autoTradeEnabled
   };
 }
 
@@ -104,7 +130,7 @@ function runPaperScenario(fixture, options = {}) {
   persistence.save(broker.exportState(), control.exportState());
 
   for (const event of fixture.events) {
-    const before = normalizeState(broker.exportState(), control.exportState());
+    const before = normalizeState(broker.exportState(), control.exportRuntimeState());
     const eventResult = { id: event.id, type: event.type, status: "PASS", before, after: null };
 
     if (event.type === "INJECT_PERSISTENCE_FAILURE") {
@@ -124,7 +150,63 @@ function runPaperScenario(fixture, options = {}) {
       control = new ControlPlane("sma-crossover", 200, durable.control);
       strategy = new StrategyEngine(new SmaCrossoverStrategy());
       runtime = new RuntimeCommandService(broker, control, strategy, persistence);
-      eventResult.after = normalizeState(broker.exportState(), control.exportState());
+      eventResult.after = normalizeState(broker.exportState(), control.exportRuntimeState());
+      eventResults.push(eventResult);
+      continue;
+    }
+
+    if (event.type === "CONTROL_COMMAND") {
+      let rejected = false;
+      let rejectReason = "";
+      try {
+        if (event.action === "START") runtime.start();
+        else if (event.action === "STOP") runtime.stop(); // the Kill Switch
+        else if (event.action === "SET_AUTO_TRADE") runtime.setAutoTrade(event.enabled);
+        else if (event.action === "SET_ORDER_QUANTITY") runtime.setOrderQuantity(event.quantity);
+      } catch (error) {
+        rejected = true;
+        rejectReason = error instanceof Error ? error.message : String(error);
+      }
+      eventResult.after = normalizeState(broker.exportState(), control.exportRuntimeState());
+      eventResult.rejected = rejected;
+      if (rejected) eventResult.rejectReason = rejectReason;
+
+      if (event.expectRejected && !rejected) {
+        eventResult.status = "FAIL";
+        failures.push(`event ${event.id}: expected rejection but the control command succeeded`);
+      } else if (!event.expectRejected && rejected) {
+        eventResult.status = "FAIL";
+        failures.push(`event ${event.id}: unexpected rejection: ${rejectReason}`);
+      } else if (event.expectRejected && event.expectedRejectReason && !rejectReason.includes(event.expectedRejectReason)) {
+        eventResult.status = "FAIL";
+        failures.push(`event ${event.id}: expected rejection reason to include "${event.expectedRejectReason}", got "${rejectReason}"`);
+      }
+      eventResults.push(eventResult);
+      continue;
+    }
+
+    if (event.type === "AUTOMATIC_SIGNAL") {
+      // Mirrors apps/desktop/src/main.ts's handleTicker(): positionQuantity is always read
+      // live from the broker immediately before the call, never supplied by the caller.
+      const positionQuantity = broker.exportState().position.quantity;
+      const signal = {
+        type: event.signalType,
+        reason: typeof event.reason === "string" ? event.reason : "scenario",
+        confidence: typeof event.confidence === "number" ? event.confidence : 1,
+        timestamp: Date.parse(event.timestamp)
+      };
+      const result = runtime.automaticSignal(fixture.market, event.price, positionQuantity, signal);
+      eventResult.after = normalizeState(broker.exportState(), control.exportRuntimeState());
+      eventResult.outcome = result.outcome;
+      if (result.error) eventResult.rejectReason = result.error;
+
+      if (event.expectOutcome && result.outcome !== event.expectOutcome) {
+        eventResult.status = "FAIL";
+        failures.push(`event ${event.id}: expected outcome ${event.expectOutcome}, got ${result.outcome}`);
+      } else if (event.expectOutcome === "REJECTED" && event.expectedRejectReason && !(result.error || "").includes(event.expectedRejectReason)) {
+        eventResult.status = "FAIL";
+        failures.push(`event ${event.id}: expected reject reason to include "${event.expectedRejectReason}", got "${result.error}"`);
+      }
       eventResults.push(eventResult);
       continue;
     }
@@ -136,12 +218,16 @@ function runPaperScenario(fixture, options = {}) {
       // RuntimeCommandService.manualOrder() takes no clock override -- the fixture's
       // per-event timestamp is used only for the fixture's own event ordering, not fed
       // into production, which always fills at real wall-clock time (matching real usage).
+      // manualOrder() also has no order-level idempotency key: two textually identical
+      // MANUAL_ORDER events fill as two independent orders (see
+      // tests/fixtures/paper-scenarios/duplicate-signal-scenario.json), unlike
+      // automaticSignal() which dedups via ControlPlane.claimAutomaticSignal().
       runtime.manualOrder(event.side, event.quantity, event.price);
     } catch (error) {
       rejected = true;
       rejectReason = error instanceof Error ? error.message : String(error);
     }
-    eventResult.after = normalizeState(broker.exportState(), control.exportState());
+    eventResult.after = normalizeState(broker.exportState(), control.exportRuntimeState());
     eventResult.rejected = rejected;
     if (rejected) eventResult.rejectReason = rejectReason;
 

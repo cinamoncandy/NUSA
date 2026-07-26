@@ -116,3 +116,79 @@ test("the input fixture object is not mutated by the runner", () => {
   runPaperScenario(fixture);
   assert.deepEqual(fixture, before);
 });
+
+test("CONTROL_COMMAND START/SET_ORDER_QUANTITY/SET_AUTO_TRADE followed by an AUTOMATIC_SIGNAL fills a paper order", () => {
+  const fixture = baseFixture();
+  fixture.events = [
+    { id: "EVT-001", type: "CONTROL_COMMAND", action: "START" },
+    { id: "EVT-002", type: "CONTROL_COMMAND", action: "SET_ORDER_QUANTITY", quantity: 5 },
+    { id: "EVT-003", type: "CONTROL_COMMAND", action: "SET_AUTO_TRADE", enabled: true },
+    { id: "EVT-004", type: "AUTOMATIC_SIGNAL", signalType: "BUY", price: 100_000, timestamp: "2026-01-01T00:00:01.000Z", expectOutcome: "FILLED" }
+  ];
+  fixture.expected = { finalCash: 10_000_000 - (5 * 100_000 + 5 * 100_000 * 0.0005), positionQuantity: 5, averageEntryPrice: 100_000, realizedPnl: 0, totalFees: 250, orderCount: 1 };
+  const result = runPaperScenario(fixture);
+  assert.equal(result.status, "PASS", JSON.stringify(result.failures));
+  const filled = result.events.find((event) => event.id === "EVT-004");
+  assert.equal(filled.outcome, "FILLED");
+});
+
+test("Kill Switch (CONTROL_COMMAND STOP) blocks a subsequent AUTOMATIC_SIGNAL from filling", () => {
+  const fixture = baseFixture();
+  fixture.events = [
+    { id: "EVT-001", type: "CONTROL_COMMAND", action: "START" },
+    { id: "EVT-002", type: "CONTROL_COMMAND", action: "SET_AUTO_TRADE", enabled: true },
+    { id: "EVT-003", type: "CONTROL_COMMAND", action: "STOP" },
+    { id: "EVT-004", type: "AUTOMATIC_SIGNAL", signalType: "BUY", price: 100_000, timestamp: "2026-01-01T00:00:01.000Z", expectOutcome: "SKIPPED" }
+  ];
+  fixture.expected = { finalCash: 10_000_000, positionQuantity: 0, averageEntryPrice: 0, realizedPnl: 0, totalFees: 0, orderCount: 0 };
+  const result = runPaperScenario(fixture);
+  assert.equal(result.status, "PASS", JSON.stringify(result.failures));
+  const stopEvent = result.events.find((event) => event.id === "EVT-003");
+  assert.equal(stopEvent.after.controlStatus, "STOPPED");
+  assert.equal(stopEvent.after.autoTradeEnabled, false);
+  const skipped = result.events.find((event) => event.id === "EVT-004");
+  assert.equal(skipped.outcome, "SKIPPED");
+  assert.equal(skipped.after.orderCount, 0);
+});
+
+test("a duplicate AUTOMATIC_SIGNAL (same market:timestamp:type key) is rejected as DUPLICATE and produces no second order", () => {
+  const fixture = baseFixture();
+  fixture.events = [
+    { id: "EVT-001", type: "CONTROL_COMMAND", action: "START" },
+    { id: "EVT-002", type: "CONTROL_COMMAND", action: "SET_AUTO_TRADE", enabled: true },
+    { id: "EVT-003", type: "AUTOMATIC_SIGNAL", signalType: "BUY", price: 100_000, timestamp: "2026-01-01T00:00:01.000Z", expectOutcome: "FILLED" },
+    { id: "EVT-004", type: "AUTOMATIC_SIGNAL", signalType: "BUY", price: 100_000, timestamp: "2026-01-01T00:00:01.000Z", expectOutcome: "DUPLICATE" }
+  ];
+  fixture.expected = { finalCash: 10_000_000 - (0.001 * 100_000 + 0.001 * 100_000 * 0.0005), positionQuantity: 0.001, averageEntryPrice: 100_000, realizedPnl: 0, totalFees: 0.001 * 100_000 * 0.0005, orderCount: 1 };
+  const result = runPaperScenario(fixture);
+  assert.equal(result.status, "PASS", JSON.stringify(result.failures));
+  const duplicate = result.events.find((event) => event.id === "EVT-004");
+  assert.equal(duplicate.outcome, "DUPLICATE");
+  assert.equal(duplicate.after.orderCount, 1);
+});
+
+test("documented current behavior: MANUAL_ORDER has no idempotency key, so two identical manual orders fill twice", () => {
+  const fixture = baseFixture();
+  fixture.events = [
+    { id: "EVT-001", type: "MANUAL_ORDER", side: "BUY", quantity: 2, price: 100_000, timestamp: "2026-01-01T00:00:01.000Z" },
+    { id: "EVT-002", type: "MANUAL_ORDER", side: "BUY", quantity: 2, price: 100_000, timestamp: "2026-01-01T00:00:01.000Z" }
+  ];
+  fixture.expected = { finalCash: 10_000_000 - 2 * (2 * 100_000 + 2 * 100_000 * 0.0005), positionQuantity: 4, averageEntryPrice: 100_000, realizedPnl: 0, totalFees: 200, orderCount: 2 };
+  const result = runPaperScenario(fixture);
+  assert.equal(result.status, "PASS", JSON.stringify(result.failures));
+  assert.equal(result.expectedComparison.actual.orderCount, 2);
+});
+
+test("an unknown CONTROL_COMMAND action is rejected by fixture validation", () => {
+  const fixture = baseFixture();
+  fixture.events.push({ id: "EVT-BAD", type: "CONTROL_COMMAND", action: "NUKE" });
+  const errors = validateFixture(fixture);
+  assert.ok(errors.some((message) => message.includes("action must be one of")));
+});
+
+test("an AUTOMATIC_SIGNAL missing a valid signalType is rejected by fixture validation", () => {
+  const fixture = baseFixture();
+  fixture.events.push({ id: "EVT-BAD", type: "AUTOMATIC_SIGNAL", signalType: "WAT", price: 100_000, timestamp: "2026-01-01T00:00:01.000Z" });
+  const errors = validateFixture(fixture);
+  assert.ok(errors.some((message) => message.includes("signalType must be")));
+});
