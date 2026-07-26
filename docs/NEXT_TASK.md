@@ -35,6 +35,32 @@ historical dataset has been executed through this layer, and no production SMA
 parameter has changed as a result of this work. Owner review is still required before
 any of this research feeds a Paper-promotion decision.
 
+### WO-0028: SMA parameter-neighborhood robustness layer
+
+`scripts/lib/parameter-robustness-runner.js` and `scripts/lib/parameter-robustness-verifier.js`
+add a candidate-neighborhood/plateau-classification layer around a reference SMA
+parameter (immediate-neighbor agreement, local smoothness, cost-stressed survival under
+three fixed BASE/MODERATE/SEVERE conditions), reusing the same production Backtest
+Engine and WO-0027's generic windowing/compounding helpers -- see
+`docs/research/parameter-robustness-contract.md` for the full scope decision and
+classification thresholds. Only a synthetic fixture has been run
+(`tests/fixtures/parameter-robustness/basic-robustness.json`); no production SMA
+parameter changed.
+
+### WO-0033/WO-0034 status: BLOCKED
+
+WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
+were requested but are BLOCKED for two independent reasons: (1) their stated
+prerequisites -- WO-0029 (Regime Analysis), WO-0030 (Cross-Market Validation),
+WO-0031 (Strategy Research Scorecard), and WO-0032 (Independent Risk Gateway) -- do not
+exist in this repository (verified directly; no matching files or commits), and
+(2) even once built, both work orders' actual deliverable is real multi-week Windows
+GUI evidence, a real extended public-market connection, real installer/upgrade/rollback
+drills, and real owner sign-off -- none of which a sandboxed session can produce.
+Building synthetic "pilot" evidence and labeling it as satisfying WO-0033/0034 would be
+exactly the kind of unverified claim those work orders themselves prohibit (see their
+own "SNS External Claim Policy" section), so this was refused rather than fabricated.
+
 ## Current verified GitHub state
 
 At the last repository inspection:
