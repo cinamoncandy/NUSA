@@ -11,6 +11,16 @@ import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
 import { resolveRendererIndexPath } from "./rendererPath";
+import {
+  createPreloadErrorDiagnostic,
+  createRendererConsoleErrorDiagnostic,
+  createRendererLoadFailedDiagnostic,
+  createRendererLoadFinishedDiagnostic,
+  createRendererProcessGoneDiagnostic,
+  createRendererResponsiveDiagnostic,
+  createRendererUnresponsiveDiagnostic,
+  formatDesktopStartupDiagnostic
+} from "./desktopStartupDiagnostics";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
@@ -213,12 +223,34 @@ function createWindow(): void {
   });
   window.loadFile(resolveRendererIndexPath(__dirname));
   window.webContents.on("did-finish-load", () => {
+    console.info(formatDesktopStartupDiagnostic(createRendererLoadFinishedDiagnostic()));
     rendererHealthy = true;
     publishControl();
     publishPaper();
     publishAiCioDashboard();
   });
-  window.webContents.on("render-process-gone", () => {
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    console.error(formatDesktopStartupDiagnostic(createRendererLoadFailedDiagnostic({ errorCode, errorDescription, validatedUrl: validatedURL, isMainFrame })));
+    if (isMainFrame) {
+      rendererHealthy = false;
+      recordRecovery("RENDERER", "CRITICAL", `Renderer main-frame load failed: ${errorDescription}`);
+    }
+  });
+  window.webContents.on("preload-error", (_event, preloadPath, error) => {
+    console.error(formatDesktopStartupDiagnostic(createPreloadErrorDiagnostic({ preloadPath, errorMessage: error instanceof Error ? error.message : String(error) })));
+  });
+  window.webContents.on("console-message", (details) => {
+    if (details.level !== "error") return;
+    console.warn(formatDesktopStartupDiagnostic(createRendererConsoleErrorDiagnostic({ message: details.message, line: details.lineNumber, sourceId: details.sourceId })));
+  });
+  window.webContents.on("unresponsive", () => {
+    console.warn(formatDesktopStartupDiagnostic(createRendererUnresponsiveDiagnostic()));
+  });
+  window.webContents.on("responsive", () => {
+    console.info(formatDesktopStartupDiagnostic(createRendererResponsiveDiagnostic()));
+  });
+  window.webContents.on("render-process-gone", (_event, details) => {
+    console.error(formatDesktopStartupDiagnostic(createRendererProcessGoneDiagnostic({ reason: details.reason, exitCode: details.exitCode })));
     rendererHealthy = false;
     recordRecovery("RENDERER", "WARNING", "Renderer crashed; recreating the read-only view");
     const crashedWindow = window;
