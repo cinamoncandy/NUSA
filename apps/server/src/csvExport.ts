@@ -1,4 +1,5 @@
 import type { PaperOrder } from "../../desktop/src/paperBroker";
+import type { ControlEvent } from "../../desktop/src/controlPlane";
 import type { EquitySample } from "./equityHistory";
 
 /** Quotes a CSV field only when it actually needs it (contains a comma, quote, or newline);
@@ -28,6 +29,23 @@ export function ordersToCsv(ordersNewestFirst: readonly PaperOrder[]): string {
 export function equityHistoryToCsv(history: readonly EquitySample[]): string {
   const rows = history.map((sample) => [sample.timestamp, new Date(sample.timestamp).toISOString(), sample.equity]);
   return toCsv(["timestamp", "isoTime", "equity"], rows);
+}
+
+const EVENT_COLUMNS = ["id", "timestamp", "type", "message"] as const;
+
+/**
+ * eventsNewestFirst is ControlPlane.snapshot().events as-is (record() unshifts, see
+ * controlPlane.ts) -- exported chronologically (oldest first), same convention as
+ * ordersToCsv(). type/message stay the raw English ControlPlane recorded (not the Korean
+ * apiRouter.ts's /api/control applies for display -- translateEventType/translateLogMessage
+ * are a display concern, same reasoning as ordersToCsv() keeping side as raw "BUY"/"SELL"
+ * rather than 매수/매도). The optional `data` field is a per-event-type arbitrary shape (a
+ * fill report, a signal, ...) with no single flat CSV representation, so it's omitted here,
+ * same as TRADE_COLUMNS already omits nothing but isn't asked to represent nested data either.
+ */
+export function eventsToCsv(eventsNewestFirst: readonly ControlEvent[]): string {
+  const rows = [...eventsNewestFirst].reverse().map((event) => EVENT_COLUMNS.map((column) => event[column]));
+  return toCsv(EVENT_COLUMNS, rows);
 }
 
 /**

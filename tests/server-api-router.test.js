@@ -245,6 +245,28 @@ test("GET /api/export/champion-equity-history.csv returns a wide CSV (one column
   assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/champion-equity-history.csv", body: undefined }, runtime).status, 405);
 });
 
+test("GET /api/export/events.csv returns a chronological CSV of getControlSnapshot().events; POST is 405", () => {
+  const runtime = fakeRuntime({
+    getControlSnapshot: () => ({
+      status: "STOPPED",
+      events: [
+        { id: "2", type: "SIGNAL", message: "HOLD: warming-up", timestamp: "2026-01-01T00:00:01.000Z" },
+        { id: "1", type: "STATUS", message: "strategy started", timestamp: "2026-01-01T00:00:00.000Z" }
+      ]
+    })
+  });
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/events.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-events\.csv"/);
+  assert.equal(
+    response.body,
+    "id,timestamp,type,message\r\n1,2026-01-01T00:00:00.000Z,STATUS,strategy started\r\n2,2026-01-01T00:00:01.000Z,SIGNAL,HOLD: warming-up\r\n"
+  );
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/events.csv", body: undefined }, runtime).status, 405);
+});
+
 test("unknown path is 404, known path with wrong method is 405", () => {
   const runtime = fakeRuntime();
   assert.equal(handleApiRequest({ method: "GET", pathname: "/api/nope", body: undefined }, runtime).status, 404);

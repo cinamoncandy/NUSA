@@ -265,6 +265,19 @@ test("GET /api/export/trades.csv and /api/export/equity-history.csv serve real C
     assert.match(equityResponse.headers.get("content-type"), /text\/csv/);
     const equityBody = await equityResponse.text();
     assert.equal(equityBody.trim().split("\r\n")[0], "timestamp,isoTime,equity");
+
+    const eventsResponse = await fetch(`${base}/api/export/events.csv`);
+    assert.equal(eventsResponse.status, 200);
+    assert.match(eventsResponse.headers.get("content-type"), /text\/csv/);
+    assert.match(eventsResponse.headers.get("content-disposition"), /attachment; filename="dokkaebi-events\.csv"/);
+    const eventsBody = await eventsResponse.text();
+    const eventsLines = eventsBody.trim().split("\r\n");
+    assert.equal(eventsLines[0], "id,timestamp,type,message");
+    // type/message stay raw English here (a data-interchange format, not the /api/control
+    // JSON response's translated display fields) -- "manual BUY filled" from the order above.
+    assert.ok(eventsLines.some((line) => line.includes(",ORDER,manual BUY filled")));
+
+    assert.equal((await fetch(`${base}/api/export/events.csv`, { method: "POST" })).status, 405);
   });
 });
 

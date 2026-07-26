@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ordersToCsv, equityHistoryToCsv, championEquityHistoryToCsv } = require("../dist/apps/server/src/csvExport.js");
+const { ordersToCsv, equityHistoryToCsv, championEquityHistoryToCsv, eventsToCsv } = require("../dist/apps/server/src/csvExport.js");
 
 function order(overrides = {}) {
   return Object.freeze({
@@ -78,4 +78,35 @@ test("championEquityHistoryToCsv: no challenger has ticked yet -> header-only", 
 
 test("championEquityHistoryToCsv: no challengers at all -> just timestamp/isoTime header", () => {
   assert.equal(championEquityHistoryToCsv([]), "timestamp,isoTime\r\n");
+});
+
+function event(overrides = {}) {
+  return Object.freeze({
+    id: "1-1", type: "STATUS", message: "strategy started", timestamp: "2026-01-01T00:00:00.000Z", data: { foo: "bar" },
+    ...overrides
+  });
+}
+
+test("eventsToCsv: header row is id,timestamp,type,message (no `data` column -- no single flat shape)", () => {
+  assert.equal(eventsToCsv([]), "id,timestamp,type,message\r\n");
+});
+
+test("eventsToCsv: newest-first input (ControlPlane.snapshot().events as-is) is exported chronologically", () => {
+  const csv = eventsToCsv([event({ id: "second" }), event({ id: "first" })]);
+  const lines = csv.trim().split("\r\n");
+  assert.equal(lines.length, 3, "header + 2 rows");
+  assert.ok(lines[1].startsWith("first,"));
+  assert.ok(lines[2].startsWith("second,"));
+});
+
+test("eventsToCsv: type/message stay raw English (a data-interchange format, not the translated display surface)", () => {
+  const csv = eventsToCsv([event({ type: "RISK", message: "stop-loss triggered at 90000000: closed 0.001 KRW-BTC" })]);
+  const [, row] = csv.trim().split("\r\n");
+  assert.equal(row, "1-1,2026-01-01T00:00:00.000Z,RISK,stop-loss triggered at 90000000: closed 0.001 KRW-BTC");
+});
+
+test("eventsToCsv: a message containing a comma is quoted", () => {
+  const csv = eventsToCsv([event({ message: "reference accounting diverged from the real account: cash mismatch, quantity mismatch" })]);
+  const [, row] = csv.trim().split("\r\n");
+  assert.ok(row.includes('"reference accounting diverged from the real account: cash mismatch, quantity mismatch"'));
 });
