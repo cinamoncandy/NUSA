@@ -355,6 +355,11 @@ test("GET /api/strategy/periods defaults to (5, 20); POST validates and round-tr
       body: JSON.stringify({ shortPeriod: 20, longPeriod: 5 })
     });
     assert.equal(invalid.status, 400, "longPeriod must exceed shortPeriod");
+    // Regression check: this used to leak the raw English "invalid SMA periods" (from
+    // strategyEngine.ts's constructor guard) with only a generic "오류: " prefix, since
+    // errorMessages.ts had no entry for it.
+    const invalidBody = await invalid.json();
+    assert.equal(invalidBody.error, "SMA 기간이 올바르지 않습니다 (단기 기간은 2 이상, 장기 기간은 단기 기간보다 커야 합니다)");
 
     const set = await (await fetch(`${base}/api/strategy/periods`, {
       method: "POST",

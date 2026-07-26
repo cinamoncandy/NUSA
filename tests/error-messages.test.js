@@ -8,6 +8,16 @@ test("exact-match messages translate to their fixed Korean text", () => {
   assert.equal(translateErrorMessage("no open position to close"), "청산할 보유 포지션이 없습니다");
   assert.equal(translateErrorMessage("insufficient paper cash"), "현금 잔고가 부족합니다");
   assert.equal(translateErrorMessage("market price is not available yet"), "아직 시세 정보를 사용할 수 없습니다");
+  // Thrown by SmaCrossoverStrategy/EmaCrossoverStrategy's own constructors, reached via POST
+  // /api/strategy/periods -- previously untranslated (real bug: surfaced as raw English
+  // "invalid SMA periods" with only the generic "오류: " prefix).
+  assert.equal(translateErrorMessage("invalid SMA periods"), "SMA 기간이 올바르지 않습니다 (단기 기간은 2 이상, 장기 기간은 단기 기간보다 커야 합니다)");
+  assert.equal(translateErrorMessage("invalid EMA periods"), "EMA 기간이 올바르지 않습니다 (단기 기간은 2 이상, 장기 기간은 단기 기간보다 커야 합니다)");
+});
+
+test("reference PnL calculation failure (any code) gets a generic Korean retry message", () => {
+  assert.equal(translateErrorMessage("reference PnL calculation failed: INVALID_PORTFOLIO"), "참조 회계 계산에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+  assert.equal(translateErrorMessage("reference PnL calculation failed: INVALID_MARK_PRICE"), "참조 회계 계산에 실패했습니다. 잠시 후 다시 시도해 주세요.");
 });
 
 test("parameterized messages substitute a Korean field label", () => {

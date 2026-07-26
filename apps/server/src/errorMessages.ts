@@ -52,6 +52,13 @@ const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   "market price is stale; waiting for a fresh update": "시세 정보가 오래되어 갱신을 기다리는 중입니다",
   "no open position to close": "청산할 보유 포지션이 없습니다",
 
+  // apps/desktop/src/strategyEngine.ts / apps/server/src/emaCrossoverStrategy.ts -- thrown by
+  // SmaCrossoverStrategy/EmaCrossoverStrategy's own constructors, reached via POST
+  // /api/strategy/periods (paperRuntime.ts's setStrategyPeriods() reuses their validation
+  // rather than duplicating it -- see that file's own doc comment).
+  "invalid SMA periods": "SMA 기간이 올바르지 않습니다 (단기 기간은 2 이상, 장기 기간은 단기 기간보다 커야 합니다)",
+  "invalid EMA periods": "EMA 기간이 올바르지 않습니다 (단기 기간은 2 이상, 장기 기간은 단기 기간보다 커야 합니다)",
+
   // apps/desktop/src/paperBroker.ts (PaperBroker.execute), reached via manual/limit orders and
   // position protection triggers
   "invalid paper side": "잘못된 매매 구분입니다",
@@ -90,6 +97,10 @@ const PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly transla
   { pattern: /^unknown strategy: (.+)$/, translate: (m) => `알 수 없는 전략입니다: ${m[1]}` },
   { pattern: /^no pending limit order with id (.+)$/, translate: (m) => `ID가 ${m[1]}인 대기 중인 지정가 주문이 없습니다` },
   { pattern: /^unknown challenger id: (.+)$/, translate: (m) => `알 수 없는 챌린저 ID입니다: ${m[1]}` },
+  // packages/core/src/pnl/pnl.ts's PnLFailureCode, reached via GET /api/reference-accounting
+  // (paperRuntime.ts's getReferenceAccounting()) -- an internal invariant, not user input, so
+  // this stays a generic "다시 시도" message rather than a per-code explanation.
+  { pattern: /^reference PnL calculation failed: (.+)$/, translate: () => "참조 회계 계산에 실패했습니다. 잠시 후 다시 시도해 주세요." },
   { pattern: /^Upbit request failed: HTTP (\d+)$/, translate: (m) => `Upbit 요청 실패: HTTP ${m[1]}` },
   { pattern: /^upbit candle (\d+) is missing market$/, translate: (m) => `업비트 캔들 ${m[1]}번에 market 필드가 없습니다` },
   { pattern: /^upbit candle (\d+) has an invalid candle_date_time_utc$/, translate: (m) => `업비트 캔들 ${m[1]}번의 시각(candle_date_time_utc) 값이 올바르지 않습니다` },
