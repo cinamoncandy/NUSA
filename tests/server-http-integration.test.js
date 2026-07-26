@@ -126,6 +126,30 @@ test("no configured API key means /api/ stays open (auth is opt-in, off by defau
   });
 });
 
+test("CORS (httpServer.ts): reflects Origin on every response and answers OPTIONS preflight without auth/rate-limit", async (t) => {
+  const httpServerOptions = { apiKey: "cors-secret", rateLimiter: new RateLimiter({ windowMs: 10_000, maxRequests: 1 }) };
+  await withServer(t, async (base) => {
+    // A real preflight never carries the app's Authorization header, so even with an API key
+    // configured and the rate limiter already exhausted by the request below, OPTIONS must
+    // still succeed -- otherwise a browser client could never get past its own preflight.
+    const exhaust = await fetch(`${base}/api/health`, { headers: { authorization: "Bearer cors-secret" } });
+    assert.equal(exhaust.status, 200);
+
+    const preflight = await fetch(`${base}/api/orders`, {
+      method: "OPTIONS",
+      headers: { origin: "http://localhost:8081", "access-control-request-method": "POST" }
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "http://localhost:8081");
+    assert.match(preflight.headers.get("access-control-allow-methods") ?? "", /POST/);
+    assert.match(preflight.headers.get("access-control-allow-headers") ?? "", /authorization/);
+    assert.match(preflight.headers.get("access-control-allow-headers") ?? "", /x-device-id/);
+
+    const real = await fetch(`${base}/api/health`, { headers: { origin: "http://localhost:8081", authorization: "Bearer cors-secret" } });
+    assert.equal(real.headers.get("access-control-allow-origin"), "http://localhost:8081");
+  }, { httpServerOptions });
+});
+
 test("GET /api/audit/requests (logger.ts/httpServer.ts) records requestId/commandId/userId/deviceId", async (t) => {
   await withServer(t, async (base) => {
     const getResponse = await fetch(`${base}/api/health`, { headers: { "x-device-id": "phone-1" } });

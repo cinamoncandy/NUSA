@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
   - "apps/*"
+  # apps/mobile-app is a standalone Expo/React Native project managed with npm, not pnpm --
+  # `pnpm install` at the repo root would otherwise try to fold its native RN dependency graph
+  # into this workspace's own pnpm-lock.yaml, which nothing here actually needs.
+  - "!apps/mobile-app"
 allowBuilds:
   electron: true
   electron-winstaller: true

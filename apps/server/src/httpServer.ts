@@ -98,6 +98,23 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
       const startedAt = Date.now();
       const method = request.method ?? "GET";
       const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+      // CORS: reflects the caller's Origin rather than a fixed value, since this server has no
+      // way to know in advance which LAN address/port a browser-based client (Expo web preview,
+      // a phone's browser) will be served from. Safe to reflect freely here because the actual
+      // access control is the Bearer API key (apiAuth.ts), not same-origin/cookie trust -- an
+      // attacker's page could only make an authorized request if it already had the key. Native
+      // apps (iOS/Android) never send an Origin header and are entirely unaffected by CORS.
+      const origin = request.headers.origin;
+      if (typeof origin === "string") response.setHeader("access-control-allow-origin", origin);
+      response.setHeader("vary", "Origin");
+      if (method === "OPTIONS" && pathname.startsWith("/api/")) {
+        // A CORS preflight never carries the app's own Authorization header (that's the whole
+        // point of a preflight), so it must be answered before any auth/rate-limit check runs.
+        response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+        response.setHeader("access-control-allow-headers", "content-type, authorization, x-device-id");
+        response.writeHead(204).end();
+        return;
+      }
       // Per DOKKAEBI.md's Logging rule: every request gets a requestId, every state-changing
       // (non-GET) request also gets a commandId (a GET is a read, not a command). userId is
       // always "operator" -- this is an explicitly single-user system with no per-user
