@@ -31,3 +31,11 @@ Startup time, renderer memory, DOM count, and interactive render latency require
 1. Run frozen install, `release:check`, `pnpm test`, and `pnpm package:win` on a clean Windows workstation.
 2. Install the generated NSIS artifact and complete the manual keyboard-only, screen-reader, 125/150/200% scaling, cold-start, reconnect, and crash-recovery smoke checks.
 3. Record real Paper operational evidence and complete owner review. No fixture, test, or CI result substitutes for that evidence.
+
+## Release gate assessment
+
+See [`docs/release/desktop-release-gate.md`](./desktop-release-gate.md) for the
+itemized, evidence-linked gate matrix and [`docs/release/release-decision.md`](./release-decision.md)
+for the current decision record. Current judgment: **BLOCKED** -- packaging,
+Smoke-test, NSIS lifecycle, signing, GUI-acceptance, and Paper-acceptance
+evidence for a release candidate do not exist yet.
