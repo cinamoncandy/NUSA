@@ -366,6 +366,7 @@ function renderEvents(events) {
     cell.colSpan = 3;
     tbody.replaceChildren(row);
     row.append(cell);
+    byId("events-hint").textContent = "";
     return;
   }
   tbody.replaceChildren(...events.slice(0, MAX_EVENT_ROWS).map((event) => {
@@ -376,6 +377,12 @@ function renderEvents(events) {
     row.append(textNode("td", new Date(event.timestamp).toLocaleTimeString("ko-KR")), typeCell, textNode("td", event.message));
     return row;
   }));
+  // account.orders already gets this same truncation disclosure (orders-hint) -- the event log
+  // had the identical MAX_EVENT_ROWS cap since it was first added but never got the matching
+  // hint, so a long-running session silently hid older events with no indication why.
+  byId("events-hint").textContent = events.length > MAX_EVENT_ROWS
+    ? `최근 ${MAX_EVENT_ROWS}건만 표시됩니다 (전체 ${number.format(events.length)}건).`
+    : "";
 }
 
 const CIO_SECTIONS = [
