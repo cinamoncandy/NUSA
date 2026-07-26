@@ -22,6 +22,7 @@ import {
   formatDesktopStartupDiagnostic
 } from "./desktopStartupDiagnostics";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
+import { formatRuntimeMutationDiagnostic } from "./runtimeMutationDiagnostics";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
@@ -348,7 +349,10 @@ function initializeRuntime(): void {
       ...(reconnectedAt === undefined ? {} : { reconnectedAt })
     };
     return evaluateOperationalReadiness(input);
-  }, evidenceRecorder);
+  }, evidenceRecorder, (diagnostic) => {
+    const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
+    logger(formatRuntimeMutationDiagnostic(diagnostic));
+  });
   paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {

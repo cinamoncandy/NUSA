@@ -4,6 +4,14 @@ import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal } from "./strategyEngine";
 import type { OperationalReadinessDecision } from "../../cloud/src/operationalReadinessGate";
 import type { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
+import {
+  createAutomaticExecutionBlockedDiagnostic,
+  createPaperTradingDisabledDiagnostic,
+  createPersistenceMutationFailedDiagnostic,
+  createPersistenceRollbackCompletedDiagnostic,
+  createPersistenceRollbackFailedDiagnostic,
+  type RuntimeMutationDiagnostic
+} from "./runtimeMutationDiagnostics";
 
 type ScenarioEvent = ReturnType<PaperScenarioEvidenceRecorder["bind"]>;
 
@@ -38,8 +46,14 @@ export class RuntimeCommandService {
     private readonly strategy: StrategyEngine,
     private readonly persistence: RuntimePersistence,
     private readonly readiness?: () => OperationalReadinessDecision,
-    private readonly evidence?: PaperScenarioEvidenceRecorder
+    private readonly evidence?: PaperScenarioEvidenceRecorder,
+    private readonly onDiagnostic?: (diagnostic: RuntimeMutationDiagnostic) => void
   ) {}
+
+  /** Diagnostics must never affect the trading-safety path, so a broken callback is swallowed here. */
+  private emit(diagnostic: RuntimeMutationDiagnostic): void {
+    try { this.onDiagnostic?.(diagnostic); } catch { /* diagnostics are best-effort only */ }
+  }
 
   isAvailable(): boolean { return this.available; }
   markUnavailable(): void { this.available = false; this.strategy.stop(); }
@@ -111,13 +125,15 @@ export class RuntimeCommandService {
       this.persist(orderEvidence);
       return { outcome: "FILLED", order };
     } catch (error) {
-      this.restore(snapshot);
-      this.failClosed();
+      this.emit(createPersistenceMutationFailedDiagnostic({ mutationName: "automatic signal" }));
+      this.restoreAfterFailure(snapshot, "automatic signal");
+      this.failClosed("automatic signal");
+      this.emit(createAutomaticExecutionBlockedDiagnostic());
       return { outcome: "REJECTED", error: PERSISTENCE_REPAIR_MESSAGE };
     }
   }
 
-  private commit<T>(_name: string, mutation: () => T, evidenceFactory?: (result: T) => ScenarioEvent | readonly ScenarioEvent[] | undefined): T {
+  private commit<T>(name: string, mutation: () => T, evidenceFactory?: (result: T) => ScenarioEvent | readonly ScenarioEvent[] | undefined): T {
     if (!this.available) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
     const snapshot = this.capture();
     let result: T;
@@ -128,9 +144,28 @@ export class RuntimeCommandService {
     }
     try { this.persist(evidenceFactory?.(result)); return result; }
     catch (error) {
-      this.restore(snapshot);
-      this.failClosed();
+      this.emit(createPersistenceMutationFailedDiagnostic({ mutationName: name }));
+      this.restoreAfterFailure(snapshot, name);
+      this.failClosed(name);
       throw new Error(PERSISTENCE_REPAIR_MESSAGE, { cause: error });
+    }
+  }
+
+  /**
+   * Restoring after a persistence failure is itself not guaranteed to succeed (in
+   * principle the snapshot being restored was valid when captured, but this must never
+   * be assumed). Whether restore() succeeds or throws, the caller always proceeds to
+   * failClosed() -- a restore failure must never leave `available` stuck true.
+   */
+  private restoreAfterFailure(snapshot: RuntimeSnapshot, mutationName: string): void {
+    try {
+      this.restore(snapshot);
+      this.emit(createPersistenceRollbackCompletedDiagnostic({ mutationName }));
+    } catch (restoreError) {
+      this.emit(createPersistenceRollbackFailedDiagnostic({
+        mutationName,
+        restoreErrorMessage: restoreError instanceof Error ? restoreError.message : String(restoreError)
+      }));
     }
   }
 
@@ -153,9 +188,10 @@ export class RuntimeCommandService {
       this.persistence.save(this.broker.exportState(), this.control.exportState());
     }
   }
-  private failClosed(): void {
+  private failClosed(mutationName: string): void {
     this.available = false;
     this.strategy.stop();
     this.control.fault(PERSISTENCE_FAULT_MESSAGE);
+    this.emit(createPaperTradingDisabledDiagnostic({ mutationName, controlStatus: this.control.snapshot().status }));
   }
 }

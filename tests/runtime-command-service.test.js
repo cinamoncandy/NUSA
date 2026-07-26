@@ -14,6 +14,7 @@ function harness(readiness) {
   const strategy = new StrategyEngine(new SmaCrossoverStrategy(2, 3));
   const durable = [];
   const evidenceEvents = [];
+  const diagnostics = [];
   let fail = false;
   const persist = (paper, controlState, events = []) => {
     if (fail) throw new Error("injected SQLite write failure");
@@ -29,8 +30,15 @@ function harness(readiness) {
     persist(broker.exportState(), control.exportState(), [event]);
     return { sequence: evidenceEvents.length, previousHash: "", event, hash: "" };
   } }, "paper-session-1");
-  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness, recorder);
-  return { broker, control, strategy, durable, evidenceEvents, runtime, failNext: () => { fail = true; } };
+  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness, recorder, (diagnostic) => diagnostics.push(diagnostic));
+  return {
+    broker, control, strategy, durable, evidenceEvents, diagnostics, runtime,
+    failNext: () => { fail = true; },
+    // Simulates restore() itself throwing (e.g. a corrupted in-memory snapshot) -- distinct
+    // from a plain persistence write failure, and only reachable by directly breaking one of
+    // the real restore methods RuntimeCommandService calls internally.
+    breakRestore: () => { broker.restoreState = () => { throw new Error("simulated rollback failure"); }; }
+  };
 }
 
 test("persistence recovery guidance matches the supported verified-backup procedure", () => {
@@ -178,4 +186,81 @@ test("exit-only readiness permits SELL while HALT blocks automatic execution", (
   const halted = harness(() => Object.freeze({ action: "HALT", ready: false, reasons: Object.freeze(["MARKET_DATA_DISCONNECTED"]), evaluatedAt: 1 }));
   halted.runtime.start(); halted.runtime.setAutoTrade(true);
   assert.equal(halted.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 5 }).outcome, "REJECTED");
+});
+
+// WO-0021: a rollback failure (restore() itself throwing, on top of a persistence write
+// failure) must still leave the runtime fail-closed, not silently fail-open. Before this
+// fix, failClosed() was unreachable code whenever restore() threw, since it sat after an
+// un-guarded this.restore(snapshot) call in the same catch block.
+test("a rollback failure on top of a persistence failure still disables Paper Trading (manual command)", () => {
+  const h = harness();
+  h.failNext();
+  h.breakRestore();
+  assert.throws(() => h.runtime.manualOrder("BUY", 0.01, 50_000_000), new RegExp(PERSISTENCE_REPAIR_MESSAGE));
+  assert.equal(h.runtime.isAvailable(), false, "runtime must not remain available after a failed rollback");
+  assert.equal(h.control.snapshot().status, "FAULTED");
+  assert.equal(h.control.snapshot().autoTradeEnabled, false);
+  assert.throws(() => h.runtime.manualOrder("BUY", 0.001, 1), new RegExp(PERSISTENCE_REPAIR_MESSAGE), "subsequent commands must still be rejected");
+});
+
+test("a rollback failure on top of a persistence failure still disables Paper Trading (automatic signal)", () => {
+  const h = harness();
+  h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
+  h.failNext();
+  h.breakRestore();
+  const result = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 30 });
+  assert.equal(result.outcome, "REJECTED");
+  assert.equal(result.error, PERSISTENCE_REPAIR_MESSAGE);
+  assert.equal(h.runtime.isAvailable(), false, "runtime must not remain available after a failed rollback");
+  assert.equal(h.control.snapshot().status, "FAULTED");
+  const stillSkipped = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 31 });
+  assert.equal(stillSkipped.outcome, "SKIPPED", "no further automatic execution after the runtime is disabled");
+});
+
+test("a persistence failure on a manual order emits mutation-failed, rollback-completed, and disabled diagnostics in order", () => {
+  const h = harness();
+  h.failNext();
+  assert.throws(() => h.runtime.manualOrder("BUY", 0.01, 50_000_000));
+  assert.deepEqual(h.diagnostics.map((d) => d.kind), [
+    "PERSISTENCE_MUTATION_FAILED",
+    "PERSISTENCE_ROLLBACK_COMPLETED",
+    "PAPER_TRADING_DISABLED"
+  ]);
+  assert.equal(h.diagnostics[0].details.mutationName, "manual paper order");
+  assert.equal(h.diagnostics[2].details.controlStatus, "FAULTED");
+});
+
+test("a rollback failure on a manual order emits a rollback-failed diagnostic instead of rollback-completed", () => {
+  const h = harness();
+  h.failNext();
+  h.breakRestore();
+  assert.throws(() => h.runtime.manualOrder("BUY", 0.01, 50_000_000));
+  assert.deepEqual(h.diagnostics.map((d) => d.kind), [
+    "PERSISTENCE_MUTATION_FAILED",
+    "PERSISTENCE_ROLLBACK_FAILED",
+    "PAPER_TRADING_DISABLED"
+  ]);
+  assert.equal(h.diagnostics[1].details.rollbackSucceeded, false);
+  assert.match(h.diagnostics[1].details.restoreErrorMessage, /simulated rollback failure/);
+});
+
+test("a persistence failure on an automatic signal additionally emits automatic-execution-blocked", () => {
+  const h = harness();
+  h.runtime.start(); h.runtime.setOrderQuantity(0.01); h.runtime.setAutoTrade(true);
+  h.failNext();
+  h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, { type: "BUY", reason: "test", confidence: 1, timestamp: 40 });
+  assert.deepEqual(h.diagnostics.map((d) => d.kind), [
+    "PERSISTENCE_MUTATION_FAILED",
+    "PERSISTENCE_ROLLBACK_COMPLETED",
+    "PAPER_TRADING_DISABLED",
+    "AUTOMATIC_EXECUTION_BLOCKED"
+  ]);
+});
+
+test("a validation rejection (no persistence involved) emits no diagnostics and keeps the runtime available", () => {
+  const h = harness();
+  assert.throws(() => h.runtime.manualOrder("BUY", 999, 50_000_000), /insufficient paper cash/);
+  assert.equal(h.diagnostics.length, 0);
+  assert.equal(h.runtime.isAvailable(), true);
+  assert.equal(h.control.snapshot().status, "STOPPED");
 });
