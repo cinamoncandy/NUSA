@@ -33,10 +33,20 @@ const textNode = (tag, value, className) => {
   return node;
 };
 
-async function fetchJson(path, options) {
+const API_KEY_STORAGE_KEY = "dokkaebi-api-key";
+function getApiKey() {
+  try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ""; } catch { return ""; }
+}
+
+async function fetchJson(path, options = {}) {
+  // Attached unconditionally -- harmless when the server has no API key configured (apiAuth.ts
+  // ignores the header entirely in that case), and required when it does. The server itself,
+  // not this client, is the source of truth for whether auth is actually enforced.
+  const apiKey = getApiKey();
+  const headers = { ...(options.headers || {}), ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) };
   let response;
   try {
-    response = await fetch(path, options);
+    response = await fetch(path, { ...options, headers });
   } catch {
     // The server itself is unreachable (down, restarting, network drop) -- the browser's own
     // fetch() throws a raw English message (e.g. "Failed to fetch") in this case, before any
@@ -45,7 +55,11 @@ async function fetchJson(path, options) {
     throw new Error("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
   }
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `요청 실패 (status ${response.status})`);
+  if (!response.ok) {
+    const error = new Error(body.error || `요청 실패 (status ${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 
@@ -456,8 +470,14 @@ async function refresh() {
       // need a price to compute equity/exposure; market/control/chart above degrade independently.
     }
     refreshDelayMs = 5_000;
-  } catch {
+    byId("api-key-status").textContent = "";
+  } catch (error) {
     refreshDelayMs = Math.min(30_000, refreshDelayMs * 2);
+    // Every other fetch failure already degrades gracefully per-section (missing price data,
+    // network drop, ...) with no single good place to show it; a 401 is different -- it means
+    // *nothing* will load until the operator fixes the key, so it gets one clear, persistent,
+    // top-of-page message instead of silently retrying forever with no visible explanation.
+    if (error.status === 401) byId("api-key-status").textContent = error.message;
   } finally {
     refreshInFlight = false;
     refreshTimer = setTimeout(refresh, refreshDelayMs);
@@ -579,6 +599,20 @@ try { savedTab = localStorage.getItem(TAB_STORAGE_KEY); } catch {
   // Same as above -- fall through to the "trading" default.
 }
 activateTab(savedTab ?? "trading");
+
+// Always shown (not conditional on whether the server actually has a key configured -- the
+// client has no way to know that without an unauthenticated probe, and there's no value in
+// adding one). Blank/no-op when the server has no DOKKAEBI_API_KEY set (apiAuth.ts ignores the
+// header entirely in that case).
+byId("api-key-input").value = getApiKey();
+byId("api-key-input").addEventListener("change", (event) => {
+  try { localStorage.setItem(API_KEY_STORAGE_KEY, event.target.value.trim()); } catch {
+    // Same as every other localStorage use in this file -- storage can be unavailable (private
+    // browsing); the key still applies for this page load, it just won't be remembered.
+  }
+  refreshDelayMs = 5_000;
+  void refresh();
+});
 
 window.addEventListener("beforeunload", () => clearTimeout(refreshTimer));
 refresh();

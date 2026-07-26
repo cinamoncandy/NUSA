@@ -98,6 +98,34 @@ test("the /api/ rate limiter (rateLimiter.ts) blocks a client past its configure
   }, { httpServerOptions });
 });
 
+test("an optional API key (apiAuth.ts) gates /api/ but never static assets", async (t) => {
+  const httpServerOptions = { apiKey: "test-secret-key" };
+  await withServer(t, async (base) => {
+    const noKey = await fetch(`${base}/api/health`);
+    assert.equal(noKey.status, 401);
+    assert.equal((await noKey.json()).error, "인증이 필요합니다. API 키를 확인해 주세요.");
+
+    const wrongKey = await fetch(`${base}/api/health`, { headers: { authorization: "Bearer wrong-key" } });
+    assert.equal(wrongKey.status, 401);
+
+    const rightKey = await fetch(`${base}/api/health`, { headers: { authorization: "Bearer test-secret-key" } });
+    assert.equal(rightKey.status, 200);
+    assert.deepEqual(await rightKey.json(), { status: "ok" });
+
+    // Static assets are never gated -- the page itself has to load before an operator has
+    // anywhere to enter a key (see httpServer.ts's own doc comment on HttpServerOptions.apiKey).
+    // withServer's static root is the tmpdir (not real apps/web), so this 404s either way, but
+    // critically *not* 401 -- proving the auth check never even looked at this request.
+    assert.equal((await fetch(`${base}/index.html`)).status, 404);
+  }, { httpServerOptions });
+});
+
+test("no configured API key means /api/ stays open (auth is opt-in, off by default)", async (t) => {
+  await withServer(t, async (base) => {
+    assert.equal((await fetch(`${base}/api/health`)).status, 200);
+  });
+});
+
 test("POST /api/orders places a real order through the full stack and persists it", async (t) => {
   await withServer(t, async (base, runtime) => {
     const response = await fetch(`${base}/api/orders`, {
@@ -905,4 +933,62 @@ test("unknown API route is 404; path traversal on static files is rejected", asy
     assert.equal((await fetch(`${base}/api/does-not-exist`)).status, 404);
     assert.equal((await fetch(`${base}/../../etc/passwd`)).status, 404);
   });
+});
+
+test("createPaperTradingHttpServer serves real TLS when HttpServerOptions.tls is set", { timeout: 15_000 }, async (t) => {
+  const { execFileSync } = require("node:child_process");
+  const { readFileSync: readFile } = require("node:fs");
+  const https = require("node:https");
+
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-tls-test-"));
+  const keyPath = join(dir, "key.pem");
+  const certPath = join(dir, "cert.pem");
+  try {
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+      "-keyout", keyPath, "-out", certPath, "-days", "1",
+      "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"
+    ], { stdio: "pipe" });
+  } catch {
+    rmSync(dir, { recursive: true, force: true });
+    t.skip("openssl is not available in this environment -- see scripts/generate-dev-cert.js's own doc comment");
+    return;
+  }
+
+  const priceBox = { value: 100_000_000 };
+  const runtime = new PaperRuntime({
+    databasePath: join(dir, "test.db"),
+    pollIntervalMs: 60_000,
+    candleFetcher: async () => [fakeCandle({ trade_price: priceBox.value, opening_price: priceBox.value, high_price: priceBox.value + 100_000, low_price: priceBox.value - 100_000 })]
+  });
+  const server = createPaperTradingHttpServer(runtime, dir, {
+    tls: { cert: readFile(certPath, "utf8"), key: readFile(keyPath, "utf8") }
+  });
+  assert.ok(server instanceof https.Server, "must be a real node:https.Server, not node:http.Server");
+
+  await new Promise((resolveListen) => server.listen(0, resolveListen));
+  const port = server.address().port;
+  await new Promise((resolveWarm) => {
+    const check = () => (runtime.getMarket().status === "CONNECTED" ? resolveWarm() : setTimeout(check, 5));
+    runtime.start();
+    check();
+  });
+
+  try {
+    const response = await new Promise((resolveReq, rejectReq) => {
+      const req = https.request(`https://127.0.0.1:${port}/api/health`, { rejectUnauthorized: false }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => { data += chunk; });
+        res.on("end", () => resolveReq({ status: res.statusCode, body: data }));
+      });
+      req.on("error", rejectReq);
+      req.end();
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(JSON.parse(response.body), { status: "ok" });
+  } finally {
+    runtime.dispose();
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

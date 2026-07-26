@@ -1,10 +1,10 @@
 /**
- * A minimal fixed-window rate limiter for this server's /api/ routes -- this app ships with no
- * authentication layer at all (see docs/implementation/web-single-user-paper-app-v0.1.md's
- * scope notes), so a basic request-volume guard is the one abuse protection available: it
- * bounds how fast a single client (misbehaving script, browser tab stuck in a tight retry
- * loop, or -- if this server is ever reachable beyond localhost -- an outside caller) can hit
- * the API, without requiring any credential the operator would have to manage.
+ * A minimal fixed-window rate limiter for this server's /api/ routes -- auth (apiAuth.ts) is
+ * entirely opt-in and off by default, so this request-volume guard is the one abuse protection
+ * that always applies regardless: it bounds how fast a single client (misbehaving script,
+ * browser tab stuck in a tight retry loop, or -- if this server is reachable beyond localhost
+ * and no API key is configured -- an outside caller) can hit the API, without requiring any
+ * credential the operator would have to manage.
  *
  * Fixed-window (not sliding-window/token-bucket): a window resets a client's count to zero the
  * moment `windowMs` elapses since that client's *first* request in the current window, rather

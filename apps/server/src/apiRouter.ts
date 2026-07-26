@@ -30,6 +30,9 @@ export function methodNotAllowed(): ApiResponse { return { status: 405, body: { 
  * httpServer.ts so the response shape matches every other error response exactly (same
  * { error: <Korean text> } body, same translateErrorMessage() path). */
 export function tooManyRequests(): ApiResponse { return { status: 429, body: { error: translateErrorMessage("TOO_MANY_REQUESTS") } }; }
+/** Used by httpServer.ts's optional API-key check (apiAuth.ts) -- same shape convention as
+ * tooManyRequests() above. */
+export function unauthorized(): ApiResponse { return { status: 401, body: { error: translateErrorMessage("UNAUTHORIZED") } }; }
 
 /** Maps a thrown domain error to an HTTP status: unavailable/stale market or persistence
  * conditions are 503 (retry later), everything else (bad input, risk-policy rejection,

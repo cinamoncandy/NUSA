@@ -1,15 +1,19 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
+import { createServer as createHttpsServer, type Server as HttpsServer } from "node:https";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { errorResponse, handleApiRequest, methodNotAllowed, ok, tooManyRequests, type ApiResponse } from "./apiRouter";
+import { errorResponse, handleApiRequest, methodNotAllowed, ok, tooManyRequests, unauthorized, type ApiResponse } from "./apiRouter";
 import type { PaperRuntime } from "./paperRuntime";
 import { translateErrorMessage } from "./errorMessages";
 import { RateLimiter } from "./rateLimiter";
+import { isAuthorized } from "./apiAuth";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
-// This server has no authentication layer (see rateLimiter.ts's own doc comment) -- a generous
-// but real per-client cap on /api/ requests. apps/web's submitCommand() awaits a full refresh()
+// Auth (apiAuth.ts) is entirely opt-in and off by default -- this rate limit applies
+// unconditionally either way, the other half of abuse protection for a deployment that hasn't
+// configured a key. A generous but real per-client cap on /api/ requests. apps/web's
+// submitCommand() awaits a full refresh()
 // (~13 GET requests) after *every* action on top of the normal 5s periodic poll, so a burst of
 // manual actions (confirmed live: a Playwright walkthrough clicking through ~20 actions with
 // only 500ms waits between them) can easily produce several hundred requests within 10s from
@@ -68,12 +72,22 @@ export interface HttpServerOptions {
    * RATE_LIMIT_MAX_REQUESTS) with a smaller one, so a test can prove the 429 wiring works by
    * sending a handful of requests instead of hundreds. */
   readonly rateLimiter?: RateLimiter;
+  /** When set, every /api/ request must carry a matching `Authorization: Bearer <apiKey>`
+   * header (see apiAuth.ts). Undefined (the default) disables auth entirely -- today's existing
+   * single-user-on-localhost behavior, unchanged. Static assets are never gated: the page itself
+   * has to load before an operator has anywhere to type a key in. */
+  readonly apiKey?: string;
+  /** TLS certificate/private key PEM contents -- when both are set, the returned server is a
+   * real node:https.Server instead of node:http.Server. Generate a self-signed pair for local/
+   * LAN use with scripts/generate-dev-cert.js (needed for a phone on the same LAN to reach this
+   * server over a secure context -- the PWA/Service Worker/Wake Lock features all require one). */
+  readonly tls?: { readonly cert: string; readonly key: string };
 }
 
-export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: string, options: HttpServerOptions = {}): Server {
+export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: string, options: HttpServerOptions = {}): HttpServer | HttpsServer {
   const normalizedRoot = resolve(staticRoot);
   const rateLimiter = options.rateLimiter ?? new RateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, maxRequests: RATE_LIMIT_MAX_REQUESTS });
-  return createServer((request, response) => {
+  const requestListener = (request: IncomingMessage, response: ServerResponse): void => {
     void (async () => {
       const method = request.method ?? "GET";
       const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
@@ -87,6 +101,11 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
       if (!rateLimiter.allow(request.socket.remoteAddress ?? "unknown")) {
         const limited = tooManyRequests();
         response.writeHead(limited.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify(limited.body));
+        return;
+      }
+      if (options.apiKey !== undefined && !isAuthorized(request.headers.authorization, options.apiKey)) {
+        const denied = unauthorized();
+        response.writeHead(denied.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify(denied.body));
         return;
       }
       let body: unknown;
@@ -129,5 +148,8 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
         "cache-control": "no-store, max-age=0"
       }).end(JSON.stringify(result.body));
     })();
-  });
+  };
+  return options.tls
+    ? createHttpsServer({ cert: options.tls.cert, key: options.tls.key }, requestListener)
+    : createHttpServer(requestListener);
 }

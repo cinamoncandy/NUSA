@@ -119,6 +119,10 @@ button.secondary:hover { background: rgba(255, 255, 255, 0.06); }
 
 .toggle { display: flex; align-items: center; gap: 0.6rem; margin-top: 1.1rem; }
 .toggle input { width: auto; margin: 0; }
+/* #api-key-row's own label is CSS `label:first-of-type` *within that div*, which otherwise
+   zeroes its margin-top -- this restores the same breathing room every other top-level control
+   here already gets. */
+#api-key-row { margin-top: 1.1rem; }
 .error { min-height: 1.125rem; margin-top: 0.75rem; color: var(--danger); font-size: 0.85rem; font-weight: 600; }
 .hint { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.75rem; }
 

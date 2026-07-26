@@ -27,6 +27,12 @@
 
     <label class="toggle" id="wake-lock-row" hidden><input id="wake-lock-toggle" type="checkbox" /> 화면 켜짐 유지 (모바일)</label>
 
+    <div id="api-key-row">
+      <label for="api-key-input">API 키 (서버에 설정된 경우에만 필요)</label>
+      <input id="api-key-input" type="password" autocomplete="off" placeholder="서버에 API 키가 설정되어 있지 않다면 비워두세요" />
+      <p id="api-key-status" class="error"></p>
+    </div>
+
     <dl class="kpi-strip">
       <div class="kpi-tile"><dt>평가자산</dt><dd id="kpi-equity">-</dd></div>
       <div class="kpi-tile"><dt>총 손익</dt><dd id="kpi-total-pnl">-</dd></div>
