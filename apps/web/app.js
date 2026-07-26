@@ -589,3 +589,52 @@ refresh();
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
 }
+
+// Screen Wake Lock: keeps the phone's screen from auto-dimming/locking while actively watching
+// this live dashboard on mobile (the whole reason for the earlier "모바일 중심" pass -- a
+// dimmed/locked screen mid-session is the single most disruptive thing that can happen while
+// watching a live price feed). Feature-detected: the toggle stays hidden entirely on browsers
+// without the API (desktop Chrome/Firefox/etc. included -- Wake Lock exists but a desktop
+// screen dimming mid-session isn't the problem this solves), and every acquire/release is
+// best-effort -- a rejected request (low battery, not visible, unsupported) never affects the
+// app, same posture as every other "nice to have" integration here (SW registration above,
+// localStorage tab-memory below).
+if ("wakeLock" in navigator) {
+  const row = byId("wake-lock-row");
+  const toggle = byId("wake-lock-toggle");
+  row.hidden = false;
+  let wakeLock = null;
+  const WAKE_LOCK_STORAGE_KEY = "dokkaebi-wake-lock-enabled";
+
+  async function requestWakeLock() {
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } catch {
+      // Best-effort only -- see this block's own doc comment above.
+    }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { const current = wakeLock; wakeLock = null; current.release().catch(() => {}); }
+  }
+
+  toggle.addEventListener("change", () => {
+    try { localStorage.setItem(WAKE_LOCK_STORAGE_KEY, toggle.checked ? "1" : "0"); } catch {
+      // Same as the tab-memory key elsewhere -- storage can be unavailable (private browsing);
+      // the toggle still works for this session, it just won't be remembered next visit.
+    }
+    if (toggle.checked) void requestWakeLock(); else releaseWakeLock();
+  });
+  // The OS/browser releases an active wake lock the moment the tab is backgrounded (e.g. the
+  // operator switches apps) -- re-acquire it once the tab is visible again, if still enabled.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && toggle.checked && !wakeLock) void requestWakeLock();
+  });
+
+  let rememberedEnabled = false;
+  try { rememberedEnabled = localStorage.getItem(WAKE_LOCK_STORAGE_KEY) === "1"; } catch {
+    // Fall through to the default (off).
+  }
+  toggle.checked = rememberedEnabled;
+  if (rememberedEnabled) void requestWakeLock();
+}
