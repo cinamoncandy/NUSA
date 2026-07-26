@@ -210,7 +210,7 @@ function createWindow(): void {
       sandbox: true
     }
   });
-  window.loadFile(path.join(app.getAppPath(), "apps/desktop/renderer/index.html"));
+  window.loadFile(path.resolve(__dirname, "../../../../apps/desktop/renderer/index.html"));
   window.webContents.on("did-finish-load", () => {
     rendererHealthy = true;
     publishControl();
