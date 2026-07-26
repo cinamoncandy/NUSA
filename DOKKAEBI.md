@@ -258,11 +258,18 @@ automated E2E suite. Burn-in (long-duration soak runs) and a dedicated Recovery 
 
 Dashboard < 1s, API < 200ms, Kill Switch < 500ms, Recovery < 60s.
 
-**Status: not formally benchmarked against these exact targets.** `scripts/performance-baseline.js`
-measures P50/P95/P99 for the hot paths that exist (order processing, market data mapping, SQLite
-writes, champion-system ticks, backtest runs) in this sandbox's own hardware, which is explicitly
-documented there as not representative of a real deployment -- see that script's own doc comment.
-None of it has been mapped onto these four specific named targets yet.
+**Status: formally measured, all four PASS in this sandbox.** `scripts/performance-baseline.js`
+measures P50/P95/P99 for individual in-process hot paths (order processing, market data mapping,
+SQLite writes, champion-system ticks, backtest runs). `scripts/performance-targets.js` (new)
+measures real over-the-wire HTTP round trips against a real `createPaperTradingHttpServer`
+instance -- Dashboard replays `apps/web/app.js`'s `refresh()`'s exact sequential 14-request
+sequence, API times a single `GET /api/health` round trip, Kill Switch times a real
+`POST /api/strategy/stop`, Recovery times a real server restart to first `CONNECTED` over HTTP.
+Results (see `docs/performance-targets.md`): Dashboard P95 7.6ms, API P95 0.35ms, Kill Switch P95
+0.32ms, Recovery P95 8.2ms -- all comfortably under target, but this sandbox's hardware and
+localhost networking are not representative of a real deployment or a phone over LAN/WAN (see
+that script's own doc comment); these numbers are a regression baseline for this environment, not
+a production guarantee.
 
 ## Security rules (commit hygiene)
 
@@ -389,8 +396,8 @@ recovery factor, exposure.
 System metrics: crash-free runtime, deterministic recovery, WebSocket reconnect reliability,
 duplicate-order prevention, persistence integrity, test and CI health.
 
-Performance targets: Dashboard < 1s, API < 200ms, Kill Switch < 500ms, Recovery < 60s (not yet
-formally measured against these exact numbers -- see "Performance targets" above).
+Performance targets: Dashboard < 1s, API < 200ms, Kill Switch < 500ms, Recovery < 60s (all four
+formally measured and PASS in this sandbox -- see "Performance targets" above).
 
 ## Working roles
 
@@ -434,10 +441,11 @@ Ranked by how much they'd change if addressed, largest first:
    closed," not a verified multi-stage sequence.
 6. **`Result<T,E>` across `apps/server`/`apps/desktop`** -- those layers throw/catch today;
    `packages/core` already uses discriminated-union results.
-7. **Formal performance measurement against the four named targets** (Dashboard/API/Kill
-   Switch/Recovery) -- benchmarks exist for current hot paths, not mapped to these targets.
-8. **Burn-in and dedicated Recovery test suites** -- Unit/Integration exist extensively; E2E is
+7. **Burn-in and dedicated Recovery test suites** -- Unit/Integration exist extensively; E2E is
    manual (Playwright, not checked in); Burn-in and Recovery suites do not exist.
 
-Resolved: structured `requestId`/`commandId`/`userId`/`deviceId` logging (see "Logging" above) --
-built, tested, and browser-verified.
+Resolved:
+- Structured `requestId`/`commandId`/`userId`/`deviceId` logging (see "Logging" above) -- built,
+  tested, and browser-verified.
+- Formal performance measurement against the four named targets (see "Performance targets"
+  above) -- all four PASS in this sandbox, via `scripts/performance-targets.js`.
