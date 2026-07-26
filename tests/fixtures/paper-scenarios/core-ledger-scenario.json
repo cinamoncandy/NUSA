@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "CORE_LEDGER_001",
+  "initialCash": 10000000,
+  "market": "KRW-BTC",
+  "feeRate": 0.0005,
+  "riskPolicy": {
+    "maxOrderNotional": 15000000,
+    "maxPositionQuantity": 100,
+    "maxRealizedLoss": 10000000
+  },
+  "events": [
+    {
+      "id": "EVT-001",
+      "type": "MANUAL_ORDER",
+      "side": "BUY",
+      "quantity": 10,
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:01.000Z"
+    },
+    {
+      "id": "EVT-002",
+      "type": "MANUAL_ORDER",
+      "side": "BUY",
+      "quantity": 20,
+      "price": 110000,
+      "timestamp": "2026-01-01T00:00:02.000Z"
+    },
+    {
+      "id": "EVT-003",
+      "type": "MANUAL_ORDER",
+      "side": "SELL",
+      "quantity": 10,
+      "price": 120000,
+      "timestamp": "2026-01-01T00:00:03.000Z"
+    },
+    {
+      "id": "EVT-004",
+      "type": "INJECT_PERSISTENCE_FAILURE"
+    },
+    {
+      "id": "EVT-005",
+      "type": "MANUAL_ORDER",
+      "side": "BUY",
+      "quantity": 1,
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:04.000Z",
+      "expectRejected": true,
+      "expectedRejectReason": "PERSISTENCE"
+    },
+    {
+      "id": "EVT-006",
+      "type": "RESTART"
+    },
+    {
+      "id": "EVT-007",
+      "type": "MANUAL_ORDER",
+      "side": "SELL",
+      "quantity": 20,
+      "price": 90000,
+      "timestamp": "2026-01-01T00:00:05.000Z"
+    },
+    {
+      "id": "EVT-008",
+      "type": "MANUAL_ORDER",
+      "side": "BUY",
+      "quantity": 200,
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:06.000Z",
+      "expectRejected": true,
+      "expectedRejectReason": "max order notional exceeded"
+    },
+    {
+      "id": "EVT-009",
+      "type": "MANUAL_ORDER",
+      "side": "BUY",
+      "quantity": 1,
+      "price": 100000,
+      "timestamp": "2026-01-01T00:00:07.000Z"
+    }
+  ],
+  "expected": {
+    "finalCash": 9696850,
+    "positionQuantity": 1,
+    "averageEntryPrice": 100000,
+    "realizedPnl": -201500,
+    "totalFees": 3150,
+    "orderCount": 5
+  }
+}
