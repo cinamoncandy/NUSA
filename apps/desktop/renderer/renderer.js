@@ -112,10 +112,12 @@ function setFocusMode(enabled, { persist = true } = {}) {
   const button = byId("focus-mode");
   const label = byId("focus-mode-label");
   const hint = byId("focus-hint");
-  button.setAttribute("aria-pressed", String(enabled));
-  button.setAttribute("aria-label", enabled ? "집중 모드 끄기" : "집중 모드 켜기");
-  label.textContent = enabled ? "전체 보기" : "집중 모드";
-  hint.hidden = !enabled;
+  if (button) {
+    button.setAttribute("aria-pressed", String(enabled));
+    button.setAttribute("aria-label", enabled ? "집중 모드 끄기" : "집중 모드 켜기");
+  }
+  if (label) label.textContent = enabled ? "전체 보기" : "집중 모드";
+  if (hint) hint.hidden = !enabled;
   if (persist) storeFocusMode(enabled);
   if (!enabled) window.requestAnimationFrame(drawChart);
 }
@@ -164,7 +166,7 @@ byId("strategy-quantity").addEventListener("change", async (event) => {
   try { renderControl(await window.dokkaebi.setStrategyQuantity(quantity)); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
-byId("focus-mode").addEventListener("click", toggleFocusMode);
+byId("focus-mode")?.addEventListener("click", toggleFocusMode);
 window.addEventListener("keydown", (event) => {
   const target = event.target;
   const editing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
