@@ -1,11 +1,24 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { errorResponse, handleApiRequest, methodNotAllowed, ok, type ApiResponse } from "./apiRouter";
+import { errorResponse, handleApiRequest, methodNotAllowed, ok, tooManyRequests, type ApiResponse } from "./apiRouter";
 import type { PaperRuntime } from "./paperRuntime";
 import { translateErrorMessage } from "./errorMessages";
+import { RateLimiter } from "./rateLimiter";
 
 const MAX_BODY_BYTES = 64 * 1024;
+
+// This server has no authentication layer (see rateLimiter.ts's own doc comment) -- a generous
+// but real per-client cap on /api/ requests. apps/web's submitCommand() awaits a full refresh()
+// (~13 GET requests) after *every* action on top of the normal 5s periodic poll, so a burst of
+// manual actions (confirmed live: a Playwright walkthrough clicking through ~20 actions with
+// only 500ms waits between them) can easily produce several hundred requests within 10s from
+// one legitimate tab -- an earlier, tighter 120/10s limit was measured to false-positive
+// against exactly that real usage pattern. 600/10s (60/s) comfortably covers several tabs under
+// heavy interactive use while still catching a genuinely runaway loop (which produces far more
+// than 60 req/s).
+const RATE_LIMIT_WINDOW_MS = 10_000;
+const RATE_LIMIT_MAX_REQUESTS = 600;
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = Object.freeze({
   ".html": "text/html; charset=utf-8",
@@ -50,8 +63,16 @@ function serveStatic(staticRoot: string, pathname: string, response: ServerRespo
   return true;
 }
 
-export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: string): Server {
+export interface HttpServerOptions {
+  /** Test injection point: overrides the production RateLimiter (RATE_LIMIT_WINDOW_MS/
+   * RATE_LIMIT_MAX_REQUESTS) with a smaller one, so a test can prove the 429 wiring works by
+   * sending a handful of requests instead of hundreds. */
+  readonly rateLimiter?: RateLimiter;
+}
+
+export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: string, options: HttpServerOptions = {}): Server {
   const normalizedRoot = resolve(staticRoot);
+  const rateLimiter = options.rateLimiter ?? new RateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, maxRequests: RATE_LIMIT_MAX_REQUESTS });
   return createServer((request, response) => {
     void (async () => {
       const method = request.method ?? "GET";
@@ -59,6 +80,13 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
       if (!pathname.startsWith("/api/")) {
         if (method === "GET" && serveStatic(normalizedRoot, pathname, response)) return;
         response.writeHead(404, { "content-type": "text/plain" }).end("Not Found");
+        return;
+      }
+      // Checked before reading the body -- no reason to buffer a request this server is about
+      // to reject anyway. Static assets are exempt (see RATE_LIMIT_* comment above).
+      if (!rateLimiter.allow(request.socket.remoteAddress ?? "unknown")) {
+        const limited = tooManyRequests();
+        response.writeHead(limited.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify(limited.body));
         return;
       }
       let body: unknown;

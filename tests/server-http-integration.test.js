@@ -5,6 +5,7 @@ const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const { createPaperTradingHttpServer } = require("../dist/apps/server/src/httpServer.js");
 const { PaperRuntime } = require("../dist/apps/server/src/paperRuntime.js");
+const { RateLimiter } = require("../dist/apps/server/src/rateLimiter.js");
 
 function fakeCandle(overrides = {}) {
   return {
@@ -35,7 +36,10 @@ async function withServer(t, run, options = {}) {
       low_price: priceBox.value - 100_000
     })]
   });
-  const server = createPaperTradingHttpServer(runtime, dir);
+  // Tests that need to exercise the 429 path inject a small RateLimiter (real default is 600/10s
+  // -- far too many real requests for a fast, deterministic test to send); every other test gets
+  // the production default, same as main.js.
+  const server = createPaperTradingHttpServer(runtime, dir, options.httpServerOptions);
   await new Promise((resolveListen) => server.listen(0, resolveListen));
   const port = server.address().port;
   // Trigger (and await) exactly one real poll cycle deterministically instead of racing start()'s timer.
@@ -68,6 +72,29 @@ test("GET /api/health, /api/market, /api/account respond over a real listening s
     assert.equal(account.cash, 10_000_000);
     assert.equal(account.equity, 10_000_000);
   });
+});
+
+test("the /api/ rate limiter (rateLimiter.ts) blocks a client past its configured budget", async (t) => {
+  // Injects a tiny limit via HttpServerOptions (the real production default is 600/10s -- too
+  // many real requests for a fast, deterministic test) purely to prove the wiring in
+  // httpServer.ts is correct: the 429 status, the Korean body, and static-path exemption.
+  const httpServerOptions = { rateLimiter: new RateLimiter({ windowMs: 10_000, maxRequests: 3 }) };
+  await withServer(t, async (base) => {
+    for (let i = 0; i < 3; i++) {
+      const response = await fetch(`${base}/api/health`);
+      assert.equal(response.status, 200, `request ${i + 1}/3 should still be within budget`);
+    }
+    const blocked = await fetch(`${base}/api/health`);
+    assert.equal(blocked.status, 429);
+    const body = await blocked.json();
+    assert.equal(body.error, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+
+    // Static assets are deliberately exempt from this limiter (see httpServer.ts) -- a
+    // non-/api/ path must still be processed by serveStatic's own logic (here: 404, since
+    // withServer's static root is the tmpdir, not the real apps/web) rather than 429, proving
+    // the rate limiter itself never saw it.
+    assert.equal((await fetch(`${base}/index.html`)).status, 404);
+  }, { httpServerOptions });
 });
 
 test("POST /api/orders places a real order through the full stack and persists it", async (t) => {

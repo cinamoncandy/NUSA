@@ -34,6 +34,7 @@ const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   "request body must be valid JSON": "요청 본문이 올바른 JSON 형식이 아닙니다",
   "NOT_FOUND": "요청한 경로를 찾을 수 없습니다",
   "METHOD_NOT_ALLOWED": "허용되지 않는 요청 방식입니다",
+  "TOO_MANY_REQUESTS": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
   "side must be \"BUY\" or \"SELL\"": "구분(side)은 \"BUY\" 또는 \"SELL\"이어야 합니다",
   "unit must be \"minute\" or \"day\"": "기간(unit)은 \"minute\" 또는 \"day\"여야 합니다",
   "mode must be \"FIXED\" or \"FIXED_FRACTIONAL\"": "사이징 방식(mode)은 \"FIXED\" 또는 \"FIXED_FRACTIONAL\"이어야 합니다",

@@ -26,6 +26,10 @@ function csv(body: string, filename: string): ApiResponse {
 }
 function notFound(): ApiResponse { return { status: 404, body: { error: translateErrorMessage("NOT_FOUND") } }; }
 export function methodNotAllowed(): ApiResponse { return { status: 405, body: { error: translateErrorMessage("METHOD_NOT_ALLOWED") } }; }
+/** Used by httpServer.ts's rate limiter (rateLimiter.ts) -- kept here rather than inlined in
+ * httpServer.ts so the response shape matches every other error response exactly (same
+ * { error: <Korean text> } body, same translateErrorMessage() path). */
+export function tooManyRequests(): ApiResponse { return { status: 429, body: { error: translateErrorMessage("TOO_MANY_REQUESTS") } }; }
 
 /** Maps a thrown domain error to an HTTP status: unavailable/stale market or persistence
  * conditions are 503 (retry later), everything else (bad input, risk-policy rejection,
