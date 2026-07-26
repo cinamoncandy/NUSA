@@ -344,6 +344,14 @@ function renderPositionSizing(sizing) {
   byId("sizing-risk-fraction").disabled = sizing.mode !== "FIXED_FRACTIONAL";
 }
 
+function renderNotificationSettings(settings) {
+  byId("notifications-enabled").checked = settings.enabled;
+  byId("notifications-webhook-url").value = settings.webhookUrl ?? "";
+  const badge = byId("notifications-status");
+  badge.className = `status ${settings.enabled ? "connected" : ""}`;
+  badge.textContent = settings.enabled ? "사용 중" : "사용 안 함";
+}
+
 const MAX_EVENT_ROWS = 30;
 // account.orders can grow unbounded over a long-running session (PaperBroker keeps full
 // history) -- capped here the same way the event log already is, since account.orders is
@@ -433,6 +441,7 @@ async function refresh() {
     renderLimitOrders(limitOrders);
     renderPositionSizing(await fetchJson("/api/position-sizing"));
     renderStrategyPeriods(await fetchJson("/api/strategy/periods"));
+    renderNotificationSettings(await fetchJson("/api/notifications"));
     try {
       const account = await fetchJson("/api/account");
       renderAccount(account);
@@ -546,6 +555,12 @@ byId("backtest-run").addEventListener("click", async (event) => {
 });
 
 byId("champion-reset").addEventListener("click", (event) => submitCommand("/api/champion/reset", undefined, "champion-error", event.currentTarget));
+
+byId("notifications-save").addEventListener("click", (event) => submitCommand("/api/notifications", {
+  enabled: byId("notifications-enabled").checked,
+  webhookUrl: byId("notifications-webhook-url").value.trim() === "" ? null : byId("notifications-webhook-url").value.trim()
+}, "notifications-error", event.currentTarget));
+byId("notifications-test").addEventListener("click", (event) => submitCommand("/api/notifications/test", undefined, "notifications-error", event.currentTarget));
 
 const TAB_STORAGE_KEY = "dokkaebi-active-tab";
 const TAB_NAMES = ["trading", "performance", "audit"];

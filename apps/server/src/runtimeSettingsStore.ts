@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { LimitOrder, StrategyChoice, StrategyPeriods } from "./paperRuntime";
 import type { SizingMode } from "../../../packages/core/src/position/positionSizer";
+import { isValidWebhookUrl } from "./webhookNotifier";
 
 const VALID_CHOICES: readonly StrategyChoice[] = ["sma-crossover", "ema-crossover"];
 const VALID_SIZING_MODES: readonly SizingMode[] = ["FIXED", "FIXED_FRACTIONAL"];
@@ -24,6 +25,11 @@ export interface LimitOrdersSettings {
   readonly sequence: number;
 }
 
+export interface NotificationSettings {
+  readonly enabled: boolean;
+  readonly webhookUrl: string | null;
+}
+
 interface StoredRuntimeSettings {
   readonly choice?: unknown;
   readonly shortPeriod?: unknown;
@@ -32,6 +38,7 @@ interface StoredRuntimeSettings {
   readonly positionSizing?: unknown;
   readonly limitOrders?: unknown;
   readonly limitOrderSequence?: unknown;
+  readonly notifications?: unknown;
 }
 
 function loadRaw(path: string): StoredRuntimeSettings {
@@ -136,6 +143,21 @@ export function loadLimitOrders(path: string): LimitOrdersSettings | undefined {
   if (!Array.isArray(limitOrders) || typeof limitOrderSequence !== "number" || !Number.isInteger(limitOrderSequence)) return undefined;
   if (!limitOrders.every(isValidStoredLimitOrder)) return undefined;
   return { orders: limitOrders, sequence: limitOrderSequence };
+}
+
+/** Same best-effort sidecar-file philosophy as every other setting above -- losing this file
+ * just falls back to notifications disabled/no URL configured on restart. */
+export function loadNotificationSettings(path: string): NotificationSettings | undefined {
+  const raw = loadRaw(path).notifications;
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { enabled, webhookUrl } = raw as Record<string, unknown>;
+  if (typeof enabled !== "boolean") return undefined;
+  if (webhookUrl !== null && (typeof webhookUrl !== "string" || !isValidWebhookUrl(webhookUrl))) return undefined;
+  return { enabled, webhookUrl };
+}
+
+export function saveNotificationSettings(path: string, settings: NotificationSettings): void {
+  saveRaw(path, { ...loadRaw(path), notifications: settings });
 }
 
 export function saveLimitOrders(path: string, settings: LimitOrdersSettings): void {

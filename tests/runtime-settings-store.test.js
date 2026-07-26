@@ -6,7 +6,7 @@ const { tmpdir } = require("node:os");
 const {
   loadStrategyChoice, saveStrategyChoice, loadStrategyPeriods, saveStrategyPeriods,
   loadPositionProtection, savePositionProtection, loadPositionSizing, savePositionSizing,
-  loadLimitOrders, saveLimitOrders
+  loadLimitOrders, saveLimitOrders, loadNotificationSettings, saveNotificationSettings
 } = require("../dist/apps/server/src/runtimeSettingsStore.js");
 
 test("saveStrategyChoice/loadStrategyChoice round-trip", () => {
@@ -181,6 +181,36 @@ test("all settings share one sidecar file without clobbering each other", () => 
     assert.deepEqual(loadPositionProtection(path), { stopLossPrice: 90000000, takeProfitPrice: null, trailingStopPercent: null, trailingPeakPrice: null });
     assert.deepEqual(loadPositionSizing(path), { mode: "FIXED", riskFraction: 0.1 });
     assert.deepEqual(loadLimitOrders(path), { orders: [], sequence: 0 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("saveNotificationSettings/loadNotificationSettings round-trip", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-runtime-settings-"));
+  const path = join(dir, "notifications.json");
+  try {
+    assert.equal(loadNotificationSettings(path), undefined);
+    saveNotificationSettings(path, { enabled: true, webhookUrl: "https://example.com/hook" });
+    assert.deepEqual(loadNotificationSettings(path), { enabled: true, webhookUrl: "https://example.com/hook" });
+    saveNotificationSettings(path, { enabled: false, webhookUrl: null });
+    assert.deepEqual(loadNotificationSettings(path), { enabled: false, webhookUrl: null });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadNotificationSettings rejects a malformed or unsafe-scheme webhookUrl", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dokkaebi-runtime-settings-"));
+  const path = join(dir, "notifications.json");
+  const { writeFileSync } = require("node:fs");
+  try {
+    writeFileSync(path, JSON.stringify({ notifications: { enabled: true, webhookUrl: "javascript:alert(1)" } }), "utf8");
+    assert.equal(loadNotificationSettings(path), undefined, "non-http(s) scheme");
+    writeFileSync(path, JSON.stringify({ notifications: { enabled: "yes", webhookUrl: null } }), "utf8");
+    assert.equal(loadNotificationSettings(path), undefined, "enabled must be a boolean");
+    writeFileSync(path, JSON.stringify({ notifications: null }), "utf8");
+    assert.equal(loadNotificationSettings(path), undefined);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

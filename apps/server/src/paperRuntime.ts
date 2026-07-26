@@ -1,4 +1,4 @@
-import { ControlPlane, type ControlSnapshot } from "../../desktop/src/controlPlane";
+import { ControlPlane, type ControlEvent, type ControlSnapshot } from "../../desktop/src/controlPlane";
 import { DesktopPersistenceStore } from "../../desktop/src/desktopPersistenceStore";
 import { PaperBroker, type PaperAccountSnapshot, type PaperOrder, type PaperSide } from "../../desktop/src/paperBroker";
 import { buildPaperDashboardSections } from "../../desktop/src/paperDashboardProjection";
@@ -20,13 +20,14 @@ import { RiskEngine } from "./pipeline/riskEngine";
 import {
   loadStrategyChoice, saveStrategyChoice, loadStrategyPeriods, saveStrategyPeriods,
   loadPositionProtection, savePositionProtection, loadPositionSizing, savePositionSizing,
-  loadLimitOrders, saveLimitOrders
+  loadLimitOrders, saveLimitOrders, loadNotificationSettings, saveNotificationSettings, type NotificationSettings
 } from "./runtimeSettingsStore";
 import { reconcileReferenceAccounting, type ReconciliationResult } from "./referenceReconciliation";
 import { EquityHistoryRecorder, type EquitySample } from "./equityHistory";
 import { computeTradeStatistics, type TradeStatistics } from "./tradeStatistics";
 import { computeDrawdownStatistics, type DrawdownStatistics } from "./drawdown";
 import { ChampionChallengerSystem, CHAMPION_CHALLENGER_PRESETS, createChallengerStrategy, strategyLabel, type ChampionStandings, type ChallengerStanding } from "./championSystem";
+import { isValidWebhookUrl, sendWebhookNotification, type WebhookSender } from "./webhookNotifier";
 
 type CandleFetcher = (market: string, unitMinutes: number, count: number) => Promise<readonly UpbitMinuteCandle[]>;
 type DayCandleFetcher = (market: string, count: number) => Promise<readonly UpbitCandle[]>;
@@ -89,6 +90,8 @@ export interface PaperRuntimeOptions {
   readonly dayCandleFetcher?: DayCandleFetcher;
   /** Where the selected strategy (SMA/EMA) is persisted across restarts. Defaults to `${databasePath}.strategy-choice.json`. */
   readonly strategyChoicePath?: string;
+  /** Test injection point: overrides the real webhook POST (default: sendWebhookNotification). */
+  readonly webhookSender?: WebhookSender;
 }
 
 export interface MarketSnapshot extends LiveCandleFeedHealth {
@@ -155,6 +158,18 @@ export class PaperRuntime {
   private currentStrategyId: StrategyChoice;
   private strategyPeriods: StrategyPeriods;
   private paperTradingAvailable: boolean;
+  /** Persisted best-effort (see runtimeSettingsStore.ts), same posture as position protection
+   * above. No authentication layer exists on this server (see rateLimiter.ts's own doc
+   * comment), so this is entirely operator-configured -- nothing here is ever auto-discovered
+   * or auto-enabled. */
+  private notificationSettings: NotificationSettings = { enabled: false, webhookUrl: null };
+  /** The id of the newest ControlEvent already considered for notification -- undefined only
+   * before the control plane's own restore runs (see constructor). Prevents both re-notifying
+   * for events that existed before this process started, and re-notifying for the same event
+   * across repeated notifyNewControlEvents() calls within one action (e.g. closePosition()'s
+   * retry loop calling placeOrder() several times). */
+  private lastNotifiedEventId: string | undefined;
+  private readonly webhookSender: WebhookSender;
 
   constructor(options: PaperRuntimeOptions) {
     this.market = options.market ?? "KRW-BTC";
@@ -189,6 +204,9 @@ export class PaperRuntime {
       this.limitOrders.push(...restoredLimitOrders.orders);
       this.limitOrderSequence = restoredLimitOrders.sequence;
     }
+    const restoredNotifications = loadNotificationSettings(this.strategyChoicePath);
+    if (restoredNotifications) this.notificationSettings = restoredNotifications;
+    this.webhookSender = options.webhookSender ?? sendWebhookNotification;
 
     let diagnostic: string | undefined;
     let restored: ReturnType<DesktopPersistenceStore["load"]>;
@@ -213,6 +231,9 @@ export class PaperRuntime {
 
     this.broker = new PaperBroker(this.initialCash, this.market, feeRate, RISK_POLICY, restored?.paper, FILL_MODEL);
     this.control = new ControlPlane(CONTROL_PLANE_STRATEGY_ID, 200, restored?.control);
+    // Baseline the notification cursor at whatever's already in the restored event log, so a
+    // restart never re-fires a webhook for events recorded in a previous process's lifetime.
+    this.lastNotifiedEventId = this.control.snapshot().events[0]?.id;
     this.championSystem = new ChampionChallengerSystem(this.market, this.initialCash, feeRate, RISK_POLICY, FILL_MODEL);
 
     const persistenceAdapter: RuntimePersistence = {
@@ -284,28 +305,35 @@ export class PaperRuntime {
    */
   private handleCandleUpdate(price: number): void {
     const timestamp = Date.now();
-    // Always runs, independent of the real account's availability -- fully isolated shadow
-    // state (see championSystem.ts), so a real-account fault has no reason to pause it.
-    this.championSystem.onCandleUpdate(this.market, price, timestamp);
-    if (this.runtime.isAvailable()) {
-      this.checkPositionProtection(price);
-      this.checkLimitOrders(price);
-    }
-    const account = this.broker.snapshot(price);
-    const intent = this.strategyEngine.onTick({ market: this.market, price, timestamp }, account.position.quantity);
-    if (this.persistenceStore) {
-      try { this.persistenceStore.saveStrategyPriceHistory(this.strategyEngine.getHistory()); } catch {
-        // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
+    try {
+      // Always runs, independent of the real account's availability -- fully isolated shadow
+      // state (see championSystem.ts), so a real-account fault has no reason to pause it.
+      this.championSystem.onCandleUpdate(this.market, price, timestamp);
+      if (this.runtime.isAvailable()) {
+        this.checkPositionProtection(price);
+        this.checkLimitOrders(price);
       }
+      const account = this.broker.snapshot(price);
+      const intent = this.strategyEngine.onTick({ market: this.market, price, timestamp }, account.position.quantity);
+      if (this.persistenceStore) {
+        try { this.persistenceStore.saveStrategyPriceHistory(this.strategyEngine.getHistory()); } catch {
+          // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
+        }
+      }
+      if (!this.runtime.isAvailable()) {
+        this.equityHistory.record(timestamp, account.equity);
+        return;
+      }
+      this.automaticPipeline.process(intent, this.market, price, account.equity);
+      this.paperTradingAvailable = this.runtime.isAvailable();
+      // Re-snapshot: a trade may have just fired this tick, so this captures post-trade equity.
+      this.equityHistory.record(timestamp, this.broker.snapshot(price).equity);
+    } finally {
+      // Every branch above can record a new ORDER/RISK ControlEvent (protection/limit triggers,
+      // an automatic fill) -- checked once here regardless of which branch ran or whether one
+      // threw, same reasoning as placeOrder()'s own try/finally.
+      this.notifyNewControlEvents();
     }
-    if (!this.runtime.isAvailable()) {
-      this.equityHistory.record(timestamp, account.equity);
-      return;
-    }
-    this.automaticPipeline.process(intent, this.market, price, account.equity);
-    this.paperTradingAvailable = this.runtime.isAvailable();
-    // Re-snapshot: a trade may have just fired this tick, so this captures post-trade equity.
-    this.equityHistory.record(timestamp, this.broker.snapshot(price).equity);
   }
 
   /**
@@ -570,6 +598,58 @@ export class PaperRuntime {
     return this.getPositionSizing();
   }
 
+  getNotificationSettings(): NotificationSettings { return this.notificationSettings; }
+
+  /** webhookUrl is required (and must be http/https) when enabled is true; null when disabling
+   * (or while never configured) is always accepted regardless of enabled, matching
+   * setPositionProtection()'s "null clears" convention for optional settings. */
+  setNotificationSettings(input: { enabled: boolean; webhookUrl: string | null }): NotificationSettings {
+    if (input.enabled && (input.webhookUrl === null || !isValidWebhookUrl(input.webhookUrl))) {
+      throw new Error("webhookUrl must be a valid http(s) URL when notifications are enabled");
+    }
+    this.notificationSettings = { enabled: input.enabled, webhookUrl: input.webhookUrl };
+    saveNotificationSettings(this.strategyChoicePath, this.notificationSettings);
+    this.control.record("STATUS", `notification settings set: enabled=${input.enabled}`);
+    return this.notificationSettings;
+  }
+
+  /**
+   * Fires one webhook call immediately with a synthetic event, bypassing both the enabled flag
+   * and the ORDER/RISK type filter notifyNewControlEvents() applies -- lets the operator verify
+   * their URL actually receives something without waiting for a real fill or risk trigger.
+   * Still fire-and-forget (see webhookNotifier.ts): this never reports whether delivery
+   * actually succeeded, only that it was attempted.
+   */
+  sendTestNotification(): void {
+    if (this.notificationSettings.webhookUrl === null) throw new Error("no webhookUrl is configured");
+    void this.webhookSender(this.notificationSettings.webhookUrl, {
+      type: "SYSTEM",
+      message: "test notification from dokkaebi",
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /** Checked after every action that can record a new ControlEvent (handleCandleUpdate(),
+   * placeOrder()) -- see this class's own field doc comments (notificationSettings,
+   * lastNotifiedEventId) and webhookNotifier.ts for why only ORDER/RISK events notify (a fill
+   * or a risk trigger), not every STATUS/SIGNAL/SYSTEM log line. */
+  private notifyNewControlEvents(): void {
+    const events = this.control.snapshot().events; // newest-first
+    const newest = events[0]?.id;
+    if (this.notificationSettings.enabled && this.notificationSettings.webhookUrl !== null) {
+      const url = this.notificationSettings.webhookUrl;
+      const toNotify: ControlEvent[] = [];
+      for (const event of events) {
+        if (event.id === this.lastNotifiedEventId) break;
+        if (event.type === "ORDER" || event.type === "RISK") toNotify.push(event);
+      }
+      for (const event of [...toNotify].reverse()) { // oldest of the new events first
+        void this.webhookSender(url, { type: event.type, message: event.message, timestamp: event.timestamp });
+      }
+    }
+    if (newest !== undefined) this.lastNotifiedEventId = newest;
+  }
+
   private assertFreshPrice(): number {
     const health = this.candleFeed.health();
     const candles = this.candleFeed.latestCandles();
@@ -642,23 +722,32 @@ export class PaperRuntime {
 
   placeOrder(side: PaperSide, quantity: number): { readonly order: PaperOrder; readonly account: PaperAccountSnapshot } {
     const price = this.assertFreshPrice();
-    let order: PaperOrder;
     try {
-      order = this.runtime.manualOrder(side, quantity, price);
-    } catch (error) {
+      let order: PaperOrder;
+      try {
+        order = this.runtime.manualOrder(side, quantity, price);
+      } catch (error) {
+        this.paperTradingAvailable = this.runtime.isAvailable();
+        this.recordReferenceExecution(rejectedExecutionReport(error instanceof Error ? error.message : String(error)), price);
+        throw error;
+      }
       this.paperTradingAvailable = this.runtime.isAvailable();
-      this.recordReferenceExecution(rejectedExecutionReport(error instanceof Error ? error.message : String(error)), price);
-      throw error;
+      this.recordReferenceExecution(filledExecutionReport({
+        side: order.side,
+        quantity: order.quantity,
+        price: order.price,
+        fee: order.fee,
+        symbol: this.market
+      }), price);
+      return { order, account: this.broker.snapshot(price) };
+    } finally {
+      // Covers both branches above: the "manual X filled" ORDER event (runtimeCommandService.ts)
+      // on success, and any RISK event recordReferenceExecution() adds on a reconciliation
+      // divergence either way. closePosition() calls this repeatedly in its retry loop, which is
+      // fine -- notifyNewControlEvents() tracks its own cursor, so repeated calls just each pick
+      // up whatever is new since the last one.
+      this.notifyNewControlEvents();
     }
-    this.paperTradingAvailable = this.runtime.isAvailable();
-    this.recordReferenceExecution(filledExecutionReport({
-      side: order.side,
-      quantity: order.quantity,
-      price: order.price,
-      fee: order.fee,
-      symbol: this.market
-    }), price);
-    return { order, account: this.broker.snapshot(price) };
   }
 
   /**

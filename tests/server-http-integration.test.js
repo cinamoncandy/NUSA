@@ -34,7 +34,8 @@ async function withServer(t, run, options = {}) {
       opening_price: priceBox.value,
       high_price: priceBox.value + 100_000,
       low_price: priceBox.value - 100_000
-    })]
+    })],
+    webhookSender: options.webhookSender
   });
   // Tests that need to exercise the 429 path inject a small RateLimiter (real default is 600/10s
   // -- far too many real requests for a fast, deterministic test to send); every other test gets
@@ -705,6 +706,128 @@ test("a stop-loss level crossed on a real candle tick auto-sells and eventually 
       "expected a translated 리스크 event recording the trigger"
     );
   }, { pollIntervalMs: 200 });
+});
+
+test("GET/POST /api/notifications round-trips and rejects an invalid webhookUrl when enabling", async (t) => {
+  await withServer(t, async (base) => {
+    const initial = await (await fetch(`${base}/api/notifications`)).json();
+    assert.deepEqual(initial, { enabled: false, webhookUrl: null });
+
+    const invalid = await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true, webhookUrl: "javascript:alert(1)" })
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error, "알림을 사용하려면 웹훅 URL이 올바른 http(s) 주소여야 합니다");
+
+    const set = await (await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true, webhookUrl: "https://example.com/hook" })
+    })).json();
+    assert.deepEqual(set, { enabled: true, webhookUrl: "https://example.com/hook" });
+
+    const after = await (await fetch(`${base}/api/notifications`)).json();
+    assert.deepEqual(after, { enabled: true, webhookUrl: "https://example.com/hook" });
+
+    const control = await (await fetch(`${base}/api/control`)).json();
+    assert.ok(control.events.some((event) => event.type === "상태" && event.message === "알림 설정 변경: 사용 여부=true"));
+
+    // Disabling never requires a URL (null always accepted regardless of enabled -- see
+    // setNotificationSettings()'s own doc comment).
+    const disabled = await (await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: false, webhookUrl: null })
+    })).json();
+    assert.deepEqual(disabled, { enabled: false, webhookUrl: null });
+  });
+});
+
+test("POST /api/notifications/test fires immediately regardless of the enabled flag, but 400s with no webhookUrl configured", async (t) => {
+  const calls = [];
+  const webhookSender = async (url, event) => { calls.push({ url, event }); };
+  await withServer(t, async (base) => {
+    const noUrl = await fetch(`${base}/api/notifications/test`, { method: "POST" });
+    assert.equal(noUrl.status, 400);
+    assert.equal((await noUrl.json()).error, "설정된 웹훅 URL이 없습니다");
+
+    // enabled: false on purpose -- sendTestNotification() bypasses the enabled flag entirely.
+    await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: false, webhookUrl: "https://example.com/hook" })
+    });
+    const response = await fetch(`${base}/api/notifications/test`, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { sent: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://example.com/hook");
+    assert.equal(calls[0].event.type, "SYSTEM");
+  }, { webhookSender });
+});
+
+test("an ORDER webhook fires for a real manual fill only while notifications are enabled", { timeout: 10_000 }, async (t) => {
+  const calls = [];
+  const webhookSender = async (url, event) => { calls.push({ url, event }); };
+  await withServer(t, async (base) => {
+    // Disabled (the default): a real fill must not notify.
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    });
+    assert.equal(calls.length, 0, "notifications are disabled by default -- no call yet");
+
+    await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true, webhookUrl: "https://example.com/hook" })
+    });
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "SELL", quantity: 0.0005 })
+    });
+    assert.equal(calls.length, 1, "exactly one ORDER notification for the one fill after enabling");
+    assert.equal(calls[0].url, "https://example.com/hook");
+    assert.equal(calls[0].event.type, "ORDER");
+    assert.equal(calls[0].event.message, "manual SELL filled");
+  }, { webhookSender });
+});
+
+test("a RISK webhook fires when a real stop-loss triggers on a candle tick", { timeout: 10_000 }, async (t) => {
+  const calls = [];
+  const webhookSender = async (url, event) => { calls.push({ url, event }); };
+  await withServer(t, async (base, runtime, priceBox) => {
+    await fetch(`${base}/api/notifications`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true, webhookUrl: "https://example.com/hook" })
+    });
+    await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    });
+    await fetch(`${base}/api/position-protection`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stopLossPrice: priceBox.value, takeProfitPrice: null, trailingStopPercent: null })
+    });
+
+    await new Promise((resolve) => {
+      const check = async () => {
+        const protection = await (await fetch(`${base}/api/position-protection`)).json();
+        if (protection.stopLossPrice === null) return resolve();
+        setTimeout(check, 20);
+      };
+      check();
+    });
+
+    assert.ok(calls.some((c) => c.event.type === "RISK" && c.event.message.includes("stop-loss")), "expected a RISK webhook call for the stop-loss trigger");
+  }, { pollIntervalMs: 200, webhookSender });
 });
 
 test("a trailing stop ratchets up with price and triggers once price falls back through it", { timeout: 10_000 }, async (t) => {

@@ -20,6 +20,15 @@ test("reference PnL calculation failure (any code) gets a generic Korean retry m
   assert.equal(translateErrorMessage("reference PnL calculation failed: INVALID_MARK_PRICE"), "참조 회계 계산에 실패했습니다. 잠시 후 다시 시도해 주세요.");
 });
 
+test("notification settings validation messages translate", () => {
+  assert.equal(
+    translateErrorMessage("webhookUrl must be a valid http(s) URL when notifications are enabled"),
+    "알림을 사용하려면 웹훅 URL이 올바른 http(s) 주소여야 합니다"
+  );
+  assert.equal(translateErrorMessage("no webhookUrl is configured"), "설정된 웹훅 URL이 없습니다");
+  assert.equal(translateErrorMessage("webhookUrl must be a string or null"), "웹훅 URL은(는) 문자열이거나 비어 있어야 합니다");
+});
+
 test("parameterized messages substitute a Korean field label", () => {
   assert.equal(translateErrorMessage("quantity must be a finite number"), "수량은(는) 유효한 숫자여야 합니다");
   assert.equal(translateErrorMessage("riskFraction must be a finite number"), "리스크 비율은(는) 유효한 숫자여야 합니다");

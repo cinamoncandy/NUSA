@@ -43,6 +43,9 @@ function fakeRuntime(overrides = {}) {
     promoteChallenger: (id) => ({ championId: id, challengers: [] }),
     resetChampionSystem: () => ({ championId: "sma-5-20", challengers: [] }),
     getChampionEquityHistories: () => [{ id: "sma-5-20", label: "SMA(5,20)", history: [{ timestamp: 1, equity: 1 }] }],
+    getNotificationSettings: () => ({ enabled: false, webhookUrl: null }),
+    setNotificationSettings: (input) => ({ ...input }),
+    sendTestNotification: () => {},
     ...overrides
   };
 }
@@ -185,6 +188,47 @@ test("GET/POST /api/position-sizing dispatch and validate the mode", () => {
   }, domainRejection).status, 400);
 
   assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-sizing", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/notifications dispatch, validate types, and pass through domain rejections", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/notifications", body: undefined }, runtime).body, {
+    enabled: false, webhookUrl: null
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: true, webhookUrl: "https://example.com/hook" }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { enabled: true, webhookUrl: "https://example.com/hook" });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: "yes", webhookUrl: null }
+  }, runtime).status, 400, "enabled must be a boolean");
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: false, webhookUrl: 12345 }
+  }, runtime).status, 400, "webhookUrl must be a string or null");
+
+  const domainRejection = fakeRuntime({
+    setNotificationSettings: () => { throw new Error("webhookUrl must be a valid http(s) URL when notifications are enabled"); }
+  });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: true, webhookUrl: "javascript:alert(1)" }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/notifications", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/notifications/test dispatches to sendTestNotification; other methods are 405", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "POST", pathname: "/api/notifications/test", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { sent: true });
+
+  const domainRejection = fakeRuntime({ sendTestNotification: () => { throw new Error("no webhookUrl is configured"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/notifications/test", body: undefined }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/notifications/test", body: undefined }, runtime).status, 405);
 });
 
 test("GET/POST /api/strategy/periods dispatch and validate types", () => {

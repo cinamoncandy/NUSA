@@ -245,6 +245,19 @@
         <p class="hint" id="events-hint"></p>
       </section>
 
+      <section class="card">
+        <div class="section-title"><h2>알림 (웹훅)</h2><span id="notifications-status" class="status">-</span></div>
+        <p class="hint">체결(ORDER)과 리스크(RISK) 이벤트가 발생할 때마다 설정한 URL로 JSON을 POST합니다. 채팅 플랫폼별 형식(Slack/Discord 등)은 맞춰주지 않으니, 수신 측(릴레이 스크립트 등)에서 원하는 형식으로 변환해야 합니다. 인증 계층이 없는 서버이므로 전적으로 운영자가 직접 설정해야 하며, 전송 실패는 트레이딩에 영향을 주지 않도록 결과를 확인하지 않습니다.</p>
+        <label class="toggle"><input id="notifications-enabled" type="checkbox" /> 알림 사용</label>
+        <label for="notifications-webhook-url">웹훅 URL</label>
+        <input id="notifications-webhook-url" type="url" placeholder="https://example.com/hook" />
+        <div class="actions">
+          <button id="notifications-save">저장</button>
+          <button id="notifications-test" type="button" class="secondary">테스트 알림 보내기</button>
+        </div>
+        <p id="notifications-error" class="error"></p>
+      </section>
+
       <section class="card" id="dashboard-card">
         <h2>AI CIO 대시보드 (읽기 전용)</h2>
         <div class="cio-grid" id="cio-grid"></div>

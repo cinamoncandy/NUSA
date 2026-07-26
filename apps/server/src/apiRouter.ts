@@ -74,6 +74,12 @@ function requireNullableFiniteNumber(value: unknown, name: string): number | nul
   return value;
 }
 
+function requireNullableString(value: unknown, name: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`${name} must be a string or null`);
+  return value;
+}
+
 function requireStrategyChoice(value: unknown): StrategyChoice {
   if (typeof value !== "string" || !STRATEGY_CHOICES.includes(value as StrategyChoice)) {
     throw new Error(`choice must be one of: ${STRATEGY_CHOICES.join(", ")}`);
@@ -156,6 +162,21 @@ export function handleApiRequest(request: ApiRequest, runtime: PaperRuntime): Ap
         return ok(runtime.setPositionSizing({ mode, riskFraction }));
       }
       return methodNotAllowed();
+    }
+    if (pathname === "/api/notifications") {
+      if (method === "GET") return ok(runtime.getNotificationSettings());
+      if (method === "POST") {
+        const body = asRecord(request.body);
+        const enabled = requireBoolean(body.enabled, "enabled");
+        const webhookUrl = requireNullableString(body.webhookUrl, "webhookUrl");
+        return ok(runtime.setNotificationSettings({ enabled, webhookUrl }));
+      }
+      return methodNotAllowed();
+    }
+    if (pathname === "/api/notifications/test") {
+      if (method !== "POST") return methodNotAllowed();
+      runtime.sendTestNotification();
+      return ok({ sent: true });
     }
     if (pathname === "/api/export/trades.csv") {
       if (method !== "GET") return methodNotAllowed();

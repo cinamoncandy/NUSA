@@ -84,3 +84,8 @@ test("champion/challenger system messages translate", () => {
   assert.equal(translateLogMessage("champion promoted: EMA(5,20)"), "챔피언 승격: EMA(5,20)");
   assert.equal(translateLogMessage("champion system reset"), "챔피언 시스템 초기화됨");
 });
+
+test("notification settings messages translate", () => {
+  assert.equal(translateLogMessage("notification settings set: enabled=true"), "알림 설정 변경: 사용 여부=true");
+  assert.equal(translateLogMessage("notification settings set: enabled=false"), "알림 설정 변경: 사용 여부=false");
+});

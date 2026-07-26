@@ -20,7 +20,8 @@ const FIELD_NAMES_KO: Readonly<Record<string, string>> = Object.freeze({
   trailingStopPercent: "트레일링 스탑 비율",
   shortPeriod: "단기 기간",
   longPeriod: "장기 기간",
-  enabled: "사용 여부"
+  enabled: "사용 여부",
+  webhookUrl: "웹훅 URL"
 });
 
 function fieldKo(name: string): string {
@@ -52,6 +53,8 @@ const EXACT_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   "market price is not available yet": "아직 시세 정보를 사용할 수 없습니다",
   "market price is stale; waiting for a fresh update": "시세 정보가 오래되어 갱신을 기다리는 중입니다",
   "no open position to close": "청산할 보유 포지션이 없습니다",
+  "webhookUrl must be a valid http(s) URL when notifications are enabled": "알림을 사용하려면 웹훅 URL이 올바른 http(s) 주소여야 합니다",
+  "no webhookUrl is configured": "설정된 웹훅 URL이 없습니다",
 
   // apps/desktop/src/strategyEngine.ts / apps/server/src/emaCrossoverStrategy.ts -- thrown by
   // SmaCrossoverStrategy/EmaCrossoverStrategy's own constructors, reached via POST
@@ -94,6 +97,7 @@ const PATTERN_TRANSLATORS: readonly { readonly pattern: RegExp; readonly transla
   { pattern: /^(\w+) must be a finite number$/, translate: (m) => `${fieldKo(m[1]!)}은(는) 유효한 숫자여야 합니다` },
   { pattern: /^(\w+) must be a finite number or null$/, translate: (m) => `${fieldKo(m[1]!)}은(는) 숫자이거나 비어 있어야 합니다` },
   { pattern: /^(\w+) must be a boolean$/, translate: (m) => `${fieldKo(m[1]!)}은(는) true/false 값이어야 합니다` },
+  { pattern: /^(\w+) must be a string or null$/, translate: (m) => `${fieldKo(m[1]!)}은(는) 문자열이거나 비어 있어야 합니다` },
   { pattern: /^choice must be one of: (.+)$/, translate: (m) => `전략 선택 값은 다음 중 하나여야 합니다: ${m[1]}` },
   { pattern: /^unknown strategy: (.+)$/, translate: (m) => `알 수 없는 전략입니다: ${m[1]}` },
   { pattern: /^no pending limit order with id (.+)$/, translate: (m) => `ID가 ${m[1]}인 대기 중인 지정가 주문이 없습니다` },
