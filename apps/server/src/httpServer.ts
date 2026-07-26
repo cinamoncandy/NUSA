@@ -2,11 +2,13 @@ import { createServer as createHttpServer, type IncomingMessage, type Server as 
 import { createServer as createHttpsServer, type Server as HttpsServer } from "node:https";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve, sep } from "node:path";
+import { randomUUID } from "node:crypto";
 import { errorResponse, handleApiRequest, methodNotAllowed, ok, tooManyRequests, unauthorized, type ApiResponse } from "./apiRouter";
 import type { PaperRuntime } from "./paperRuntime";
 import { translateErrorMessage } from "./errorMessages";
 import { RateLimiter } from "./rateLimiter";
 import { isAuthorized } from "./apiAuth";
+import { Logger } from "./logger";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -82,22 +84,53 @@ export interface HttpServerOptions {
    * LAN use with scripts/generate-dev-cert.js (needed for a phone on the same LAN to reach this
    * server over a secure context -- the PWA/Service Worker/Wake Lock features all require one). */
   readonly tls?: { readonly cert: string; readonly key: string };
+  /** Test injection point: overrides the production Logger (500-entry ring buffer, stdout
+   * sink) with a smaller/silent one. */
+  readonly logger?: Logger;
 }
 
 export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: string, options: HttpServerOptions = {}): HttpServer | HttpsServer {
   const normalizedRoot = resolve(staticRoot);
   const rateLimiter = options.rateLimiter ?? new RateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, maxRequests: RATE_LIMIT_MAX_REQUESTS });
+  const logger = options.logger ?? new Logger();
   const requestListener = (request: IncomingMessage, response: ServerResponse): void => {
     void (async () => {
+      const startedAt = Date.now();
       const method = request.method ?? "GET";
       const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+      // Per DOKKAEBI.md's Logging rule: every request gets a requestId, every state-changing
+      // (non-GET) request also gets a commandId (a GET is a read, not a command). userId is
+      // always "operator" -- this is an explicitly single-user system with no per-user
+      // accounts (see DOKKAEBI.md's Mission), so there is exactly one possible identity to log.
+      // deviceId is whatever app.js's client-generated X-Device-Id header carries, or absent
+      // for non-browser callers (curl, tests) -- never invented. Registered once, up front, so
+      // it fires exactly once per request regardless of which branch below actually responds.
+      const requestId = randomUUID();
+      const commandId = method === "GET" ? undefined : randomUUID();
+      const deviceIdHeader = request.headers["x-device-id"];
+      const deviceId = typeof deviceIdHeader === "string" && deviceIdHeader.length > 0 ? deviceIdHeader : undefined;
+      response.on("finish", () => {
+        logger.log({
+          timestamp: new Date().toISOString(),
+          requestId,
+          ...(commandId !== undefined ? { commandId } : {}),
+          userId: "operator",
+          ...(deviceId !== undefined ? { deviceId } : {}),
+          method,
+          pathname,
+          status: response.statusCode,
+          durationMs: Date.now() - startedAt
+        });
+      });
       if (!pathname.startsWith("/api/")) {
         if (method === "GET" && serveStatic(normalizedRoot, pathname, response)) return;
         response.writeHead(404, { "content-type": "text/plain" }).end("Not Found");
         return;
       }
       // Checked before reading the body -- no reason to buffer a request this server is about
-      // to reject anyway. Static assets are exempt (see RATE_LIMIT_* comment above).
+      // to reject anyway. Static assets are exempt (see RATE_LIMIT_* comment above). This also
+      // covers /api/audit/requests below -- it's a real /api/ route and gets the same
+      // rate-limit/auth protection as every other one, not a bypass.
       if (!rateLimiter.allow(request.socket.remoteAddress ?? "unknown")) {
         const limited = tooManyRequests();
         response.writeHead(limited.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify(limited.body));
@@ -106,6 +139,10 @@ export function createPaperTradingHttpServer(runtime: PaperRuntime, staticRoot: 
       if (options.apiKey !== undefined && !isAuthorized(request.headers.authorization, options.apiKey)) {
         const denied = unauthorized();
         response.writeHead(denied.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify(denied.body));
+        return;
+      }
+      if (pathname === "/api/audit/requests" && method === "GET") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, max-age=0" }).end(JSON.stringify({ requests: logger.recent() }));
         return;
       }
       let body: unknown;

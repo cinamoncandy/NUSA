@@ -38,12 +38,36 @@ function getApiKey() {
   try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ""; } catch { return ""; }
 }
 
+const DEVICE_ID_STORAGE_KEY = "dokkaebi-device-id";
+function getDeviceId() {
+  // Generated once per browser and persisted -- lets the server's audit log (httpServer.ts's
+  // X-Device-Id handling / logger.ts) tell "same phone, different day" apart from "different
+  // device", without asking the operator to name anything. Never sent if crypto.randomUUID or
+  // localStorage are unavailable (e.g. non-secure context) -- server treats a missing header as
+  // "unknown device", not an error.
+  try {
+    let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 async function fetchJson(path, options = {}) {
   // Attached unconditionally -- harmless when the server has no API key configured (apiAuth.ts
   // ignores the header entirely in that case), and required when it does. The server itself,
   // not this client, is the source of truth for whether auth is actually enforced.
   const apiKey = getApiKey();
-  const headers = { ...(options.headers || {}), ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) };
+  const deviceId = getDeviceId();
+  const headers = {
+    ...(options.headers || {}),
+    ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+    ...(deviceId ? { "x-device-id": deviceId } : {})
+  };
   let response;
   try {
     response = await fetch(path, { ...options, headers });

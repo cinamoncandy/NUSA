@@ -126,6 +126,58 @@ test("no configured API key means /api/ stays open (auth is opt-in, off by defau
   });
 });
 
+test("GET /api/audit/requests (logger.ts/httpServer.ts) records requestId/commandId/userId/deviceId", async (t) => {
+  await withServer(t, async (base) => {
+    const getResponse = await fetch(`${base}/api/health`, { headers: { "x-device-id": "phone-1" } });
+    assert.equal(getResponse.status, 200);
+
+    const postResponse = await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-device-id": "phone-1" },
+      body: JSON.stringify({ side: "BUY", quantity: 0.001 })
+    });
+    assert.equal(postResponse.status, 200);
+
+    const audit = await (await fetch(`${base}/api/audit/requests`)).json();
+    // Newest-first (logger.ts's recent() convention): the POST /api/orders is the most recent
+    // *logged* entry -- the GET /api/audit/requests call itself hasn't finished (and so hasn't
+    // logged) at the point its own handler reads recent().
+    const post = audit.requests.find((r) => r.method === "POST" && r.pathname === "/api/orders");
+    assert.ok(post, "expected the POST /api/orders request to be recorded");
+    assert.equal(typeof post.requestId, "string");
+    assert.ok(post.requestId.length > 0);
+    assert.equal(typeof post.commandId, "string");
+    assert.ok(post.commandId.length > 0, "POST is a command -- must carry a commandId");
+    assert.equal(post.userId, "operator");
+    assert.equal(post.deviceId, "phone-1");
+    assert.equal(post.status, 200);
+    assert.equal(typeof post.durationMs, "number");
+
+    const get = audit.requests.find((r) => r.method === "GET" && r.pathname === "/api/health");
+    assert.ok(get, "expected the GET /api/health request to be recorded");
+    assert.equal(get.commandId, undefined, "a GET is a read, not a command -- no commandId");
+    assert.equal(get.deviceId, "phone-1");
+  });
+});
+
+test("GET /api/audit/requests is a normal /api/ route -- respects rate limiting and API-key auth", async (t) => {
+  const httpServerOptions = { apiKey: "audit-secret" };
+  await withServer(t, async (base) => {
+    const noKey = await fetch(`${base}/api/audit/requests`);
+    assert.equal(noKey.status, 401, "the audit endpoint must not bypass API-key auth");
+
+    const withKey = await fetch(`${base}/api/audit/requests`, { headers: { authorization: "Bearer audit-secret" } });
+    assert.equal(withKey.status, 200);
+  }, { httpServerOptions });
+
+  const rateLimitedOptions = { rateLimiter: new RateLimiter({ windowMs: 10_000, maxRequests: 1 }) };
+  await withServer(t, async (base) => {
+    assert.equal((await fetch(`${base}/api/health`)).status, 200);
+    const blocked = await fetch(`${base}/api/audit/requests`);
+    assert.equal(blocked.status, 429, "the audit endpoint must not bypass the rate limiter");
+  }, { httpServerOptions: rateLimitedOptions });
+});
+
 test("POST /api/orders places a real order through the full stack and persists it", async (t) => {
   await withServer(t, async (base, runtime) => {
     const response = await fetch(`${base}/api/orders`, {
