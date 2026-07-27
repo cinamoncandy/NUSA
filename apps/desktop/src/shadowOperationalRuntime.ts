@@ -19,6 +19,24 @@ import type { PaperCommandRiskGate } from "./runtimeCommandService";
 export type ShadowLifecycleStatus = "IDLE" | "PRECHECK" | "READY" | "RUNNING" | "PAUSED" | "COMPLETED" | "HALTED" | "FAILED" | "INVALIDATED";
 export type ShadowMarketDataStatus = "CONNECTING" | "WARMING_UP" | "HEALTHY" | "STALE" | "RECONNECTING" | "GAP_DETECTED" | "OUT_OF_ORDER" | "CLOCK_DRIFT" | "DISCONNECTED";
 
+/**
+ * The last signal's journey through the pipeline, recorded so the UI can explain a specific
+ * blocked signal rather than approximating one from session-level blockers. Every field is
+ * copied from the values the dispatch actually used -- none of it is re-derived afterwards.
+ */
+export interface ShadowSignalOutcome {
+  readonly at: number;
+  readonly signalType: "BUY" | "SELL";
+  /** The strategy's own words for why it wanted to act, e.g. "short-SMA crossed above long-SMA". */
+  readonly strategyReason: string;
+  readonly riskDecision: "ALLOW" | "REJECT" | "HALT";
+  readonly reasonCodes: readonly string[];
+  readonly quantity: number;
+  readonly price: number;
+  /** True when the pilot recorded a hypothetical fill. Actual fills remain impossible here. */
+  readonly hypotheticalFill: boolean;
+}
+
 export interface ShadowOperationalDiagnostics {
   readonly state: ShadowLifecycleStatus;
   readonly sessionId: string | null;
@@ -39,6 +57,7 @@ export interface ShadowOperationalDiagnostics {
   readonly cashMutationCount: number;
   readonly positionMutationCount: number;
   readonly blockers: readonly string[];
+  readonly lastSignal: ShadowSignalOutcome | null;
   readonly automaticResumeAllowed: false;
   readonly productionMutationAllowed: false;
 }
@@ -88,6 +107,7 @@ export class ShadowOperationalRuntime {
   private blockers: readonly string[] = [];
   private lastClosedCandleTime?: number;
   private lastSignalTime?: number;
+  private lastSignal?: ShadowSignalOutcome;
   private sessionSequence = 0;
   private readonly clockDriftToleranceMs: number;
 
@@ -201,8 +221,21 @@ export class ShadowOperationalRuntime {
     const decision = this.deps.riskGate.evaluate(Object.freeze({ path: "SHADOW" as const, side, quantity, price: candle.close }));
     const signalId = `${this.deps.symbol}:${candle.closeTime}:${signal.type}`;
     const commandId = randomUUID();
+    const fillsBefore = this.pilot.snapshot().counters.hypotheticalFillCount;
     this.pilot.observe({ timestamp: candle.closeTime, signalId, commandId, side, quantity, decision: decision.status, reasonCodes: decision.reasonCodes });
     this.lastSignalTime = candle.closeTime;
+    this.lastSignal = Object.freeze({
+      at: candle.closeTime,
+      signalType: side,
+      strategyReason: signal.reason,
+      riskDecision: decision.status,
+      reasonCodes: Object.freeze([...decision.reasonCodes]),
+      quantity,
+      price: candle.close,
+      // Read from the pilot's own counter rather than assuming ALLOW implies a fill: a
+      // duplicate signal is ALLOW-shaped at the gate but records no fill.
+      hypotheticalFill: this.pilot.snapshot().counters.hypotheticalFillCount > fillsBefore
+    });
     const integrityErrors = verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha);
     if (integrityErrors.length > 0) {
       this.lifecycle = "FAILED";
@@ -320,6 +353,7 @@ export class ShadowOperationalRuntime {
       warmupComplete: candleState.warmupComplete,
       lastClosedCandleTime: this.lastClosedCandleTime ?? null,
       lastSignalTime: this.lastSignalTime ?? null,
+      lastSignal: this.lastSignal ?? null,
       signalCount: session?.counters.signalCount ?? 0,
       hypotheticalOrderCount: session?.counters.hypotheticalOrderCount ?? 0,
       hypotheticalFillCount: session?.counters.hypotheticalFillCount ?? 0,
