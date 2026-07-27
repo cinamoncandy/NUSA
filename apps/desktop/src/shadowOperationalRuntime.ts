@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { createClosedCandleAdapter, type ClosedCandle, type ClosedCandleAdapter, type PublicTickerSample } from "./closedCandleAdapter";
 import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } from "./shadowPilotRuntime";
 import type { StrategyEngine, StrategySignal } from "./strategyEngine";
-import type { PaperSide } from "./paperBroker";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
+import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
+
+type PaperSide = "BUY" | "SELL";
 
 /**
  * Wires the actual public Upbit ticker -> closed-candle -> production StrategyEngine ->
@@ -60,6 +62,11 @@ export interface ShadowOperationalDiagnostics {
   readonly lastSignal: ShadowSignalOutcome | null;
   readonly automaticResumeAllowed: false;
   readonly productionMutationAllowed: false;
+  readonly strategyVersion: string;
+  readonly inputType: "CLOSED_CANDLE";
+  readonly interval: "1m";
+  readonly sourceType: "UPBIT_PUBLIC_CANDLE";
+  readonly strategyFingerprint: string;
 }
 
 /** What the running system currently knows about safety preconditions. Read fresh on every precheck/resume. */
@@ -75,6 +82,8 @@ export interface ShadowSafetyState {
 export interface ShadowOperationalDependencies {
   readonly symbol: string;
   readonly strategyId: string;
+  readonly strategyVersion?: string;
+  readonly strategyFingerprint?: string;
   readonly sourceCommitSha: string;
   readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   readonly strategy: StrategyEngine;
@@ -110,6 +119,8 @@ export class ShadowOperationalRuntime {
   private lastSignal?: ShadowSignalOutcome;
   private sessionSequence = 0;
   private readonly clockDriftToleranceMs: number;
+  private lastOfficialCandleTime?: number;
+  private officialClosedCandleCount = 0;
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
@@ -149,6 +160,11 @@ export class ShadowOperationalRuntime {
       const wasConnected = this.webSocketConnected;
       this.webSocketConnected = true;
       if (!wasConnected) this.candleAdapter.markReconnected(now);
+      if (!wasConnected) {
+        this.lastOfficialCandleTime = undefined;
+        this.officialClosedCandleCount = 0;
+        this.autoPauseIfRunning(["MARKET_DATA_RECONNECTED_REQUIRES_WARMUP"]);
+      }
       this.setMarketDataStatus(this.candleAdapter.inspectState().warmupComplete ? "HEALTHY" : "WARMING_UP");
       return;
     }
@@ -201,6 +217,21 @@ export class ShadowOperationalRuntime {
     // round should drive the strategy -- "gap detected 후 strategy execution 금지".
     if (adverse) return;
     for (const candle of result.emittedCandles) this.onClosedCandle(candle);
+  }
+
+  /** Official closed-candle path. The legacy ticker adapter remains diagnostic only. */
+  async syncOfficialCandles(source: UpbitMinuteCandleSource): Promise<void> {
+    try {
+      for (const candle of await source.loadClosedCandles(200)) {
+        if (this.lastOfficialCandleTime !== undefined && candle.openTime <= this.lastOfficialCandleTime) continue;
+        this.lastOfficialCandleTime = candle.openTime;
+        this.officialClosedCandleCount += 1;
+        this.onClosedCandle({ symbol: candle.symbol, interval: candle.interval, openTime: candle.openTime, closeTime: candle.closeTime, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, volumeAvailable: true, tradeCount: 0, closed: true, sequence: candle.openTime, source: "UPBIT_PUBLIC_CANDLE" });
+      }
+    } catch (error) {
+      this.setMarketDataStatus(error instanceof Error && error.message.includes("missing interval") ? "GAP_DETECTED" : "STALE");
+      this.autoPauseIfRunning(["OFFICIAL_CANDLE_SOURCE_UNAVAILABLE"]);
+    }
   }
 
   private onClosedCandle(candle: ClosedCandle): void {
@@ -257,7 +288,7 @@ export class ShadowOperationalRuntime {
     // here would turn a pure "not warmed up yet" condition into two blockers and defeat the
     // intentional softer handling of that specific, expected, retryable condition.
     else if (this.marketDataStatus !== "HEALTHY" && this.marketDataStatus !== "WARMING_UP") blockers.push(`MARKET_DATA_UNHEALTHY:${this.marketDataStatus}`);
-    if (!candleState.warmupComplete) blockers.push("MARKET_DATA_WARMING_UP");
+    if (!this.officialWarmupComplete() && !candleState.warmupComplete) blockers.push("MARKET_DATA_WARMING_UP");
     if (safety.killSwitch) blockers.push("KILL_SWITCH_ACTIVE");
     if (safety.openP0) blockers.push("OPEN_P0_ALERT");
     if (!safety.deploymentIntegrity) blockers.push("DEPLOYMENT_INTEGRITY_FAILED");
@@ -342,15 +373,16 @@ export class ShadowOperationalRuntime {
   diagnostics(): ShadowOperationalDiagnostics {
     const session: ShadowPilotSession | undefined = this.pilot?.snapshot();
     const candleState = this.candleAdapter.inspectState();
+    const closedCandleCount = Math.max(candleState.closedCandleCount, this.officialClosedCandleCount);
     return Object.freeze({
       state: this.lifecycle,
       sessionId: session?.sessionId ?? null,
       symbol: this.deps.symbol,
       strategyId: this.deps.strategyId,
       marketDataStatus: this.marketDataStatus,
-      closedCandleCount: candleState.closedCandleCount,
+      closedCandleCount,
       requiredWarmupCandles: candleState.requiredWarmupCandles,
-      warmupComplete: candleState.warmupComplete,
+      warmupComplete: this.officialWarmupComplete() || candleState.warmupComplete,
       lastClosedCandleTime: this.lastClosedCandleTime ?? null,
       lastSignalTime: this.lastSignalTime ?? null,
       lastSignal: this.lastSignal ?? null,
@@ -364,7 +396,16 @@ export class ShadowOperationalRuntime {
       positionMutationCount: session?.counters.positionMutationCount ?? 0,
       blockers: Object.freeze([...this.blockers]),
       automaticResumeAllowed: false,
-      productionMutationAllowed: false
+      productionMutationAllowed: false,
+      strategyVersion: this.deps.strategyVersion ?? `${this.deps.strategyId}:legacy-ticker-v1`,
+      inputType: "CLOSED_CANDLE",
+      interval: "1m",
+      sourceType: "UPBIT_PUBLIC_CANDLE",
+      strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy
     });
+  }
+
+  private officialWarmupComplete(): boolean {
+    return this.officialClosedCandleCount >= 20;
   }
 }

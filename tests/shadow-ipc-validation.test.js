@@ -1,14 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseShadowStartIpc, parseShadowSessionIpc, parseShadowStatusIpc, SHADOW_ALLOWED_SYMBOL, SHADOW_ALLOWED_STRATEGY_ID } = require("../dist/apps/desktop/src/shadowIpcValidation.js");
+const { parseShadowStartIpc, parseShadowSessionIpc, parseShadowStatusIpc, SHADOW_ALLOWED_SYMBOL, SHADOW_ALLOWED_STRATEGY_ID, SHADOW_ALLOWED_STRATEGY_VERSION } = require("../dist/apps/desktop/src/shadowIpcValidation.js");
+const start = (extra = {}) => ({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID, strategyVersion: SHADOW_ALLOWED_STRATEGY_VERSION, ...extra });
 
 test("shadow:start accepts exactly the allowed symbol and strategyId", () => {
-  const result = parseShadowStartIpc({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID });
-  assert.deepEqual(result, { symbol: "KRW-BTC", strategyId: "sma-crossover" });
+  const result = parseShadowStartIpc(start());
+  assert.deepEqual(result, { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion: "sma-crossover:closed-candle-1m-v1" });
 });
 
 test("shadow:start rejects an extra field", () => {
-  assert.throws(() => parseShadowStartIpc({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID, approval: {} }), /invalid shadow:start input/);
+  assert.throws(() => parseShadowStartIpc(start({ approval: {} })), /invalid shadow:start input/);
 });
 
 test("shadow:start rejects a missing field", () => {
@@ -17,13 +18,13 @@ test("shadow:start rejects a missing field", () => {
 
 test("shadow:start rejects any symbol other than KRW-BTC", () => {
   for (const symbol of ["KRW-ETH", "krw-btc", "KRW-BTC ", "", 123, null]) {
-    assert.throws(() => parseShadowStartIpc({ symbol, strategyId: SHADOW_ALLOWED_STRATEGY_ID }), `symbol ${JSON.stringify(symbol)} must be rejected`);
+    assert.throws(() => parseShadowStartIpc(start({ symbol })), `symbol ${JSON.stringify(symbol)} must be rejected`);
   }
 });
 
 test("shadow:start rejects any strategyId other than sma-crossover", () => {
   for (const strategyId of ["ema-crossover", "SMA-CROSSOVER", "", 1, undefined]) {
-    assert.throws(() => parseShadowStartIpc({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId }), `strategyId ${JSON.stringify(strategyId)} must be rejected`);
+    assert.throws(() => parseShadowStartIpc(start({ strategyId })), `strategyId ${JSON.stringify(strategyId)} must be rejected`);
   }
 });
 
@@ -34,8 +35,8 @@ test("shadow:start rejects arrays and null and non-objects", () => {
 });
 
 test("shadow:start rejects an approval/limits/broker object smuggled in place of the payload", () => {
-  assert.throws(() => parseShadowStartIpc({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID, limits: { maxOrderNotional: 1 } }));
-  assert.throws(() => parseShadowStartIpc({ approved: true, symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID }));
+  assert.throws(() => parseShadowStartIpc(start({ limits: { maxOrderNotional: 1 } })));
+  assert.throws(() => parseShadowStartIpc(start({ approved: true })));
 });
 
 test("shadow:pause/resume/stop accept exactly {sessionId}", () => {
