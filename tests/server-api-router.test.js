@@ -1,0 +1,424 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { handleApiRequest } = require("../dist/apps/server/src/apiRouter.js");
+
+function fakeRuntime(overrides = {}) {
+  return {
+    getMarket: () => ({ status: "CONNECTED", price: 100 }),
+    getChartCandles: () => [{ open: 1 }],
+    getAccountSnapshot: () => ({ cash: 1, orders: [] }),
+    getControlSnapshot: () => ({ status: "STOPPED", events: [] }),
+    getDashboard: () => ({ portfolio: {} }),
+    placeOrder: (side, quantity) => ({ order: { side, quantity } }),
+    closePosition: () => ({ order: { side: "SELL", quantity: 0.5 }, account: { cash: 1, orders: [] } }),
+    startStrategy: () => ({ status: "RUNNING" }),
+    stopStrategy: () => ({ status: "STOPPED" }),
+    setAutoTrade: (enabled) => ({ autoTradeEnabled: enabled }),
+    setOrderQuantity: (quantity) => ({ orderQuantity: quantity }),
+    selectStrategy: (choice) => ({ activeStrategyId: choice }),
+    getStrategyPeriods: () => ({ shortPeriod: 5, longPeriod: 20 }),
+    setStrategyPeriods: (periods) => ({ ...periods }),
+    getReferenceAccounting: () => ({
+      portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
+      pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
+      reconciliation: { consistent: true, discrepancies: [] }
+    }),
+    getEquityHistory: () => [{ timestamp: 1, equity: 1 }],
+    getDrawdownStatistics: () => ({
+      maxDrawdown: 0, maxDrawdownPercent: null, currentDrawdown: 0, currentDrawdownPercent: null, peakEquity: 1
+    }),
+    getPositionProtection: () => ({ stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null }),
+    getLimitOrders: () => [],
+    createLimitOrder: (side, quantity, limitPrice) => ({ id: "1-1", side, quantity, limitPrice, createdAt: "2026-01-01T00:00:00.000Z" }),
+    cancelLimitOrder: () => {},
+    setPositionProtection: (input) => ({ ...input }),
+    getPositionSizing: () => ({ mode: "FIXED", riskFraction: 0.1 }),
+    setPositionSizing: (input) => ({ mode: input.mode, riskFraction: input.riskFraction ?? 0.1 }),
+    getTradeStatistics: () => ({
+      totalTrades: 0, buyCount: 0, sellCount: 0, wins: 0, losses: 0,
+      winRate: null, totalRealizedPnl: 0, averageWin: null, averageLoss: null, largestWin: null, largestLoss: null,
+      profitFactor: null, expectancy: null
+    }),
+    getChampionStandings: () => ({ championId: "sma-5-20", challengers: [] }),
+    promoteChallenger: (id) => ({ championId: id, challengers: [] }),
+    resetChampionSystem: () => ({ championId: "sma-5-20", challengers: [] }),
+    getChampionEquityHistories: () => [{ id: "sma-5-20", label: "SMA(5,20)", history: [{ timestamp: 1, equity: 1 }] }],
+    getNotificationSettings: () => ({ enabled: false, webhookUrl: null }),
+    setNotificationSettings: (input) => ({ ...input }),
+    sendTestNotification: () => {},
+    ...overrides
+  };
+}
+
+test("GET routes dispatch to the matching runtime method", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/health", body: undefined }, runtime), { status: 200, body: { status: "ok" } });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/market", body: undefined }, runtime).body, { status: "CONNECTED", price: 100 });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/account", body: undefined }, runtime).body, { cash: 1, orders: [] });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/control", body: undefined }, runtime).body, { status: "STOPPED", events: [] });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/dashboard", body: undefined }, runtime).body, { portfolio: {} });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/chart/candles", body: undefined }, runtime).body, { candles: [{ open: 1 }] });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).body, {
+    portfolio: { cash: 1, quantity: 0, averagePrice: 0, realizedPnl: 0 },
+    pnl: { realizedPnl: 0, unrealizedPnl: 0, totalPnl: 0 },
+    reconciliation: { consistent: true, discrepancies: [] }
+  });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/equity-history", body: undefined }, runtime).body, {
+    history: [{ timestamp: 1, equity: 1 }],
+    drawdown: { maxDrawdown: 0, maxDrawdownPercent: null, currentDrawdown: 0, currentDrawdownPercent: null, peakEquity: 1 }
+  });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/trade-statistics", body: undefined }, runtime).body.totalTrades, 0);
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/position-protection", body: undefined }, runtime).body, {
+    stopLossPrice: null, takeProfitPrice: null, trailingStopPercent: null, currentTrailingStopPrice: null
+  });
+});
+
+test("GET /api/reference-accounting is 503 while market price is not yet available", () => {
+  const runtime = fakeRuntime({ getReferenceAccounting: () => { throw new Error("market price is not available yet"); } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/reference-accounting", body: undefined }, runtime).status, 503);
+});
+
+test("POST /api/reference-accounting is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/reference-accounting", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/equity-history is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/equity-history", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/trade-statistics is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/trade-statistics", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/position-protection validates stopLossPrice/takeProfitPrice/trailingStopPercent and dispatches", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/position-protection",
+    body: { stopLossPrice: 90, takeProfitPrice: null, trailingStopPercent: null }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { stopLossPrice: 90, takeProfitPrice: null, trailingStopPercent: null });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: "x", takeProfitPrice: null, trailingStopPercent: null }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: null, trailingStopPercent: null }
+  }, runtime).status, 400, "takeProfitPrice missing entirely is not a valid null");
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: null, takeProfitPrice: null }
+  }, runtime).status, 400, "trailingStopPercent missing entirely is not a valid null");
+
+  const domainRejection = fakeRuntime({ setPositionProtection: () => { throw new Error("stopLossPrice must be less than takeProfitPrice"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-protection", body: { stopLossPrice: 100, takeProfitPrice: 100, trailingStopPercent: null }
+  }, domainRejection).status, 400);
+});
+
+test("DELETE /api/position-protection is 405", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-protection", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/limit-orders dispatch and validate", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/limit-orders", body: undefined }, runtime).body, { orders: [] });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: 0.001, limitPrice: 90_000_000 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { id: "1-1", side: "BUY", quantity: 0.001, limitPrice: 90_000_000, createdAt: "2026-01-01T00:00:00.000Z" });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "HOLD", quantity: 0.001, limitPrice: 90_000_000 }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: "x", limitPrice: 90_000_000 }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ createLimitOrder: () => { throw new Error("quantity must be a positive number"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/limit-orders", body: { side: "BUY", quantity: -1, limitPrice: 90_000_000 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/limit-orders", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/limit-orders/cancel validates id and dispatches", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "1-1" } }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { cancelled: "1-1" });
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "" } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: {} }, runtime).status, 400);
+
+  const notFound = fakeRuntime({ cancelLimitOrder: () => { throw new Error("no pending limit order with id nope"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/limit-orders/cancel", body: { id: "nope" } }, notFound).status, 400);
+
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/limit-orders/cancel", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/position-sizing dispatch and validate the mode", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/position-sizing", body: undefined }, runtime).body, {
+    mode: "FIXED", riskFraction: 0.1
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: 0.2 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { mode: "FIXED_FRACTIONAL", riskFraction: 0.2 });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "BOGUS" }
+  }, runtime).status, 400);
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: "x" }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ setPositionSizing: () => { throw new Error("riskFraction must be finite and within (0, 1]"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/position-sizing", body: { mode: "FIXED_FRACTIONAL", riskFraction: 5 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/position-sizing", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/notifications dispatch, validate types, and pass through domain rejections", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/notifications", body: undefined }, runtime).body, {
+    enabled: false, webhookUrl: null
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: true, webhookUrl: "https://example.com/hook" }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { enabled: true, webhookUrl: "https://example.com/hook" });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: "yes", webhookUrl: null }
+  }, runtime).status, 400, "enabled must be a boolean");
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: false, webhookUrl: 12345 }
+  }, runtime).status, 400, "webhookUrl must be a string or null");
+
+  const domainRejection = fakeRuntime({
+    setNotificationSettings: () => { throw new Error("webhookUrl must be a valid http(s) URL when notifications are enabled"); }
+  });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/notifications", body: { enabled: true, webhookUrl: "javascript:alert(1)" }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/notifications", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/notifications/test dispatches to sendTestNotification; other methods are 405", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "POST", pathname: "/api/notifications/test", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { sent: true });
+
+  const domainRejection = fakeRuntime({ sendTestNotification: () => { throw new Error("no webhookUrl is configured"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/notifications/test", body: undefined }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/notifications/test", body: undefined }, runtime).status, 405);
+});
+
+test("GET/POST /api/strategy/periods dispatch and validate types", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/strategy/periods", body: undefined }, runtime).body, {
+    shortPeriod: 5, longPeriod: 20
+  });
+
+  const good = handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: 10, longPeriod: 30 }
+  }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { shortPeriod: 10, longPeriod: 30 });
+
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: "x", longPeriod: 30 }
+  }, runtime).status, 400);
+
+  const domainRejection = fakeRuntime({ setStrategyPeriods: () => { throw new Error("invalid SMA periods"); } });
+  assert.equal(handleApiRequest({
+    method: "POST", pathname: "/api/strategy/periods", body: { shortPeriod: 20, longPeriod: 5 }
+  }, domainRejection).status, 400);
+
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/strategy/periods", body: undefined }, runtime).status, 405);
+});
+
+test("GET /api/export/trades.csv returns CSV content-type and a header-only body when there are no orders", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/trades.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-trades\.csv"/);
+  assert.equal(response.body, "id,market,side,quantity,price,fee,filledAt,requestedQuantity,quotedPrice,spreadCost,slippageCost,marketImpactCost\r\n");
+});
+
+test("GET /api/export/equity-history.csv returns CSV content-type", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/equity-history.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.equal(response.body, "timestamp,isoTime,equity\r\n1,1970-01-01T00:00:00.001Z,1\r\n");
+});
+
+test("POST /api/export/trades.csv is 405 (read-only endpoint)", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/trades.csv", body: undefined }, runtime).status, 405);
+});
+
+test("GET /api/export/champion-equity-history.csv returns a wide CSV (one column per challenger); POST is 405", () => {
+  const runtime = fakeRuntime();
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/champion-equity-history.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-champion-equity-history\.csv"/);
+  // The label "SMA(5,20)" contains a comma, so csvField() quotes that header cell.
+  assert.equal(response.body, "timestamp,isoTime,\"SMA(5,20)\"\r\n1,1970-01-01T00:00:00.001Z,1\r\n");
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/champion-equity-history.csv", body: undefined }, runtime).status, 405);
+});
+
+test("GET /api/export/events.csv returns a chronological CSV of getControlSnapshot().events; POST is 405", () => {
+  const runtime = fakeRuntime({
+    getControlSnapshot: () => ({
+      status: "STOPPED",
+      events: [
+        { id: "2", type: "SIGNAL", message: "HOLD: warming-up", timestamp: "2026-01-01T00:00:01.000Z" },
+        { id: "1", type: "STATUS", message: "strategy started", timestamp: "2026-01-01T00:00:00.000Z" }
+      ]
+    })
+  });
+  const response = handleApiRequest({ method: "GET", pathname: "/api/export/events.csv", body: undefined }, runtime);
+  assert.equal(response.status, 200);
+  assert.equal(response.contentType, "text/csv; charset=utf-8");
+  assert.match(response.contentDisposition, /attachment; filename="dokkaebi-events\.csv"/);
+  assert.equal(
+    response.body,
+    "id,timestamp,type,message\r\n1,2026-01-01T00:00:00.000Z,STATUS,strategy started\r\n2,2026-01-01T00:00:01.000Z,SIGNAL,HOLD: warming-up\r\n"
+  );
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/export/events.csv", body: undefined }, runtime).status, 405);
+});
+
+test("unknown path is 404, known path with wrong method is 405", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/nope", body: undefined }, runtime).status, 404);
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/orders", body: undefined }, runtime).status, 405);
+  assert.equal(handleApiRequest({ method: "DELETE", pathname: "/api/health", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/orders validates side and quantity before calling placeOrder", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 0.001 } }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { order: { side: "BUY", quantity: 0.001 } });
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: "1" } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: null }, runtime).status, 400);
+});
+
+test("GET /api/champion dispatches to getChampionStandings; POST is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "GET", pathname: "/api/champion", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { championId: "sma-5-20", challengers: [] });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/champion/promote validates id and dispatches to promoteChallenger", () => {
+  const runtime = fakeRuntime();
+  const good = handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "ema-5-20" } }, runtime);
+  assert.equal(good.status, 200);
+  assert.deepEqual(good.body, { championId: "ema-5-20", challengers: [] });
+
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "" } }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: {} }, runtime).status, 400);
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/champion/promote", body: undefined }, runtime).status, 405);
+
+  const unknown = fakeRuntime({ promoteChallenger: () => { throw new Error("unknown challenger id: nope"); } });
+  const rejected = handleApiRequest({ method: "POST", pathname: "/api/champion/promote", body: { id: "nope" } }, unknown);
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.body.error, "알 수 없는 챌린저 ID입니다: nope");
+});
+
+test("POST /api/champion/reset dispatches to resetChampionSystem; GET is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "POST", pathname: "/api/champion/reset", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { championId: "sma-5-20", challengers: [] });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/champion/reset", body: undefined }, runtime).status, 405);
+});
+
+test("POST /api/position/close dispatches to closePosition, GET is 405", () => {
+  const runtime = fakeRuntime();
+  const result = handleApiRequest({ method: "POST", pathname: "/api/position/close", body: undefined }, runtime);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { order: { side: "SELL", quantity: 0.5 }, account: { cash: 1, orders: [] } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/position/close", body: undefined }, runtime).status, 405);
+
+  const noPosition = fakeRuntime({ closePosition: () => { throw new Error("no open position to close"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/position/close", body: undefined }, noPosition).status, 400);
+});
+
+test("POST /api/strategy/auto-trade and /api/strategy/quantity validate types", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/strategy/auto-trade", body: { enabled: "yes" } }, runtime).status, 400);
+  assert.deepEqual(handleApiRequest({ method: "POST", pathname: "/api/strategy/auto-trade", body: { enabled: true } }, runtime).body, { autoTradeEnabled: true });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/strategy/quantity", body: { quantity: "x" } }, runtime).status, 400);
+  assert.deepEqual(handleApiRequest({ method: "POST", pathname: "/api/strategy/quantity", body: { quantity: 0.01 } }, runtime).body, { orderQuantity: 0.01 });
+});
+
+test("POST /api/strategy/select validates against the known strategy choices", () => {
+  const runtime = fakeRuntime();
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/strategy/select", body: { choice: "macd-cross" } }, runtime).status, 400);
+  assert.deepEqual(handleApiRequest({ method: "POST", pathname: "/api/strategy/select", body: { choice: "ema-crossover" } }, runtime).body, { activeStrategyId: "ema-crossover" });
+});
+
+test("thrown domain errors map to 503 when unavailable/stale, 400 otherwise", () => {
+  const unavailableRuntime = fakeRuntime({ getAccountSnapshot: () => { throw new Error("market price is not available yet"); } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/account", body: undefined }, unavailableRuntime).status, 503);
+
+  const staleRuntime = fakeRuntime({ getDashboard: () => { throw new Error("market price is stale; waiting for a fresh update"); } });
+  assert.equal(handleApiRequest({ method: "GET", pathname: "/api/dashboard", body: undefined }, staleRuntime).status, 503);
+
+  const rejectedOrder = fakeRuntime({ placeOrder: () => { throw new Error("insufficient paper cash"); } });
+  assert.equal(handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, rejectedOrder).status, 400);
+});
+
+test("GET /api/market translates a real lastError (Upbit poll failure) to Korean", () => {
+  const runtime = fakeRuntime({ getMarket: () => ({ status: "CONNECTING", lastError: "Upbit request failed: HTTP 500" }) });
+  const result = handleApiRequest({ method: "GET", pathname: "/api/market", body: undefined }, runtime);
+  assert.deepEqual(result.body, { status: "CONNECTING", lastError: "Upbit 요청 실패: HTTP 500" });
+});
+
+test("404/405 error bodies are Korean, not the raw NOT_FOUND/METHOD_NOT_ALLOWED constants", () => {
+  const runtime = fakeRuntime();
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/nope", body: undefined }, runtime).body, { error: "요청한 경로를 찾을 수 없습니다" });
+  assert.deepEqual(handleApiRequest({ method: "GET", pathname: "/api/orders", body: undefined }, runtime).body, { error: "허용되지 않는 요청 방식입니다" });
+});
+
+test("thrown error messages reach the client translated to Korean (한국어 사용 고정 -- see errorMessages.ts)", () => {
+  const runtime = fakeRuntime();
+  const badBody = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "HOLD", quantity: 1 } }, runtime);
+  assert.equal(badBody.body.error, "구분(side)은 \"BUY\" 또는 \"SELL\"이어야 합니다");
+
+  const rejectedOrder = fakeRuntime({ placeOrder: () => { throw new Error("insufficient paper cash"); } });
+  const rejected = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, rejectedOrder);
+  assert.equal(rejected.body.error, "현금 잔고가 부족합니다");
+
+  const unrecognized = fakeRuntime({ placeOrder: () => { throw new Error("some future error text not yet in the dictionary"); } });
+  const fallback = handleApiRequest({ method: "POST", pathname: "/api/orders", body: { side: "BUY", quantity: 1 } }, unrecognized);
+  assert.equal(fallback.body.error, "오류: some future error text not yet in the dictionary");
+});

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none';" />
+  <meta name="theme-color" content="#0a0c10" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Dokkaebi" />
+  <title>Dokkaebi Web Paper Trader</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">DOKKAEBI &middot; Paper Trading (Web, single-user)</p>
+        <h1>KRW-BTC</h1>
+      </div>
+      <span id="market-status" class="status">연결 중...</span>
+    </header>
+
+    <label class="toggle" id="wake-lock-row" hidden><input id="wake-lock-toggle" type="checkbox" /> 화면 켜짐 유지 (모바일)</label>
+
+    <div id="api-key-row">
+      <label for="api-key-input">API 키 (서버에 설정된 경우에만 필요)</label>
+      <input id="api-key-input" type="password" autocomplete="off" placeholder="서버에 API 키가 설정되어 있지 않다면 비워두세요" />
+      <p id="api-key-status" class="error"></p>
+    </div>
+
+    <dl class="kpi-strip">
+      <div class="kpi-tile"><dt>평가자산</dt><dd id="kpi-equity">-</dd></div>
+      <div class="kpi-tile"><dt>총 손익</dt><dd id="kpi-total-pnl">-</dd></div>
+      <div class="kpi-tile"><dt>포지션</dt><dd id="kpi-position">-</dd></div>
+      <div class="kpi-tile"><dt>승률</dt><dd id="kpi-win-rate">-</dd></div>
+      <div class="kpi-tile"><dt>전략 상태</dt><dd id="kpi-status">-</dd></div>
+    </dl>
+
+    <section class="card chart-card">
+      <div class="section-title"><h2>가격 차트 (1분봉, Upbit 실데이터)</h2><span id="chart-price">-</span></div>
+      <canvas id="chart" width="960" height="220"></canvas>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab-button" type="button" data-tab="trading" role="tab">거래</button>
+      <button class="tab-button" type="button" data-tab="performance" role="tab">성과</button>
+      <button class="tab-button" type="button" data-tab="audit" role="tab">감사</button>
+    </nav>
+
+    <div class="tab-panel" data-tab="trading">
+      <section class="grid">
+        <article class="card">
+          <h2>계좌</h2>
+          <dl>
+            <div><dt>현금</dt><dd id="cash">-</dd></div>
+            <div><dt>평가자산</dt><dd id="equity">-</dd></div>
+            <div><dt>보유 수량</dt><dd id="position">-</dd></div>
+            <div><dt>평균 단가</dt><dd id="average">-</dd></div>
+            <div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div>
+            <div><dt>실현 손익</dt><dd id="realized">-</dd></div>
+          </dl>
+        </article>
+        <article class="card">
+          <h2>전략 제어</h2>
+          <dl>
+            <div><dt>상태</dt><dd id="strategy-status">-</dd></div>
+            <div><dt>활성 전략</dt><dd id="strategy-id">-</dd></div>
+          </dl>
+          <label for="strategy-select">전략 선택</label>
+          <select id="strategy-select">
+            <option value="sma-crossover">SMA Crossover</option>
+            <option value="ema-crossover">EMA Crossover</option>
+          </select>
+          <label for="strategy-short-period">단기 기간</label>
+          <input id="strategy-short-period" type="number" min="2" step="1" value="5" />
+          <label for="strategy-long-period">장기 기간</label>
+          <input id="strategy-long-period" type="number" min="3" step="1" value="20" />
+          <div class="actions">
+            <button id="strategy-periods-set">기간 적용</button>
+          </div>
+          <label for="strategy-quantity">자동주문 수량 (고정 수량 모드)</label>
+          <input id="strategy-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+          <label for="sizing-mode">자동매매 사이징 방식 (packages/core PositionSizer)</label>
+          <select id="sizing-mode">
+            <option value="FIXED">고정 수량</option>
+            <option value="FIXED_FRACTIONAL">자산 비율 (Risk %)</option>
+          </select>
+          <label for="sizing-risk-fraction">리스크 비율 (자산 대비 %, FIXED_FRACTIONAL일 때만 사용)</label>
+          <input id="sizing-risk-fraction" type="number" min="0.001" max="1" step="0.01" value="0.1" />
+          <div class="actions">
+            <button id="strategy-start">시작</button>
+            <button id="strategy-stop" class="secondary">중지</button>
+          </div>
+          <label class="toggle"><input id="auto-trade" type="checkbox" /> Paper 자동매매</label>
+          <p id="control-error" class="error"></p>
+        </article>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>포지션 보호 (스탑로스/익절/트레일링)</h2><span class="status">보유 수량 &gt; 0일 때만 작동</span></div>
+        <dl class="inline-stats">
+          <div><dt>스탑로스</dt><dd id="protection-stop-loss">미설정</dd></div>
+          <div><dt>익절</dt><dd id="protection-take-profit">미설정</dd></div>
+          <div><dt>트레일링 스탑</dt><dd id="protection-trailing">미설정</dd></div>
+        </dl>
+        <label for="protection-stop-loss-input">스탑로스 가격 (고정, 트레일링과 동시 사용 불가)</label>
+        <input id="protection-stop-loss-input" type="number" min="0" step="1" placeholder="예: 90000000" />
+        <label for="protection-take-profit-input">익절 가격</label>
+        <input id="protection-take-profit-input" type="number" min="0" step="1" placeholder="예: 100000000" />
+        <label for="protection-trailing-input">트레일링 스탑 비율 (%, 고점 대비 하락폭)</label>
+        <input id="protection-trailing-input" type="number" min="0.1" max="99" step="0.5" placeholder="예: 5 (고점 대비 -5%)" />
+        <div class="actions">
+          <button id="protection-set">설정</button>
+          <button id="protection-clear" class="secondary">전체 해제</button>
+        </div>
+        <p id="protection-error" class="error"></p>
+        <p class="hint">서버 재시작 후에도 유지됩니다. 트리거되면 전량 시장가 매도 후 자동으로 해제됩니다. 필드를 비우면 해당 항목만 해제됩니다.</p>
+      </section>
+
+      <section class="card">
+        <h2>수동 주문</h2>
+        <label for="order-quantity">수량</label>
+        <input id="order-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+        <div class="actions">
+          <button id="buy">매수</button>
+          <button id="sell" class="sell">매도</button>
+          <button id="close-position" class="sell" type="button">전량 청산</button>
+        </div>
+        <p id="order-error" class="error"></p>
+      </section>
+
+      <section class="card">
+        <h2>지정가 주문</h2>
+        <label for="limit-order-side">구분</label>
+        <select id="limit-order-side">
+          <option value="BUY">매수</option>
+          <option value="SELL">매도</option>
+        </select>
+        <label for="limit-order-quantity">수량</label>
+        <input id="limit-order-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" />
+        <label for="limit-order-price">지정가</label>
+        <input id="limit-order-price" type="number" min="0" step="1" placeholder="예: 90000000" />
+        <div class="actions">
+          <button id="limit-order-submit">주문 등록</button>
+        </div>
+        <p id="limit-order-error" class="error"></p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>구분</th><th>수량</th><th>지정가</th><th>등록 시각</th><th></th></tr></thead>
+            <tbody id="limit-orders"><tr><td colspan="5">대기 중인 지정가 주문 없음</td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint">캔들 틱마다 확인됩니다 (매수: 시장가 &le; 지정가, 매도: 시장가 &ge; 지정가). 체결 실패 시(잔고 부족 등) 자동 취소됩니다. 서버 재시작 후에도 유지됩니다.</p>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-tab="performance">
+      <section class="card chart-card">
+        <div class="section-title"><h2>자산 곡선 (평가자산 추이)</h2><span id="equity-latest">-</span></div>
+        <canvas id="equity-chart" width="960" height="180"></canvas>
+        <dl class="inline-stats">
+          <div><dt>최고점</dt><dd id="dd-peak">-</dd></div>
+          <div><dt>현재 낙폭</dt><dd id="dd-current">-</dd></div>
+          <div><dt>최대 낙폭 (MDD)</dt><dd id="dd-max">-</dd></div>
+        </dl>
+        <p class="hint">서버 재시작 시 초기화됩니다 (메모리 기반, 최근 500개 표본). <a href="/api/export/equity-history.csv" download>CSV 다운로드</a></p>
+      </section>
+
+      <section class="card">
+        <h2>거래 통계</h2>
+        <dl>
+          <div><dt>총 거래</dt><dd id="stats-total">-</dd></div>
+          <div><dt>매수/매도</dt><dd id="stats-buy-sell">-</dd></div>
+          <div><dt>승률</dt><dd id="stats-win-rate">-</dd></div>
+          <div><dt>승/패</dt><dd id="stats-win-loss">-</dd></div>
+          <div><dt>평균 이익</dt><dd id="stats-avg-win">-</dd></div>
+          <div><dt>평균 손실</dt><dd id="stats-avg-loss">-</dd></div>
+          <div><dt>최대 이익</dt><dd id="stats-largest-win">-</dd></div>
+          <div><dt>최대 손실</dt><dd id="stats-largest-loss">-</dd></div>
+          <div><dt>손익비 (Profit Factor)</dt><dd id="stats-profit-factor">-</dd></div>
+          <div><dt>기대값 (거래당 평균 손익)</dt><dd id="stats-expectancy">-</dd></div>
+        </dl>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>챔피언 시스템 (전략 비교)</h2><a href="/api/export/champion-equity-history.csv" download>CSV 다운로드</a></div>
+        <p class="hint">실제 계좌에 영향을 주지 않는 가상(섀도우) 비교입니다. 동일한 실시간 시세로 각 전략을 병행 평가하며, 실제 반영은 승격 버튼을 눌러야만 이루어집니다 (자동 승격 없음). 서버 재시작 시 초기화됩니다 (메모리 기반).</p>
+        <div class="actions">
+          <button id="champion-reset" type="button" class="secondary">챔피언 시스템 초기화</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>전략</th><th>평가자산</th><th>총 손익</th><th>승률</th><th>거래 수</th><th>최대 낙폭</th><th></th></tr></thead>
+            <tbody id="champion-standings"><tr><td colspan="7">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+        <p id="champion-error" class="error"></p>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>백테스트</h2></div>
+        <p class="hint">Upbit 실제 과거 데이터로 각 전략을 즉시 재현합니다. 실시간 챔피언 비교와 달리 결과를 기다릴 필요가 없지만, 선택한 기간의 결과이므로 참고용입니다.</p>
+        <label for="backtest-unit">기간</label>
+        <select id="backtest-unit">
+          <option value="minute">1분봉 (최근 약 16.6시간)</option>
+          <option value="day">일봉 (최근 최대 200일)</option>
+        </select>
+        <div class="actions">
+          <button id="backtest-run" type="button">백테스트 실행</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>전략</th><th>총 수익률</th><th>매수 후 보유 대비</th><th>최대 낙폭</th><th>체결 수</th><th>거부 수</th><th>총 매매비용</th></tr></thead>
+            <tbody id="backtest-results"><tr><td colspan="7">실행 버튼을 눌러주세요</td></tr></tbody>
+          </table>
+        </div>
+        <p id="backtest-error" class="error"></p>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>체결 기록</h2><a href="/api/export/trades.csv" download>CSV 다운로드</a></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead>
+            <tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint" id="orders-hint"></p>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-tab="audit">
+      <section class="card">
+        <div class="section-title"><h2>참조 회계 (감사용, packages/core)</h2><span id="ref-consistency" class="status">-</span></div>
+        <dl>
+          <div><dt>현금</dt><dd id="ref-cash">-</dd></div>
+          <div><dt>보유 수량</dt><dd id="ref-position">-</dd></div>
+          <div><dt>평균 단가</dt><dd id="ref-average">-</dd></div>
+          <div><dt>미실현 손익</dt><dd id="ref-unrealized">-</dd></div>
+          <div><dt>실현 손익</dt><dd id="ref-realized">-</dd></div>
+          <div><dt>총 손익</dt><dd id="ref-total">-</dd></div>
+        </dl>
+        <p id="ref-discrepancies" class="error"></p>
+        <p class="hint">서버 재시작 시 초기화됩니다 (메모리 기반, 감사용 참조 계좌이며 실제 계좌와는 별개입니다).</p>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>이벤트 로그</h2><a href="/api/export/events.csv" download>CSV 다운로드</a></div>
+        <div class="table-scroll">
+          <table class="log-table">
+            <thead><tr><th>시간</th><th>유형</th><th>메시지</th></tr></thead>
+            <tbody id="events"><tr><td colspan="3">이벤트 없음</td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint" id="events-hint"></p>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><h2>알림 (웹훅)</h2><span id="notifications-status" class="status">-</span></div>
+        <p class="hint">체결(ORDER)과 리스크(RISK) 이벤트가 발생할 때마다 설정한 URL로 JSON을 POST합니다. 채팅 플랫폼별 형식(Slack/Discord 등)은 맞춰주지 않으니, 수신 측(릴레이 스크립트 등)에서 원하는 형식으로 변환해야 합니다. 인증 계층이 없는 서버이므로 전적으로 운영자가 직접 설정해야 하며, 전송 실패는 트레이딩에 영향을 주지 않도록 결과를 확인하지 않습니다.</p>
+        <label class="toggle"><input id="notifications-enabled" type="checkbox" /> 알림 사용</label>
+        <label for="notifications-webhook-url">웹훅 URL</label>
+        <input id="notifications-webhook-url" type="url" placeholder="https://example.com/hook" />
+        <div class="actions">
+          <button id="notifications-save">저장</button>
+          <button id="notifications-test" type="button" class="secondary">테스트 알림 보내기</button>
+        </div>
+        <p id="notifications-error" class="error"></p>
+      </section>
+
+      <section class="card" id="dashboard-card">
+        <h2>AI CIO 대시보드 (읽기 전용)</h2>
+        <div class="cio-grid" id="cio-grid"></div>
+      </section>
+    </div>
+
+    <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다. (단일 사용자, Upbit 공개 REST 데이터 기반)</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
