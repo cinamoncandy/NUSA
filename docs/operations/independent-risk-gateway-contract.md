@@ -106,24 +106,69 @@ Both functions are pure. Identical inputs produce identical decisions and identi
 there is no wall-clock read anywhere — `evaluatedAt` is copied from the request. Decisions
 are frozen, as are their reason-code arrays.
 
+## Input sources
+
+The gateway consumes state it does not itself produce. Two of the four required sources now
+exist; two do not.
+
+### Fingerprints — `apps/desktop/src/runtimeFingerprint.ts`
+
+`deriveStrategyFingerprint`, `deriveConfigFingerprint`, `deriveRuntimeFingerprint`, and
+`deriveRiskPolicyFingerprint` produce the four identities the gateway's mismatch checks
+compare against. Pure, deterministic, key-order independent, domain-prefixed.
+
+The design point is which failure mode was chosen. A fingerprint over a hand-picked subset
+of fields goes stale silently: a field added later is not covered, so the digest stays
+identical while behaviour changes, and the gateway allows orders from a build it was never
+configured for. A fingerprint over "whatever object was passed" is noisy instead: key order
+and stray properties leak in, mismatches become routine, and operators learn to ignore them.
+
+This module takes the subset approach and makes its failure **loud** — each input has an
+explicitly enumerated field set and an unknown key is a thrown `FingerprintInputError`, not
+an ignored one. Adding a field to a config type forces a decision here instead of silently
+widening a blind spot. `RISK_POLICY_FINGERPRINT_KEYS` is asserted in tests to equal
+`IndependentRiskLimits`'s own key set, so a limit added to the gateway and not to the
+fingerprint fails the suite rather than becoming a limit that can be relaxed invisibly.
+
+### Deployment descriptor — `scripts/build-deployment-descriptor.js`
+
+Produces a `DeploymentSafetyDescriptor` from the repository as it actually is:
+`artifactSha256` is a real deterministic tree hash (sorted relative paths plus per-file
+digests, so a pure rename changes it), `sourceCommitSha` comes from git, and the capability
+flags come from a source scan.
+
+Two honesty constraints are built into the output rather than left to a reader:
+
+- **A scan proves presence, never absence.** `liveTradingCapabilityPresent: false` means no
+  known pattern matched — not that the build provably cannot trade live. The artifact records
+  `capabilityEvidence.method: "STATIC_SOURCE_SCAN"` and `provesAbsence: false` so the flag
+  cannot later be read as a proof. `killSwitchEvidence.provesRuntimeReachability` is `false`
+  for the same reason: locating the entry point is not a drill.
+- **An unsupplied expectation is a vacuous check.** When `--expected-artifact` or
+  `--expected-commit` is omitted, the expected value is set equal to the observed one, which
+  makes `ARTIFACT_HASH_MISMATCH` and `SOURCE_COMMIT_MISMATCH` unreachable for that
+  descriptor. `provenance.expectationsSupplied` lists which comparisons are real, and the
+  CLI says so on stdout.
+
+### Still missing: approval state and reconciliation health
+
+`approvalState` (approved, expiry, symbol scope) and `reconciliationState` (healthy, open
+P0) have no source anywhere in `apps/desktop/src`.
+
 ## What is NOT done, and why
 
 **The gateway is not wired into the running order path.** This is a deliberate stop, not an
 oversight.
 
-The gateway requires `approvalState`, `reconciliationState`, `deploymentState`, and four
-fingerprints. None of that state exists anywhere in `apps/desktop/src` today (verified by
-search: the only files mentioning them are the gateway and its contract). Wiring the gateway
-in now would mean synthesizing `approved: true`, `healthy: true`, and
-`integrityVerified: true` at the call site — turning the gate into a component that always
+Wiring it now would mean synthesizing `approved: true` and `healthy: true` at the call site
+for the two sources that do not exist — turning the gate into a component that always
 returns `ALLOW` while appearing in the architecture diagram as a control. That is worse than
 an unwired gate, because it would also let WO-0031's D-010 dimension claim
-`independentRiskGatewayPresent: true` when no gateway is in fact guarding anything.
+`independentRiskGatewayPresent: true` when nothing is in fact guarded.
 
-Integration therefore requires, as separate work: a real approval store with expiry and
-symbol scope, a reconciliation health source, a deployment-integrity descriptor produced at
-build time, and fingerprint derivation for strategy, config, runtime, and risk policy. Until
-those exist, D-010 stays `INCONCLUSIVE`.
+Integration therefore still requires, as separate work: a real approval store with expiry
+and symbol scope, and a reconciliation health source. Until both exist, D-010 stays
+`INCONCLUSIVE`.
 
 ## Known limitations
 

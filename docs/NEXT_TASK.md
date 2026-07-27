@@ -139,15 +139,27 @@ skipping the checks that would have read it.
 `scripts/lib/paper-risk-gateway-verifier.js` re-implements the rules from the contract
 without importing the evaluator, so a buggy evaluator is caught rather than confirmed.
 
-**The gateway is not wired into the running order path, deliberately.** It requires
-`approvalState`, `reconciliationState`, `deploymentState`, and four fingerprints, none of
-which exist anywhere in `apps/desktop/src` today. Wiring it now would mean synthesizing
-`approved: true` / `healthy: true` / `integrityVerified: true` at the call site, turning the
-gate into a component that always returns `ALLOW` while appearing in the architecture as a
-control — and would let WO-0031's D-010 claim `independentRiskGatewayPresent: true` when
-nothing is in fact guarded. Integration needs a real approval store with expiry and symbol
-scope, a reconciliation health source, a build-time deployment-integrity descriptor, and
-fingerprint derivation. Until those exist, D-010 stays `INCONCLUSIVE`.
+Two of the four state sources the gateway consumes now exist.
+`apps/desktop/src/runtimeFingerprint.ts` derives the strategy, config, runtime, and
+risk-policy fingerprints; it enumerates each input's fields explicitly and **throws on an
+unknown key** rather than ignoring it, because a fingerprint that silently fails to cover a
+new field leaves the gateway allowing orders from a build it was never configured for.
+`RISK_POLICY_FINGERPRINT_KEYS` is asserted to equal `IndependentRiskLimits`'s key set, so a
+limit added to the gateway and not to the fingerprint fails the suite instead of becoming a
+limit that can be relaxed invisibly. `scripts/build-deployment-descriptor.js` produces a
+real deployment descriptor — deterministic tree hash of the build output, git commit, and a
+capability scan — and records in the artifact itself that a scan proves presence and never
+absence, and that an unsupplied `--expected-*` value makes the corresponding gate comparison
+vacuous.
+
+**The gateway is still not wired into the running order path, deliberately.**
+`approvalState` (approved, expiry, symbol scope) and `reconciliationState` (healthy, open
+P0) have no source anywhere in `apps/desktop/src`. Wiring it now would mean synthesizing
+`approved: true` / `healthy: true` at the call site, turning the gate into a component that
+always returns `ALLOW` while appearing in the architecture as a control — and would let
+WO-0031's D-010 claim `independentRiskGatewayPresent: true` when nothing is in fact guarded.
+Until an approval store and a reconciliation health source exist, D-010 stays
+`INCONCLUSIVE`.
 
 ### WO-0033/WO-0034 status: BLOCKED
 
