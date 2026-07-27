@@ -1,0 +1,4 @@
+"use strict";
+const { createStrategyResearchScorecard } = require("./strategy-research-scorecard.js");
+function verifyStrategyResearchScorecard(request, scorecard) { const errors = []; if (!scorecard) return { status: "FAIL", errors: ["scorecard is missing"] }; if (scorecard.productionMutationAllowed !== false || scorecard.promotionAuthority !== false) errors.push("scorecard must not grant authority"); try { const rebuilt = createStrategyResearchScorecard(request); for (const key of ["decision", "decisionReason", "dimensions", "evidenceSummary", "unresolvedEvidenceTypes", "scorecardInputSha256"]) if (JSON.stringify(scorecard[key]) !== JSON.stringify(rebuilt[key])) errors.push(`${key} does not match deterministic rebuild`); } catch (error) { errors.push(error.message); } return { status: errors.length ? "FAIL" : "PASS", errors: Object.freeze(errors) }; }
+module.exports = { verifyStrategyResearchScorecard };

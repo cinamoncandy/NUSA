@@ -80,6 +80,10 @@ what the numbers say, and the computed pattern is surfaced only as
 `syntheticPatternObserved`. Only synthetic fixtures have been run; no production
 strategy or symbol changed.
 
+### WO-0031: Strategy Research Scorecard
+
+`scripts/lib/strategy-research-scorecard.js` binds the WO-0025--WO-0030 evidence classes through immutable linkage tuples and canonical payload hashes. It is read-only and zero-authority: it does not rerun research, modify strategies, place orders, or allow production mutation.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
