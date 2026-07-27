@@ -4,6 +4,7 @@ import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } 
 import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
+import type { DomainEventBus, DomainEventBusDiagnostics } from "./domainEventBus";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -84,7 +85,22 @@ export interface ShadowOperationalDependencies {
   readonly now?: () => number;
   /** Ticker timestamps further from wall-clock than this are CLOCK_DRIFT. Default 60s. */
   readonly clockDriftToleranceMs?: number;
+  /**
+   * Builds the evidence bus for a newly started session. Called once per session so each one
+   * gets a fresh bus -- a halted bus is never reused, and a previous session's queue can
+   * never leak into a new one.
+   */
+  readonly createEvidenceBus?: (metadata: Readonly<{ sessionId: string; createdAt: number }>) => DomainEventBus;
+  /**
+   * Reports evidence archives left open by a previous process. Any result at all forces
+   * RECOVERY_REQUIRED and blocks start: an unsealed archive means the last session's record
+   * is of unknown completeness, and continuing would append a second session's events beside
+   * it with no way to tell later where one ended.
+   */
+  readonly findIncompleteEvidence?: () => readonly string[];
 }
+
+export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
 
 const ADVERSE_CANDLE_HEALTH_CODES = new Set(["GAP_DETECTED", "OUT_OF_ORDER", "DISCONNECTED"]);
 
@@ -101,6 +117,11 @@ export class ShadowOperationalRuntime {
   private readonly clockDriftToleranceMs: number;
   private lastOfficialCandleTime?: number;
   private officialClosedCandleCount = 0;
+  private evidenceBus?: DomainEventBus;
+  /** Highest pilot sequence handed to the bus; the runtime half of exactly-once. */
+  private publishedSequence = 0;
+  private evidenceFinalization: Promise<void> = Promise.resolve();
+  private evidenceRecovery: ShadowEvidenceRecoveryState = "NONE";
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
@@ -124,6 +145,76 @@ export class ShadowOperationalRuntime {
     this.blockers = [...reasonCodes];
   }
 
+  /**
+   * Hands every pilot event not yet published to the bus, in order. Driven off the pilot's
+   * own append-only log rather than off each call site, so a code path that appends an event
+   * without remembering to publish it cannot silently omit it from the durable record.
+   */
+  private publishPendingEvents(): void {
+    if (!this.evidenceBus || !this.pilot) return;
+    for (const event of this.pilot.eventLog()) {
+      if (event.sequence <= this.publishedSequence) continue;
+      if (!this.evidenceBus.publish(event)) {
+        // The bus refused: overflow or an already-halted bus. Either way the durable record
+        // is now incomplete, so the session must not keep producing events.
+        const diagnostics = this.evidenceBus.diagnostics();
+        this.lifecycle = "HALTED";
+        this.blockers = [`EVIDENCE_${diagnostics.haltReason ?? "PUBLISH_REFUSED"}`];
+        return;
+      }
+      this.publishedSequence = event.sequence;
+    }
+  }
+
+  /** Called by the bus itself when a sink write or finalize fails. */
+  private onEvidenceHalt(reason: string, detail: string): void {
+    this.lifecycle = "HALTED";
+    this.blockers = [`EVIDENCE_${reason}`, detail];
+  }
+
+  /**
+   * Seals the archive. Kept off the synchronous lifecycle methods because the IPC contract
+   * returns diagnostics immediately; callers that need the sealed result await
+   * awaitEvidenceFinalized().
+   */
+  private finalizeEvidence(reason: string, status: "COMPLETED" | "ABORTED"): void {
+    const bus = this.evidenceBus;
+    if (!bus) return;
+    this.evidenceFinalization = this.evidenceFinalization
+      .then(() => bus.finalize(reason, status))
+      .catch((error) => this.onEvidenceHalt("SINK_FINALIZE_FAILED", error instanceof Error ? error.message : String(error)));
+  }
+
+  /** Resolves once any in-flight evidence write and finalize has settled. */
+  async awaitEvidenceFinalized(): Promise<void> {
+    await this.evidenceBus?.flush();
+    await this.evidenceFinalization;
+  }
+
+  evidenceDiagnostics(): DomainEventBusDiagnostics | null {
+    return this.evidenceBus?.diagnostics() ?? null;
+  }
+
+  evidenceRecoveryState(): ShadowEvidenceRecoveryState {
+    return this.evidenceRecovery;
+  }
+
+  /**
+   * A sink write can fail after publish() has already returned, so the bus halts
+   * asynchronously. Reflecting that on every diagnostics read is what stops a session from
+   * continuing to report RUNNING while its durable record is already broken.
+   */
+  private reflectEvidenceHalt(): void {
+    const bus = this.evidenceBus;
+    if (!bus) return;
+    const status = bus.diagnostics();
+    if (status.status !== "HALTED") return;
+    if (this.lifecycle !== "RUNNING" && this.lifecycle !== "PAUSED") return;
+    this.lifecycle = "HALTED";
+    this.blockers = [`EVIDENCE_${status.haltReason}`, status.haltDetail ?? ""].filter(Boolean);
+    this.finalizeEvidence(status.haltReason ?? "EVIDENCE_HALT", "ABORTED");
+  }
+
   private haltActiveSession(reasonCodes: readonly string[]): void {
     if (this.lifecycle !== "RUNNING" && this.lifecycle !== "PAUSED") return;
     if (this.pilot && this.pilot.snapshot().status === "RUNNING") {
@@ -131,6 +222,8 @@ export class ShadowOperationalRuntime {
     }
     this.lifecycle = "HALTED";
     this.blockers = [...reasonCodes];
+    this.publishPendingEvents();
+    this.finalizeEvidence(reasonCodes.join(","), "ABORTED");
   }
 
   /** Real Upbit WebSocket connection-status callback, forwarded from main.ts's handleMarketStatus. */
@@ -234,20 +327,29 @@ export class ShadowOperationalRuntime {
     const commandId = randomUUID();
     this.pilot.observe({ timestamp: candle.closeTime, signalId, commandId, side, quantity, decision: decision.status, reasonCodes: decision.reasonCodes });
     this.lastSignalTime = candle.closeTime;
+    this.publishPendingEvents();
+    if (this.lifecycle !== "RUNNING") return;
     const integrityErrors = verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha);
     if (integrityErrors.length > 0) {
       this.lifecycle = "FAILED";
       this.blockers = integrityErrors;
+      this.finalizeEvidence(integrityErrors.join(","), "ABORTED");
       return;
     }
     if (this.pilot.snapshot().status === "HALTED") {
       this.lifecycle = "HALTED";
       this.blockers = [...decision.reasonCodes];
+      this.finalizeEvidence(decision.reasonCodes.join(","), "ABORTED");
     }
   }
 
   private computeReadinessBlockers(): readonly string[] {
     const safety = this.deps.getSafetyState();
+    // An archive left open by a previous process means the last session's record is of
+    // unknown completeness. Starting beside it would interleave two sessions' events with
+    // no way to tell later where one ended, so recovery is required before anything runs.
+    const incomplete = this.deps.findIncompleteEvidence?.() ?? [];
+    if (incomplete.length > 0) this.evidenceRecovery = "RECOVERY_REQUIRED";
     const candleState = this.candleAdapter.inspectState();
     const blockers: string[] = [];
     if (!this.webSocketConnected) blockers.push("MARKET_DATA_DISCONNECTED");
@@ -262,6 +364,7 @@ export class ShadowOperationalRuntime {
     if (!safety.reconciliation) blockers.push("RECONCILIATION_REQUIRED");
     if (safety.automaticTrading) blockers.push("AUTOMATIC_TRADING_ON");
     if (safety.currentModeIsCanaryOrExtended) blockers.push("CANARY_OR_EXTENDED_MODE_ACTIVE");
+    if (this.evidenceRecovery === "RECOVERY_REQUIRED") blockers.push("EVIDENCE_RECOVERY_REQUIRED");
     return blockers;
   }
 
@@ -301,9 +404,14 @@ export class ShadowOperationalRuntime {
       this.blockers = pilot.snapshot().blockers;
       return this.diagnostics();
     }
+    // A fresh bus per session: a halted bus is never reused, and no previous session's
+    // queued events can leak into this one.
+    this.evidenceBus = this.deps.createEvidenceBus?.({ sessionId, createdAt: now });
+    this.publishedSequence = 0;
     pilot.start(now);
     this.lifecycle = "RUNNING";
     this.blockers = [];
+    this.publishPendingEvents();
     return this.diagnostics();
   }
 
@@ -332,12 +440,16 @@ export class ShadowOperationalRuntime {
     if (!["RUNNING", "PAUSED", "HALTED"].includes(this.lifecycle)) throw new Error(`shadow stop requires RUNNING, PAUSED, or HALTED, currently ${this.lifecycle}`);
     const pilotStatus = this.pilot?.snapshot().status;
     if (this.pilot && (pilotStatus === "RUNNING" || pilotStatus === "HALTED")) this.pilot.stop(this.now());
-    if (this.lifecycle !== "HALTED") this.lifecycle = "COMPLETED";
-    this.blockers = [];
+    const aborted = this.lifecycle === "HALTED";
+    if (!aborted) this.lifecycle = "COMPLETED";
+    this.blockers = aborted ? this.blockers : [];
+    this.publishPendingEvents();
+    this.finalizeEvidence(aborted ? "SESSION_HALTED" : "OWNER_STOPPED", aborted ? "ABORTED" : "COMPLETED");
     return this.diagnostics();
   }
 
   diagnostics(): ShadowOperationalDiagnostics {
+    this.reflectEvidenceHalt();
     const session: ShadowPilotSession | undefined = this.pilot?.snapshot();
     const candleState = this.candleAdapter.inspectState();
     const closedCandleCount = Math.max(candleState.closedCandleCount, this.officialClosedCandleCount);

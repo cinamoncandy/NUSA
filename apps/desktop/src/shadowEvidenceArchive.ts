@@ -102,7 +102,17 @@ export class ShadowEvidenceArchive {
   private readonly directory: string;
   private readonly eventsPath: string;
   private sequence = 0;
+  /**
+   * Two independent chains, deliberately kept apart.
+   *
+   * `previousHash` links the archive's own envelopes; `previousPilotHash` tracks the chain
+   * the pilot stamped on its events. Comparing an incoming event's `previousEventSha256`
+   * against the envelope chain conflates the two and rejects every event from sequence 2
+   * onward, because an envelope hash covers the receive timestamp and runtime sequence that
+   * the pilot never saw.
+   */
   private previousHash = GENESIS;
+  private previousPilotHash = GENESIS;
   private eventLines: string[] = [];
   private status: ShadowArchiveStatus = "OPEN";
 
@@ -123,7 +133,7 @@ export class ShadowEvidenceArchive {
     if (this.status !== "OPEN") throw new Error(`archive is not open: ${this.status}`);
     const runtimeSequence = this.sequence + 1;
     if (event.sequence !== runtimeSequence) throw new Error(`non-contiguous event sequence: expected ${runtimeSequence}, received ${event.sequence}`);
-    if (event.previousEventSha256 !== this.previousHash && runtimeSequence > 1) throw new Error("pilot event hash chain mismatch");
+    if (event.previousEventSha256 !== this.previousPilotHash) throw new Error("pilot event hash chain mismatch");
     const raw = sanitize({ schemaVersion: 1, runtimeSequence, receivedAt, event, previousEventHash: this.previousHash });
     const eventHash = sha256(stableJson(raw));
     const envelope = Object.freeze({ ...(raw as Omit<ShadowEvidenceEnvelope, "eventHash">), eventHash }) as ShadowEvidenceEnvelope;
@@ -137,6 +147,7 @@ export class ShadowEvidenceArchive {
     }
     this.sequence = runtimeSequence;
     this.previousHash = eventHash;
+    this.previousPilotHash = event.eventSha256;
     this.eventLines.push(line);
     return envelope;
   }
