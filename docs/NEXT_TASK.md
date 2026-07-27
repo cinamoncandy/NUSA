@@ -22,6 +22,23 @@ the explicit runtime wiring and lifecycle boundary.
 
 Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
+### WO-0034-A2R: verified candle source and separated Shadow runtime
+
+This worktree adds an official public Upbit 1-minute candle source for the operational
+Shadow path. The ticker adapter remains diagnostic only because ticker updates do not
+prove complete trade coverage. Only closed, contiguous, valid candles are accepted;
+incomplete candles are excluded and gaps fail closed. The strategy identity is
+`sma-crossover:closed-candle-1m-v1` with a new input fingerprint, while SMA 5/20 and
+`KRW-BTC` remain unchanged.
+
+Market-data warm-up is independent from the local interactive owner lifecycle. The
+`ShadowOperationalRuntime` requires explicit start/resume, routes signals through the
+common risk evaluation entry point, and sends only hypothetical executions to an
+in-memory adapter. Reconnect and restart invalidate the open candle and reset warm-up;
+automatic resume and session continuation are forbidden. A2 emits bounded in-memory
+domain events only. Durable operational Evidence, real Shadow operation, Canary, and
+Extended Paper remain out of scope; operational Evidence count remains zero.
+
 Implemented and continuously validated:
 
 - SQLite-backed Paper and Control persistence with default-off recovery;

@@ -61,6 +61,12 @@ export class RuntimeCommandService {
   isAvailable(): boolean { return this.available; }
   markUnavailable(): void { this.available = false; this.strategy.stop(); }
 
+  /** Shared, non-mutating risk evaluation for Shadow. It never calls PaperBroker. */
+  evaluateSignalRisk(side: PaperSide, quantity: number, price: number): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
+    if (!this.available) return Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["PAPER_RUNTIME_UNAVAILABLE"]) });
+    return this.riskGate.evaluate(Object.freeze({ path: "STRATEGY" as const, side, quantity, price }));
+  }
+
   manualOrder(side: PaperSide, quantity: number, price: number): PaperOrder {
     return this.commit("manual paper order", () => {
       this.requireRiskApproval("MANUAL", side, quantity, price);

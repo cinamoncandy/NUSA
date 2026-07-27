@@ -38,7 +38,7 @@ function extractRendererUsage(source) {
  * not retyped from memory, so this list can't silently drift from the real contract. */
 function extractPreloadChannels(source) {
   const channels = new Set();
-  const pattern = /"((?:paper|control|market|chart):[\w-]+)"/g;
+  const pattern = /"((?:paper|control|market|chart|shadow):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];

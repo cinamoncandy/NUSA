@@ -21,6 +21,11 @@ export interface DokkaebiApi {
   onSnapshot(handler: (snapshot: PaperAccountSnapshot) => void): () => void;
   onControl(handler: (snapshot: ControlSnapshot) => void): () => void;
   onChartPoint(handler: (point: ChartPoint) => void): () => void;
+  shadowStart(symbol: string, strategyId: string, strategyVersion: string): Promise<unknown>;
+  shadowPause(sessionId: string): Promise<unknown>;
+  shadowResume(sessionId: string): Promise<unknown>;
+  shadowStop(sessionId: string): Promise<unknown>;
+  shadowStatus(): Promise<unknown>;
 }
 
 const subscribe = <T>(channel: string, handler: (value: T) => void): (() => void) => {
@@ -50,7 +55,12 @@ const api: DokkaebiApi = {
   onStatus: (handler) => subscribe("market:status", handler),
   onSnapshot: (handler) => subscribe("paper:snapshot", handler),
   onControl: (handler) => subscribe("control:snapshot", handler),
-  onChartPoint: (handler) => subscribe("chart:point", handler)
+  onChartPoint: (handler) => subscribe("chart:point", handler),
+  shadowStart: (symbol, strategyId, strategyVersion) => invokeMutation("shadow:start", { symbol, strategyId, strategyVersion }),
+  shadowPause: (sessionId) => invokeMutation("shadow:pause", { sessionId }),
+  shadowResume: (sessionId) => invokeMutation("shadow:resume", { sessionId }),
+  shadowStop: (sessionId) => invokeMutation("shadow:stop", { sessionId }),
+  shadowStatus: () => invokeReadWithRecovery("shadow:status", {})
 };
 
 export interface AiCioDashboardApi {

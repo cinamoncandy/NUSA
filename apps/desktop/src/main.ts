@@ -32,6 +32,9 @@ import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
+import { parseShadowSession, parseShadowStart, parseShadowStatus } from "./shadowIpcValidation";
+import { InMemoryShadowEventSink, ShadowOperationalRuntime } from "./shadowOperationalRuntime";
+import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -54,6 +57,9 @@ const PAPER_SAFETY_FINGERPRINTS = Object.freeze({
   runtime: createHash("sha256").update("desktop-paper-runtime-v1").digest("hex"),
   riskPolicy: createHash("sha256").update(JSON.stringify(RISK_POLICY)).digest("hex")
 });
+const SHADOW_STRATEGY_VERSION = "sma-crossover:closed-candle-1m-v1";
+const SHADOW_STRATEGY_FINGERPRINT = createHash("sha256").update(JSON.stringify({ strategyId: "sma-crossover", strategyVersion: SHADOW_STRATEGY_VERSION, inputType: "CLOSED_CANDLE", interval: "1m", sourceType: "UPBIT_PUBLIC_CANDLE", shortWindow: 5, longWindow: 20 }), "utf8").digest("hex");
+const SHADOW_SOURCE_COMMIT = /^[a-f0-9]{40}$/.test(PAPER_SAFETY_SOURCE_COMMIT) ? PAPER_SAFETY_SOURCE_COMMIT : "0000000000000000000000000000000000000000";
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
@@ -71,6 +77,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
 });
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
+let shadowRuntime: ShadowOperationalRuntime;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
 let liveMarketRegimeObserver: LiveMarketRegimeObserver;
@@ -188,6 +195,7 @@ function handleMarketStatus(status: string): void {
   const now = Date.now();
   websocketConnected = status === "connected";
   window?.webContents.send("market:status", status);
+  shadowRuntime?.onMarketStatus(status);
 
   if (status === "connected") {
     reconnectedAt = now;
@@ -393,6 +401,17 @@ function initializeRuntime(): void {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
+  shadowRuntime = new ShadowOperationalRuntime({
+    symbol: MARKET,
+    strategy: new SmaCrossoverStrategy(5, 20),
+    strategyVersion: SHADOW_STRATEGY_VERSION,
+    strategyFingerprint: SHADOW_STRATEGY_FINGERPRINT,
+    sourceCommitSha: SHADOW_SOURCE_COMMIT,
+    requiredWarmupCandles: REQUIRED_WARMUP_SAMPLES,
+    hypotheticalQuantity: 0.0001,
+    riskEvaluator: { evaluate: (input) => runtime.evaluateSignalRisk(input.side, input.quantity, input.price) },
+    eventSink: new InMemoryShadowEventSink()
+  }, new UpbitMinuteCandleSource(MARKET));
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
@@ -446,11 +465,21 @@ ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
   return runControlCommand(() => runtime.setOrderQuantity(quantity));
 });
+ipcMain.handle("shadow:start", (_event, input: unknown) => {
+  const command = parseShadowStart(input);
+  if (command.symbol !== MARKET || command.strategyId !== "sma-crossover" || command.strategyVersion !== SHADOW_STRATEGY_VERSION) throw new Error("Shadow strategy identity mismatch");
+  return shadowRuntime.startOwner();
+});
+ipcMain.handle("shadow:pause", (_event, input: unknown) => shadowRuntime.pauseOwner(parseShadowSession(input).sessionId));
+ipcMain.handle("shadow:resume", (_event, input: unknown) => shadowRuntime.resumeOwner(parseShadowSession(input).sessionId));
+ipcMain.handle("shadow:stop", (_event, input: unknown) => shadowRuntime.stopOwner(parseShadowSession(input).sessionId));
+ipcMain.handle("shadow:status", (_event, input: unknown) => { parseShadowStatus(input); return shadowRuntime.snapshot(); });
 
 app.whenReady().then(() => {
   initializeRuntime();
   createWindow();
   if (paperTradingAvailable) stream.start();
+  shadowRuntime.startMarketData();
   healthTimer = setInterval(observeHealth, 30_000);
   process.on("uncaughtException", (error) => {
     recordRecovery("STORAGE", "CRITICAL", `Main process error: ${error.message}`);
@@ -466,6 +495,7 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   aiCioSnapshotPublisher.clear();
   stream?.stop();
+  shadowRuntime?.stopMarketData();
   if (healthTimer) clearInterval(healthTimer);
   persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
