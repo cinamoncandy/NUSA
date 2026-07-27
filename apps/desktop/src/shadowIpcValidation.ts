@@ -8,17 +8,19 @@
 
 export const SHADOW_ALLOWED_SYMBOL = "KRW-BTC";
 export const SHADOW_ALLOWED_STRATEGY_ID = "sma-crossover";
+export const SHADOW_ALLOWED_STRATEGY_VERSION = "sma-crossover:closed-candle-1m-v1";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
-export function parseShadowStartIpc(input: unknown): Readonly<{ symbol: string; strategyId: string }> {
+export function parseShadowStartIpc(input: unknown): Readonly<{ symbol: string; strategyId: string; strategyVersion: string }> {
   if (!isPlainObject(input)) throw new Error("invalid shadow:start input");
-  if (Object.keys(input).sort().join(",") !== "strategyId,symbol") throw new Error("invalid shadow:start input");
+  if (Object.keys(input).sort().join(",") !== "strategyId,strategyVersion,symbol") throw new Error("invalid shadow:start input");
   if (input.symbol !== SHADOW_ALLOWED_SYMBOL) throw new Error("unsupported shadow:start symbol");
   if (input.strategyId !== SHADOW_ALLOWED_STRATEGY_ID) throw new Error("unsupported shadow:start strategyId");
-  return Object.freeze({ symbol: input.symbol, strategyId: input.strategyId });
+  if (input.strategyVersion !== SHADOW_ALLOWED_STRATEGY_VERSION) throw new Error("unsupported shadow:start strategyVersion");
+  return Object.freeze({ symbol: input.symbol, strategyId: input.strategyId, strategyVersion: input.strategyVersion });
 }
 
 export function parseShadowSessionIpc(input: unknown): Readonly<{ sessionId: string }> {
