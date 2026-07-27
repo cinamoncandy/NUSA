@@ -8,6 +8,7 @@ import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
+import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
 import { resolveRendererIndexPath } from "./rendererPath";
@@ -330,7 +331,7 @@ function initializeRuntime(): void {
   }, saveWithScenarioEvents: (paper, controlState, events) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.saveWithScenarioEvents(paper, controlState, events);
-  } }, () => {
+  } }, { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) }, () => {
     const now = Date.now();
     const marketDataObservedAt = latestTicker?.trade_timestamp ?? 0;
     const input = {
@@ -376,8 +377,7 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
   if (input == null || typeof input !== "object") throw new Error("invalid paper order input");
   const candidate = input as { side?: unknown; quantity?: unknown };
   if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
-  const side = candidate.side as PaperSide;
-  const quantity = candidate.quantity;
+  const { side, quantity } = parsePaperOrderIpc(input);
   const ticker = assertFreshMarketData();
   let order: PaperOrder;
   try { order = runtime.manualOrder(side, quantity, ticker.trade_price); }

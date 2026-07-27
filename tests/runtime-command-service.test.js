@@ -30,7 +30,7 @@ function harness(readiness) {
     persist(broker.exportState(), control.exportState(), [event]);
     return { sequence: evidenceEvents.length, previousHash: "", event, hash: "" };
   } }, "paper-session-1");
-  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, readiness, recorder, (diagnostic) => diagnostics.push(diagnostic));
+  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, { evaluate: () => ({ status: "ALLOW", reasonCodes: [] }) }, readiness, recorder, (diagnostic) => diagnostics.push(diagnostic));
   return {
     broker, control, strategy, durable, evidenceEvents, diagnostics, runtime,
     failNext: () => { fail = true; },

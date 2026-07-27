@@ -22,7 +22,7 @@ function trust(evidence, identity) {
 function dimension(id, name, source, evidence, evidenceTrust) {
   let assessment; let reason;
   if (id === "D-008" || id === "D-009") { const value = evidence?.payload?.[source]; assessment = ASSESSMENTS.has(value) ? value : "MISSING"; reason = assessment === "MISSING" ? `${source} is not explicitly declared` : `declared by ${evidence.type}`; }
-  else { assessment = evidence ? evidence.assessment : "MISSING"; reason = evidence ? `declared by ${source}` : "required evidence is missing"; }
+  else { assessment = evidence ? evidence.assessment : "MISSING"; if (id === "D-010" && evidence?.payload?.blockers?.length) assessment = "FAIL"; reason = evidence ? `declared by ${source}` : "required evidence is missing"; }
   return freeze({ id, name, assessment, trustLevel: evidenceTrust?.level ?? "MISSING", reason });
 }
 function decide(dimensions, trusts) {

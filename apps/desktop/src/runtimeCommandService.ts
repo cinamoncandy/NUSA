@@ -20,6 +20,7 @@ export interface RuntimePersistence {
   saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: ScenarioEvent): void;
   saveWithScenarioEvents?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, events: readonly ScenarioEvent[]): void;
 }
+export interface PaperCommandRiskGate { evaluate(command: Readonly<{ path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY"; side: PaperSide; quantity: number; price: number }>): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>; }
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
 export const PERSISTENCE_RECOVERY_STEPS = Object.freeze([
@@ -45,10 +46,12 @@ export class RuntimeCommandService {
     private readonly control: ControlPlane,
     private readonly strategy: StrategyEngine,
     private readonly persistence: RuntimePersistence,
+    private readonly riskGate: PaperCommandRiskGate,
     private readonly readiness?: () => OperationalReadinessDecision,
     private readonly evidence?: PaperScenarioEvidenceRecorder,
     private readonly onDiagnostic?: (diagnostic: RuntimeMutationDiagnostic) => void
   ) {}
+  private requireRiskApproval(path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY", side: PaperSide, quantity: number, price: number): void { const decision = this.riskGate.evaluate(Object.freeze({ path, side, quantity, price })); if (decision.status !== "ALLOW") throw new Error(`paper risk ${decision.status}: ${decision.reasonCodes.join(",")}`); }
 
   /** Diagnostics must never affect the trading-safety path, so a broken callback is swallowed here. */
   private emit(diagnostic: RuntimeMutationDiagnostic): void {
@@ -60,6 +63,7 @@ export class RuntimeCommandService {
 
   manualOrder(side: PaperSide, quantity: number, price: number): PaperOrder {
     return this.commit("manual paper order", () => {
+      this.requireRiskApproval("MANUAL", side, quantity, price);
       const order = this.broker.execute(side, quantity, price);
       this.control.record("ORDER", `manual ${side} filled`, order);
       return order;
@@ -113,7 +117,7 @@ export class RuntimeCommandService {
       }
       const quantity = signal.type === "SELL" ? Math.min(positionQuantity, this.control.getOrderQuantity()) : this.control.getOrderQuantity();
       let order: PaperOrder;
-      try { order = this.broker.execute(signal.type, quantity, price); }
+      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price); order = this.broker.execute(signal.type, quantity, price); }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);
