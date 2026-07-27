@@ -61,6 +61,25 @@ coerced); see `docs/research/market-regime-contract.md` for all disclosed deviat
 Only a synthetic fixture has been run (`tests/fixtures/regime-analysis/mixed-regimes.json`);
 no production strategy setting changed, and no regime filter was added to the strategy.
 
+### WO-0030: cross-market / cross-period validation layer
+
+`scripts/lib/cross-market-validation-runner.js` and
+`scripts/lib/cross-market-validation-verifier.js` evaluate one frozen strategy over a
+market x period cell matrix under three fixed cost conditions, with `CASH`,
+`BUY_AND_HOLD`, and `FIXED_SMA_5_20` benchmarks, separate `fullAvailablePeriod` and
+`commonPeriod` cohorts, market/period summaries, concentration analysis, and a fixed
+generalization assessment. See `docs/research/cross-market-validation-contract.md`.
+
+Two findings from dogfooding are baked in. First, a fixed order quantity across markets
+at different price levels buys wildly different notional exposure, so an early run
+reported "100% of profit concentrated in KRW-BTC" when that was purely an artifact of
+BTC's price level; concentration is now reported `NOT_COMPARABLE` and withheld when the
+notional spread exceeds tolerance. Second, `dataProvenance` gates the verdict: with
+`SYNTHETIC_FIXTURE` data the `researchAssessment` is forced to `INCONCLUSIVE` no matter
+what the numbers say, and the computed pattern is surfaced only as
+`syntheticPatternObserved`. Only synthetic fixtures have been run; no production
+strategy or symbol changed.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
