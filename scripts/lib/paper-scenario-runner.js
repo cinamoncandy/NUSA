@@ -126,7 +126,8 @@ function runPaperScenario(fixture, options = {}) {
   let broker = new PaperBroker(fixture.initialCash, fixture.market, fixture.feeRate, fixture.riskPolicy || {});
   let control = new ControlPlane();
   let strategy = new StrategyEngine(new SmaCrossoverStrategy());
-  let runtime = new RuntimeCommandService(broker, control, strategy, persistence);
+  const scenarioRiskGate = { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) };
+  let runtime = new RuntimeCommandService(broker, control, strategy, persistence, scenarioRiskGate);
   persistence.save(broker.exportState(), control.exportState());
 
   for (const event of fixture.events) {
@@ -149,7 +150,7 @@ function runPaperScenario(fixture, options = {}) {
       broker = new PaperBroker(fixture.initialCash, fixture.market, fixture.feeRate, fixture.riskPolicy || {}, durable.paper);
       control = new ControlPlane("sma-crossover", 200, durable.control);
       strategy = new StrategyEngine(new SmaCrossoverStrategy());
-      runtime = new RuntimeCommandService(broker, control, strategy, persistence);
+      runtime = new RuntimeCommandService(broker, control, strategy, persistence, scenarioRiskGate);
       eventResult.after = normalizeState(broker.exportState(), control.exportRuntimeState());
       eventResults.push(eventResult);
       continue;

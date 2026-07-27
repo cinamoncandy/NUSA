@@ -15,7 +15,7 @@ function composeFromPersistedSession(persistedControlState) {
   const strategy = new StrategyEngine(new SmaCrossoverStrategy(2, 3));
   const durable = [];
   const persistence = { save(paper, controlState) { durable.push({ paper, controlState }); } };
-  const runtime = new RuntimeCommandService(broker, control, strategy, persistence);
+  const runtime = new RuntimeCommandService(broker, control, strategy, persistence, { evaluate: () => ({ status: "ALLOW", reasonCodes: [] }) });
   if (control.snapshot().status === "RUNNING") strategy.start();
   return { broker, control, strategy, runtime, durable };
 }
