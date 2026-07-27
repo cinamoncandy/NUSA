@@ -84,14 +84,47 @@ strategy or symbol changed.
 
 `scripts/lib/strategy-research-scorecard.js` binds the WO-0025--WO-0030 evidence classes through immutable linkage tuples and canonical payload hashes. It is read-only and zero-authority: it does not rerun research, modify strategies, place orders, or allow production mutation.
 
+### WO-0031: strategy research promotion gate (parallel second layer)
+
+**Two WO-0031 layers now exist on this branch and neither has been removed.** The
+evidence-seal layer above and the promotion gate described here were written in parallel,
+use different request shapes, and do not import each other. Consolidating onto one is an
+open owner decision.
+
+`scripts/lib/strategy-research-evidence-manifest.js`,
+`scripts/lib/strategy-research-promotion-gate-runner.js`,
+`scripts/lib/strategy-research-promotion-gate-verifier.js`, and
+`scripts/run-strategy-research-promotion-gate.js` consolidate the same eight evidence
+classes into ten scored dimensions and one gate decision. It **reads declared evidence and
+never recomputes or rewrites any research result**. Three rules are enforced in code
+rather than left as caveats: there is no single numeric total score (a weighted total would
+let a data-integrity failure be averaged away), `executionStatus` and `researchDecision`
+are separate fields, and synthetic evidence can never promote. D-008/D-009 have no evidence
+entry of their own and inherit the worst trust of the analyses they read, which closed a
+hole where a synthetic benchmark comparison escaped the synthetic downgrade. A D-010
+failure — a discovered live-trading capability, a failing kill switch, or non-atomic
+persistence — is a hard stop that forces `INVALID`, not a hold. The verifier does not call
+the runner's dimension evaluators or its decision helper; it re-derives the gate outcome,
+so recomputing a hash over tampered content does not get past it. See
+`docs/research/strategy-research-promotion-gate-contract.md`.
+
+**Applied to this repository's actual state, the decision is `INSUFFICIENT_EVIDENCE`**
+(`docs/research/strategy-research-decision.md`): every research result here was produced
+from synthetic fixtures, `COST_STRESS` evidence is absent, and D-010 cannot exceed
+`INCONCLUSIVE` without an independent risk gateway and real Paper acceptance evidence.
+D-002 (backtest integrity) is legitimately `STRONG` because that is a property of the code;
+no market-performance claim follows from it. No production strategy parameter or symbol
+changed.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
-were requested but are BLOCKED for two independent reasons: (1) their stated
-prerequisites -- WO-0029 (Regime Analysis), WO-0030 (Cross-Market Validation),
-WO-0031 (Strategy Research Scorecard), and WO-0032 (Independent Risk Gateway) -- do not
-exist in this repository (verified directly; no matching files or commits), and
-(2) even once built, both work orders' actual deliverable is real multi-week Windows
+were requested but remain BLOCKED. Their stated prerequisites -- WO-0029 (Regime
+Analysis), WO-0030 (Cross-Market Validation), WO-0031 (Strategy Research Scorecard), and
+WO-0032 (Independent Risk Gateway) -- did not exist when WO-0033/0034 were first
+requested and have since been implemented; that removes the first reason but not the
+second, which is decisive on its own: both work orders' actual deliverable is real
+multi-week Windows
 GUI evidence, a real extended public-market connection, real installer/upgrade/rollback
 drills, and real owner sign-off -- none of which a sandboxed session can produce.
 Building synthetic "pilot" evidence and labeling it as satisfying WO-0033/0034 would be

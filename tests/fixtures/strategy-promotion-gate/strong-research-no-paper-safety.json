@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "requestId": "SCORECARD-NOSAFETY",
+  "strategy": {
+    "kind": "SMA_CROSSOVER",
+    "shortWindow": 5,
+    "longWindow": 20,
+    "timeframeMs": 60000,
+    "symbolPolicy": "SINGLE_MARKET_KRW_BTC",
+    "strategyFingerprint": "sma5x20-1m-samecandle-v1"
+  },
+  "policy": {
+    "minimumMarketCount": 3,
+    "minimumPeriodCount": 3,
+    "minimumValidCellCount": 9,
+    "minimumOosWindowCount": 6,
+    "minimumCompletedTradeCount": 30,
+    "minimumRegimeSegmentCount": 6,
+    "requireIndependentVerification": true,
+    "requireOperationalPaperSafety": true
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "evidence": [
+      {
+        "evidenceType": "DATASET_QUALITY",
+        "schemaVersion": 1,
+        "requestId": "DATASET_QUALITY-REQ",
+        "resultPath": "dataset_quality.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "qualityStatus": "PASS",
+          "invalidOhlcCount": 0,
+          "duplicateCount": 0,
+          "gapCount": 0,
+          "coverageRatio": 1
+        }
+      },
+      {
+        "evidenceType": "BACKTEST_BASELINE",
+        "schemaVersion": 1,
+        "requestId": "BACKTEST_BASELINE-REQ",
+        "resultPath": "backtest_baseline.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "closedCandlesOnly": true,
+          "lookAheadDetected": false,
+          "deterministicRepeat": true,
+          "benchmarkParity": true,
+          "sharedAccounting": true
+        }
+      },
+      {
+        "evidenceType": "COST_STRESS",
+        "schemaVersion": 1,
+        "requestId": "COST_STRESS-REQ",
+        "resultPath": "cost_stress.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "baselinePositive": true,
+          "moderateSurvivalRatio": 0.8,
+          "severeSurvivalRatio": 0.6,
+          "costToGrossProfitRatio": 0.2
+        }
+      },
+      {
+        "evidenceType": "WALK_FORWARD",
+        "schemaVersion": 1,
+        "requestId": "WALK_FORWARD-REQ",
+        "resultPath": "walk_forward.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "oosWindowCount": 8,
+          "profitableWindowRatio": 0.75,
+          "compoundedOosReturn": 0.12,
+          "purgeApplied": true,
+          "embargoApplied": true
+        }
+      },
+      {
+        "evidenceType": "PARAMETER_ROBUSTNESS",
+        "schemaVersion": 1,
+        "requestId": "PARAMETER_ROBUSTNESS-REQ",
+        "resultPath": "parameter_robustness.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "plateauClassification": "BROAD_PLATEAU",
+          "immediateNeighborPositiveRatio": 0.9
+        }
+      },
+      {
+        "evidenceType": "REGIME_ANALYSIS",
+        "schemaVersion": 1,
+        "requestId": "REGIME_ANALYSIS-REQ",
+        "resultPath": "regime_analysis.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "strategyDependency": "BROADLY_STABLE",
+          "segmentCount": 12,
+          "hostileRegimeCount": 0,
+          "inconclusiveRegimeCount": 0
+        }
+      },
+      {
+        "evidenceType": "CROSS_MARKET_VALIDATION",
+        "schemaVersion": 1,
+        "requestId": "CROSS_MARKET_VALIDATION-REQ",
+        "resultPath": "cross_market_validation.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "generalizationAssessment": "BROADLY_GENERALIZABLE",
+          "marketCount": 4,
+          "periodCount": 3,
+          "validCellCount": 12,
+          "completedTradeCount": 60,
+          "cashOutperformRatio": 0.75,
+          "buyAndHoldOutperformRatio": 0.7,
+          "fixed5x20OutperformRatio": 0.6,
+          "sizingComparable": true
+        }
+      },
+      {
+        "evidenceType": "PAPER_OPERATIONAL_SAFETY",
+        "schemaVersion": 1,
+        "requestId": "PAPER_OPERATIONAL_SAFETY-REQ",
+        "resultPath": "paper_operational_safety.json",
+        "requestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resultSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "strategyFingerprint": "sma5x20-1m-samecandle-v1",
+        "sourceCommitSha": "b7e4913",
+        "generatedAt": "2026-07-27T00:00:00.000Z",
+        "executionStatus": "PASS",
+        "researchAssessment": "PROMISING",
+        "independentVerificationStatus": "PASS",
+        "dataProvenance": "REAL_MARKET_DATA",
+        "metrics": {
+          "persistenceAtomicity": true,
+          "killSwitch": true,
+          "duplicateProtection": true,
+          "restartAutoTradingOff": true,
+          "liveCapabilityAbsent": true,
+          "independentRiskGatewayPresent": false,
+          "actualPaperAcceptanceEvidence": false
+        }
+      }
+    ]
+  }
+}
