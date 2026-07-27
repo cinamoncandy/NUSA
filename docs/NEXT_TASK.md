@@ -48,6 +48,21 @@ wiring added in this phase is real and complete; what it depends on is not. No d
 `SHADOW_OPERATIONAL` Evidence writer exists yet, no session persists across a restart,
 and Canary is untouched -- all remain WO-0034-A3.
 
+### Control Room UI (design system, first slice)
+
+The desktop renderer now opens with system state instead of price:
+`apps/desktop/renderer/control-room.{js,css}` mounts a status panel above the price hero and
+the chart, and `tests/control-room.test.js` asserts that ordering so a later layout change
+cannot quietly put the chart back on top. It surfaces the six status tiles, the mode banner
+(mode + 실제 주문 가능 여부 + 자동 재개 허용 여부, always in words), a next-action line, and
+the Shadow `start/pause/resume/stop/status` controls — closing the renderer gap disclosed in
+WO-0034-A2. Risk Gateway reads `HALT` and reconciliation reads 확인 필요 because that is the
+true current state, not a placeholder success. Brand assets live in
+`apps/desktop/renderer/assets/`; `build/icon.png` is the packaged app icon via
+electron-builder's default resource path, so `package.json` was not touched. Only the 관제실
+layer is built — the other six sections of the design system are specified but not yet
+implemented. See `docs/operations/control-room-ui.md`.
+
 Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
 Implemented and continuously validated:

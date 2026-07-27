@@ -1,0 +1,336 @@
+/*
+ * DOKKAEBI Control Room — status-first layer.
+ *
+ * Every state in here is carried by at least three signals at once: colour, an icon or
+ * glyph, and a text label. Colour alone never decides anything, so the panel stays
+ * readable for colour-blind operators and under the contrast theme.
+ */
+
+.control-room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  margin-bottom: var(--space-24);
+  background: var(--cr-ink-900);
+  border: 1px solid var(--cr-line-800);
+  border-radius: var(--radius-lg);
+}
+
+/* ---------------------------------------------------------------- mode banner */
+
+.cr-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  background: var(--cr-ink-850);
+  border: 1px solid var(--cr-line-700);
+  border-radius: var(--radius-md);
+}
+
+.cr-banner__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.cr-banner__mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cr-banner__mode-name {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--cr-text-0);
+  letter-spacing: -0.01em;
+}
+
+.cr-banner__mode-note {
+  font-size: var(--font-size-caption);
+  color: var(--cr-text-2);
+}
+
+.cr-banner__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------- dokkaebi flame */
+
+.cr-flame {
+  display: block;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  transform-origin: 50% 53%;
+}
+
+.cr-flame__ring { fill: none; stroke: var(--cr-line-600); stroke-width: 1.4; }
+.cr-flame__tick { fill: var(--cr-mist-400); }
+.cr-flame__body { fill: url(#cr-flame-gradient); }
+.cr-flame__pupil { fill: var(--cr-ink-950); }
+
+.cr-flame__stop-a { stop-color: var(--cr-flame-a); }
+.cr-flame__stop-b { stop-color: var(--cr-flame-b); }
+.cr-flame__stop-c { stop-color: var(--cr-flame-c); }
+
+/* Mode ring: colour AND stroke style differ, so the mode is legible from shape alone. */
+.cr-flame__mode-ring { fill: none; stroke: transparent; stroke-width: 0; }
+.cr-flame--mode-shadow .cr-flame__mode-ring { stroke: var(--cr-violet-400); stroke-width: 2.4; }
+.cr-flame--mode-canary .cr-flame__mode-ring { stroke: var(--cr-sky-400); stroke-width: 2.4; }
+.cr-flame--mode-paper .cr-flame__mode-ring { stroke: var(--cr-line-600); stroke-width: 1.4; }
+.cr-flame--mode-extended .cr-flame__mode-ring { stroke: var(--cr-gold-400); stroke-width: 2.2; stroke-dasharray: 2.2 2.6; }
+
+@keyframes cr-flicker { 0%, 100% { opacity: 0.28; } 20% { opacity: 0.55; } 35% { opacity: 0.2; } 55% { opacity: 0.5; } 70% { opacity: 0.25; } 85% { opacity: 0.45; } }
+@keyframes cr-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes cr-shake { 0%, 100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-1.4px) rotate(-2deg); } 40% { transform: translateX(1.4px) rotate(2deg); } 60% { transform: translateX(-1px) rotate(-1.4deg); } 80% { transform: translateX(1px) rotate(1.4deg); } }
+@keyframes cr-crack { 0%, 100% { filter: drop-shadow(0 0 3px var(--cr-red-500)); } 50% { filter: drop-shadow(0 0 9px var(--cr-red-400)); } }
+
+.cr-flame--off { --cr-flame-a: #4b5468; --cr-flame-b: #3b4356; --cr-flame-c: #333a4a; opacity: 0.5; }
+.cr-flame--connecting { --cr-flame-a: var(--cr-teal-300); --cr-flame-b: var(--cr-teal-500); --cr-flame-c: #2a6f66; animation: cr-flicker 1.7s steps(6) infinite; }
+.cr-flame--warming-up { --cr-flame-a: var(--cr-amber-300); --cr-flame-b: var(--cr-teal-400); --cr-flame-c: var(--cr-teal-500); animation: cr-breathe 1.6s ease-in-out infinite; }
+.cr-flame--healthy { --cr-flame-a: var(--cr-teal-300); --cr-flame-b: var(--cr-teal-400); --cr-flame-c: var(--cr-violet-400); animation: cr-breathe 3.4s ease-in-out infinite; }
+.cr-flame--paused { --cr-flame-a: #96a2c2; --cr-flame-b: #6c76a0; --cr-flame-c: #565f82; opacity: 0.75; }
+.cr-flame--warning { --cr-flame-a: var(--cr-amber-300); --cr-flame-b: var(--cr-amber-400); --cr-flame-c: var(--cr-amber-500); animation: cr-shake 0.5s ease-in-out infinite; }
+/* HALTED is deliberately motionless: the absence of movement is itself the signal. */
+.cr-flame--halted { --cr-flame-a: var(--cr-red-300); --cr-flame-b: var(--cr-red-400); --cr-flame-c: var(--cr-red-600); }
+.cr-flame--emergency-stop { --cr-flame-a: var(--cr-red-300); --cr-flame-b: var(--cr-red-500); --cr-flame-c: var(--cr-red-600); animation: cr-crack 1.1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-flame { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------- status badges */
+
+.cr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--cr-line-600);
+  border-radius: var(--radius-full);
+  background: var(--cr-ink-800);
+  color: var(--cr-text-1);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.cr-badge__glyph { font-size: 0.9em; line-height: 1; }
+
+.cr-badge--ok { color: var(--cr-teal-300); border-color: var(--cr-teal-500); }
+.cr-badge--warn { color: var(--cr-amber-300); border-color: var(--cr-amber-500); }
+.cr-badge--bad { color: var(--cr-red-300); border-color: var(--cr-red-500); }
+.cr-badge--neutral { color: var(--cr-mist-400); }
+.cr-badge--shadow { color: var(--cr-violet-300); border-color: var(--cr-violet-500); }
+.cr-badge--canary { color: var(--cr-sky-300); border-color: var(--cr-sky-400); }
+.cr-badge--gold { color: var(--cr-gold-300); border-color: var(--cr-gold-500); }
+/* NOT CALLED is not a failure; a dashed edge separates it from a real rejection. */
+.cr-badge--dashed { border-style: dashed; }
+
+/* ---------------------------------------------------------------- status grid */
+
+.cr-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+.cr-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-12);
+  background: var(--cr-ink-850);
+  border: 1px solid var(--cr-line-800);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.cr-tile__label {
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-mist-500);
+}
+
+.cr-tile__value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--cr-text-0);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Reason codes are long, underscored identifiers. Letting them break anywhere keeps a tile
+ * from stretching the whole grid, and the smaller mono face marks them as machine strings
+ * rather than prose an operator is meant to read as a sentence.
+ */
+.cr-tile__note {
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-normal);
+  color: var(--cr-mist-500);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Warm-up uses a native <progress> rather than a styled div: it needs no inline width
+ * (so the strict CSP needs no relaxing) and it reports its own value to assistive tech.
+ */
+.cr-progress { display: block; }
+
+.cr-progress__native {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--cr-ink-700);
+  overflow: hidden;
+}
+
+.cr-progress__native::-webkit-progress-bar { background: var(--cr-ink-700); border-radius: var(--radius-full); }
+.cr-progress__native::-webkit-progress-value { background: var(--cr-teal-400); border-radius: var(--radius-full); transition: width var(--motion-slow) var(--ease-standard); }
+.cr-progress__native::-moz-progress-bar { background: var(--cr-teal-400); border-radius: var(--radius-full); }
+
+.cr-progress--warming .cr-progress__native::-webkit-progress-value { background: var(--cr-amber-400); }
+.cr-progress--warming .cr-progress__native::-moz-progress-bar { background: var(--cr-amber-400); }
+
+/* ---------------------------------------------------------------- next action */
+
+.cr-next {
+  display: flex;
+  gap: var(--space-12);
+  align-items: flex-start;
+  padding: var(--space-16);
+  background: var(--cr-ink-850);
+  border: 1px solid var(--cr-teal-500);
+  border-radius: var(--radius-md);
+}
+
+.cr-next--blocked { border-color: var(--cr-amber-500); }
+.cr-next--danger { border-color: var(--cr-red-500); }
+
+.cr-next__glyph {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: 1px solid currentColor;
+  color: var(--cr-teal-300);
+}
+
+.cr-next--blocked .cr-next__glyph { color: var(--cr-amber-300); }
+.cr-next--danger .cr-next__glyph { color: var(--cr-red-300); }
+
+.cr-next__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cr-next__title { font-size: var(--font-size-caption); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cr-mist-500); }
+.cr-next__text { font-size: var(--font-size-body-sm); color: var(--cr-text-0); margin: 0; }
+
+/* ---------------------------------------------------------------- shadow panel */
+
+.cr-shadow { display: flex; flex-direction: column; gap: var(--space-12); }
+
+.cr-shadow__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.cr-shadow__title { font-size: var(--font-size-body-sm); font-weight: var(--font-weight-bold); color: var(--cr-text-0); margin: 0; }
+.cr-shadow__hint { font-size: var(--font-size-caption); color: var(--cr-mist-500); margin: 0; }
+
+.cr-shadow__actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+
+.cr-button {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--cr-line-600);
+  background: var(--cr-ink-800);
+  color: var(--cr-text-0);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.cr-button:hover:not(:disabled) { background: var(--cr-ink-700); }
+.cr-button:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+.cr-button:focus-visible { outline: 2px solid var(--cr-teal-300); outline-offset: 2px; }
+
+.cr-button--primary { border-color: var(--cr-teal-500); color: var(--cr-teal-300); }
+/* A destructive control must not merely be a differently coloured ordinary button. */
+.cr-button--danger { border-color: var(--cr-red-500); border-width: 2px; color: var(--cr-red-300); }
+
+.cr-counters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+
+.cr-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-8);
+  background: var(--cr-ink-800);
+  border: 1px solid var(--cr-line-800);
+  border-radius: var(--radius-sm);
+}
+
+.cr-counter__label { font-size: var(--font-size-caption); color: var(--cr-mist-500); }
+.cr-counter__value { font-family: var(--font-mono); font-size: var(--font-size-body-sm); color: var(--cr-text-0); font-variant-numeric: tabular-nums; }
+/* Actual-mutation counters are the whole point of Shadow: zero is the expected reading. */
+.cr-counter--zero .cr-counter__value { color: var(--cr-teal-300); }
+.cr-counter--nonzero .cr-counter__value { color: var(--cr-red-300); }
+
+.cr-blockers { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+
+.cr-blockers__item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--font-size-caption);
+  color: var(--cr-amber-300);
+}
+
+.cr-blockers__item::before { content: "•"; color: var(--cr-amber-500); }
+
+.cr-empty { font-size: var(--font-size-caption); color: var(--cr-mist-500); margin: 0; }
+
+/* ---------------------------------------------------------------- brand header */
+
+.cr-wordmark { display: block; height: 46px; width: auto; }
+
+/* ---------------------------------------------------------------- responsive
+ * Desktop window sizes, not phone breakpoints: this app is Electron-first and every
+ * control here is intentionally desktop-only.
+ */
+
+@media (max-width: 64rem) {
+  .cr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 40rem) {
+  .cr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+body.focus-mode .control-room { margin-bottom: var(--space-16); }

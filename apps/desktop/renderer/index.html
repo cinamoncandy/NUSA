@@ -9,17 +9,25 @@
   <link rel="stylesheet" href="components.css" />
   <link rel="stylesheet" href="command-palette.css" />
   <link rel="stylesheet" href="application-state.css" />
+  <link rel="stylesheet" href="control-room.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="theme-provider.js"></script>
   <script src="component-library.js"></script>
   <script src="command-palette.js"></script>
+  <script src="control-room.js"></script>
 </head>
 <body>
   <main>
     <header>
-      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1>Dokkaebi</h1></div>
+      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/dokkaebi-lockup-dark.svg" alt="Dokkaebi Control Room" /></h1></div>
       <div class="header-actions"><button id="command-palette-trigger" class="ui-button ui-button--secondary ui-button--small" type="button" aria-haspopup="dialog" aria-controls="command-palette">명령 <kbd>Ctrl K</kbd></button><span id="status" class="status">연결 준비</span></div>
     </header>
+    <!--
+      Control room first, chart second. The operator's first question is "what is the system
+      doing and may it act", not "what is the price" -- so system state sits above the fold
+      and the price hero moves below it.
+    -->
+    <section id="control-room" class="control-room" aria-label="관제실 — 시스템 상태"></section>
     <section class="hero card">
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>

@@ -22,6 +22,30 @@ let lastPrice = 0;
 const chartPoints = [];
 const focusModeStorageKey = "dokkaebi.focus-mode";
 
+/*
+ * Control room mount, declared before renderControl runs so the panel is always available
+ * to it. `window.shadowPilot` only exists once the preload bridge exposes it, so the panel
+ * degrades to a plain status readout rather than throwing when Shadow control is absent.
+ */
+const controlRoom = (() => {
+  const root = byId("control-room");
+  if (!root || !window.DokkaebiControlRoom) return null;
+  return window.DokkaebiControlRoom.createControlRoom({ root, document, shadowPilot: window.shadowPilot || null });
+})();
+let controlRoomTimer;
+function scheduleControlRoomRefresh() {
+  clearTimeout(controlRoomTimer);
+  controlRoomTimer = setTimeout(async () => {
+    await controlRoom?.refresh();
+    scheduleControlRoomRefresh();
+  }, 5_000);
+}
+if (controlRoom) {
+  controlRoom.refresh();
+  scheduleControlRoomRefresh();
+  window.addEventListener("beforeunload", () => clearTimeout(controlRoomTimer));
+}
+
 function renderSnapshot(snapshot) {
   if (!snapshot) return;
   byId("equity").textContent = won.format(snapshot.equity);
@@ -53,6 +77,7 @@ function renderControl(snapshot) {
   byId("strategy-quantity").value = String(snapshot.orderQuantity);
   byId("strategy-start").disabled = snapshot.status === "RUNNING";
   byId("strategy-stop").disabled = snapshot.status === "STOPPED";
+  controlRoom?.setControlSnapshot(snapshot);
   const events = byId("events");
   if (!snapshot.events.length) events.replaceChildren(textNode("li", "No events"));
   else events.replaceChildren(...snapshot.events.slice(0, 30).map((event) => {
@@ -129,6 +154,7 @@ function toggleFocusMode() {
 window.dokkaebi.onStatus((status) => {
   byId("status").textContent = status === "connected" ? "Upbit 연결됨" : status;
   byId("status").classList.toggle("online", status === "connected");
+  controlRoom?.setMarketStatus(status);
 });
 window.dokkaebi.onTicker((ticker) => {
   lastPrice = ticker.trade_price;

@@ -133,6 +133,74 @@
   --color-focus: var(--palette-white);
 }
 
+/*
+ * DOKKAEBI Control Room brand + status tokens.
+ *
+ * Two axes, deliberately kept apart:
+ *   BRAND (ink ground, teal/violet dokkaebi-fire) is always on screen and carries identity.
+ *   STATUS (teal=ok, amber=warn, red=danger, sky=canary, gold=verified) answers "is this safe".
+ * Brand hues are never reused for a pass/fail verdict, so an operator reads danger the same
+ * way regardless of how the identity colours are tuned.
+ */
+:root,
+:root[data-theme="dark"] {
+  --cr-ink-950: #0a0d12;
+  --cr-ink-900: #0e1218;
+  --cr-ink-850: #12161e;
+  --cr-ink-800: #161b25;
+  --cr-ink-700: #212836;
+  --cr-line-800: #232b39;
+  --cr-line-700: #2c3546;
+  --cr-line-600: #374158;
+  --cr-mist-500: #66708a;
+  --cr-mist-400: #828da5;
+  --cr-text-0: #eef1f6;
+  --cr-text-1: #c4cbdb;
+  --cr-text-2: #8f99b0;
+
+  --cr-teal-300: #79ead9;
+  --cr-teal-400: #31d3bf;
+  --cr-teal-500: #1cb39f;
+  --cr-violet-300: #c2b4fb;
+  --cr-violet-400: #9b86f6;
+  --cr-violet-500: #7d64e8;
+  --cr-sky-300: #8fcdf3;
+  --cr-sky-400: #4bb1e8;
+  --cr-amber-300: #f7c876;
+  --cr-amber-400: #f0a53c;
+  --cr-amber-500: #d68a24;
+  --cr-red-300: #f2938c;
+  --cr-red-400: #e2483f;
+  --cr-red-500: #c23a32;
+  --cr-red-600: #992c26;
+  --cr-gold-300: #ecd48f;
+  --cr-gold-400: #d3b45a;
+  --cr-gold-500: #a9873b;
+
+  /* Recoloured per health state by the .cr-flame--* classes in control-room.css. */
+  --cr-flame-a: var(--cr-teal-300);
+  --cr-flame-b: var(--cr-teal-400);
+  --cr-flame-c: var(--cr-violet-400);
+}
+
+/*
+ * High-contrast theme raises every status hue toward its lightest step rather than
+ * inverting the ground: the control room stays dark in both themes, but the states that
+ * matter (warn / danger / verified) gain contrast against it.
+ */
+:root[data-theme="contrast"] {
+  --cr-text-1: #ffffff;
+  --cr-text-2: #d6dbe6;
+  --cr-mist-400: #b9c1d2;
+  --cr-line-600: #7c88a3;
+  --cr-line-700: #59637b;
+  --cr-teal-400: var(--cr-teal-300);
+  --cr-amber-400: var(--cr-amber-300);
+  --cr-red-400: var(--cr-red-300);
+  --cr-sky-400: var(--cr-sky-300);
+  --cr-gold-400: var(--cr-gold-300);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-fast: 0ms;
