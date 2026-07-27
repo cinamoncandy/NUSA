@@ -84,14 +84,80 @@ strategy or symbol changed.
 
 `scripts/lib/strategy-research-scorecard.js` binds the WO-0025--WO-0030 evidence classes through immutable linkage tuples and canonical payload hashes. It is read-only and zero-authority: it does not rerun research, modify strategies, place orders, or allow production mutation.
 
+### WO-0031: strategy research promotion gate (parallel second layer)
+
+**Two WO-0031 layers now exist on this branch and neither has been removed.** The
+evidence-seal layer above and the promotion gate described here were written in parallel,
+use different request shapes, and do not import each other. Consolidating onto one is an
+open owner decision.
+
+`scripts/lib/strategy-research-evidence-manifest.js`,
+`scripts/lib/strategy-research-promotion-gate-runner.js`,
+`scripts/lib/strategy-research-promotion-gate-verifier.js`, and
+`scripts/run-strategy-research-promotion-gate.js` consolidate the same eight evidence
+classes into ten scored dimensions and one gate decision. It **reads declared evidence and
+never recomputes or rewrites any research result**. Three rules are enforced in code
+rather than left as caveats: there is no single numeric total score (a weighted total would
+let a data-integrity failure be averaged away), `executionStatus` and `researchDecision`
+are separate fields, and synthetic evidence can never promote. D-008/D-009 have no evidence
+entry of their own and inherit the worst trust of the analyses they read, which closed a
+hole where a synthetic benchmark comparison escaped the synthetic downgrade. A D-010
+failure — a discovered live-trading capability, a failing kill switch, or non-atomic
+persistence — is a hard stop that forces `INVALID`, not a hold. The verifier does not call
+the runner's dimension evaluators or its decision helper; it re-derives the gate outcome,
+so recomputing a hash over tampered content does not get past it. See
+`docs/research/strategy-research-promotion-gate-contract.md`.
+
+**Applied to this repository's actual state, the decision is `INSUFFICIENT_EVIDENCE`**
+(`docs/research/strategy-research-decision.md`): every research result here was produced
+from synthetic fixtures, `COST_STRESS` evidence is absent, and D-010 cannot exceed
+`INCONCLUSIVE` without an independent risk gateway and real Paper acceptance evidence.
+D-002 (backtest integrity) is legitimately `STRONG` because that is a property of the code;
+no market-performance claim follows from it. No production strategy parameter or symbol
+changed.
+
+### WO-0032: independent Paper risk gateway and deployment safety gate
+
+`apps/desktop/src/independentRiskGateway.ts` provides two pure decision functions —
+`evaluatePreTradeRisk` (may this order proceed now?) and `evaluateDeploymentSafety` (may
+this build run Paper automation at all?) — over the contract in
+`packages/contracts/src/riskGateway.ts`. Both are read-only and zero-authority:
+`productionMutationAllowed` is `false` on every decision either can produce. See
+`docs/operations/independent-risk-gateway-contract.md`.
+
+The main defect corrected while completing this work: the contract declared 41 pre-trade
+reason codes but the evaluator could only ever emit 28. Order rate limits, same-side burst,
+daily buy/sell notional caps, symbol and portfolio exposure caps, daily loss, consecutive
+loss, session drawdown, and price deviation were declared and never checked, and
+`DEPLOYMENT_INTEGRITY_FAILED` had no input that could set it. A gateway that advertises a
+limit it never enforces reads as coverage that does not exist. All 40 pre-trade codes and
+all 10 deployment codes are now enforced, and
+`tests/independent-risk-gateway-coverage.test.js` parses the contract's own type union and
+asserts every code is reachable, so adding a code without wiring it fails the suite. Missing
+or malformed state now fails closed as `INVALID_REQUEST` and halts, instead of silently
+skipping the checks that would have read it.
+`scripts/lib/paper-risk-gateway-verifier.js` re-implements the rules from the contract
+without importing the evaluator, so a buggy evaluator is caught rather than confirmed.
+
+**The gateway is not wired into the running order path, deliberately.** It requires
+`approvalState`, `reconciliationState`, `deploymentState`, and four fingerprints, none of
+which exist anywhere in `apps/desktop/src` today. Wiring it now would mean synthesizing
+`approved: true` / `healthy: true` / `integrityVerified: true` at the call site, turning the
+gate into a component that always returns `ALLOW` while appearing in the architecture as a
+control — and would let WO-0031's D-010 claim `independentRiskGatewayPresent: true` when
+nothing is in fact guarded. Integration needs a real approval store with expiry and symbol
+scope, a reconciliation health source, a build-time deployment-integrity descriptor, and
+fingerprint derivation. Until those exist, D-010 stays `INCONCLUSIVE`.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
-were requested but are BLOCKED for two independent reasons: (1) their stated
-prerequisites -- WO-0029 (Regime Analysis), WO-0030 (Cross-Market Validation),
-WO-0031 (Strategy Research Scorecard), and WO-0032 (Independent Risk Gateway) -- do not
-exist in this repository (verified directly; no matching files or commits), and
-(2) even once built, both work orders' actual deliverable is real multi-week Windows
+were requested but remain BLOCKED. Their stated prerequisites -- WO-0029 (Regime
+Analysis), WO-0030 (Cross-Market Validation), WO-0031 (Strategy Research Scorecard), and
+WO-0032 (Independent Risk Gateway) -- did not exist when WO-0033/0034 were first
+requested and have since been implemented; that removes the first reason but not the
+second, which is decisive on its own: both work orders' actual deliverable is real
+multi-week Windows
 GUI evidence, a real extended public-market connection, real installer/upgrade/rollback
 drills, and real owner sign-off -- none of which a sandboxed session can produce.
 Building synthetic "pilot" evidence and labeling it as satisfying WO-0033/0034 would be
