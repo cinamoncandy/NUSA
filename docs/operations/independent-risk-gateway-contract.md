@@ -150,25 +150,42 @@ Two honesty constraints are built into the output rather than left to a reader:
   descriptor. `provenance.expectationsSupplied` lists which comparisons are real, and the
   CLI says so on stdout.
 
-### Still missing: approval state and reconciliation health
+### Approval and reconciliation primitives — `apps/desktop/src/paperSafetyGates.ts`
 
-`approvalState` (approved, expiry, symbol scope) and `reconciliationState` (healthy, open
-P0) have no source anywhere in `apps/desktop/src`.
+`verifyApproval` (expiry, symbol scope, fingerprint agreement) and `reconcilePaperLedger`
+(duplicate fills, orphan sells, invalid fills, recomputed cash/position/PnL) supply the
+`approvalState` and `reconciliationState` inputs. `verifyDeployment` compares an expected
+deployment manifest against an observed one.
+
+These are primitives, not a wired pipeline: nothing yet composes them, the fingerprint
+derivations, and the deployment descriptor into a `PreTradeRiskRequest`.
+
+## Current production wiring: fail closed
+
+`RuntimeCommandService` now requires a `PaperCommandRiskGate` and calls it before every
+manual and strategy order; a non-`ALLOW` decision throws before `PaperBroker` is reached, so
+a rejected order cannot fill.
+
+**In `apps/desktop/src/main.ts` — the only production construction — the injected gate
+returns `HALT` unconditionally with `RISK_GATE_NOT_CONFIGURED`.** The practical consequence
+is that the shipped Electron app currently refuses *every* Paper order, manual and
+automatic alike.
+
+That is the correct default and it should stay until a real gate is composed. The
+alternative — injecting a permissive gate so the app keeps trading — would put a control in
+the architecture that always says yes, which is exactly the failure this contract exists to
+prevent. But it is a real behavioural change and must not be discovered by surprise: anyone
+running the desktop app will see every order rejected until the composition below exists.
 
 ## What is NOT done, and why
 
-**The gateway is not wired into the running order path.** This is a deliberate stop, not an
-oversight.
+Composing a real gate still requires: building a `PreTradeRiskRequest` at the call site from
+the four fingerprints, a live approval record, a ledger reconciliation result, a deployment
+descriptor, and the rate/exposure/session counters — none of which are currently tracked
+per session — and then calling `evaluatePreTradeRisk` instead of the stub.
 
-Wiring it now would mean synthesizing `approved: true` and `healthy: true` at the call site
-for the two sources that do not exist — turning the gate into a component that always
-returns `ALLOW` while appearing in the architecture diagram as a control. That is worse than
-an unwired gate, because it would also let WO-0031's D-010 dimension claim
-`independentRiskGatewayPresent: true` when nothing is in fact guarded.
-
-Integration therefore still requires, as separate work: a real approval store with expiry
-and symbol scope, and a reconciliation health source. Until both exist, D-010 stays
-`INCONCLUSIVE`.
+Until that exists, WO-0031's D-010 stays `INCONCLUSIVE`: a gate that halts everything proves
+that the call site is guarded, not that a working risk policy is in force.
 
 ## Known limitations
 

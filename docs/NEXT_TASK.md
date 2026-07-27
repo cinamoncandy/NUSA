@@ -152,14 +152,24 @@ capability scan — and records in the artifact itself that a scan proves presen
 absence, and that an unsupplied `--expected-*` value makes the corresponding gate comparison
 vacuous.
 
-**The gateway is still not wired into the running order path, deliberately.**
-`approvalState` (approved, expiry, symbol scope) and `reconciliationState` (healthy, open
-P0) have no source anywhere in `apps/desktop/src`. Wiring it now would mean synthesizing
-`approved: true` / `healthy: true` at the call site, turning the gate into a component that
-always returns `ALLOW` while appearing in the architecture as a control — and would let
-WO-0031's D-010 claim `independentRiskGatewayPresent: true` when nothing is in fact guarded.
-Until an approval store and a reconciliation health source exist, D-010 stays
-`INCONCLUSIVE`.
+`apps/desktop/src/paperSafetyGates.ts` supplies the remaining primitives — `verifyApproval`
+(expiry, symbol scope, fingerprint agreement), `reconcilePaperLedger` (duplicate/orphan/
+invalid fills with recomputed cash, position, and PnL), and `verifyDeployment`.
+
+**Production wiring is currently fail-closed, and this changes runtime behaviour.**
+`RuntimeCommandService` now requires a `PaperCommandRiskGate` and calls it before every
+manual and strategy order, throwing before `PaperBroker` is reached on any non-`ALLOW`
+decision. In `apps/desktop/src/main.ts` — the only production construction — the injected
+gate returns `HALT` unconditionally with `RISK_GATE_NOT_CONFIGURED`, so **the shipped
+Electron app refuses every Paper order, manual and automatic alike.** That is the right
+default and should stay: injecting a permissive gate to keep the app trading would put a
+control in the architecture that always says yes. But it must not be discovered by surprise.
+
+Composing a real gate still requires building a `PreTradeRiskRequest` at the call site from
+the four fingerprints, a live approval record, a ledger reconciliation result, a deployment
+descriptor, and per-session rate/exposure/session counters that are not currently tracked.
+Until then WO-0031's D-010 stays `INCONCLUSIVE`: a gate that halts everything proves the
+call site is guarded, not that a working risk policy is in force.
 
 ### WO-0033/WO-0034 status: BLOCKED
 
