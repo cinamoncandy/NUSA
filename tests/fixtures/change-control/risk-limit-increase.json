@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-RISKUP",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-RISKUP",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "apps/desktop/src/riskPolicy.ts",
+      "status": "MODIFIED",
+      "addedLines": [
+        "  maxOrderNotional: 50000000,"
+      ],
+      "removedLines": [
+        "  maxOrderNotional: 15000000,"
+      ]
+    }
+  ]
+}

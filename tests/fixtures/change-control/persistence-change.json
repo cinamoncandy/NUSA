@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-PERSIST",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-PERSIST",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "apps/desktop/src/desktopSqlite.ts",
+      "status": "MODIFIED",
+      "addedLines": [
+        "  db.exec(\"BEGIN TRANSACTION\");"
+      ],
+      "removedLines": []
+    }
+  ]
+}

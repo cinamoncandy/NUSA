@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-DEP",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-DEP",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "package.json",
+      "status": "MODIFIED",
+      "addedLines": [
+        "    \"some-lib\": \"^1.0.0\""
+      ],
+      "removedLines": []
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "status": "MODIFIED",
+      "addedLines": [
+        "  some-lib@1.0.0:"
+      ],
+      "removedLines": []
+    }
+  ]
+}

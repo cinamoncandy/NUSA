@@ -61,6 +61,25 @@ coerced); see `docs/research/market-regime-contract.md` for all disclosed deviat
 Only a synthetic fixture has been run (`tests/fixtures/regime-analysis/mixed-regimes.json`);
 no production strategy setting changed, and no regime filter was added to the strategy.
 
+### WO-0037: maintenance change control and evidence reuse
+
+`scripts/lib/change-impact-analyzer.js`, `scripts/lib/evidence-invalidation-matrix.js`,
+and `scripts/lib/change-control-verifier.js` classify any git diff into change
+categories, assign a risk level (`LEVEL_0`..`LEVEL_5`), and derive which fingerprints
+and evidence types the change invalidates, which revalidation stages it forces, and
+which approvals it needs. `LEVEL_5` (live/private capability, credential storage, a real
+order path) is not approvable and yields `REJECT_CHANGE` with no approval path at all.
+See `docs/operations/change-control-policy.md`.
+
+Two honesty notes. First, the matrix names 20 evidence types but only six are producible
+in this repository today; the rest are marked `NOT_PRODUCED` and every result carries
+that disclosure inline, so the matrix is never mistaken for a claim that the evidence
+exists. Second, dogfooding the analyzer against a real commit (`d42cc50..9e24fc1`)
+exposed a genuine defect in it: a research-only commit graded `LEVEL_4` merely because
+its test fixtures mentioned `shortWindow`/`feeRate`. Production-behaviour rules are now
+scoped to shipping paths (`apps/`, `packages/`), while security and test-hygiene rules
+stay global — a gate that grades everything `LEVEL_4` is noise, and noise gets ignored.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)

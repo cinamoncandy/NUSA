@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-TESTWEAK",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-TESTWEAK",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "tests/paper-ledger-verifier.test.js",
+      "status": "MODIFIED",
+      "addedLines": [
+        "test.skip(\"cash invariant\", () => {"
+      ],
+      "removedLines": [
+        "test(\"cash invariant\", () => {",
+        "  assert.equal(result.cash, expected);"
+      ]
+    }
+  ]
+}

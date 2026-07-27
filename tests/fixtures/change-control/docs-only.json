@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-DOCS",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-DOCS",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "docs/NEXT_TASK.md",
+      "status": "MODIFIED",
+      "addedLines": [
+        "Updated wording."
+      ],
+      "removedLines": [
+        "Old wording."
+      ]
+    }
+  ]
+}

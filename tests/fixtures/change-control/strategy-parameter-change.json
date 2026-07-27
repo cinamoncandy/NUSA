@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-STRATPARAM",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-STRATPARAM",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "apps/desktop/src/strategyEngine.ts",
+      "status": "MODIFIED",
+      "addedLines": [
+        "  constructor(private readonly shortPeriod = 8, private readonly longPeriod = 30) {"
+      ],
+      "removedLines": [
+        "  constructor(private readonly shortPeriod = 5, private readonly longPeriod = 20) {"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-MIXED",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-MIXED",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "docs/readme-note.md",
+      "status": "MODIFIED",
+      "addedLines": [
+        "note"
+      ],
+      "removedLines": []
+    },
+    {
+      "path": "apps/desktop/renderer/panel.css",
+      "status": "MODIFIED",
+      "addedLines": [
+        ".a{color:red}"
+      ],
+      "removedLines": []
+    },
+    {
+      "path": "apps/desktop/src/paperBroker.ts",
+      "status": "MODIFIED",
+      "addedLines": [
+        "  const feeRate = 0.001;"
+      ],
+      "removedLines": [
+        "  const feeRate = 0.0005;"
+      ]
+    }
+  ]
+}

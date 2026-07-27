@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-UI",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-UI",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "apps/desktop/renderer/index.html",
+      "status": "MODIFIED",
+      "addedLines": [
+        "<h1>Paper Trading</h1>"
+      ],
+      "removedLines": [
+        "<h1>Paper</h1>"
+      ]
+    }
+  ]
+}

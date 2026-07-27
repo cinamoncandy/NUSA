@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CR-LIVE",
+  "baselineCommitSha": "0000000000000000000000000000000000000000",
+  "targetCommitSha": "1111111111111111111111111111111111111111",
+  "changeRequest": {
+    "changeId": "CR-LIVE",
+    "title": "fixture change",
+    "reason": "fixture",
+    "requestedBy": "maintainer",
+    "rollbackPlan": "git revert"
+  },
+  "changedFiles": [
+    {
+      "path": "apps/desktop/src/main.ts",
+      "status": "MODIFIED",
+      "addedLines": [
+        "const ORDERS = \"https://api.upbit.com/v1/orders\";"
+      ],
+      "removedLines": []
+    }
+  ]
+}
