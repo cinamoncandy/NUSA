@@ -2,6 +2,24 @@
 
 ## Current baseline
 
+### WO-0033 phase 3: verified Paper pilot promotion boundary
+
+Shadow and Canary Pilot Evidence is now independently verified, hash-sealed, and
+aggregated into `PAPER_PILOT_OPERATIONAL_EVIDENCE`. The promotion gate is evidence-only:
+it never changes runtime mode. Current repository evidence contains no operational
+Shadow or Canary sessions, so the only truthful result is `OBSERVATION_INCOMPLETE` and
+D-010 cannot be STRONG. An independently sealed owner review is required after the
+documented operational criteria are met. Live trading, private API access, credentials,
+and automatic Extended Paper activation remain absent.
+
+### WO-0034-A1: public ticker closed-candle adapter
+
+The pure Upbit public ticker adapter now emits deterministic 1-minute UTC closed candles
+and exposes gap, out-of-order, duplicate, disconnect, reconnect, and closed-candle
+warm-up state. It is not wired to the desktop runtime, StrategyEngine, Shadow sessions,
+or operational Evidence. Operational Shadow and Canary Evidence remain zero; A2 owns
+the explicit runtime wiring and lifecycle boundary.
+
 Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
 Implemented and continuously validated:

@@ -30,6 +30,8 @@ import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
 import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
+import { createHash } from "node:crypto";
+import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -45,6 +47,13 @@ const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, max
 // how much of a requested quantity fills against one quote. Both bias results pessimistically
 // rather than assuming unrealistic perfect execution. Simulated fills only; no real exchange order is placed.
 const FILL_MODEL = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
+const PAPER_SAFETY_SOURCE_COMMIT = process.env.GITHUB_SHA ?? "local-paper-build";
+const PAPER_SAFETY_FINGERPRINTS = Object.freeze({
+  strategy: createHash("sha256").update("sma-crossover:5:20").digest("hex"),
+  config: createHash("sha256").update(JSON.stringify({ MARKET, INITIAL_CASH, FEE_RATE })).digest("hex"),
+  runtime: createHash("sha256").update("desktop-paper-runtime-v1").digest("hex"),
+  riskPolicy: createHash("sha256").update(JSON.stringify(RISK_POLICY)).digest("hex")
+});
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
@@ -292,6 +301,7 @@ function initializeRuntime(): void {
   let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
   let restoredFromSqlite = false;
   let persistenceDiagnostic: string | undefined;
+  let safetyRecoveryBlocked = false;
   try {
     persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
     const sqliteState = persistenceStore.load();
@@ -315,6 +325,21 @@ function initializeRuntime(): void {
   broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper, FILL_MODEL);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
   if (persistenceStore) {
+    try {
+      const safety = persistenceStore.loadPaperSafetySnapshot();
+      if (safety) {
+        const recovery = recoverPaperSafetySnapshot(safety, { sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT, fingerprints: PAPER_SAFETY_FINGERPRINTS });
+        control.record("SYSTEM", `Paper safety recovery: ${recovery.reasonCodes.join(",")}`);
+        if (recovery.blocked) {
+          safetyRecoveryBlocked = true;
+          control.fault("Paper safety recovery is blocked pending reconciliation and owner review");
+        }
+      }
+    } catch (error) {
+      persistenceDiagnostic = `Paper safety snapshot recovery failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  if (persistenceStore) {
     evidenceRecorder = new PaperScenarioEvidenceRecorder({
       append: (event) => {
         persistenceStore!.saveWithScenarioEvent(broker.exportState(), control.exportState(), event);
@@ -322,15 +347,29 @@ function initializeRuntime(): void {
       }
     }, evidenceSessionId);
   }
+  const createSafetySnapshot = (paper: ReturnType<PaperBroker["exportState"]>) => {
+    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    const snapshot = createPaperSafetySnapshot({
+      snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: control.snapshot().status === "FAULTED", activatedAt: control.snapshot().status === "FAULTED" ? Date.now() : null, reason: control.snapshot().status === "FAULTED" ? "runtime fault" : null }, approval: null,
+      fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: "UNKNOWN", checkedAt: null, reasonCodes: [] }, reconciliation: { status: "REQUIRED", checkedAt: null, ledgerSha256: null, reasonCodes: [] },
+      idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: control.snapshot().status === "FAULTED" ? [{ alertId: "runtime-fault", severity: "P0" as const, status: "OPEN" as const, reasonCode: "RUNTIME_FAULT", createdAt: Date.now() }] : [],
+      lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: 0, unrealizedDailyPnl: 0, consecutiveLossCount: 0, sessionPeakEquity: INITIAL_CASH, sessionDrawdown: 0 }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+    });
+    return snapshot;
+  };
+  const saveSafety = (paper: ReturnType<PaperBroker["exportState"]>, controlState: ReturnType<ControlPlane["exportState"]>) => {
+    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    persistenceStore.saveWithPaperSafetySnapshot(paper, controlState, createSafetySnapshot(paper));
+  };
   runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-    persistenceStore.save(paper, controlState);
+    saveSafety(paper, controlState);
   }, saveWithScenarioEvent: (paper, controlState, event) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-    persistenceStore.saveWithScenarioEvent(paper, controlState, event);
+    persistenceStore.saveWithScenarioEventsAndPaperSafetySnapshot(paper, controlState, [event], createSafetySnapshot(paper));
   }, saveWithScenarioEvents: (paper, controlState, events) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-    persistenceStore.saveWithScenarioEvents(paper, controlState, events);
+    persistenceStore.saveWithScenarioEventsAndPaperSafetySnapshot(paper, controlState, events, createSafetySnapshot(paper));
   } }, { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) }, () => {
     const now = Date.now();
     const marketDataObservedAt = latestTicker?.trade_timestamp ?? 0;
@@ -354,7 +393,7 @@ function initializeRuntime(): void {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
-  paperTradingAvailable = persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
+  paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);

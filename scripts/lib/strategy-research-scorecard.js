@@ -17,6 +17,13 @@ function trust(evidence, identity) {
   if (!evidence.payload || typeof evidence.payload !== "object") errors.push("payload is required");
   if (!/^[a-f0-9]{64}$/i.test(evidence.payloadSha256 ?? "")) { if (evidence.source === "REAL" && errors.length === 0) return { level: "UNVERIFIED_REAL", errors: ["payload hash is absent or malformed"] }; errors.push("payloadSha256 is invalid"); }
   else if (canonicalHash(evidence.payload) !== evidence.payloadSha256) errors.push("payload hash does not match payload");
+  if (evidence.type === "PAPER_OPERATIONAL_SAFETY" && evidence.payload.evidenceType === "PAPER_OPERATIONAL_SAFETY") {
+    const payload = evidence.payload;
+    if (payload.evidenceType !== "PAPER_OPERATIONAL_SAFETY" || payload.actualGatewayBacked !== true || !/^[a-f0-9]{64}$/i.test(payload.resultSha256 ?? "") || canonicalHash(Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "resultSha256"))) !== payload.resultSha256) errors.push("operational paper safety evidence is invalid");
+    if (payload.pilotEvidenceType !== undefined && payload.pilotEvidenceType !== "PAPER_PILOT_OPERATIONAL_EVIDENCE") errors.push("pilot evidence type is invalid");
+    if (payload.pilotEvidenceSha256 !== undefined && !/^[a-f0-9]{64}$/i.test(payload.pilotEvidenceSha256) && payload.pilotEvidenceSha256 !== "") errors.push("pilot evidence seal is invalid");
+    if ((payload.operationalShadowEvidencePresent || payload.operationalCanaryEvidencePresent) && (!payload.evidenceFresh || payload.pilotVerifierStatus !== "PASS")) errors.push("operational pilot evidence is stale or unverified");
+  }
   return errors.length ? { level: "INVALID", errors } : { level: evidence.source === "REAL" ? "VERIFIED_REAL" : "VERIFIED_SYNTHETIC", errors: [] };
 }
 function dimension(id, name, source, evidence, evidenceTrust) {

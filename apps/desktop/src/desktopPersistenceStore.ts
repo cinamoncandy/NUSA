@@ -8,6 +8,8 @@ import type { PaperBrokerState, PaperOrder } from "./paperBroker";
 import type { PaperScenarioEvent } from "../../cloud/src/paperScenarioEvidenceLedger";
 import { validateResearchRunManifest, type ResearchRunManifest, type ResearchValidationReport } from "../../cloud/src/researchRunValidation";
 import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard";
+import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperSafetySnapshot";
+import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
@@ -31,6 +33,8 @@ CREATE TABLE desktop_research_reports (run_id TEXT NOT NULL, run_type TEXT NOT N
 CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_checksum TEXT NOT NULL, reviewer_id TEXT NOT NULL, decision TEXT NOT NULL, note TEXT, reviewed_at TEXT NOT NULL, record_checksum TEXT NOT NULL UNIQUE);
 ` }, { id: "005_desktop_strategy_state", sql: `
 CREATE TABLE desktop_strategy_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
+` }, { id: "006_desktop_paper_safety_snapshot", sql: `
+CREATE TABLE desktop_paper_safety_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -82,6 +86,31 @@ export class DesktopPersistenceStore {
     this.transaction(() => this.write({ paper, control }));
   }
 
+  saveWithPaperSafetySnapshot(paper: PaperBrokerState, control: ControlPlaneState, snapshot: PaperSafetySnapshot): void {
+    validatePaperSafetySnapshot(snapshot);
+    this.transaction(() => {
+      this.write({ paper, control });
+      this.writePaperSafetySnapshot(snapshot);
+    });
+  }
+
+  /** The snapshot is replaced in a SQLite transaction: readers see either the prior valid snapshot or the new one. */
+  savePaperSafetySnapshot(snapshot: PaperSafetySnapshot): void {
+    validatePaperSafetySnapshot(snapshot);
+    this.transaction(() => {
+      this.writePaperSafetySnapshot(snapshot);
+    });
+  }
+
+  loadPaperSafetySnapshot(): PaperSafetySnapshot | undefined {
+    const row = this.db.prepare("SELECT payload FROM desktop_paper_safety_snapshot WHERE id = 1").get() as { payload: string } | undefined;
+    if (row == null) return undefined;
+    let snapshot: unknown;
+    try { snapshot = JSON.parse(row.payload); } catch (error) { throw new Error("paper safety snapshot JSON is invalid", { cause: error }); }
+    try { validatePaperSafetySnapshot(snapshot); } catch (error) { throw new Error("paper safety snapshot validation failed", { cause: error }); }
+    return Object.freeze(snapshot);
+  }
+
   /**
    * Best-effort continuity data only: the strategy's recent tick price history, so a
    * restart doesn't need to silently re-warm-up from zero. Deliberately independent
@@ -113,9 +142,15 @@ export class DesktopPersistenceStore {
   }
 
   saveWithScenarioEvents(paper: PaperBrokerState, control: ControlPlaneState, events: readonly PaperScenarioEvent[]): void {
+    this.saveWithScenarioEventsAndPaperSafetySnapshot(paper, control, events, undefined);
+  }
+
+  saveWithScenarioEventsAndPaperSafetySnapshot(paper: PaperBrokerState, control: ControlPlaneState, events: readonly PaperScenarioEvent[], snapshot: PaperSafetySnapshot | undefined): void {
     if (events.length === 0) throw new Error("scenario evidence batch must not be empty");
+    if (snapshot) validatePaperSafetySnapshot(snapshot);
     this.transaction(() => {
       this.write({ paper, control });
+      if (snapshot) this.writePaperSafetySnapshot(snapshot);
       let next = Number((this.db.prepare("SELECT COALESCE(MAX(sequence), 0) AS sequence FROM desktop_paper_scenario_evidence").get() as { sequence: number }).sequence) + 1;
       const insert = this.db.prepare("INSERT INTO desktop_paper_scenario_evidence (sequence, event_id, event_json) VALUES (?, ?, ?)");
       for (const event of events) {
@@ -299,6 +334,10 @@ export class DesktopPersistenceStore {
     events.forEach((event, ordinal) => eventInsert.run(event.id, ordinal, JSON.stringify(event)));
     const signalInsert = this.db.prepare("INSERT INTO desktop_processed_signal_keys (signal_key, ordinal) VALUES (?, ?)");
     processedSignalKeys.forEach((key, ordinal) => signalInsert.run(key, ordinal));
+  }
+
+  private writePaperSafetySnapshot(snapshot: PaperSafetySnapshot): void {
+    this.db.prepare("INSERT OR REPLACE INTO desktop_paper_safety_snapshot (id, payload) VALUES (1, ?)").run(JSON.stringify(snapshot));
   }
 
   private transaction<T>(operation: () => T): T {
