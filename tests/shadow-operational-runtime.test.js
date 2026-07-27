@@ -310,10 +310,11 @@ test("F53: a duplicate signalId within one session cannot double-dispatch a hypo
 
 test("G54-G58: shadow:start payload validation", () => {
   const { parseShadowStartIpc } = require("../dist/apps/desktop/src/shadowIpcValidation.js");
-  assert.deepEqual(parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover" }), { symbol: "KRW-BTC", strategyId: "sma-crossover" });
-  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover", extra: 1 }));
-  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-ETH", strategyId: "sma-crossover" }));
-  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "ema-crossover" }));
+  const strategyVersion = "sma-crossover:closed-candle-1m-v1";
+  assert.deepEqual(parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion }), { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion });
+  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion, extra: 1 }));
+  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-ETH", strategyId: "sma-crossover", strategyVersion }));
+  assert.throws(() => parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "ema-crossover", strategyVersion }));
   assert.throws(() => parseShadowStartIpc(null));
   assert.throws(() => parseShadowStartIpc([]));
 });

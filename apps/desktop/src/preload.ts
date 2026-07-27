@@ -76,7 +76,7 @@ export interface ShadowPilotApi {
 }
 
 const shadowPilot: ShadowPilotApi = Object.freeze({
-  start: () => invokeMutation("shadow:start", { symbol: "KRW-BTC", strategyId: "sma-crossover" }),
+  start: () => invokeMutation("shadow:start", { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion: "sma-crossover:closed-candle-1m-v1" }),
   pause: (sessionId: string) => invokeMutation("shadow:pause", { sessionId }),
   resume: (sessionId: string) => invokeMutation("shadow:resume", { sessionId }),
   stop: (sessionId: string) => invokeMutation("shadow:stop", { sessionId }),

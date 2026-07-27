@@ -24,7 +24,7 @@ export interface ClosedCandle {
   readonly tradeCount: number;
   readonly closed: true;
   readonly sequence: number;
-  readonly source: "UPBIT_PUBLIC_TICKER";
+  readonly source: "UPBIT_PUBLIC_TICKER" | "UPBIT_PUBLIC_CANDLE";
 }
 
 export type ClosedCandleHealthCode = "DISCONNECTED" | "RECONNECTED" | "INVALID_TICKER" | "SYMBOL_MISMATCH" | "DUPLICATE_TICKER" | "OUT_OF_ORDER" | "GAP_DETECTED";

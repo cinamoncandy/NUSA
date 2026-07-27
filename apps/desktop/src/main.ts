@@ -34,6 +34,7 @@ import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
+import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -41,6 +42,8 @@ const FEE_RATE = 0.0005;
 const MAXIMUM_MARKET_DATA_AGE_MS = 30_000;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const REQUIRED_WARMUP_SAMPLES = 20;
+const SHADOW_STRATEGY_VERSION = "sma-crossover:closed-candle-1m-v1";
+const SHADOW_STRATEGY_FINGERPRINT = createHash("sha256").update(JSON.stringify({ strategyId: "sma-crossover", strategyVersion: SHADOW_STRATEGY_VERSION, inputType: "CLOSED_CANDLE", interval: "1m", sourceType: "UPBIT_PUBLIC_CANDLE", shortWindow: 5, longWindow: 20 })).digest("hex");
 // minOrderNotional matches Upbit's documented 5,000 KRW minimum order value for KRW markets.
 // priceTick is intentionally left unset: Upbit's KRW tick size is tiered by price range, and an
 // incorrect single-tier constant would incorrectly reject valid Paper orders.
@@ -89,6 +92,8 @@ let disconnectedAt: number | undefined;
 let reconnectedAt: number | undefined;
 let rendererHealthy = true;
 let healthTimer: NodeJS.Timeout | undefined;
+let officialCandleTimer: NodeJS.Timeout | undefined;
+const officialCandleSource = new UpbitMinuteCandleSource(MARKET);
 const recoveryLedger = new RecoveryLedger();
 
 function recordRecovery(component: RecoveryComponent, status: RecoveryHealth, message: string): void {
@@ -185,7 +190,6 @@ function handleTicker(ticker: UpbitTicker): void {
   window?.webContents.send("market:ticker", ticker);
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
   if (!recordLiveMarketRegime(ticker)) return;
-  shadowRuntime.onTicker(ticker);
 }
 
 /** Fires once per closed candle, for BOTH real Automatic Paper trading and (separately) Shadow. */
@@ -418,6 +422,8 @@ function initializeRuntime(): void {
   shadowRuntime = new ShadowOperationalRuntime({
     symbol: MARKET,
     strategyId: smaStrategy.id,
+    strategyVersion: SHADOW_STRATEGY_VERSION,
+    strategyFingerprint: SHADOW_STRATEGY_FINGERPRINT,
     sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
     fingerprints: PAPER_SAFETY_FINGERPRINTS,
     strategy,
@@ -521,6 +527,8 @@ app.whenReady().then(() => {
   initializeRuntime();
   createWindow();
   if (paperTradingAvailable) stream.start();
+  void shadowRuntime.syncOfficialCandles(officialCandleSource);
+  officialCandleTimer = setInterval(() => { void shadowRuntime.syncOfficialCandles(officialCandleSource); }, 60_000);
   healthTimer = setInterval(observeHealth, 30_000);
   process.on("uncaughtException", (error) => {
     recordRecovery("STORAGE", "CRITICAL", `Main process error: ${error.message}`);
@@ -537,6 +545,7 @@ app.on("window-all-closed", () => {
   aiCioSnapshotPublisher.clear();
   stream?.stop();
   if (healthTimer) clearInterval(healthTimer);
+  if (officialCandleTimer) clearInterval(officialCandleTimer);
   persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
 });
