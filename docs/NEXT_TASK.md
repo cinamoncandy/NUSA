@@ -2,6 +2,16 @@
 
 ## Current baseline
 
+### WO-0033 phase 3: verified Paper pilot promotion boundary
+
+Shadow and Canary Pilot Evidence is now independently verified, hash-sealed, and
+aggregated into `PAPER_PILOT_OPERATIONAL_EVIDENCE`. The promotion gate is evidence-only:
+it never changes runtime mode. Current repository evidence contains no operational
+Shadow or Canary sessions, so the only truthful result is `OBSERVATION_INCOMPLETE` and
+D-010 cannot be STRONG. An independently sealed owner review is required after the
+documented operational criteria are met. Live trading, private API access, credentials,
+and automatic Extended Paper activation remain absent.
+
 Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
 Implemented and continuously validated:

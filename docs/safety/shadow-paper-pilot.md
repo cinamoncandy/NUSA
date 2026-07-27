@@ -8,5 +8,7 @@ fill, cash, or position mutation is an invalid session condition.
 
 `scripts/run-shadow-paper-pilot.js --dry-run` is a deterministic harness only. It does
 not represent operational observation Evidence and cannot justify a STRONG D-010 grade.
-Canary work is intentionally out of scope until this Shadow phase is independently
-reviewed and committed.
+The phase-3 independent verifier distinguishes this dry run from
+`SHADOW_OPERATIONAL` evidence. Only a public-market, elapsed-time operational session
+with a verifier PASS may count toward the documented observation criteria; neither form
+of evidence changes a runtime mode.

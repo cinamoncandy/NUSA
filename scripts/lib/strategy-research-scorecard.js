@@ -20,7 +20,9 @@ function trust(evidence, identity) {
   if (evidence.type === "PAPER_OPERATIONAL_SAFETY" && evidence.payload.evidenceType === "PAPER_OPERATIONAL_SAFETY") {
     const payload = evidence.payload;
     if (payload.evidenceType !== "PAPER_OPERATIONAL_SAFETY" || payload.actualGatewayBacked !== true || !/^[a-f0-9]{64}$/i.test(payload.resultSha256 ?? "") || canonicalHash(Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "resultSha256"))) !== payload.resultSha256) errors.push("operational paper safety evidence is invalid");
-    if (payload.operationalShadowEvidencePresent || payload.operationalCanaryEvidencePresent) errors.push("operational evidence claims are unsupported");
+    if (payload.pilotEvidenceType !== undefined && payload.pilotEvidenceType !== "PAPER_PILOT_OPERATIONAL_EVIDENCE") errors.push("pilot evidence type is invalid");
+    if (payload.pilotEvidenceSha256 !== undefined && !/^[a-f0-9]{64}$/i.test(payload.pilotEvidenceSha256) && payload.pilotEvidenceSha256 !== "") errors.push("pilot evidence seal is invalid");
+    if ((payload.operationalShadowEvidencePresent || payload.operationalCanaryEvidencePresent) && (!payload.evidenceFresh || payload.pilotVerifierStatus !== "PASS")) errors.push("operational pilot evidence is stale or unverified");
   }
   return errors.length ? { level: "INVALID", errors } : { level: evidence.source === "REAL" ? "VERIFIED_REAL" : "VERIFIED_SYNTHETIC", errors: [] };
 }

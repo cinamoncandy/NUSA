@@ -282,7 +282,16 @@ function evaluateDimensions(manifest, request) {
           restartAutoTradingOff: metrics.restartAutoTradingOff ?? null,
           liveCapabilityAbsent: metrics.liveCapabilityAbsent ?? null,
           independentRiskGatewayPresent: metrics.independentRiskGatewayPresent ?? null,
-          actualPaperAcceptanceEvidence: metrics.actualPaperAcceptanceEvidence ?? null
+          actualPaperAcceptanceEvidence: metrics.actualPaperAcceptanceEvidence ?? null,
+          operationalShadowEvidencePresent: metrics.operationalShadowEvidencePresent ?? false,
+          operationalCanaryEvidencePresent: metrics.operationalCanaryEvidencePresent ?? false,
+          shadowCriteriaMet: metrics.shadowCriteriaMet ?? false,
+          canaryCriteriaMet: metrics.canaryCriteriaMet ?? false,
+          pilotVerifierStatus: metrics.pilotVerifierStatus ?? null,
+          evidenceFresh: metrics.evidenceFresh ?? false,
+          ownerReviewCompleted: metrics.ownerReviewCompleted ?? false,
+          promotionStatus: metrics.promotionStatus ?? "OBSERVATION_INCOMPLETE",
+          pilotEvidenceType: metrics.pilotEvidenceType ?? null
         };
         if (metrics.liveCapabilityAbsent === false) {
           dimension.status = "FAIL";
@@ -290,11 +299,20 @@ function evaluateDimensions(manifest, request) {
         } else if (metrics.persistenceAtomicity === false || metrics.killSwitch === false) {
           dimension.status = "FAIL";
           dimension.blockers.push("persistence atomicity or kill switch is failing");
+        } else if (metrics.pilotVerifierStatus === "FAIL" || metrics.promotionStatus === "BLOCKED") {
+          dimension.status = "FAIL";
+          dimension.blockers.push("pilot verifier or promotion gate blocked operational Paper safety");
         } else if (metrics.independentRiskGatewayPresent !== true || metrics.actualPaperAcceptanceEvidence !== true) {
           // WO-0031 section P: without an independent risk gateway and real Paper
           // acceptance evidence, this dimension can never be STRONG.
           dimension.status = "INCONCLUSIVE";
           dimension.weaknesses.push("no independent risk gateway and/or no real Paper acceptance evidence; operational safety for strategy trial is unproven");
+        } else if (metrics.pilotEvidenceType === "PAPER_PILOT_OPERATIONAL_EVIDENCE" && (metrics.operationalShadowEvidencePresent !== true || metrics.operationalCanaryEvidencePresent !== true || metrics.shadowCriteriaMet !== true || metrics.canaryCriteriaMet !== true || metrics.evidenceFresh !== true)) {
+          dimension.status = "INCONCLUSIVE";
+          dimension.weaknesses.push("operational Shadow/Canary observation criteria are incomplete");
+        } else if (metrics.pilotEvidenceType === "PAPER_PILOT_OPERATIONAL_EVIDENCE" && metrics.ownerReviewCompleted !== true) {
+          dimension.status = "INCONCLUSIVE";
+          dimension.weaknesses.push("operational criteria are present but independent owner review is required");
         } else {
           dimension.status = "ACCEPTABLE";
         }

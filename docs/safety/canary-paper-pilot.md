@@ -12,4 +12,6 @@ call. Restart invalidates a running Canary session and does not resume it.
 
 `scripts/run-canary-paper-pilot.js --dry-run --approval <path>` validates a locally
 provided approval shape without writing operational evidence or calling a broker.
-Independent pilot verification and final D-010 promotion linkage remain phase 3.
+Phase 3 independently verifies complete event chains, approval binding, and the
+aggregate promotion gate. A dry run remains non-operational evidence and cannot count
+orders or trades toward the promotion criteria.
