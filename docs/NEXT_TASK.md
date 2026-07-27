@@ -116,6 +116,39 @@ D-002 (backtest integrity) is legitimately `STRONG` because that is a property o
 no market-performance claim follows from it. No production strategy parameter or symbol
 changed.
 
+### WO-0032: independent Paper risk gateway and deployment safety gate
+
+`apps/desktop/src/independentRiskGateway.ts` provides two pure decision functions —
+`evaluatePreTradeRisk` (may this order proceed now?) and `evaluateDeploymentSafety` (may
+this build run Paper automation at all?) — over the contract in
+`packages/contracts/src/riskGateway.ts`. Both are read-only and zero-authority:
+`productionMutationAllowed` is `false` on every decision either can produce. See
+`docs/operations/independent-risk-gateway-contract.md`.
+
+The main defect corrected while completing this work: the contract declared 41 pre-trade
+reason codes but the evaluator could only ever emit 28. Order rate limits, same-side burst,
+daily buy/sell notional caps, symbol and portfolio exposure caps, daily loss, consecutive
+loss, session drawdown, and price deviation were declared and never checked, and
+`DEPLOYMENT_INTEGRITY_FAILED` had no input that could set it. A gateway that advertises a
+limit it never enforces reads as coverage that does not exist. All 40 pre-trade codes and
+all 10 deployment codes are now enforced, and
+`tests/independent-risk-gateway-coverage.test.js` parses the contract's own type union and
+asserts every code is reachable, so adding a code without wiring it fails the suite. Missing
+or malformed state now fails closed as `INVALID_REQUEST` and halts, instead of silently
+skipping the checks that would have read it.
+`scripts/lib/paper-risk-gateway-verifier.js` re-implements the rules from the contract
+without importing the evaluator, so a buggy evaluator is caught rather than confirmed.
+
+**The gateway is not wired into the running order path, deliberately.** It requires
+`approvalState`, `reconciliationState`, `deploymentState`, and four fingerprints, none of
+which exist anywhere in `apps/desktop/src` today. Wiring it now would mean synthesizing
+`approved: true` / `healthy: true` / `integrityVerified: true` at the call site, turning the
+gate into a component that always returns `ALLOW` while appearing in the architecture as a
+control — and would let WO-0031's D-010 claim `independentRiskGatewayPresent: true` when
+nothing is in fact guarded. Integration needs a real approval store with expiry and symbol
+scope, a reconciliation health source, a build-time deployment-integrity descriptor, and
+fingerprint derivation. Until those exist, D-010 stays `INCONCLUSIVE`.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
