@@ -47,6 +47,20 @@ classification thresholds. Only a synthetic fixture has been run
 (`tests/fixtures/parameter-robustness/basic-robustness.json`); no production SMA
 parameter changed.
 
+### WO-0029: market-regime performance analysis layer
+
+`scripts/lib/regime-analysis-runner.js` and `scripts/lib/regime-analysis-verifier.js`
+add segment building, one-trade-one-regime attribution, per-regime metrics under three
+fixed cost conditions, transition analysis, a rare-regime sample gate, and fixed
+assessment rules on top of the **existing, already tested** trailing-only classifier in
+`apps/desktop/src/marketRegime.ts` — no second classifier was written. The independent
+verifier deliberately re-implements the labeling rather than calling that classifier,
+so a classifier bug cannot hide behind its own verifier. Threshold source is
+`FIXED_ABSOLUTE` (training-quantile mode is not implemented and is rejected rather than
+coerced); see `docs/research/market-regime-contract.md` for all disclosed deviations.
+Only a synthetic fixture has been run (`tests/fixtures/regime-analysis/mixed-regimes.json`);
+no production strategy setting changed, and no regime filter was added to the strategy.
+
 ### WO-0033/WO-0034 status: BLOCKED
 
 WO-0033 (Shadow/Canary Paper Pilot) and WO-0034 (Extended Paper + release readiness)
