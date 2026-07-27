@@ -20,6 +20,34 @@ warm-up state. It is not wired to the desktop runtime, StrategyEngine, Shadow se
 or operational Evidence. Operational Shadow and Canary Evidence remain zero; A2 owns
 the explicit runtime wiring and lifecycle boundary.
 
+### WO-0034-A2: closed-candle runtime wiring and Shadow owner lifecycle
+
+`apps/desktop/src/shadowOperationalRuntime.ts` wires the real public Upbit ticker stream
+through `ClosedCandleAdapter` into the production `StrategyEngine` -- which is now called
+from exactly one place in the codebase, once per closed candle, never per raw ticker --
+and, separately and only while an owner-started Shadow session is `RUNNING`, into
+`ShadowPilotRuntime` as a hypothetical fill. Real Automatic Paper trading and Shadow are
+two independent dispatches from the same signal; Shadow calls neither `PaperBroker` nor
+`RuntimeCommandService.manualOrder` (verified structurally: the compiled module contains
+no reference to either). Shadow's risk decision reuses the real `PaperCommandRiskGate`
+instance -- currently an unconditional `HALT` stub, so Shadow inherits that same honest,
+unconfigured state rather than a separately fabricated `ALLOW`.
+
+Owner-controlled `shadow:start/pause/resume/stop/status` IPC commands exist with an
+exact-allowlist payload validator (`shadowIpcValidation.ts`) and a fail-closed lifecycle
+(`IDLE -> PRECHECK -> READY -> RUNNING -> PAUSED -> COMPLETED`, with `HALTED`/`FAILED`
+failure states); duplicate start, resume-when-not-paused, and stop-when-not-active all
+throw rather than silently no-op. See `docs/operations/shadow-operational-runtime.md` and
+`docs/operations/shadow-owner-lifecycle.md`.
+
+**Applied to this repository's actual state, Shadow still cannot reach `RUNNING`.**
+`getSafetyState()`'s `deploymentIntegrity` and `reconciliation` fields are wired to the
+same honestly-unresolved values `createPaperSafetySnapshot` already reports (`false` for
+both), matching the rest of this branch's documented "not yet composed" state. The
+wiring added in this phase is real and complete; what it depends on is not. No durable
+`SHADOW_OPERATIONAL` Evidence writer exists yet, no session persists across a restart,
+and Canary is untouched -- all remain WO-0034-A3.
+
 Development continues on `agent/electron-upbit-paper-trading` in Draft PR #1.
 
 Implemented and continuously validated:

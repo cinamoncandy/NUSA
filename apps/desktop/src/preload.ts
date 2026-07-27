@@ -61,5 +61,28 @@ const aiCioDashboard: AiCioDashboardApi = Object.freeze({
   getAiCioDashboard: () => invokeReadWithRecovery<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>(AI_CIO_DASHBOARD_CHANNEL)
 });
 
+/**
+ * Shadow lifecycle bridge. Fixed method names only -- the renderer can never pass an
+ * arbitrary IPC channel name, and start() always names the exact scope Shadow supports
+ * (symbol/strategyId are literal constants here, re-validated again on the main-process
+ * side by shadowIpcValidation.ts).
+ */
+export interface ShadowPilotApi {
+  start(): Promise<unknown>;
+  pause(sessionId: string): Promise<unknown>;
+  resume(sessionId: string): Promise<unknown>;
+  stop(sessionId: string): Promise<unknown>;
+  status(): Promise<unknown>;
+}
+
+const shadowPilot: ShadowPilotApi = Object.freeze({
+  start: () => invokeMutation("shadow:start", { symbol: "KRW-BTC", strategyId: "sma-crossover" }),
+  pause: (sessionId: string) => invokeMutation("shadow:pause", { sessionId }),
+  resume: (sessionId: string) => invokeMutation("shadow:resume", { sessionId }),
+  stop: (sessionId: string) => invokeMutation("shadow:stop", { sessionId }),
+  status: () => invokeReadWithRecovery("shadow:status")
+});
+
 contextBridge.exposeInMainWorld("dokkaebi", api);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
+contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);

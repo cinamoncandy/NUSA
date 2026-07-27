@@ -20,7 +20,7 @@ export interface RuntimePersistence {
   saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: ScenarioEvent): void;
   saveWithScenarioEvents?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, events: readonly ScenarioEvent[]): void;
 }
-export interface PaperCommandRiskGate { evaluate(command: Readonly<{ path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY"; side: PaperSide; quantity: number; price: number }>): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>; }
+export interface PaperCommandRiskGate { evaluate(command: Readonly<{ path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY" | "SHADOW"; side: PaperSide; quantity: number; price: number }>): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>; }
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
 export const PERSISTENCE_RECOVERY_STEPS = Object.freeze([

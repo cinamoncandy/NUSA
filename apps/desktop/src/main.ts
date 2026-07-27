@@ -22,16 +22,18 @@ import {
   createRendererUnresponsiveDiagnostic,
   formatDesktopStartupDiagnostic
 } from "./desktopStartupDiagnostics";
-import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService } from "./runtimeCommandService";
+import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService, type PaperCommandRiskGate } from "./runtimeCommandService";
 import { formatRuntimeMutationDiagnostic } from "./runtimeMutationDiagnostics";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
-import { SmaCrossoverStrategy, StrategyEngine } from "./strategyEngine";
+import { SmaCrossoverStrategy, StrategyEngine, type StrategySignal } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
+import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
+import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -54,6 +56,12 @@ const PAPER_SAFETY_FINGERPRINTS = Object.freeze({
   runtime: createHash("sha256").update("desktop-paper-runtime-v1").digest("hex"),
   riskPolicy: createHash("sha256").update(JSON.stringify(RISK_POLICY)).digest("hex")
 });
+// Shared by both RuntimeCommandService (real Automatic/Manual Paper orders) and Shadow's
+// hypothetical dispatch, so Shadow's risk decision is the SAME real decision, never a
+// separately fabricated ALLOW. WO-0032 composition (approval/reconciliation/deployment
+// state) is not wired yet, so this currently HALTs every path unconditionally -- honest,
+// not a placeholder success.
+const paperCommandRiskGate: PaperCommandRiskGate = { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) };
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
@@ -62,7 +70,8 @@ let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
-const strategy = new StrategyEngine(new SmaCrossoverStrategy(5, 20));
+const smaStrategy = new SmaCrossoverStrategy(5, 20);
+const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
 const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
   mode: "PAPER",
@@ -71,6 +80,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
 });
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
+let shadowRuntime: ShadowOperationalRuntime;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
 let liveMarketRegimeObserver: LiveMarketRegimeObserver;
@@ -165,19 +175,27 @@ function recordLiveMarketRegime(ticker: UpbitTicker): boolean {
   }
 }
 
+/**
+ * The strategy is driven ONLY from a closed 1-minute candle, never from this raw ticker
+ * directly (WO-0034-A2) -- shadowRuntime.onTicker aggregates candles internally and calls
+ * strategy.onTick exactly once per closed candle, via onProductionSignal below.
+ */
 function handleTicker(ticker: UpbitTicker): void {
   latestTicker = ticker;
   window?.webContents.send("market:ticker", ticker);
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
   if (!recordLiveMarketRegime(ticker)) return;
-  const position = broker.snapshot(ticker.trade_price).position.quantity;
-  const signal = strategy.onTick({ market: MARKET, price: ticker.trade_price, timestamp: ticker.trade_timestamp }, position);
+  shadowRuntime.onTicker(ticker);
+}
+
+/** Fires once per closed candle, for BOTH real Automatic Paper trading and (separately) Shadow. */
+function handleProductionSignal(input: { market: string; price: number; positionQuantity: number; signal: StrategySignal }): void {
   if (persistenceStore) {
     try { persistenceStore.saveStrategyPriceHistory(strategy.getHistory()); } catch {
       // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
     }
   }
-  runtime.automaticSignal(MARKET, ticker.trade_price, position, signal);
+  runtime.automaticSignal(input.market, input.price, input.positionQuantity, input.signal);
   paperTradingAvailable = runtime.isAvailable();
   publishPaper();
   publishControl();
@@ -188,6 +206,7 @@ function handleMarketStatus(status: string): void {
   const now = Date.now();
   websocketConnected = status === "connected";
   window?.webContents.send("market:status", status);
+  shadowRuntime.onWebSocketStatus(status);
 
   if (status === "connected") {
     reconnectedAt = now;
@@ -370,7 +389,7 @@ function initializeRuntime(): void {
   }, saveWithScenarioEvents: (paper, controlState, events) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.saveWithScenarioEventsAndPaperSafetySnapshot(paper, controlState, events, createSafetySnapshot(paper));
-  } }, { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) }, () => {
+  } }, paperCommandRiskGate, () => {
     const now = Date.now();
     const marketDataObservedAt = latestTicker?.trade_timestamp ?? 0;
     const input = {
@@ -392,6 +411,32 @@ function initializeRuntime(): void {
   }, evidenceRecorder, (diagnostic) => {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
+  });
+  // No durable Shadow session persistence exists yet (WO-0034-A3): every process start
+  // constructs a fresh instance at IDLE, which is what makes "no auto-run after restart"
+  // true by construction rather than by a separate recovered-session check.
+  shadowRuntime = new ShadowOperationalRuntime({
+    symbol: MARKET,
+    strategyId: smaStrategy.id,
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    fingerprints: PAPER_SAFETY_FINGERPRINTS,
+    strategy,
+    getPositionQuantity: () => broker.exportState().position.quantity,
+    onProductionSignal: handleProductionSignal,
+    riskGate: paperCommandRiskGate,
+    getHypotheticalOrderQuantity: () => control.getOrderQuantity(),
+    getSafetyState: () => ({
+      // Matches createSafetySnapshot()'s own current, honestly-unresolved values: neither
+      // deployment integrity nor reconciliation has a real PASS source wired yet, so
+      // Shadow correctly cannot reach RUNNING until that composition exists.
+      deploymentIntegrity: false,
+      reconciliation: false,
+      killSwitch: control.snapshot().status === "FAULTED",
+      openP0: control.snapshot().status === "FAULTED",
+      automaticTrading: control.snapshot().autoTradeEnabled,
+      // No Canary/Extended runtime mode is wired into this process at all yet.
+      currentModeIsCanaryOrExtended: false
+    })
   });
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
@@ -445,6 +490,31 @@ ipcMain.handle("control:auto", (_event, enabled: unknown) => {
 ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
   return runControlCommand(() => runtime.setOrderQuantity(quantity));
+});
+
+function requireCurrentShadowSession(input: unknown): void {
+  const { sessionId } = parseShadowSessionIpc(input);
+  if (shadowRuntime.diagnostics().sessionId !== sessionId) throw new Error("shadow session mismatch");
+}
+ipcMain.handle("shadow:start", (_event, input: unknown) => {
+  parseShadowStartIpc(input);
+  return shadowRuntime.start();
+});
+ipcMain.handle("shadow:pause", (_event, input: unknown) => {
+  requireCurrentShadowSession(input);
+  return shadowRuntime.pause();
+});
+ipcMain.handle("shadow:resume", (_event, input: unknown) => {
+  requireCurrentShadowSession(input);
+  return shadowRuntime.resume();
+});
+ipcMain.handle("shadow:stop", (_event, input: unknown) => {
+  requireCurrentShadowSession(input);
+  return shadowRuntime.stop();
+});
+ipcMain.handle("shadow:status", (_event, input: unknown) => {
+  parseShadowStatusIpc(input);
+  return shadowRuntime.diagnostics();
 });
 
 app.whenReady().then(() => {
