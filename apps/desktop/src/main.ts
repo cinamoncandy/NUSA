@@ -35,6 +35,7 @@ import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSa
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
 import { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink, type DurableEvidenceWriter } from "./domainEventBus";
 import { ShadowEvidenceArchive, findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
+import { SHADOW_OBSERVATION_PROFILE } from "./shadowObservationProfile";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 
@@ -440,6 +441,11 @@ function initializeRuntime(): void {
     onProductionSignal: handleProductionSignal,
     riskGate: paperCommandRiskGate,
     getHypotheticalOrderQuantity: () => control.getOrderQuantity(),
+    // WO-0034-A4: the observation boundaries the desktop actually runs under. A session that
+    // reaches the ceiling stops itself and seals its archive, so an observation left running
+    // by accident ends on its own rather than growing until someone notices.
+    maxSessionDurationMs: SHADOW_OBSERVATION_PROFILE.maxSessionDurationMs,
+    maxCandleAgeMs: SHADOW_OBSERVATION_PROFILE.maxCandleAgeMs,
     createEvidenceBus: ({ sessionId, createdAt, onHalt }) => {
       const archivePromise = ShadowEvidenceArchive.create(shadowEvidenceRoot, {
         sessionId,
@@ -458,6 +464,9 @@ function initializeRuntime(): void {
       };
       return new DomainEventBus({
         sessionId,
+        // Stated explicitly rather than left to the bus default, so the queue bound the
+        // observation profile promises is the bound the desktop actually runs with.
+        capacity: SHADOW_OBSERVATION_PROFILE.maxQueueDepth,
         sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer)],
         onHalt
       });
