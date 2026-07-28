@@ -32,7 +32,10 @@ export interface A4RuntimeDiagnostics {
   readonly safety: Readonly<{
     killSwitchActive: boolean;
     openP0Count: number;
+    openP0Codes: readonly string[];
     reasonCode: string | null;
+    activatedAt: number | null;
+    activationSource: "PERSISTED_PAPER_SAFETY_SNAPSHOT" | null;
   }>;
   readonly shadow: Readonly<{
     state: ShadowOperationalDiagnostics["state"];
@@ -117,7 +120,10 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
   safety?: Readonly<{
     killSwitchActive: boolean;
     openP0Count: number;
+    openP0Codes: readonly string[];
     reasonCode: string | null;
+    activatedAt: number | null;
+    activationSource: "PERSISTED_PAPER_SAFETY_SNAPSHOT" | null;
   }>;
   generatedAt?: number;
 }>): Promise<A4RuntimeDiagnostics> {
@@ -138,7 +144,15 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
     lastHeartbeatAt: marketInput.lastHeartbeatAt,
     source: marketInput.source
   });
-  const safety = Object.freeze(input.safety ?? { killSwitchActive: false, openP0Count: 0, reasonCode: null });
+  const safetyInput = input.safety;
+  const safety = Object.freeze({
+    killSwitchActive: safetyInput?.killSwitchActive ?? false,
+    openP0Count: safetyInput?.openP0Count ?? 0,
+    openP0Codes: Object.freeze([...(safetyInput?.openP0Codes ?? [])]),
+    reasonCode: safetyInput?.reasonCode ?? null,
+    activatedAt: safetyInput?.activatedAt ?? null,
+    activationSource: safetyInput?.activationSource ?? null
+  });
   const rootWritable = canWrite(input.evidenceRoot);
   const markerlessArchiveCount = markerlessCount(input.evidenceRoot, input.incompleteArchives);
   const activeArchivePresent = input.shadow.sessionId !== null;

@@ -81,6 +81,12 @@ let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
+// Kill Switch/P0 are persisted safety facts. A generic FAULTED control status is not
+// itself evidence that either safety condition is active.
+let persistedKillSwitchActive = false;
+let persistedKillSwitchReason: string | null = null;
+let persistedKillSwitchActivatedAt: number | null = null;
+let persistedOpenP0Codes: readonly string[] = Object.freeze([]);
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -399,7 +405,7 @@ function initializeRuntime(): void {
     getState: () => operationalPreflight,
     getBroker: () => broker,
     getMarket: () => ({ symbol: MARKET, price: latestTicker?.trade_price ?? null, status: marketDataStatus }),
-    getControl: () => ({ killSwitchActive: control.snapshot().status === "FAULTED", openP0: control.snapshot().status === "FAULTED" }),
+    getControl: () => ({ killSwitchActive: persistedKillSwitchActive, openP0: persistedOpenP0Codes.length > 0 }),
     identity: { strategyFingerprint: PAPER_SAFETY_FINGERPRINTS.strategy, configFingerprint: PAPER_SAFETY_FINGERPRINTS.config, runtimeFingerprint: PAPER_SAFETY_FINGERPRINTS.runtime, riskPolicyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
     limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
     fingerprints: PAPER_SAFETY_FINGERPRINTS,
@@ -409,6 +415,12 @@ function initializeRuntime(): void {
     try {
       const safety = persistenceStore.loadPaperSafetySnapshot();
       if (safety) {
+        persistedKillSwitchActive = safety.killSwitch.active;
+        persistedKillSwitchReason = safety.killSwitch.reason;
+        persistedKillSwitchActivatedAt = safety.killSwitch.activatedAt;
+        persistedOpenP0Codes = Object.freeze(safety.openAlerts
+          .filter((alert) => alert.severity === "P0" && alert.status !== "RESOLVED")
+          .map((alert) => alert.reasonCode));
         const recovery = recoverPaperSafetySnapshot(safety, { sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT, fingerprints: PAPER_SAFETY_FINGERPRINTS });
         control.record("SYSTEM", `Paper safety recovery: ${recovery.reasonCodes.join(",")}`);
         if (recovery.blocked) {
@@ -437,9 +449,9 @@ function initializeRuntime(): void {
   const createSafetySnapshot = (paper: ReturnType<PaperBroker["exportState"]>) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     const snapshot = createPaperSafetySnapshot({
-      snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: control.snapshot().status === "FAULTED", activatedAt: control.snapshot().status === "FAULTED" ? Date.now() : null, reason: control.snapshot().status === "FAULTED" ? "runtime fault" : null }, approval: null,
+      snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: persistedKillSwitchActive, activatedAt: persistedKillSwitchActivatedAt, reason: persistedKillSwitchReason }, approval: null,
       fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: operationalPreflight.deployment.status === "PASS" ? "PASS" : "UNKNOWN", checkedAt: Date.now(), reasonCodes: operationalPreflight.deployment.blockers }, reconciliation: { status: operationalPreflight.reconciliation.status === "PASS" ? "PASS" : "REQUIRED", checkedAt: Date.now(), ledgerSha256: null, reasonCodes: operationalPreflight.reconciliation.blockers },
-      idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: control.snapshot().status === "FAULTED" ? [{ alertId: "runtime-fault", severity: "P0" as const, status: "OPEN" as const, reasonCode: "RUNTIME_FAULT", createdAt: Date.now() }] : [],
+      idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: persistedOpenP0Codes.map((reasonCode, index) => ({ alertId: `persisted-p0-${index + 1}`, severity: "P0" as const, status: "OPEN" as const, reasonCode, createdAt: Date.now() })),
       lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: 0, unrealizedDailyPnl: 0, consecutiveLossCount: 0, sessionPeakEquity: INITIAL_CASH, sessionDrawdown: 0 }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
     });
     return snapshot;
@@ -512,9 +524,9 @@ function initializeRuntime(): void {
     findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
       deploymentIntegrity: operationalPreflight.deployment.status === "PASS",
-      reconciliation: operationalPreflight.reconciliation.status === "PASS",
-      killSwitch: control.snapshot().status === "FAULTED",
-      openP0: control.snapshot().status === "FAULTED",
+      reconciliation: operationalPreflight.reconciliation.status === "PASS" && !safetyRecoveryBlocked,
+      killSwitch: persistedKillSwitchActive,
+      openP0: persistedOpenP0Codes.length > 0,
       automaticTrading: control.snapshot().autoTradeEnabled,
       // No Canary/Extended runtime mode is wired into this process at all yet.
       currentModeIsCanaryOrExtended: false
@@ -613,16 +625,21 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
     source: "UPBIT_PUBLIC_CLOSED_CANDLE"
   },
   safety: {
-    killSwitchActive: control.snapshot().status === "FAULTED",
-    openP0Count: control.snapshot().status === "FAULTED" ? 1 : 0,
-    reasonCode: control.snapshot().status === "FAULTED" ? "RUNTIME_FAULT" : null
+    killSwitchActive: persistedKillSwitchActive,
+    openP0Count: persistedOpenP0Codes.length,
+    reasonCode: persistedKillSwitchReason,
+    activatedAt: persistedKillSwitchActivatedAt,
+    activationSource: persistedKillSwitchActive ? "PERSISTED_PAPER_SAFETY_SNAPSHOT" : null,
+    openP0Codes: persistedOpenP0Codes
   }
 }));
 
 app.whenReady().then(() => {
   initializeRuntime();
   createWindow();
-  if (paperTradingAvailable) stream.start();
+  // Public market data is safe to observe even while Paper execution is unavailable.
+  // Execution remains fail-closed behind RuntimeCommandService and the risk gate.
+  stream.start();
   void shadowRuntime.syncOfficialCandles(officialCandleSource);
   officialCandleTimer = setInterval(() => { void shadowRuntime.syncOfficialCandles(officialCandleSource); }, 60_000);
   healthTimer = setInterval(observeHealth, 30_000);
