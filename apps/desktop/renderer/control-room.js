@@ -77,7 +77,44 @@
     MARKET_DATA_OUT_OF_ORDER: "캔들 순서 역전이 감지되었습니다",
     MARKET_DATA_CLOCK_DRIFT: "시계 오차가 허용 범위를 넘었습니다",
     MARKET_DATA_DISCONNECTED_EXHAUSTED: "재연결 시도가 모두 실패했습니다",
-    MARKET_DATA_DEGRADED: "시장 데이터 품질이 저하되었습니다"
+    MARKET_DATA_DEGRADED: "시장 데이터 품질이 저하되었습니다",
+    MARKET_DATA_RECONNECTED_REQUIRES_WARMUP: "재연결 후 예열을 다시 채우는 중입니다",
+    MARKET_RECONNECT_TIMEOUT: "재연결 제한 시간을 넘겨 세션을 종료했습니다",
+    MAX_ATTEMPTS_EXCEEDED: "재연결 시도 횟수 한도를 넘었습니다",
+    MAX_RECONNECT_TIME_EXCEEDED: "재연결 허용 시간을 넘었습니다"
+  };
+
+  /**
+   * Connection state -> what an operator should read on the screen (WO-0034-A4L).
+   * RECOVERED is shown as its own line rather than folded into "연결됨": an operator who
+   * looks up ten minutes later needs to see that something happened, not just that it is
+   * fine now.
+   */
+  const CONNECTION_LABEL = {
+    CONNECTED: "연결됨",
+    STALE: "데이터 지연",
+    DISCONNECTED: "연결 끊김",
+    RECONNECTING: "재연결 중",
+    RECOVERED: "연결 복구됨",
+    FAILED: "연결 실패"
+  };
+
+  const FRESHNESS_LABEL = {
+    FRESH: "최신",
+    STALE: "지연",
+    // Not "정상"이 아니라 "알 수 없음": 아직 판단할 근거가 없다는 뜻이다.
+    UNKNOWN: "판단 불가"
+  };
+
+  const formatClock = (value) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "(없음)";
+    return new Date(value).toLocaleTimeString("ko-KR", { hour12: false });
+  };
+
+  const formatDuration = (value) => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "(없음)";
+    const seconds = Math.floor(value / 1000);
+    return seconds < 60 ? `${seconds}초` : `${Math.floor(seconds / 60)}분 ${seconds % 60}초`;
   };
 
   const describeBlocker = (code) => BLOCKER_LABEL[code] || (code.startsWith("MARKET_DATA_UNHEALTHY:")
@@ -274,8 +311,10 @@
     history.append(element("h3", "cr-shadow__history-title", "Completion history"));
     const longRunning = element("div", "cr-shadow__long-running");
     longRunning.append(element("h3", "cr-shadow__history-title", "Long-running diagnostics"));
+    const connection = element("div", "cr-shadow__connection");
+    connection.append(element("h3", "cr-shadow__history-title", "시장 데이터 연결"));
     const shadow = element("section", "cr-shadow");
-    shadow.append(shadowHead, counters, blockers, history, longRunning);
+    shadow.append(shadowHead, counters, blockers, connection, history, longRunning);
 
     const pipelineTrack = element("div", "cr-pipeline__track");
     const pipelineNote = element("p", "cr-pipeline__note", "");
@@ -464,6 +503,8 @@
         return item;
       }));
 
+      renderConnection(diagnostics);
+
       const long = diagnostics && diagnostics.longRunning;
       if (!long) {
         longRunning.replaceChildren(element("h3", "cr-shadow__history-title", "Long-running diagnostics"));
@@ -491,6 +532,47 @@
           })
         );
       }
+    }
+
+    /**
+     * The market-feed connection panel (WO-0034-A4L).
+     *
+     * Shows the retry counter as "2/10" rather than "재연결 중": an operator watching a long
+     * observation needs to know whether the retries are progressing towards a give-up, and a
+     * bare "reconnecting" hides exactly that. Times are shown as wall-clock, since the only
+     * question being asked of them is "how long ago was that".
+     */
+    function renderConnection(diagnostics) {
+      const title = element("h3", "cr-shadow__history-title", "시장 데이터 연결");
+      const state = diagnostics && diagnostics.marketConnection;
+      if (!state) {
+        connection.replaceChildren(title, element("p", "cr-shadow__connection-empty", "연결 정보가 아직 없습니다."));
+        return;
+      }
+      const label = CONNECTION_LABEL[state.marketConnectionState] || state.marketConnectionState;
+      const headline = state.marketConnectionState === "RECONNECTING"
+        ? `${label} ${state.reconnectAttempt}/${state.reconnectAttemptLimit}`
+        : label;
+      const rows = [
+        ["상태", headline],
+        ["데이터 신선도", FRESHNESS_LABEL[diagnostics.marketFreshness] || diagnostics.marketFreshness],
+        ["마지막 수신", formatClock(state.lastMarketMessageAt)],
+        ["재시도 횟수", `${state.reconnectAttempt}/${state.reconnectAttemptLimit}`],
+        ["끊긴 시각", formatClock(state.reconnectStartedAt)],
+        ["마지막 복구", formatClock(state.lastSuccessfulReconnectAt)],
+        ["현재 중단 시간", formatDuration(state.currentDowntimeMs)],
+        ["누적 중단 시간", formatDuration(state.totalDowntimeMs)],
+        ["끊김 횟수", String(state.episodes ? state.episodes.length : 0)],
+        ["재연결 타이머", String(state.reconnectTimerCount)],
+        ["리스너 / 구독", `${state.activeMarketListenerCount} / ${state.activeMarketSubscriptionCount}`]
+      ];
+      if (state.reconnectFailureReason) rows.push(["실패 사유", describeBlocker(state.reconnectFailureReason)]);
+      if (diagnostics.marketRecoveryResumeSuggested) rows.push(["재개", "연결이 복구되어 재개할 수 있습니다"]);
+      connection.replaceChildren(title, ...rows.map(([name, value]) => {
+        const row = element("div", "cr-shadow__long-running-row");
+        row.append(element("span", "cr-shadow__long-running-label", name), element("span", "cr-shadow__long-running-value", String(value)));
+        return row;
+      }));
     }
 
     function renderNext(health) {

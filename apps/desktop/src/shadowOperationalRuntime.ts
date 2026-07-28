@@ -7,6 +7,8 @@ import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "./domainEventBus";
 import { buildShadowCompletionEvidence, type ShadowCompletionEvidence } from "./shadowCompletionEvidence";
 import { ShadowLongRunningDiagnosticsSampler, type ShadowLongRunningDiagnostics } from "./shadowLongRunningDiagnostics";
+import { DEFAULT_MARKET_RECONNECT_POLICY, evaluateMarketFreshness, type MarketConnectionDiagnostics, type MarketConnectionEpisode, type MarketFreshness } from "./marketConnectionSupervisor";
+import { buildMarketConnectionEvidence, type MarketConnectionEvidence } from "./marketConnectionEvidence";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -76,7 +78,29 @@ export interface ShadowOperationalDiagnostics {
   readonly positionMutationCount: number;
   readonly blockers: readonly string[];
   readonly lastSignal: ShadowSignalOutcome | null;
+  /**
+   * Unchanged and still literally false: no session that stopped for a SAFETY reason ever
+   * resumes itself. A4L's market-recovery resume is a separate, narrower claim carried by
+   * `marketRecoveryResumeAllowed` below, so neither field has to be read as covering the
+   * other.
+   */
   readonly automaticResumeAllowed: false;
+  /**
+   * WO-0034-A4L. True only when this runtime is configured to return a session to RUNNING
+   * after a pause caused SOLELY by the public feed dropping, and only once the full precheck
+   * passes again. An owner pause, a stale feed, a clock drift, a gap, or any halt is outside
+   * it entirely.
+   */
+  readonly marketRecoveryResumeAllowed: boolean;
+  /**
+   * A UI hint, not a guarantee: the session is paused only on market-connection blockers and
+   * the feed is back. `resume()` still re-runs the full precheck and may still refuse -- most
+   * often because the warm-up restarted when the feed did.
+   */
+  readonly marketRecoveryResumeSuggested: boolean;
+  /** Read-only connection state, retry counters, and episode log (WO-0034-A4L). */
+  readonly marketConnection: MarketConnectionDiagnostics | null;
+  readonly marketFreshness: MarketFreshness;
   readonly productionMutationAllowed: false;
   readonly strategyVersion: string;
   readonly inputType: "CLOSED_CANDLE";
@@ -161,11 +185,51 @@ export interface ShadowOperationalDependencies {
   readonly getHostTimeoutCount?: () => number;
   readonly readRendererMemoryUsage?: () => number | null;
   readonly longRunningDiagnosticsIntervalMs?: number;
+  /**
+   * WO-0034-A4L, opt-in and deliberately narrow. When true, a session PAUSED with nothing but
+   * market-DISCONNECT blockers returns to RUNNING once the feed is measurably back AND the
+   * full precheck passes again. It is left false by default so every caller that has not
+   * asked for it keeps the pre-A4L behaviour exactly.
+   *
+   * It never applies to an owner pause, a STALE feed, a clock drift, a candle gap, an
+   * out-of-order stream, or any HALTED/FAILED session. Those are conditions the runtime
+   * cannot conclude have been resolved just because a socket opened.
+   */
+  readonly autoResumeOnMarketRecovery?: boolean;
+  /** Age past which the feed is judged stale. Defaults to the shared reconnect policy's. */
+  readonly marketFreshnessToleranceMs?: number;
 }
 
 export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
 
 const ADVERSE_CANDLE_HEALTH_CODES = new Set(["GAP_DETECTED", "OUT_OF_ORDER", "DISCONNECTED"]);
+
+/**
+ * The ONLY pause reasons a market recovery may clear by itself (WO-0034-A4L).
+ *
+ * Every entry means "the public feed is not delivering right now", and a feed that is
+ * measurably delivering again is direct evidence that the condition is gone. The list is a
+ * whitelist rather than a "not obviously dangerous" filter, so a blocker added later is
+ * excluded by default instead of being swept in by a pattern nobody re-examined.
+ *
+ * MARKET_DATA_STALE is deliberately absent. A connected feed that went quiet can start
+ * delivering again without whatever silenced it being resolved, and an existing safety
+ * decision in this runtime already says healthy market data alone never resumes a session.
+ * Clock drift, candle gaps, out-of-order streams and owner pauses are absent for the same
+ * reason: a socket opening is not evidence that any of them was fixed.
+ */
+const MARKET_RECOVERABLE_PAUSE_BLOCKERS = new Set([
+  "MARKET_DATA_DISCONNECTED",
+  "MARKET_DATA_RECONNECTING",
+  "MARKET_DATA_RECONNECTED_REQUIRES_WARMUP",
+  "MARKET_DATA_WARMING_UP",
+  "MARKET_DATA_UNHEALTHY:CONNECTING",
+  "MARKET_DATA_UNHEALTHY:RECONNECTING",
+  "MARKET_DATA_UNHEALTHY:DISCONNECTED"
+]);
+
+/** The reason a session ends because the feed never came back within the retry policy. */
+export const MARKET_RECONNECT_TIMEOUT = "MARKET_RECONNECT_TIMEOUT";
 
 export class ShadowOperationalRuntime {
   private lifecycle: ShadowLifecycleStatus = "IDLE";
@@ -200,6 +264,11 @@ export class ShadowOperationalRuntime {
    */
   private readonly dispatchedCandleCloseTimes = new Set<number>();
   private readonly longRunningDiagnostics: ShadowLongRunningDiagnosticsSampler;
+  /** Latest read-only connection reading, or null if no supervisor has reported yet. */
+  private marketConnection: MarketConnectionDiagnostics | null = null;
+  /** Connection episodes belonging to the CURRENT session, keyed so a re-report cannot duplicate one. */
+  private readonly sessionConnectionEpisodes = new Map<number, MarketConnectionEpisode>();
+  private lastMarketMessageAt: number | null = null;
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
@@ -269,9 +338,23 @@ export class ShadowOperationalRuntime {
     if (!bus) return;
     const completion = buildShadowCompletionEvidence({ diagnostics: this.diagnostics(), completionReason: reason, completedAt: this.now() });
     if (completion && !this.completionHistory.some((entry) => entry.sessionId === completion.sessionId)) this.completionHistory.push(completion);
+    // Written for EVERY sealed session, including one that never dropped: "the feed held for
+    // the whole observation" is a finding, and an archive that only records outages cannot
+    // state it. Such a session seals with finalReconnectState NEVER_DISCONNECTED.
+    const marketConnection = this.buildMarketConnectionEvidence();
     this.evidenceFinalization = this.evidenceFinalization
-      .then(() => bus.finalize(reason, status, completion ?? undefined))
+      .then(() => bus.finalize(reason, status, completion ?? undefined, marketConnection))
       .catch((error) => this.onEvidenceHalt("SINK_FINALIZE_FAILED", error instanceof Error ? error.message : String(error)));
+  }
+
+  private buildMarketConnectionEvidence(): MarketConnectionEvidence | undefined {
+    const sessionId = this.pilot?.snapshot().sessionId;
+    if (sessionId === undefined) return undefined;
+    return buildMarketConnectionEvidence({
+      sessionId,
+      episodes: this.marketConnectionEpisodes(),
+      generatedAt: this.now()
+    });
   }
 
   /** Resolves once any in-flight evidence write and finalize has settled. */
@@ -332,6 +415,7 @@ export class ShadowOperationalRuntime {
     if (status === "reconnect-exhausted") {
       this.webSocketConnected = false;
       this.candleAdapter.markDisconnected(now);
+      this.candleAdapter.dropOpenCandle();
       this.setMarketDataStatus("DISCONNECTED");
       this.haltActiveSession(["MARKET_DATA_DISCONNECTED_EXHAUSTED"]);
       return;
@@ -339,6 +423,9 @@ export class ShadowOperationalRuntime {
     if (status.startsWith("reconnecting")) {
       this.webSocketConnected = false;
       this.candleAdapter.markDisconnected(now);
+      // The minute being assembled when the feed dropped is discarded rather than resumed:
+      // ticks from either side of an outage are not one minute of trading (WO-0034-A4L).
+      this.candleAdapter.dropOpenCandle();
       this.setMarketDataStatus("RECONNECTING");
       this.autoPauseIfRunning(["MARKET_DATA_RECONNECTING"]);
       return;
@@ -357,9 +444,115 @@ export class ShadowOperationalRuntime {
     }
   }
 
+  /**
+   * Structured public-feed connection state (WO-0034-A4L), forwarded from the transport.
+   *
+   * This is the state-model counterpart to `onWebSocketStatus`, which stays exactly as it
+   * was. The transport emits this FIRST, so the specific reason a session ends
+   * (MARKET_RECONNECT_TIMEOUT) is recorded before the generic status string that follows it
+   * can seal the same session under a vaguer one.
+   *
+   * It opens nothing, retries nothing and owns no timer -- the transport owns the single
+   * reconnect timer, and this runtime only reads what that supervisor measured.
+   */
+  onMarketConnectionState(diagnostics: MarketConnectionDiagnostics): void {
+    this.marketConnection = diagnostics;
+    if (diagnostics.lastMarketMessageAt !== null) this.lastMarketMessageAt = diagnostics.lastMarketMessageAt;
+    this.recordConnectionEpisodes(diagnostics.episodes);
+    switch (diagnostics.marketConnectionState) {
+      case "FAILED": {
+        this.setMarketDataStatus("DISCONNECTED");
+        const reason = diagnostics.reconnectFailureReason;
+        this.haltActiveSession(reason === null ? [MARKET_RECONNECT_TIMEOUT] : [MARKET_RECONNECT_TIMEOUT, reason]);
+        return;
+      }
+      case "DISCONNECTED":
+      case "RECONNECTING": {
+        // `reconnectStartedAt` is null until a disconnection episode opens, which is how a
+        // first connection attempt is told apart from a reconnection. Reporting the initial
+        // dial-up as RECONNECTING would show a recovery from a connection that never existed.
+        const inEpisode = diagnostics.reconnectStartedAt !== null;
+        this.setMarketDataStatus(inEpisode ? "RECONNECTING" : "CONNECTING");
+        if (inEpisode) this.autoPauseIfRunning(["MARKET_DATA_RECONNECTING"]);
+        return;
+      }
+      case "STALE":
+        this.setMarketDataStatus("STALE");
+        this.autoPauseIfRunning(["MARKET_DATA_STALE"]);
+        return;
+      default:
+        // CONNECTED and RECOVERED do NOT resume anything here. An open socket is not a
+        // delivering feed; resumption is attempted from the data path below, once real
+        // market data has actually arrived and the warm-up it reset has been rebuilt.
+        return;
+    }
+  }
+
+  /** Read-only. Null until a connection supervisor has reported (WO-0034-A4L). */
+  marketConnectionDiagnostics(): MarketConnectionDiagnostics | null {
+    return this.marketConnection;
+  }
+
+  /** Connection episodes recorded for the current session, in order. */
+  marketConnectionEpisodes(): readonly MarketConnectionEpisode[] {
+    return Object.freeze([...this.sessionConnectionEpisodes.values()].sort((left, right) => left.episodeId - right.episodeId));
+  }
+
+  private recordConnectionEpisodes(episodes: readonly MarketConnectionEpisode[]): void {
+    if (this.sessionStartedAt === undefined) return;
+    for (const episode of episodes) {
+      // An episode already open when the session began cannot exist: the start precheck
+      // blocks on MARKET_DATA_DISCONNECTED, so a session can only begin with the feed up.
+      if (episode.disconnectedAt < this.sessionStartedAt) continue;
+      this.sessionConnectionEpisodes.set(episode.episodeId, episode);
+    }
+  }
+
+  private marketFreshness(): MarketFreshness {
+    return evaluateMarketFreshness({
+      now: this.now(),
+      lastMessageAt: this.lastMarketMessageAt,
+      latestCandleCloseTime: this.lastClosedCandleTime ?? null,
+      toleranceMs: this.deps.marketFreshnessToleranceMs ?? DEFAULT_MARKET_RECONNECT_POLICY.staleAfterMs
+    });
+  }
+
+  /**
+   * Whether a resume looks available. A hint for the UI and nothing more: `resume()` re-runs
+   * the whole precheck and may still refuse.
+   */
+  private resumeSuggestedAfterMarketRecovery(): boolean {
+    if (this.lifecycle !== "PAUSED" || this.blockers.length === 0) return false;
+    if (!this.blockers.every((code) => MARKET_RECOVERABLE_PAUSE_BLOCKERS.has(code))) return false;
+    const state = this.marketConnection?.marketConnectionState;
+    return state === "CONNECTED" || state === "RECOVERED";
+  }
+
+  /**
+   * Returns a session paused solely by a feed drop to RUNNING, keeping the SAME sessionId,
+   * pilot, and evidence bus -- a reconnection is not a new observation.
+   *
+   * Called from the data path rather than from the connection callback on purpose: the
+   * question is not "did a socket open" but "is this feed delivering usable data again",
+   * and only an accepted market message answers that. The full precheck still runs, so
+   * every safety gate is re-evaluated and any non-market problem keeps the session paused.
+   */
+  private tryResumeAfterMarketRecovery(): void {
+    if (this.deps.autoResumeOnMarketRecovery !== true) return;
+    if (!this.resumeSuggestedAfterMarketRecovery()) return;
+    const blockers = this.startPrecheckBlockers();
+    if (blockers.length > 0) {
+      this.blockers = blockers;
+      return;
+    }
+    this.lifecycle = "RUNNING";
+    this.blockers = [];
+  }
+
   /** Real accepted public ticker, forwarded from main.ts's handleTicker. */
   onTicker(ticker: PublicTickerSample): void {
     const now = this.now();
+    this.lastMarketMessageAt = now;
     const drifted = Math.abs(now - ticker.trade_timestamp) > this.clockDriftToleranceMs;
     if (drifted) {
       this.setMarketDataStatus("CLOCK_DRIFT");
@@ -378,6 +571,10 @@ export class ShadowOperationalRuntime {
     // round should drive the strategy -- "gap detected 후 strategy execution 금지".
     if (adverse) return;
     for (const candle of result.emittedCandles) this.onClosedCandle(candle);
+    // Deliberately last. A resume takes effect from the NEXT candle, never the one being
+    // handled: that candle's warm-up contribution is what made the resume possible, and
+    // dispatching it in the same pass would let one arrival both satisfy the gate and clear it.
+    this.tryResumeAfterMarketRecovery();
   }
 
   /** Official closed-candle path. The legacy ticker adapter remains diagnostic only. */
@@ -389,6 +586,7 @@ export class ShadowOperationalRuntime {
         this.officialClosedCandleCount += 1;
         this.onClosedCandle({ symbol: candle.symbol, interval: candle.interval, openTime: candle.openTime, closeTime: candle.closeTime, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, volumeAvailable: true, tradeCount: 0, closed: true, sequence: candle.openTime, source: "UPBIT_PUBLIC_CANDLE" });
       }
+      this.tryResumeAfterMarketRecovery();
     } catch (error) {
       this.setMarketDataStatus(error instanceof Error && error.message.includes("missing interval") ? "GAP_DETECTED" : "STALE");
       this.autoPauseIfRunning(["OFFICIAL_CANDLE_SOURCE_UNAVAILABLE"]);
@@ -609,6 +807,8 @@ export class ShadowOperationalRuntime {
     this.outOfOrderCandleCount = 0;
     this.duplicateCandleCount = 0;
     this.staleCandleCount = 0;
+    // Per session: a previous session's outages are that session's evidence, not this one's.
+    this.sessionConnectionEpisodes.clear();
     pilot.start(now);
     this.lifecycle = "RUNNING";
     this.blockers = [];
@@ -680,6 +880,8 @@ export class ShadowOperationalRuntime {
     this.duplicateCandleCount = 0;
     this.staleCandleCount = 0;
     this.dispatchedCandleCloseTimes.clear();
+    this.sessionConnectionEpisodes.clear();
+    this.lastMarketMessageAt = null;
     this.candleAdapter = createClosedCandleAdapter({ symbol: this.deps.symbol, requiredWarmupCandles: 20 });
     this.candleAdapter.markDisconnected(this.now());
     // The next owner start must observe a fresh connection lifecycle. Keeping this true while
@@ -726,6 +928,10 @@ export class ShadowOperationalRuntime {
       positionMutationCount: session?.counters.positionMutationCount ?? 0,
       blockers: Object.freeze([...this.blockers]),
       automaticResumeAllowed: false,
+      marketRecoveryResumeAllowed: this.deps.autoResumeOnMarketRecovery === true,
+      marketRecoveryResumeSuggested: this.resumeSuggestedAfterMarketRecovery(),
+      marketConnection: this.marketConnection,
+      marketFreshness: this.marketFreshness(),
       productionMutationAllowed: false,
       strategyVersion: this.deps.strategyVersion ?? `${this.deps.strategyId}:legacy-ticker-v1`,
       inputType: "CLOSED_CANDLE",

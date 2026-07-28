@@ -4,6 +4,7 @@ import { mkdir, open, readFile, readdir, rename, rm, writeFile } from "node:fs/p
 import path from "node:path";
 import type { ShadowPilotEvent, ShadowPilotSession } from "./shadowPilotRuntime";
 import type { ShadowCompletionEvidence } from "./shadowCompletionEvidence";
+import type { MarketConnectionEvidence } from "./marketConnectionEvidence";
 
 export const SHADOW_EVIDENCE_SCHEMA_VERSION = 1 as const;
 const GENESIS = "GENESIS";
@@ -47,6 +48,12 @@ export interface ShadowEvidenceManifest {
   readonly completionReason: string;
   readonly generatedAt: number;
   readonly completionSha256?: string;
+  /**
+   * Binds market-connection.json to this manifest (WO-0034-A4L). Optional, exactly like
+   * completionSha256: an archive sealed before A4L has neither the file nor the hash, and
+   * must keep verifying rather than being retroactively declared incomplete.
+   */
+  readonly marketConnectionSha256?: string;
 }
 
 export interface ShadowEvidenceVerification {
@@ -157,12 +164,15 @@ export class ShadowEvidenceArchive {
     return envelope;
   }
 
-  async finalize(completionReason: string, generatedAt = Date.now(), status: "COMPLETED" | "ABORTED" = "COMPLETED", completion?: ShadowCompletionEvidence): Promise<ShadowEvidenceManifest> {
+  async finalize(completionReason: string, generatedAt = Date.now(), status: "COMPLETED" | "ABORTED" = "COMPLETED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<ShadowEvidenceManifest> {
     if (this.status !== "OPEN") throw new Error(`archive cannot finalize from ${this.status}`);
     this.status = "RECOVERY_REQUIRED";
     const eventsText = this.eventLines.join("") || await readFile(this.eventsPath, "utf8");
     const envelopes = parseEventLines(eventsText);
     if (completion) await atomicWrite(path.join(this.directory, "completion.json"), completion);
+    // Written beside the event log, never into it. The chain of pilot observations stays a
+    // record of what the strategy saw; the transport's own story lives in its own file.
+    if (marketConnection) await atomicWrite(path.join(this.directory, "market-connection.json"), marketConnection);
     const manifest: ShadowEvidenceManifest = Object.freeze({
       schemaVersion: 1,
       sessionId: this.metadata.sessionId,
@@ -176,7 +186,8 @@ export class ShadowEvidenceArchive {
       metadataSha256: sha256(stableJson(this.metadata)),
       completionReason,
       generatedAt,
-      ...(completion ? { completionSha256: sha256(stableJson(completion)) } : {})
+      ...(completion ? { completionSha256: sha256(stableJson(completion)) } : {}),
+      ...(marketConnection ? { marketConnectionSha256: sha256(stableJson(marketConnection)) } : {})
     });
     await atomicWrite(path.join(this.directory, "manifest.json"), manifest);
     const verification = await verifyShadowEvidenceDirectory(this.directory, generatedAt);
@@ -221,6 +232,12 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
   }
   try {
     completion = JSON.parse(await readFile(path.join(directory, "completion.json"), "utf8")) as ShadowCompletionEvidence;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") manifestInvalid = true;
+  }
+  let marketConnection: MarketConnectionEvidence | undefined;
+  try {
+    marketConnection = JSON.parse(await readFile(path.join(directory, "market-connection.json"), "utf8")) as MarketConnectionEvidence;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") manifestInvalid = true;
   }
@@ -282,8 +299,16 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
     if (manifest.completionSha256 !== undefined) {
       if (completion === undefined || sha256(stableJson(completion)) !== manifest.completionSha256 || completion.sessionId !== metadata.sessionId || completion.finalState !== "COMPLETED" || completion.safety !== "SAFE_COMPLETION") blockers.push("COMPLETION_EVIDENCE_MISMATCH");
     } else if (completion !== undefined) blockers.push("COMPLETION_EVIDENCE_UNBOUND");
-  } else if (completion !== undefined) {
-    blockers.push("COMPLETION_EVIDENCE_UNBOUND");
+    // Same rule as the completion record: a present file must be bound to the manifest, and
+    // a bound hash must match a file that is really there and really belongs to this session.
+    if (manifest.marketConnectionSha256 !== undefined) {
+      if (marketConnection === undefined || sha256(stableJson(marketConnection)) !== manifest.marketConnectionSha256 || marketConnection.sessionId !== metadata.sessionId) blockers.push("MARKET_CONNECTION_EVIDENCE_MISMATCH");
+    } else if (marketConnection !== undefined) blockers.push("MARKET_CONNECTION_EVIDENCE_UNBOUND");
+  } else {
+    // No manifest at all: any side record present is unbound by definition. Both are
+    // reported, because fixing one and silently leaving the other unbound is not a fix.
+    if (completion !== undefined) blockers.push("COMPLETION_EVIDENCE_UNBOUND");
+    if (marketConnection !== undefined) blockers.push("MARKET_CONNECTION_EVIDENCE_UNBOUND");
   }
   const files = new Set(await readdir(directory));
   const hasCompletedMarker = files.has("completed.marker");

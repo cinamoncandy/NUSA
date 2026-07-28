@@ -33,6 +33,29 @@ conservative diagnostic signal, not proof of a leak: sustained monotonic heap gr
 `MEMORY_GROWTH_SUSPECTED`; ordinary GC variation is `MEMORY_STABLE`. The complete per-session snapshots remain
 read-only diagnostics and do not alter the immutable Evidence archive.
 
+## When the public feed drops (WO-0034-A4L)
+
+The observation is expected to survive an ordinary network blip. The transport owns exactly
+one reconnect timer and retries with bounded exponential backoff (1s, 2s, 4s … capped at 30s),
+up to 10 attempts or 10 minutes within a single outage, whichever comes first. There is no
+unbounded retry: the policy validator rejects one.
+
+The session does not fail on the first drop. It moves to a safe wait, stops producing Shadow
+signals, and keeps the same session id and the same archive. When real market data is flowing
+again AND the full start precheck passes again, the session returns to RUNNING — the same
+session, not a new one. A feed that never comes back inside the policy ends the session with
+`MARKET_RECONNECT_TIMEOUT`, naming which ceiling was hit.
+
+The **시장 데이터 연결** panel is read-only and shows: 연결됨 / 데이터 지연 / 재연결 중 n/10 /
+연결 복구됨 / 연결 실패, plus the retry count, the last received time, the current and total
+downtime, and the live listener, subscription, and reconnect-timer counts.
+
+Each session seals a separate `market-connection.json` beside the event log, bound to the
+manifest by hash. It records every outage's `disconnectedAt`, `reconnectAttemptCount`,
+`recoveredAt`, `totalDowntime`, and `finalReconnectState`. A session that never dropped seals
+`NEVER_DISCONNECTED` rather than claiming a recovery it never made. Nothing already in the
+archive is rewritten.
+
 ## Stop and inspect
 
 Use the existing owner **Stop Shadow session** action. Do not kill the process. Confirm the final
@@ -87,6 +110,26 @@ pnpm desktop
 | 주문·체결·현금·포지션·브로커·Private API | **전부 0** | **하나라도 0이 아니면 즉시 중단** |
 
 **메모리 판정 기준:** 표본 3개 미만이면 `INSUFFICIENT_SAMPLES` 입니다 — "안전"이 아니라 **"아직 판단할 수 없음"** 입니다. 표본이 3개 이상 쌓이고 사용량이 **한 번도 안 줄고 계속 증가**했을 때만 `MEMORY_GROWTH_SUSPECTED` 가 됩니다. 이건 누수의 **증거가 아니라 신호**이며, 표본 전체가 보관되니 그걸 보고 판단하시면 됩니다.
+
+## 2-1) 인터넷이 잠깐 끊겼을 때
+
+**아무것도 하지 마시고 화면만 보세요.** 앱이 알아서 다시 연결합니다.
+
+**시장 데이터 연결** 칸에 이렇게 표시됩니다.
+
+| 표시 | 뜻 | 할 일 |
+| --- | --- | --- |
+| **연결됨** | 정상 | 없음 |
+| **데이터 지연** | 연결은 살아 있는데 데이터가 늦음 | 잠시 지켜보기 |
+| **재연결 중 3/10** | 3번째 재시도 중 (최대 10번) | 기다리기 |
+| **연결 복구됨** | 다시 붙었음 | 없음 |
+| **연결 실패** | 재시도를 다 썼음 | 아래 참고 |
+
+- 재시도 간격은 **1초 → 2초 → 4초 → … 최대 30초**로 점점 길어집니다. 무한 반복은 하지 않습니다.
+- 끊긴 동안에는 **관측이 잠시 멈춥니다.** 세션이 실패한 게 아니라 **대기 상태**이고, **세션 번호는 그대로**입니다.
+- 데이터가 다시 들어오고 안전 점검을 다시 통과하면 **같은 세션으로 알아서 재개**됩니다. 버튼을 누르실 필요가 없습니다.
+- 10번 또는 10분 안에 못 붙으면 세션이 **`MARKET_RECONNECT_TIMEOUT`** 으로 종료됩니다. 이건 정상 동작입니다 — 증거 폴더는 그대로 두고 알려주세요.
+- 끊긴 순간 만들어지던 1분봉은 **버립니다.** 끊기기 전 체결과 끊긴 후 체결을 한 봉에 섞으면 그건 1분간의 시장이 아니기 때문입니다.
 
 ## 3) 정상 종료
 
