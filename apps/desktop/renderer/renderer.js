@@ -96,7 +96,13 @@ byId("run-a4-diagnostics")?.addEventListener("click", async () => {
   if (button) button.disabled = true;
   if (error) error.textContent = "";
   try {
-    renderA4Diagnostics(await window.dokkaebi.getA4Diagnostics());
+    const preflightBlockers = await window.shadowPilot.preflight();
+    const diagnostics = await window.dokkaebi.getA4Diagnostics();
+    const reportedBlockers = diagnostics.startPrecheckBlockers;
+    if (preflightBlockers.length !== reportedBlockers.length || preflightBlockers.some((blocker, index) => blocker !== reportedBlockers[index])) {
+      throw new Error("shadow preflight and diagnostics disagree");
+    }
+    renderA4Diagnostics(diagnostics);
   } catch {
     if (error) error.textContent = "Diagnostics unavailable. No runtime action was attempted.";
     const verdict = byId("a4-diagnostics-verdict");

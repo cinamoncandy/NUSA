@@ -605,8 +605,11 @@ function requireCurrentShadowSession(input: unknown): void {
 }
 ipcMain.handle("shadow:start", (_event, input: unknown) => {
   parseShadowStartIpc(input);
+  const blockers = shadowRuntime.startPrecheckBlockers(false);
+  if (blockers.length > 0) throw new Error(`shadow preflight blocked: ${blockers.join(",")}`);
   return shadowRuntime.start();
 });
+ipcMain.handle("shadow:preflight", () => shadowRuntime.startPrecheckBlockers(false));
 /**
  * WO-0034-A4H. Gathers everything the comparison needs from state the main process already
  * holds. The renderer supplies none of it -- a renderer that could name the numbers being

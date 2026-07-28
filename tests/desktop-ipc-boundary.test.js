@@ -35,3 +35,9 @@ test("desktop execution requires fresh connected market data and a runtime readi
   assert.doesNotMatch(source, /\}, undefined, evidenceRecorder\)/);
   assert.match(source, /status\.startsWith\("stale"\)/);
 });
+
+test("shadow start performs the same read-only preflight before creating a session", () => {
+  const source = readFileSync("apps/desktop/src/main.ts", "utf8");
+  assert.match(source, /ipcMain\.handle\("shadow:preflight", \(\) => shadowRuntime\.startPrecheckBlockers\(false\)\)/);
+  assert.match(source, /parseShadowStartIpc\(input\);\s*const blockers = shadowRuntime\.startPrecheckBlockers\(false\);\s*if \(blockers\.length > 0\) throw new Error/);
+});

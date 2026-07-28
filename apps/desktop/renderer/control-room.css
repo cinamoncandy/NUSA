@@ -221,6 +221,7 @@
 
 .cr-next--blocked { border-color: var(--cr-amber-500); }
 .cr-next--danger { border-color: var(--cr-red-500); }
+.cr-next--success { border-color: var(--cr-green-500, #2dd4bf); }
 
 .cr-next__glyph {
   flex: none;
@@ -236,6 +237,7 @@
 
 .cr-next--blocked .cr-next__glyph { color: var(--cr-amber-300); }
 .cr-next--danger .cr-next__glyph { color: var(--cr-red-300); }
+.cr-next--success .cr-next__glyph { color: var(--cr-green-300, #5eead4); }
 
 .cr-next__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cr-next__title { font-size: var(--font-size-caption); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cr-mist-500); }

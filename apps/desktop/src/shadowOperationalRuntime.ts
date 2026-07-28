@@ -5,6 +5,7 @@ import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "./domainEventBus";
+import { buildShadowCompletionEvidence } from "./shadowCompletionEvidence";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -67,6 +68,7 @@ export interface ShadowOperationalDiagnostics {
   readonly hypotheticalOrderCount: number;
   readonly hypotheticalFillCount: number;
   readonly actualBrokerCallCount: 0;
+  readonly executionGateCallCount: 0;
   readonly actualOrderCount: number;
   readonly actualFillCount: number;
   readonly cashMutationCount: number;
@@ -210,8 +212,7 @@ export class ShadowOperationalRuntime {
    */
   private publishPendingEvents(): void {
     if (!this.evidenceBus || !this.pilot) return;
-    for (const event of this.pilot.eventLog()) {
-      if (event.sequence <= this.publishedSequence) continue;
+    for (const event of this.pilot.eventsAfter(this.publishedSequence)) {
       if (!this.evidenceBus.publish(event)) {
         // The bus refused: overflow or an already-halted bus. Either way the durable record
         // is now incomplete, so the session must not keep producing events.
@@ -241,8 +242,9 @@ export class ShadowOperationalRuntime {
   private finalizeEvidence(reason: string, status: "COMPLETED" | "ABORTED"): void {
     const bus = this.evidenceBus;
     if (!bus) return;
+    const completion = buildShadowCompletionEvidence({ diagnostics: this.diagnostics(), completionReason: reason, completedAt: this.now() });
     this.evidenceFinalization = this.evidenceFinalization
-      .then(() => bus.finalize(reason, status))
+      .then(() => bus.finalize(reason, status, completion ?? undefined))
       .catch((error) => this.onEvidenceHalt("SINK_FINALIZE_FAILED", error instanceof Error ? error.message : String(error)));
   }
 
@@ -647,6 +649,7 @@ export class ShadowOperationalRuntime {
       hypotheticalOrderCount: session?.counters.hypotheticalOrderCount ?? 0,
       hypotheticalFillCount: session?.counters.hypotheticalFillCount ?? 0,
       actualBrokerCallCount: 0,
+      executionGateCallCount: 0,
       actualOrderCount: session?.counters.actualOrderCount ?? 0,
       actualFillCount: session?.counters.actualFillCount ?? 0,
       cashMutationCount: session?.counters.cashMutationCount ?? 0,
