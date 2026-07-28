@@ -5,6 +5,7 @@ import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
 import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
+import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -39,6 +40,7 @@ export interface DokkaebiApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
   getSnapshot(): Promise<PaperAccountSnapshot | null>;
   getPreflight(): Promise<OperationalPreflightState>;
+  getA4Diagnostics(): Promise<A4RuntimeDiagnostics>;
   getControlSnapshot(): Promise<ControlSnapshot>;
   startStrategy(): Promise<ControlSnapshot>;
   stopStrategy(): Promise<ControlSnapshot>;
@@ -70,6 +72,7 @@ const api: DokkaebiApi = {
   placeOrder: (side, quantity) => invokeMutation("paper:order", { side, quantity }),
   getSnapshot: () => invokeReadWithRecovery("paper:snapshot"),
   getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
+  getA4Diagnostics: () => invokeReadWithRecovery<A4RuntimeDiagnostics>("diagnostics:a4"),
   getControlSnapshot: () => invokeReadWithRecovery("control:snapshot"),
   startStrategy: () => invokeMutation("control:start"),
   stopStrategy: () => invokeMutation("control:stop"),

@@ -39,6 +39,7 @@ import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
+import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -91,6 +92,9 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
 let control: ControlPlane;
 let runtime: RuntimeCommandService;
 let shadowRuntime: ShadowOperationalRuntime;
+let diagnosticsEvidenceRoot = "";
+let shadowIncompleteEvidence: readonly string[] = [];
+let shadowEvidenceScanBlocked = false;
 let evidenceRecorder: PaperScenarioEvidenceRecorder | undefined;
 let runtimeEvidenceState: PaperRuntimeEvidenceState;
 let liveMarketRegimeObserver: LiveMarketRegimeObserver;
@@ -326,11 +330,12 @@ function initializeRuntime(): void {
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   const shadowEvidenceRoot = path.join(app.getPath("userData"), "shadow-evidence");
+  diagnosticsEvidenceRoot = shadowEvidenceRoot;
   // Scanned once, here, and never again. The question it answers is "did a previous process
   // leave an archive unsealed", and only the state at startup can answer it. Re-scanning later
   // would sweep up this process's own open archive and block the session writing it.
-  let shadowIncompleteEvidence: readonly string[] = [];
-  let shadowEvidenceScanBlocked = false;
+  shadowIncompleteEvidence = [];
+  shadowEvidenceScanBlocked = false;
   try {
     shadowIncompleteEvidence = findIncompleteShadowArchivesSync(shadowEvidenceRoot);
   } catch {
@@ -594,6 +599,14 @@ ipcMain.handle("shadow:status", (_event, input: unknown) => {
   parseShadowStatusIpc(input);
   return shadowRuntime.diagnostics();
 });
+ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
+  preflight: operationalPreflight,
+  shadow: shadowRuntime.diagnostics(),
+  evidenceRoot: diagnosticsEvidenceRoot,
+  incompleteArchives: shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
+  evidenceBus: shadowRuntime.evidenceDiagnostics(),
+  mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 }
+}));
 
 app.whenReady().then(() => {
   initializeRuntime();
