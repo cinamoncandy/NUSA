@@ -605,7 +605,18 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   evidenceRoot: diagnosticsEvidenceRoot,
   incompleteArchives: shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
   evidenceBus: shadowRuntime.evidenceDiagnostics(),
-  mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 }
+  mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 },
+  startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
+  market: {
+    connected: websocketConnected,
+    lastHeartbeatAt: latestTicker?.trade_timestamp ?? null,
+    source: "UPBIT_PUBLIC_CLOSED_CANDLE"
+  },
+  safety: {
+    killSwitchActive: control.snapshot().status === "FAULTED",
+    openP0Count: control.snapshot().status === "FAULTED" ? 1 : 0,
+    reasonCode: control.snapshot().status === "FAULTED" ? "RUNTIME_FAULT" : null
+  }
 }));
 
 app.whenReady().then(() => {
