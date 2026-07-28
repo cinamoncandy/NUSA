@@ -40,6 +40,8 @@ import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
+import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
+import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -112,6 +114,13 @@ let healthTimer: NodeJS.Timeout | undefined;
 let officialCandleTimer: NodeJS.Timeout | undefined;
 const officialCandleSource = new UpbitMinuteCandleSource(MARKET);
 const recoveryLedger = new RecoveryLedger();
+/**
+ * WO-0034-A4H. Held in memory for the life of the process: an owner approval that survived a
+ * restart would be an approval of state nobody re-checked after the restart.
+ */
+const recoveryReview = new RecoveryReviewState();
+/** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
+let recoveryRecordId: string | null = null;
 
 function recordRecovery(component: RecoveryComponent, status: RecoveryHealth, message: string): void {
   recoveryLedger.record({ id: `${component}:${Date.now()}:${recoveryLedger.list().length}`, timestamp: Date.now(), component, status, message });
@@ -423,6 +432,9 @@ function initializeRuntime(): void {
           .map((alert) => alert.reasonCode));
         const recovery = recoverPaperSafetySnapshot(safety, { sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT, fingerprints: PAPER_SAFETY_FINGERPRINTS });
         control.record("SYSTEM", `Paper safety recovery: ${recovery.reasonCodes.join(",")}`);
+        // WO-0034-A4H: identifies the recovery the reconciliation and owner review are about.
+        // The snapshot's own id, so an approval can never be carried to a different recovery.
+        recoveryRecordId = safety.snapshotId;
         if (recovery.blocked) {
           safetyRecoveryBlocked = true;
           control.fault("Paper safety recovery is blocked pending reconciliation and owner review");
@@ -598,6 +610,74 @@ ipcMain.handle("shadow:start", (_event, input: unknown) => {
   return shadowRuntime.start();
 });
 ipcMain.handle("shadow:preflight", () => shadowRuntime.startPrecheckBlockers(false));
+/**
+ * WO-0034-A4H. Gathers everything the comparison needs from state the main process already
+ * holds. The renderer supplies none of it -- a renderer that could name the numbers being
+ * compared could make them agree.
+ */
+function buildRecoveryComparison(): ReturnType<typeof compareRecoveryState> {
+  return compareRecoveryState({
+    recoveryRecordId,
+    persistedSnapshotPresent: recoveryRecordId !== null,
+    persistenceHealthy: persistenceStore !== undefined && paperTradingAvailable,
+    broker: broker ?? null,
+    initialCash: INITIAL_CASH,
+    markPrice: latestTicker?.trade_price ?? null,
+    killSwitchActive: persistedKillSwitchActive,
+    openP0Codes: persistedOpenP0Codes,
+    markerlessEvidence: shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
+    // No authenticated-endpoint or credential path is composed into this process. Reported
+    // as measured state, not as a claim that no such path could ever exist.
+    authenticatedEndpointCapabilityPresent: false,
+    credentialStorageCapabilityPresent: false,
+    mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 },
+    checkedAt: Date.now()
+  });
+}
+
+ipcMain.handle("recovery:status", (_event, input: unknown) => {
+  parseRecoveryStatusIpc(input);
+  return recoveryReview.status();
+});
+
+/** Read-only. Runs the comparison and records it; it cannot approve or clear anything. */
+ipcMain.handle("recovery:reconcile", (_event, input: unknown) => {
+  parseRecoveryReconcileIpc(input);
+  const comparison = buildRecoveryComparison();
+  recoveryReview.recordComparison(comparison);
+  control.record("SYSTEM", `Recovery reconciliation: ${comparison.outcome}${comparison.mismatchCodes.length > 0 ? ` (${comparison.mismatchCodes.join(",")})` : ""}${comparison.errorCodes.length > 0 ? ` (${comparison.errorCodes.join(",")})` : ""}`);
+  return recoveryReview.status();
+});
+
+/**
+ * Records the owner's decision. Refuses unless a comparison has actually been run and
+ * MATCHED -- the renderer cannot approve a comparison that never happened, and re-running
+ * the comparison here rather than reusing a stale one would defeat the fingerprint binding.
+ */
+ipcMain.handle("recovery:owner-review", (_event, input: unknown) => {
+  parseRecoveryOwnerReviewIpc(input);
+  const comparison = recoveryReview.latestComparison();
+  if (comparison === null) throw new Error("recovery reconciliation has not been run");
+  const result = approveRecoveryReview({ comparison, explicitOwnerAction: true, reviewedAt: Date.now() });
+  if (!result.approved || result.approval === null) throw new Error(`owner review refused: ${result.refusal}`);
+  recoveryReview.recordApproval(result.approval);
+  control.record("SYSTEM", `Recovery owner review approved by ${result.approval.reviewer} for record ${result.approval.recoveryRecordId}`);
+  return recoveryReview.status();
+});
+
+ipcMain.handle("recovery:complete", (_event, input: unknown) => {
+  parseRecoveryCompleteIpc(input);
+  const comparison = recoveryReview.latestComparison();
+  if (comparison === null) throw new Error("recovery reconciliation has not been run");
+  const result = completeRecovery({ comparison, approval: recoveryReview.latestApproval(), completedAt: Date.now() });
+  control.record("SYSTEM", `${result.auditEvent.kind}: ${result.auditEvent.detail}`);
+  if (result.refusal !== null) throw new Error(`recovery completion refused: ${result.refusal}`);
+  recoveryReview.markCompleted();
+  // The record is marked COMPLETED, never removed: what was recovered and who approved it is
+  // the audit trail, and deleting it would destroy the only account of this decision.
+  return recoveryReview.status();
+});
+
 ipcMain.handle("shadow:pause", (_event, input: unknown) => {
   requireCurrentShadowSession(input);
   return shadowRuntime.pause();
