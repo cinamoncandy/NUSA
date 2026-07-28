@@ -239,6 +239,12 @@
 .cr-next--danger .cr-next__glyph { color: var(--cr-red-300); }
 .cr-next--success .cr-next__glyph { color: var(--cr-green-300, #5eead4); }
 
+.cr-shadow__history { display: grid; gap: 0.4rem; margin-top: 0.75rem; }
+.cr-shadow__history-title { margin: 0; font-size: 0.75rem; font-weight: 600; color: var(--cr-muted, #64748b); }
+.cr-shadow__history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.5rem; padding: 0.5rem 0; border-top: 1px solid var(--cr-border, #e2e8f0); font-size: 0.75rem; }
+.cr-shadow__history-session { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-shadow__history-reason, .cr-shadow__history-safety { color: var(--cr-muted, #64748b); }
+
 .cr-next__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cr-next__title { font-size: var(--font-size-caption); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cr-mist-500); }
 .cr-next__text { font-size: var(--font-size-body-sm); color: var(--cr-text-0); margin: 0; }

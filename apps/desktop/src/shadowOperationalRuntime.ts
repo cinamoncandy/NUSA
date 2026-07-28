@@ -5,7 +5,7 @@ import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "./domainEventBus";
-import { buildShadowCompletionEvidence } from "./shadowCompletionEvidence";
+import { buildShadowCompletionEvidence, type ShadowCompletionEvidence } from "./shadowCompletionEvidence";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -82,6 +82,8 @@ export interface ShadowOperationalDiagnostics {
   readonly interval: "1m";
   readonly sourceType: "UPBIT_PUBLIC_CANDLE";
   readonly strategyFingerprint: string;
+  /** Completed sessions remain visible as history; this is never used as current-session state. */
+  readonly completionHistory: readonly ShadowCompletionEvidence[];
 }
 
 /** What the running system currently knows about safety preconditions. Read fresh on every precheck/resume. */
@@ -153,7 +155,7 @@ const ADVERSE_CANDLE_HEALTH_CODES = new Set(["GAP_DETECTED", "OUT_OF_ORDER", "DI
 
 export class ShadowOperationalRuntime {
   private lifecycle: ShadowLifecycleStatus = "IDLE";
-  private readonly candleAdapter: ClosedCandleAdapter;
+  private candleAdapter: ClosedCandleAdapter;
   private marketDataStatus: ShadowMarketDataStatus = "CONNECTING";
   private webSocketConnected = false;
   private pilot?: ShadowPilotRuntime;
@@ -169,6 +171,7 @@ export class ShadowOperationalRuntime {
   /** Highest pilot sequence handed to the bus; the runtime half of exactly-once. */
   private publishedSequence = 0;
   private evidenceFinalization: Promise<void> = Promise.resolve();
+  private readonly completionHistory: ShadowCompletionEvidence[] = [];
   private evidenceRecovery: ShadowEvidenceRecoveryState = "NONE";
   private sessionStartedAt?: number;
   /** Close time of the last candle Shadow accepted; the basis of the ordering check. */
@@ -243,6 +246,7 @@ export class ShadowOperationalRuntime {
     const bus = this.evidenceBus;
     if (!bus) return;
     const completion = buildShadowCompletionEvidence({ diagnostics: this.diagnostics(), completionReason: reason, completedAt: this.now() });
+    if (completion && !this.completionHistory.some((entry) => entry.sessionId === completion.sessionId)) this.completionHistory.push(completion);
     this.evidenceFinalization = this.evidenceFinalization
       .then(() => bus.finalize(reason, status, completion ?? undefined))
       .catch((error) => this.onEvidenceHalt("SINK_FINALIZE_FAILED", error instanceof Error ? error.message : String(error)));
@@ -622,6 +626,46 @@ export class ShadowOperationalRuntime {
     return this.diagnostics();
   }
 
+  /**
+   * Explicitly releases a completed session before a later owner start. This is deliberately
+   * narrower than a restart/recovery operation: halted, failed, or invalidated sessions cannot
+   * be cleared here, and every completion must be flushed before its bus and pilot references
+   * are released. A new candle adapter also prevents a prior session's high-water mark,
+   * duplicate set, or warm-up counters from crossing the session boundary.
+   */
+  async prepareForNextSession(): Promise<ShadowOperationalDiagnostics> {
+    if (this.lifecycle !== "COMPLETED") {
+      throw new Error(`next shadow session requires COMPLETED, currently ${this.lifecycle}`);
+    }
+    await this.awaitEvidenceFinalized();
+    this.pilot = undefined;
+    this.evidenceBus = undefined;
+    this.evidenceFinalization = Promise.resolve();
+    this.evidenceRecovery = "NONE";
+    this.sessionStartedAt = undefined;
+    this.lastClosedCandleTime = undefined;
+    this.lastSignalTime = undefined;
+    this.lastSignal = undefined;
+    this.lastAdmittedCandleCloseTime = undefined;
+    this.lastOfficialCandleTime = undefined;
+    this.officialClosedCandleCount = 0;
+    this.publishedSequence = 0;
+    this.outOfOrderCandleCount = 0;
+    this.duplicateCandleCount = 0;
+    this.staleCandleCount = 0;
+    this.dispatchedCandleCloseTimes.clear();
+    this.candleAdapter = createClosedCandleAdapter({ symbol: this.deps.symbol, requiredWarmupCandles: 20 });
+    this.candleAdapter.markDisconnected(this.now());
+    // The next owner start must observe a fresh connection lifecycle. Keeping this true while
+    // the adapter is reset would make the next "connected" callback skip markReconnected and
+    // leave the adapter permanently disconnected.
+    this.webSocketConnected = false;
+    this.marketDataStatus = "DISCONNECTED";
+    this.lifecycle = "IDLE";
+    this.blockers = [];
+    return this.diagnostics();
+  }
+
   diagnostics(): ShadowOperationalDiagnostics {
     this.reflectEvidenceHalt();
     const session: ShadowPilotSession | undefined = this.pilot?.snapshot();
@@ -661,7 +705,8 @@ export class ShadowOperationalRuntime {
       inputType: "CLOSED_CANDLE",
       interval: "1m",
       sourceType: "UPBIT_PUBLIC_CANDLE",
-      strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy
+      strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy,
+      completionHistory: Object.freeze([...this.completionHistory])
     });
   }
 

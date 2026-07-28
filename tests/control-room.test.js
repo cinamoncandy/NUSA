@@ -220,6 +220,21 @@ test("actual-mutation counters are shown and read zero for a Shadow session", as
   assert.doesNotMatch(classesOf(root), /cr-counter--nonzero/);
 });
 
+test("completed-session history is shown separately from the current session", async () => {
+  const history = [
+    { sessionId: "shadow-1", completionReason: "MAX_SESSION_DURATION_REACHED", safety: "SAFE_COMPLETION" },
+    { sessionId: "shadow-2", completionReason: "OWNER_STOPPED", safety: "SAFE_COMPLETION" }
+  ];
+  const { panel, root } = mount({ diagnostics: { completionHistory: history } });
+  await panel.refresh();
+  const text = textOf(root);
+  assert.match(text, /Completion history/);
+  assert.match(text, /shadow-1/);
+  assert.match(text, /shadow-2/);
+  assert.match(text, /MAX_SESSION_DURATION_REACHED/);
+  assert.match(text, /OWNER_STOPPED/);
+});
+
 test("a non-zero actual mutation is styled as a violation, not as normal", async () => {
   const { panel, root } = mount({ diagnostics: { actualOrderCount: 1 } });
   await panel.refresh();
