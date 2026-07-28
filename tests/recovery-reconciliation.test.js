@@ -360,3 +360,52 @@ test("20b: main.ts derives the comparison from its own state, never from the ren
   assert.match(approveHandler[0], /has not been run/);
   assert.match(approveHandler[0], /explicitOwnerAction: true/);
 });
+
+// ------------------------------------------------ owner review UI contract (A4H)
+
+const rendererSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "renderer", "renderer.js"), "utf8");
+const indexHtml = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "renderer", "index.html"), "utf8");
+
+test("UI: both owner controls start disabled in the markup", () => {
+  const panel = indexHtml.match(/<section id="recovery-review"[\s\S]*?<\/section>/);
+  assert.ok(panel, "the recovery review panel must exist");
+  assert.match(panel[0], /id="approve-recovery-review"[^>]*\bdisabled\b/);
+  assert.match(panel[0], /id="complete-recovery"[^>]*\bdisabled\b/);
+  // A page that failed to load its script must not present an enabled approve button.
+});
+
+test("UI: the approve control is gated on the main process's own verdict", () => {
+  const render = rendererSource.match(/function renderRecoveryReview\(status\)[\s\S]*?\n\}/);
+  assert.ok(render, "renderRecoveryReview must exist");
+  // Enabled from `approvalAllowed` alone. Re-deriving "looks matched to me" in the renderer
+  // would put a second, weaker opinion beside the authoritative one.
+  assert.match(render[0], /approve\.disabled = !status\.approvalAllowed/);
+  // Exactly one assignment, so no later line can quietly re-enable it on the renderer's own
+  // reading of the state.
+  assert.equal((render[0].match(/approve\.disabled\s*=/g) ?? []).length, 1);
+  assert.equal((render[0].match(/complete\.disabled\s*=/g) ?? []).length, 1);
+  // Completion additionally requires a recorded approval; MATCHED alone must not enable it.
+  assert.match(render[0], /complete\.disabled = !\(status\.ownerApproved && status\.reconciliation === "MATCHED"\)/);
+});
+
+test("UI: a finished request restores controls from status, never blanket-enables them", () => {
+  const wire = rendererSource.match(/const wireRecoveryButton = [\s\S]*?\n\};/);
+  assert.ok(wire, "wireRecoveryButton must exist");
+  assert.match(wire[0], /finally \{\s*restoreRecoveryControls\(\);\s*\}/);
+  // The regression a real browser caught: `finally { button.disabled = false; }` handed back
+  // a complete button after the gate had already cleared.
+  assert.equal(/finally \{[\s\S]*?button\.disabled = false/.test(wire[0]), false, "controls must not be blanket re-enabled");
+
+  const restore = rendererSource.match(/const restoreRecoveryControls = \(\) => \{[\s\S]*?\n\};/);
+  assert.ok(restore, "restoreRecoveryControls must exist");
+  assert.match(restore[0], /renderRecoveryReview\(lastRecoveryStatus\)/);
+});
+
+test("UI: the panel renders no HTML string and no inline style", () => {
+  const panelCode = rendererSource.match(/function renderRecoveryReview[\s\S]*?wireRecoveryButton\("complete-recovery"[^\n]*\n/);
+  assert.ok(panelCode, "the recovery panel block must exist");
+  assert.equal(/\.innerHTML\s*=/.test(panelCode[0]), false, "strict CSP forbids innerHTML");
+  assert.equal(/\.style\./.test(panelCode[0]), false, "strict CSP forbids inline style writes");
+  // The full digest is never shown: it identifies the comparison and adds nothing actionable.
+  assert.match(panelCode[0], /fingerprint\.slice\(0, 12\)/);
+});

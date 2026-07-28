@@ -65,6 +65,9 @@ footer { padding: var(--space-24); color: hsl(var(--color-text-muted)); font-siz
 .a4-verdict.blocked { color: hsl(var(--color-danger)); }
 .a4-verdict.neutral { color: hsl(var(--color-text-muted)); }
 .a4-diagnostics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); }
+/* WO-0034-A4H: states what the approve control does and does not do, so a reader is not
+   left to infer it from the button being enabled. */
+.a4-note { margin: var(--space-8) 0 0; color: hsl(var(--color-text-muted)); font-size: var(--font-size-sm, 0.875rem); }
 .a4-diagnostics-grid > section { min-width: 0; padding: var(--space-16); border: 1px solid hsl(var(--color-border)); border-radius: var(--radius-md); background: hsl(var(--color-surface-raised)); }
 .a4-diagnostics-grid h3 { margin: 0 0 var(--space-8); font-size: var(--font-size-body-sm); }
 .a4-diagnostics-grid dl div { padding-block: var(--space-4); font-size: var(--font-size-caption); }

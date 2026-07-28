@@ -37,6 +37,25 @@
       <div id="a4-diagnostics-grid" class="a4-diagnostics-grid" hidden></div>
       <p id="a4-diagnostics-error" class="error" role="alert" aria-live="assertive"></p>
     </section>
+    <!--
+      Recovery reconciliation and owner review (WO-0034-A4H). The approve control starts
+      disabled and is enabled only when the main process reports approvalAllowed, which is
+      true only for a MATCHED comparison. The renderer never decides this for itself.
+    -->
+    <section id="recovery-review" class="card a4-diagnostics" aria-labelledby="recovery-review-title">
+      <div class="section-title">
+        <div><p class="eyebrow">복구 정산</p><h2 id="recovery-review-title">정산 확인 및 소유자 검토</h2></div>
+        <button id="run-recovery-reconcile" class="secondary" type="button">정산 대조 실행</button>
+      </div>
+      <p id="recovery-review-verdict" class="a4-verdict neutral" role="status" aria-live="polite">아직 대조하지 않았습니다.</p>
+      <div id="recovery-review-grid" class="a4-diagnostics-grid" hidden></div>
+      <div class="section-title">
+        <button id="approve-recovery-review" class="secondary" type="button" disabled>소유자 검토 승인</button>
+        <button id="complete-recovery" class="secondary" type="button" disabled>복구 완료 처리</button>
+      </div>
+      <p id="recovery-review-note" class="a4-note">승인 버튼은 대조 결과가 일치(MATCHED)일 때만 활성화됩니다. 승인해도 복구는 자동으로 완료되지 않습니다.</p>
+      <p id="recovery-review-error" class="error" role="alert" aria-live="assertive"></p>
+    </section>
     <section class="hero card">
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
