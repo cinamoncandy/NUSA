@@ -547,6 +547,11 @@ function initializeRuntime(): void {
     // read-only topology facts for A4K diagnostics; they do not create or manage listeners.
     getMarketListenerCount: () => stream ? 1 : 0,
     getMarketSubscriptionCount: () => stream ? 1 : 0,
+    // The real timers this process owns while an observation runs. Counted from the handles
+    // themselves, so the number falls to zero when shutdown actually clears them rather than
+    // when someone remembers to update a constant.
+    getHostIntervalCount: () => (healthTimer ? 1 : 0) + (officialCandleTimer ? 1 : 0),
+    getHostTimeoutCount: () => 0,
     longRunningDiagnosticsIntervalMs: 60_000
   });
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;

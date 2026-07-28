@@ -1,4 +1,10 @@
-export type ShadowLongRunningHealth = "STABLE" | "CHECK_REQUIRED" | "UNSTABLE";
+/**
+ * MEMORY_STABLE and MEMORY_GROWTH_SUSPECTED are the two verdicts A4K asks for.
+ * INSUFFICIENT_SAMPLES is kept beside them deliberately: with fewer than three samples there
+ * is nothing to draw a trend from, and calling that "stable" would be an optimistic claim
+ * made from no evidence. It is never treated as a pass.
+ */
+export type ShadowLongRunningHealth = "MEMORY_STABLE" | "MEMORY_GROWTH_SUSPECTED" | "INSUFFICIENT_SAMPLES";
 
 export interface ShadowLongRunningMemoryUsage {
   readonly rss: number;
@@ -18,6 +24,13 @@ export interface ShadowLongRunningSourceSnapshot {
   readonly evidenceCount: number;
   readonly marketListenerCount: number;
   readonly marketSubscriptionCount: number;
+  /**
+   * Timers the host process owns, excluding this sampler's own. Supplied by the caller
+   * because a sampler can only see its own handle; reporting 0 for everything else would be
+   * a count that looks measured and is not.
+   */
+  readonly hostIntervalCount: number;
+  readonly hostTimeoutCount: number;
   readonly lastEventAt: number | null;
   readonly lastEvidenceAt: number | null;
   readonly actualOrderCount: number;
@@ -134,8 +147,11 @@ export class ShadowLongRunningDiagnosticsSampler {
     if (!sessionId || this.interval !== undefined) throw new Error("long-running diagnostics already active");
     this.sessionId = sessionId;
     this.snapshots = [];
-    this.capture();
+    // The timer is scheduled BEFORE the first sample so that sample counts the observation as
+    // it will actually run. Capturing first recorded a timer count one lower than every
+    // later sample, which reads as a drift that never happened.
     if (this.intervalMs > 0) this.interval = this.schedule(() => this.capture(), this.intervalMs);
+    this.capture();
   }
 
   stop(): void {
@@ -163,9 +179,9 @@ export class ShadowLongRunningDiagnosticsSampler {
       timestamp: this.now(),
       memoryUsage,
       rendererMemoryUsage: this.currentRendererMemory,
-      activeIntervalCount: this.interval === undefined ? 0 : 1,
-      activeTimeoutCount: 0,
-      timerCount: this.interval === undefined ? 0 : 1,
+      activeIntervalCount: safeCount(source.hostIntervalCount) + (this.interval === undefined ? 0 : 1),
+      activeTimeoutCount: safeCount(source.hostTimeoutCount),
+      timerCount: safeCount(source.hostIntervalCount) + safeCount(source.hostTimeoutCount) + (this.interval === undefined ? 0 : 1),
       listenerCount: safeCount(source.marketListenerCount),
       runtimeState: source.sessionState
     });
@@ -183,8 +199,8 @@ export class ShadowLongRunningDiagnosticsSampler {
       elapsedTime: source.elapsedTime,
       signalCount: source.signalCount,
       evidenceCount: source.evidenceCount,
-      activeIntervalCount: this.interval === undefined ? 0 : 1,
-      activeTimeoutCount: 0,
+      activeIntervalCount: safeCount(source.hostIntervalCount) + (this.interval === undefined ? 0 : 1),
+      activeTimeoutCount: safeCount(source.hostTimeoutCount),
       marketListenerCount: source.marketListenerCount,
       marketSubscriptionCount: source.marketSubscriptionCount,
       processMemoryUsage: memory,
@@ -203,9 +219,9 @@ export class ShadowLongRunningDiagnosticsSampler {
   }
 
   private memoryHealth(): ShadowLongRunningHealth {
-    if (this.snapshots.length < 3) return "CHECK_REQUIRED";
+    if (this.snapshots.length < 3) return "INSUFFICIENT_SAMPLES";
     const heaps = this.snapshots.map((snapshot) => snapshot.memoryUsage.heapUsed);
     const strictlyIncreasing = heaps.every((value, index) => index === 0 || value > heaps[index - 1]!);
-    return strictlyIncreasing ? "UNSTABLE" : "STABLE";
+    return strictlyIncreasing ? "MEMORY_GROWTH_SUSPECTED" : "MEMORY_STABLE";
   }
 }

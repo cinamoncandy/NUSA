@@ -22,15 +22,15 @@ The Shadow panel's **Long-running diagnostics** section is read-only. Check it p
 
 - session id and state remain unchanged;
 - elapsed time advances;
-- memory health is `CHECK_REQUIRED` until three samples exist, then `STABLE` unless heap usage
+- memory health is `INSUFFICIENT_SAMPLES` until three samples exist, then `MEMORY_STABLE` unless heap usage
   is strictly increasing in every sample;
-- active interval count remains one while running and listeners/subscriptions remain one;
+- active interval and timeout counts stay flat while running, and listeners/subscriptions remain one;
 - Evidence and signal counts advance without duplicate subscriptions;
 - actual orders, fills, cash/position mutations, broker calls, and private API calls remain zero.
 
 The sampler captures one immediate snapshot and then one every minute. Its memory heuristic is a
 conservative diagnostic signal, not proof of a leak: sustained monotonic heap growth is
-`UNSTABLE`; ordinary GC variation is `STABLE`. The complete per-session snapshots remain
+`MEMORY_GROWTH_SUSPECTED`; ordinary GC variation is `MEMORY_STABLE`. The complete per-session snapshots remain
 read-only diagnostics and do not alter the immutable Evidence archive.
 
 ## Stop and inspect
@@ -44,3 +44,85 @@ API, credential, or mutation failure is a HALT and must remain visible for recov
 If the session is not `COMPLETED`, preserve the archive and collect the Electron main-process
 logs, the final read-only diagnostics response, and the Evidence `verification.json`. Never
 delete an incomplete archive or reset a safety blocker to continue.
+
+---
+
+# 30분 실관측 절차 (한국어)
+
+이 절차는 **사용자 PC에서 직접** 수행합니다. 자동으로 실행되지 않으며, 자동 실행해서도 안 됩니다.
+
+## 시작 전
+
+```powershell
+git pull --ff-only
+node --version          # v24 이상이어야 함
+pnpm run build
+```
+
+## 1) 관측 시작
+
+```powershell
+pnpm desktop
+```
+
+1. 안전진단 칸에서 **Run read-only check** 를 누릅니다
+2. **`READY_FOR_OBSERVATION`** 이 나올 때까지 기다립니다
+   - 시장 데이터가 준비 중(워밍업)이면 **기다렸다 다시** 누르세요. 우회하지 마십시오
+   - 다른 판정이 나오면 **여기서 멈추고** 화면에 나온 코드를 알려주세요
+3. Shadow **시작** 버튼을 누릅니다
+4. **30분간 앱을 켜둡니다**
+
+## 2) 관측 중 (10분마다 한 번씩 확인)
+
+**장시간 진단** 칸에서 다음을 봅니다.
+
+| 항목 | 정상 | 이상 |
+| --- | --- | --- |
+| 세션 번호 | 안 바뀜 | 바뀌면 세션이 재시작된 것 |
+| 경과 시간 | 계속 증가 | 멈추면 이상 |
+| 메모리 판정 | `MEMORY_STABLE` | **`MEMORY_GROWTH_SUSPECTED`** |
+| 타이머 수 | 계속 같은 값 | 계속 늘어나면 누수 |
+| 리스너·구독 수 | 계속 같은 값 | 계속 늘어나면 누수 |
+| 신호·증거 수 | 늘거나 유지 | 줄어들면 이상 |
+| 주문·체결·현금·포지션·브로커·Private API | **전부 0** | **하나라도 0이 아니면 즉시 중단** |
+
+**메모리 판정 기준:** 표본 3개 미만이면 `INSUFFICIENT_SAMPLES` 입니다 — "안전"이 아니라 **"아직 판단할 수 없음"** 입니다. 표본이 3개 이상 쌓이고 사용량이 **한 번도 안 줄고 계속 증가**했을 때만 `MEMORY_GROWTH_SUSPECTED` 가 됩니다. 이건 누수의 **증거가 아니라 신호**이며, 표본 전체가 보관되니 그걸 보고 판단하시면 됩니다.
+
+## 3) 정상 종료
+
+1. 30분이 지나면 Shadow **정지** 버튼을 누릅니다
+   - **작업 관리자로 강제 종료하지 마십시오**
+2. 상태가 **`COMPLETED`** 인지 확인합니다
+3. 타이머·리스너 수가 **0으로 떨어지는지** 확인합니다
+4. 안전 카운터가 **여전히 전부 0** 인지 확인합니다
+
+## 4) 종료 후 확인
+
+증거 폴더(`<앱 데이터 폴더>/shadow-evidence/<세션번호>/`)에서:
+
+- `completed.marker` 가 있어야 합니다
+- `verification.json` 의 `status` 가 `PASS` 여야 합니다
+
+## 5) 문제가 생겼을 때
+
+**증거 폴더를 지우지 마십시오.** 안전장치를 풀어서 계속 진행하지도 마십시오.
+
+아래를 그대로 복사해 알려주시면 됩니다. **폴더 경로와 API 키는 넣지 마세요.**
+
+```
+- 최종 상태:
+- 메모리 판정:
+- 표본 개수:
+- 타이머 / 리스너 / 구독 수 (시작 / 중간 / 종료):
+- 주문·체결·현금·포지션·브로커·Private API 카운터:
+- completed.marker 유무:
+- verification.json 의 status:
+```
+
+## 절대 하면 안 되는 것
+
+- ❌ 실거래 기능을 켜는 것
+- ❌ API 키·시크릿을 넣는 것
+- ❌ 강제 종료
+- ❌ 증거 폴더 삭제
+- ❌ 안전 판정이 나쁜데 무시하고 계속 진행

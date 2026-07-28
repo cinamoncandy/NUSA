@@ -152,6 +152,13 @@ export interface ShadowOperationalDependencies {
   /** Read-only topology facts used by the long-running sampler. */
   readonly getMarketListenerCount?: () => number;
   readonly getMarketSubscriptionCount?: () => number;
+  /**
+   * Timers the host process owns (WO-0034-A4K). The runtime cannot see the host's handles,
+   * so it asks rather than guessing -- an unsupplied count is reported as 0 and the caller
+   * that did not supply it is the one making that claim.
+   */
+  readonly getHostIntervalCount?: () => number;
+  readonly getHostTimeoutCount?: () => number;
   readonly readRendererMemoryUsage?: () => number | null;
   readonly longRunningDiagnosticsIntervalMs?: number;
 }
@@ -744,6 +751,8 @@ export class ShadowOperationalRuntime {
       evidenceCount: evidence?.delivered ?? 0,
       marketListenerCount: Math.max(0, this.deps.getMarketListenerCount?.() ?? 0),
       marketSubscriptionCount: Math.max(0, this.deps.getMarketSubscriptionCount?.() ?? 0),
+      hostIntervalCount: Math.max(0, this.deps.getHostIntervalCount?.() ?? 0),
+      hostTimeoutCount: Math.max(0, this.deps.getHostTimeoutCount?.() ?? 0),
       lastEventAt: sourceTimestamp,
       lastEvidenceAt: evidence && evidence.delivered > 0 ? sourceTimestamp : null,
       actualOrderCount: session?.counters.actualOrderCount ?? 0,
