@@ -33,8 +33,8 @@ import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
-import { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink, type DurableEvidenceWriter } from "./domainEventBus";
-import { ShadowEvidenceArchive, findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
+import { findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
+import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 
@@ -320,6 +320,9 @@ function initializeRuntime(): void {
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
   const shadowEvidenceRoot = path.join(app.getPath("userData"), "shadow-evidence");
+  // Scanned once, here, and never again. The question it answers is "did a previous process
+  // leave an archive unsealed", and only the state at startup can answer it. Re-scanning later
+  // would sweep up this process's own open archive and block the session writing it.
   let shadowIncompleteEvidence: readonly string[] = [];
   let shadowEvidenceScanBlocked = false;
   try {
@@ -428,6 +431,10 @@ function initializeRuntime(): void {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
+  // Every process start constructs a fresh instance at IDLE. Shadow deliberately never
+  // restores a previous session -- "no auto-run after restart" is true by construction. What
+  // the durable archive adds is the opposite guarantee: a session that did run leaves a
+  // sealed, hash-chained record behind, and an unsealed one blocks the next start.
   shadowRuntime = new ShadowOperationalRuntime({
     symbol: MARKET,
     strategyId: smaStrategy.id,
@@ -440,28 +447,14 @@ function initializeRuntime(): void {
     onProductionSignal: handleProductionSignal,
     riskGate: paperCommandRiskGate,
     getHypotheticalOrderQuantity: () => control.getOrderQuantity(),
-    createEvidenceBus: ({ sessionId, createdAt, onHalt }) => {
-      const archivePromise = ShadowEvidenceArchive.create(shadowEvidenceRoot, {
-        sessionId,
-        createdAt,
-        sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
-        symbol: MARKET,
-        strategyId: smaStrategy.id,
-        strategyVersion: SHADOW_STRATEGY_VERSION,
-        controlOrigin: "LOCAL_INTERACTIVE_UI",
-        authenticatedOwner: false,
-        fingerprints: PAPER_SAFETY_FINGERPRINTS
-      });
-      const writer: DurableEvidenceWriter = {
-        append: async (event, receivedAt) => (await archivePromise).append(event, receivedAt),
-        finalize: async (reason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED") => (await archivePromise).finalize(reason, generatedAt, status)
-      };
-      return new DomainEventBus({
-        sessionId,
-        sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer)],
-        onHalt
-      });
-    },
+    createEvidenceBus: createShadowEvidenceBusFactory({
+      root: shadowEvidenceRoot,
+      sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+      symbol: MARKET,
+      strategyId: smaStrategy.id,
+      strategyVersion: SHADOW_STRATEGY_VERSION,
+      fingerprints: PAPER_SAFETY_FINGERPRINTS
+    }),
     findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
       // Matches createSafetySnapshot()'s own current, honestly-unresolved values: neither
@@ -571,6 +564,35 @@ app.whenReady().then(() => {
     failClosedEvidenceWrite();
   });
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+
+let shadowEvidenceSealed = false;
+
+/**
+ * A live Shadow session owns an open, hash-chained archive. Quitting without sealing it leaves
+ * a record of unknown completeness on disk, which then -- correctly -- blocks the next start
+ * with EVIDENCE_RECOVERY_REQUIRED. A crash should produce that outcome. A clean quit should
+ * not, so the quit is deferred exactly once while the archive is sealed.
+ */
+app.on("before-quit", (event) => {
+  if (shadowEvidenceSealed || !shadowRuntime) return;
+  if (!["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state)) {
+    shadowEvidenceSealed = true;
+    return;
+  }
+  event.preventDefault();
+  try {
+    shadowRuntime.stop();
+  } catch (error) {
+    console.error(`shadow stop during quit failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  void shadowRuntime
+    .awaitEvidenceFinalized()
+    .catch((error) => console.error(`shadow evidence finalize failed: ${error instanceof Error ? error.message : String(error)}`))
+    .finally(() => {
+      shadowEvidenceSealed = true;
+      app.quit();
+    });
 });
 
 app.on("window-all-closed", () => {
