@@ -28,6 +28,15 @@
       and the price hero moves below it.
     -->
     <section id="control-room" class="control-room" aria-label="관제실 — 시스템 상태"></section>
+    <section id="a4-diagnostics" class="card a4-diagnostics" aria-labelledby="a4-diagnostics-title">
+      <div class="section-title">
+        <div><p class="eyebrow">A4 READ ONLY</p><h2 id="a4-diagnostics-title">Safety diagnostics</h2></div>
+        <button id="run-a4-diagnostics" class="secondary" type="button">Run read-only check</button>
+      </div>
+      <p id="a4-diagnostics-verdict" class="a4-verdict neutral" role="status" aria-live="polite">Not checked.</p>
+      <div id="a4-diagnostics-grid" class="a4-diagnostics-grid" hidden></div>
+      <p id="a4-diagnostics-error" class="error" role="alert" aria-live="assertive"></p>
+    </section>
     <section class="hero card">
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>

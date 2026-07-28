@@ -8,6 +8,90 @@ const textNode = (tag, value, className) => {
   return node;
 };
 const renderWarnings = (target, warnings) => target.replaceChildren(...warnings.map((warning) => textNode("li", warning)));
+const renderA4Rows = (title, rows) => {
+  const section = document.createElement("section");
+  section.append(textNode("h3", title));
+  const list = document.createElement("dl");
+  for (const [label, value] of rows) {
+    const item = document.createElement("div");
+    item.append(textNode("dt", label), textNode("dd", String(value)));
+    list.append(item);
+  }
+  section.append(list);
+  return section;
+};
+function renderA4Diagnostics(diagnostics) {
+  const verdict = byId("a4-diagnostics-verdict");
+  const grid = byId("a4-diagnostics-grid");
+  if (!verdict || !grid) return;
+  const bridgeMethods = typeof window.dokkaebi === "object" && window.dokkaebi
+    ? Object.keys(window.dokkaebi).length
+    : 0;
+  const shadowBridge = typeof window.shadowPilot === "object" && window.shadowPilot;
+  const bridgeConnected = bridgeMethods > 0 && Boolean(shadowBridge);
+  verdict.textContent = bridgeConnected ? diagnostics.verdict : "BLOCKED";
+  verdict.className = `a4-verdict ${bridgeConnected && diagnostics.verdict === "READY_FOR_OBSERVATION" ? "ready" : "blocked"}`;
+  grid.hidden = false;
+  grid.replaceChildren(
+    renderA4Rows("Preload bridge", [
+      ["window.dokkaebi", bridgeMethods > 0 ? "CONNECTED" : "MISSING"],
+      ["window.shadowPilot", shadowBridge ? "CONNECTED" : "MISSING"],
+      ["Exposed methods", bridgeMethods],
+      ["Arbitrary IPC", "DISABLED"]
+    ]),
+    renderA4Rows("Deployment integrity", [
+      ["Status", diagnostics.deployment.status],
+      ["Verification", diagnostics.deployment.method],
+      ["Strategy", diagnostics.shadow.strategyId],
+      ["Market / interval", `${diagnostics.market.symbol} / ${diagnostics.market.interval}`],
+      ["Blockers", diagnostics.deployment.blockers.join(", ") || "None"]
+    ]),
+    renderA4Rows("Reconciliation", [
+      ["Status", diagnostics.reconciliation.status],
+      ["Blockers", diagnostics.reconciliation.blockers.join(", ") || "None"],
+      ["Mutation counters", Object.entries(diagnostics.mutationCounters).map(([key, value]) => `${key}:${value}`).join(" ")]
+    ]),
+    renderA4Rows("Risk gate", [
+      ["Status", diagnostics.riskGate.status],
+      ["Fail-closed", "ACTIVE"],
+      ["Live / private / credentials", "DISABLED / DISABLED / DISABLED"],
+      ["Blockers", diagnostics.riskGate.blockers.join(", ") || "None"]
+    ]),
+    renderA4Rows("Shadow runtime", [
+      ["State", diagnostics.shadow.state],
+      ["Session", diagnostics.shadow.sessionId ? "PRESENT" : "NONE"],
+      ["Recovery required", diagnostics.shadow.recoveryRequired ? "YES" : "NO"],
+      ["Observation started", diagnostics.shadow.observationStarted ? "YES" : "NO"],
+      ["Elapsed", `${diagnostics.shadow.elapsedMs} ms`],
+      ["Queue depth / high water", `${diagnostics.shadow.queueDepth} / ${diagnostics.shadow.queueHighWaterMark}`],
+      ["Duplicate / stale / out-of-order", `${diagnostics.shadow.duplicateCandleCount} / ${diagnostics.shadow.staleCandleCount} / ${diagnostics.shadow.outOfOrderCandleCount}`]
+    ]),
+    renderA4Rows("Evidence", [
+      ["Root writable", diagnostics.evidence.rootWritable ? "YES" : "NO"],
+      ["Markerless archives", diagnostics.evidence.markerlessArchiveCount],
+      ["Active archive", diagnostics.evidence.activeArchivePresent ? "PRESENT" : "NONE"],
+      ["Last verifier", diagnostics.evidence.lastVerifierResult],
+      ["Completed marker", diagnostics.evidence.completedMarkerPresent ? "PRESENT" : "NONE"],
+      ["Evidence bus", diagnostics.evidence.busStatus]
+    ]),
+    renderA4Rows("Decision", [["Blockers", diagnostics.blockers.join(", ") || "None"]])
+  );
+}
+byId("run-a4-diagnostics")?.addEventListener("click", async () => {
+  const button = byId("run-a4-diagnostics");
+  const error = byId("a4-diagnostics-error");
+  if (button) button.disabled = true;
+  if (error) error.textContent = "";
+  try {
+    renderA4Diagnostics(await window.dokkaebi.getA4Diagnostics());
+  } catch {
+    if (error) error.textContent = "Diagnostics unavailable. No runtime action was attempted.";
+    const verdict = byId("a4-diagnostics-verdict");
+    if (verdict) { verdict.textContent = "ERROR"; verdict.className = "a4-verdict blocked"; }
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
 const renderPortfolio = (portfolio, available) => {
   const entries = available
     ? [["Total equity", cioMoney(portfolio.totalEquity)], ["Available", cioMoney(portfolio.deployableCapital)], ["Reserved", cioMoney(portfolio.reservedCapital)], ["Gross / Net Exposure", `${cioPercent(portfolio.grossExposureRatio)} / ${cioPercent(portfolio.netExposureRatio)}`]]

@@ -47,7 +47,7 @@ test("sandbox preload creates the restricted bridges without network or app runt
     shadowStatus: typeof exposed.shadowPilot?.status === "function"
   };
     assert.deepEqual(bridge.dokkaebi, [
-      "getControlSnapshot", "getPreflight", "getSnapshot", "onChartPoint", "onControl",
+      "getA4Diagnostics", "getControlSnapshot", "getPreflight", "getSnapshot", "onChartPoint", "onControl",
       "onSnapshot", "onStatus", "onTicker", "placeOrder", "setAutoTrade",
       "setStrategyQuantity", "startStrategy", "stopStrategy"
     ]);
@@ -57,6 +57,7 @@ test("sandbox preload creates the restricted bridges without network or app runt
   assert.equal(bridge.preflight, true);
   assert.equal(bridge.shadowStatus, true);
   await exposed.dokkaebi.getPreflight();
+  await exposed.dokkaebi.getA4Diagnostics();
   await exposed.shadowPilot.status();
   assert.ok(ipcCalls.some((call) => call.kind === "invoke" || call.kind === "on"));
 });
