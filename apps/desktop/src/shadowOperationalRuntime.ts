@@ -6,6 +6,7 @@ import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "./domainEventBus";
 import { buildShadowCompletionEvidence, type ShadowCompletionEvidence } from "./shadowCompletionEvidence";
+import { ShadowLongRunningDiagnosticsSampler, type ShadowLongRunningDiagnostics } from "./shadowLongRunningDiagnostics";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -84,6 +85,7 @@ export interface ShadowOperationalDiagnostics {
   readonly strategyFingerprint: string;
   /** Completed sessions remain visible as history; this is never used as current-session state. */
   readonly completionHistory: readonly ShadowCompletionEvidence[];
+  readonly longRunning: ShadowLongRunningDiagnostics;
 }
 
 /** What the running system currently knows about safety preconditions. Read fresh on every precheck/resume. */
@@ -147,6 +149,11 @@ export interface ShadowOperationalDependencies {
    * it with no way to tell later where one ended.
    */
   readonly findIncompleteEvidence: () => readonly string[];
+  /** Read-only topology facts used by the long-running sampler. */
+  readonly getMarketListenerCount?: () => number;
+  readonly getMarketSubscriptionCount?: () => number;
+  readonly readRendererMemoryUsage?: () => number | null;
+  readonly longRunningDiagnosticsIntervalMs?: number;
 }
 
 export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
@@ -185,10 +192,17 @@ export class ShadowOperationalRuntime {
    * neither notices the same closed minute arriving once from each of the two sources.
    */
   private readonly dispatchedCandleCloseTimes = new Set<number>();
+  private readonly longRunningDiagnostics: ShadowLongRunningDiagnosticsSampler;
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
     this.clockDriftToleranceMs = deps.clockDriftToleranceMs ?? 60_000;
+    this.longRunningDiagnostics = new ShadowLongRunningDiagnosticsSampler({
+      readSource: () => this.longRunningSourceSnapshot(),
+      intervalMs: deps.longRunningDiagnosticsIntervalMs ?? 0,
+      now: () => this.now(),
+      readRendererMemory: deps.readRendererMemoryUsage
+    });
     // The adapter defaults to "connected"; the real stream has not connected yet at
     // construction time, so correct that immediately rather than reporting a false HEALTHY.
     this.candleAdapter.markDisconnected(deps.now?.() ?? Date.now());
@@ -231,6 +245,7 @@ export class ShadowOperationalRuntime {
   private onEvidenceHalt(reason: DomainEventHaltReason, detail: string): void {
     this.lifecycle = "HALTED";
     this.blockers = [`EVIDENCE_${reason}`, detail];
+    this.longRunningDiagnostics.stop();
     if (this.pilot && this.pilot.snapshot().status === "RUNNING") {
       try { this.pilot.stop(this.now()); } catch { /* the archive is already halted; seal what exists */ }
     }
@@ -287,6 +302,7 @@ export class ShadowOperationalRuntime {
     }
     this.lifecycle = "HALTED";
     this.blockers = [...reasonCodes];
+    this.longRunningDiagnostics.stop();
     this.publishPendingEvents();
     this.finalizeEvidence(reasonCodes.join(","), "ABORTED");
   }
@@ -589,6 +605,7 @@ export class ShadowOperationalRuntime {
     pilot.start(now);
     this.lifecycle = "RUNNING";
     this.blockers = [];
+    this.longRunningDiagnostics.start(sessionId);
     this.publishPendingEvents();
     return this.diagnostics();
   }
@@ -621,6 +638,7 @@ export class ShadowOperationalRuntime {
     const aborted = this.lifecycle === "HALTED";
     if (!aborted) this.lifecycle = "COMPLETED";
     this.blockers = aborted ? this.blockers : [];
+    this.longRunningDiagnostics.stop();
     this.publishPendingEvents();
     this.finalizeEvidence(aborted ? "SESSION_HALTED" : "OWNER_STOPPED", aborted ? "ABORTED" : "COMPLETED");
     return this.diagnostics();
@@ -642,6 +660,7 @@ export class ShadowOperationalRuntime {
     this.evidenceBus = undefined;
     this.evidenceFinalization = Promise.resolve();
     this.evidenceRecovery = "NONE";
+    this.longRunningDiagnostics.reset();
     this.sessionStartedAt = undefined;
     this.lastClosedCandleTime = undefined;
     this.lastSignalTime = undefined;
@@ -707,7 +726,33 @@ export class ShadowOperationalRuntime {
       sourceType: "UPBIT_PUBLIC_CANDLE",
       strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy,
       completionHistory: Object.freeze([...this.completionHistory])
+      ,longRunning: this.longRunningDiagnostics.diagnostics()
     });
+  }
+
+  private longRunningSourceSnapshot() {
+    const session = this.pilot?.snapshot();
+    const evidence = this.evidenceBus?.diagnostics();
+    const sourceTimestamp = this.lastSignalTime ?? this.lastClosedCandleTime ?? null;
+    return {
+      timestamp: this.now(),
+      sessionId: session?.sessionId ?? null,
+      sessionState: this.lifecycle,
+      observationStartedAt: this.sessionStartedAt ?? null,
+      elapsedTime: this.sessionStartedAt === undefined ? 0 : Math.max(0, this.now() - this.sessionStartedAt),
+      signalCount: session?.counters.signalCount ?? 0,
+      evidenceCount: evidence?.delivered ?? 0,
+      marketListenerCount: Math.max(0, this.deps.getMarketListenerCount?.() ?? 0),
+      marketSubscriptionCount: Math.max(0, this.deps.getMarketSubscriptionCount?.() ?? 0),
+      lastEventAt: sourceTimestamp,
+      lastEvidenceAt: evidence && evidence.delivered > 0 ? sourceTimestamp : null,
+      actualOrderCount: session?.counters.actualOrderCount ?? 0,
+      actualFillCount: session?.counters.actualFillCount ?? 0,
+      cashMutationCount: session?.counters.cashMutationCount ?? 0,
+      positionMutationCount: session?.counters.positionMutationCount ?? 0,
+      brokerCallCount: 0,
+      privateApiCallCount: 0
+    };
   }
 
   private officialWarmupComplete(): boolean {

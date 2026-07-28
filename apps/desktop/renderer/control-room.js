@@ -272,8 +272,10 @@
     const blockers = element("ul", "cr-blockers");
     const history = element("div", "cr-shadow__history");
     history.append(element("h3", "cr-shadow__history-title", "Completion history"));
+    const longRunning = element("div", "cr-shadow__long-running");
+    longRunning.append(element("h3", "cr-shadow__history-title", "Long-running diagnostics"));
     const shadow = element("section", "cr-shadow");
-    shadow.append(shadowHead, counters, blockers, history);
+    shadow.append(shadowHead, counters, blockers, history, longRunning);
 
     const pipelineTrack = element("div", "cr-pipeline__track");
     const pipelineNote = element("p", "cr-pipeline__note", "");
@@ -461,6 +463,34 @@
         );
         return item;
       }));
+
+      const long = diagnostics && diagnostics.longRunning;
+      if (!long) {
+        longRunning.replaceChildren(element("h3", "cr-shadow__history-title", "Long-running diagnostics"));
+      } else {
+        const rows = [
+          ["State", long.sessionState],
+          ["Elapsed", `${long.elapsedTime}ms`],
+          ["Memory", long.memoryHealth],
+          ["Intervals", long.activeIntervalCount],
+          ["Timeouts", long.activeTimeoutCount],
+          ["Listeners", long.marketListenerCount],
+          ["Subscriptions", long.marketSubscriptionCount],
+          ["Evidence", long.evidenceCount],
+          ["Signals", long.signalCount],
+          ["Last diagnostic", long.snapshots.at(-1)?.timestamp ?? "(none)"],
+          ["Orders / fills", `${long.actualOrderCount} / ${long.actualFillCount}`],
+          ["Cash / position", `${long.cashMutationCount} / ${long.positionMutationCount}`]
+        ];
+        longRunning.replaceChildren(
+          element("h3", "cr-shadow__history-title", "Long-running diagnostics"),
+          ...rows.map(([label, value]) => {
+            const row = element("div", "cr-shadow__long-running-row");
+            row.append(element("span", "cr-shadow__long-running-label", label), element("span", "cr-shadow__long-running-value", String(value)));
+            return row;
+          })
+        );
+      }
     }
 
     function renderNext(health) {

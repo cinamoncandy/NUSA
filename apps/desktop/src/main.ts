@@ -542,7 +542,12 @@ function initializeRuntime(): void {
       automaticTrading: control.snapshot().autoTradeEnabled,
       // No Canary/Extended runtime mode is wired into this process at all yet.
       currentModeIsCanaryOrExtended: false
-    })
+    }),
+    // The desktop has one public market callback and one KRW-BTC subscription. These are
+    // read-only topology facts for A4K diagnostics; they do not create or manage listeners.
+    getMarketListenerCount: () => stream ? 1 : 0,
+    getMarketSubscriptionCount: () => stream ? 1 : 0,
+    longRunningDiagnosticsIntervalMs: 60_000
   });
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();

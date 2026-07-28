@@ -323,6 +323,24 @@
 
 .cr-empty { font-size: var(--font-size-caption); color: var(--cr-mist-500); margin: 0; }
 
+.cr-shadow__long-running {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-12);
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--cr-line-800);
+}
+
+.cr-shadow__long-running .cr-shadow__history-title { grid-column: 1 / -1; }
+.cr-shadow__long-running-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cr-shadow__long-running-label { color: var(--cr-mist-500); font-size: var(--font-size-caption); }
+.cr-shadow__long-running-value { color: var(--cr-text-0); font-family: var(--font-mono); font-size: var(--font-size-caption); overflow-wrap: anywhere; }
+
+@media (max-width: 40rem) {
+  .cr-shadow__long-running { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* ---------------------------------------------------------------- brand header */
 
 .cr-wordmark { display: block; height: 46px; width: auto; }
