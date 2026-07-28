@@ -19,7 +19,21 @@ export interface A4RuntimeDiagnostics {
   readonly deployment: OperationalPreflightState["deployment"];
   readonly reconciliation: OperationalPreflightState["reconciliation"];
   readonly riskGate: OperationalPreflightState["riskGate"];
-  readonly market: Readonly<{ symbol: string; strategyId: string; interval: "1m"; status: string }>;
+  readonly market: Readonly<{
+    symbol: string;
+    strategyId: string;
+    interval: "1m";
+    status: string;
+    connected: boolean;
+    fresh: boolean;
+    lastHeartbeatAt: number | null;
+    source: "UPBIT_PUBLIC_CLOSED_CANDLE";
+  }>;
+  readonly safety: Readonly<{
+    killSwitchActive: boolean;
+    openP0Count: number;
+    reasonCode: string | null;
+  }>;
   readonly shadow: Readonly<{
     state: ShadowOperationalDiagnostics["state"];
     sessionId: string | null;
@@ -48,6 +62,8 @@ export interface A4RuntimeDiagnostics {
   }>;
   readonly capabilities: Readonly<{ liveTrading: false; privateApi: false; credentialStorage: false }>;
   readonly mutationCounters: A4MutationCounters;
+  /** Exact blockers returned by the same read-only precheck used by shadow:start. */
+  readonly startPrecheckBlockers: readonly string[];
   readonly verdict: "READY_FOR_OBSERVATION" | "BLOCKED" | "ERROR";
   readonly blockers: readonly string[];
 }
@@ -92,8 +108,37 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
   incompleteArchives: readonly string[];
   evidenceBus: DomainEventBusDiagnostics | null;
   mutationCounters: A4MutationCounters;
+  startPrecheckBlockers: readonly string[];
+  market?: Readonly<{
+    connected: boolean;
+    lastHeartbeatAt: number | null;
+    source: "UPBIT_PUBLIC_CLOSED_CANDLE";
+  }>;
+  safety?: Readonly<{
+    killSwitchActive: boolean;
+    openP0Count: number;
+    reasonCode: string | null;
+  }>;
   generatedAt?: number;
 }>): Promise<A4RuntimeDiagnostics> {
+  const generatedAt = input.generatedAt ?? Date.now();
+  const marketInput = input.market ?? {
+    connected: input.shadow.marketDataStatus === "HEALTHY",
+    lastHeartbeatAt: null,
+    source: "UPBIT_PUBLIC_CLOSED_CANDLE" as const
+  };
+  const marketAge = marketInput.lastHeartbeatAt === null ? Number.POSITIVE_INFINITY : generatedAt - marketInput.lastHeartbeatAt;
+  const market = Object.freeze({
+    symbol: input.shadow.symbol,
+    strategyId: input.shadow.strategyId,
+    interval: "1m" as const,
+    status: input.shadow.marketDataStatus,
+    connected: marketInput.connected,
+    fresh: marketInput.connected && Number.isFinite(marketAge) && marketAge >= 0 && marketAge <= 30_000,
+    lastHeartbeatAt: marketInput.lastHeartbeatAt,
+    source: marketInput.source
+  });
+  const safety = Object.freeze(input.safety ?? { killSwitchActive: false, openP0Count: 0, reasonCode: null });
   const rootWritable = canWrite(input.evidenceRoot);
   const markerlessArchiveCount = markerlessCount(input.evidenceRoot, input.incompleteArchives);
   const activeArchivePresent = input.shadow.sessionId !== null;
@@ -121,6 +166,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
     queueHighWaterMark: bus?.highWaterMark ?? 0,
     haltReason: bus?.haltReason ?? null
   });
+  const startBlockers = [...new Set(input.startPrecheckBlockers)];
   const blockers = new Set<string>();
   if (input.preflight.deployment.status !== "PASS") input.preflight.deployment.blockers.forEach((code) => blockers.add(code));
   if (input.preflight.reconciliation.status !== "PASS") input.preflight.reconciliation.blockers.forEach((code) => blockers.add(code));
@@ -132,15 +178,19 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
   if (bus?.status === "HALTED") blockers.add(`EVIDENCE_BUS_${bus.haltReason ?? "HALTED"}`);
   if (lastVerifierResult === "FAIL" || lastVerifierResult === "ERROR") blockers.add("LAST_EVIDENCE_VERIFICATION_FAILED");
   for (const [name, value] of Object.entries(input.mutationCounters)) if (value !== 0) blockers.add(`${name.toUpperCase()}_MUTATION:${value}`);
-  const orderedBlockers = Object.freeze([...blockers].sort());
+  // The start precheck is authoritative. Preserve its canonical order so the UI and
+  // diagnostics cannot claim a different blocker precedence than shadow:start.
+  const diagnosticBlockers = [...blockers].filter((code) => !startBlockers.includes(code)).sort();
+  const orderedBlockers = Object.freeze([...startBlockers, ...diagnosticBlockers]);
   const verdict = orderedBlockers.length === 0 ? "READY_FOR_OBSERVATION" : "BLOCKED";
   return Object.freeze({
     schemaVersion: 1,
-    generatedAt: input.generatedAt ?? Date.now(),
+    generatedAt,
     deployment: input.preflight.deployment,
     reconciliation: input.preflight.reconciliation,
     riskGate: input.preflight.riskGate,
-    market: Object.freeze({ symbol: input.shadow.symbol, strategyId: input.shadow.strategyId, interval: "1m" as const, status: input.shadow.marketDataStatus }),
+    market,
+    safety,
     shadow: Object.freeze({
       state: input.shadow.state,
       sessionId: input.shadow.sessionId,
@@ -157,6 +207,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
     evidence,
     capabilities: Object.freeze({ liveTrading: false, privateApi: false, credentialStorage: false }),
     mutationCounters: Object.freeze({ ...input.mutationCounters }),
+    startPrecheckBlockers: Object.freeze(startBlockers),
     verdict,
     blockers: orderedBlockers
   });

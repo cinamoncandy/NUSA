@@ -157,6 +157,14 @@ test("C12-C15: IDLE -> PRECHECK -> READY -> RUNNING only via an explicit start()
   assert.deepEqual(result.blockers, []);
 });
 
+test("A4 diagnostics precheck is read-only while start persists recovery blockers", () => {
+  const h = makeHarness({ deps: { findIncompleteEvidence: () => { throw new Error("evidence root unavailable"); } } });
+  assert.deepEqual(h.runtime.startPrecheckBlockers(false).includes("EVIDENCE_RECOVERY_REQUIRED"), true);
+  assert.equal(h.runtime.evidenceRecoveryState(), "NONE");
+  assert.deepEqual(h.runtime.startPrecheckBlockers().includes("EVIDENCE_RECOVERY_REQUIRED"), true);
+  assert.equal(h.runtime.evidenceRecoveryState(), "RECOVERY_REQUIRED");
+});
+
 test("C16-C19: pause stops new dispatch immediately; resume re-checks and never happens on health alone", () => {
   const h = makeHarness();
   warmUp(h);

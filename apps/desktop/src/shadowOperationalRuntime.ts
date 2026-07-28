@@ -479,21 +479,23 @@ export class ShadowOperationalRuntime {
     }
   }
 
-  private computeReadinessBlockers(): readonly string[] {
+  private computeReadinessBlockers(persistRecovery = true): readonly string[] {
     const safety = this.deps.getSafetyState();
     // An archive left open by a previous process means the last session's record is of
     // unknown completeness. Starting beside it would interleave two sessions' events with
     // no way to tell later where one ended, so recovery is required before anything runs.
     let incomplete: readonly string[] = [];
+    let evidenceRecovery = this.evidenceRecovery;
     try {
       incomplete = this.deps.findIncompleteEvidence();
       if (!Array.isArray(incomplete)) throw new Error("incomplete evidence scan returned an invalid result");
     } catch {
       // An unreadable evidence root is uncertainty about the previous session, not proof that
       // no session exists. Fail closed with the same recovery gate as a markerless archive.
-      this.evidenceRecovery = "RECOVERY_REQUIRED";
+      evidenceRecovery = "RECOVERY_REQUIRED";
     }
-    if (incomplete.length > 0) this.evidenceRecovery = "RECOVERY_REQUIRED";
+    if (incomplete.length > 0) evidenceRecovery = "RECOVERY_REQUIRED";
+    if (persistRecovery) this.evidenceRecovery = evidenceRecovery;
     const candleState = this.candleAdapter.inspectState();
     const blockers: string[] = [];
     if (!this.webSocketConnected) blockers.push("MARKET_DATA_DISCONNECTED");
@@ -508,8 +510,16 @@ export class ShadowOperationalRuntime {
     if (!safety.reconciliation) blockers.push("RECONCILIATION_REQUIRED");
     if (safety.automaticTrading) blockers.push("AUTOMATIC_TRADING_ON");
     if (safety.currentModeIsCanaryOrExtended) blockers.push("CANARY_OR_EXTENDED_MODE_ACTIVE");
-    if (this.evidenceRecovery === "RECOVERY_REQUIRED") blockers.push("EVIDENCE_RECOVERY_REQUIRED");
+    if (evidenceRecovery === "RECOVERY_REQUIRED") blockers.push("EVIDENCE_RECOVERY_REQUIRED");
     return blockers;
+  }
+
+  /**
+   * Read-only owner precheck shared by diagnostics and start(). It deliberately does not
+   * create a session, an evidence bus, or any market/broker mutation.
+   */
+  startPrecheckBlockers(persistRecovery = true): readonly string[] {
+    return Object.freeze([...this.computeReadinessBlockers(persistRecovery)]);
   }
 
   /** Owner-explicit only. Never called automatically by this class. */
@@ -517,7 +527,7 @@ export class ShadowOperationalRuntime {
     if (this.lifecycle !== "IDLE") throw new Error(`shadow start requires IDLE, currently ${this.lifecycle}`);
     this.lifecycle = "PRECHECK";
     const now = this.now();
-    const blockers = this.computeReadinessBlockers();
+    const blockers = this.startPrecheckBlockers();
     if (blockers.length > 0) {
       if (blockers.length === 1 && blockers[0] === "MARKET_DATA_WARMING_UP") {
         // Not a hard failure: a normal not-ready-yet condition. Stay retryable at IDLE
@@ -588,7 +598,7 @@ export class ShadowOperationalRuntime {
   /** Owner-explicit only. Re-runs the full precheck; a healthy market alone never triggers this. */
   resume(): ShadowOperationalDiagnostics {
     if (this.lifecycle !== "PAUSED") throw new Error(`shadow resume requires PAUSED, currently ${this.lifecycle}`);
-    const blockers = this.computeReadinessBlockers();
+    const blockers = this.startPrecheckBlockers();
     if (blockers.length > 0) {
       this.blockers = blockers;
       return this.diagnostics();

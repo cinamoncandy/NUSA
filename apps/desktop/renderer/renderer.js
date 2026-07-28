@@ -44,6 +44,9 @@ function renderA4Diagnostics(diagnostics) {
       ["Verification", diagnostics.deployment.method],
       ["Strategy", diagnostics.shadow.strategyId],
       ["Market / interval", `${diagnostics.market.symbol} / ${diagnostics.market.interval}`],
+      ["Market connection", diagnostics.market.connected ? "CONNECTED" : "DISCONNECTED"],
+      ["Market freshness", diagnostics.market.fresh ? "FRESH" : "STALE / UNKNOWN"],
+      ["Market source", diagnostics.market.source],
       ["Blockers", diagnostics.deployment.blockers.join(", ") || "None"]
     ]),
     renderA4Rows("Reconciliation", [
@@ -56,6 +59,11 @@ function renderA4Diagnostics(diagnostics) {
       ["Fail-closed", "ACTIVE"],
       ["Live / private / credentials", "DISABLED / DISABLED / DISABLED"],
       ["Blockers", diagnostics.riskGate.blockers.join(", ") || "None"]
+    ]),
+    renderA4Rows("Safety state", [
+      ["Kill Switch", diagnostics.safety.killSwitchActive ? "ACTIVE" : "INACTIVE"],
+      ["Open P0 alerts", diagnostics.safety.openP0Count],
+      ["Reason", diagnostics.safety.reasonCode || "None"]
     ]),
     renderA4Rows("Shadow runtime", [
       ["State", diagnostics.shadow.state],
@@ -74,7 +82,10 @@ function renderA4Diagnostics(diagnostics) {
       ["Completed marker", diagnostics.evidence.completedMarkerPresent ? "PRESENT" : "NONE"],
       ["Evidence bus", diagnostics.evidence.busStatus]
     ]),
-    renderA4Rows("Decision", [["Blockers", diagnostics.blockers.join(", ") || "None"]])
+    renderA4Rows("Decision", [
+      ["Shadow start precheck", diagnostics.startPrecheckBlockers.join(", ") || "PASS"],
+      ["Blockers", diagnostics.blockers.join(", ") || "None"]
+    ])
   );
 }
 byId("run-a4-diagnostics")?.addEventListener("click", async () => {
