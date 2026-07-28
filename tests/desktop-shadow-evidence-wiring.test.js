@@ -158,3 +158,94 @@ test("main.ts composes the evidence bus through the module the tests drive", () 
   assert.doesNotMatch(source, /new DomainEventBus\(/);
   assert.doesNotMatch(source, /ShadowEvidenceArchive\.create\(/);
 });
+
+test("a repeated shutdown does not corrupt the archive or double-seal it", async (t) => {
+  const root = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), "shadow-wiring-")), "shadow-evidence");
+  t.after(() => fsp.rm(path.dirname(root), { recursive: true, force: true }));
+
+  const h = makeRuntime(root);
+  h.warmUp();
+  h.runtime.start();
+  h.crossover(21, 300);
+
+  // A real shutdown can deliver more than one quit signal: before-quit defers the quit, then
+  // calls app.quit() itself, which fires before-quit again. window-all-closed calls app.quit()
+  // on the same path. The archive must survive being told to seal more than once.
+  h.runtime.stop();
+  await h.runtime.awaitEvidenceFinalized();
+  await h.runtime.awaitEvidenceFinalized();
+  // A second stop from COMPLETED is refused outright rather than re-sealing a sealed archive.
+  assert.throws(() => h.runtime.stop(), /shadow stop requires RUNNING, PAUSED, or HALTED/);
+  await h.runtime.awaitEvidenceFinalized();
+
+  const sessions = await fsp.readdir(root);
+  assert.equal(sessions.length, 1);
+  const directory = path.join(root, sessions[0]);
+  const files = await fsp.readdir(directory);
+  assert.equal(files.filter((name) => name.endsWith(".marker")).length, 1, "exactly one completion marker");
+  assert.ok(files.includes("completed.marker"), JSON.stringify(files));
+
+  // The archive still verifies after the repeated seal attempts -- no truncated manifest, no
+  // duplicated event line, no broken hash chain.
+  const verification = await verifyShadowEvidenceDirectory(directory);
+  assert.equal(verification.status, "PASS", JSON.stringify(verification.blockers));
+  assert.equal(verification.hashChainValid, true);
+  assert.equal(verification.sequenceContinuous, true);
+});
+
+test("a normally-sealed session does not block the next start", async (t) => {
+  const root = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), "shadow-wiring-")), "shadow-evidence");
+  t.after(() => fsp.rm(path.dirname(root), { recursive: true, force: true }));
+
+  const first = makeRuntime(root);
+  first.warmUp();
+  first.runtime.start();
+  first.crossover(21, 300);
+  first.runtime.stop();
+  await first.runtime.awaitEvidenceFinalized();
+  assert.equal(first.runtime.diagnostics().state, "COMPLETED");
+
+  // This is the regression the shutdown wiring exists to prevent: without a seal on a clean
+  // quit, the scan below returns the previous session and the next start is blocked by a
+  // recovery that nothing actually went wrong to require.
+  const incomplete = await findIncompleteShadowArchives(root);
+  assert.deepEqual([...incomplete], [], "a cleanly stopped session leaves nothing to recover");
+
+  const second = makeRuntime(root, () => incomplete);
+  second.warmUp();
+  const started = second.runtime.start();
+  assert.equal(started.state, "RUNNING", JSON.stringify(started.blockers));
+  assert.equal(second.runtime.evidenceRecoveryState(), "NONE");
+  second.runtime.stop();
+  await second.runtime.awaitEvidenceFinalized();
+
+  assert.equal((await fsp.readdir(root)).length, 2, "each session gets its own archive");
+});
+
+test("an abnormally ended session still blocks the next start", async (t) => {
+  const root = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), "shadow-wiring-")), "shadow-evidence");
+  t.after(() => fsp.rm(path.dirname(root), { recursive: true, force: true }));
+
+  const h = makeRuntime(root);
+  h.warmUp();
+  h.runtime.start();
+  h.crossover(21, 300);
+  // Wait for the events to actually reach disk, then stop there. No stop, no finalize: this
+  // is the process dying with the archive open and its events already written. The seal on a
+  // clean quit must not have weakened this -- an unsealed archive is what recovery is for.
+  // Real waiting, not setImmediate: the durable sink's writes are filesystem operations, and
+  // draining the microtask queue does not advance them.
+  for (let attempt = 0; attempt < 100 && h.runtime.evidenceDiagnostics().delivered === 0; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.ok(h.runtime.evidenceDiagnostics().delivered > 0, "events must have reached the sink before the simulated crash");
+
+  const incomplete = await findIncompleteShadowArchives(root);
+  assert.equal(incomplete.length, 1, "an unsealed archive must still be found");
+
+  const next = makeRuntime(root, () => incomplete);
+  next.warmUp();
+  const started = next.runtime.start();
+  assert.equal(started.state, "HALTED");
+  assert.ok(started.blockers.includes("EVIDENCE_RECOVERY_REQUIRED"), JSON.stringify(started.blockers));
+});
