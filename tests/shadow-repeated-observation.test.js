@@ -162,6 +162,7 @@ test("A4J: completed sessions cannot be restarted without explicit cleanup, and 
   h.runtime.onWebSocketStatus("reconnect-exhausted");
   assert.equal(h.runtime.diagnostics().state, "HALTED");
   await assert.rejects(() => h.runtime.prepareForNextSession(), /requires COMPLETED/);
+  await h.runtime.awaitEvidenceFinalized();
 });
 
 test("A4J: session runtime owns no timer or market listener that could duplicate across runs", () => {
