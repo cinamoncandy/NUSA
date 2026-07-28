@@ -38,6 +38,7 @@ import { SHADOW_OBSERVATION_PROFILE } from "./shadowObservationProfile";
 import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
+import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -62,12 +63,15 @@ const PAPER_SAFETY_FINGERPRINTS = Object.freeze({
   runtime: createHash("sha256").update("desktop-paper-runtime-v1").digest("hex"),
   riskPolicy: createHash("sha256").update(JSON.stringify(RISK_POLICY)).digest("hex")
 });
-// Shared by both RuntimeCommandService (real Automatic/Manual Paper orders) and Shadow's
-// hypothetical dispatch, so Shadow's risk decision is the SAME real decision, never a
-// separately fabricated ALLOW. WO-0032 composition (approval/reconciliation/deployment
-// state) is not wired yet, so this currently HALTs every path unconditionally -- honest,
-// not a placeholder success.
-const paperCommandRiskGate: PaperCommandRiskGate = { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) };
+// One gate instance is shared by RuntimeCommandService and Shadow. It is assigned only after
+// deployment and reconciliation have been measured; an uninitialised gate remains HALT.
+let paperCommandRiskGate: PaperCommandRiskGate = { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) }) };
+let operationalPreflight: OperationalPreflightState = Object.freeze({
+  deployment: Object.freeze({ status: "BLOCKED", method: "NOT_INITIALIZED", evidence: Object.freeze([]), blockers: Object.freeze(["PREFLIGHT_NOT_INITIALIZED"]) }),
+  reconciliation: Object.freeze({ status: "BLOCKED", method: "NOT_INITIALIZED", evidence: Object.freeze([]), blockers: Object.freeze(["PREFLIGHT_NOT_INITIALIZED"]) }),
+  riskGate: Object.freeze({ status: "BLOCKED", method: "NOT_INITIALIZED", evidence: Object.freeze([]), blockers: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) })
+});
+let marketDataStatus: "HEALTHY" | "STALE" | "RECONNECTING" | "WARMING_UP" | "GAP_DETECTED" | "OUT_OF_ORDER" | "INVALID" = "WARMING_UP";
 let window: BrowserWindow | undefined;
 let latestTicker: UpbitTicker | undefined;
 let broker: PaperBroker;
@@ -212,6 +216,7 @@ function handleProductionSignal(input: { market: string; price: number; position
 function handleMarketStatus(status: string): void {
   const now = Date.now();
   websocketConnected = status === "connected";
+  marketDataStatus = status === "connected" ? "HEALTHY" : status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
   window?.webContents.send("market:status", status);
   shadowRuntime.onWebSocketStatus(status);
 
@@ -363,6 +368,38 @@ function initializeRuntime(): void {
   }
   broker = new PaperBroker(INITIAL_CASH, MARKET, FEE_RATE, RISK_POLICY, restored?.paper, FILL_MODEL);
   control = new ControlPlane("sma-crossover", 200, restored?.control);
+  const deployment = verifyRuntimeDeployment({
+    mainDirectory: __dirname,
+    rendererPath: resolveRendererIndexPath(__dirname),
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    strategyId: smaStrategy.id,
+    strategyVersion: SHADOW_STRATEGY_VERSION,
+    symbol: MARKET,
+    interval: "1m",
+    fingerprints: PAPER_SAFETY_FINGERPRINTS
+  });
+  const reconciliation = verifyRuntimePaperReconciliation({
+    broker,
+    initialCash: INITIAL_CASH,
+    markPrice: latestTicker?.trade_price ?? 1,
+    persistenceHealthy: persistenceStore !== undefined && persistenceDiagnostic == null,
+    mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 }
+  });
+  operationalPreflight = Object.freeze({
+    deployment,
+    reconciliation,
+    riskGate: Object.freeze({ status: "PASS", method: "INDEPENDENT_RISK_GATEWAY_WITH_RUNTIME_PREFLIGHT_STATE", evidence: Object.freeze(["evaluatePreTradeRisk"]), blockers: Object.freeze([]) })
+  });
+  paperCommandRiskGate = createOperationalPaperRiskGate({
+    getState: () => operationalPreflight,
+    getBroker: () => broker,
+    getMarket: () => ({ symbol: MARKET, price: latestTicker?.trade_price ?? null, status: marketDataStatus }),
+    getControl: () => ({ killSwitchActive: control.snapshot().status === "FAULTED", openP0: control.snapshot().status === "FAULTED" }),
+    identity: { strategyFingerprint: PAPER_SAFETY_FINGERPRINTS.strategy, configFingerprint: PAPER_SAFETY_FINGERPRINTS.config, runtimeFingerprint: PAPER_SAFETY_FINGERPRINTS.runtime, riskPolicyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
+    limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
+    fingerprints: PAPER_SAFETY_FINGERPRINTS,
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+  });
   if (persistenceStore) {
     try {
       const safety = persistenceStore.loadPaperSafetySnapshot();
@@ -378,6 +415,12 @@ function initializeRuntime(): void {
       persistenceDiagnostic = `Paper safety snapshot recovery failed: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
+  if (persistenceDiagnostic != null) {
+    operationalPreflight = Object.freeze({
+      ...operationalPreflight,
+      riskGate: Object.freeze({ status: "BLOCKED", method: "PERSISTENCE_RECOVERY_FAILURE", evidence: Object.freeze([]), blockers: Object.freeze(["PERSISTENCE_UNHEALTHY"]) })
+    });
+  }
   if (persistenceStore) {
     evidenceRecorder = new PaperScenarioEvidenceRecorder({
       append: (event) => {
@@ -390,7 +433,7 @@ function initializeRuntime(): void {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     const snapshot = createPaperSafetySnapshot({
       snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: control.snapshot().status === "FAULTED", activatedAt: control.snapshot().status === "FAULTED" ? Date.now() : null, reason: control.snapshot().status === "FAULTED" ? "runtime fault" : null }, approval: null,
-      fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: "UNKNOWN", checkedAt: null, reasonCodes: [] }, reconciliation: { status: "REQUIRED", checkedAt: null, ledgerSha256: null, reasonCodes: [] },
+      fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: operationalPreflight.deployment.status === "PASS" ? "PASS" : "UNKNOWN", checkedAt: Date.now(), reasonCodes: operationalPreflight.deployment.blockers }, reconciliation: { status: operationalPreflight.reconciliation.status === "PASS" ? "PASS" : "REQUIRED", checkedAt: Date.now(), ledgerSha256: null, reasonCodes: operationalPreflight.reconciliation.blockers },
       idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: control.snapshot().status === "FAULTED" ? [{ alertId: "runtime-fault", severity: "P0" as const, status: "OPEN" as const, reasonCode: "RUNTIME_FAULT", createdAt: Date.now() }] : [],
       lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: 0, unrealizedDailyPnl: 0, consecutiveLossCount: 0, sessionPeakEquity: INITIAL_CASH, sessionDrawdown: 0 }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
     });
@@ -463,11 +506,8 @@ function initializeRuntime(): void {
     }),
     findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
-      // Matches createSafetySnapshot()'s own current, honestly-unresolved values: neither
-      // deployment integrity nor reconciliation has a real PASS source wired yet, so
-      // Shadow correctly cannot reach RUNNING until that composition exists.
-      deploymentIntegrity: false,
-      reconciliation: false,
+      deploymentIntegrity: operationalPreflight.deployment.status === "PASS",
+      reconciliation: operationalPreflight.reconciliation.status === "PASS",
       killSwitch: control.snapshot().status === "FAULTED",
       openP0: control.snapshot().status === "FAULTED",
       automaticTrading: control.snapshot().autoTradeEnabled,
@@ -509,6 +549,7 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
+ipcMain.handle("paper:preflight", () => operationalPreflight);
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }

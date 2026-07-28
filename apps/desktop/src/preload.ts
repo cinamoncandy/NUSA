@@ -4,6 +4,7 @@ import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
 import type { UpbitTicker } from "./upbitWebSocket";
+import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import { retryWithTimeout } from "./recovery";
 
 export interface ChartPoint { time: number; value: number; }
@@ -11,6 +12,7 @@ export interface ChartPoint { time: number; value: number; }
 export interface DokkaebiApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
   getSnapshot(): Promise<PaperAccountSnapshot | null>;
+  getPreflight(): Promise<OperationalPreflightState>;
   getControlSnapshot(): Promise<ControlSnapshot>;
   startStrategy(): Promise<ControlSnapshot>;
   stopStrategy(): Promise<ControlSnapshot>;
@@ -41,6 +43,7 @@ const invokeMutation = <T>(channel: string, ...args: readonly unknown[]): Promis
 const api: DokkaebiApi = {
   placeOrder: (side, quantity) => invokeMutation("paper:order", { side, quantity }),
   getSnapshot: () => invokeReadWithRecovery("paper:snapshot"),
+  getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
   getControlSnapshot: () => invokeReadWithRecovery("control:snapshot"),
   startStrategy: () => invokeMutation("control:start"),
   stopStrategy: () => invokeMutation("control:stop"),
