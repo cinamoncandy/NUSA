@@ -361,6 +361,8 @@ export class ShadowOperationalRuntime {
       // duplicate signal is ALLOW-shaped at the gate but records no fill.
       hypotheticalFill: this.pilot.snapshot().counters.hypotheticalFillCount > fillsBefore
     });
+    // Record what happened before publishing: a publish failure halts the runtime, and the
+    // Why panel still has to be able to explain the signal that was being handled when it did.
     this.publishPendingEvents();
     if (this.lifecycle !== "RUNNING") return;
     const integrityErrors = verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha);
