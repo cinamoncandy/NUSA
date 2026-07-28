@@ -1,13 +1,39 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { AI_CIO_DASHBOARD_CHANNEL, type AiCioDashboardReadResult } from "../../../packages/contracts/src/aiCioDashboard";
+import type { AiCioDashboardReadResult } from "../../../packages/contracts/src/aiCioDashboard";
 import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
 import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
-import { retryWithTimeout } from "./recovery";
 
 export interface ChartPoint { time: number; value: number; }
+
+// Keep this runtime value inside the sandbox preload bundle. Importing the contract source
+// here makes Electron's sandbox resolver look outside the compiled preload tree and fail at
+// startup. The main-process handler and the public contract intentionally use this exact
+// immutable channel value; the type-only contract import above is erased by TypeScript.
+const AI_CIO_DASHBOARD_CHANNEL = "ai-cio:dashboard:get" as const;
+
+// Sandboxed preloads cannot resolve sibling CommonJS modules. Keep the small read retry
+// primitive in this bundle; all domain/runtime imports above are type-only and are erased.
+async function retryWithTimeout<T>(operation: () => Promise<T>, policy: Readonly<{ timeoutMs: number; maximumAttempts: number }>): Promise<T> {
+  if (!Number.isSafeInteger(policy.timeoutMs) || policy.timeoutMs <= 0 || !Number.isSafeInteger(policy.maximumAttempts) || policy.maximumAttempts < 1) throw new Error("invalid retry policy");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < policy.maximumAttempts; attempt += 1) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise<T>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("IPC request timed out")), policy.timeoutMs); })
+      ]);
+    } catch (error) {
+      lastError = error;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("IPC request failed");
+}
 
 export interface DokkaebiApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
