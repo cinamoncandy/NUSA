@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createClosedCandleAdapter, type ClosedCandle, type ClosedCandleAdapter, type PublicTickerSample } from "./closedCandleAdapter";
-import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } from "./shadowPilotRuntime";
+import { ShadowPilotRuntime, createShadowPilotEventVerifier, verifyShadowPilotEvents, type ShadowPilotEventVerifier, type ShadowPilotSession } from "./shadowPilotRuntime";
 import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
@@ -168,6 +168,13 @@ export class ShadowOperationalRuntime {
   private publishedSequence = 0;
   private evidenceFinalization: Promise<void> = Promise.resolve();
   private evidenceRecovery: ShadowEvidenceRecoveryState = "NONE";
+  /**
+   * Per-signal integrity check (WO-0034-A4J). Re-verifying the whole event log on every
+   * signal cost O(N^2) hashes and dominated the dispatch path; this verifies only what was
+   * appended. stop() still runs the complete verifier, so nothing is sealed on the
+   * incremental result alone.
+   */
+  private eventVerifier: ShadowPilotEventVerifier = createShadowPilotEventVerifier();
   private sessionStartedAt?: number;
   /** Close time of the last candle Shadow accepted; the basis of the ordering check. */
   private lastAdmittedCandleCloseTime?: number;
@@ -465,7 +472,7 @@ export class ShadowOperationalRuntime {
     // Why panel still has to be able to explain the signal that was being handled when it did.
     this.publishPendingEvents();
     if (this.lifecycle !== "RUNNING") return;
-    const integrityErrors = verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha);
+    const integrityErrors = this.eventVerifier.verify(this.pilot.eventLog(), this.deps.sourceCommitSha);
     if (integrityErrors.length > 0) {
       this.lifecycle = "FAILED";
       this.blockers = integrityErrors;
@@ -572,6 +579,9 @@ export class ShadowOperationalRuntime {
       return this.diagnostics();
     }
     this.publishedSequence = 0;
+    // A fresh verifier per session: carrying the previous session's boundary would let this
+    // session's first events be checked against a log they do not belong to.
+    this.eventVerifier = createShadowPilotEventVerifier();
     // Per-session, not per-instance: a fresh session starts with a clean candle history, so
     // last session's final candle can never look like this session's duplicate.
     this.sessionStartedAt = now;
@@ -612,11 +622,21 @@ export class ShadowOperationalRuntime {
     if (!["RUNNING", "PAUSED", "HALTED"].includes(this.lifecycle)) throw new Error(`shadow stop requires RUNNING, PAUSED, or HALTED, currently ${this.lifecycle}`);
     const pilotStatus = this.pilot?.snapshot().status;
     if (this.pilot && (pilotStatus === "RUNNING" || pilotStatus === "HALTED")) this.pilot.stop(this.now());
-    const aborted = this.lifecycle === "HALTED";
-    if (!aborted) this.lifecycle = "COMPLETED";
-    this.blockers = aborted ? this.blockers : [];
+    // The FULL verifier, once, before sealing. The per-signal path is incremental and cannot
+    // see an event replaced behind its boundary; this pass re-derives every hash, so no
+    // session is ever sealed on incremental evidence alone. Once per session, not per signal,
+    // so it costs O(N) for the whole session rather than O(N^2).
+    const integrityErrors = this.pilot ? verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha) : [];
+    const aborted = this.lifecycle === "HALTED" || integrityErrors.length > 0;
+    if (integrityErrors.length > 0) {
+      this.lifecycle = "FAILED";
+      this.blockers = integrityErrors;
+    } else if (!aborted) {
+      this.lifecycle = "COMPLETED";
+    }
+    this.blockers = integrityErrors.length > 0 ? integrityErrors : aborted ? this.blockers : [];
     this.publishPendingEvents();
-    this.finalizeEvidence(aborted ? "SESSION_HALTED" : "OWNER_STOPPED", aborted ? "ABORTED" : "COMPLETED");
+    this.finalizeEvidence(integrityErrors.length > 0 ? integrityErrors.join(",") : aborted ? "SESSION_HALTED" : "OWNER_STOPPED", aborted ? "ABORTED" : "COMPLETED");
     return this.diagnostics();
   }
 

@@ -23,3 +23,96 @@ export class ShadowPilotRuntime {
 }
 
 export function verifyShadowPilotEvents(events: readonly ShadowPilotEvent[], sourceCommitSha: string): readonly string[] { const errors: string[] = []; let previous = "GENESIS"; const seen = new Set<string>(); for (let index = 0; index < events.length; index += 1) { const event = events[index]!; if (event.sequence !== index + 1) errors.push("MISSING_SEQUENCE"); if (seen.has(event.eventSha256)) errors.push("DUPLICATE_EVENT"); seen.add(event.eventSha256); const { eventSha256, ...raw } = event; if (event.previousEventSha256 !== previous || hash(raw) !== eventSha256) errors.push("EVENT_HASH_MISMATCH"); if (event.actualBrokerCallCount !== 0 || event.actualOrderDelta !== 0 || event.actualFillDelta !== 0 || event.actualCashDelta !== 0 || event.actualPositionDelta !== 0) errors.push("SHADOW_MUTATION"); previous = event.eventSha256; } if (!sourceCommitSha) errors.push("SOURCE_COMMIT_MISSING"); return Object.freeze([...new Set(errors)].sort()); }
+
+/**
+ * An incremental verifier over the same append-only log (WO-0034-A4J).
+ *
+ * `verifyShadowPilotEvents` re-hashes every event on every call. The runtime calls it once
+ * per signal, so a session that produces N signals hashes O(N^2) events. Measured on this
+ * codebase: 1,600 signals spend 13.1 of their 13.2 seconds inside that one call, and the
+ * per-signal cost grows 10x between 100 and 1,600 signals. On the main process that is
+ * time the UI is not running.
+ *
+ * This remembers how far it got and re-hashes only the events appended since. The boundary
+ * check -- same length or longer, same recorded hash at the boundary -- catches a truncated
+ * log, a replaced tail and a different session's array, and falls back to verifying
+ * everything when it fires.
+ *
+ * WHAT THIS DOES NOT CATCH, stated plainly because the distinction is easy to get wrong:
+ * an event that is REPLACED AFTER it was already verified, in the middle of the log, while
+ * the log's length and its last event are unchanged. The boundary check reads the stored
+ * `eventSha256` of the boundary event; it does not re-derive it, so a substitution behind
+ * the boundary is invisible to it. A hash chain proves a prefix only when every link is
+ * recomputed, which is exactly the O(N) work being avoided.
+ *
+ * That gap is closed elsewhere, not ignored:
+ *
+ *   - The pilot's events are individually frozen and pushed to an append-only array, so
+ *     nothing in normal operation rewrites one. The real fault this guards against is a
+ *     runtime bug producing a bad NEW event, which the incremental path checks in full.
+ *   - `ShadowOperationalRuntime.stop()` runs the complete `verifyShadowPilotEvents` once
+ *     before sealing, so no session is ever sealed on incremental evidence alone.
+ *   - `verifyShadowEvidenceDirectory` re-reads the archive from disk and re-derives every
+ *     hash independently, which is the check that actually certifies a session.
+ *
+ * Within those limits it returns exactly what the full function returns. A test asserts the
+ * equivalence on every step of a growing log, and another records the mid-log substitution
+ * gap so it stays a known, tested boundary rather than an assumption.
+ */
+export interface ShadowPilotEventVerifier {
+  verify(events: readonly ShadowPilotEvent[], sourceCommitSha: string): readonly string[];
+}
+
+export function createShadowPilotEventVerifier(): ShadowPilotEventVerifier {
+  let verifiedCount = 0;
+  let verifiedTailHash = "GENESIS";
+  let seen = new Set<string>();
+  let carriedErrors: string[] = [];
+
+  const restart = (): void => {
+    verifiedCount = 0;
+    verifiedTailHash = "GENESIS";
+    seen = new Set<string>();
+    carriedErrors = [];
+  };
+
+  return {
+    verify(events, sourceCommitSha) {
+      // The boundary check. The boundary event is RE-HASHED, not merely compared: comparing
+      // its stored `eventSha256` to the remembered value catches nothing, because a caller
+      // rewriting the event would leave that field alone. Re-deriving it costs one hash and
+      // makes every field of the boundary event count.
+      if (verifiedCount > 0) {
+        const boundary = events[verifiedCount - 1];
+        let intact = events.length >= verifiedCount && boundary !== undefined && boundary.eventSha256 === verifiedTailHash;
+        if (intact && boundary !== undefined) {
+          const { eventSha256, ...raw } = boundary;
+          intact = hash(raw) === eventSha256;
+        }
+        if (!intact) restart();
+      }
+
+      const errors: string[] = [...carriedErrors];
+      let previous = verifiedTailHash;
+      for (let index = verifiedCount; index < events.length; index += 1) {
+        const event = events[index]!;
+        if (event.sequence !== index + 1) errors.push("MISSING_SEQUENCE");
+        if (seen.has(event.eventSha256)) errors.push("DUPLICATE_EVENT");
+        seen.add(event.eventSha256);
+        const { eventSha256, ...raw } = event;
+        if (event.previousEventSha256 !== previous || hash(raw) !== eventSha256) errors.push("EVENT_HASH_MISMATCH");
+        if (event.actualBrokerCallCount !== 0 || event.actualOrderDelta !== 0 || event.actualFillDelta !== 0 || event.actualCashDelta !== 0 || event.actualPositionDelta !== 0) errors.push("SHADOW_MUTATION");
+        previous = event.eventSha256;
+      }
+
+      verifiedCount = events.length;
+      verifiedTailHash = previous;
+      // Errors are carried, not recomputed: a fault found at sequence 5 must keep being
+      // reported at sequence 500, exactly as the full verifier would report it.
+      carriedErrors = [...errors];
+
+      if (!sourceCommitSha) errors.push("SOURCE_COMMIT_MISSING");
+      return Object.freeze([...new Set(errors)].sort());
+    }
+  };
+}
