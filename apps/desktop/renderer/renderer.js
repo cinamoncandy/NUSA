@@ -63,7 +63,9 @@ function renderA4Diagnostics(diagnostics) {
     renderA4Rows("Safety state", [
       ["Kill Switch", diagnostics.safety.killSwitchActive ? "ACTIVE" : "INACTIVE"],
       ["Open P0 alerts", diagnostics.safety.openP0Count],
-      ["Reason", diagnostics.safety.reasonCode || "None"]
+      ["P0 codes", diagnostics.safety.openP0Codes.join(", ") || "None"],
+      ["Reason", diagnostics.safety.reasonCode || "None"],
+      ["Activation source", diagnostics.safety.activationSource || "None"]
     ]),
     renderA4Rows("Shadow runtime", [
       ["State", diagnostics.shadow.state],
