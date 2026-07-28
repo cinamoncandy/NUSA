@@ -115,6 +115,31 @@ const shadowPilot: ShadowPilotApi = Object.freeze({
   status: () => invokeReadWithRecovery("shadow:status")
 });
 
+/**
+ * WO-0034-A4H recovery reconciliation and owner review. Four fixed channels, nothing else.
+ *
+ * `ownerReview` takes no arguments the caller can shape: the renderer states only that the
+ * owner clicked, and the main process derives the fingerprint, reviewer and timestamp from
+ * state it already holds. A renderer able to name the fingerprint it was approving could
+ * approve a comparison that never ran.
+ */
+export interface RecoveryReviewApi {
+  status(): Promise<unknown>;
+  reconcile(): Promise<unknown>;
+  ownerReview(): Promise<unknown>;
+  complete(): Promise<unknown>;
+}
+
+const recoveryReview: RecoveryReviewApi = Object.freeze({
+  status: () => invokeReadWithRecovery("recovery:status"),
+  // Read-only, but never auto-retried: each run records a new comparison, and a silent retry
+  // would leave a second comparison in the audit trail that no owner asked for.
+  reconcile: () => invokeMutation("recovery:reconcile", {}),
+  ownerReview: () => invokeMutation("recovery:owner-review", { confirmed: true }),
+  complete: () => invokeMutation("recovery:complete", {})
+});
+
 contextBridge.exposeInMainWorld("dokkaebi", api);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
+contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);
