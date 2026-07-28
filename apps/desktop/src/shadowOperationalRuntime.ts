@@ -51,6 +51,18 @@ export interface ShadowOperationalDiagnostics {
   readonly warmupComplete: boolean;
   readonly lastClosedCandleTime: number | null;
   readonly lastSignalTime: number | null;
+  /** When the current session started, or null outside a session (WO-0034-A4). */
+  readonly startedAt: number | null;
+  /** How long the current session has been running. 0 outside a session (WO-0034-A4). */
+  readonly elapsedMs: number;
+  /** The configured hard ceiling, or null when no ceiling was configured (WO-0034-A4). */
+  readonly maxSessionDurationMs: number | null;
+  /** Closed candles the runtime refused because they arrived out of order (WO-0034-A4). */
+  readonly outOfOrderCandleCount: number;
+  /** Closed candles the runtime refused as already-seen (WO-0034-A4). */
+  readonly duplicateCandleCount: number;
+  /** Closed candles the runtime refused as older than the staleness tolerance (WO-0034-A4). */
+  readonly staleCandleCount: number;
   readonly signalCount: number;
   readonly hypotheticalOrderCount: number;
   readonly hypotheticalFillCount: number;
@@ -105,6 +117,20 @@ export interface ShadowOperationalDependencies {
   /** Ticker timestamps further from wall-clock than this are CLOCK_DRIFT. Default 60s. */
   readonly clockDriftToleranceMs?: number;
   /**
+   * Hard ceiling on how long one session may run (WO-0034-A4). Once elapsed time passes it
+   * the runtime stops the session itself and seals the archive as COMPLETED -- the ceiling
+   * is reached, not violated, so this is a normal end and not a fault.
+   *
+   * Left unset there is no ceiling, which is the pre-A4 behaviour.
+   */
+  readonly maxSessionDurationMs?: number;
+  /**
+   * A closed candle whose close time is older than this, relative to wall clock, is stale
+   * and is not dispatched (WO-0034-A4). Unset means no staleness check, the pre-A4
+   * behaviour: the market-data health gate remains the only staleness signal.
+   */
+  readonly maxCandleAgeMs?: number;
+  /**
    * Builds the evidence bus for a newly started session. Called once per session so each one
    * gets a fresh bus -- a halted bus is never reused, and a previous session's queue can
    * never leak into a new one.
@@ -142,6 +168,18 @@ export class ShadowOperationalRuntime {
   private publishedSequence = 0;
   private evidenceFinalization: Promise<void> = Promise.resolve();
   private evidenceRecovery: ShadowEvidenceRecoveryState = "NONE";
+  private sessionStartedAt?: number;
+  /** Close time of the last candle Shadow accepted; the basis of the ordering check. */
+  private lastAdmittedCandleCloseTime?: number;
+  private outOfOrderCandleCount = 0;
+  private duplicateCandleCount = 0;
+  private staleCandleCount = 0;
+  /**
+   * Close times of candles already dispatched this session. The adapter de-duplicates
+   * *tickers*, and syncOfficialCandles de-duplicates by open time within its own source --
+   * neither notices the same closed minute arriving once from each of the two sources.
+   */
+  private readonly dispatchedCandleCloseTimes = new Set<number>();
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
@@ -328,14 +366,76 @@ export class ShadowOperationalRuntime {
     }
   }
 
+  /**
+   * Decides whether a closed candle may drive a Shadow dispatch (WO-0034-A4).
+   *
+   * Returns a reason code when the candle is refused. Refusal is counted and the candle is
+   * dropped -- it is never "fixed up" into an acceptable one, because a candle the runtime
+   * had to repair is not evidence of what the market did.
+   *
+   * Deliberately does NOT gate the production signal: the real Automatic Paper path has
+   * behaved one way since A2, and quietly changing which candles reach it would be a
+   * production behaviour change smuggled in under an observation-safety change.
+   */
+  private admitClosedCandle(candle: ClosedCandle): "OK" | "NOT_CLOSED" | "DUPLICATE" | "OUT_OF_ORDER" | "STALE" {
+    if (candle.closed !== true) return "NOT_CLOSED";
+    if (this.dispatchedCandleCloseTimes.has(candle.closeTime)) return "DUPLICATE";
+    if (this.lastAdmittedCandleCloseTime !== undefined && candle.closeTime < this.lastAdmittedCandleCloseTime) return "OUT_OF_ORDER";
+    if (this.deps.maxCandleAgeMs !== undefined && this.now() - candle.closeTime > this.deps.maxCandleAgeMs) return "STALE";
+    return "OK";
+  }
+
+  /**
+   * Ends the session once the configured ceiling is reached (WO-0034-A4). Returns true when
+   * the session was stopped, so the caller knows not to keep dispatching.
+   *
+   * This is a normal completion, not a halt: reaching a planned limit is the observation
+   * working as designed, and sealing it as ABORTED would make an ordinary end look like a
+   * fault in the evidence record.
+   */
+  private stopIfSessionDurationExceeded(): boolean {
+    if (this.deps.maxSessionDurationMs === undefined || this.sessionStartedAt === undefined) return false;
+    if (this.lifecycle !== "RUNNING" && this.lifecycle !== "PAUSED") return false;
+    if (this.now() - this.sessionStartedAt < this.deps.maxSessionDurationMs) return false;
+    if (this.pilot && this.pilot.snapshot().status === "RUNNING") this.pilot.stop(this.now());
+    this.lifecycle = "COMPLETED";
+    this.blockers = ["MAX_SESSION_DURATION_REACHED"];
+    this.publishPendingEvents();
+    this.finalizeEvidence("MAX_SESSION_DURATION_REACHED", "COMPLETED");
+    return true;
+  }
+
   private onClosedCandle(candle: ClosedCandle): void {
     this.lastClosedCandleTime = candle.closeTime;
     const position = this.deps.getPositionQuantity();
     const signal = this.deps.strategy.onTick({ market: this.deps.symbol, price: candle.close, timestamp: candle.closeTime }, position);
     // Same production signal drives real Automatic Paper trading, unconditionally, exactly
-    // as it did when triggered per-ticker -- only the trigger cadence changed.
+    // as it did when triggered per-ticker -- only the trigger cadence changed. The A4
+    // admission gate below deliberately sits AFTER this call: it governs what Shadow
+    // observes, and moving it earlier would change which candles reach the real Automatic
+    // Paper path, which is a production behaviour change, not an observation-safety one.
     this.deps.onProductionSignal({ market: this.deps.symbol, price: candle.close, positionQuantity: position, signal });
-    if (this.lifecycle !== "RUNNING" || signal.type === "HOLD") return;
+
+    // The ceiling is checked per candle rather than on a timer: a timer would end the session
+    // between candles, at a moment no evidence event corresponds to.
+    if (this.stopIfSessionDurationExceeded()) return;
+    if (this.lifecycle !== "RUNNING") return;
+
+    const admission = this.admitClosedCandle(candle);
+    if (admission === "DUPLICATE") this.duplicateCandleCount += 1;
+    else if (admission === "OUT_OF_ORDER") this.outOfOrderCandleCount += 1;
+    else if (admission === "STALE") this.staleCandleCount += 1;
+    // Out-of-order means the stream's ordering guarantee is already broken, so every later
+    // candle's position in the sequence is in doubt -- the session cannot honestly continue.
+    // A duplicate or a stale candle is a single bad input: count it, drop it, keep observing.
+    if (admission === "OUT_OF_ORDER") {
+      this.haltActiveSession(["CANDLE_SEQUENCE_REGRESSION"]);
+      return;
+    }
+    if (admission !== "OK") return;
+    this.lastAdmittedCandleCloseTime = candle.closeTime;
+    this.dispatchedCandleCloseTimes.add(candle.closeTime);
+    if (signal.type === "HOLD") return;
     this.dispatchShadowSignal(candle, signal);
   }
 
@@ -462,6 +562,14 @@ export class ShadowOperationalRuntime {
       return this.diagnostics();
     }
     this.publishedSequence = 0;
+    // Per-session, not per-instance: a fresh session starts with a clean candle history, so
+    // last session's final candle can never look like this session's duplicate.
+    this.sessionStartedAt = now;
+    this.lastAdmittedCandleCloseTime = undefined;
+    this.dispatchedCandleCloseTimes.clear();
+    this.outOfOrderCandleCount = 0;
+    this.duplicateCandleCount = 0;
+    this.staleCandleCount = 0;
     pilot.start(now);
     this.lifecycle = "RUNNING";
     this.blockers = [];
@@ -518,6 +626,12 @@ export class ShadowOperationalRuntime {
       warmupComplete: this.officialWarmupComplete() || candleState.warmupComplete,
       lastClosedCandleTime: this.lastClosedCandleTime ?? null,
       lastSignalTime: this.lastSignalTime ?? null,
+      startedAt: this.sessionStartedAt ?? null,
+      elapsedMs: this.sessionStartedAt === undefined ? 0 : Math.max(0, this.now() - this.sessionStartedAt),
+      maxSessionDurationMs: this.deps.maxSessionDurationMs ?? null,
+      outOfOrderCandleCount: this.outOfOrderCandleCount,
+      duplicateCandleCount: this.duplicateCandleCount,
+      staleCandleCount: this.staleCandleCount,
       lastSignal: this.lastSignal ?? null,
       signalCount: session?.counters.signalCount ?? 0,
       hypotheticalOrderCount: session?.counters.hypotheticalOrderCount ?? 0,
