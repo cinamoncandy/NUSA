@@ -27,6 +27,9 @@ function recordingSink(options = {}) {
     finalize(_reason, status) {
       if (options.failFinalize) throw new Error("finalize exploded");
       finalizedAs = status;
+    },
+    flush() {
+      if (options.failFlush) throw new Error("flush exploded");
     }
   };
 }
@@ -51,12 +54,12 @@ function makeRuntime(overrides = {}) {
       openP0: false, automaticTrading: false, currentModeIsCanaryOrExtended: false
     }),
     now: () => now,
-    createEvidenceBus: overrides.createEvidenceBus || (({ sessionId }) => {
-      const bus = new DomainEventBus({ sessionId, sinks: overrides.sinks || [], capacity: overrides.capacity });
+    createEvidenceBus: overrides.createEvidenceBus || (({ sessionId, onHalt }) => {
+      const bus = new DomainEventBus({ sessionId, sinks: overrides.sinks || [], capacity: overrides.capacity, onHalt });
       buses.push(bus);
       return bus;
     }),
-    ...(overrides.findIncompleteEvidence ? { findIncompleteEvidence: overrides.findIncompleteEvidence } : {})
+    findIncompleteEvidence: overrides.findIncompleteEvidence || (() => [])
   });
   return {
     runtime, buses,
@@ -90,7 +93,7 @@ test("every pilot event reaches the sinks exactly once, in order", async () => {
   const sequences = recorder.delivered.map((event) => event.sequence);
   assert.deepEqual(sequences, [...new Set(sequences)], "no sequence delivered twice");
   assert.deepEqual(sequences, sequences.slice().sort((a, b) => a - b), "delivered in order");
-  assert.equal(memory.snapshot().length, recorder.delivered.length);
+  assert.deepEqual(memory.snapshot(), recorder.delivered, "both sinks receive the same canonical events");
   assert.equal(recorder.delivered[0].eventType, "SESSION_STARTED");
   assert.equal(recorder.delivered.at(-1).eventType, "SESSION_STOPPED");
   assert.equal(h.runtime.evidenceDiagnostics().duplicatesDropped, 0);
@@ -156,6 +159,18 @@ test("a writer failure inside a running session halts the runtime", async () => 
   assert.ok(diagnostics.blockers.some((b) => b.includes("SINK_WRITE_FAILED")), JSON.stringify(diagnostics.blockers));
 });
 
+test("a sink flush failure halts the runtime and seals the session as ABORTED", async () => {
+  const recorder = recordingSink({ failFlush: true });
+  const h = makeRuntime({ sinks: [recorder] });
+  h.warmUp();
+  h.runtime.start();
+  h.runtime.stop();
+  await h.runtime.awaitEvidenceFinalized();
+  assert.equal(h.runtime.diagnostics().state, "HALTED");
+  assert.equal(h.runtime.evidenceDiagnostics().haltReason, "SINK_FLUSH_FAILED");
+  assert.equal(recorder.finalStatus(), "ABORTED");
+});
+
 test("queue overflow inside a running session halts the runtime", async () => {
   const h = makeRuntime({ sinks: [{ name: "stalled", deliver: () => new Promise(() => {}) }], capacity: 1 });
   h.warmUp();
@@ -211,13 +226,27 @@ test("a previous session is never auto-continued: each start builds a fresh bus"
   assert.ok(first);
 });
 
+test("a completed session is followed only by a new session identity", async () => {
+  const first = makeRuntime({ sinks: [recordingSink()] });
+  first.warmUp();
+  first.runtime.start();
+  const firstSessionId = first.runtime.diagnostics().sessionId;
+  first.runtime.stop();
+  await first.runtime.awaitEvidenceFinalized();
+
+  const second = makeRuntime({ sinks: [recordingSink()] });
+  second.warmUp();
+  second.runtime.start();
+  assert.notEqual(second.runtime.diagnostics().sessionId, firstSessionId);
+});
+
 test("end to end: the durable archive verifies PASS and records zero actual mutation", async (t) => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "shadow-evidence-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
 
   let archive;
   const h = makeRuntime({
-    createEvidenceBus: ({ sessionId, createdAt }) => {
+      createEvidenceBus: ({ sessionId, createdAt, onHalt }) => {
       const pending = ShadowEvidenceArchive.create(root, {
         sessionId, createdAt, sourceCommitSha: COMMIT, symbol: SYMBOL,
         strategyId: "sma-crossover", strategyVersion: "sma-crossover:closed-candle-1m-v1",
@@ -230,7 +259,7 @@ test("end to end: the durable archive verifies PASS and records zero actual muta
         append: async (event, receivedAt) => (await pending).append(event, receivedAt),
         finalize: async (reason, generatedAt, status) => (await pending).finalize(reason, generatedAt, status)
       };
-      return new DomainEventBus({ sessionId, sinks: [new DurableEvidenceSink(writer, () => 1_700_000_000_000)] });
+      return new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer, () => 1_700_000_000_000)], onHalt });
     }
   });
 

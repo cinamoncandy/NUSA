@@ -28,12 +28,14 @@ import type { ShadowPilotEvent } from "./shadowPilotRuntime";
 
 export type DomainEventBusStatus = "OPEN" | "HALTED";
 
-export type DomainEventHaltReason = "QUEUE_OVERFLOW" | "SINK_WRITE_FAILED" | "SINK_FINALIZE_FAILED";
+export type DomainEventHaltReason = "QUEUE_OVERFLOW" | "SINK_WRITE_FAILED" | "SINK_FLUSH_FAILED" | "SINK_FINALIZE_FAILED";
 
 export interface DomainEventSink {
   readonly name: string;
   /** Receives each event exactly once, in sequence order. Throwing halts the bus. */
   deliver(event: ShadowPilotEvent): Promise<void> | void;
+  /** Flushes sink-local buffers after queued delivery. Throwing halts the bus. */
+  flush?(): Promise<void> | void;
   /** Called once when the session ends. Throwing halts the bus but does not undo delivery. */
   finalize?(reason: string, status: "COMPLETED" | "ABORTED"): Promise<void> | void;
 }
@@ -69,7 +71,7 @@ export class DomainEventBus {
 
   private queue: ShadowPilotEvent[] = [];
   /** Sequences accepted into the queue; the basis of the exactly-once guarantee. */
-  private readonly accepted = new Set<number>();
+  private readonly accepted = new Map<number, string | undefined>();
   private status: DomainEventBusStatus = "OPEN";
   private haltReason: DomainEventHaltReason | null = null;
   private haltDetail: string | null = null;
@@ -100,16 +102,25 @@ export class DomainEventBus {
       this.halt("SINK_WRITE_FAILED", `event belongs to session ${event.sessionId}, bus serves ${this.sessionId}`);
       return false;
     }
-    if (this.accepted.has(event.sequence)) {
+    const acceptedEventHash = this.accepted.get(event.sequence);
+    if (acceptedEventHash !== undefined || this.accepted.has(event.sequence)) {
+      if (acceptedEventHash !== event.eventSha256) {
+        this.halt("SINK_WRITE_FAILED", `conflicting duplicate event sequence ${event.sequence}`);
+        return false;
+      }
       this.duplicatesDropped += 1;
       return true;
+    }
+    if (!Number.isSafeInteger(event.sequence) || event.sequence !== this.accepted.size + 1) {
+      this.halt("SINK_WRITE_FAILED", `event sequence ${event.sequence} is not the next canonical sequence`);
+      return false;
     }
     if (this.queue.length >= this.capacity) {
       // Dropping either end would silently punch a hole in a hash-chained file.
       this.halt("QUEUE_OVERFLOW", `queue reached capacity ${this.capacity} with sequence ${event.sequence} pending`);
       return false;
     }
-    this.accepted.add(event.sequence);
+    this.accepted.set(event.sequence, event.eventSha256);
     this.queue.push(event);
     this.published += 1;
     this.highWaterMark = Math.max(this.highWaterMark, this.queue.length);
@@ -141,7 +152,19 @@ export class DomainEventBus {
 
   /** Resolves once everything accepted so far has been delivered (or the bus has halted). */
   async flush(): Promise<void> {
+    // A halted delivery may be a non-cancellable sink promise. Do not make shutdown wait
+    // forever for an event that can no longer be made durable; finalize the session as ABORTED.
+    if (this.status === "HALTED" && this.queue.length > 0) return;
     await this.draining;
+    for (const sink of this.sinks) {
+      if (!sink.flush) continue;
+      try {
+        await sink.flush();
+      } catch (error) {
+        this.halt("SINK_FLUSH_FAILED", `${sink.name}: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
   }
 
   /**
@@ -224,6 +247,7 @@ export class InMemoryEvidenceSink implements DomainEventSink {
  */
 export interface DurableEvidenceWriter {
   append(event: ShadowPilotEvent, receivedAt?: number): Promise<unknown>;
+  flush?(): Promise<unknown>;
   finalize(completionReason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED"): Promise<unknown>;
 }
 
@@ -234,6 +258,10 @@ export class DurableEvidenceSink implements DomainEventSink {
 
   async deliver(event: ShadowPilotEvent): Promise<void> {
     await this.archive.append(event, this.now());
+  }
+
+  async flush(): Promise<void> {
+    await this.archive.flush?.();
   }
 
   async finalize(reason: string, status: "COMPLETED" | "ABORTED"): Promise<void> {

@@ -7,7 +7,7 @@ const path = require("node:path");
 const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
 const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
 const { createShadowEvidenceBusFactory } = require("../dist/apps/desktop/src/shadowEvidenceComposition.js");
-const { verifyShadowEvidenceDirectory, findIncompleteShadowArchives } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { verifyShadowEvidenceDirectory, findIncompleteShadowArchives, findIncompleteShadowArchivesSync } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
 const SYMBOL = "KRW-BTC";
@@ -46,7 +46,7 @@ function makeRuntime(root, findIncompleteEvidence) {
       strategyVersion: "sma-crossover:closed-candle-1m-v1",
       fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" }
     }),
-    ...(findIncompleteEvidence ? { findIncompleteEvidence } : {})
+    findIncompleteEvidence: findIncompleteEvidence || (() => [])
   });
   return {
     runtime,
@@ -116,14 +116,24 @@ test("an archive left unsealed by a previous process blocks the next start", asy
   assert.deepEqual(await fsp.readdir(root), ["crashed-session"]);
 });
 
-test("main.ts scans for incomplete archives before the runtime exists, and never again", () => {
-  const scan = source.indexOf("await findIncompleteShadowArchives(shadowEvidenceRoot())");
-  const init = source.indexOf("initializeRuntime(incompleteEvidence)");
+test("main.ts scans for incomplete archives once, before the Shadow runtime is constructed", () => {
+  const scan = source.indexOf("findIncompleteShadowArchivesSync(shadowEvidenceRoot)");
+  const construct = source.indexOf("shadowRuntime = new ShadowOperationalRuntime(");
   assert.ok(scan >= 0, "startup must scan for archives left open by a previous process");
-  assert.ok(init > scan, "the scan result must be available before the Shadow runtime is constructed");
+  assert.ok(construct > scan, "the scan result must be available before the Shadow runtime is constructed");
   // Re-scanning later would sweep up this process's own open archive.
-  assert.match(source, /findIncompleteEvidence:\s*\(\)\s*=>\s*incompleteEvidence/);
-  assert.equal(source.split("findIncompleteShadowArchives(").length - 1, 1, "exactly one call site");
+  assert.equal(source.split("findIncompleteShadowArchivesSync(").length - 1, 1, "exactly one call site");
+  // An unreadable archive root is uncertainty, not an all-clear.
+  assert.match(source, /shadowEvidenceScanBlocked \? \["UNREADABLE_SHADOW_EVIDENCE"\]/);
+});
+
+test("an unreadable archive root blocks start rather than reading as an all-clear", async (t) => {
+  const parent = await fsp.mkdtemp(path.join(os.tmpdir(), "shadow-wiring-"));
+  t.after(() => fsp.rm(parent, { recursive: true, force: true }));
+  // A file where the archive root should be: readdir fails with something other than ENOENT.
+  const root = path.join(parent, "shadow-evidence");
+  await fsp.writeFile(root, "not a directory", "utf8");
+  assert.throws(() => findIncompleteShadowArchivesSync(root), (error) => error.code !== "ENOENT");
 });
 
 test("main.ts seals a live Shadow archive on a clean quit", () => {
@@ -138,8 +148,13 @@ test("main.ts seals a live Shadow archive on a clean quit", () => {
 });
 
 test("the desktop writes Shadow evidence under userData, not the repository", () => {
-  const root = source.match(/function shadowEvidenceRoot\(\): string \{[\s\S]*?\n\}/);
-  assert.ok(root, "shadowEvidenceRoot helper is required");
-  assert.match(root[0], /app\.getPath\("userData"\)/);
-  assert.match(root[0], /"shadow-evidence"/);
+  assert.match(source, /const shadowEvidenceRoot = path\.join\(app\.getPath\("userData"\), "shadow-evidence"\)/);
+});
+
+test("main.ts composes the evidence bus through the module the tests drive", () => {
+  // If main.ts ever inlines its own composition again, the behavioural tests above stop
+  // covering what the application actually runs.
+  assert.match(source, /createEvidenceBus: createShadowEvidenceBusFactory\(\{/);
+  assert.doesNotMatch(source, /new DomainEventBus\(/);
+  assert.doesNotMatch(source, /ShadowEvidenceArchive\.create\(/);
 });

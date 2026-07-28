@@ -33,10 +33,10 @@ import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
+import { findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
+import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
-import { findIncompleteShadowArchives } from "./shadowEvidenceArchive";
-import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -310,17 +310,7 @@ function observeHealth(): void {
   }
 }
 
-function shadowEvidenceRoot(): string {
-  return path.join(app.getPath("userData"), "shadow-evidence");
-}
-
-/**
- * `incompleteEvidence` is scanned once, before this function runs, and never re-scanned.
- * That is the point: the question it answers is "did a previous process leave an archive
- * unsealed", and only the state at startup can answer it. Re-scanning later would sweep up
- * this process's own open archive and block the session that is legitimately writing it.
- */
-function initializeRuntime(incompleteEvidence: readonly string[]): void {
+function initializeRuntime(): void {
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
   runtimeEvidenceState = new PaperRuntimeEvidenceState();
@@ -329,6 +319,19 @@ function initializeRuntime(incompleteEvidence: readonly string[]): void {
   reconnectedAt = undefined;
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
+  const shadowEvidenceRoot = path.join(app.getPath("userData"), "shadow-evidence");
+  // Scanned once, here, and never again. The question it answers is "did a previous process
+  // leave an archive unsealed", and only the state at startup can answer it. Re-scanning later
+  // would sweep up this process's own open archive and block the session writing it.
+  let shadowIncompleteEvidence: readonly string[] = [];
+  let shadowEvidenceScanBlocked = false;
+  try {
+    shadowIncompleteEvidence = findIncompleteShadowArchivesSync(shadowEvidenceRoot);
+  } catch {
+    // An unreadable archive root is uncertainty about the prior session. Shadow start will
+    // expose RECOVERY_REQUIRED rather than continuing beside evidence it cannot inspect.
+    shadowEvidenceScanBlocked = true;
+  }
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
   controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
   const paperLoad = sessionStore.loadSafe();
@@ -444,6 +447,15 @@ function initializeRuntime(incompleteEvidence: readonly string[]): void {
     onProductionSignal: handleProductionSignal,
     riskGate: paperCommandRiskGate,
     getHypotheticalOrderQuantity: () => control.getOrderQuantity(),
+    createEvidenceBus: createShadowEvidenceBusFactory({
+      root: shadowEvidenceRoot,
+      sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+      symbol: MARKET,
+      strategyId: smaStrategy.id,
+      strategyVersion: SHADOW_STRATEGY_VERSION,
+      fingerprints: PAPER_SAFETY_FINGERPRINTS
+    }),
+    findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
       // Matches createSafetySnapshot()'s own current, honestly-unresolved values: neither
       // deployment integrity nor reconciliation has a real PASS source wired yet, so
@@ -455,15 +467,6 @@ function initializeRuntime(incompleteEvidence: readonly string[]): void {
       automaticTrading: control.snapshot().autoTradeEnabled,
       // No Canary/Extended runtime mode is wired into this process at all yet.
       currentModeIsCanaryOrExtended: false
-    }),
-    findIncompleteEvidence: () => incompleteEvidence,
-    createEvidenceBus: createShadowEvidenceBusFactory({
-      root: shadowEvidenceRoot(),
-      sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
-      symbol: MARKET,
-      strategyId: smaStrategy.id,
-      strategyVersion: SHADOW_STRATEGY_VERSION,
-      fingerprints: PAPER_SAFETY_FINGERPRINTS
     })
   });
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
@@ -545,10 +548,8 @@ ipcMain.handle("shadow:status", (_event, input: unknown) => {
   return shadowRuntime.diagnostics();
 });
 
-app.whenReady().then(async () => {
-  // Scanned before the runtime exists, so the answer is strictly about previous processes.
-  const incompleteEvidence = await findIncompleteShadowArchives(shadowEvidenceRoot());
-  initializeRuntime(incompleteEvidence);
+app.whenReady().then(() => {
+  initializeRuntime();
   createWindow();
   if (paperTradingAvailable) stream.start();
   void shadowRuntime.syncOfficialCandles(officialCandleSource);
