@@ -270,8 +270,10 @@
 
     const counters = element("div", "cr-counters");
     const blockers = element("ul", "cr-blockers");
+    const history = element("div", "cr-shadow__history");
+    history.append(element("h3", "cr-shadow__history-title", "Completion history"));
     const shadow = element("section", "cr-shadow");
-    shadow.append(shadowHead, counters, blockers);
+    shadow.append(shadowHead, counters, blockers, history);
 
     const pipelineTrack = element("div", "cr-pipeline__track");
     const pipelineNote = element("p", "cr-pipeline__note", "");
@@ -448,6 +450,17 @@
       } else {
         blockers.replaceChildren();
       }
+
+      const completions = diagnostics && Array.isArray(diagnostics.completionHistory) ? diagnostics.completionHistory.slice(-5).reverse() : [];
+      history.replaceChildren(element("h3", "cr-shadow__history-title", "Completion history"), ...completions.map((completion) => {
+        const item = element("div", "cr-shadow__history-item");
+        item.append(
+          element("span", "cr-shadow__history-session", completion.sessionId),
+          element("span", "cr-shadow__history-reason", completion.completionReason),
+          element("span", "cr-shadow__history-safety", completion.safety)
+        );
+        return item;
+      }));
     }
 
     function renderNext(health) {
