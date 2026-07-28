@@ -85,6 +85,7 @@ const diagnostics = (overrides = {}) => ({
   cashMutationCount: 0,
   positionMutationCount: 0,
   blockers: ["MARKET_DATA_WARMING_UP"],
+  lastSignal: null,
   automaticResumeAllowed: false,
   productionMutationAllowed: false,
   ...overrides
@@ -109,6 +110,9 @@ function mount(overrides = {}) {
 const flatten = (node) => [node, ...node.children.flatMap(flatten)];
 const textOf = (node) => flatten(node).map((child) => child._text).join(" ");
 const classesOf = (node) => flatten(node).map((child) => child.className || child.getAttribute?.("class") || "").join(" ");
+/** Select by label, never by index: a new unrelated button must not shift these lookups. */
+const buttonNamed = (node, label) => flatten(node).find((child) => child.tagName === "button" && child._text === label);
+const lifecycleButtons = (node) => ["관측 시작", "일시정지", "재개", "세션 종료"].map((label) => buttonNamed(node, label));
 
 test("control room is mounted above the price hero and the chart", () => {
   // The core UX claim of the design: system state answers the first question, not price.
@@ -233,7 +237,7 @@ test("lifecycle buttons are enabled strictly by the state that allows them", asy
   for (const [state, expected] of cases) {
     const { panel, root } = mount({ diagnostics: { state } });
     await panel.refresh();
-    const [start, pause, resume, stop] = flatten(root).filter((node) => node.tagName === "button");
+    const [start, pause, resume, stop] = lifecycleButtons(root);
     assert.equal(start.disabled, expected.start, `${state}: start`);
     assert.equal(pause.disabled, expected.pause, `${state}: pause`);
     assert.equal(resume.disabled, expected.resume, `${state}: resume`);
@@ -248,9 +252,9 @@ test("resume and stop require an explicit confirmation; start does not", async (
     confirm: (message) => { declined.push(message); return false; }
   });
   await panel.refresh();
-  const buttons = flatten(root).filter((node) => node.tagName === "button");
-  buttons[2].click();
-  buttons[3].click();
+  const [, , resume, stop] = lifecycleButtons(root);
+  resume.click();
+  stop.click();
   await Promise.resolve();
   assert.equal(calls.length, 0, "a declined confirmation must not call the bridge");
   assert.equal(declined.length, 2);
@@ -264,8 +268,7 @@ test("a bridge failure surfaces as a visible reason instead of being swallowed",
     shadowPilot: { start: async () => { throw new Error("precheck rejected"); } }
   });
   await panel.refresh();
-  const start = flatten(root).filter((node) => node.tagName === "button")[0];
-  start.click();
+  buttonNamed(root, "관측 시작").click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.match(textOf(root), /precheck rejected/);
 });
@@ -274,8 +277,7 @@ test("the panel degrades safely when the build exposes no Shadow bridge", () => 
   const { api, document } = loadControlRoom();
   const root = document.createElement("section");
   const panel = api.createControlRoom({ root, document, shadowPilot: null });
-  const buttons = flatten(root).filter((node) => node.tagName === "button");
-  assert.ok(buttons.every((button) => button.disabled), "every control must be disabled");
+  assert.ok(lifecycleButtons(root).every((button) => button.disabled), "every control must be disabled");
   assert.match(textOf(root), /Shadow 제어를 사용할 수 없/);
   assert.ok(panel);
 });
@@ -302,4 +304,112 @@ test("renderer mounts the control room and refreshes it on a timer", () => {
   assert.match(rendererSource, /controlRoom\?\.setControlSnapshot/);
   assert.match(rendererSource, /clearTimeout\(controlRoomTimer\)/);
   assert.match(rendererSource, /beforeunload/);
+});
+
+const signalOutcome = (overrides = {}) => ({
+  at: 1_320_000,
+  signalType: "BUY",
+  strategyReason: "short-SMA crossed above long-SMA",
+  riskDecision: "REJECT",
+  reasonCodes: ["RISK_GATE_NOT_CONFIGURED"],
+  quantity: 0.001,
+  price: 300,
+  hypotheticalFill: false,
+  ...overrides
+});
+
+test("pipeline reports every stage as not-called before any signal has flowed", () => {
+  const { api } = loadControlRoom();
+  const stages = api.derivePipeline(diagnostics({ lastSignal: null }));
+  assert.equal(stages.length, 7);
+  for (const stage of stages.slice(2)) assert.equal(stage.status, "NOT_CALLED", `${stage.key} must not claim a verdict`);
+});
+
+test("pipeline reflects the real market and warm-up state, not a hopeful one", () => {
+  const { api } = loadControlRoom();
+  const warming = api.derivePipeline(diagnostics({ marketDataStatus: "WARMING_UP", warmupComplete: false }));
+  assert.equal(warming[0].status, "REJECT");
+  assert.equal(warming[1].status, "WAITING");
+
+  const healthy = api.derivePipeline(diagnostics({ marketDataStatus: "HEALTHY", warmupComplete: true }));
+  assert.equal(healthy[0].status, "PASS");
+  assert.equal(healthy[1].status, "PASS");
+
+  const gone = api.derivePipeline(diagnostics({ marketDataStatus: "DISCONNECTED" }));
+  assert.equal(gone[0].status, "HALT");
+});
+
+test("the broker stage is never anything but not-called in a Shadow session", () => {
+  const { api } = loadControlRoom();
+  for (const decision of ["ALLOW", "REJECT", "HALT"]) {
+    const stages = api.derivePipeline(diagnostics({
+      warmupComplete: true,
+      marketDataStatus: "HEALTHY",
+      lastSignal: signalOutcome({ riskDecision: decision, hypotheticalFill: decision === "ALLOW" })
+    }));
+    const broker = stages.find((stage) => stage.key === "broker");
+    assert.equal(broker.status, "NOT_CALLED", `broker must stay uncalled on ${decision}`);
+    // Portfolio is structurally skipped by Shadow's dispatch; claiming PASS would draw a
+    // step that does not exist in this path.
+    assert.equal(stages.find((stage) => stage.key === "portfolio").status, "NOT_CALLED");
+  }
+});
+
+test("an allowed signal shows the execution gate as hypothetical, never as actual", () => {
+  const { api } = loadControlRoom();
+  const stages = api.derivePipeline(diagnostics({
+    warmupComplete: true, marketDataStatus: "HEALTHY",
+    lastSignal: signalOutcome({ riskDecision: "ALLOW", hypotheticalFill: true })
+  }));
+  assert.equal(stages.find((stage) => stage.key === "riskGateway").status, "ALLOW");
+  assert.equal(stages.find((stage) => stage.key === "executionGate").status, "HYPOTHETICAL");
+});
+
+test("the risk gateway stage carries the real recorded decision", () => {
+  const { api } = loadControlRoom();
+  const stages = api.derivePipeline(diagnostics({ lastSignal: signalOutcome({ riskDecision: "HALT" }) }));
+  assert.equal(stages.find((stage) => stage.key === "riskGateway").status, "HALT");
+});
+
+test("why panel separates the strategy verdict from the risk verdict", async () => {
+  const { panel, root } = mount({ diagnostics: { lastSignal: signalOutcome() } });
+  await panel.refresh();
+  const text = textOf(root);
+  assert.match(text, /매수 신호가 차단되었습니다/);
+  assert.match(text, /전략 판단/);
+  assert.match(text, /short-SMA crossed above long-SMA/);
+  assert.match(text, /리스크 판단/);
+  assert.match(text, /REJECT/);
+  // The reason code is translated rather than dumped raw at the operator.
+  assert.match(text, /차단 이유/);
+});
+
+test("why panel always states the four outcome counters", async () => {
+  const { panel, root } = mount({ diagnostics: { lastSignal: signalOutcome() } });
+  await panel.refresh();
+  const text = textOf(root);
+  for (const label of ["주문", "체결", "현금 변화", "포지션 변화"]) assert.match(text, new RegExp(label));
+});
+
+test("why panel is disabled, not fabricated, when no signal exists", async () => {
+  const { panel, root } = mount({ diagnostics: { lastSignal: null } });
+  await panel.refresh();
+  const toggle = flatten(root).find((node) => node.className && node.className.includes("cr-why__toggle"));
+  assert.ok(toggle, "why toggle must exist");
+  assert.equal(toggle.disabled, true);
+  assert.match(textOf(root), /설명할 신호가 아직 없습니다/);
+});
+
+test("why panel expands inline rather than as a modal", () => {
+  // An inline expansion keeps the explanation next to the thing it explains, which a modal
+  // would tear apart for a screen-reader user.
+  assert.doesNotMatch(controlRoomSource, /role="dialog"|aria-modal/);
+  assert.match(controlRoomSource, /aria-expanded/);
+  assert.match(controlRoomSource, /aria-controls/);
+});
+
+test("pipeline explains why two stages read not-called instead of leaving it ambiguous", async () => {
+  const { panel, root } = mount({ diagnostics: { lastSignal: signalOutcome() } });
+  await panel.refresh();
+  assert.match(textOf(root), /포트폴리오 점검과 브로커 호출 단계를 원래 거치지 않습니다/);
 });

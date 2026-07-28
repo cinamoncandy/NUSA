@@ -84,6 +84,52 @@
     ? `시장 데이터 상태가 정상이 아닙니다 (${code.slice("MARKET_DATA_UNHEALTHY:".length)})`
     : code);
 
+  /** Pipeline stage presentation. NOT_CALLED is not a failure and must not read as one. */
+  const STAGE_TONE = {
+    PASS: { tone: "ok", glyph: "✔", label: "PASS" },
+    REJECT: { tone: "bad", glyph: "✕", label: "REJECT" },
+    HALT: { tone: "bad", glyph: "■", label: "HALT" },
+    NOT_CALLED: { tone: "neutral dashed", glyph: "○", label: "호출 안 됨" },
+    HYPOTHETICAL: { tone: "shadow dashed", glyph: "◈", label: "가상" },
+    ACTUAL_PAPER: { tone: "ok", glyph: "✔", label: "실제 Paper" },
+    WAITING: { tone: "warn", glyph: "◔", label: "대기" }
+  };
+
+  const STAGES = [
+    { key: "marketData", name: "시장 데이터" },
+    { key: "closedCandle", name: "종가 캔들" },
+    { key: "strategy", name: "전략" },
+    { key: "portfolio", name: "포트폴리오" },
+    { key: "riskGateway", name: "Risk Gateway" },
+    { key: "executionGate", name: "실행 게이트" },
+    { key: "broker", name: "브로커" }
+  ];
+
+  /**
+   * Derives each pipeline stage from what actually happened, never from what would be
+   * reassuring. Two stages are structurally NOT_CALLED in a Shadow session and say so:
+   * Shadow's dispatch runs no portfolio check, and it never reaches a broker at all. Marking
+   * either of them PASS would draw a step that does not exist in this path.
+   */
+  function derivePipeline(diagnostics) {
+    if (!diagnostics) return STAGES.map((stage) => ({ ...stage, status: "NOT_CALLED" }));
+    const marketStatus = diagnostics.marketDataStatus;
+    const market = marketStatus === "HEALTHY" ? "PASS" : marketStatus === "DISCONNECTED" ? "HALT" : "REJECT";
+    const candle = diagnostics.warmupComplete ? "PASS" : "WAITING";
+    const signal = diagnostics.lastSignal || null;
+    const risk = signal ? signal.riskDecision : "NOT_CALLED";
+    const status = {
+      marketData: market,
+      closedCandle: candle,
+      strategy: signal ? "PASS" : "NOT_CALLED",
+      portfolio: "NOT_CALLED",
+      riskGateway: risk,
+      executionGate: signal && signal.hypotheticalFill ? "HYPOTHETICAL" : "NOT_CALLED",
+      broker: "NOT_CALLED"
+    };
+    return STAGES.map((stage) => ({ ...stage, status: status[stage.key] }));
+  }
+
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -227,7 +273,35 @@
     const shadow = element("section", "cr-shadow");
     shadow.append(shadowHead, counters, blockers);
 
-    root.replaceChildren(banner, grid, next, shadow);
+    const pipelineTrack = element("div", "cr-pipeline__track");
+    const pipelineNote = element("p", "cr-pipeline__note", "");
+    const pipeline = element("section", "cr-pipeline");
+    pipeline.append(element("h2", "cr-pipeline__title", "신호 처리 단계"), pipelineTrack, pipelineNote);
+
+    // The Why panel is an inline expansion, not a modal: a screen-reader user should be able
+    // to read the reason without losing the surrounding context it explains.
+    const whyToggle = element("button", "cr-button cr-why__toggle", "왜?");
+    whyToggle.type = "button";
+    whyToggle.setAttribute("aria-expanded", "false");
+    whyToggle.setAttribute("aria-controls", "cr-why-body");
+    const whyBody = element("div", "cr-why__body");
+    whyBody.id = "cr-why-body";
+    whyBody.hidden = true;
+    const whyHeadline = element("p", "cr-why__headline", "");
+    const whyHead = element("div", "cr-why__head");
+    whyHead.append(whyHeadline, whyToggle);
+    const why = element("section", "cr-why");
+    why.append(whyHead, whyBody);
+
+    root.replaceChildren(banner, grid, next, pipeline, why, shadow);
+
+    let whyOpen = false;
+    whyToggle.addEventListener("click", () => {
+      whyOpen = !whyOpen;
+      whyToggle.setAttribute("aria-expanded", String(whyOpen));
+      whyToggle.textContent = whyOpen ? "닫기" : "왜?";
+      whyBody.hidden = !whyOpen;
+    });
 
     function setNext(tone, glyph, text) {
       next.className = `cr-next${tone ? ` cr-next--${tone}` : ""}`;
@@ -412,11 +486,68 @@
       setNext(null, "▶", "사전 점검을 통과했습니다. 관측을 시작할 수 있습니다.");
     }
 
+    function renderPipeline() {
+      const stages = derivePipeline(diagnostics);
+      pipelineTrack.replaceChildren(...stages.flatMap((stage, index) => {
+        const node = element("div", "cr-stage");
+        const presentation = STAGE_TONE[stage.status] || STAGE_TONE.NOT_CALLED;
+        node.append(element("span", "cr-stage__name", stage.name), badge(presentation.tone, presentation.glyph, presentation.label));
+        return index === 0 ? [node] : [element("span", "cr-stage__link"), node];
+      }));
+      // Say plainly why two stages read "호출 안 됨" so it is not mistaken for a fault.
+      pipelineNote.textContent = diagnostics && diagnostics.lastSignal
+        ? "관측 모드에서는 포트폴리오 점검과 브로커 호출 단계를 원래 거치지 않습니다. 실제 주문은 어떤 경우에도 발생하지 않습니다."
+        : "아직 처리된 신호가 없습니다. 신호가 발생하면 각 단계의 결과가 여기에 표시됩니다.";
+    }
+
+    function whyField(label, value) {
+      const node = element("div", "cr-why__field");
+      node.append(element("span", "cr-why__key", label), element("span", "cr-why__value", value));
+      return node;
+    }
+
+    function renderWhy() {
+      const signal = diagnostics && diagnostics.lastSignal;
+      if (!signal) {
+        whyHeadline.textContent = "설명할 신호가 아직 없습니다.";
+        whyToggle.disabled = true;
+        whyBody.replaceChildren();
+        return;
+      }
+      whyToggle.disabled = false;
+      const blocked = signal.riskDecision !== "ALLOW";
+      why.className = `cr-why${blocked ? " cr-why--blocked" : ""}`;
+      whyHeadline.textContent = blocked
+        ? `${signal.signalType === "BUY" ? "매수" : "매도"} 신호가 차단되었습니다`
+        : `${signal.signalType === "BUY" ? "매수" : "매도"} 신호가 가상 체결로 기록되었습니다`;
+
+      const fields = element("div", "cr-why__fields");
+      // Strategy verdict and risk verdict are always separate rows: one is what the logic
+      // wanted, the other is what was permitted, and collapsing them hides the disagreement.
+      fields.append(
+        whyField("전략 판단", signal.strategyReason),
+        whyField("리스크 판단", signal.riskDecision),
+        whyField("차단 이유", signal.reasonCodes.length ? signal.reasonCodes.map(describeBlocker).join(" · ") : "없음"),
+        whyField("신호 수량", `${signal.quantity} @ ${signal.price}`)
+      );
+
+      // The four outcome counters are the operator's own proof that nothing moved.
+      const result = element("div", "cr-why__result");
+      for (const [label, value] of [["주문", diagnostics.actualOrderCount], ["체결", diagnostics.actualFillCount], ["현금 변화", diagnostics.cashMutationCount], ["포지션 변화", diagnostics.positionMutationCount]]) {
+        const item = element("span", "cr-why__result-item");
+        item.append(element("span", null, `${label} `), element("b", null, String(value)));
+        result.append(item);
+      }
+      whyBody.replaceChildren(fields, result);
+    }
+
     function render() {
       const health = deriveHealth(diagnostics, marketStatus);
       renderBanner(health);
       renderGrid();
       renderNext(health);
+      renderPipeline();
+      renderWhy();
       renderShadow();
     }
 
@@ -468,5 +599,5 @@
     };
   }
 
-  globalScope.DokkaebiControlRoom = { createControlRoom, deriveHealth, describeBlocker, HEALTH, HEALTH_LABEL };
+  globalScope.DokkaebiControlRoom = { createControlRoom, deriveHealth, derivePipeline, describeBlocker, HEALTH, HEALTH_LABEL, STAGES };
 })(window);
