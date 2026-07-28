@@ -66,6 +66,21 @@ test("payload tampering is detected by re-derived envelope hashes", async () => 
   assert.ok(verification.blockers.includes("EVENT_HASH_MISMATCH"));
 });
 
+test("manifest tampering is detected independently of event payload hashes", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const sessionId = "shadow-manifest-tamper";
+  const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
+  for (const event of pilot(sessionId).eventLog()) await archive.append(event);
+  await archive.finalize("OWNER_STOP", 1400);
+  const manifestPath = path.join(archive.directoryPath(), "manifest.json");
+  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+  manifest.eventCount += 1;
+  await fs.writeFile(manifestPath, JSON.stringify(manifest) + "\n", "utf8");
+  const verification = await verifyShadowEvidenceDirectory(archive.directoryPath(), 1500);
+  assert.equal(verification.status, "FAIL");
+  assert.ok(verification.blockers.includes("MANIFEST_MISMATCH"));
+});
+
 test("partial NDJSON line is classified as corrupted", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
   const sessionId = "shadow-test-3";
@@ -82,6 +97,22 @@ test("credential-like fields and absolute user paths are rejected before persist
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
   await assert.rejects(() => ShadowEvidenceArchive.create(root, { ...metadata("shadow-secret"), fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p", apiToken: "secret" } }), /credential-like field/);
   await assert.rejects(() => ShadowEvidenceArchive.create(root, { ...metadata("shadow-path"), sourceCommitSha: "C:\\Users\\person\\secret" }), /absolute user path/);
+  const archive = await ShadowEvidenceArchive.create(root, metadata("shadow-event-fields"));
+  const event = pilot("shadow-event-fields").eventLog()[0];
+  await assert.rejects(() => archive.append({ ...event, apiToken: "secret" }), /credential-like field/);
+  await assert.rejects(() => archive.append({ ...event, commandId: "C:\\Users\\person\\private" }), /absolute user path/);
+});
+
+test("an aborted partial session is sealed and verifies without inventing a stop event", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const sessionId = "shadow-aborted-partial";
+  const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
+  await archive.append(pilot(sessionId).eventLog()[0]);
+  const manifest = await archive.finalize("SINK_WRITE_FAILED", 1400, "ABORTED");
+  assert.equal(manifest.status, "ABORTED");
+  const verification = await verifyShadowEvidenceDirectory(archive.directoryPath(), 1500);
+  assert.equal(verification.status, "PASS");
+  assert.deepEqual(await findIncompleteShadowArchives(root), []);
 });
 
 test("open sessions without a completion marker are reported for recovery", async () => {

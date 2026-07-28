@@ -4,7 +4,7 @@ import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } 
 import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
-import type { DomainEventBus, DomainEventBusDiagnostics } from "./domainEventBus";
+import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "./domainEventBus";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -90,14 +90,14 @@ export interface ShadowOperationalDependencies {
    * gets a fresh bus -- a halted bus is never reused, and a previous session's queue can
    * never leak into a new one.
    */
-  readonly createEvidenceBus?: (metadata: Readonly<{ sessionId: string; createdAt: number }>) => DomainEventBus;
+  readonly createEvidenceBus: (metadata: Readonly<{ sessionId: string; createdAt: number; onHalt: (reason: DomainEventHaltReason, detail: string) => void }>) => DomainEventBus;
   /**
    * Reports evidence archives left open by a previous process. Any result at all forces
    * RECOVERY_REQUIRED and blocks start: an unsealed archive means the last session's record
    * is of unknown completeness, and continuing would append a second session's events beside
    * it with no way to tell later where one ended.
    */
-  readonly findIncompleteEvidence?: () => readonly string[];
+  readonly findIncompleteEvidence: () => readonly string[];
 }
 
 export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
@@ -158,8 +158,7 @@ export class ShadowOperationalRuntime {
         // The bus refused: overflow or an already-halted bus. Either way the durable record
         // is now incomplete, so the session must not keep producing events.
         const diagnostics = this.evidenceBus.diagnostics();
-        this.lifecycle = "HALTED";
-        this.blockers = [`EVIDENCE_${diagnostics.haltReason ?? "PUBLISH_REFUSED"}`];
+        this.onEvidenceHalt(diagnostics.haltReason ?? "SINK_WRITE_FAILED", diagnostics.haltDetail ?? "evidence publish refused");
         return;
       }
       this.publishedSequence = event.sequence;
@@ -167,9 +166,13 @@ export class ShadowOperationalRuntime {
   }
 
   /** Called by the bus itself when a sink write or finalize fails. */
-  private onEvidenceHalt(reason: string, detail: string): void {
+  private onEvidenceHalt(reason: DomainEventHaltReason, detail: string): void {
     this.lifecycle = "HALTED";
     this.blockers = [`EVIDENCE_${reason}`, detail];
+    if (this.pilot && this.pilot.snapshot().status === "RUNNING") {
+      try { this.pilot.stop(this.now()); } catch { /* the archive is already halted; seal what exists */ }
+    }
+    this.finalizeEvidence(`EVIDENCE_${reason}`, "ABORTED");
   }
 
   /**
@@ -210,9 +213,7 @@ export class ShadowOperationalRuntime {
     const status = bus.diagnostics();
     if (status.status !== "HALTED") return;
     if (this.lifecycle !== "RUNNING" && this.lifecycle !== "PAUSED") return;
-    this.lifecycle = "HALTED";
-    this.blockers = [`EVIDENCE_${status.haltReason}`, status.haltDetail ?? ""].filter(Boolean);
-    this.finalizeEvidence(status.haltReason ?? "EVIDENCE_HALT", "ABORTED");
+    this.onEvidenceHalt(status.haltReason ?? "SINK_WRITE_FAILED", status.haltDetail ?? "evidence bus halted");
   }
 
   private haltActiveSession(reasonCodes: readonly string[]): void {
@@ -348,7 +349,15 @@ export class ShadowOperationalRuntime {
     // An archive left open by a previous process means the last session's record is of
     // unknown completeness. Starting beside it would interleave two sessions' events with
     // no way to tell later where one ended, so recovery is required before anything runs.
-    const incomplete = this.deps.findIncompleteEvidence?.() ?? [];
+    let incomplete: readonly string[] = [];
+    try {
+      incomplete = this.deps.findIncompleteEvidence();
+      if (!Array.isArray(incomplete)) throw new Error("incomplete evidence scan returned an invalid result");
+    } catch {
+      // An unreadable evidence root is uncertainty about the previous session, not proof that
+      // no session exists. Fail closed with the same recovery gate as a markerless archive.
+      this.evidenceRecovery = "RECOVERY_REQUIRED";
+    }
     if (incomplete.length > 0) this.evidenceRecovery = "RECOVERY_REQUIRED";
     const candleState = this.candleAdapter.inspectState();
     const blockers: string[] = [];
@@ -386,7 +395,7 @@ export class ShadowOperationalRuntime {
       this.blockers = blockers;
       return this.diagnostics();
     }
-    const sessionId = `shadow-${this.deps.sourceCommitSha.slice(0, 12)}-${now}-${++this.sessionSequence}`;
+    const sessionId = `shadow-${this.deps.sourceCommitSha.slice(0, 12)}-${now}-${++this.sessionSequence}-${randomUUID()}`;
     const pilot = new ShadowPilotRuntime({
       sessionId, createdAt: now, sourceCommitSha: this.deps.sourceCommitSha,
       symbol: this.deps.symbol, strategyId: this.deps.strategyId, fingerprints: this.deps.fingerprints
@@ -406,7 +415,17 @@ export class ShadowOperationalRuntime {
     }
     // A fresh bus per session: a halted bus is never reused, and no previous session's
     // queued events can leak into this one.
-    this.evidenceBus = this.deps.createEvidenceBus?.({ sessionId, createdAt: now });
+    try {
+      this.evidenceBus = this.deps.createEvidenceBus({
+        sessionId,
+        createdAt: now,
+        onHalt: (reason, detail) => this.onEvidenceHalt(reason, detail)
+      });
+    } catch (error) {
+      this.lifecycle = "HALTED";
+      this.blockers = ["EVIDENCE_BUS_CREATE_FAILED", error instanceof Error ? error.message : String(error)];
+      return this.diagnostics();
+    }
     this.publishedSequence = 0;
     pilot.start(now);
     this.lifecycle = "RUNNING";

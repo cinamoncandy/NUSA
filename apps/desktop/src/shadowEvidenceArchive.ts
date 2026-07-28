@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
+import { mkdir, open, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ShadowPilotEvent, ShadowPilotSession } from "./shadowPilotRuntime";
 
@@ -41,6 +42,7 @@ export interface ShadowEvidenceManifest {
   readonly firstHash: string | null;
   readonly lastHash: string | null;
   readonly eventsSha256: string;
+  readonly metadataSha256: string;
   readonly completionReason: string;
   readonly generatedAt: number;
 }
@@ -78,7 +80,7 @@ function sha256(value: string): string {
 function sanitize(value: unknown, key = ""): unknown {
   if (SECRET_KEY.test(key)) throw new Error(`credential-like field is forbidden: ${key}`);
   if (typeof value === "string") {
-    if (/^[A-Za-z]:\\Users\\/i.test(value) || value.startsWith("/Users/") || value.startsWith("/home/")) throw new Error("absolute user path is forbidden in evidence");
+    if (/^[A-Za-z]:[\\/]Users[\\/]/i.test(value) || value.startsWith("/Users/") || value.startsWith("/home/") || value.startsWith("\\\\")) throw new Error("absolute user path is forbidden in evidence");
     return value;
   }
   if (Array.isArray(value)) return value.map((entry) => sanitize(entry));
@@ -123,6 +125,7 @@ export class ShadowEvidenceArchive {
 
   static async create(root: string, metadata: Omit<ShadowEvidenceSessionMetadata, "schemaVersion">): Promise<ShadowEvidenceArchive> {
     const archive = new ShadowEvidenceArchive(root, Object.freeze({ schemaVersion: 1, ...metadata }));
+    await mkdir(root, { recursive: true });
     await mkdir(archive.directory, { recursive: false });
     await atomicWrite(path.join(archive.directory, "session.json"), archive.metadata);
     await writeFile(archive.eventsPath, "", { encoding: "utf8", flag: "wx" });
@@ -167,6 +170,7 @@ export class ShadowEvidenceArchive {
       firstHash: envelopes.at(0)?.eventHash ?? null,
       lastHash: envelopes.at(-1)?.eventHash ?? null,
       eventsSha256: sha256(eventsText),
+      metadataSha256: sha256(stableJson(this.metadata)),
       completionReason,
       generatedAt
     });
@@ -194,18 +198,30 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
   const blockers: string[] = [];
   let metadata: ShadowEvidenceSessionMetadata | undefined;
   let envelopes: ShadowEvidenceEnvelope[] = [];
+  let eventsText = "";
+  let manifest: ShadowEvidenceManifest | undefined;
+  let manifestInvalid = false;
   try {
     metadata = JSON.parse(await readFile(path.join(directory, "session.json"), "utf8")) as ShadowEvidenceSessionMetadata;
     if (metadata.schemaVersion !== SHADOW_EVIDENCE_SCHEMA_VERSION) return Object.freeze({ status: "UNSUPPORTED_SCHEMA", sessionId: metadata.sessionId ?? null, eventCount: 0, sequenceContinuous: false, hashChainValid: false, sessionConsistent: false, actualBrokerCalls: 0, actualOrders: 0, actualFills: 0, cashMutations: 0, positionMutations: 0, blockers: ["UNSUPPORTED_SCHEMA"], recomputedAt });
-    envelopes = parseEventLines(await readFile(path.join(directory, "events.ndjson"), "utf8"));
+    eventsText = await readFile(path.join(directory, "events.ndjson"), "utf8");
+    envelopes = parseEventLines(eventsText);
   } catch (error) {
     return Object.freeze({ status: "CORRUPTED", sessionId: metadata?.sessionId ?? null, eventCount: 0, sequenceContinuous: false, hashChainValid: false, sessionConsistent: false, actualBrokerCalls: 0, actualOrders: 0, actualFills: 0, cashMutations: 0, positionMutations: 0, blockers: [error instanceof Error ? error.message : "EVIDENCE_READ_FAILED"], recomputedAt });
   }
+  try {
+    manifest = JSON.parse(await readFile(path.join(directory, "manifest.json"), "utf8")) as ShadowEvidenceManifest;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") manifestInvalid = true;
+  }
 
   let previous = GENESIS;
+  let previousPilotHash = GENESIS;
   let sequenceContinuous = true;
   let hashChainValid = true;
   let sessionConsistent = true;
+  let forbiddenField = false;
+  let shadowMutation = false;
   let actualBrokerCalls = 0;
   let actualOrders = 0;
   let actualFills = 0;
@@ -215,38 +231,98 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
     const envelope = envelopes[index]!;
     if (envelope.runtimeSequence !== index + 1 || envelope.event.sequence !== index + 1) sequenceContinuous = false;
     if (envelope.previousEventHash !== previous) hashChainValid = false;
+    if (envelope.event.previousEventSha256 !== previousPilotHash) hashChainValid = false;
     const { eventHash, ...raw } = envelope;
     if (sha256(stableJson(raw)) !== eventHash) hashChainValid = false;
     if (envelope.event.sessionId !== metadata.sessionId) sessionConsistent = false;
-    actualBrokerCalls += envelope.event.actualBrokerCallCount;
-    actualOrders += envelope.event.actualOrderDelta;
-    actualFills += envelope.event.actualFillDelta;
-    cashMutations += envelope.event.actualCashDelta;
-    positionMutations += envelope.event.actualPositionDelta;
+    try { sanitize(envelope); } catch { forbiddenField = true; }
+    const mutationValues = [envelope.event.actualBrokerCallCount, envelope.event.actualOrderDelta, envelope.event.actualFillDelta, envelope.event.actualCashDelta, envelope.event.actualPositionDelta];
+    if (mutationValues.some((value) => value !== 0)) shadowMutation = true;
+    actualBrokerCalls += typeof envelope.event.actualBrokerCallCount === "number" ? envelope.event.actualBrokerCallCount : 0;
+    actualOrders += typeof envelope.event.actualOrderDelta === "number" ? envelope.event.actualOrderDelta : 0;
+    actualFills += typeof envelope.event.actualFillDelta === "number" ? envelope.event.actualFillDelta : 0;
+    cashMutations += typeof envelope.event.actualCashDelta === "number" ? envelope.event.actualCashDelta : 0;
+    positionMutations += typeof envelope.event.actualPositionDelta === "number" ? envelope.event.actualPositionDelta : 0;
     previous = eventHash;
+    previousPilotHash = envelope.event.eventSha256;
   }
+  try { sanitize(metadata); } catch { forbiddenField = true; }
   if (!sequenceContinuous) blockers.push("MISSING_OR_DUPLICATE_SEQUENCE");
   if (!hashChainValid) blockers.push("EVENT_HASH_MISMATCH");
   if (!sessionConsistent) blockers.push("SESSION_ID_MISMATCH");
-  if (actualBrokerCalls !== 0 || actualOrders !== 0 || actualFills !== 0 || cashMutations !== 0 || positionMutations !== 0) blockers.push("SHADOW_MUTATION");
+  if (forbiddenField) blockers.push("FORBIDDEN_EVIDENCE_FIELD");
+  if (shadowMutation || actualBrokerCalls !== 0 || actualOrders !== 0 || actualFills !== 0 || cashMutations !== 0 || positionMutations !== 0) blockers.push("SHADOW_MUTATION");
   if (envelopes.at(0)?.event.eventType !== "SESSION_STARTED") blockers.push("SESSION_START_MISSING");
-  if (envelopes.at(-1)?.event.eventType !== "SESSION_STOPPED") blockers.push("SESSION_STOP_MISSING");
+  if (manifest?.status !== "ABORTED" && envelopes.at(-1)?.event.eventType !== "SESSION_STOPPED") blockers.push("SESSION_STOP_MISSING");
+
+  if (manifestInvalid) blockers.push("MANIFEST_INVALID");
+  if (manifest) {
+    const expected = {
+      schemaVersion: SHADOW_EVIDENCE_SCHEMA_VERSION,
+      sessionId: metadata.sessionId,
+      eventCount: envelopes.length,
+      firstSequence: envelopes.at(0)?.runtimeSequence ?? null,
+      lastSequence: envelopes.at(-1)?.runtimeSequence ?? null,
+      firstHash: envelopes.at(0)?.eventHash ?? null,
+      lastHash: envelopes.at(-1)?.eventHash ?? null,
+      eventsSha256: sha256(eventsText),
+      metadataSha256: sha256(stableJson(metadata))
+    };
+    if (manifest.schemaVersion !== expected.schemaVersion || manifest.sessionId !== expected.sessionId || (manifest.status !== "COMPLETED" && manifest.status !== "ABORTED") || manifest.eventCount !== expected.eventCount || manifest.firstSequence !== expected.firstSequence || manifest.lastSequence !== expected.lastSequence || manifest.firstHash !== expected.firstHash || manifest.lastHash !== expected.lastHash || manifest.eventsSha256 !== expected.eventsSha256 || manifest.metadataSha256 !== expected.metadataSha256) blockers.push("MANIFEST_MISMATCH");
+  }
+  const files = new Set(await readdir(directory));
+  const hasCompletedMarker = files.has("completed.marker");
+  const hasAbortedMarker = files.has("aborted.marker");
+  if (hasCompletedMarker && hasAbortedMarker) blockers.push("COMPLETION_MARKER_MISMATCH");
+  if (manifest && ((manifest.status === "COMPLETED" && !hasCompletedMarker) || (manifest.status === "ABORTED" && !hasAbortedMarker))) {
+    // During finalize the manifest is intentionally written before the marker. Once a marker
+    // exists, however, it must agree with the sealed status.
+    if (hasCompletedMarker || hasAbortedMarker) blockers.push("COMPLETION_MARKER_MISMATCH");
+  }
+  for (const markerName of ["completed.marker", "aborted.marker"] as const) {
+    if (!files.has(markerName)) continue;
+    try {
+      const marker = JSON.parse(await readFile(path.join(directory, markerName), "utf8")) as { schemaVersion?: number; sessionId?: string };
+      if (marker.schemaVersion !== SHADOW_EVIDENCE_SCHEMA_VERSION || marker.sessionId !== metadata.sessionId) blockers.push("COMPLETION_MARKER_INVALID");
+    } catch {
+      blockers.push("COMPLETION_MARKER_INVALID");
+    }
+  }
   return Object.freeze({ status: blockers.length === 0 ? "PASS" : "FAIL", sessionId: metadata.sessionId, eventCount: envelopes.length, sequenceContinuous, hashChainValid, sessionConsistent, actualBrokerCalls, actualOrders, actualFills, cashMutations, positionMutations, blockers: Object.freeze([...new Set(blockers)].sort()), recomputedAt });
 }
 
 export async function findIncompleteShadowArchives(root: string): Promise<readonly string[]> {
   try {
-    const names = await readdir(root);
+    const entries = await readdir(root, { withFileTypes: true });
     const incomplete: string[] = [];
-    for (const name of names) {
-      const directory = path.join(root, name);
-      if (!(await stat(directory)).isDirectory()) continue;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const directory = path.join(root, entry.name);
       const files = new Set(await readdir(directory));
       if (!files.has("completed.marker") && !files.has("aborted.marker")) incomplete.push(directory);
     }
     return Object.freeze(incomplete.sort());
-  } catch {
-    return Object.freeze([]);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return Object.freeze([]);
+    throw error;
+  }
+}
+
+/** Synchronous counterpart used by the Electron main process before Shadow start is exposed. */
+export function findIncompleteShadowArchivesSync(root: string): readonly string[] {
+  try {
+    const entries = readdirSync(root, { withFileTypes: true });
+    const incomplete: string[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const directory = path.join(root, entry.name);
+      const files = new Set(readdirSync(directory));
+      if (!files.has("completed.marker") && !files.has("aborted.marker")) incomplete.push(directory);
+    }
+    return Object.freeze(incomplete.sort());
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return Object.freeze([]);
+    throw error;
   }
 }
 

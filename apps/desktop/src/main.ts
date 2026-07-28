@@ -33,6 +33,8 @@ import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
+import { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink, type DurableEvidenceWriter } from "./domainEventBus";
+import { ShadowEvidenceArchive, findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 
@@ -317,6 +319,16 @@ function initializeRuntime(): void {
   reconnectedAt = undefined;
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
+  const shadowEvidenceRoot = path.join(app.getPath("userData"), "shadow-evidence");
+  let shadowIncompleteEvidence: readonly string[] = [];
+  let shadowEvidenceScanBlocked = false;
+  try {
+    shadowIncompleteEvidence = findIncompleteShadowArchivesSync(shadowEvidenceRoot);
+  } catch {
+    // An unreadable archive root is uncertainty about the prior session. Shadow start will
+    // expose RECOVERY_REQUIRED rather than continuing beside evidence it cannot inspect.
+    shadowEvidenceScanBlocked = true;
+  }
   sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
   controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
   const paperLoad = sessionStore.loadSafe();
@@ -416,9 +428,6 @@ function initializeRuntime(): void {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
-  // No durable Shadow session persistence exists yet (WO-0034-A3): every process start
-  // constructs a fresh instance at IDLE, which is what makes "no auto-run after restart"
-  // true by construction rather than by a separate recovered-session check.
   shadowRuntime = new ShadowOperationalRuntime({
     symbol: MARKET,
     strategyId: smaStrategy.id,
@@ -431,6 +440,29 @@ function initializeRuntime(): void {
     onProductionSignal: handleProductionSignal,
     riskGate: paperCommandRiskGate,
     getHypotheticalOrderQuantity: () => control.getOrderQuantity(),
+    createEvidenceBus: ({ sessionId, createdAt, onHalt }) => {
+      const archivePromise = ShadowEvidenceArchive.create(shadowEvidenceRoot, {
+        sessionId,
+        createdAt,
+        sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+        symbol: MARKET,
+        strategyId: smaStrategy.id,
+        strategyVersion: SHADOW_STRATEGY_VERSION,
+        controlOrigin: "LOCAL_INTERACTIVE_UI",
+        authenticatedOwner: false,
+        fingerprints: PAPER_SAFETY_FINGERPRINTS
+      });
+      const writer: DurableEvidenceWriter = {
+        append: async (event, receivedAt) => (await archivePromise).append(event, receivedAt),
+        finalize: async (reason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED") => (await archivePromise).finalize(reason, generatedAt, status)
+      };
+      return new DomainEventBus({
+        sessionId,
+        sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer)],
+        onHalt
+      });
+    },
+    findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
       // Matches createSafetySnapshot()'s own current, honestly-unresolved values: neither
       // deployment integrity nor reconciliation has a real PASS source wired yet, so
