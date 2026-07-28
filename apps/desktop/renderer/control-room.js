@@ -418,9 +418,11 @@
       const state = diagnostics ? diagnostics.state : null;
       shadowHint.textContent = !available
         ? "이 빌드에서는 Shadow 제어를 사용할 수 없습니다."
-        : diagnostics
-          ? `상태 ${state} · 신호 ${diagnostics.signalCount}건`
-          : "진단 정보를 불러오는 중입니다.";
+        : diagnostics && state === "COMPLETED" && diagnostics.blockers.includes("MAX_SESSION_DURATION_REACHED")
+          ? `관측 완료 · 설정된 최대 시간 도달 · 신호 ${diagnostics.signalCount}건 · 실제 주문 ${diagnostics.actualOrderCount}건 · 실제 체결 ${diagnostics.actualFillCount}건`
+          : diagnostics
+            ? `상태 ${state} · 신호 ${diagnostics.signalCount}건`
+            : "진단 정보를 불러오는 중입니다.";
 
       startButton.disabled = !available || state !== "IDLE";
       pauseButton.disabled = !available || state !== "RUNNING";
@@ -472,6 +474,10 @@
       }
       if (diagnostics.state === "RUNNING") {
         setNext(null, "✔", "관측이 정상 진행 중입니다. 가상 체결만 기록되며 실제 주문은 발생하지 않습니다.");
+        return;
+      }
+      if (diagnostics.state === "COMPLETED" && reasons.includes("MAX_SESSION_DURATION_REACHED")) {
+        setNext("success", "✔", "관측 세션이 설정된 최대 시간에 도달하여 정상적으로 완료되었습니다.");
         return;
       }
       if (reasons.length === 1 && reasons[0] === "MARKET_DATA_WARMING_UP") {

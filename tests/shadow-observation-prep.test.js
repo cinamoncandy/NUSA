@@ -330,6 +330,26 @@ test("10: passing the maximum session duration stops the session as a normal com
   assert.ok(after.elapsedMs >= 5 * MINUTE);
 });
 
+test("10a: the session ceiling is a safe normal completion, not a precheck failure", async () => {
+  const h = makeRuntime({ maxSessionDurationMs: 5 * MINUTE });
+  h.warmUp();
+  h.runtime.start();
+  h.candles(8, (index) => 300 + index * 100);
+  const diagnostics = h.runtime.diagnostics();
+  const summary = buildShadowObservationSummary({
+    diagnostics,
+    evidence: { status: "OPEN", haltReason: null, published: 3, delivered: 3, duplicatesDropped: 0, highWaterMark: 1 },
+    verification: { status: "PASS", blockers: [], actualBrokerCalls: 0, actualOrders: 0, actualFills: 0, cashMutations: 0, positionMutations: 0 },
+    completionMarker: "COMPLETED", evidenceRecoveryState: "NONE", privateApiCallCount: 0, endedAt: CLOCK + 8 * MINUTE
+  });
+  assert.equal(diagnostics.state, "COMPLETED");
+  assert.equal(summary.completionReason, "MAX_SESSION_DURATION_REACHED");
+  assert.equal(summary.safeCompletion, "SAFE_COMPLETION");
+  assert.equal(summary.executionGateCallCount, 0);
+  assert.equal(summary.brokerCallCount, 0);
+  assert.ok(!summary.verdictReasons.some((reason) => reason.includes("PRECHECK")));
+});
+
 test("10b: with no ceiling configured the session runs on, exactly as before A4", () => {
   const h = makeRuntime();
   h.warmUp();
@@ -442,6 +462,17 @@ test("13c: a mutation recorded only in the archive still fails the run", () => {
   });
   assert.equal(summary.verdict, "FAIL");
   assert.ok(summary.verdictReasons.includes("MUTATION_ARCHIVE_ORDER:2"), JSON.stringify(summary.verdictReasons));
+});
+
+test("SAFE_COMPLETION is never reported when a mutation counter is non-zero", () => {
+  const summary = buildShadowObservationSummary({
+    diagnostics: { state: "COMPLETED", sessionId: "s-mutation", symbol: SYMBOL, blockers: ["MAX_SESSION_DURATION_REACHED"], closedCandleCount: 5, duplicateCandleCount: 0, staleCandleCount: 0, outOfOrderCandleCount: 0, signalCount: 1, startedAt: CLOCK, actualBrokerCallCount: 1, executionGateCallCount: 0, actualOrderCount: 0, actualFillCount: 0, cashMutationCount: 0, positionMutationCount: 0 },
+    evidence: { status: "OPEN", haltReason: null, published: 3, delivered: 3, duplicatesDropped: 0, highWaterMark: 1 },
+    verification: { status: "PASS", blockers: [], actualBrokerCalls: 1, actualOrders: 0, actualFills: 0, cashMutations: 0, positionMutations: 0 },
+    completionMarker: "COMPLETED", evidenceRecoveryState: "NONE", privateApiCallCount: 0, endedAt: CLOCK + MINUTE
+  });
+  assert.equal(summary.safeCompletion, "NOT_SAFE_COMPLETION");
+  assert.notEqual(summary.verdict, "PASS");
 });
 
 test("13d: a RECOVERY_REQUIRED run reports RECOVERY_REQUIRED, not FAIL", () => {

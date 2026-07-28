@@ -3,6 +3,7 @@ import { readdirSync } from "node:fs";
 import { mkdir, open, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ShadowPilotEvent, ShadowPilotSession } from "./shadowPilotRuntime";
+import type { ShadowCompletionEvidence } from "./shadowCompletionEvidence";
 
 export const SHADOW_EVIDENCE_SCHEMA_VERSION = 1 as const;
 const GENESIS = "GENESIS";
@@ -45,6 +46,7 @@ export interface ShadowEvidenceManifest {
   readonly metadataSha256: string;
   readonly completionReason: string;
   readonly generatedAt: number;
+  readonly completionSha256?: string;
 }
 
 export interface ShadowEvidenceVerification {
@@ -155,11 +157,12 @@ export class ShadowEvidenceArchive {
     return envelope;
   }
 
-  async finalize(completionReason: string, generatedAt = Date.now(), status: "COMPLETED" | "ABORTED" = "COMPLETED"): Promise<ShadowEvidenceManifest> {
+  async finalize(completionReason: string, generatedAt = Date.now(), status: "COMPLETED" | "ABORTED" = "COMPLETED", completion?: ShadowCompletionEvidence): Promise<ShadowEvidenceManifest> {
     if (this.status !== "OPEN") throw new Error(`archive cannot finalize from ${this.status}`);
     this.status = "RECOVERY_REQUIRED";
     const eventsText = this.eventLines.join("") || await readFile(this.eventsPath, "utf8");
     const envelopes = parseEventLines(eventsText);
+    if (completion) await atomicWrite(path.join(this.directory, "completion.json"), completion);
     const manifest: ShadowEvidenceManifest = Object.freeze({
       schemaVersion: 1,
       sessionId: this.metadata.sessionId,
@@ -172,7 +175,8 @@ export class ShadowEvidenceArchive {
       eventsSha256: sha256(eventsText),
       metadataSha256: sha256(stableJson(this.metadata)),
       completionReason,
-      generatedAt
+      generatedAt,
+      ...(completion ? { completionSha256: sha256(stableJson(completion)) } : {})
     });
     await atomicWrite(path.join(this.directory, "manifest.json"), manifest);
     const verification = await verifyShadowEvidenceDirectory(this.directory, generatedAt);
@@ -200,6 +204,7 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
   let envelopes: ShadowEvidenceEnvelope[] = [];
   let eventsText = "";
   let manifest: ShadowEvidenceManifest | undefined;
+  let completion: ShadowCompletionEvidence | undefined;
   let manifestInvalid = false;
   try {
     metadata = JSON.parse(await readFile(path.join(directory, "session.json"), "utf8")) as ShadowEvidenceSessionMetadata;
@@ -211,6 +216,11 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
   }
   try {
     manifest = JSON.parse(await readFile(path.join(directory, "manifest.json"), "utf8")) as ShadowEvidenceManifest;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") manifestInvalid = true;
+  }
+  try {
+    completion = JSON.parse(await readFile(path.join(directory, "completion.json"), "utf8")) as ShadowCompletionEvidence;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") manifestInvalid = true;
   }
@@ -269,6 +279,11 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
       metadataSha256: sha256(stableJson(metadata))
     };
     if (manifest.schemaVersion !== expected.schemaVersion || manifest.sessionId !== expected.sessionId || (manifest.status !== "COMPLETED" && manifest.status !== "ABORTED") || manifest.eventCount !== expected.eventCount || manifest.firstSequence !== expected.firstSequence || manifest.lastSequence !== expected.lastSequence || manifest.firstHash !== expected.firstHash || manifest.lastHash !== expected.lastHash || manifest.eventsSha256 !== expected.eventsSha256 || manifest.metadataSha256 !== expected.metadataSha256) blockers.push("MANIFEST_MISMATCH");
+    if (manifest.completionSha256 !== undefined) {
+      if (completion === undefined || sha256(stableJson(completion)) !== manifest.completionSha256 || completion.sessionId !== metadata.sessionId || completion.finalState !== "COMPLETED" || completion.safety !== "SAFE_COMPLETION") blockers.push("COMPLETION_EVIDENCE_MISMATCH");
+    } else if (completion !== undefined) blockers.push("COMPLETION_EVIDENCE_UNBOUND");
+  } else if (completion !== undefined) {
+    blockers.push("COMPLETION_EVIDENCE_UNBOUND");
   }
   const files = new Set(await readdir(directory));
   const hasCompletedMarker = files.has("completed.marker");

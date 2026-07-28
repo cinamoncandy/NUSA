@@ -100,6 +100,7 @@ const aiCioDashboard: AiCioDashboardApi = Object.freeze({
  * side by shadowIpcValidation.ts).
  */
 export interface ShadowPilotApi {
+  preflight(): Promise<readonly string[]>;
   start(): Promise<unknown>;
   pause(sessionId: string): Promise<unknown>;
   resume(sessionId: string): Promise<unknown>;
@@ -108,6 +109,7 @@ export interface ShadowPilotApi {
 }
 
 const shadowPilot: ShadowPilotApi = Object.freeze({
+  preflight: () => invokeReadWithRecovery<readonly string[]>("shadow:preflight"),
   start: () => invokeMutation("shadow:start", { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion: "sma-crossover:closed-candle-1m-v1" }),
   pause: (sessionId: string) => invokeMutation("shadow:pause", { sessionId }),
   resume: (sessionId: string) => invokeMutation("shadow:resume", { sessionId }),

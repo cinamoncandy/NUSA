@@ -6,13 +6,21 @@ const { tmpdir } = require("node:os");
 const { spawnSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 
+function withoutKnownRuntimeWarnings(stderr) {
+  return stderr.replace(/^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n?/gm, "");
+}
+
+function assertNoUnexpectedStderr(stderr) {
+  assert.equal(withoutKnownRuntimeWarnings(stderr), "");
+}
+
 test("evidence status is safe and not evaluated without an explicit database", () => {
   const result = spawnSync(process.execPath, ["scripts/evidence-cli.js", "status"], { encoding: "utf8" });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /"database": "not evaluated"/);
   assert.match(result.stdout, /"releaseStatus": "BLOCKED"/);
   assert.doesNotMatch(result.stdout, /process|username|hostname/i);
-  assert.equal(result.stderr, "");
+  assertNoUnexpectedStderr(result.stderr);
 });
 
 test("status reads a database without mutating it and fails closed for an incomplete schema", () => {
@@ -36,9 +44,9 @@ test("export and verify commands reject missing required arguments without a sta
   writeFileSync(outputPath, "{}\n", "utf8");
   const exportResult = spawnSync(process.execPath, ["scripts/evidence-cli.js", "export", "--output", outputPath], { encoding: "utf8" });
   assert.equal(exportResult.status, 1);
-  assert.equal(exportResult.stderr, "evidence command failed\n");
+  assert.equal(withoutKnownRuntimeWarnings(exportResult.stderr), "evidence command failed\n");
   const verifyResult = spawnSync(process.execPath, ["scripts/evidence-cli.js", "verify", "--bundle", join(root, "missing.json")], { encoding: "utf8" });
   assert.equal(verifyResult.status, 1);
-  assert.equal(verifyResult.stderr, "evidence command failed\n");
+  assert.equal(withoutKnownRuntimeWarnings(verifyResult.stderr), "evidence command failed\n");
   rmSync(root, { recursive: true, force: true });
 });

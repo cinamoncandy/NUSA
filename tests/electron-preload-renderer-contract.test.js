@@ -24,7 +24,7 @@ test("BrowserWindow still points webPreferences.preload at the compiled preload 
  * file doesn't know about, instead of silently passing. */
 function extractRendererUsage(source) {
   const usage = new Map(); // namespace -> Set<method>
-  const pattern = /window\.(dokkaebi|aiCioDashboard)\.(\w+)/g;
+  const pattern = /window\.(dokkaebi|aiCioDashboard|shadowPilot)\.(\w+)/g;
   let match;
   while ((match = pattern.exec(source)) !== null) {
     const [, namespace, method] = match;
@@ -145,6 +145,7 @@ test("preload never lets a caller-supplied value choose the IPC channel", () => 
   const unsubscribeControl = exposed.dokkaebi.onControl(() => {});
   const unsubscribeChart = exposed.dokkaebi.onChartPoint(() => {});
   void exposed.aiCioDashboard.getAiCioDashboard();
+  void exposed.shadowPilot.preflight();
 
   assert.ok(ipcCalls.length > 0, "expected preload methods to actually reach ipcRenderer during this fuzz pass");
   for (const call of ipcCalls) {

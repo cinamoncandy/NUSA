@@ -50,6 +50,10 @@ export interface ShadowObservationSummary {
   readonly cashMutation: number;
   readonly positionMutation: number;
   readonly privateApiCalls: number;
+  readonly completionReason: string | null;
+  readonly executionGateCallCount: number;
+  readonly brokerCallCount: number;
+  readonly safeCompletion: "SAFE_COMPLETION" | "NOT_SAFE_COMPLETION";
   readonly verdict: ShadowObservationVerdict;
   /** Why the verdict is what it is. Empty only for PASS. */
   readonly verdictReasons: readonly string[];
@@ -138,6 +142,10 @@ export function buildShadowObservationSummary(input: ShadowObservationSummaryInp
     cashMutation: d.cashMutationCount,
     positionMutation: d.positionMutationCount,
     privateApiCalls: input.privateApiCallCount,
+    completionReason: d.blockers.find((blocker) => BENIGN_BLOCKERS.has(blocker)) ?? null,
+    executionGateCallCount: d.executionGateCallCount ?? 0,
+    brokerCallCount: d.actualBrokerCallCount,
+    safeCompletion: d.state === "COMPLETED" && d.actualOrderCount === 0 && d.actualFillCount === 0 && d.cashMutationCount === 0 && d.positionMutationCount === 0 && (d.executionGateCallCount ?? 0) === 0 && d.actualBrokerCallCount === 0 && input.privateApiCallCount === 0 ? "SAFE_COMPLETION" : "NOT_SAFE_COMPLETION",
     verdict,
     verdictReasons: Object.freeze([...new Set(reasons)].sort())
   });
@@ -168,6 +176,10 @@ export function formatShadowObservationSummary(summary: ShadowObservationSummary
     `- cash mutation: ${summary.cashMutation}`,
     `- position mutation: ${summary.positionMutation}`,
     `- private API calls: ${summary.privateApiCalls}`,
+    `- completion reason: ${summary.completionReason ?? "(none)"}`,
+    `- execution gate calls: ${summary.executionGateCallCount}`,
+    `- broker calls: ${summary.brokerCallCount}`,
+    `- safety: ${summary.safeCompletion}`,
     `- final verdict: ${summary.verdict}`
   ];
   if (summary.verdictReasons.length > 0) lines.push(`- verdict reasons: ${summary.verdictReasons.join(", ")}`);

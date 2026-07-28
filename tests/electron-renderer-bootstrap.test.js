@@ -74,6 +74,14 @@ function bootstrapRenderer({ initialSnapshot = null, initialControl = null, aiCi
     onControl: (handler) => { handlers.control = handler; return () => { handlers.control = undefined; }; },
     onChartPoint: (handler) => { handlers.chartPoint = handler; return () => { handlers.chartPoint = undefined; }; }
   };
+  window.shadowPilot = {
+    preflight: () => Promise.resolve([]),
+    status: () => Promise.resolve({}),
+    start: () => Promise.resolve({}),
+    pause: () => Promise.resolve({}),
+    resume: () => Promise.resolve({}),
+    stop: () => Promise.resolve({})
+  };
   let aiCioCallCount = 0;
   window.aiCioDashboard = {
     getAiCioDashboard: () => { aiCioCallCount += 1; return Promise.resolve(aiCioResult); }

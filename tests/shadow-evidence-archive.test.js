@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
 const { ShadowEvidenceArchive, findIncompleteShadowArchives, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { buildShadowCompletionEvidence } = require("../dist/apps/desktop/src/shadowCompletionEvidence.js");
 
 function metadata(sessionId) {
   return {
@@ -51,6 +52,44 @@ test("archive writes an append-only hash chain and independently verifies zero m
   assert.equal(verification.actualFills, 0);
   assert.equal(verification.cashMutations, 0);
   assert.equal(verification.positionMutations, 0);
+});
+
+test("completed observation persists an independently hashed SAFE_COMPLETION summary", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-completion-"));
+  const sessionId = "shadow-completion-evidence";
+  const runtime = pilot(sessionId);
+  const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
+  for (const event of runtime.eventLog()) await archive.append(event, event.timestamp + 1);
+  const completion = buildShadowCompletionEvidence({ diagnostics: {
+    ...runtime.snapshot(), state: "COMPLETED", sessionId, symbol: "KRW-BTC", strategyId: "sma-crossover", startedAt: 1100,
+    actualBrokerCallCount: 0, executionGateCallCount: 0, actualOrderCount: 0, actualFillCount: 0, cashMutationCount: 0, positionMutationCount: 0,
+    signalCount: 1
+  }, completionReason: "MAX_SESSION_DURATION_REACHED", completedAt: 1400 });
+  assert.equal(completion.safety, "SAFE_COMPLETION");
+  const manifest = await archive.finalize("MAX_SESSION_DURATION_REACHED", 1400, "COMPLETED", completion);
+  assert.match(manifest.completionSha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(archive.directoryPath(), "completion.json"), "utf8")), completion);
+  assert.equal((await verifyShadowEvidenceDirectory(archive.directoryPath(), 1500)).status, "PASS");
+});
+
+test("tampering with the completion summary fails independent verification", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-completion-tamper-"));
+  const sessionId = "shadow-completion-tamper";
+  const runtime = pilot(sessionId);
+  const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
+  for (const event of runtime.eventLog()) await archive.append(event);
+  const completion = buildShadowCompletionEvidence({ diagnostics: {
+    ...runtime.snapshot(), state: "COMPLETED", sessionId, symbol: "KRW-BTC", strategyId: "sma-crossover", startedAt: 1100,
+    actualBrokerCallCount: 0, executionGateCallCount: 0, actualOrderCount: 0, actualFillCount: 0, cashMutationCount: 0, positionMutationCount: 0, signalCount: 1
+  }, completionReason: "MAX_SESSION_DURATION_REACHED", completedAt: 1400 });
+  await archive.finalize("MAX_SESSION_DURATION_REACHED", 1400, "COMPLETED", completion);
+  const completionPath = path.join(archive.directoryPath(), "completion.json");
+  const changed = JSON.parse(await fs.readFile(completionPath, "utf8"));
+  changed.signalCount = 99;
+  await fs.writeFile(completionPath, JSON.stringify(changed) + "\n", "utf8");
+  const verification = await verifyShadowEvidenceDirectory(archive.directoryPath(), 1500);
+  assert.equal(verification.status, "FAIL");
+  assert.ok(verification.blockers.includes("COMPLETION_EVIDENCE_MISMATCH"));
 });
 
 test("payload tampering is detected by re-derived envelope hashes", async () => {
