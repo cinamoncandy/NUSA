@@ -1,5 +1,6 @@
 import type { ShadowPilotEvent } from "./shadowPilotRuntime";
 import type { ShadowCompletionEvidence } from "./shadowCompletionEvidence";
+import type { MarketConnectionEvidence } from "./marketConnectionEvidence";
 
 /**
  * Bounded, exactly-once delivery bus between the synchronous Shadow runtime and its
@@ -38,7 +39,7 @@ export interface DomainEventSink {
   /** Flushes sink-local buffers after queued delivery. Throwing halts the bus. */
   flush?(): Promise<void> | void;
   /** Called once when the session ends. Throwing halts the bus but does not undo delivery. */
-  finalize?(reason: string, status: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence): Promise<void> | void;
+  finalize?(reason: string, status: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<void> | void;
 }
 
 export interface DomainEventBusDiagnostics {
@@ -172,7 +173,7 @@ export class DomainEventBus {
    * Drains, then finalizes every sink exactly once. A halted bus still finalizes, so a
    * partial session is sealed as ABORTED rather than left open and ambiguous on disk.
    */
-  async finalize(reason: string, status: "COMPLETED" | "ABORTED" = "COMPLETED", completion?: ShadowCompletionEvidence): Promise<void> {
+  async finalize(reason: string, status: "COMPLETED" | "ABORTED" = "COMPLETED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<void> {
     await this.flush();
     if (this.finalized) return;
     this.finalized = true;
@@ -180,7 +181,7 @@ export class DomainEventBus {
     for (const sink of this.sinks) {
       if (!sink.finalize) continue;
       try {
-        await sink.finalize(reason, effective, completion);
+        await sink.finalize(reason, effective, completion, marketConnection);
       } catch (error) {
         this.halt("SINK_FINALIZE_FAILED", `${sink.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -231,7 +232,7 @@ export class InMemoryEvidenceSink implements DomainEventSink {
     this.events.push(event);
   }
 
-  finalize(_reason: string, status: "COMPLETED" | "ABORTED", _completion?: ShadowCompletionEvidence): void {
+  finalize(_reason: string, status: "COMPLETED" | "ABORTED", _completion?: ShadowCompletionEvidence, _marketConnection?: MarketConnectionEvidence): void {
     this.finalizedAs = status;
   }
 
@@ -249,7 +250,7 @@ export class InMemoryEvidenceSink implements DomainEventSink {
 export interface DurableEvidenceWriter {
   append(event: ShadowPilotEvent, receivedAt?: number): Promise<unknown>;
   flush?(): Promise<unknown>;
-  finalize(completionReason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence): Promise<unknown>;
+  finalize(completionReason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<unknown>;
 }
 
 export class DurableEvidenceSink implements DomainEventSink {
@@ -265,7 +266,7 @@ export class DurableEvidenceSink implements DomainEventSink {
     await this.archive.flush?.();
   }
 
-  async finalize(reason: string, status: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence): Promise<void> {
-    await this.archive.finalize(reason, this.now(), status, completion);
+  async finalize(reason: string, status: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<void> {
+    await this.archive.finalize(reason, this.now(), status, completion, marketConnection);
   }
 }

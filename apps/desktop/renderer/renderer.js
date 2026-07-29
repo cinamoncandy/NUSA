@@ -29,6 +29,16 @@ function renderA4Diagnostics(diagnostics) {
     : 0;
   const shadowBridge = typeof window.shadowPilot === "object" && window.shadowPilot;
   const bridgeConnected = bridgeMethods > 0 && Boolean(shadowBridge);
+  const marketConnection = diagnostics.shadow.marketConnection || {
+    marketConnectionState: "DISCONNECTED",
+    lastMarketMessageAt: null,
+    reconnectAttempt: 0,
+    lastSuccessfulReconnectAt: null,
+    activeMarketListenerCount: 0,
+    activeMarketSubscriptionCount: 0,
+    reconnectTimerCount: 0,
+    reconnectFailureReason: null
+  };
   verdict.textContent = bridgeConnected ? diagnostics.verdict : "BLOCKED";
   verdict.className = `a4-verdict ${bridgeConnected && diagnostics.verdict === "READY_FOR_OBSERVATION" ? "ready" : "blocked"}`;
   grid.hidden = false;
@@ -77,12 +87,12 @@ function renderA4Diagnostics(diagnostics) {
       ["Duplicate / stale / out-of-order", `${diagnostics.shadow.duplicateCandleCount} / ${diagnostics.shadow.staleCandleCount} / ${diagnostics.shadow.outOfOrderCandleCount}`]
     ]),
     renderA4Rows("Public market reconnect", [
-      ["State", diagnostics.shadow.marketConnection.marketConnectionState],
-      ["Last market message", diagnostics.shadow.marketConnection.lastMarketMessageAt || "None"],
-      ["Reconnect", `${diagnostics.shadow.marketConnection.reconnectAttempt} attempts`],
-      ["Last recovery", diagnostics.shadow.marketConnection.lastSuccessfulReconnectAt || "None"],
-      ["Listeners / subscriptions / timers", `${diagnostics.shadow.marketConnection.activeMarketListenerCount} / ${diagnostics.shadow.marketConnection.activeMarketSubscriptionCount} / ${diagnostics.shadow.marketConnection.reconnectTimerCount}`],
-      ["Failure", diagnostics.shadow.marketConnection.reconnectFailureReason || "None"]
+      ["State", marketConnection.marketConnectionState],
+      ["Last market message", marketConnection.lastMarketMessageAt || "None"],
+      ["Reconnect", `${marketConnection.reconnectAttempt} attempts`],
+      ["Last recovery", marketConnection.lastSuccessfulReconnectAt || "None"],
+      ["Listeners / subscriptions / timers", `${marketConnection.activeMarketListenerCount} / ${marketConnection.activeMarketSubscriptionCount} / ${marketConnection.reconnectTimerCount}`],
+      ["Failure", marketConnection.reconnectFailureReason || "None"]
     ]),
     renderA4Rows("Evidence", [
       ["Root writable", diagnostics.evidence.rootWritable ? "YES" : "NO"],
