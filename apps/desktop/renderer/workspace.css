@@ -1,0 +1,41 @@
+/* A4P workspace: screen-level composition layered over the existing safety UI. */
+.workspace-views { min-width: 0; }
+.workspace-view { display: none; min-width: 0; }
+.workspace-view.is-active { display: block; animation: workspace-in 180ms ease-out; }
+.workspace-view__header { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin: 6px 0 28px; }
+.workspace-view__title { margin: 0; font-size: clamp(1.65rem, 2.4vw, 2.45rem); letter-spacing: -0.02em; }
+.workspace-view__description { max-width: 44rem; margin: 8px 0 0; color: var(--brand-secondary); font-size: 0.95rem; }
+.workspace-view__header .eyebrow { margin: 0 0 8px; color: var(--brand-accent); }
+.workspace-dashboard-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; }
+.workspace-card { min-width: 0; padding: 24px; background: var(--brand-surface); border: 1px solid var(--brand-border); border-radius: var(--brand-radius); box-shadow: var(--brand-shadow); }
+.workspace-card--hero { grid-column: span 8; min-height: 210px; padding: 32px; background: linear-gradient(145deg, var(--brand-raised), var(--brand-surface)); }
+.workspace-card--action { grid-column: span 4; min-height: 210px; border-color: color-mix(in srgb, var(--brand-accent) 50%, var(--brand-border)); }
+.workspace-card--wide { grid-column: span 8; }
+.workspace-card--summary { margin-bottom: 18px; border-left: 3px solid var(--brand-safe); }
+.workspace-card__label { margin: 0 0 10px; color: var(--brand-muted); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.workspace-card__headline { margin: 0; font-size: clamp(1.25rem, 2vw, 1.8rem); }
+.workspace-card__copy { max-width: 38rem; margin: 12px 0 18px; color: var(--brand-secondary); line-height: 1.6; }
+.workspace-card__value { display: block; margin-top: 4px; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.workspace-kpi-grid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.workspace-kpi-grid .workspace-card { padding: 18px; }
+.workspace-status-pill { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; }
+.workspace-status-pill.is-safe { color: #09251f; background: var(--brand-safe); }
+.workspace-action-link { color: var(--brand-accent); font-weight: 700; text-decoration: none; }
+.workspace-action-link:focus-visible, .workspace-copy:focus-visible, .workspace-secondary:focus-visible, .workspace-search:focus-visible, .workspace-filter:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.workspace-note { color: var(--brand-secondary); font-size: 0.86rem; line-height: 1.55; }
+.workspace-evidence-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.workspace-search, .workspace-filter { min-height: 40px; padding: 0 12px; color: var(--brand-text); background: var(--brand-raised); border: 1px solid var(--brand-border); border-radius: 8px; font: inherit; }
+.workspace-search { min-width: min(100%, 280px); }
+.workspace-secondary, .workspace-copy { min-height: 40px; padding: 0 13px; color: var(--brand-text); background: transparent; border: 1px solid var(--brand-border); border-radius: 8px; font: inherit; cursor: pointer; }
+.workspace-secondary:disabled { cursor: not-allowed; opacity: 0.55; }
+.recovery-flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; counter-reset: recovery; }
+.recovery-flow__step { min-height: 72px; padding: 14px; color: var(--brand-secondary); background: var(--brand-surface); border: 1px solid var(--brand-border); border-radius: 10px; font-size: 0.8rem; }
+.recovery-flow__step::before { display: block; margin-bottom: 10px; color: var(--brand-accent); content: counter(recovery); counter-increment: recovery; font-weight: 800; }
+.workspace-view > .control-room, .workspace-view > .card, .workspace-view > .grid, .workspace-view > .product-section, .workspace-view > .application-state { margin-bottom: 18px; }
+.workspace-view > .hero { margin-top: 0; }
+.workspace-view > .grid { display: grid; }
+.workspace-view[hidden] { display: none; }
+@keyframes workspace-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .workspace-view.is-active { animation: none; } }
+@media (width <= 900px) { .workspace-card--hero, .workspace-card--action, .workspace-card--wide { grid-column: 1 / -1; } .workspace-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .recovery-flow { grid-template-columns: 1fr; } }
+@media (width <= 560px) { .workspace-kpi-grid { grid-template-columns: 1fr; } .workspace-card { padding: 18px; } .workspace-view__header { margin-bottom: 20px; } }

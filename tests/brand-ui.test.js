@@ -32,7 +32,9 @@ test("A4P design tokens cover brand, semantic state, spacing, type, and motion",
 
 test("A4P navigation is presentation-only and cannot introduce arbitrary IPC", () => {
   assert.match(html, /brand-ui\.js/);
-  assert.match(brandScript, /scrollIntoView/);
+  assert.match(brandScript, /workspace-view/);
+  assert.match(brandScript, /activate\(/);
+  assert.doesNotMatch(brandScript, /scrollIntoView/);
   assert.doesNotMatch(brandScript, /ipcRenderer|invoke\(|shadow:start|paper:order/);
   for (const channel of ["paper:order", "shadow:start", "recovery:reconcile", "recovery:complete"]) assert.match(preload, new RegExp(channel.replace(":", "\\:")));
 });
@@ -41,6 +43,25 @@ test("A4P keeps evidence and recovery as visible destinations without delete con
   assert.match(html, /data-nav-target="evidence"/);
   assert.match(html, /data-nav-target="recovery"/);
   assert.doesNotMatch(html, /delete-evidence|evidence-delete|deleteEvidence/);
+});
+
+test("A4P workspace gives each product screen an independent view and a prioritized dashboard", () => {
+  for (const screen of ["dashboard", "market", "shadow", "orders", "portfolio", "risk", "recovery", "evidence", "diagnostics", "settings", "about"]) {
+    assert.match(brandScript, new RegExp(`${screen}:`));
+  }
+  assert.match(brandScript, /현재 안전 상태/);
+  assert.match(brandScript, /다음 행동/);
+  assert.match(brandScript, /recovery-flow/);
+  assert.match(brandScript, /Evidence 검색/);
+});
+
+test("A4P screen routing is keyboard and accessibility aware", () => {
+  assert.match(brandScript, /aria-hidden/);
+  assert.match(brandScript, /aria-current/);
+  assert.match(brandScript, /preventScroll/);
+  assert.match(brandScript, /data-copy-value/);
+  assert.match(fs.readFileSync(path.join(root, "workspace.css"), "utf8"), /prefers-reduced-motion/);
+  assert.match(fs.readFileSync(path.join(root, "workspace.css"), "utf8"), /focus-visible/);
 });
 
 test("A4P brand assets and status language are explicit", () => {
