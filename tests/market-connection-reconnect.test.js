@@ -162,6 +162,45 @@ test("A4L: a second reconnect timer cannot be armed, and an owner stop abandons 
   assert.equal(supervisor.diagnostics().reconnectTimerCount, 0);
 });
 
+test("A4L: a give-up does not pretend the outage ended, and the two downtime figures agree", () => {
+  let now = 0;
+  const supervisor = new MarketConnectionSupervisor({ now: () => now, policy: { ...DEFAULT_MARKET_RECONNECT_POLICY, maxAttempts: 1, maxTotalReconnectMs: 3_600_000 } });
+  supervisor.noteOpened();
+  now = 10_000;
+  supervisor.noteDisconnected();
+  now = 20_000;
+  assert.equal(supervisor.noteDisconnected().action, "GIVE_UP");
+
+  now = 40_000;
+  const after = supervisor.diagnostics();
+  assert.equal(after.marketConnectionState, "FAILED");
+  // The episode RECORD closed at the give-up; the OUTAGE did not. Reporting "(none)" and
+  // zero here would tell an operator the feed is fine while it is still dead.
+  assert.equal(after.reconnectStartedAt, 10_000);
+  assert.equal(after.currentDowntimeMs, 30_000);
+  assert.ok(after.totalDowntimeMs >= after.currentDowntimeMs, `total ${after.totalDowntimeMs} must not fall behind current ${after.currentDowntimeMs}`);
+  assert.equal(after.totalDowntimeMs, 30_000, "downtime past the give-up is still counted, exactly once");
+});
+
+test("A4L: a later outage starts from a fresh retry budget, not the previous one's remainder", () => {
+  let now = 0;
+  const supervisor = new MarketConnectionSupervisor({ now: () => now, policy: { ...DEFAULT_MARKET_RECONNECT_POLICY, maxAttempts: 2, maxTotalReconnectMs: 3_600_000 } });
+  supervisor.noteOpened();
+  now = 1_000;
+  supervisor.noteDisconnected();
+  now = 2_000;
+  supervisor.noteDisconnected();
+  now = 3_000;
+  supervisor.noteOpened();
+  supervisor.noteMessage();
+
+  now = 10_000;
+  const second = supervisor.noteDisconnected();
+  assert.equal(second.action, "RETRY", "a new outage must not inherit a spent budget and give up on its first try");
+  assert.equal(second.attempt, 1);
+  assert.equal(second.delayMs, 1_000, "backoff restarts from the beginning for a new outage");
+});
+
 // ---------------------------------------------------------------------------
 // Transport: one socket, one timer, no duplicated listeners or subscriptions
 // ---------------------------------------------------------------------------
@@ -250,7 +289,11 @@ test("A4L: the transport stops retrying at the configured ceiling and says so", 
   assert.equal(client.connectionDiagnostics().reconnectFailureReason, "MAX_ATTEMPTS_EXCEEDED");
   assert.ok(statuses.includes("reconnect-exhausted"));
   assert.equal(client.connectionDiagnostics().reconnectTimerCount, 0, "nothing is left armed after giving up");
+  // A client that abandoned the feed has nothing left to judge freshness of. Leaving the
+  // staleness heartbeat running would keep a live timer that no diagnostic counts.
+  assert.equal(client.activeTimerCount(), 0, "the heartbeat is released on give-up, not left running");
   client.stop();
+  assert.equal(client.activeTimerCount(), 0);
 });
 
 // ---------------------------------------------------------------------------
