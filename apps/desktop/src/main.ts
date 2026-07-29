@@ -43,6 +43,7 @@ import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimeP
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
+import { CrashRecoveryMarkerStore, type CrashRecoveryDiagnostic, type CrashRecoveryStartup } from "./crashRecoveryMarker";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -122,9 +123,82 @@ const recoveryLedger = new RecoveryLedger();
 const recoveryReview = new RecoveryReviewState();
 /** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
 let recoveryRecordId: string | null = null;
+let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
+let crashRecoveryStartup: CrashRecoveryStartup | undefined;
+let crashRecoveryRequired = false;
+let lastEvidenceId: string | null = null;
+let crashRecoveryDiagnostic: CrashRecoveryDiagnostic = Object.freeze({
+  runId: null,
+  recoveryRequired: false,
+  previousRunId: null,
+  previousSessionId: null,
+  previousSessionState: null,
+  lastEvidenceId: null,
+  detectedAt: null,
+  cleanShutdown: false,
+  reasonCodes: Object.freeze([]),
+  recoveryState: null,
+  failClosed: false
+});
 
 function recordRecovery(component: RecoveryComponent, status: RecoveryHealth, message: string): void {
   recoveryLedger.record({ id: `${component}:${Date.now()}:${recoveryLedger.list().length}`, timestamp: Date.now(), component, status, message });
+}
+
+function currentCrashContext(): Readonly<{
+  sessionId: string | null;
+  sessionState: string | null;
+  evidenceId: string | null;
+  marketConnectionState: string;
+}> {
+  const diagnostics = shadowRuntime?.diagnostics();
+  return {
+    sessionId: diagnostics?.sessionId ?? null,
+    sessionState: diagnostics?.state ?? "IDLE",
+    evidenceId: lastEvidenceId,
+    marketConnectionState: marketDataStatus
+  };
+}
+
+function updateCrashMarker(): void {
+  if (!crashRecoveryStore) return;
+  try {
+    const context = currentCrashContext();
+    crashRecoveryStore.update({
+      lastKnownSessionId: context.sessionId,
+      lastKnownSessionState: context.sessionState,
+      lastEvidenceId: context.evidenceId,
+      lastMarketConnectionState: context.marketConnectionState
+    });
+  } catch (error) {
+    crashRecoveryRequired = true;
+    recordRecovery("STORAGE", "CRITICAL", `Crash marker update failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (control) control.fault(PERSISTENCE_FAULT_MESSAGE);
+  }
+}
+
+function beginCrashShutdown(): void {
+  if (!crashRecoveryStore) return;
+  const context = currentCrashContext();
+  try {
+    crashRecoveryStore.beginShutdown({ at: Date.now(), ...context });
+  } catch (error) {
+    // A shutdown is only clean when this durable marker can be written.
+    crashRecoveryRequired = true;
+    recordRecovery("STORAGE", "CRITICAL", `Crash marker shutdown write failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function completeCrashShutdown(): boolean {
+  if (!crashRecoveryStore) return true;
+  const context = currentCrashContext();
+  try {
+    crashRecoveryStore.completeShutdown({ at: Date.now(), ...context, sessionState: context.sessionState ?? "IDLE" });
+    return true;
+  } catch (error) {
+    recordRecovery("STORAGE", "CRITICAL", `Crash marker completion write failed: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
 }
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
@@ -376,7 +450,7 @@ function initializeRuntime(): void {
   let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
   let restoredFromSqlite = false;
   let persistenceDiagnostic: string | undefined;
-  let safetyRecoveryBlocked = false;
+  let safetyRecoveryBlocked = crashRecoveryRequired;
   try {
     persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
     const sqliteState = persistenceStore.load();
@@ -547,7 +621,7 @@ function initializeRuntime(): void {
     findIncompleteEvidence: () => shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
     getSafetyState: () => ({
       deploymentIntegrity: operationalPreflight.deployment.status === "PASS",
-      reconciliation: operationalPreflight.reconciliation.status === "PASS" && !safetyRecoveryBlocked,
+      reconciliation: operationalPreflight.reconciliation.status === "PASS" && !safetyRecoveryBlocked && !crashRecoveryRequired,
       killSwitch: persistedKillSwitchActive,
       openP0: persistedOpenP0Codes.length > 0,
       automaticTrading: control.snapshot().autoTradeEnabled,
@@ -572,8 +646,8 @@ function initializeRuntime(): void {
     // or any halt is outside this entirely and still needs the owner.
     autoResumeOnMarketRecovery: true
   });
-  paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
-  if (control.snapshot().status === "RUNNING") strategy.start();
+  paperTradingAvailable = !crashRecoveryRequired && !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
+  if (control.snapshot().status === "RUNNING" && paperTradingAvailable) strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
@@ -588,6 +662,7 @@ function initializeRuntime(): void {
     }
   }
   stream = new UpbitWebSocketClient(MARKET, handleTicker, handleMarketStatus, undefined, undefined, { onConnectionState: handleMarketConnectionState });
+  updateCrashMarker();
 }
 
 ipcMain.handle("paper:order", (_event, input: unknown) => {
@@ -635,7 +710,10 @@ ipcMain.handle("shadow:start", (_event, input: unknown) => {
   parseShadowStartIpc(input);
   const blockers = shadowRuntime.startPrecheckBlockers(false);
   if (blockers.length > 0) throw new Error(`shadow preflight blocked: ${blockers.join(",")}`);
-  return shadowRuntime.start();
+  const result = shadowRuntime.start();
+  lastEvidenceId = `session-start:${result.sessionId}`;
+  updateCrashMarker();
+  return result;
 });
 ipcMain.handle("shadow:preflight", () => shadowRuntime.startPrecheckBlockers(false));
 /**
@@ -708,15 +786,22 @@ ipcMain.handle("recovery:complete", (_event, input: unknown) => {
 
 ipcMain.handle("shadow:pause", (_event, input: unknown) => {
   requireCurrentShadowSession(input);
-  return shadowRuntime.pause();
+  const result = shadowRuntime.pause();
+  updateCrashMarker();
+  return result;
 });
 ipcMain.handle("shadow:resume", (_event, input: unknown) => {
   requireCurrentShadowSession(input);
-  return shadowRuntime.resume();
+  const result = shadowRuntime.resume();
+  updateCrashMarker();
+  return result;
 });
 ipcMain.handle("shadow:stop", (_event, input: unknown) => {
   requireCurrentShadowSession(input);
-  return shadowRuntime.stop();
+  const result = shadowRuntime.stop();
+  lastEvidenceId = `session-stop:${result.sessionId}`;
+  updateCrashMarker();
+  return result;
 });
 ipcMain.handle("shadow:status", (_event, input: unknown) => {
   parseShadowStatusIpc(input);
@@ -742,11 +827,41 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
     activatedAt: persistedKillSwitchActivatedAt,
     activationSource: persistedKillSwitchActive ? "PERSISTED_PAPER_SAFETY_SNAPSHOT" : null,
     openP0Codes: persistedOpenP0Codes
-  }
+  },
+  crashRecovery: crashRecoveryDiagnostic
 }));
 
 app.whenReady().then(() => {
+  try {
+    const userData = app.getPath("userData");
+    crashRecoveryStore = new CrashRecoveryMarkerStore(
+      path.join(userData, "crash-marker.json"),
+      path.join(userData, "recovery-records.jsonl")
+    );
+    crashRecoveryStartup = crashRecoveryStore.startRun({ startedAt: Date.now(), lastMarketConnectionState: marketDataStatus });
+    crashRecoveryRequired = crashRecoveryStartup.recoveryRequired;
+    if (crashRecoveryRequired) recoveryRecordId = crashRecoveryStartup.recoveryRecordId;
+    crashRecoveryDiagnostic = crashRecoveryStore.diagnostic(crashRecoveryStartup);
+    if (crashRecoveryRequired) {
+      recordRecovery("STORAGE", "CRITICAL", `Previous run requires recovery: ${crashRecoveryStartup.reasonCodes.join(",")}`);
+    }
+  } catch (error) {
+    crashRecoveryRequired = true;
+    recordRecovery("STORAGE", "CRITICAL", `Crash recovery marker initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    crashRecoveryDiagnostic = Object.freeze({
+      ...crashRecoveryDiagnostic,
+      recoveryRequired: true,
+      reasonCodes: Object.freeze(["CRASH_MARKER_INVALID" as const]),
+      failClosed: true,
+      detectedAt: Date.now()
+    });
+  }
   initializeRuntime();
+  if (crashRecoveryRequired) {
+    control.fault("RECOVERY_REQUIRED: previous Electron run was not cleanly shut down");
+    paperTradingAvailable = false;
+    runtime.markUnavailable();
+  }
   createWindow();
   // Public market data is safe to observe even while Paper execution is unavailable.
   // Execution remains fail-closed behind RuntimeCommandService and the risk gate.
@@ -766,6 +881,15 @@ app.whenReady().then(() => {
 });
 
 let shadowEvidenceSealed = false;
+let shutdownInProgress = false;
+
+function releaseRuntimeResources(): void {
+  aiCioSnapshotPublisher.clear();
+  stream?.stop();
+  if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
+  if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
+  persistenceStore?.close();
+}
 
 /**
  * A live Shadow session owns an open, hash-chained archive. Quitting without sealing it leaves
@@ -775,30 +899,36 @@ let shadowEvidenceSealed = false;
  */
 app.on("before-quit", (event) => {
   if (shadowEvidenceSealed || !shadowRuntime) return;
-  if (!["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state)) {
+  if (shutdownInProgress) return;
+  shutdownInProgress = true;
+  beginCrashShutdown();
+  const active = shadowRuntime && ["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state);
+  const finish = async (): Promise<void> => {
+    let finalized = true;
+    if (shadowRuntime && active) {
+      try { shadowRuntime.stop(); } catch (error) {
+        finalized = false;
+        console.error(`shadow stop during quit failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      try { await shadowRuntime.awaitEvidenceFinalized(); } catch (error) {
+        finalized = false;
+        console.error(`shadow evidence finalize failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    releaseRuntimeResources();
+    if (finalized) completeCrashShutdown();
     shadowEvidenceSealed = true;
-    return;
+    app.quit();
+  };
+  if (active) {
+    event.preventDefault();
+    void finish();
+  } else {
+    releaseRuntimeResources();
+    if (completeCrashShutdown()) shadowEvidenceSealed = true;
   }
-  event.preventDefault();
-  try {
-    shadowRuntime.stop();
-  } catch (error) {
-    console.error(`shadow stop during quit failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  void shadowRuntime
-    .awaitEvidenceFinalized()
-    .catch((error) => console.error(`shadow evidence finalize failed: ${error instanceof Error ? error.message : String(error)}`))
-    .finally(() => {
-      shadowEvidenceSealed = true;
-      app.quit();
-    });
 });
 
 app.on("window-all-closed", () => {
-  aiCioSnapshotPublisher.clear();
-  stream?.stop();
-  if (healthTimer) clearInterval(healthTimer);
-  if (officialCandleTimer) clearInterval(officialCandleTimer);
-  persistenceStore?.close();
   if (process.platform !== "darwin") app.quit();
 });
