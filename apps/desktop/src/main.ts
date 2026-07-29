@@ -29,6 +29,7 @@ import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
 import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
 import { SmaCrossoverStrategy, StrategyEngine, type StrategySignal } from "./strategyEngine";
 import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
+import type { MarketConnectionDiagnostics } from "./marketConnectionSupervisor";
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
 import { createHash } from "node:crypto";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
@@ -232,14 +233,24 @@ function handleProductionSignal(input: { market: string; price: number; position
   publishAiCioDashboard();
 }
 
+/**
+ * Structured public-feed connection state (WO-0034-A4L). Emitted by the transport BEFORE the
+ * human-readable status string, so the Shadow runtime records the specific reason a session
+ * ended (MARKET_RECONNECT_TIMEOUT) rather than the generic string that follows it.
+ */
+function handleMarketConnectionState(connection: MarketConnectionDiagnostics): void {
+  shadowRuntime.onMarketConnectionState(connection);
+  window?.webContents.send("market:connection", connection);
+}
+
 function handleMarketStatus(status: string): void {
   const now = Date.now();
-  websocketConnected = status === "connected";
-  marketDataStatus = status === "connected" ? "HEALTHY" : status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
+  websocketConnected = status === "connected" || status === "recovered";
+  marketDataStatus = status === "connected" ? "HEALTHY" : status === "recovered" ? "HEALTHY" : status === "disconnected" || status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
   window?.webContents.send("market:status", status);
   shadowRuntime.onWebSocketStatus(status);
 
-  if (status === "connected") {
+  if (status === "connected" || status === "recovered") {
     reconnectedAt = now;
   } else {
     disconnectedAt ??= now;
@@ -551,8 +562,15 @@ function initializeRuntime(): void {
     // themselves, so the number falls to zero when shutdown actually clears them rather than
     // when someone remembers to update a constant.
     getHostIntervalCount: () => (healthTimer ? 1 : 0) + (officialCandleTimer ? 1 : 0),
-    getHostTimeoutCount: () => 0,
-    longRunningDiagnosticsIntervalMs: 60_000
+    // The reconnect timer is the one timeout this process can own, and it is counted from
+    // the transport's own supervisor rather than assumed absent (WO-0034-A4L).
+    getHostTimeoutCount: () => (stream ? stream.connectionDiagnostics().reconnectTimerCount : 0),
+    longRunningDiagnosticsIntervalMs: 60_000,
+    // WO-0034-A4L. A session paused ONLY because the public feed dropped returns to RUNNING,
+    // with the same sessionId and archive, once real market data flows again AND the full
+    // start precheck passes again. A stale feed, a clock drift, a candle gap, an owner pause
+    // or any halt is outside this entirely and still needs the owner.
+    autoResumeOnMarketRecovery: true
   });
   paperTradingAvailable = !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING") strategy.start();
@@ -569,7 +587,7 @@ function initializeRuntime(): void {
       failClosedEvidenceWrite();
     }
   }
-  stream = new UpbitWebSocketClient(MARKET, handleTicker, handleMarketStatus);
+  stream = new UpbitWebSocketClient(MARKET, handleTicker, handleMarketStatus, undefined, undefined, { onConnectionState: handleMarketConnectionState });
 }
 
 ipcMain.handle("paper:order", (_event, input: unknown) => {
@@ -714,7 +732,7 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
   market: {
     connected: websocketConnected,
-    lastHeartbeatAt: latestTicker?.trade_timestamp ?? null,
+    lastHeartbeatAt: stream.connectionDiagnostics().lastMarketMessageAt,
     source: "UPBIT_PUBLIC_CLOSED_CANDLE"
   },
   safety: {

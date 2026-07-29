@@ -2,6 +2,7 @@ import { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink, type DomainE
 import { ShadowEvidenceArchive } from "./shadowEvidenceArchive";
 import type { ShadowPilotSession } from "./shadowPilotRuntime";
 import type { ShadowCompletionEvidence } from "./shadowCompletionEvidence";
+import type { MarketConnectionEvidence } from "./marketConnectionEvidence";
 
 /**
  * The identity every archive written by this process carries. These are the same values the
@@ -48,7 +49,7 @@ export function createShadowEvidenceBusFactory(
     });
     const writer: DurableEvidenceWriter = {
       append: async (event, receivedAt) => (await archivePromise).append(event, receivedAt),
-      finalize: async (reason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence) => (await archivePromise).finalize(reason, generatedAt, status, completion)
+      finalize: async (reason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence) => (await archivePromise).finalize(reason, generatedAt, status, completion, marketConnection)
     };
     // The in-memory sink is not the system of record; it refuses a sequence gap, so a
     // disagreement with the durable archive halts the bus instead of being smoothed over.

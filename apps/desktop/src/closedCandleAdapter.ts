@@ -99,6 +99,16 @@ export class ClosedCandleAdapter {
   }
 
   markDisconnected(timestamp?: number): ClosedCandleHealthEvent { this.connected = false; return freeze({ code: "DISCONNECTED", ...(timestamp === undefined ? {} : { timestamp }) }); }
+  /**
+   * Throws away the minute currently being assembled (WO-0034-A4L).
+   *
+   * Called when the feed drops, because ticks from before an outage and ticks from after it
+   * do not describe one minute of trading. Left in place, that half-built candle keeps
+   * accumulating on reconnection and closes as a normal candle spanning the gap -- and if the
+   * outage was shorter than one interval, no GAP_DETECTED is raised to say so. Kept separate
+   * from `markDisconnected` so a caller that only wants to stop ingestion still can.
+   */
+  dropOpenCandle(): void { this.open = undefined; }
   markReconnected(timestamp?: number): ClosedCandleHealthEvent { this.connected = true; return freeze({ code: "RECONNECTED", ...(timestamp === undefined ? {} : { timestamp }) }); }
   resetWarmup(): void { this.closedCandleCount = 0; }
   inspectState(): ClosedCandleAdapterState { return freeze({ connected: this.connected, currentBucket: this.open?.bucket ?? null, closedCandleCount: this.closedCandleCount, requiredWarmupCandles: this.configuration.requiredWarmupCandles, warmupComplete: this.closedCandleCount >= this.configuration.requiredWarmupCandles }); }
