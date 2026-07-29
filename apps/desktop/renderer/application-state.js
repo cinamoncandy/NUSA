@@ -47,7 +47,11 @@
     document.getElementById("application-state-action").textContent = item.action;
   }
 
-  function mount(document, windowObject) {
+  function mount(document, windowObject, options = {}) {
+    const loadingTimeoutMs = Number.isSafeInteger(options.loadingTimeoutMs) && options.loadingTimeoutMs > 0
+      ? options.loadingTimeoutMs
+      : 8_000;
+    let loadingTimer;
     const read = () => {
       const price = document.getElementById("price")?.textContent || "";
       const status = document.getElementById("status")?.textContent || "";
@@ -64,6 +68,10 @@
         autoTradeEnabled: auto,
         decisionState
       }));
+      if (!loading && loadingTimer !== undefined) {
+        windowObject.clearTimeout(loadingTimer);
+        loadingTimer = undefined;
+      }
     };
 
     const observer = new windowObject.MutationObserver(read);
@@ -75,7 +83,29 @@
     windowObject.addEventListener("online", read);
     windowObject.addEventListener("offline", read);
     read();
-    return { refresh: read, disconnect: () => observer.disconnect() };
+    loadingTimer = windowObject.setTimeout(() => {
+      const price = document.getElementById("price")?.textContent || "";
+      const status = document.getElementById("status")?.textContent || "";
+      if (price.includes("?湲?") && !status.includes("?곌껐??")) {
+        render(document, resolveState({
+          loading: false,
+          online: windowObject.navigator?.onLine !== false,
+          connectionStatus: status || "connected",
+          hasPrice: false,
+          strategyStatus: document.getElementById("strategy-status")?.textContent || "",
+          autoTradeEnabled: document.getElementById("auto-trade")?.checked === true,
+          decisionState: document.body.dataset.decisionState
+        }));
+      }
+      loadingTimer = undefined;
+    }, loadingTimeoutMs);
+    return {
+      refresh: read,
+      disconnect: () => {
+        observer.disconnect();
+        if (loadingTimer !== undefined) windowObject.clearTimeout(loadingTimer);
+      }
+    };
   }
 
   return { catalog, resolveState, render, mount };

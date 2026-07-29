@@ -42,4 +42,32 @@ test("renderer contract exposes an accessible live status surface", () => {
   assert.match(script, /MutationObserver/);
   assert.match(script, /addEventListener\("offline"/);
   assert.match(script, /addEventListener\("online"/);
+  assert.match(script, /loadingTimeoutMs/);
+});
+
+test("loading fallback resolves to a non-permissive state when no data arrives", () => {
+  const timers = [];
+  const nodes = new Map([
+    ["application-state", { dataset: {} }],
+    ["application-state-title", { textContent: "" }],
+    ["application-state-description", { textContent: "" }],
+    ["application-state-action", { textContent: "" }],
+    ["price", { textContent: "?쒖꽭 ?湲?以?" }],
+    ["status", { textContent: "" }],
+    ["strategy-status", { textContent: "STOPPED" }],
+    ["auto-trade", { checked: false, addEventListener() {} }]
+  ]);
+  const document = { body: { dataset: {} }, getElementById: (id) => nodes.get(id) };
+  const windowObject = {
+    navigator: { onLine: true },
+    MutationObserver: class { observe() {} disconnect() {} },
+    addEventListener() {},
+    setTimeout: (callback) => { timers.push(callback); return 1; },
+    clearTimeout() {}
+  };
+  const mounted = states.mount(document, windowObject, { loadingTimeoutMs: 1 });
+  timers[0]();
+  assert.notEqual(nodes.get("application-state").dataset.state, "LOADING");
+  assert.notEqual(nodes.get("application-state").dataset.tone, "positive");
+  mounted.disconnect();
 });
