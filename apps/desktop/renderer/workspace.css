@@ -24,6 +24,9 @@
 .workspace-action-link:focus-visible, .workspace-copy:focus-visible, .workspace-secondary:focus-visible, .workspace-search:focus-visible, .workspace-filter:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
 .workspace-note { color: var(--brand-secondary); font-size: 0.86rem; line-height: 1.55; }
 .workspace-evidence-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.evidence-list { margin-bottom: 18px; }
+.evidence-list__header { padding-bottom: 12px; color: var(--brand-muted); border-bottom: 1px solid var(--brand-border); font: 700 0.72rem/1.4 var(--font-mono); white-space: pre; overflow-x: auto; }
+.evidence-list__empty { margin: 18px 0 0; color: var(--brand-secondary); }
 .workspace-search, .workspace-filter { min-height: 40px; padding: 0 12px; color: var(--brand-text); background: var(--brand-raised); border: 1px solid var(--brand-border); border-radius: 8px; font: inherit; }
 .workspace-search { min-width: min(100%, 280px); }
 .workspace-secondary, .workspace-copy { min-height: 40px; padding: 0 13px; color: var(--brand-text); background: transparent; border: 1px solid var(--brand-border); border-radius: 8px; font: inherit; cursor: pointer; }

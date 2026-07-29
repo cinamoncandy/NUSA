@@ -122,7 +122,6 @@
     const eventsCard = document.querySelector("#events")?.closest("article");
     if (eventsCard) panels.shadow.append(eventsCard);
     const ordersSection = document.querySelector("#orders")?.closest("section");
-    if (ordersSection && ordersSection !== panels.orders) panels.orders.append(ordersSection);
     const accountCard = document.querySelector("#cash")?.closest("article");
     if (accountCard && accountCard !== panels.portfolio) panels.portfolio.append(accountCard);
     moveInto(panels.risk, ["#a4-diagnostics"]);
@@ -136,13 +135,19 @@
     for (const optionText of ["전체 상태", "PASS", "REJECT", "ERROR"]) { const option = node("option", "", optionText); option.value = optionText; status.append(option); }
     const exportButton = node("button", "workspace-secondary", "Evidence 내보내기"); exportButton.type = "button"; exportButton.disabled = true; exportButton.title = "현재 안전 브리지에서 제공될 때 활성화됩니다";
     evidence.append(search, status, exportButton);
-    panels.evidence.append(evidence, node("p", "workspace-note", "현재 세션 기록은 Orders & Fills의 Paper ledger와 함께 확인할 수 있습니다."));
+    panels.evidence.append(evidence, node("p", "workspace-note", "삭제하거나 덮어쓰지 않는 Paper Evidence 기록입니다."));
+    const evidenceList = node("article", "workspace-card evidence-list");
+    evidenceList.append(node("div", "evidence-list__header", "세션 ID                         생성 시각             종료 사유                 검증 상태"), node("p", "evidence-list__empty", "현재 세션에 완료된 Evidence 기록이 없습니다."));
+    panels.evidence.append(evidenceList);
+    if (ordersSection && ordersSection !== panels.evidence) panels.evidence.append(ordersSection);
     const recoveryFlow = node("ol", "recovery-flow");
     for (const label of ["비정상 종료 감지", "상태 대조", "결과 확인", "소유자 검토", "복구 완료"]) recoveryFlow.append(node("li", "recovery-flow__step", label));
     panels.recovery.prepend(recoveryFlow);
     panels.risk.prepend(node("article", "workspace-card workspace-card--summary", "현재 진단은 읽기 전용입니다. 문제가 있으면 자동 실행하지 않고 차단 상태를 유지합니다."));
     panels.shadow.append(node("p", "workspace-note", "가상 체결은 관측 설명용이며 실제 주문·체결·현금·포지션 변동은 0이어야 합니다."));
-    panels.orders.append(node("p", "workspace-note", "Paper 기록만 표시됩니다."));
+    const orderSummary = node("div", "workspace-kpi-grid workspace-kpi-grid--two");
+    orderSummary.append(sectionTitle("Paper 주문", "0", "neutral"), sectionTitle("Paper 체결", "0", "neutral"), sectionTitle("현금 변동", "0", "safe"), sectionTitle("포지션 변동", "0", "safe"));
+    panels.orders.append(orderSummary, node("p", "workspace-note", "주문과 체결은 Paper ledger에서만 기록됩니다. 실제 주문 경로는 비활성화되어 있습니다."));
     panels.portfolio.append(node("p", "workspace-note", "이 화면의 계좌 수치는 Paper 환경에서만 계산됩니다."));
     for (const child of [...main.children]) {
       if (child !== header && child !== views && child.id !== "dashboard") child.hidden = true;

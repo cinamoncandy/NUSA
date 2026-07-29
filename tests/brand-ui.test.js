@@ -53,6 +53,8 @@ test("A4P workspace gives each product screen an independent view and a prioriti
   assert.match(brandScript, /다음 행동/);
   assert.match(brandScript, /recovery-flow/);
   assert.match(brandScript, /Evidence 검색/);
+  assert.match(brandScript, /workspace-kpi-grid--two/);
+  assert.match(brandScript, /삭제하거나 덮어쓰지 않는 Paper Evidence 기록/);
 });
 
 test("A4P screen routing is keyboard and accessibility aware", () => {
