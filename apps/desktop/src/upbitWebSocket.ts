@@ -124,8 +124,7 @@ export class UpbitWebSocketClient {
   stop(): void {
     this.stopped = true;
     this.clearReconnectTimer();
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-    this.heartbeatTimer = undefined;
+    this.stopHeartbeat();
     this.teardownSocket();
     this.supervisor.noteStopped();
     this.setHealth("DISCONNECTED", "stopped");
@@ -258,8 +257,23 @@ export class UpbitWebSocketClient {
     ]));
   }
 
-  private startHeartbeat(): void {
+  /**
+   * Releases the staleness heartbeat. Called on stop AND on give-up: a client that has
+   * abandoned the feed has nothing left to judge the freshness of, and leaving the interval
+   * running would keep one live timer in the process that no diagnostic counts.
+   */
+  private stopHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+  }
+
+  /** Live timers this client owns: the staleness heartbeat plus any armed reconnect timer. */
+  activeTimerCount(): number {
+    return (this.heartbeatTimer === undefined ? 0 : 1) + this.supervisor.diagnostics().reconnectTimerCount;
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
     const interval = Math.max(1_000, Math.min(5_000, Math.floor(this.policy.staleAfterMs / 2)));
     this.heartbeatTimer = setInterval(() => {
       if (this.stopped || !this.lastMessageAt || !this.socket || this.socket.readyState !== WebSocket.OPEN) return;
@@ -278,6 +292,7 @@ export class UpbitWebSocketClient {
     const decision = this.supervisor.noteDisconnected();
     if (decision.action === "GIVE_UP") {
       this.stopped = true;
+      this.stopHeartbeat();
       this.setHealth("DISCONNECTED", "reconnect-exhausted");
       return;
     }

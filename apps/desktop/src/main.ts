@@ -817,7 +817,7 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
   market: {
     connected: websocketConnected,
-    lastHeartbeatAt: stream.connectionDiagnostics().lastMarketMessageAt,
+    lastHeartbeatAt: stream ? stream.connectionDiagnostics().lastMarketMessageAt : null,
     source: "UPBIT_PUBLIC_CLOSED_CANDLE"
   },
   safety: {
