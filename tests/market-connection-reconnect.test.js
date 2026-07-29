@@ -555,6 +555,26 @@ test("A4L: connection transitions are sealed as separate evidence, including 'ne
   assert.equal(quiet.totalDowntime, 0);
 });
 
+test("A4L: each closed outage also lands in the pilot hash chain, exactly once", async () => {
+  const h = makeRuntime();
+  h.warmUp();
+  h.runtime.start();
+  const episode = { episodeId: 1, disconnectedAt: 21 * MINUTE, reconnectAttemptCount: 2, recoveredAt: 24 * MINUTE, totalDowntime: 3 * MINUTE, finalReconnectState: "RECOVERED", failureReason: null };
+  h.runtime.onMarketConnectionState(connectionState({ marketConnectionState: "RECOVERED", episodes: [episode] }));
+  // Re-reporting the same episode must not append a second event: the chain would then
+  // record two outages where the transport saw one.
+  h.runtime.onMarketConnectionState(connectionState({ marketConnectionState: "CONNECTED", episodes: [episode] }));
+  h.setNow(30 * MINUTE);
+  h.runtime.stop();
+  await h.runtime.awaitEvidenceFinalized();
+
+  const events = h.finalized.at(-1) && h.runtime.marketConnectionEpisodes();
+  assert.equal(events.length, 1, "the episode is recorded once, however often it is reported");
+  const sealed = h.finalized.at(-1).marketConnection;
+  assert.equal(sealed.episodeCount, 1, "the summary file and the chain describe the same single outage");
+  assert.equal(sealed.totalDowntime, 3 * MINUTE);
+});
+
 test("A4L: an earlier session's outage is never attributed to the next session", () => {
   const evidence = buildMarketConnectionEvidence({
     sessionId: "s-1",

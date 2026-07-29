@@ -215,10 +215,10 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
       elapsedMs: input.shadow.elapsedMs,
       queueDepth: evidence.queueDepth,
       queueHighWaterMark: evidence.queueHighWaterMark,
-    duplicateCandleCount: input.shadow.duplicateCandleCount,
-    staleCandleCount: input.shadow.staleCandleCount,
-    outOfOrderCandleCount: input.shadow.outOfOrderCandleCount,
-    marketConnection: input.shadow.marketConnection
+      duplicateCandleCount: input.shadow.duplicateCandleCount,
+      staleCandleCount: input.shadow.staleCandleCount,
+      outOfOrderCandleCount: input.shadow.outOfOrderCandleCount,
+      marketConnection: input.shadow.marketConnection
     }),
     evidence,
     capabilities: Object.freeze({ liveTrading: false, privateApi: false, credentialStorage: false }),
