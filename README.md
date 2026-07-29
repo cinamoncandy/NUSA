@@ -1,77 +1,33 @@
 # NUSA
 
-> **Branch note:** This is not the primary branch. The primary, actively-running Paper trading app lives on [`agent/electron-upbit-paper-trading`](https://github.com/cinamoncandy/dokkaebi/tree/agent/electron-upbit-paper-trading) (see PR #1). `main` is kept as a reusable accounting/certification-library experiment intended for future live-trading gating. `packages/storage` and `packages/contracts` here share a common history with -- but are no longer kept in sync with -- the copies on `agent/electron-upbit-paper-trading`, which forked from `main` and has since diverged.
+NUSA is an Electron-based Upbit Paper/Shadow trading application with fail-closed safety, recovery, diagnostics, and evidence workflows.
 
-Reconstructed TypeScript baseline for DOKKAEBI OS trading components.
+## Branch status
 
-Implemented safety baseline:
+The runnable desktop application currently lives on [`agent/electron-upbit-paper-trading`](https://github.com/cinamoncandy/NUSA/tree/agent/electron-upbit-paper-trading) and is tracked by [PR #1](https://github.com/cinamoncandy/NUSA/pull/1).
 
-- immutable position ledger and SQLite projections
-- bounded order admission, pre-trade risk, durable idempotency, and synthetic execution
-- explicit `SUBMISSION_UNKNOWN` handling without automatic resubmission
-- append-only order reconciliation evidence and account-level new-exposure restrictions
-- position, balance, funding-fee, trade-fee, fill, and PnL reconciliation
-- explicit `MATCHED`, missing-record, duplicate, mismatch, and provider-unavailable outcomes
-- bigint tolerance policies for quantities, prices, balances, funding amounts, fees, fills, and PnL
-- deterministic latest-evidence lookup and freshness states: `FRESH`, `EXPIRING_SOON`, `STALE`, `NOT_MATCHED`
-- stale or unavailable reconciliation evidence blocks new exposure
-- domain restrictions require a later same-account `MATCHED` result for release
-- restriction release requires separated requester and verifier identities
-- matched position, balance, funding, fee, fill, and PnL reconciliation IDs are stored as append-only release evidence
-- deterministic liquidation-risk assessment that blocks new exposure without automatically closing positions
-- fail-closed exchange quantity, price-tick, notional, and metadata-freshness validation
-- deterministic weighted token-bucket rate limiting with explicit allow, delay, and block outcomes
-- clock-offset, round-trip, recvWindow, and synchronization-freshness validation for signed-request safety
-- WebSocket sequence continuity checks with duplicate suppression, gap detection, and non-regressing snapshot recovery
-- deterministic disaster-recovery replay summaries across named domains
-- append-only recovery-run and startup-gate audit evidence with causal recovery references
-- deterministic fault injection by named crash point and occurrence
-- chaos recovery harness for injected unknown state, count corruption, and controlled exceptions
-- startup consistency gating for recovery, restrictions, unresolved submissions, clock, WebSocket, and migration state
-- production-readiness aggregation that treats `FAIL`, `UNKNOWN`, and `STALE` evidence as blocking
-- deterministic invariant monitoring that separates warning failures from critical and unknown state
-- synthetic burn-in evaluation with minimum sample count, duration, critical-failure, and unknown-state thresholds
-- final synthetic certification reports that preserve explicit blockers and limitations
-- even a fully passing synthetic readiness and burn-in result never enables Production mutation
-- reconciliation never rewrites accounting records, positions, balances, fees, fills, or PnL
-- no automatic position close, order retry, restriction release, or Production authorization
-- conservative final certification that refuses to invent implementation evidence
+The `main` branch remains a reconstructed accounting/certification baseline and is not the desktop application entry point yet.
 
-Burn-in and certification safety limits:
+## Current verification
 
-- burn-in sample IDs, sequences, and timestamps must be unique and monotonic
-- critical invariant failures and unknown invariant state are separately counted
-- insufficient duration or sample count produces `INCOMPLETE`, not a pass
-- synthetic certification always records `SYNTHETIC_EVIDENCE_ONLY`
-- a passing synthetic baseline still returns `productionMutationAllowed = false`
+The current application-branch head has a successful GitHub Actions CI run. Automated typecheck, build, and tests pass on that head.
 
-Recovery and startup safety limits:
+The application is Paper/Shadow only. Live trading, private API access, credentials, withdrawals, and live orders remain disabled.
 
-- every recovery domain must have a unique identity and explicit checkpoint
-- failed or unknown replay results produce `SAFE_BLOCK`
-- corrupt replay counts fail before a recovery result is issued
-- recovery and startup audit IDs are append-only and cannot be reused
-- startup audit evidence cannot reference a missing recovery run
-- fault injection is deterministic and synthetic; it never changes provider or Production state
-- active restrictions, unresolved submissions, unsafe clocks, unsynchronized streams, or unknown migration state block startup
-- readiness checks cannot silently omit unknown or stale evidence
-- `READY` means the synthetic baseline passed its declared checks; it does not authorize Production mutation
+## Run the desktop app
 
-Connectivity safety limits:
+```bash
+git clone https://github.com/cinamoncandy/NUSA.git
+cd NUSA
+git switch agent/electron-upbit-paper-trading
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run dev
+```
 
-- oversized provider requests are blocked rather than split or retried implicitly
-- rate-limit state rejects backwards time and deduplicates request decisions
-- stale or unsafe clock evidence cannot authorize signed provider requests
-- WebSocket events are not applied while a sequence gap remains unresolved
-- recovery snapshots cannot regress the last applied sequence
+Use Node.js 24 or newer. For a Windows installer, use the repository's packaging command on Windows after validation passes.
 
-Reconciliation safety limits:
+## Release boundary
 
-- provider operations are synthetic and read-only
-- reconciliation never submits or resubmits an order
-- provider absence is not treated as success
-- old `MATCHED` evidence expires according to policy
-- mismatches and uncertainty block new exposure but do not automatically mutate economic state
-- release evidence is append-only and must identify the later matching reconciliation
-
-This repository is **not Production-authorized**. It contains no Binance Production credential, Production endpoint, Binance order adapter, capital activation, or unrestricted trading path.
+Runnable does not mean Production-authorized. A public v1.0 release still requires the documented owner review and real-session evidence gates. Do not enable live-trading capabilities or add credentials as part of desktop verification.
