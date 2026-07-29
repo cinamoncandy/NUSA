@@ -185,6 +185,21 @@ export class MarketConnectionSupervisor {
   private timerArmed = false;
   private episodeSequence = 0;
   private openEpisode?: OpenEpisode;
+  /**
+   * When the feed went down and has not come back. Kept apart from `openEpisode`, which is
+   * closed the moment the retry policy gives up: the episode RECORD is finished then, but
+   * the OUTAGE is not, and reporting "no outage in progress" from a FAILED state would show
+   * an operator a disconnect time of "(none)" and a current downtime of zero while the feed
+   * is still dead. Cleared only by a real recovery or by an owner stop.
+   */
+  private unresolvedSince: number | null = null;
+  /**
+   * The instant up to which the CURRENT outage has already been folded into
+   * `closedDowntimeMs`. Without it, a give-up freezes the total while the feed is still
+   * down, and `currentDowntimeMs` would overtake `totalDowntimeMs` -- two numbers from one
+   * outage disagreeing with each other.
+   */
+  private downtimeAccountedUpTo = 0;
   private readonly episodeLog: MarketConnectionEpisode[] = [];
   private closedDowntimeMs = 0;
   private readonly policy: MarketReconnectPolicy;
@@ -222,9 +237,17 @@ export class MarketConnectionSupervisor {
       this.closeEpisode("RECOVERED", now, null);
       this.lastSuccessfulReconnectAt = now;
       this.connectionState = "RECOVERED";
+    } else if (this.unresolvedSince !== null) {
+      // Reconnected after the policy had already given up (only reachable if the transport
+      // is restarted). The FAILED episode stays as written -- the policy really did give up
+      // -- but the downtime it did not cover is still folded in, so the total stays whole.
+      this.closedDowntimeMs += Math.max(0, now - this.downtimeAccountedUpTo);
+      this.lastSuccessfulReconnectAt = now;
+      this.connectionState = "RECOVERED";
     } else {
       this.connectionState = "CONNECTED";
     }
+    this.unresolvedSince = null;
     this.attempt = 0;
     this.failureReason = null;
     return this.connectionState;
@@ -257,6 +280,14 @@ export class MarketConnectionSupervisor {
     if (this.openEpisode === undefined) {
       this.episodeSequence += 1;
       this.openEpisode = { episodeId: this.episodeSequence, disconnectedAt: now, attempts: 0 };
+      // A fresh episode starts from zero. Carrying the previous one's count forward would
+      // make a later outage inherit a spent budget and give up on its first attempt.
+      this.attempt = 0;
+      this.failureReason = null;
+      if (this.unresolvedSince === null) {
+        this.unresolvedSince = now;
+        this.downtimeAccountedUpTo = now;
+      }
     }
     this.connectionState = "DISCONNECTED";
     const attempt = this.attempt + 1;
@@ -296,18 +327,24 @@ export class MarketConnectionSupervisor {
   noteStopped(): void {
     this.timerArmed = false;
     if (this.openEpisode !== undefined) this.closeEpisode("ABANDONED", this.now(), null);
+    if (this.unresolvedSince !== null) this.closedDowntimeMs += Math.max(0, this.now() - this.downtimeAccountedUpTo);
+    this.unresolvedSince = null;
     this.connectionState = "DISCONNECTED";
     this.attempt = 0;
   }
 
   diagnostics(): MarketConnectionDiagnostics {
     const now = this.now();
-    const currentDowntimeMs = this.openEpisode === undefined ? 0 : Math.max(0, now - this.openEpisode.disconnectedAt);
+    // Measured from the outage, not from the episode record: after a give-up the record is
+    // closed but the feed is still down, and zero would be a number that looks measured.
+    const outageStartedAt = this.openEpisode?.disconnectedAt ?? this.unresolvedSince;
+    const currentDowntimeMs = outageStartedAt === null || outageStartedAt === undefined ? 0 : Math.max(0, now - outageStartedAt);
+    const unrecordedDowntimeMs = this.unresolvedSince === null ? 0 : Math.max(0, now - this.downtimeAccountedUpTo);
     return Object.freeze({
       marketConnectionState: this.connectionState,
       reconnectAttempt: this.attempt,
       reconnectAttemptLimit: this.policy.maxAttempts,
-      reconnectStartedAt: this.openEpisode?.disconnectedAt ?? null,
+      reconnectStartedAt: outageStartedAt ?? null,
       lastMarketMessageAt: this.lastMessageAt,
       lastSuccessfulReconnectAt: this.lastSuccessfulReconnectAt,
       activeMarketListenerCount: safeCount(this.getListenerCount()),
@@ -315,7 +352,7 @@ export class MarketConnectionSupervisor {
       reconnectTimerCount: this.timerArmed ? 1 : 0,
       reconnectFailureReason: this.failureReason,
       currentDowntimeMs,
-      totalDowntimeMs: this.closedDowntimeMs + currentDowntimeMs,
+      totalDowntimeMs: this.closedDowntimeMs + unrecordedDowntimeMs,
       episodes: Object.freeze([...this.episodeLog])
     });
   }
@@ -336,7 +373,8 @@ export class MarketConnectionSupervisor {
     const open = this.openEpisode;
     if (open === undefined) return;
     const totalDowntime = Math.max(0, at - open.disconnectedAt);
-    this.closedDowntimeMs += totalDowntime;
+    this.closedDowntimeMs += Math.max(0, at - this.downtimeAccountedUpTo);
+    this.downtimeAccountedUpTo = at;
     this.episodeLog.push(Object.freeze({
       episodeId: open.episodeId,
       disconnectedAt: open.disconnectedAt,

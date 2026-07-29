@@ -231,6 +231,20 @@ const MARKET_RECOVERABLE_PAUSE_BLOCKERS = new Set([
 /** The reason a session ends because the feed never came back within the retry policy. */
 export const MARKET_RECONNECT_TIMEOUT = "MARKET_RECONNECT_TIMEOUT";
 
+/**
+ * Episode outcome -> the connection-state vocabulary the pilot event carries.
+ *
+ * ABANDONED becomes DISCONNECTED rather than FAILED: the retry policy was never spent, the
+ * client was stopped while it was still trying, and recording that as a policy failure would
+ * blame the network for an owner's action.
+ */
+const MARKET_EPISODE_EVENT_STATE = Object.freeze({
+  RECOVERED: "RECOVERED",
+  FAILED: "FAILED",
+  ABANDONED: "DISCONNECTED",
+  IN_PROGRESS: "RECONNECTING"
+} as const);
+
 export class ShadowOperationalRuntime {
   private lifecycle: ShadowLifecycleStatus = "IDLE";
   private candleAdapter: ClosedCandleAdapter;
@@ -500,12 +514,29 @@ export class ShadowOperationalRuntime {
 
   private recordConnectionEpisodes(episodes: readonly MarketConnectionEpisode[]): void {
     if (this.sessionStartedAt === undefined) return;
+    let appended = false;
     for (const episode of episodes) {
       // An episode already open when the session began cannot exist: the start precheck
       // blocks on MARKET_DATA_DISCONNECTED, so a session can only begin with the feed up.
       if (episode.disconnectedAt < this.sessionStartedAt) continue;
+      if (this.sessionConnectionEpisodes.has(episode.episodeId)) continue;
       this.sessionConnectionEpisodes.set(episode.episodeId, episode);
+      // Each closed outage is ALSO written into the pilot's hash chain, so a reader of the
+      // archive can see the transitions inside the tamper-evident record and not only in
+      // the summary file. Both are derived from this same episode, so they cannot disagree.
+      // The summary file is still written unconditionally: it is the only one of the two
+      // that can state "this session never dropped".
+      if (this.pilot?.snapshot().status !== "RUNNING") continue;
+      this.pilot.recordMarketConnection(episode.recoveredAt ?? episode.disconnectedAt, Object.freeze({
+        disconnectedAt: episode.disconnectedAt,
+        reconnectAttemptCount: episode.reconnectAttemptCount,
+        recoveredAt: episode.recoveredAt,
+        totalDowntime: episode.totalDowntime,
+        finalReconnectState: MARKET_EPISODE_EVENT_STATE[episode.finalReconnectState]
+      }), [`MARKET_CONNECTION_${episode.finalReconnectState}`]);
+      appended = true;
     }
+    if (appended) this.publishPendingEvents();
   }
 
   private marketFreshness(): MarketFreshness {

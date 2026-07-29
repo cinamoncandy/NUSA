@@ -162,6 +162,45 @@ test("A4L: a second reconnect timer cannot be armed, and an owner stop abandons 
   assert.equal(supervisor.diagnostics().reconnectTimerCount, 0);
 });
 
+test("A4L: a give-up does not pretend the outage ended, and the two downtime figures agree", () => {
+  let now = 0;
+  const supervisor = new MarketConnectionSupervisor({ now: () => now, policy: { ...DEFAULT_MARKET_RECONNECT_POLICY, maxAttempts: 1, maxTotalReconnectMs: 3_600_000 } });
+  supervisor.noteOpened();
+  now = 10_000;
+  supervisor.noteDisconnected();
+  now = 20_000;
+  assert.equal(supervisor.noteDisconnected().action, "GIVE_UP");
+
+  now = 40_000;
+  const after = supervisor.diagnostics();
+  assert.equal(after.marketConnectionState, "FAILED");
+  // The episode RECORD closed at the give-up; the OUTAGE did not. Reporting "(none)" and
+  // zero here would tell an operator the feed is fine while it is still dead.
+  assert.equal(after.reconnectStartedAt, 10_000);
+  assert.equal(after.currentDowntimeMs, 30_000);
+  assert.ok(after.totalDowntimeMs >= after.currentDowntimeMs, `total ${after.totalDowntimeMs} must not fall behind current ${after.currentDowntimeMs}`);
+  assert.equal(after.totalDowntimeMs, 30_000, "downtime past the give-up is still counted, exactly once");
+});
+
+test("A4L: a later outage starts from a fresh retry budget, not the previous one's remainder", () => {
+  let now = 0;
+  const supervisor = new MarketConnectionSupervisor({ now: () => now, policy: { ...DEFAULT_MARKET_RECONNECT_POLICY, maxAttempts: 2, maxTotalReconnectMs: 3_600_000 } });
+  supervisor.noteOpened();
+  now = 1_000;
+  supervisor.noteDisconnected();
+  now = 2_000;
+  supervisor.noteDisconnected();
+  now = 3_000;
+  supervisor.noteOpened();
+  supervisor.noteMessage();
+
+  now = 10_000;
+  const second = supervisor.noteDisconnected();
+  assert.equal(second.action, "RETRY", "a new outage must not inherit a spent budget and give up on its first try");
+  assert.equal(second.attempt, 1);
+  assert.equal(second.delayMs, 1_000, "backoff restarts from the beginning for a new outage");
+});
+
 // ---------------------------------------------------------------------------
 // Transport: one socket, one timer, no duplicated listeners or subscriptions
 // ---------------------------------------------------------------------------
@@ -250,7 +289,11 @@ test("A4L: the transport stops retrying at the configured ceiling and says so", 
   assert.equal(client.connectionDiagnostics().reconnectFailureReason, "MAX_ATTEMPTS_EXCEEDED");
   assert.ok(statuses.includes("reconnect-exhausted"));
   assert.equal(client.connectionDiagnostics().reconnectTimerCount, 0, "nothing is left armed after giving up");
+  // A client that abandoned the feed has nothing left to judge freshness of. Leaving the
+  // staleness heartbeat running would keep a live timer that no diagnostic counts.
+  assert.equal(client.activeTimerCount(), 0, "the heartbeat is released on give-up, not left running");
   client.stop();
+  assert.equal(client.activeTimerCount(), 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -510,6 +553,26 @@ test("A4L: connection transitions are sealed as separate evidence, including 'ne
   assert.equal(quiet.episodeCount, 0);
   assert.equal(quiet.finalReconnectState, "NEVER_DISCONNECTED", "an uninterrupted session says so, rather than claiming a recovery it never made");
   assert.equal(quiet.totalDowntime, 0);
+});
+
+test("A4L: each closed outage also lands in the pilot hash chain, exactly once", async () => {
+  const h = makeRuntime();
+  h.warmUp();
+  h.runtime.start();
+  const episode = { episodeId: 1, disconnectedAt: 21 * MINUTE, reconnectAttemptCount: 2, recoveredAt: 24 * MINUTE, totalDowntime: 3 * MINUTE, finalReconnectState: "RECOVERED", failureReason: null };
+  h.runtime.onMarketConnectionState(connectionState({ marketConnectionState: "RECOVERED", episodes: [episode] }));
+  // Re-reporting the same episode must not append a second event: the chain would then
+  // record two outages where the transport saw one.
+  h.runtime.onMarketConnectionState(connectionState({ marketConnectionState: "CONNECTED", episodes: [episode] }));
+  h.setNow(30 * MINUTE);
+  h.runtime.stop();
+  await h.runtime.awaitEvidenceFinalized();
+
+  const events = h.finalized.at(-1) && h.runtime.marketConnectionEpisodes();
+  assert.equal(events.length, 1, "the episode is recorded once, however often it is reported");
+  const sealed = h.finalized.at(-1).marketConnection;
+  assert.equal(sealed.episodeCount, 1, "the summary file and the chain describe the same single outage");
+  assert.equal(sealed.totalDowntime, 3 * MINUTE);
 });
 
 test("A4L: an earlier session's outage is never attributed to the next session", () => {
