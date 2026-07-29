@@ -15,7 +15,7 @@ required(build?.productName === "Dokkaebi", "productName is missing or changed")
 required(build?.asar === true, "asar must be enabled");
 required(build?.directories?.output === "release", "Windows output must use release/");
 required(build?.win?.target === "nsis", "Windows target must be NSIS");
-required(build?.win?.icon === "build/icon.png" && exists("build/icon.png"), "Windows icon must be build/icon.png");
+required(build?.win?.icon === "build/dokkaebi-a4p.ico" && exists("build/dokkaebi-a4p.ico"), "Windows icon must be build/dokkaebi-a4p.ico");
 required(build?.win?.artifactName === "Dokkaebi-${version}-Windows-Setup.${ext}", "installer artifact name is not deterministic");
 required(build?.nsis?.oneClick === false, "installer must use explicit install flow");
 

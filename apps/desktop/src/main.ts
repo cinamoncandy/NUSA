@@ -455,6 +455,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 680,
     title: "Dokkaebi Paper Trader",
+    icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/dokkaebi-a4p-symbol.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       // Spread first, then restated. The policy is the single source of truth (and is what

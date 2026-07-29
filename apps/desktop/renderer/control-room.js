@@ -444,7 +444,18 @@
       const reconcileValue = element("div", "cr-tile__value");
       reconcileValue.replaceChildren(badge("warn", "▲", "확인 필요"));
 
-      const sessionValue = element("div", "cr-tile__value", diagnostics && diagnostics.sessionId ? diagnostics.sessionId : "세션 없음");
+      const sessionId = diagnostics && diagnostics.sessionId ? diagnostics.sessionId : "세션 없음";
+      const sessionValue = element("div", "cr-tile__value cr-copy-value");
+      const sessionText = element("span", "cr-copy-value__text cr-long-value", sessionId);
+      sessionValue.append(sessionText);
+      if (diagnostics && diagnostics.sessionId) {
+        sessionText.title = diagnostics.sessionId;
+        const copy = element("button", "cr-copy-value__button", "복사");
+        copy.type = "button";
+        copy.setAttribute("aria-label", "세션 ID 복사");
+        copy.setAttribute("data-copy-value", diagnostics.sessionId);
+        sessionValue.append(copy);
+      }
 
       grid.replaceChildren(
         tile("시장 데이터", marketValue, diagnostics ? undefined : "Shadow 진단 대기"),

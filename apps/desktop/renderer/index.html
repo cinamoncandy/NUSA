@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="application-state.css" />
   <link rel="stylesheet" href="control-room.css" />
   <link rel="stylesheet" href="product-screens.css" />
+  <link rel="stylesheet" href="brand-ui.css" />
+  <link rel="stylesheet" href="workspace.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="theme-provider.js"></script>
   <script src="component-library.js"></script>
@@ -19,9 +21,34 @@
   <script src="product-screens.js"></script>
 </head>
 <body>
-  <main>
-    <header>
-      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/dokkaebi-lockup-dark.svg" alt="Dokkaebi Control Room" /></h1></div>
+  <main class="app-shell" data-testid="app-shell">
+    <aside class="app-sidebar" aria-label="Primary navigation">
+      <div class="brand-lockup">
+        <img src="assets/dokkaebi-a4p-symbol.svg" alt="도깨비" class="brand-lockup__mark" />
+        <div><strong>도깨비</strong><span>DOKKAEBI</span></div>
+      </div>
+      <p class="sidebar-caption">PAPER INVESTMENT OS</p>
+      <nav class="primary-nav" aria-label="Workspace">
+        <a class="primary-nav__item is-active" href="#dashboard" data-nav-target="dashboard"><span aria-hidden="true">◈</span> Dashboard</a>
+        <a class="primary-nav__item" href="#market" data-nav-target="market"><span aria-hidden="true">◌</span> Market</a>
+        <a class="primary-nav__item" href="#shadow-session" data-nav-target="shadow-session"><span aria-hidden="true">◫</span> Observation</a>
+        <a class="primary-nav__item" href="#orders" data-nav-target="orders"><span aria-hidden="true">↗</span> Orders &amp; fills</a>
+        <a class="primary-nav__item" href="#portfolio" data-nav-target="portfolio"><span aria-hidden="true">◍</span> Portfolio</a>
+        <a class="primary-nav__item" href="#risk" data-nav-target="risk"><span aria-hidden="true">◇</span> Risk</a>
+        <a class="primary-nav__item" href="#recovery-review" data-nav-target="recovery"><span aria-hidden="true">↻</span> Recovery</a>
+        <a class="primary-nav__item" href="#evidence" data-nav-target="evidence"><span aria-hidden="true">▤</span> Evidence</a>
+        <a class="primary-nav__item" href="#a4-diagnostics" data-nav-target="diagnostics"><span aria-hidden="true">⌁</span> Diagnostics</a>
+      </nav>
+      <nav class="primary-nav primary-nav--secondary" aria-label="Application">
+        <a class="primary-nav__item" href="#product-settings" data-nav-target="settings"><span aria-hidden="true">⚙</span> Settings</a>
+        <a class="primary-nav__item" href="#product-about" data-nav-target="about"><span aria-hidden="true">ⓘ</span> About</a>
+      </nav>
+      <div class="sidebar-safety" aria-label="Trading safety status"><span class="sidebar-safety__dot" aria-hidden="true"></span><div><strong>Paper only</strong><span>Live trading disabled</span></div></div>
+    </aside>
+    <div class="app-main">
+      <div id="dashboard" class="screen-anchor" aria-hidden="true"></div>
+    <header class="app-header">
+      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/dokkaebi-a4p-lockup.svg" alt="Dokkaebi Control Room" /></h1></div>
       <div class="header-actions"><button id="command-palette-trigger" class="ui-button ui-button--secondary ui-button--small" type="button" aria-haspopup="dialog" aria-controls="command-palette">명령 <kbd>Ctrl K</kbd></button><span id="status" class="status">연결 준비</span></div>
     </header>
     <!--
@@ -58,7 +85,7 @@
       <p id="recovery-review-note" class="a4-note">승인 버튼은 대조 결과가 일치(MATCHED)일 때만 활성화됩니다. 승인해도 복구는 자동으로 완료되지 않습니다.</p>
       <p id="recovery-review-error" class="error" role="alert" aria-live="assertive"></p>
     </section>
-    <section class="hero card">
+    <section id="market" class="hero card">
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
     </section>
@@ -103,6 +130,7 @@
     -->
     <section id="product-settings" class="product-section" aria-label="설정"></section>
     <section id="product-about" class="product-section" aria-label="앱 정보"></section>
+    </div>
   </main>
   <div id="product-overlays"></div>
   <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
@@ -116,6 +144,7 @@
       <p id="command-palette-empty" class="command-palette__empty" hidden>일치하는 명령이 없습니다. 다른 검색어를 입력하세요.</p>
     </section>
   </div>
+  <script src="brand-ui.js"></script>
   <script src="renderer.js"></script>
   <script src="application-state.js"></script>
   <script src="application-state-mount.js"></script>
