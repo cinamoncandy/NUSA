@@ -202,7 +202,7 @@ function createWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 680,
-    title: "Dokkaebi Paper Trader",
+    title: "NUSA Paper Console",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
