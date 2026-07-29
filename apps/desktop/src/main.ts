@@ -245,12 +245,12 @@ function handleMarketConnectionState(connection: MarketConnectionDiagnostics): v
 
 function handleMarketStatus(status: string): void {
   const now = Date.now();
-  websocketConnected = status === "connected";
-  marketDataStatus = status === "connected" ? "HEALTHY" : status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
+  websocketConnected = status === "connected" || status === "recovered";
+  marketDataStatus = status === "connected" ? "HEALTHY" : status === "recovered" ? "HEALTHY" : status === "disconnected" || status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
   window?.webContents.send("market:status", status);
   shadowRuntime.onWebSocketStatus(status);
 
-  if (status === "connected") {
+  if (status === "connected" || status === "recovered") {
     reconnectedAt = now;
   } else {
     disconnectedAt ??= now;
@@ -732,7 +732,7 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
   market: {
     connected: websocketConnected,
-    lastHeartbeatAt: latestTicker?.trade_timestamp ?? null,
+    lastHeartbeatAt: stream.connectionDiagnostics().lastMarketMessageAt,
     source: "UPBIT_PUBLIC_CLOSED_CANDLE"
   },
   safety: {
