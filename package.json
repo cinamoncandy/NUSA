@@ -73,7 +73,7 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "build/icon.png",
+      "icon": "build/dokkaebi-a4p.ico",
       "artifactName": "Dokkaebi-${version}-Windows-Setup.${ext}",
       "signAndEditExecutable": false
     },

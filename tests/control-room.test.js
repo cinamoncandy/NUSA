@@ -130,10 +130,10 @@ test("index.html loads the control room stylesheet and script", () => {
   assert.ok(indexHtml.indexOf("tokens.css") < indexHtml.indexOf("control-room.css"));
 });
 
-test("the wordmark asset referenced by the header exists on disk", () => {
-  assert.match(indexHtml, /assets\/dokkaebi-lockup-dark\.svg/);
-  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-lockup-dark.svg")));
-  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-mark.svg")));
+test("the A4P wordmark and symbol assets referenced by the header exist on disk", () => {
+  assert.match(indexHtml, /assets\/dokkaebi-a4p-lockup\.svg/);
+  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-a4p-lockup.svg")));
+  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-a4p-symbol.svg")));
   // An <img> must carry a real alt; the brand mark is meaningful content in the header.
   assert.match(indexHtml, /alt="Dokkaebi Control Room"/);
 });

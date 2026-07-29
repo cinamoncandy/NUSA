@@ -27,7 +27,19 @@
 
   function row(label, value) {
     const node = element("div", "product-row");
-    node.append(element("span", "product-row__label", label), element("span", "product-row__value", value));
+    const valueText = element("span", "product-row__value", value);
+    const stringValue = String(value ?? "");
+    if (stringValue.length > 28) {
+      valueText.title = stringValue;
+      valueText.classList.add("product-row__value--long");
+      const copy = element("button", "product-row__copy", "복사");
+      copy.type = "button";
+      copy.setAttribute("aria-label", `${label} 복사`);
+      copy.setAttribute("data-copy-value", stringValue);
+      node.append(element("span", "product-row__label", label), valueText, copy);
+    } else {
+      node.append(element("span", "product-row__label", label), valueText);
+    }
     return node;
   }
 
