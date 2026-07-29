@@ -9,7 +9,7 @@ const required = (condition, message) => { if (!condition) failures.push(message
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
 required(packageJson.main === "dist/apps/desktop/src/main.js", "root main must point at compiled desktop main");
-required(packageJson.dependencies?.ws === "8.18.3", "runtime WebSocket dependency must be production-scoped and pinned");
+required(packageJson.dependencies?.ws === "8.21.0", "runtime WebSocket dependency must be production-scoped and pinned");
 required(build?.appId === "com.dokkaebi.trader", "appId is missing or changed");
 required(build?.productName === "Dokkaebi", "productName is missing or changed");
 required(build?.asar === true, "asar must be enabled");

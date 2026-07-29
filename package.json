@@ -39,7 +39,7 @@
     "@storybook/addon-a11y": "8.6.14",
     "@storybook/web-components": "8.6.14",
     "@storybook/web-components-vite": "8.6.14",
-    "electron": "39.0.0",
+    "electron": "39.8.1",
     "electron-builder": "26.0.12",
     "eslint": "9.39.1",
     "jsdom": "26.0.0",
@@ -48,7 +48,7 @@
     "vitest": "3.2.4"
   },
   "dependencies": {
-    "ws": "8.18.3"
+    "ws": "8.21.0"
   },
   "build": {
     "appId": "com.dokkaebi.trader",
