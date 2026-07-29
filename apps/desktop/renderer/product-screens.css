@@ -1,0 +1,203 @@
+/*
+ * WO-0034-A4O productization screens. Reuses the existing tokens rather than introducing a
+ * palette: this work order is explicitly not a redesign, and a second set of colours would be
+ * the start of one.
+ */
+
+.product-section {
+  margin-block: var(--space-4, 1rem);
+}
+
+.product-card {
+  background: var(--surface-1, #14161c);
+  border: 1px solid var(--border-subtle, #262a33);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--space-5, 1.25rem);
+  display: grid;
+  gap: var(--space-3, 0.75rem);
+}
+
+.product-card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.product-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 0.5rem);
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-2, 0.5rem);
+}
+
+.product-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+  padding-block: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle, #262a33);
+}
+
+.product-row__label {
+  color: var(--text-muted, #98a2b3);
+  font-size: 0.85rem;
+}
+
+.product-row__value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  /* Long values wrap instead of stretching the card past the viewport. */
+  overflow-wrap: anywhere;
+}
+
+.product-badge {
+  margin: 0;
+  align-self: start;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--accent-safe-soft, #10281c);
+  color: var(--accent-safe, #4ade80);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.product-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3, 0.75rem);
+}
+
+.product-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.product-field--inline {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+}
+
+.product-field__label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #98a2b3);
+}
+
+.product-field__control {
+  background: var(--surface-2, #1b1e26);
+  color: inherit;
+  border: 1px solid var(--border-subtle, #262a33);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+
+.product-note,
+.product-status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #98a2b3);
+}
+
+.product-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--accent-danger, #f87171);
+}
+
+.product-error:empty {
+  display: none;
+}
+
+/* Overlays ---------------------------------------------------------------- */
+
+.product-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4, 1rem);
+  background: rgb(4 6 10 / 82%);
+  overflow-y: auto;
+}
+
+.product-card--notice,
+.product-card--shutdown {
+  max-width: 34rem;
+  width: 100%;
+}
+
+.product-notice__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.product-notice__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2, 0.5rem);
+  align-items: start;
+}
+
+.product-notice__mark {
+  color: var(--accent-safe, #4ade80);
+}
+
+.product-notice__paths {
+  display: grid;
+  gap: 0.2rem;
+  padding-top: var(--space-2, 0.5rem);
+  border-top: 1px solid var(--border-subtle, #262a33);
+}
+
+.product-notice__paths-title {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #98a2b3);
+  letter-spacing: 0.04em;
+}
+
+.product-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.product-steps__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2, 0.5rem);
+  align-items: baseline;
+}
+
+.product-steps__status {
+  font-size: 0.8rem;
+  color: var(--text-muted, #98a2b3);
+}
+
+.product-steps__detail {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--accent-danger, #f87171);
+}
+
+@media (width <= 40rem) {
+  .product-row {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .product-row__value {
+    text-align: left;
+  }
+}

@@ -44,6 +44,19 @@ import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
 import { CrashRecoveryMarkerStore, type CrashRecoveryDiagnostic, type CrashRecoveryStartup } from "./crashRecoveryMarker";
+import { resolveUserDataLayout, writableDirectories, type UserDataLayout } from "./userDataLayout";
+import { AppSettingsStore, type AppSettings, type LogLevel } from "./appSettingsStore";
+import { FirstRunNoticeStore } from "./firstRunNotice";
+import { AppLogger } from "./appLogger";
+import { buildAboutInfo, toRendererAboutInfo, type AboutInfo } from "./aboutInfo";
+import { browserWindowSecurityOptions, clampLogLevel, resolveProductionPolicy, type ProductionPolicy } from "./productionHardening";
+import { updateChannelState } from "./updateChannel";
+import { writeDiagnosticsPackage } from "./diagnosticsExport";
+import { ShutdownSequence, type ShutdownProgress } from "./shutdownSequence";
+import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc } from "./productIpcValidation";
+import { mkdirSync } from "node:fs";
+import { shell } from "electron";
+import os from "node:os";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -124,6 +137,20 @@ const recoveryReview = new RecoveryReviewState();
 /** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
+/**
+ * WO-0034-A4O productization state. Resolved once, at app-ready, because every path below
+ * depends on `app.getPath("userData")` and `app.isPackaged`, neither of which is meaningful
+ * before then.
+ */
+let userDataLayout: UserDataLayout | undefined;
+let settingsStore: AppSettingsStore | undefined;
+let firstRunStore: FirstRunNoticeStore | undefined;
+let appLogger: AppLogger | undefined;
+let productionPolicy: ProductionPolicy = resolveProductionPolicy(false);
+let shutdownSequence: ShutdownSequence | undefined;
+let aboutInfo: AboutInfo | undefined;
+const productRunId = `run-${process.pid}-${Date.now()}`;
+const recentErrorCodes: string[] = [];
 let crashRecoveryStartup: CrashRecoveryStartup | undefined;
 let crashRecoveryRequired = false;
 let lastEvidenceId: string | null = null;
@@ -175,6 +202,74 @@ function updateCrashMarker(): void {
     recordRecovery("STORAGE", "CRITICAL", `Crash marker update failed: ${error instanceof Error ? error.message : String(error)}`);
     if (control) control.fault(PERSISTENCE_FAULT_MESSAGE);
   }
+}
+
+/**
+ * Resolves the writable layout and everything that hangs off it. Called once from app-ready,
+ * before any other subsystem asks for a path, so no code can construct one of its own.
+ */
+function initializeProductLayer(): UserDataLayout {
+  const layout = resolveUserDataLayout({ userDataPath: app.getPath("userData"), packaged: app.isPackaged });
+  for (const directory of writableDirectories(layout)) {
+    try { mkdirSync(directory, { recursive: true }); } catch { /* reported by the startup diagnostics */ }
+  }
+  productionPolicy = resolveProductionPolicy(app.isPackaged);
+  settingsStore = new AppSettingsStore(layout);
+  const settings = settingsStore.load();
+  firstRunStore = new FirstRunNoticeStore(layout, "PAPER");
+  appLogger = new AppLogger({
+    directory: layout.logsDirectory,
+    runId: productRunId,
+    // The user's choice, clamped by what a packaged build is allowed to write. Asking for
+    // DEBUG in production yields INFO rather than an error: it is a preference, not a command.
+    level: clampLogLevel(settings.logLevel, productionPolicy),
+    policy: { ...DEFAULT_LOG_ROTATION_FROM_SETTINGS(settings) }
+  });
+  aboutInfo = buildAboutInfo({
+    appName: app.getName(),
+    appVersion: app.getVersion(),
+    buildNumber: process.env.DOKKAEBI_BUILD_NUMBER ?? null,
+    commitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    electronVersion: process.versions.electron ?? null,
+    nodeVersion: process.versions.node,
+    chromeVersion: process.versions.chrome ?? null,
+    platform: process.platform,
+    osRelease: os.release(),
+    arch: process.arch,
+    mode: "PAPER",
+    layout
+  });
+  userDataLayout = layout;
+  logProduct("INFO", "application started", { environment: layout.environment, packaged: app.isPackaged });
+  return layout;
+}
+
+/** Log-rotation policy derived from the user's retention preference. */
+function DEFAULT_LOG_ROTATION_FROM_SETTINGS(settings: AppSettings) {
+  return { maxFileBytes: 2 * 1024 * 1024, maxFiles: 10, maxAgeDays: settings.logRetentionDays, maxTotalBytes: 20 * 1024 * 1024 };
+}
+
+function logProduct(level: LogLevel, message: string, detail?: Readonly<Record<string, unknown>>, errorCode?: string): void {
+  if (errorCode) {
+    recentErrorCodes.push(errorCode);
+    // Bounded: this list rides along in a diagnostics bundle, and an unbounded one would
+    // grow for the whole life of the process.
+    while (recentErrorCodes.length > 50) recentErrorCodes.shift();
+  }
+  appLogger?.log({
+    channel: "MAIN",
+    level,
+    message,
+    detail,
+    errorCode,
+    runId: productRunId,
+    sessionId: shadowRuntime?.diagnostics().sessionId ?? null
+  });
+}
+
+function requireLayout(): UserDataLayout {
+  if (!userDataLayout) throw new Error("application data layout is not ready");
+  return userDataLayout;
 }
 
 function beginCrashShutdown(): void {
@@ -362,9 +457,18 @@ function createWindow(): void {
     title: "Dokkaebi Paper Trader",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
+      // Spread first, then restated. The policy is the single source of truth (and is what
+      // the tests assert), but the three isolation guarantees stay written out at the call
+      // site: someone auditing this window should not have to follow an indirection to find
+      // out whether the renderer is sandboxed.
+      ...browserWindowSecurityOptions(productionPolicy),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // DevTools is the one value that genuinely varies, and it varies on `app.isPackaged`
+      // alone (WO-0034-A4O req 10) -- not on NODE_ENV and not on a flag, because a hardening
+      // policy the person running the app can switch off is decoration.
+      devTools: productionPolicy.devToolsEnabled
     }
   });
   window.loadFile(resolveRendererIndexPath(__dirname));
@@ -429,7 +533,13 @@ function initializeRuntime(): void {
   reconnectedAt = undefined;
   const sessionStartedAt = Date.now();
   const evidenceSessionId = `paper-${process.pid}-${sessionStartedAt}`;
-  const shadowEvidenceRoot = path.join(app.getPath("userData"), "shadow-evidence");
+  // Every writable path now comes from the single layout (WO-0034-A4O req 6). In a packaged
+  // build the layout root IS the userData directory, so these resolve to byte-identical paths
+  // and no existing install is migrated. Only a development run lands somewhere else, which
+  // is the point: a developer's experiment must not appear as the user's incomplete archive.
+  const layout = userDataLayout ?? resolveUserDataLayout({ userDataPath: app.getPath("userData"), packaged: app.isPackaged });
+  userDataLayout = layout;
+  const shadowEvidenceRoot = layout.evidenceDirectory;
   diagnosticsEvidenceRoot = shadowEvidenceRoot;
   // Scanned once, here, and never again. The question it answers is "did a previous process
   // leave an archive unsealed", and only the state at startup can answer it. Re-scanning later
@@ -443,8 +553,8 @@ function initializeRuntime(): void {
     // expose RECOVERY_REQUIRED rather than continuing beside evidence it cannot inspect.
     shadowEvidenceScanBlocked = true;
   }
-  sessionStore = new PaperSessionStore(path.join(app.getPath("userData"), "paper-session.json"));
-  controlStore = new ControlSessionStore(path.join(app.getPath("userData"), "control-session.json"));
+  sessionStore = new PaperSessionStore(layout.paperSessionFile);
+  controlStore = new ControlSessionStore(layout.controlSessionFile);
   const paperLoad = sessionStore.loadSafe();
   const controlLoad = controlStore.loadSafe();
   let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
@@ -452,7 +562,7 @@ function initializeRuntime(): void {
   let persistenceDiagnostic: string | undefined;
   let safetyRecoveryBlocked = crashRecoveryRequired;
   try {
-    persistenceStore = new DesktopPersistenceStore(path.join(app.getPath("userData"), "dokkaebi.db"));
+    persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
     const sqliteState = persistenceStore.load();
     if (sqliteState) {
       restored = sqliteState;
@@ -807,6 +917,121 @@ ipcMain.handle("shadow:status", (_event, input: unknown) => {
   parseShadowStatusIpc(input);
   return shadowRuntime.diagnostics();
 });
+/*
+ * WO-0034-A4O productization channels. Every one is either read-only or writes ONLY
+ * presentation state. None can enable an order path, reach an authenticated endpoint, or
+ * store a credential -- there is no such channel to call.
+ */
+ipcMain.handle("app:first-run", (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!firstRunStore) throw new Error("application data layout is not ready");
+  return firstRunStore.state();
+});
+ipcMain.handle("app:first-run-acknowledge", (_event, input: unknown) => {
+  const { confirmed } = parseFirstRunAcknowledgeIpc(input);
+  if (!firstRunStore) throw new Error("application data layout is not ready");
+  const state = firstRunStore.acknowledge(confirmed);
+  logProduct("INFO", "first-run notice acknowledged", { safetyPolicyVersion: state.acknowledgedPolicyVersion });
+  return state;
+});
+ipcMain.handle("app:settings", (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!settingsStore) throw new Error("application data layout is not ready");
+  return { settings: settingsStore.current(), maximumLogLevel: productionPolicy.maximumLogLevel };
+});
+ipcMain.handle("app:settings-save", (_event, input: unknown) => {
+  const parsed = parseAppSettingsIpc(input);
+  if (!settingsStore) throw new Error("application data layout is not ready");
+  const settings = settingsStore.save(parsed);
+  // The live logger follows the saved preference immediately, clamped by the production
+  // policy. A setting that only takes effect after a restart is a setting users distrust.
+  appLogger?.setLevel(clampLogLevel(settings.logLevel, productionPolicy));
+  logProduct("INFO", "settings saved", { logLevel: settings.logLevel, retentionDays: settings.logRetentionDays });
+  return { settings, maximumLogLevel: productionPolicy.maximumLogLevel };
+});
+ipcMain.handle("app:settings-reset", (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!settingsStore) throw new Error("application data layout is not ready");
+  const result = settingsStore.reset();
+  appLogger?.setLevel(clampLogLevel(result.settings.logLevel, productionPolicy));
+  logProduct("WARN", "settings reset to defaults", { removedCount: result.removed.length });
+  // Absolute paths are not returned: the renderer is told WHAT was preserved, not where.
+  return { settings: result.settings, preservedCount: result.preserved.length, removedCount: result.removed.length };
+});
+ipcMain.handle("app:about", (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!aboutInfo) throw new Error("application data layout is not ready");
+  // Paths are stripped here, not in the renderer: a screenshot of an About box should not
+  // carry the account name of whoever took it.
+  return { about: toRendererAboutInfo(aboutInfo), update: updateChannelState(aboutInfo.appVersion) };
+});
+ipcMain.handle("app:open-folder", async (_event, input: unknown) => {
+  const { folder } = parseOpenFolderIpc(input);
+  const layout = requireLayout();
+  const target = folder === "LOGS" ? layout.logsDirectory : folder === "EVIDENCE" ? layout.evidenceDirectory : layout.root;
+  try { mkdirSync(target, { recursive: true }); } catch { /* opening a missing folder simply fails below */ }
+  const failure = await shell.openPath(target);
+  if (failure) throw new Error("폴더를 열지 못했습니다");
+  return { opened: folder };
+});
+ipcMain.handle("app:export-diagnostics", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  const layout = requireLayout();
+  if (!aboutInfo) throw new Error("application data layout is not ready");
+  const shadow = shadowRuntime?.diagnostics();
+  const result = writeDiagnosticsPackage({
+    layout,
+    runtime: {
+      appName: aboutInfo.appName, appVersion: aboutInfo.appVersion, commitSha: aboutInfo.commitSha,
+      electronVersion: aboutInfo.electronVersion, nodeVersion: aboutInfo.nodeVersion,
+      chromeVersion: aboutInfo.chromeVersion, platform: process.platform, osRelease: os.release(),
+      arch: process.arch, environment: layout.environment, mode: aboutInfo.mode
+    },
+    runId: productRunId,
+    sessionId: shadow?.sessionId ?? null,
+    logFiles: appLogger?.recentFiles() ?? [],
+    safety: {
+      // Named for what is absent rather than for the feature it would be: this process has no
+      // authenticated-endpoint capability at all, and the packaging scanner reads main.ts for
+      // exactly the identifiers a credential path would introduce.
+      capabilities: { liveTrading: false, authenticatedEndpoint: false, credentialStorage: false },
+      killSwitchActive: persistedKillSwitchActive,
+      openP0Codes: persistedOpenP0Codes,
+      paperTradingAvailable,
+      shadowState: shadow?.state ?? null,
+      shadowBlockers: shadow?.blockers ?? [],
+      marketDataStatus
+    },
+    recovery: {
+      crashRecovery: crashRecoveryDiagnostic,
+      recoveryRecordId,
+      health: buildRecoveryHealthReport({
+        now: Date.now(), ipcHealthy: rendererHealthy, websocketConnected, rendererHealthy,
+        storageHealthy: persistenceStore !== undefined, lastMarketDataAt: latestTicker?.trade_timestamp,
+        maximumMarketDataAgeMs: 60_000, heapUsedBytes: process.memoryUsage().heapUsed,
+        maximumHeapUsedBytes: 768 * 1024 * 1024
+      })
+    },
+    marketConnection: shadow?.marketConnection ?? null,
+    evidenceMetadata: {
+      // Metadata only. The archives themselves stay on this machine: they are the record the
+      // observation exists to produce, and a support bundle is not the place to copy them.
+      incompleteArchiveCount: shadowIncompleteEvidence.length,
+      scanBlocked: shadowEvidenceScanBlocked,
+      completionHistory: (shadow?.completionHistory ?? []).map((entry) => ({ sessionId: entry.sessionId, completionReason: entry.completionReason, safety: entry.safety, finalState: entry.finalState }))
+    },
+    recentErrorCodes: [...recentErrorCodes]
+  });
+  logProduct("INFO", "diagnostics package exported", { bytes: result.byteLength, entries: result.manifest.contents.length });
+  // The path is returned so the UI can offer "open folder"; the renderer displays the file
+  // NAME only.
+  return { fileName: result.manifest.contents.length > 0 ? result.filePath.split(/[\\/]/).pop() : null, byteLength: result.byteLength, manifest: result.manifest };
+});
+ipcMain.handle("app:shutdown-progress", (_event, input: unknown) => {
+  parseProductIpc(input);
+  return shutdownSequence?.progress() ?? null;
+});
+
 ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   preflight: operationalPreflight,
   shadow: shadowRuntime.diagnostics(),
@@ -832,6 +1057,12 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
 }));
 
 app.whenReady().then(() => {
+  // First, before any subsystem asks for a path of its own.
+  try {
+    initializeProductLayer();
+  } catch (error) {
+    console.error(`application data layout failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
   try {
     const userData = app.getPath("userData");
     crashRecoveryStore = new CrashRecoveryMarkerStore(
@@ -897,36 +1128,64 @@ function releaseRuntimeResources(): void {
  * with EVIDENCE_RECOVERY_REQUIRED. A crash should produce that outcome. A clean quit should
  * not, so the quit is deferred exactly once while the archive is sealed.
  */
-app.on("before-quit", (event) => {
-  if (shadowEvidenceSealed || !shadowRuntime) return;
-  if (shutdownInProgress) return;
-  shutdownInProgress = true;
-  beginCrashShutdown();
-  const active = shadowRuntime && ["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state);
-  const finish = async (): Promise<void> => {
-    let finalized = true;
-    if (shadowRuntime && active) {
-      try { shadowRuntime.stop(); } catch (error) {
-        finalized = false;
-        console.error(`shadow stop during quit failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      try { await shadowRuntime.awaitEvidenceFinalized(); } catch (error) {
-        finalized = false;
-        console.error(`shadow evidence finalize failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
+/**
+ * Owner-initiated quit runs the A4O shutdown sequence (req 8).
+ *
+ * The quit is deferred while it runs, and the renderer is shown each step as it happens, so
+ * "the app is not closing" is visibly "the app is sealing your evidence" rather than a hang.
+ * There is no force-quit control: the only thing it could do is skip the seal.
+ */
+function buildShutdownSequence(): ShutdownSequence {
+  return new ShutdownSequence({
+    runId: productRunId,
+    observationIsRunning: () => shadowRuntime !== undefined && ["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state),
+    currentSessionId: () => shadowRuntime?.diagnostics().sessionId ?? null,
+    stopSignalIntake: () => {
+      if (!shadowRuntime) return;
+      // Only a session that is actually open is stopped; calling stop() on an IDLE runtime
+      // throws, and a shutdown must not fail because there was nothing to shut down.
+      if (!["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state)) return;
+      shadowRuntime.stop();
+    },
+    unsubscribeMarket: () => { stream?.stop(); },
+    clearTimers: () => {
+      aiCioSnapshotPublisher.clear();
+      if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
+      if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
+      persistenceStore?.close();
+    },
+    flushEvidence: async () => { await shadowRuntime?.awaitEvidenceFinalized(); },
+    recordRecovery: (clean) => {
+      if (!clean) recordRecovery("STORAGE", "WARNING", "Shutdown completed with at least one failed step");
+    },
+    beginShutdownRecord: () => beginCrashShutdown(),
+    completeShutdownRecord: () => {
+      if (!completeCrashShutdown()) throw new Error("crash marker completion write failed");
+    },
+    onProgress: (progress: ShutdownProgress) => {
+      window?.webContents.send("app:shutdown", progress);
     }
-    releaseRuntimeResources();
-    if (finalized) completeCrashShutdown();
-    shadowEvidenceSealed = true;
-    app.quit();
-  };
-  if (active) {
+  });
+}
+
+app.on("before-quit", (event) => {
+  if (shadowEvidenceSealed) return;
+  if (shutdownInProgress) {
+    // Already sealing. Defer this quit too rather than racing the first one to the archive.
     event.preventDefault();
-    void finish();
-  } else {
-    releaseRuntimeResources();
-    if (completeCrashShutdown()) shadowEvidenceSealed = true;
+    return;
   }
+  shutdownInProgress = true;
+  event.preventDefault();
+  shutdownSequence = shutdownSequence ?? buildShutdownSequence();
+  void shutdownSequence.run()
+    .catch((error) => {
+      logProduct("ERROR", "shutdown sequence failed", { message: error instanceof Error ? error.message : String(error) }, "SHUTDOWN_FAILED");
+    })
+    .finally(() => {
+      shadowEvidenceSealed = true;
+      app.quit();
+    });
 });
 
 app.on("window-all-closed", () => {

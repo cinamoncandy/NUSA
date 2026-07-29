@@ -141,7 +141,51 @@ const recoveryReview: RecoveryReviewApi = Object.freeze({
   complete: () => invokeMutation("recovery:complete", {})
 });
 
+/**
+ * WO-0034-A4O productization bridge. Ten fixed methods, no channel name the renderer can
+ * shape.
+ *
+ * What is absent matters as much as what is here: no method accepts a secret of any kind, and
+ * none can enable real execution or an authenticated endpoint. Those are not disabled behind
+ * a flag -- the bridge has no such surface, so a compromised renderer has nothing to call.
+ *
+ * `openFolder` takes one of three KEYS, never a path. A renderer able to name a directory
+ * would turn "open my logs" into "open anything on this machine, from the main process".
+ */
+export interface DokkaebiAppApi {
+  firstRun(): Promise<unknown>;
+  acknowledgeFirstRun(): Promise<unknown>;
+  settings(): Promise<unknown>;
+  saveSettings(value: unknown): Promise<unknown>;
+  resetSettings(): Promise<unknown>;
+  about(): Promise<unknown>;
+  openFolder(folder: "LOGS" | "EVIDENCE" | "USER_DATA"): Promise<unknown>;
+  exportDiagnostics(): Promise<unknown>;
+  shutdownProgress(): Promise<unknown>;
+  onShutdown(listener: (progress: unknown) => void): void;
+}
+
+const dokkaebiApp: DokkaebiAppApi = Object.freeze({
+  firstRun: () => invokeReadWithRecovery("app:first-run"),
+  // A confirmation is a mutation: it is never retried on the user's behalf, because a retry
+  // would record a second acknowledgement nobody clicked for.
+  acknowledgeFirstRun: () => invokeMutation("app:first-run-acknowledge", { confirmed: true }),
+  settings: () => invokeReadWithRecovery("app:settings"),
+  saveSettings: (value: unknown) => invokeMutation("app:settings-save", value),
+  resetSettings: () => invokeMutation("app:settings-reset", {}),
+  about: () => invokeReadWithRecovery("app:about"),
+  openFolder: (folder: "LOGS" | "EVIDENCE" | "USER_DATA") => invokeMutation("app:open-folder", { folder }),
+  exportDiagnostics: () => invokeMutation("app:export-diagnostics", {}),
+  shutdownProgress: () => invokeReadWithRecovery("app:shutdown-progress"),
+  onShutdown: (listener: (progress: unknown) => void) => {
+    // The payload is forwarded, never the Electron event object: handing the renderer an
+    // IpcRendererEvent would hand it `sender`, and with it a way back into the main process.
+    ipcRenderer.on("app:shutdown", (_event, progress: unknown) => listener(progress));
+  }
+});
+
 contextBridge.exposeInMainWorld("dokkaebi", api);
+contextBridge.exposeInMainWorld("dokkaebiApp", dokkaebiApp);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
 contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);

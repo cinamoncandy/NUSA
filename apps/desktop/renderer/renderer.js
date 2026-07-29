@@ -552,3 +552,54 @@ window.addEventListener("beforeunload", () => {
   clearTimeout(cioRefreshTimer);
 });
 refreshCioDashboard();
+
+/*
+ * WO-0034-A4O productization screens.
+ *
+ * Mounted last, after the dashboard is already live, so a failure here degrades to "no
+ * settings panel" rather than "no application". The first-run notice is the one exception:
+ * it is modal, and it is shown before the user can act on anything.
+ */
+(function mountProductScreens() {
+  const factory = window.DokkaebiProductScreens;
+  const api = window.dokkaebiApp;
+  if (!factory || !api) return;
+
+  const overlays = document.getElementById("product-overlays") || document.body;
+  const settingsRoot = document.getElementById("product-settings");
+  const aboutRoot = document.getElementById("product-about");
+
+  const about = factory.createAboutPanel({ api });
+  const settings = factory.createSettingsPanel({
+    api,
+    onShowNotice: () => { void showFirstRunNotice(true); }
+  });
+  if (settingsRoot) settingsRoot.replaceChildren(settings.element);
+  if (aboutRoot) aboutRoot.replaceChildren(about.element);
+  void settings.refresh();
+  void about.refresh();
+
+  const shutdown = factory.createShutdownOverlay({ api, root: overlays });
+  shutdown.listen();
+  void shutdown.refresh();
+
+  async function showFirstRunNotice(force) {
+    const notice = factory.createFirstRunNotice({ api, onAcknowledged: () => { void settings.refresh(); } });
+    if (force) {
+      // "Show me that again" reads the stored notice and displays it. It does NOT clear the
+      // acknowledgement: the record of what the user confirmed, and when, is not rewritten
+      // by them looking at it a second time.
+      try {
+        const state = await api.firstRun();
+        notice.render(state.notice);
+        overlays.append(notice.element);
+      } catch (cause) {
+        void cause;
+      }
+      return;
+    }
+    await notice.mount(overlays);
+  }
+
+  void showFirstRunNotice(false);
+})();
