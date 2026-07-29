@@ -10,11 +10,13 @@
   <link rel="stylesheet" href="command-palette.css" />
   <link rel="stylesheet" href="application-state.css" />
   <link rel="stylesheet" href="control-room.css" />
+  <link rel="stylesheet" href="product-screens.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="theme-provider.js"></script>
   <script src="component-library.js"></script>
   <script src="command-palette.js"></script>
   <script src="control-room.js"></script>
+  <script src="product-screens.js"></script>
 </head>
 <body>
   <main>
@@ -95,7 +97,14 @@
         <p id="application-state-action" class="application-state__action">Please wait.</p>
       </div>
     </section>
+    <!--
+      WO-0034-A4O productization screens. Placed after the dashboard on purpose: the operator's
+      first question is still system state, and settings/About are things they go looking for.
+    -->
+    <section id="product-settings" class="product-section" aria-label="설정"></section>
+    <section id="product-about" class="product-section" aria-label="앱 정보"></section>
   </main>
+  <div id="product-overlays"></div>
   <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
     <div class="command-palette__backdrop" data-command-palette-close></div>
     <section class="command-palette__surface" role="document">

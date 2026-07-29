@@ -38,7 +38,9 @@ function extractRendererUsage(source) {
  * not retyped from memory, so this list can't silently drift from the real contract. */
 function extractPreloadChannels(source) {
   const channels = new Set();
-  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery):[\w-]+)"/g;
+  // `app:` added for the WO-0034-A4O productization channels. Widening the extractor is
+  // coverage, not relaxation: a prefix it does not know is a channel it silently ignores.
+  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];
@@ -182,14 +184,16 @@ test("main process ipcMain/webContents channels and preload's channels are the s
   const requestResponseChannels = [...preloadChannels].filter((channel) => channel !== "ai-cio:dashboard:get");
 
   for (const channel of requestResponseChannels) {
-    if (channel === "market:ticker" || channel === "market:status" || channel === "chart:point") continue;
+    // Push channels: main webContents.send()s them, so there is no ipcMain.handle to find.
+    // `app:shutdown` joins them (WO-0034-A4O) and is asserted as a send below.
+    if (channel === "market:ticker" || channel === "market:status" || channel === "chart:point" || channel === "app:shutdown") continue;
     assert.ok(handled.has(channel), `preload invokes "${channel}", but main.ts has no ipcMain.handle("${channel}", ...)`);
   }
   for (const channel of handled) {
     assert.ok(preloadChannels.has(channel), `main.ts handles "${channel}", but preload.ts never invokes it -- dead IPC channel`);
   }
 
-  for (const channel of ["market:ticker", "market:status", "chart:point", "paper:snapshot", "control:snapshot"]) {
+  for (const channel of ["market:ticker", "market:status", "chart:point", "paper:snapshot", "control:snapshot", "app:shutdown"]) {
     assert.ok(sent.has(channel), `preload subscribes to "${channel}", but main.ts never webContents.send()s it`);
   }
 });

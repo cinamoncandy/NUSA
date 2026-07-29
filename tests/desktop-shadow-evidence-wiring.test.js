@@ -140,15 +140,33 @@ test("main.ts seals a live Shadow archive on a clean quit", () => {
   const handler = source.match(/app\.on\("before-quit"[\s\S]*?\n\}\);/);
   assert.ok(handler, "a before-quit handler is required");
   assert.match(handler[0], /event\.preventDefault\(\)/);
-  assert.match(handler[0], /shadowRuntime\.stop\(\)/);
-  assert.match(handler[0], /awaitEvidenceFinalized\(\)/);
   assert.match(handler[0], /app\.quit\(\)/);
-  // Without the guard the deferred quit would re-enter this handler forever.
-  assert.match(handler[0], /if \(shadowEvidenceSealed \|\| !shadowRuntime\) return;/);
+  // Both guards, or a deferred quit re-enters this handler and races itself to the archive.
+  assert.match(handler[0], /if \(shadowEvidenceSealed\) return;/);
+  assert.match(handler[0], /shutdownInProgress/);
+
+  // WO-0034-A4O moved the ordered steps into ShutdownSequence, so the guarantee is followed
+  // through the composition rather than read off one block. The steps themselves are the
+  // same, and the sequence's ordering is asserted behaviourally in
+  // tests/product-release-readiness.test.js.
+  assert.match(handler[0], /shutdownSequence\.run\(\)/, "the quit must run the shutdown sequence");
+  const composition = source.match(/function buildShutdownSequence\(\)[\s\S]*?\n\}/);
+  assert.ok(composition, "the shutdown sequence composition must live in main.ts");
+  assert.match(composition[0], /shadowRuntime\.stop\(\)/);
+  assert.match(composition[0], /awaitEvidenceFinalized\(\)/);
 });
 
 test("the desktop writes Shadow evidence under userData, not the repository", () => {
-  assert.match(source, /const shadowEvidenceRoot = path\.join\(app\.getPath\("userData"\), "shadow-evidence"\)/);
+  // The path now comes from the single userData layout (WO-0034-A4O req 6) rather than being
+  // joined at this call site. The guarantee is unchanged and is followed one step further:
+  // the evidence root is the layout's, and the layout is resolved from app.getPath("userData").
+  assert.match(source, /const shadowEvidenceRoot = layout\.evidenceDirectory/);
+  assert.match(source, /resolveUserDataLayout\(\{ userDataPath: app\.getPath\("userData"\)/);
+  const layoutSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "userDataLayout.ts"), "utf8");
+  assert.match(layoutSource, /evidenceDirectory: path\.join\(root, "shadow-evidence"\)/);
+  // A packaged build's root IS the userData directory, so an existing install keeps its
+  // archives exactly where they were.
+  assert.match(layoutSource, /const root = input\.packaged \? base : `\$\{base\}\$\{DEVELOPMENT_ROOT_SUFFIX\}`/);
 });
 
 test("main.ts composes the evidence bus through the module the tests drive", () => {
