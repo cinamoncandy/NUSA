@@ -23,6 +23,7 @@
     "desktop": "pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run build && electron apps/desktop",
     "package:win": "pnpm run preflight && pnpm run build && electron-builder --win nsis",
+    "package:validate": "node scripts/validate-windows-package.js",
     "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",
     "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
     "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",
@@ -38,26 +39,50 @@
     "@storybook/addon-a11y": "8.6.14",
     "@storybook/web-components": "8.6.14",
     "@storybook/web-components-vite": "8.6.14",
-    "electron": "39.0.0",
+    "electron": "39.8.1",
     "electron-builder": "26.0.12",
     "eslint": "9.39.1",
     "jsdom": "26.0.0",
     "storybook": "8.6.14",
     "typescript": "5.9.3",
-    "vitest": "3.2.4",
-    "ws": "8.18.3"
+    "vitest": "3.2.4"
+  },
+  "dependencies": {
+    "ws": "8.21.0"
   },
   "build": {
     "appId": "com.dokkaebi.trader",
     "productName": "Dokkaebi",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**/*",
-      "apps/desktop/**/*",
-      "package.json"
+      "apps/desktop/renderer/**/*",
+      "apps/desktop/package.json",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.map",
+      "!**/tests{,/**/*}",
+      "!**/docs{,/**/*}"
     ],
+    "extraMetadata": {
+      "main": "dist/apps/desktop/src/main.js"
+    },
     "win": {
       "target": "nsis",
+      "icon": "build/icon.png",
+      "artifactName": "Dokkaebi-${version}-Windows-Setup.${ext}",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
     }
   }
 }
