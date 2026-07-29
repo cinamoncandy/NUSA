@@ -18,6 +18,25 @@ export type UpbitStreamHealth = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "S
 export type TickerHandler = (ticker: UpbitTicker) => void;
 export type StatusHandler = (status: string) => void;
 
+/**
+ * Public-market transport state.  This deliberately describes connectivity only: it has no
+ * exchange account, credential, order, or private API capability.
+ */
+export type UpbitMarketConnectionState = "CONNECTED" | "STALE" | "DISCONNECTED" | "RECONNECTING" | "RECOVERED" | "FAILED";
+
+export interface UpbitMarketConnectionDiagnostics {
+  readonly marketConnectionState: UpbitMarketConnectionState;
+  readonly reconnectAttempt: number;
+  readonly maximumReconnectAttempts: number;
+  readonly reconnectStartedAt: number | null;
+  readonly lastMarketMessageAt: number | null;
+  readonly lastSuccessfulReconnectAt: number | null;
+  readonly activeMarketListenerCount: number;
+  readonly activeMarketSubscriptionCount: number;
+  readonly reconnectTimerCount: number;
+  readonly reconnectFailureReason: string | null;
+}
+
 export function normalizeUpbitMarkets(markets: string | readonly string[]): string[] {
   const values = (Array.isArray(markets) ? markets : [markets])
     .map((market) => market.trim().toUpperCase())
@@ -55,6 +74,10 @@ export class UpbitWebSocketClient {
   private markets: string[];
   private health: UpbitStreamHealth = "DISCONNECTED";
   private lastMessageAt?: number;
+  private connectionState: UpbitMarketConnectionState = "DISCONNECTED";
+  private reconnectStartedAt?: number;
+  private lastSuccessfulReconnectAt?: number;
+  private reconnectFailureReason?: string;
   private readonly latestTickers = new Map<string, UpbitTicker>();
   private readonly lastTradeTimestamp = new Map<string, number>();
 
@@ -90,6 +113,9 @@ export class UpbitWebSocketClient {
     this.socket?.removeAllListeners();
     this.socket?.close();
     this.socket = undefined;
+    this.reconnectStartedAt = undefined;
+    this.reconnectFailureReason = undefined;
+    this.connectionState = "DISCONNECTED";
     this.setHealth("DISCONNECTED", "stopped");
   }
 
@@ -108,6 +134,23 @@ export class UpbitWebSocketClient {
     return this.health;
   }
 
+  connectionDiagnostics(): UpbitMarketConnectionDiagnostics {
+    return Object.freeze({
+      marketConnectionState: this.connectionState,
+      reconnectAttempt: this.reconnectAttempt,
+      maximumReconnectAttempts: this.maximumReconnectAttempts,
+      reconnectStartedAt: this.reconnectStartedAt ?? null,
+      lastMarketMessageAt: this.lastMessageAt ?? null,
+      lastSuccessfulReconnectAt: this.lastSuccessfulReconnectAt ?? null,
+      // One active socket owns its event listeners and one subscription message contains all
+      // markets. These are topology facts, not speculative counts.
+      activeMarketListenerCount: this.socket ? 1 : 0,
+      activeMarketSubscriptionCount: this.socket && this.socket.readyState === WebSocket.OPEN ? 1 : 0,
+      reconnectTimerCount: this.reconnectTimer ? 1 : 0,
+      reconnectFailureReason: this.reconnectFailureReason ?? null
+    });
+  }
+
   snapshot(now = Date.now()): UpbitMarketSnapshot {
     return Object.freeze({
       generatedAt: now,
@@ -122,6 +165,7 @@ export class UpbitWebSocketClient {
 
   private connect(): void {
     if (this.stopped) return;
+    this.reconnectTimer = undefined;
     this.setHealth("CONNECTING", "connecting");
     const socket = new WebSocket("wss://api.upbit.com/websocket/v1", {
       headers: { "User-Agent": "dokkaebi-desktop/0.1" }
@@ -129,8 +173,18 @@ export class UpbitWebSocketClient {
     this.socket = socket;
 
     socket.on("open", () => {
+      if (this.socket !== socket || this.stopped) return;
+      const recovered = this.reconnectAttempt > 0 || this.reconnectStartedAt !== undefined;
       this.reconnectAttempt = 0;
       this.lastMessageAt = Date.now();
+      this.reconnectFailureReason = undefined;
+      this.reconnectStartedAt = undefined;
+      if (recovered) {
+        this.connectionState = "RECOVERED";
+        this.lastSuccessfulReconnectAt = this.lastMessageAt;
+        this.onStatus("recovered");
+      }
+      this.connectionState = "CONNECTED";
       this.setHealth("CONNECTED", "connected");
       this.sendSubscription();
     });
@@ -143,17 +197,29 @@ export class UpbitWebSocketClient {
         this.lastMessageAt = Date.now();
         this.lastTradeTimestamp.set(ticker.code, ticker.trade_timestamp);
         this.latestTickers.set(ticker.code, Object.freeze({ ...ticker }));
-        if (this.health !== "CONNECTED") this.setHealth("CONNECTED", "connected");
+        if (this.health !== "CONNECTED") {
+          this.connectionState = "CONNECTED";
+          this.setHealth("CONNECTED", "connected");
+        }
         this.onTicker(ticker);
       } catch (error) {
         this.setHealth("DEGRADED", `decode-error: ${error instanceof Error ? error.message : String(error)}`);
       }
     });
 
-    socket.on("error", (error) => this.setHealth("DEGRADED", `error: ${error.message}`));
+    socket.on("error", (error) => {
+      if (this.socket !== socket || this.stopped) return;
+      this.connectionState = "DISCONNECTED";
+      this.setHealth("DEGRADED", `error: ${error.message}`);
+    });
     socket.on("close", () => {
+      if (this.socket !== socket) return;
       this.socket = undefined;
-      if (!this.stopped) this.scheduleReconnect();
+      if (!this.stopped) {
+        this.connectionState = "DISCONNECTED";
+        this.onStatus("disconnected");
+        this.scheduleReconnect();
+      }
     });
   }
 
@@ -172,19 +238,32 @@ export class UpbitWebSocketClient {
     this.heartbeatTimer = setInterval(() => {
       if (this.stopped || !this.lastMessageAt || !this.socket || this.socket.readyState !== WebSocket.OPEN) return;
       const age = Date.now() - this.lastMessageAt;
-      if (age > this.staleAfterMs && this.health !== "STALE") this.setHealth("STALE", `stale-${age}ms`);
+      if (age > this.staleAfterMs && this.health !== "STALE") {
+        this.connectionState = "STALE";
+        this.setHealth("STALE", `stale-${age}ms`);
+        // A stale open socket is indistinguishable from a dead transport for an observation.
+        // Closing this single active socket lets the close handler enter the same bounded
+        // reconnect path as an explicit disconnect; it never opens a second connection.
+        this.socket.close();
+      }
     }, interval);
   }
 
   private scheduleReconnect(): void {
+    // A close and an error can arrive together. One reconnect timer is the hard upper bound.
+    if (this.stopped || this.reconnectTimer) return;
+    this.reconnectStartedAt ??= Date.now();
     this.reconnectAttempt += 1;
     if (this.reconnectAttempt > this.maximumReconnectAttempts) {
       this.stopped = true;
+      this.connectionState = "FAILED";
+      this.reconnectFailureReason = "MARKET_RECONNECT_TIMEOUT";
       this.setHealth("DISCONNECTED", "reconnect-exhausted");
       return;
     }
     const delay = upbitReconnectDelay(this.reconnectAttempt);
-    this.setHealth("CONNECTING", `reconnecting-in-${delay}ms`);
+    this.connectionState = "RECONNECTING";
+    this.setHealth("CONNECTING", `reconnecting-${this.reconnectAttempt}-${this.maximumReconnectAttempts}-in-${delay}ms`);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 }

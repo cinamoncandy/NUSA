@@ -76,6 +76,14 @@ function renderA4Diagnostics(diagnostics) {
       ["Queue depth / high water", `${diagnostics.shadow.queueDepth} / ${diagnostics.shadow.queueHighWaterMark}`],
       ["Duplicate / stale / out-of-order", `${diagnostics.shadow.duplicateCandleCount} / ${diagnostics.shadow.staleCandleCount} / ${diagnostics.shadow.outOfOrderCandleCount}`]
     ]),
+    renderA4Rows("Public market reconnect", [
+      ["State", diagnostics.shadow.marketConnection.marketConnectionState],
+      ["Last market message", diagnostics.shadow.marketConnection.lastMarketMessageAt || "None"],
+      ["Reconnect", `${diagnostics.shadow.marketConnection.reconnectAttempt} attempts`],
+      ["Last recovery", diagnostics.shadow.marketConnection.lastSuccessfulReconnectAt || "None"],
+      ["Listeners / subscriptions / timers", `${diagnostics.shadow.marketConnection.activeMarketListenerCount} / ${diagnostics.shadow.marketConnection.activeMarketSubscriptionCount} / ${diagnostics.shadow.marketConnection.reconnectTimerCount}`],
+      ["Failure", diagnostics.shadow.marketConnection.reconnectFailureReason || "None"]
+    ]),
     renderA4Rows("Evidence", [
       ["Root writable", diagnostics.evidence.rootWritable ? "YES" : "NO"],
       ["Markerless archives", diagnostics.evidence.markerlessArchiveCount],

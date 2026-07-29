@@ -234,12 +234,12 @@ function handleProductionSignal(input: { market: string; price: number; position
 
 function handleMarketStatus(status: string): void {
   const now = Date.now();
-  websocketConnected = status === "connected";
-  marketDataStatus = status === "connected" ? "HEALTHY" : status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
+  websocketConnected = status === "connected" || status === "recovered";
+  marketDataStatus = status === "connected" ? "HEALTHY" : status === "recovered" ? "HEALTHY" : status === "disconnected" || status.startsWith("reconnecting") ? "RECONNECTING" : status.startsWith("stale") ? "STALE" : "INVALID";
   window?.webContents.send("market:status", status);
   shadowRuntime.onWebSocketStatus(status);
 
-  if (status === "connected") {
+  if (status === "connected" || status === "recovered") {
     reconnectedAt = now;
   } else {
     disconnectedAt ??= now;
@@ -547,6 +547,7 @@ function initializeRuntime(): void {
     // read-only topology facts for A4K diagnostics; they do not create or manage listeners.
     getMarketListenerCount: () => stream ? 1 : 0,
     getMarketSubscriptionCount: () => stream ? 1 : 0,
+    getMarketConnectionDiagnostics: () => stream.connectionDiagnostics(),
     // The real timers this process owns while an observation runs. Counted from the handles
     // themselves, so the number falls to zero when shutdown actually clears them rather than
     // when someone remembers to update a constant.
@@ -714,7 +715,7 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
   market: {
     connected: websocketConnected,
-    lastHeartbeatAt: latestTicker?.trade_timestamp ?? null,
+    lastHeartbeatAt: stream.connectionDiagnostics().lastMarketMessageAt,
     source: "UPBIT_PUBLIC_CLOSED_CANDLE"
   },
   safety: {

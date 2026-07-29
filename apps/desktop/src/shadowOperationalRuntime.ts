@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createClosedCandleAdapter, type ClosedCandle, type ClosedCandleAdapter, type PublicTickerSample } from "./closedCandleAdapter";
-import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } from "./shadowPilotRuntime";
+import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowMarketConnectionEvidence, type ShadowPilotSession } from "./shadowPilotRuntime";
 import type { StrategyEngine, StrategySignal } from "./strategyEngine";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
@@ -22,7 +22,19 @@ type PaperSide = "BUY" | "SELL";
  */
 
 export type ShadowLifecycleStatus = "IDLE" | "PRECHECK" | "READY" | "RUNNING" | "PAUSED" | "COMPLETED" | "HALTED" | "FAILED" | "INVALIDATED";
-export type ShadowMarketDataStatus = "CONNECTING" | "WARMING_UP" | "HEALTHY" | "STALE" | "RECONNECTING" | "GAP_DETECTED" | "OUT_OF_ORDER" | "CLOCK_DRIFT" | "DISCONNECTED";
+export type ShadowMarketDataStatus = "CONNECTING" | "WARMING_UP" | "HEALTHY" | "STALE" | "RECONNECTING" | "RECOVERED" | "GAP_DETECTED" | "OUT_OF_ORDER" | "CLOCK_DRIFT" | "DISCONNECTED" | "FAILED";
+
+export interface ShadowMarketConnectionDiagnostics {
+  readonly marketConnectionState: "CONNECTED" | "STALE" | "DISCONNECTED" | "RECONNECTING" | "RECOVERED" | "FAILED";
+  readonly reconnectAttempt: number;
+  readonly reconnectStartedAt: number | null;
+  readonly lastMarketMessageAt: number | null;
+  readonly lastSuccessfulReconnectAt: number | null;
+  readonly activeMarketListenerCount: number;
+  readonly activeMarketSubscriptionCount: number;
+  readonly reconnectTimerCount: number;
+  readonly reconnectFailureReason: string | null;
+}
 
 /**
  * The last signal's journey through the pipeline, recorded so the UI can explain a specific
@@ -86,6 +98,7 @@ export interface ShadowOperationalDiagnostics {
   /** Completed sessions remain visible as history; this is never used as current-session state. */
   readonly completionHistory: readonly ShadowCompletionEvidence[];
   readonly longRunning: ShadowLongRunningDiagnostics;
+  readonly marketConnection: ShadowMarketConnectionDiagnostics;
 }
 
 /** What the running system currently knows about safety preconditions. Read fresh on every precheck/resume. */
@@ -161,6 +174,7 @@ export interface ShadowOperationalDependencies {
   readonly getHostTimeoutCount?: () => number;
   readonly readRendererMemoryUsage?: () => number | null;
   readonly longRunningDiagnosticsIntervalMs?: number;
+  readonly getMarketConnectionDiagnostics?: () => ShadowMarketConnectionDiagnostics;
 }
 
 export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
@@ -200,6 +214,11 @@ export class ShadowOperationalRuntime {
    */
   private readonly dispatchedCandleCloseTimes = new Set<number>();
   private readonly longRunningDiagnostics: ShadowLongRunningDiagnosticsSampler;
+  private marketRecoveryPending = false;
+  /** Only the transport's explicit RECOVERED event may authorize automatic recovery. */
+  private marketRecoveryConfirmed = false;
+  private disconnectedAt?: number;
+  private lastConnectionEvidenceState?: ShadowMarketConnectionDiagnostics["marketConnectionState"];
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.candleAdapter = createClosedCandleAdapter({ symbol: deps.symbol, requiredWarmupCandles: 20 });
@@ -227,6 +246,47 @@ export class ShadowOperationalRuntime {
     if (this.lifecycle !== "RUNNING") return;
     this.lifecycle = "PAUSED";
     this.blockers = [...reasonCodes];
+  }
+
+  private marketConnectionDiagnostics(): ShadowMarketConnectionDiagnostics {
+    return this.deps.getMarketConnectionDiagnostics?.() ?? Object.freeze({
+      marketConnectionState: this.webSocketConnected ? "CONNECTED" : "DISCONNECTED",
+      reconnectAttempt: 0,
+      reconnectStartedAt: null,
+      lastMarketMessageAt: null,
+      lastSuccessfulReconnectAt: null,
+      activeMarketListenerCount: this.deps.getMarketListenerCount?.() ?? 0,
+      activeMarketSubscriptionCount: this.deps.getMarketSubscriptionCount?.() ?? 0,
+      reconnectTimerCount: 0,
+      reconnectFailureReason: null
+    });
+  }
+
+  private recordMarketConnectionEvidence(reasonCodes: readonly string[]): void {
+    if (!this.pilot || this.pilot.snapshot().status !== "RUNNING") return;
+    const connection = this.marketConnectionDiagnostics();
+    if (this.lastConnectionEvidenceState === connection.marketConnectionState) return;
+    const recoveredAt = connection.lastSuccessfulReconnectAt;
+    const disconnectedAt = this.disconnectedAt ?? null;
+    const evidence: ShadowMarketConnectionEvidence = Object.freeze({
+      disconnectedAt,
+      reconnectAttemptCount: connection.reconnectAttempt,
+      recoveredAt,
+      totalDowntime: disconnectedAt === null || recoveredAt === null ? null : Math.max(0, recoveredAt - disconnectedAt),
+      finalReconnectState: connection.marketConnectionState
+    });
+    this.pilot.recordMarketConnection(this.now(), evidence, reasonCodes);
+    this.lastConnectionEvidenceState = connection.marketConnectionState;
+    this.publishPendingEvents();
+  }
+
+  private resumeRecoveredSessionIfReady(): void {
+    if (!this.marketRecoveryPending || !this.marketRecoveryConfirmed || this.lifecycle !== "PAUSED") return;
+    if (!this.webSocketConnected || !this.candleAdapter.inspectState().warmupComplete && !this.officialWarmupComplete()) return;
+    this.marketRecoveryPending = false;
+    this.marketRecoveryConfirmed = false;
+    this.lifecycle = "RUNNING";
+    this.blockers = [];
   }
 
   /**
@@ -327,20 +387,34 @@ export class ShadowOperationalRuntime {
         this.autoPauseIfRunning(["MARKET_DATA_RECONNECTED_REQUIRES_WARMUP"]);
       }
       this.setMarketDataStatus(this.candleAdapter.inspectState().warmupComplete ? "HEALTHY" : "WARMING_UP");
+      this.recordMarketConnectionEvidence(["MARKET_CONNECTED"]);
+      this.resumeRecoveredSessionIfReady();
+      return;
+    }
+    if (status === "recovered") {
+      this.webSocketConnected = true;
+      this.setMarketDataStatus("RECOVERED");
+      this.marketRecoveryConfirmed = true;
+      this.recordMarketConnectionEvidence(["MARKET_RECONNECTED"]);
       return;
     }
     if (status === "reconnect-exhausted") {
       this.webSocketConnected = false;
       this.candleAdapter.markDisconnected(now);
       this.setMarketDataStatus("DISCONNECTED");
-      this.haltActiveSession(["MARKET_DATA_DISCONNECTED_EXHAUSTED"]);
+      this.recordMarketConnectionEvidence(["MARKET_RECONNECT_TIMEOUT"]);
+      this.haltActiveSession(["MARKET_RECONNECT_TIMEOUT"]);
       return;
     }
-    if (status.startsWith("reconnecting")) {
+    if (status === "disconnected" || status.startsWith("reconnecting")) {
       this.webSocketConnected = false;
+      this.disconnectedAt ??= now;
       this.candleAdapter.markDisconnected(now);
       this.setMarketDataStatus("RECONNECTING");
+      this.marketRecoveryPending = this.lifecycle === "RUNNING" || this.marketRecoveryPending;
+      this.marketRecoveryConfirmed = false;
       this.autoPauseIfRunning(["MARKET_DATA_RECONNECTING"]);
+      this.recordMarketConnectionEvidence(["MARKET_DATA_RECONNECTING"]);
       return;
     }
     if (status === "connecting") {
@@ -349,7 +423,11 @@ export class ShadowOperationalRuntime {
     }
     if (status.startsWith("stale")) {
       this.setMarketDataStatus("STALE");
+      this.disconnectedAt ??= now;
+      this.marketRecoveryPending = this.lifecycle === "RUNNING" || this.marketRecoveryPending;
+      this.marketRecoveryConfirmed = false;
       this.autoPauseIfRunning(["MARKET_DATA_STALE"]);
+      this.recordMarketConnectionEvidence(["MARKET_DATA_STALE"]);
       return;
     }
     if (status.startsWith("error") || status.startsWith("decode-error")) {
@@ -373,7 +451,10 @@ export class ShadowOperationalRuntime {
       else if (event.code === "DISCONNECTED") { this.setMarketDataStatus("DISCONNECTED"); this.autoPauseIfRunning(["MARKET_DATA_DISCONNECTED"]); }
       if (ADVERSE_CANDLE_HEALTH_CODES.has(event.code)) adverse = true;
     }
-    if (!adverse) this.setMarketDataStatus(this.candleAdapter.inspectState().warmupComplete ? "HEALTHY" : "WARMING_UP");
+    if (!adverse) {
+      this.setMarketDataStatus(this.candleAdapter.inspectState().warmupComplete ? "HEALTHY" : "WARMING_UP");
+      this.resumeRecoveredSessionIfReady();
+    }
     // A gap, out-of-order tick, or disconnect this round means no closed candle emitted this
     // round should drive the strategy -- "gap detected 후 strategy execution 금지".
     if (adverse) return;
@@ -687,6 +768,10 @@ export class ShadowOperationalRuntime {
     // leave the adapter permanently disconnected.
     this.webSocketConnected = false;
     this.marketDataStatus = "DISCONNECTED";
+    this.marketRecoveryPending = false;
+    this.marketRecoveryConfirmed = false;
+    this.disconnectedAt = undefined;
+    this.lastConnectionEvidenceState = undefined;
     this.lifecycle = "IDLE";
     this.blockers = [];
     return this.diagnostics();
@@ -733,7 +818,8 @@ export class ShadowOperationalRuntime {
       sourceType: "UPBIT_PUBLIC_CANDLE",
       strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy,
       completionHistory: Object.freeze([...this.completionHistory])
-      ,longRunning: this.longRunningDiagnostics.diagnostics()
+      ,longRunning: this.longRunningDiagnostics.diagnostics(),
+      marketConnection: this.marketConnectionDiagnostics()
     });
   }
 
