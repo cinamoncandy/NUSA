@@ -86,6 +86,16 @@ function renderA4Diagnostics(diagnostics) {
       ["Queue depth / high water", `${diagnostics.shadow.queueDepth} / ${diagnostics.shadow.queueHighWaterMark}`],
       ["Duplicate / stale / out-of-order", `${diagnostics.shadow.duplicateCandleCount} / ${diagnostics.shadow.staleCandleCount} / ${diagnostics.shadow.outOfOrderCandleCount}`]
     ]),
+    renderA4Rows("Crash recovery", [
+      ["Recovery required", diagnostics.crashRecovery.recoveryRequired ? "YES" : "NO"],
+      ["Previous run", diagnostics.crashRecovery.previousRunId || "None"],
+      ["Previous session / state", `${diagnostics.crashRecovery.previousSessionId || "None"} / ${diagnostics.crashRecovery.previousSessionState || "None"}`],
+      ["Recovery state", diagnostics.crashRecovery.recoveryState || "None"],
+      ["Last normal Evidence", diagnostics.crashRecovery.lastEvidenceId || "None"],
+      ["Detected at", diagnostics.crashRecovery.detectedAt || "None"],
+      ["Reason", diagnostics.crashRecovery.reasonCodes.join(", ") || "None"],
+      ["Fail-closed", diagnostics.crashRecovery.failClosed ? "ACTIVE" : "READY"]
+    ]),
     renderA4Rows("Public market reconnect", [
       ["State", marketConnection.marketConnectionState],
       ["Last market message", marketConnection.lastMarketMessageAt || "None"],

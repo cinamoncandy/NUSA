@@ -4,6 +4,7 @@ import type { DomainEventBusDiagnostics } from "./domainEventBus";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { ShadowOperationalDiagnostics } from "./shadowOperationalRuntime";
 import { verifyShadowEvidenceDirectory } from "./shadowEvidenceArchive";
+import type { CrashRecoveryDiagnostic } from "./crashRecoveryMarker";
 
 export interface A4MutationCounters {
   readonly broker: number;
@@ -66,6 +67,7 @@ export interface A4RuntimeDiagnostics {
   }>;
   readonly capabilities: Readonly<{ liveTrading: false; privateApi: false; credentialStorage: false }>;
   readonly mutationCounters: A4MutationCounters;
+  readonly crashRecovery: CrashRecoveryDiagnostic;
   /** Exact blockers returned by the same read-only precheck used by shadow:start. */
   readonly startPrecheckBlockers: readonly string[];
   readonly verdict: "READY_FOR_OBSERVATION" | "BLOCKED" | "ERROR";
@@ -126,6 +128,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
     activatedAt: number | null;
     activationSource: "PERSISTED_PAPER_SAFETY_SNAPSHOT" | null;
   }>;
+  crashRecovery?: CrashRecoveryDiagnostic;
   generatedAt?: number;
 }>): Promise<A4RuntimeDiagnostics> {
   const generatedAt = input.generatedAt ?? Date.now();
@@ -190,6 +193,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
   if (markerlessArchiveCount > 0) blockers.add("MARKERLESS_ARCHIVE_PRESENT");
   if (input.shadow.state !== "IDLE") blockers.add("SHADOW_SESSION_NOT_IDLE");
   if (input.shadow.blockers.includes("EVIDENCE_RECOVERY_REQUIRED")) blockers.add("RECOVERY_REQUIRED");
+  if (input.crashRecovery?.recoveryRequired) blockers.add("RECOVERY_REQUIRED");
   if (bus?.status === "HALTED") blockers.add(`EVIDENCE_BUS_${bus.haltReason ?? "HALTED"}`);
   if (lastVerifierResult === "FAIL" || lastVerifierResult === "ERROR") blockers.add("LAST_EVIDENCE_VERIFICATION_FAILED");
   for (const [name, value] of Object.entries(input.mutationCounters)) if (value !== 0) blockers.add(`${name.toUpperCase()}_MUTATION:${value}`);
@@ -223,6 +227,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
     evidence,
     capabilities: Object.freeze({ liveTrading: false, privateApi: false, credentialStorage: false }),
     mutationCounters: Object.freeze({ ...input.mutationCounters }),
+    crashRecovery: input.crashRecovery ?? Object.freeze({ runId: null, recoveryRequired: false, previousRunId: null, previousSessionId: null, previousSessionState: null, lastEvidenceId: null, detectedAt: null, cleanShutdown: false, reasonCodes: Object.freeze([]), recoveryState: null, failClosed: false }),
     startPrecheckBlockers: Object.freeze(startBlockers),
     verdict,
     blockers: orderedBlockers
