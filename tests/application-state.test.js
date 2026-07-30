@@ -71,3 +71,42 @@ test("loading fallback resolves to a non-permissive state when no data arrives",
   assert.notEqual(nodes.get("application-state").dataset.tone, "positive");
   mounted.disconnect();
 });
+
+test("disconnect removes external state listeners", () => {
+  const listeners = new Map();
+  const autoTradeListeners = new Map();
+  const nodes = new Map([
+    ["application-state", { dataset: {} }],
+    ["application-state-title", { textContent: "" }],
+    ["application-state-description", { textContent: "" }],
+    ["application-state-action", { textContent: "" }],
+    ["price", { textContent: "100" }],
+    ["status", { textContent: "connected" }],
+    ["strategy-status", { textContent: "RUNNING" }],
+    ["auto-trade", {
+      checked: true,
+      addEventListener: (name, listener) => autoTradeListeners.set(name, listener),
+      removeEventListener: (name, listener) => {
+        if (autoTradeListeners.get(name) === listener) autoTradeListeners.delete(name);
+      }
+    }]
+  ]);
+  const document = { body: { dataset: {} }, getElementById: (id) => nodes.get(id) };
+  const windowObject = {
+    navigator: { onLine: true },
+    MutationObserver: class { observe() {} disconnect() {} },
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    removeEventListener: (name, listener) => {
+      if (listeners.get(name) === listener) listeners.delete(name);
+    },
+    setTimeout: () => 1,
+    clearTimeout() {}
+  };
+
+  const mounted = states.mount(document, windowObject);
+  assert.deepEqual([...listeners.keys()].sort(), ["offline", "online"]);
+  assert.equal(autoTradeListeners.has("change"), true);
+  mounted.disconnect();
+  assert.deepEqual([...listeners.keys()], []);
+  assert.equal(autoTradeListeners.has("change"), false);
+});

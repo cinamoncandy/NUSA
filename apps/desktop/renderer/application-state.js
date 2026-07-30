@@ -79,9 +79,13 @@
       const node = document.getElementById(id);
       if (node) observer.observe(node, { childList: true, characterData: true, subtree: true });
     }
-    document.getElementById("auto-trade")?.addEventListener("change", read);
-    windowObject.addEventListener("online", read);
-    windowObject.addEventListener("offline", read);
+    const autoTrade = document.getElementById("auto-trade");
+    const onAutoTradeChange = () => read();
+    const onOnline = () => read();
+    const onOffline = () => read();
+    autoTrade?.addEventListener("change", onAutoTradeChange);
+    windowObject.addEventListener("online", onOnline);
+    windowObject.addEventListener("offline", onOffline);
     read();
     loadingTimer = windowObject.setTimeout(() => {
       const price = document.getElementById("price")?.textContent || "";
@@ -103,6 +107,9 @@
       refresh: read,
       disconnect: () => {
         observer.disconnect();
+        autoTrade?.removeEventListener?.("change", onAutoTradeChange);
+        windowObject.removeEventListener?.("online", onOnline);
+        windowObject.removeEventListener?.("offline", onOffline);
         if (loadingTimer !== undefined) windowObject.clearTimeout(loadingTimer);
       }
     };
