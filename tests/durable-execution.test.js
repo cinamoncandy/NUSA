@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ExecutionService, InMemoryExecutionRepository, DisabledExchangeExecutionPort, LiveMutationDisabledError, allowedExecutionTransitions } = require("../dist/apps/execution/src/durable-execution.js");
+const { ExecutionService, InMemoryExecutionRepository, DisabledExchangeExecutionPort, FakeExchangeExecutionPort, LiveMutationDisabledError, allowedExecutionTransitions } = require("../dist/apps/execution/src/durable-execution.js");
 
 const intent = (overrides = {}) => ({ strategyId: "strategy-1", signalId: "signal-1", market: "KRW-BTC", side: "BUY", orderType: "MARKET", requestedQuantity: "2.5", ...overrides });
 
@@ -36,4 +36,18 @@ test("transition table includes reconciliation and unknown-submission recovery w
   assert.deepEqual(table.SUBMISSION_UNKNOWN, ["ACCEPTED", "PARTIALLY_FILLED", "FILLED", "REJECTED", "RECONCILIATION_REQUIRED"]);
   assert.ok(table.RECONCILIATION_REQUIRED.includes("RECONCILED"));
   assert.ok(!table.SUBMISSION_UNKNOWN.includes("SUBMITTING"));
+});
+
+test("fake adapter covers accepted, reject, and partial fill without production capability", async () => {
+  const acceptedPort = new FakeExchangeExecutionPort({ status: "ACCEPTED", exchangeOrderId: "order-1" });
+  const repo = new InMemoryExecutionRepository(); const service = new ExecutionService(repo, acceptedPort, true);
+  let record = await service.createIntent(intent({ requestedQuantity: "2" })); record = await service.approveRisk(record.executionId, "risk-1"); record = await service.queue(record.executionId); record = await service.submit(record.executionId);
+  assert.equal(record.state, "ACCEPTED"); assert.equal(acceptedPort.submitCalls, 1);
+  const partial = await service.addFill({ fillId: "fill-1", executionId: record.executionId, exchangeTradeId: "trade-1", quantity: "1", price: "100", fee: "1", feeCurrency: "KRW", executedAt: record.createdAt });
+  assert.equal(partial.state, "PARTIALLY_FILLED");
+  const rejected = new FakeExchangeExecutionPort({ status: "REJECTED", reasonCode: "EXCHANGE_REJECTED" }); const second = new InMemoryExecutionRepository(); const other = new ExecutionService(second, rejected, true); let rejectedRecord = await other.createIntent(intent()); rejectedRecord = await other.approveRisk(rejectedRecord.executionId, "risk-2"); rejectedRecord = await other.queue(rejectedRecord.executionId); rejectedRecord = await other.submit(rejectedRecord.executionId); assert.equal(rejectedRecord.state, "REJECTED");
+});
+
+test("cancel lifecycle, restart replay, duplicate ACK, and out-of-order events remain fail closed", async () => {
+  const port = new FakeExchangeExecutionPort({ status: "ACCEPTED", exchangeOrderId: "order-2" }); const repo = new InMemoryExecutionRepository(); const service = new ExecutionService(repo, port, true); let record = await service.createIntent(intent()); record = await service.approveRisk(record.executionId, "risk-3"); record = await service.queue(record.executionId); record = await service.submit(record.executionId); record = await service.requestCancel(record.executionId); record = await service.cancel(record.executionId); assert.equal(record.state, "CANCELED"); assert.equal(port.cancelCalls, 1); assert.throws(() => repo.save({ ...record, state: "ACCEPTED", version: record.version + 1 }, { transitionId: "dup", executionId: record.executionId, fromState: "CANCELED", toState: "ACCEPTED", reasonCode: "duplicate", metadata: {}, createdAt: record.updatedAt, sequence: repo.transitions(record.executionId).length + 1 }), /INVALID_EXECUTION_TRANSITION/); assert.deepEqual(await service.replayRecovery(), []);
 });
