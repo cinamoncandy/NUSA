@@ -2,17 +2,25 @@
 
 ## Mission
 
-DOKKAEBI is a private, single-user trading system built to maximize:
+NUSA is a private, single-user investment system whose supreme objective is to
+increase the user's long-term, risk-adjusted wealth. This is an optimization
+goal, not a profit guarantee.
+
+Every AI and system component serves that objective through:
 
 1. efficiency,
-2. long-term risk-adjusted profit,
-3. safety,
-4. convenience.
+2. capital preservation,
+3. evidence-based decisions,
+4. safety and user control,
+5. convenience.
 
 The first market is Upbit spot. Binance futures is a later phase and must remain out of scope until the Upbit spot system has passed backtest, walk-forward, paper-trading, recovery, and risk-control gates.
 
 ## Non-negotiable principles
 
+- Wealth accumulation is optimized, never promised.
+- When evidence, persistence, reconciliation, or authorization is uncertain, preserve capital and fail closed.
+- No AI output is authority; user approval and deterministic controls remain mandatory.
 - Evidence before confidence.
 - Capital survival before return maximization.
 - Paper before live.
