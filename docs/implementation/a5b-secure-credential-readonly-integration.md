@@ -27,10 +27,20 @@ The preload bridge exposes fixed methods only:
 - `upbitCredentials.save({ accessKey, secretKey })`
 - `upbitCredentials.delete()`
 - `upbitReadOnly.testConnection()`
+- `upbitReadOnly.getSnapshot()`
+- `upbitReadOnly.reconcile()`
 
 The main process validates the exact save object, maps provider failures to stable
 read-only result codes, and uses the existing `UpbitLiveReadOnlyAdapter`. No arbitrary
 IPC channel, credential read, or mutation endpoint is exposed.
+
+## Account view and reconciliation
+
+The settings surface can request a read-only account snapshot showing observation time,
+asset count, and open-order count. It never exposes signing material. Reconciliation
+compares consecutive authenticated snapshots by currency balance/locked amount and open
+order count. The first comparison is `UNKNOWN` because no baseline exists; equal snapshots
+are `MATCH`, and any difference is `DIFF`. There is no automatic correction or order path.
 
 ## Verification
 

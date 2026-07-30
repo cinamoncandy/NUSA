@@ -190,8 +190,10 @@
     const credentialStatus = element("p", "product-status", "연결 정보 없음"); credentialStatus.id = "upbit-credential-status";
     const credentialSave = element("button", "ui-button ui-button--secondary", "조회 연결 저장"); credentialSave.type = "button";
     const credentialTest = element("button", "ui-button ui-button--secondary", "연결 테스트"); credentialTest.type = "button";
+    const credentialSnapshot = element("button", "ui-button ui-button--secondary", "계정 스냅샷 조회"); credentialSnapshot.type = "button";
+    const credentialReconcile = element("button", "ui-button ui-button--secondary", "스냅샷 대조"); credentialReconcile.type = "button";
     const credentialDelete = element("button", "ui-button ui-button--secondary", "저장 정보 삭제"); credentialDelete.type = "button";
-    const credentialActions = element("div", "product-card__actions"); credentialActions.append(credentialSave, credentialTest, credentialDelete);
+    const credentialActions = element("div", "product-card__actions"); credentialActions.append(credentialSave, credentialTest, credentialSnapshot, credentialReconcile, credentialDelete);
 
     const save = element("button", "ui-button ui-button--primary", "저장");
     save.type = "button";
@@ -275,6 +277,20 @@
         try { credentialTest.disabled = true; const result = await api.upbitReadOnly.testConnection(); credentialStatus.textContent = result.message || result.code || "연결 결과를 받았습니다."; }
         catch (cause) { error.textContent = cause && cause.message ? cause.message : "연결 테스트에 실패했습니다."; }
         finally { credentialTest.disabled = false; }
+      })();
+    });
+    credentialSnapshot.addEventListener("click", function () {
+      void (async () => {
+        try { credentialSnapshot.disabled = true; const result = await api.upbitReadOnly.getSnapshot(); credentialStatus.textContent = result.ok ? `스냅샷 ${result.data.accounts.length}개 자산, 미체결 ${result.data.openOrders.length}건 (${result.observedAt})` : `${result.code}: ${result.message}`; }
+        catch (cause) { error.textContent = cause && cause.message ? cause.message : "계정 스냅샷을 조회하지 못했습니다."; }
+        finally { credentialSnapshot.disabled = false; }
+      })();
+    });
+    credentialReconcile.addEventListener("click", function () {
+      void (async () => {
+        try { credentialReconcile.disabled = true; const result = await api.upbitReadOnly.reconcile(); credentialStatus.textContent = result.ok ? `대조 ${result.data.status}: ${result.data.reason}` : `${result.code}: ${result.message}`; }
+        catch (cause) { error.textContent = cause && cause.message ? cause.message : "계정 대조를 수행하지 못했습니다."; }
+        finally { credentialReconcile.disabled = false; }
       })();
     });
     credentialDelete.addEventListener("click", function () {

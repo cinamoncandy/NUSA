@@ -170,6 +170,8 @@ export interface DokkaebiAppApi {
   };
   upbitReadOnly: {
     testConnection(): Promise<unknown>;
+    getSnapshot(): Promise<unknown>;
+    reconcile(): Promise<unknown>;
   };
 }
 
@@ -196,7 +198,9 @@ const dokkaebiApp: DokkaebiAppApi = Object.freeze({
     delete: () => invokeMutation<{ configured: boolean; accessKeyHint: string | null }>("upbit:credentials-delete", {})
   }),
   upbitReadOnly: Object.freeze({
-    testConnection: () => invokeMutation("upbit:readonly-test", {})
+    testConnection: () => invokeMutation("upbit:readonly-test", {}),
+    getSnapshot: () => invokeReadWithRecovery("upbit:readonly-snapshot"),
+    reconcile: () => invokeReadWithRecovery("upbit:reconcile")
   })
 });
 

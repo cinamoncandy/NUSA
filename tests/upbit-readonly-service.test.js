@@ -16,3 +16,12 @@ test("read-only service sanitizes provider failures", async () => {
   assert.equal(result.ok, false);
   assert.doesNotMatch(result.message, /secret-key/);
 });
+
+test("reconciliation is UNKNOWN without a baseline and MATCH when snapshots agree", async () => {
+  const snapshot = { observedAt: "2026-01-01T00:00:00.000Z", accounts: [{ currency: "KRW", balance: "100", locked: "0", avg_buy_price: "0", avg_buy_price_modified: false, unit_currency: "KRW" }], openOrders: [] };
+  const service = new UpbitReadOnlyService({ loadCredentials: async () => ({ accessKey: "access-key", secretKey: "secret-key" }), hasCredentials: async () => true, saveCredentials: async () => {}, deleteCredentials: async () => {} }, () => ({ captureSnapshot: async () => snapshot }));
+  const first = await service.reconcileLatest();
+  assert.equal(first.data.status, "UNKNOWN");
+  const second = await service.reconcileLatest();
+  assert.equal(second.data.status, "MATCH");
+});

@@ -1,5 +1,6 @@
 import { UpbitLiveReadOnlyAdapter, type UpbitLiveReadOnlySnapshot } from "./upbitLiveReadOnlyAdapter";
 import type { UpbitCredentialProvider } from "./upbitCredentialProvider";
+import { reconcileUpbitSnapshots, type UpbitReconciliationResult } from "./upbitReconciliation";
 
 export type UpbitReadOnlyResultCode = "CONNECTED" | "NOT_CONFIGURED" | "INVALID_CREDENTIALS" | "IP_NOT_ALLOWED" | "NETWORK_ERROR" | "TIMEOUT" | "PROVIDER_ERROR" | "UNKNOWN_ERROR";
 export interface UpbitReadOnlyResult<T> { readonly ok: boolean; readonly code: UpbitReadOnlyResultCode; readonly message: string; readonly observedAt: string; readonly data?: T; }
@@ -10,6 +11,7 @@ const safeMessage = (error: unknown): string => {
 };
 
 export class UpbitReadOnlyService {
+  private previousSnapshot: UpbitLiveReadOnlySnapshot | null = null;
   public constructor(private readonly credentials: UpbitCredentialProvider, private readonly adapterFactory: (credentials: { accessKey: string; secretKey: string }) => UpbitLiveReadOnlyAdapter = (value) => new UpbitLiveReadOnlyAdapter({ credentials: value })) {}
 
   async status(): Promise<{ configured: boolean; accessKeyHint: string | null }> {
@@ -25,11 +27,25 @@ export class UpbitReadOnlyService {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const data = await this.adapterFactory(credentials).captureSnapshot("KRW-BTC", controller.signal);
+      this.previousSnapshot = data;
       return { ok: true, code: "CONNECTED", message: "Public and authenticated read-only access succeeded", observedAt: data.observedAt, data };
     } catch (error) {
       const message = safeMessage(error);
       const code: UpbitReadOnlyResultCode = controller.signal.aborted ? "TIMEOUT" : /401|authorization|credential/i.test(message) ? "INVALID_CREDENTIALS" : /ip/i.test(message) ? "IP_NOT_ALLOWED" : /network|fetch|connect/i.test(message) ? "NETWORK_ERROR" : "PROVIDER_ERROR";
       return { ok: false, code, message, observedAt };
     } finally { clearTimeout(timer); }
+  }
+
+  async captureSnapshot(timeoutMs = 10_000): Promise<UpbitReadOnlyResult<UpbitLiveReadOnlySnapshot>> {
+    return this.testConnection(timeoutMs);
+  }
+
+  async reconcileLatest(timeoutMs = 10_000): Promise<UpbitReadOnlyResult<UpbitReconciliationResult>> {
+    const baseline = this.previousSnapshot;
+    const result = await this.testConnection(timeoutMs);
+    if (!result.ok || !result.data) return result as unknown as UpbitReadOnlyResult<UpbitReconciliationResult>;
+    const reconciliation = reconcileUpbitSnapshots(baseline, result.data);
+    this.previousSnapshot = result.data;
+    return { ...result, data: reconciliation, message: reconciliation.reason };
   }
 }

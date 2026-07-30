@@ -987,6 +987,16 @@ ipcMain.handle("upbit:readonly-test", async (_event, input: unknown) => {
   if (!upbitReadOnlyService) throw new Error("read-only service is not ready");
   return upbitReadOnlyService.testConnection();
 });
+ipcMain.handle("upbit:readonly-snapshot", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!upbitReadOnlyService) throw new Error("read-only service is not ready");
+  return upbitReadOnlyService.captureSnapshot();
+});
+ipcMain.handle("upbit:reconcile", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!upbitReadOnlyService) throw new Error("read-only service is not ready");
+  return upbitReadOnlyService.reconcileLatest();
+});
 ipcMain.handle("app:about", (_event, input: unknown) => {
   parseProductIpc(input);
   if (!aboutInfo) throw new Error("application data layout is not ready");
