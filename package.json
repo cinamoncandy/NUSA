@@ -50,6 +50,7 @@
   "build": {
     "appId": "com.nusa.paper-console",
     "productName": "NUSA",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "apps/desktop/**/*",
