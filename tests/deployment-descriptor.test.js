@@ -36,21 +36,21 @@ test("a missing build output is reported rather than hashed as empty", () => {
   assert.throws(() => buildDescriptor({ dist: "no-such-directory" }), /build output not found/);
 });
 
-test("this repository currently scans clean for live, private-API, and credential capability", () => {
+test("read-only Upbit observation is visible without being classified as live mutation or credential storage", () => {
   const scan = scanCapabilities();
   assert.ok(scan.scannedFileCount > 0);
   assert.deepEqual(scan.findings.liveTradingCapabilityPresent, []);
+  assert.ok(scan.findings.readOnlyPrivateApiCapabilityPresent.length > 0);
   assert.deepEqual(scan.findings.privateApiCapabilityPresent, []);
   assert.deepEqual(scan.findings.credentialStoragePresent, []);
   assert.equal(scan.killSwitchReachable, true);
 });
 
 test("the descriptor states plainly that a scan proves presence, not absence", () => {
-  // A `false` capability flag is the output of a grep. Recording that in the artifact is
-  // what stops it from later being read as a proof.
   const { provenance } = buildDescriptor({});
   assert.equal(provenance.capabilityEvidence.method, "STATIC_SOURCE_SCAN");
   assert.equal(provenance.capabilityEvidence.provesAbsence, false);
+  assert.ok(provenance.capabilityEvidence.findings.readOnlyPrivateApiCapabilityPresent.length > 0);
   assert.equal(provenance.killSwitchEvidence.provesRuntimeReachability, false);
 });
 
@@ -64,10 +64,16 @@ test("without an --expected value the corresponding comparison is vacuous and sa
   assert.deepEqual(pinned.provenance.expectationsSupplied, ["artifactSha256", "sourceCommitSha"]);
 });
 
-test("a descriptor built from this repository passes the deployment gate", () => {
-  const { descriptor } = buildDescriptor({});
+test("a descriptor with read-only authenticated observation passes the Paper deployment gate", () => {
+  const { descriptor, provenance } = buildDescriptor({});
+  assert.equal(descriptor.liveTradingCapabilityPresent, false);
+  assert.equal(descriptor.privateApiCapabilityPresent, false);
+  assert.equal(descriptor.credentialStoragePresent, false);
+  assert.ok(provenance.capabilityEvidence.findings.readOnlyPrivateApiCapabilityPresent.length > 0);
+
   const decision = evaluateDeploymentSafety(descriptor);
   assert.equal(decision.status, "ALLOW", JSON.stringify(decision.reasonCodes));
+  assert.equal(decision.productionMutationAllowed, false);
   assert.equal(verifyDeploymentSafetyDecision(descriptor, decision).status, "PASS");
 });
 
