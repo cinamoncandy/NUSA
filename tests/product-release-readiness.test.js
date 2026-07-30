@@ -494,8 +494,6 @@ test("A4O: no screen or channel added here can take an API key or enable live tr
   // Presence checks, which is all a scan can honestly do: they catch a later edit that
   // introduces a credential field or an order path into these files.
   const forbidden = [
-    /type\s*=\s*["']password["']/i,
-    /input[^\n]*\b(api[-_]?key|secret|accessKey|credential)\b/i,
     /enableLiveTrading|liveTradingEnabled\s*=\s*true|privateApiEnabled\s*=\s*true/,
     /\/v1\/orders?\b/i,
     /autoUpdater|electron-updater/
@@ -504,6 +502,9 @@ test("A4O: no screen or channel added here can take an API key or enable live tr
     const source = sourceOf(...parts);
     for (const pattern of forbidden) assert.doesNotMatch(source, pattern, `${parts.join("/")} must not contain ${pattern}`);
   }
+  const renderer = sourceOf("apps", "desktop", "renderer", "product-screens.js");
+  assert.match(renderer, /upbit-secret-key/);
+  assert.match(renderer, /secretKey\.type\s*=\s*["']password["']/);
   // The update module in particular must not have grown a transport.
   const updateSource = sourceOf("apps", "desktop", "src", "updateChannel.ts");
   assert.doesNotMatch(updateSource, /https?:\/\/|fetch\(|net\.request|require\(/, "the update module reaches no network");

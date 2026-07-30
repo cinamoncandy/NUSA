@@ -42,7 +42,7 @@ test("read-only Upbit observation is visible without being classified as live mu
   assert.deepEqual(scan.findings.liveTradingCapabilityPresent, []);
   assert.ok(scan.findings.readOnlyPrivateApiCapabilityPresent.length > 0);
   assert.deepEqual(scan.findings.privateApiCapabilityPresent, []);
-  assert.deepEqual(scan.findings.credentialStoragePresent, []);
+  assert.ok(scan.findings.credentialStoragePresent.length > 0);
   assert.equal(scan.killSwitchReachable, true);
 });
 
@@ -68,7 +68,8 @@ test("a descriptor with read-only authenticated observation passes the Paper dep
   const { descriptor, provenance } = buildDescriptor({});
   assert.equal(descriptor.liveTradingCapabilityPresent, false);
   assert.equal(descriptor.privateApiCapabilityPresent, false);
-  assert.equal(descriptor.credentialStoragePresent, false);
+  assert.equal(descriptor.credentialStoragePresent, true);
+  assert.equal(descriptor.credentialStorageIsOsBacked, true);
   assert.ok(provenance.capabilityEvidence.findings.readOnlyPrivateApiCapabilityPresent.length > 0);
 
   const decision = evaluateDeploymentSafety(descriptor);

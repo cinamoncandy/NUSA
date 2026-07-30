@@ -11,7 +11,7 @@
  *   - no source map is included, so the installer is not a copy of the source;
  *   - the productization modules are present and compiled;
  *   - the renderer honours the strict CSP it declares;
- *   - nothing in the shipped surface offers an API key field, a live-trading toggle,
+ *   - nothing in the shipped surface offers an unsafe credential field, a live-trading toggle,
  *     or an auto-updater.
  *
  * It reports EVERY failure rather than stopping at the first: someone about to cut a release
@@ -97,12 +97,12 @@ check("the renderer declares a strict CSP and uses no inline script or style", (
   return "strict";
 });
 
-check("no shipped surface offers a credential field, a live-trading toggle, or an updater", () => {
+check("the shipped surface exposes only the bounded read-only credential form", () => {
   const rendererDirectory = path.join(ROOT, "apps", "desktop", "renderer");
   const files = fs.readdirSync(rendererDirectory).filter((name) => name.endsWith(".js") || name.endsWith(".html"));
   const forbidden = [
-    [/type\s*=\s*["']password["']/i, "a password input"],
-    [/\b(api[-_]?key|secret[-_]?key|access[-_]?key)\b\s*[:=]/i, "a credential field"],
+    [/type\s*=\s*["']password["'](?![^>]*id\s*=\s*["']upbit-secret-key["'])/i, "an unbounded password input"],
+    [/\b(api[-_]?key|secret[-_]?key|access[-_]?key)\b\s*[:=](?![^\n]*upbit-(access|secret)-key)/i, "an unbounded credential field"],
     [/enableLiveTrading|liveTradingEnabled\s*[:=]\s*true/, "a live-trading toggle"],
     [/autoUpdater|electron-updater/, "an auto-updater"]
   ];

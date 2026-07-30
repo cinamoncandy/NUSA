@@ -119,7 +119,7 @@
     };
   }
 
-  /** Settings. Contains no credential field and no trading toggle, by construction. */
+  /** Settings. Credentials are write-only from the renderer and never returned by the main process. */
   function createSettingsPanel(options) {
     const api = options.api;
     const panel = element("section", "product-card");
@@ -177,6 +177,22 @@
     const diagnostics = toggle("product-show-diagnostics", "진단 정보 표시");
     const notifications = toggle("product-show-notifications", "알림 표시");
 
+    const credentialTitle = element("h3", "product-card__subtitle", "Upbit 조회 전용 연결");
+    const credentialNote = element("p", "product-note", "조회 권한만 사용합니다. 주문·취소·출금 API는 이 앱에 없습니다.");
+    const accessKey = doc.createElement("input");
+    accessKey.id = "upbit-access-key"; accessKey.className = "product-field__control"; accessKey.type = "text"; accessKey.autocomplete = "off";
+    const accessLabel = element("label", "product-field__label", "Access Key"); accessLabel.htmlFor = accessKey.id;
+    const accessField = element("div", "product-field"); accessField.append(accessLabel, accessKey);
+    const secretKey = doc.createElement("input");
+    secretKey.id = "upbit-secret-key"; secretKey.className = "product-field__control"; secretKey.type = "password"; secretKey.autocomplete = "new-password";
+    const secretLabel = element("label", "product-field__label", "Secret Key"); secretLabel.htmlFor = secretKey.id;
+    const secretField = element("div", "product-field"); secretField.append(secretLabel, secretKey);
+    const credentialStatus = element("p", "product-status", "연결 정보 없음"); credentialStatus.id = "upbit-credential-status";
+    const credentialSave = element("button", "ui-button ui-button--secondary", "조회 연결 저장"); credentialSave.type = "button";
+    const credentialTest = element("button", "ui-button ui-button--secondary", "연결 테스트"); credentialTest.type = "button";
+    const credentialDelete = element("button", "ui-button ui-button--secondary", "저장 정보 삭제"); credentialDelete.type = "button";
+    const credentialActions = element("div", "product-card__actions"); credentialActions.append(credentialSave, credentialTest, credentialDelete);
+
     const save = element("button", "ui-button ui-button--primary", "저장");
     save.type = "button";
     const reset = element("button", "ui-button ui-button--secondary", "설정 초기화");
@@ -187,7 +203,7 @@
     actions.append(save, reset, showNotice);
 
     const note = element("p", "product-note", "초기화는 화면 설정과 첫 실행 확인만 지웁니다. Evidence, 복구 기록, 감사 로그는 지워지지 않습니다.");
-    form.append(theme.field, level.field, retentionField, diagnostics.field, notifications.field);
+    form.append(theme.field, level.field, retentionField, diagnostics.field, notifications.field, credentialTitle, credentialNote, accessField, secretField, credentialStatus, credentialActions);
     panel.append(title, form, actions, note, status, error);
 
     function apply(payload) {
@@ -237,12 +253,40 @@
       // what the user confirmed, and when, is not rewritten by looking at it again.
       if (options.onShowNotice) options.onShowNotice();
     });
+    async function refreshCredentialStatus() {
+      if (!api.upbitCredentials) return;
+      const value = await api.upbitCredentials.getStatus();
+      credentialStatus.textContent = value.configured ? `저장됨: ${value.accessKeyHint}` : "저장된 조회 연결 없음";
+    }
+    credentialSave.addEventListener("click", function () {
+      void (async () => {
+        try {
+          credentialSave.disabled = true;
+          await api.upbitCredentials.save({ accessKey: accessKey.value, secretKey: secretKey.value });
+          accessKey.value = ""; secretKey.value = "";
+          await refreshCredentialStatus();
+          status.textContent = "조회 전용 연결을 저장했습니다.";
+        } catch (cause) { error.textContent = cause && cause.message ? cause.message : "조회 연결을 저장하지 못했습니다."; }
+        finally { credentialSave.disabled = false; }
+      })();
+    });
+    credentialTest.addEventListener("click", function () {
+      void (async () => {
+        try { credentialTest.disabled = true; const result = await api.upbitReadOnly.testConnection(); credentialStatus.textContent = result.message || result.code || "연결 결과를 받았습니다."; }
+        catch (cause) { error.textContent = cause && cause.message ? cause.message : "연결 테스트에 실패했습니다."; }
+        finally { credentialTest.disabled = false; }
+      })();
+    });
+    credentialDelete.addEventListener("click", function () {
+      void (async () => { try { await api.upbitCredentials.delete(); await refreshCredentialStatus(); status.textContent = "조회 연결 정보를 삭제했습니다."; } catch (cause) { error.textContent = cause && cause.message ? cause.message : "조회 연결 정보를 삭제하지 못했습니다."; } })();
+    });
 
     return {
       element: panel,
       async refresh() {
         try {
           apply(await api.settings());
+          await refreshCredentialStatus();
         } catch (cause) {
           error.textContent = cause && cause.message ? cause.message : "설정을 불러오지 못했습니다.";
         }

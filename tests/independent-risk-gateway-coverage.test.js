@@ -141,6 +141,7 @@ test("every declared deployment reason code is reachable and independently verif
     ["LIVE_TRADING_CAPABILITY_PRESENT", { liveTradingCapabilityPresent: true }],
     ["PRIVATE_API_CAPABILITY_PRESENT", { privateApiCapabilityPresent: true }],
     ["CREDENTIAL_STORAGE_PRESENT", { credentialStoragePresent: true }],
+    ["UNSAFE_CREDENTIAL_STORAGE", { credentialStoragePresent: true, credentialStorageIsOsBacked: false }],
     ["RISK_GATEWAY_ABSENT", { riskGatewayPresent: false }],
     ["KILL_SWITCH_UNREACHABLE", { killSwitchReachable: false }],
     ["AUTO_TRADE_DEFAULT_ON", { autoTradeDefaultEnabled: true }],

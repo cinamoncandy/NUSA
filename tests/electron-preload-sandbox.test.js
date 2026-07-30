@@ -66,6 +66,6 @@ test("sandbox preload creates the restricted bridges without network or app runt
 test("preload source exposes no unrestricted or sensitive capability", () => {
   const source = fs.readFileSync(path.join(root, "apps", "desktop", "src", "preload.ts"), "utf8");
   assert.doesNotMatch(source, /exposeInMainWorld\([^,]+,\s*ipcRenderer/);
-  assert.doesNotMatch(source, /fs|node:fs|credential|privateApi|UPBIT_(ACCESS|SECRET)_KEY/i);
+  assert.doesNotMatch(source, /fs|node:fs|privateApi|UPBIT_(ACCESS|SECRET)_KEY/i);
   assert.doesNotMatch(source, /invoke(ReadWithRecovery|Mutation)\([^"']/);
 });

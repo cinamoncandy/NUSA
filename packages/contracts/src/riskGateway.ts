@@ -115,6 +115,7 @@ export type DeploymentReasonCode =
   | "LIVE_TRADING_CAPABILITY_PRESENT"
   | "PRIVATE_API_CAPABILITY_PRESENT"
   | "CREDENTIAL_STORAGE_PRESENT"
+  | "UNSAFE_CREDENTIAL_STORAGE"
   | "ARTIFACT_HASH_MISMATCH"
   | "SOURCE_COMMIT_MISMATCH"
   | "KILL_SWITCH_UNREACHABLE"
@@ -135,6 +136,7 @@ export interface DeploymentSafetyDescriptor {
   readonly liveTradingCapabilityPresent: boolean;
   readonly privateApiCapabilityPresent: boolean;
   readonly credentialStoragePresent: boolean;
+  readonly credentialStorageIsOsBacked?: boolean;
   readonly killSwitchReachable: boolean;
   readonly autoTradeDefaultEnabled: boolean;
   readonly riskGatewayPresent: boolean;

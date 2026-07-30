@@ -83,6 +83,7 @@ export const DEPLOYMENT_REASON_ORDER: readonly DeploymentReasonCode[] = Object.f
   "LIVE_TRADING_CAPABILITY_PRESENT",
   "PRIVATE_API_CAPABILITY_PRESENT",
   "CREDENTIAL_STORAGE_PRESENT",
+  "UNSAFE_CREDENTIAL_STORAGE",
   "RISK_GATEWAY_ABSENT",
   "KILL_SWITCH_UNREACHABLE",
   "AUTO_TRADE_DEFAULT_ON",
@@ -284,14 +285,16 @@ export function evaluateDeploymentSafety(descriptor: DeploymentSafetyDescriptor)
       descriptor.artifactSha256, descriptor.expectedArtifactSha256].every((value) => typeof value === "string" && value.length > 0) &&
     [descriptor.persistenceSchemaVersion, descriptor.expectedPersistenceSchemaVersion].every((value) => Number.isInteger(value)) &&
     [descriptor.liveTradingCapabilityPresent, descriptor.privateApiCapabilityPresent, descriptor.credentialStoragePresent,
-      descriptor.killSwitchReachable, descriptor.autoTradeDefaultEnabled, descriptor.riskGatewayPresent].every((value) => typeof value === "boolean");
+      descriptor.killSwitchReachable, descriptor.autoTradeDefaultEnabled, descriptor.riskGatewayPresent].every((value) => typeof value === "boolean") &&
+    (descriptor.credentialStorageIsOsBacked === undefined || typeof descriptor.credentialStorageIsOsBacked === "boolean");
 
   if (!structurallyValid) {
     reasons.add("INVALID_DESCRIPTOR");
   } else {
     if (descriptor.liveTradingCapabilityPresent) reasons.add("LIVE_TRADING_CAPABILITY_PRESENT");
     if (descriptor.privateApiCapabilityPresent) reasons.add("PRIVATE_API_CAPABILITY_PRESENT");
-    if (descriptor.credentialStoragePresent) reasons.add("CREDENTIAL_STORAGE_PRESENT");
+    if (descriptor.credentialStoragePresent && descriptor.credentialStorageIsOsBacked === false) reasons.add("UNSAFE_CREDENTIAL_STORAGE");
+    else if (descriptor.credentialStoragePresent && descriptor.credentialStorageIsOsBacked === undefined) reasons.add("CREDENTIAL_STORAGE_PRESENT");
     if (!descriptor.riskGatewayPresent) reasons.add("RISK_GATEWAY_ABSENT");
     if (!descriptor.killSwitchReachable) reasons.add("KILL_SWITCH_UNREACHABLE");
     // Automatic trading defaulting to ON after an install or upgrade is a deployment

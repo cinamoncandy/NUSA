@@ -178,6 +178,7 @@ function buildDescriptor(options = {}) {
     liveTradingCapabilityPresent: scan.findings.liveTradingCapabilityPresent.length > 0,
     privateApiCapabilityPresent: scan.findings.privateApiCapabilityPresent.length > 0,
     credentialStoragePresent: scan.findings.credentialStoragePresent.length > 0,
+    credentialStorageIsOsBacked: scan.findings.credentialStoragePresent.some((entry) => entry.file.endsWith("upbitCredentialProvider.ts")),
     killSwitchReachable: scan.killSwitchReachable,
     autoTradeDefaultEnabled: options.autoTradeDefaultEnabled === true,
     riskGatewayPresent: fs.existsSync(path.join(REPO_ROOT, "apps", "desktop", "src", "independentRiskGateway.ts"))
@@ -231,7 +232,7 @@ function main() {
   const { descriptor, provenance } = built;
   console.log(`[deployment] artifact ${descriptor.artifactSha256.slice(0, 16)} over ${provenance.artifactFileCount} files`);
   console.log(`[deployment] commit ${descriptor.sourceCommitSha.slice(0, 12)}; scanned ${provenance.scannedFileCount} source files`);
-  for (const flag of ["liveTradingCapabilityPresent", "privateApiCapabilityPresent", "credentialStoragePresent"]) {
+  for (const flag of ["liveTradingCapabilityPresent", "privateApiCapabilityPresent", "credentialStoragePresent", "credentialStorageIsOsBacked"]) {
     console.log(`[deployment] ${flag}: ${descriptor[flag]}`);
   }
   console.log(`[deployment] readOnlyPrivateApiCapabilityPresent: ${provenance.capabilityEvidence.findings.readOnlyPrivateApiCapabilityPresent.length > 0}`);

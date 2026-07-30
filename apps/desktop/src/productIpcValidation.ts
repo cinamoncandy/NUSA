@@ -66,6 +66,17 @@ export function parseAppSettingsIpc(input: unknown): AppSettingsIpc {
 export type OpenableFolder = "LOGS" | "EVIDENCE" | "USER_DATA";
 const FOLDERS = new Set<OpenableFolder>(["LOGS", "EVIDENCE", "USER_DATA"]);
 
+export function parseUpbitCredentialsIpc(input: unknown): Readonly<{ accessKey: string; secretKey: string }> {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid credential payload");
+  const value = input as Record<string, unknown>;
+  if (Object.keys(value).sort().join(",") !== "accessKey,secretKey") throw new Error("invalid credential payload");
+  if (typeof value.accessKey !== "string" || typeof value.secretKey !== "string") throw new Error("invalid credential payload");
+  const accessKey = value.accessKey.trim();
+  const secretKey = value.secretKey.trim();
+  if (!accessKey || !secretKey || accessKey.length > 256 || secretKey.length > 256 || /[^\x20-\x7e]/.test(accessKey + secretKey)) throw new Error("invalid credential payload");
+  return Object.freeze({ accessKey, secretKey });
+}
+
 /**
  * Which folder to reveal. A KEY, never a path.
  *

@@ -163,6 +163,14 @@ export interface DokkaebiAppApi {
   exportDiagnostics(): Promise<unknown>;
   shutdownProgress(): Promise<unknown>;
   onShutdown(listener: (progress: unknown) => void): void;
+  upbitCredentials: {
+    getStatus(): Promise<{ configured: boolean; accessKeyHint: string | null }>;
+    save(input: { accessKey: string; secretKey: string }): Promise<{ configured: boolean; accessKeyHint: string | null }>;
+    delete(): Promise<{ configured: boolean; accessKeyHint: string | null }>;
+  };
+  upbitReadOnly: {
+    testConnection(): Promise<unknown>;
+  };
 }
 
 const dokkaebiApp: DokkaebiAppApi = Object.freeze({
@@ -181,7 +189,15 @@ const dokkaebiApp: DokkaebiAppApi = Object.freeze({
     // The payload is forwarded, never the Electron event object: handing the renderer an
     // IpcRendererEvent would hand it `sender`, and with it a way back into the main process.
     ipcRenderer.on("app:shutdown", (_event, progress: unknown) => listener(progress));
-  }
+  },
+  upbitCredentials: Object.freeze({
+    getStatus: () => invokeReadWithRecovery<{ configured: boolean; accessKeyHint: string | null }>("upbit:credentials-status"),
+    save: (input: { accessKey: string; secretKey: string }) => invokeMutation<{ configured: boolean; accessKeyHint: string | null }>("upbit:credentials-save", input),
+    delete: () => invokeMutation<{ configured: boolean; accessKeyHint: string | null }>("upbit:credentials-delete", {})
+  }),
+  upbitReadOnly: Object.freeze({
+    testConnection: () => invokeMutation("upbit:readonly-test", {})
+  })
 });
 
 contextBridge.exposeInMainWorld("dokkaebi", api);

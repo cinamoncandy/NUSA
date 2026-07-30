@@ -44,5 +44,5 @@ test("desktop production safety invariants remain enabled", () => {
   assert.match(mainSource, /sandbox:\s*true/);
   assert.match(mainSource, /dokkaebi-a4p-symbol\.svg/);
   assert.match(mainSource, /RISK_GATE_NOT_CONFIGURED/);
-  assert.doesNotMatch(mainSource, /private-api|apiKey|secretKey/i);
+  assert.doesNotMatch(mainSource, /private-api|apiKey|UPBIT_(ACCESS|SECRET)_KEY/i);
 });

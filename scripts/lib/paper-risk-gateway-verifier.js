@@ -215,6 +215,7 @@ const DEPLOYMENT_ORDER = Object.freeze([
   "LIVE_TRADING_CAPABILITY_PRESENT",
   "PRIVATE_API_CAPABILITY_PRESENT",
   "CREDENTIAL_STORAGE_PRESENT",
+  "UNSAFE_CREDENTIAL_STORAGE",
   "RISK_GATEWAY_ABSENT",
   "KILL_SWITCH_UNREACHABLE",
   "AUTO_TRADE_DEFAULT_ON",
@@ -236,7 +237,8 @@ function deriveDeploymentReasons(descriptor) {
   const found = new Set();
   if (descriptor.liveTradingCapabilityPresent) found.add("LIVE_TRADING_CAPABILITY_PRESENT");
   if (descriptor.privateApiCapabilityPresent) found.add("PRIVATE_API_CAPABILITY_PRESENT");
-  if (descriptor.credentialStoragePresent) found.add("CREDENTIAL_STORAGE_PRESENT");
+  if (descriptor.credentialStoragePresent && descriptor.credentialStorageIsOsBacked === false) found.add("UNSAFE_CREDENTIAL_STORAGE");
+  else if (descriptor.credentialStoragePresent && descriptor.credentialStorageIsOsBacked === undefined) found.add("CREDENTIAL_STORAGE_PRESENT");
   if (!descriptor.riskGatewayPresent) found.add("RISK_GATEWAY_ABSENT");
   if (!descriptor.killSwitchReachable) found.add("KILL_SWITCH_UNREACHABLE");
   if (descriptor.autoTradeDefaultEnabled) found.add("AUTO_TRADE_DEFAULT_ON");

@@ -30,6 +30,8 @@ export interface UserDataLayout {
   readonly recoveryDirectory: string;
   readonly crashDirectory: string;
   readonly diagnosticsDirectory: string;
+  /** Encrypted OS-backed Upbit read-only credential envelope. */
+  readonly credentialFile: string;
   /**
    * The existing paper/control/database stores. In a packaged build `root` IS the userData
    * directory, so these resolve to exactly the paths pre-A4O builds used and no existing
@@ -75,6 +77,7 @@ export function resolveUserDataLayout(input: UserDataLayoutInput): UserDataLayou
     recoveryDirectory: path.join(root, "recovery"),
     crashDirectory: path.join(root, "crash"),
     diagnosticsDirectory: path.join(root, "diagnostics"),
+    credentialFile: path.join(root, "credentials", "upbit-readonly.json"),
     paperSessionFile: path.join(root, "paper-session.json"),
     controlSessionFile: path.join(root, "control-session.json"),
     databaseFile: path.join(root, "dokkaebi.db"),
@@ -97,6 +100,7 @@ export function writableDirectories(layout: UserDataLayout): readonly string[] {
   return Object.freeze([
     layout.root,
     path.dirname(layout.settingsFile),
+    path.dirname(layout.credentialFile),
     layout.logsDirectory,
     layout.evidenceDirectory,
     layout.recoveryDirectory,

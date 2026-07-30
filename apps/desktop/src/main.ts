@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import { evaluateOperationalReadiness } from "../../cloud/src/operationalReadinessGate";
 import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
@@ -53,7 +53,9 @@ import { browserWindowSecurityOptions, clampLogLevel, resolveProductionPolicy, t
 import { updateChannelState } from "./updateChannel";
 import { writeDiagnosticsPackage } from "./diagnosticsExport";
 import { ShutdownSequence, type ShutdownProgress } from "./shutdownSequence";
-import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc } from "./productIpcValidation";
+import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc, parseUpbitCredentialsIpc } from "./productIpcValidation";
+import { ElectronSafeStorageCredentialProvider } from "./upbitCredentialProvider";
+import { UpbitReadOnlyService } from "./upbitReadOnlyService";
 import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
@@ -145,6 +147,8 @@ let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
 let userDataLayout: UserDataLayout | undefined;
 let settingsStore: AppSettingsStore | undefined;
 let firstRunStore: FirstRunNoticeStore | undefined;
+let upbitCredentialProvider: ElectronSafeStorageCredentialProvider | undefined;
+let upbitReadOnlyService: UpbitReadOnlyService | undefined;
 let appLogger: AppLogger | undefined;
 let productionPolicy: ProductionPolicy = resolveProductionPolicy(false);
 let shutdownSequence: ShutdownSequence | undefined;
@@ -217,6 +221,8 @@ function initializeProductLayer(): UserDataLayout {
   settingsStore = new AppSettingsStore(layout);
   const settings = settingsStore.load();
   firstRunStore = new FirstRunNoticeStore(layout, "PAPER");
+  upbitCredentialProvider = new ElectronSafeStorageCredentialProvider(layout.credentialFile, safeStorage);
+  upbitReadOnlyService = new UpbitReadOnlyService(upbitCredentialProvider);
   appLogger = new AppLogger({
     directory: layout.logsDirectory,
     runId: productRunId,
@@ -958,6 +964,28 @@ ipcMain.handle("app:settings-reset", (_event, input: unknown) => {
   logProduct("WARN", "settings reset to defaults", { removedCount: result.removed.length });
   // Absolute paths are not returned: the renderer is told WHAT was preserved, not where.
   return { settings: result.settings, preservedCount: result.preserved.length, removedCount: result.removed.length };
+});
+ipcMain.handle("upbit:credentials-status", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!upbitCredentialProvider) throw new Error("credential provider is not ready");
+  return upbitReadOnlyService ? upbitReadOnlyService.status() : { configured: false, accessKeyHint: null };
+});
+ipcMain.handle("upbit:credentials-save", async (_event, input: unknown) => {
+  const credentials = parseUpbitCredentialsIpc(input);
+  if (!upbitCredentialProvider) throw new Error("credential provider is not ready");
+  await upbitCredentialProvider.saveCredentials(credentials);
+  return { configured: true, accessKeyHint: `${credentials.accessKey.slice(0, 4)}…${credentials.accessKey.slice(-4)}` };
+});
+ipcMain.handle("upbit:credentials-delete", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!upbitCredentialProvider) throw new Error("credential provider is not ready");
+  await upbitCredentialProvider.deleteCredentials();
+  return { configured: false, accessKeyHint: null };
+});
+ipcMain.handle("upbit:readonly-test", async (_event, input: unknown) => {
+  parseProductIpc(input);
+  if (!upbitReadOnlyService) throw new Error("read-only service is not ready");
+  return upbitReadOnlyService.testConnection();
 });
 ipcMain.handle("app:about", (_event, input: unknown) => {
   parseProductIpc(input);
