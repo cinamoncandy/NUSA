@@ -73,6 +73,13 @@
     action.append(node("p", "workspace-card__label", "다음 행동"), node("h3", "workspace-card__headline", "읽기 전용 진단을 확인하세요"), node("p", "workspace-card__copy", "관측을 시작하기 전 시장 연결과 안전 게이트를 점검합니다."));
     const actionLink = node("a", "workspace-action-link", "Risk & Safety 열기 →");
     actionLink.href = "#risk"; actionLink.dataset.navTarget = "risk"; action.append(actionLink);
+    const diagnosisButton = node("button", "workspace-primary", "Run read-only check");
+    diagnosisButton.type = "button";
+    diagnosisButton.addEventListener("click", () => {
+      activate("risk");
+      byId("run-a4-diagnostics")?.focus();
+    });
+    action.append(diagnosisButton);
     summary.append(safety, action);
     const metrics = node("div", "workspace-kpi-grid");
     metrics.append(sectionTitle("시장 데이터", "확인 필요", "info"), sectionTitle("Shadow 세션", "대기 중", "neutral"), sectionTitle("최근 신호", "없음", "neutral"), sectionTitle("실제 변동", "0", "safe"));
@@ -81,6 +88,23 @@
     next.append(node("p", "workspace-card__label", "최근 활동"), node("h3", "workspace-card__headline", "아직 표시할 활동이 없습니다"), node("p", "workspace-card__copy", "세션을 시작하면 신호와 Evidence가 이곳에 기록됩니다."));
     summary.append(next);
     return summary;
+  }
+
+  function connectDashboardSummary(summary) {
+    const values = [...summary.querySelectorAll(".workspace-kpi-grid .workspace-card__value")];
+    const recentHeadline = summary.querySelector(".workspace-card--wide .workspace-card__headline");
+    const refresh = () => {
+      if (values[0]) values[0].textContent = byId("status")?.textContent?.trim() || "N/A";
+      if (values[1]) values[1].textContent = byId("application-state-title")?.textContent?.trim() || "N/A";
+      if (values[2]) values[2].textContent = byId("events")?.querySelector("li")?.textContent?.trim() || "N/A";
+      if (recentHeadline) {
+        const latest = byId("events")?.querySelector("li");
+        recentHeadline.textContent = latest?.textContent?.trim() || "최근 활동 없음";
+      }
+    };
+    refresh();
+    const timer = global.setInterval(refresh, 1500);
+    global.addEventListener("beforeunload", () => global.clearInterval(timer), { once: true });
   }
 
   function moveInto(target, selectors) {
@@ -116,7 +140,9 @@
       panels[id].id = `workspace-${id}`;
       views.append(panels[id]);
     }
-    panels.dashboard.append(makeSummary());
+    const dashboardSummary = makeSummary();
+    panels.dashboard.append(dashboardSummary);
+    connectDashboardSummary(dashboardSummary);
     moveInto(panels.market, ["#market", ".chart-card"]);
     moveInto(panels.shadow, ["#control-room", "#operations-detail", ".grid .card:first-child", "#application-state"]);
     const eventsCard = document.querySelector("#events")?.closest("article");
