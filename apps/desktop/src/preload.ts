@@ -6,7 +6,6 @@ import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker"
 import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
-import { retryWithTimeout } from "./recovery";
 import type { DecisionReadResult } from "./decisionSnapshot";
 
 export interface ChartPoint { time: number; value: number; }
