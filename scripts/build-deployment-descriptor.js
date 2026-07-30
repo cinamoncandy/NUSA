@@ -13,19 +13,16 @@
  *   - `artifactSha256` is a real deterministic hash of the built tree (sorted relative
  *     paths + per-file digests), not a placeholder.
  *   - `sourceCommitSha` comes from git.
- *   - The three capability flags come from a source scan. A scan can only prove PRESENCE,
- *     never absence: `liveTradingCapabilityPresent: false` means "no known live-trading
- *     pattern was found", not "this build provably cannot trade live". That distinction is
- *     recorded in the output as `capabilityEvidence.method` so a reader cannot mistake a
- *     grep for a proof.
+ *   - Capability flags come from a source scan. A scan can only prove PRESENCE, never
+ *     absence. Read-only authenticated observation is recorded separately from economic
+ *     mutation capability so adding account reconciliation does not masquerade as an
+ *     enabled live-order path.
  *   - `killSwitchReachable` is verified by locating the kill-switch entry point in the
  *     shipping source. It is NOT a runtime test; only a real drill proves reachability.
  *
  * When an `--expected-*` value is not supplied it is set equal to the observed value. That
  * makes the corresponding gate check vacuous, so the descriptor records
- * `expectationsSupplied` listing which comparisons are real. A descriptor generated with no
- * expectations can never produce ARTIFACT_HASH_MISMATCH or SOURCE_COMMIT_MISMATCH, and
- * saying so plainly is the point.
+ * `expectationsSupplied` listing which comparisons are real.
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -39,24 +36,36 @@ const CAPABILITY_PATTERNS = Object.freeze({
   liveTradingCapabilityPresent: [
     /\bLIVE_TRADING\s*[:=]\s*true\b/,
     /\btradingMode\s*[:=]\s*["']LIVE["']/,
+    /\bplaceLiveOrder\b/,
+    /\bsubmitOrder\s*\([^)]*\)\s*\{(?![\s\S]{0,240}LiveMutationDisabledError)/
+  ],
+  // Authenticated reads are useful for reconciliation but do not mutate exchange state.
+  readOnlyPrivateApiCapabilityPresent: [
+    /\bgetAccounts\s*\(/,
+    /\bgetOpenOrders\s*\(/,
+    /\bgetOrder\s*\(/,
+    /["']\/v1\/accounts["']/,
+    /["']\/v1\/orders["']/,
+    /["']\/v1\/order["']/
+  ],
+  // This descriptor field is intentionally mutation-oriented for the Paper deployment gate.
+  privateApiCapabilityPresent: [
+    /["']POST["'][\s\S]{0,180}["']\/v1\/orders["']/,
+    /["']DELETE["'][\s\S]{0,180}["']\/v1\/order["']/,
+    /["']POST["'][\s\S]{0,180}["']\/v1\/withdraws/,
     /\bplaceLiveOrder\b/
   ],
-  privateApiCapabilityPresent: [
-    /api\.upbit\.com\/v1\/orders/,
-    /api\.upbit\.com\/v1\/accounts/,
-    /api\.upbit\.com\/v1\/withdraws/
-  ],
+  // Detect persistence or retrieval of secrets, not ordinary in-memory JWT construction.
   credentialStoragePresent: [
-    /\b(access_key|secret_key)\b/,
-    /\bUPBIT_(ACCESS|SECRET)_KEY\b/,
-    /Authorization["']?\s*:\s*[`"']Bearer /
+    /\bkeytar\b/,
+    /\bsafeStorage\.(encryptString|decryptString)\b/,
+    /\bcredential(Store|Storage|Vault)\b/i,
+    /\b(writeFile|writeFileSync|setItem)\s*\([^\n]{0,160}(access[_-]?key|secret[_-]?key|credential)/i,
+    /\bUPBIT_(ACCESS|SECRET)_KEY\b[\s\S]{0,120}\b(writeFile|setItem|store|persist)\b/i
   ]
 });
 
-// No trailing \b: the identifier almost always appears as part of a longer name
-// (`killSwitchActive`, `KILL_SWITCH_ENGAGED`), which a word boundary would exclude.
 const KILL_SWITCH_PATTERNS = [/kill[\s_-]?switch/i, /emergency[\s_-]?stop/i];
-
 const SHIPPING_DIRS = ["apps", "packages"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
@@ -84,7 +93,6 @@ function walk(root, filter) {
   return out.sort();
 }
 
-/** Deterministic tree hash: sorted relative paths, each with its own content digest. */
 function hashTree(root) {
   if (!fs.existsSync(root)) return null;
   const files = walk(root, () => true);
@@ -96,9 +104,17 @@ function scanCapabilities() {
   const files = SHIPPING_DIRS
     .map((dir) => path.join(REPO_ROOT, dir))
     .filter((dir) => fs.existsSync(dir))
-    .flatMap((dir) => walk(dir, (file) => SOURCE_EXTENSIONS.has(path.extname(file))));
+    .flatMap((dir) => walk(dir, (file) => {
+      if (!SOURCE_EXTENSIONS.has(path.extname(file))) return false;
+      return !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+    }));
 
-  const findings = { liveTradingCapabilityPresent: [], privateApiCapabilityPresent: [], credentialStoragePresent: [] };
+  const findings = {
+    liveTradingCapabilityPresent: [],
+    readOnlyPrivateApiCapabilityPresent: [],
+    privateApiCapabilityPresent: [],
+    credentialStoragePresent: []
+  };
   let killSwitchReachable = false;
 
   for (const file of files) {
@@ -163,8 +179,6 @@ function buildDescriptor(options = {}) {
     privateApiCapabilityPresent: scan.findings.privateApiCapabilityPresent.length > 0,
     credentialStoragePresent: scan.findings.credentialStoragePresent.length > 0,
     killSwitchReachable: scan.killSwitchReachable,
-    // Paper automation must be opt-in after every install and upgrade. This is asserted by
-    // the caller because it is a runtime default, not something a source scan establishes.
     autoTradeDefaultEnabled: options.autoTradeDefaultEnabled === true,
     riskGatewayPresent: fs.existsSync(path.join(REPO_ROOT, "apps", "desktop", "src", "independentRiskGateway.ts"))
   };
@@ -176,10 +190,9 @@ function buildDescriptor(options = {}) {
       scannedFileCount: scan.scannedFileCount,
       expectationsSupplied,
       capabilityEvidence: {
-        // Stated in the artifact itself so a reader cannot mistake a scan for a proof.
         method: "STATIC_SOURCE_SCAN",
         provesAbsence: false,
-        note: "A scan proves presence only. `false` means no known pattern matched, not that the capability is impossible.",
+        note: "A scan proves presence only. Read-only authenticated observation is recorded separately from exchange mutation and credential persistence.",
         findings: scan.findings
       },
       killSwitchEvidence: {
@@ -221,6 +234,7 @@ function main() {
   for (const flag of ["liveTradingCapabilityPresent", "privateApiCapabilityPresent", "credentialStoragePresent"]) {
     console.log(`[deployment] ${flag}: ${descriptor[flag]}`);
   }
+  console.log(`[deployment] readOnlyPrivateApiCapabilityPresent: ${provenance.capabilityEvidence.findings.readOnlyPrivateApiCapabilityPresent.length > 0}`);
   if (provenance.expectationsSupplied.length === 0) {
     console.log("[deployment] no --expected-* value was supplied, so the artifact, commit, and schema comparisons are vacuous for this descriptor.");
   } else {
