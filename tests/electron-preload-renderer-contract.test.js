@@ -40,7 +40,7 @@ function extractPreloadChannels(source) {
   const channels = new Set();
   // `app:` added for the WO-0034-A4O productization channels. Widening the extractor is
   // coverage, not relaxation: a prefix it does not know is a channel it silently ignores.
-  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app):[\w-]+)"/g;
+  const pattern = /"((?:paper|control|market|chart|shadow|decision|diagnostics|recovery|app):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];
