@@ -4,8 +4,13 @@ import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
 import type { UpbitTicker } from "./upbitWebSocket";
+<<<<<<< HEAD
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
+=======
+import { retryWithTimeout } from "./recovery";
+import type { DecisionReadResult } from "./decisionSnapshot";
+>>>>>>> 837e03a (feat: expose read-only decision snapshot)
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -87,10 +92,12 @@ const api: DokkaebiApi = {
 
 export interface AiCioDashboardApi {
   getAiCioDashboard(): Promise<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>;
+  getDecisionSnapshot(): Promise<DecisionReadResult>;
 }
 
 const aiCioDashboard: AiCioDashboardApi = Object.freeze({
-  getAiCioDashboard: () => invokeReadWithRecovery<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>(AI_CIO_DASHBOARD_CHANNEL)
+  getAiCioDashboard: () => invokeReadWithRecovery<AiCioDashboardReadResult<AiCioCommandCenterEnvelopeV1>>(AI_CIO_DASHBOARD_CHANNEL),
+  getDecisionSnapshot: () => invokeReadWithRecovery<DecisionReadResult>("decision:snapshot")
 });
 
 /**
