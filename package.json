@@ -48,8 +48,8 @@
     "ws": "8.18.3"
   },
   "build": {
-    "appId": "com.dokkaebi.trader",
-    "productName": "Dokkaebi",
+    "appId": "com.nusa.paper-console",
+    "productName": "NUSA",
     "files": [
       "dist/**/*",
       "apps/desktop/**/*",
