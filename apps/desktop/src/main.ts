@@ -59,6 +59,7 @@ import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -1108,7 +1109,7 @@ ipcMain.handle("operations:snapshot", () => Object.freeze({
   }),
   reconciliation: Object.freeze({ status: operationalPreflight.reconciliation.status }),
   execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
-  risk: Object.freeze({ status: operationalPreflight.riskGate.status }),
+  risk: Object.freeze({ status: operationalPreflight.riskGate.status, capability: RISK_CAPABILITY_DESCRIPTOR }),
   killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
   openP0Codes: persistedOpenP0Codes,
   // This process has no authenticated endpoint capability. The neutral counter name also
