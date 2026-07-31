@@ -5,7 +5,7 @@ import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIp
 import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
-import { DesktopPersistenceStore } from "./desktopPersistenceStore";
+import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
@@ -100,6 +100,8 @@ let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
 let executionRepository: SqliteDurableExecutionRepository | undefined;
+let operationsAudit: readonly OperationsAuditRecord[] = Object.freeze([]);
+let operationsAlerts: readonly OperationsAlertRecord[] = Object.freeze([]);
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 // Kill Switch/P0 are persisted safety facts. A generic FAULTED control status is not
@@ -571,6 +573,10 @@ function initializeRuntime(): void {
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
     executionRepository = persistenceStore.executionRepository();
+    const startupAudit: OperationsAuditRecord = Object.freeze({ auditId: `audit-start-${productRunId}`, actor: "SYSTEM", action: "APPLICATION_START", target: null, metadata: { mode: "PAPER", productionMutationAllowed: false }, createdAt: new Date().toISOString() });
+    persistenceStore.appendOperationsAudit(startupAudit);
+    operationsAudit = persistenceStore.loadOperationsAudit();
+    operationsAlerts = persistenceStore.loadOperationsAlerts();
     const sqliteState = persistenceStore.load();
     if (sqliteState) {
       restored = sqliteState;
@@ -579,6 +585,8 @@ function initializeRuntime(): void {
   } catch (error) {
     persistenceStore = undefined;
     executionRepository = undefined;
+    operationsAudit = Object.freeze([]);
+    operationsAlerts = Object.freeze([]);
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
   }
   if (persistenceStore) {
@@ -1109,6 +1117,8 @@ ipcMain.handle("operations:snapshot", () => Object.freeze({
   }),
   reconciliation: Object.freeze({ status: operationalPreflight.reconciliation.status }),
   execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
+  audit: persistenceStore?.loadOperationsAudit() ?? operationsAudit,
+  alerts: persistenceStore?.loadOperationsAlerts() ?? operationsAlerts,
   risk: Object.freeze({ status: operationalPreflight.riskGate.status, capability: RISK_CAPABILITY_DESCRIPTOR }),
   killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
   openP0Codes: persistedOpenP0Codes,

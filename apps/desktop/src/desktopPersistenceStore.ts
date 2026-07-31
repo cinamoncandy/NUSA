@@ -17,6 +17,8 @@ const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO"
 const SHA256 = /^[a-f0-9]{64}$/i;
 
 export interface DesktopPersistenceState { readonly paper: PaperBrokerState; readonly control: ControlPlaneState; }
+export interface OperationsAuditRecord { readonly auditId: string; readonly actor: string; readonly action: string; readonly target: string | null; readonly metadata: Readonly<Record<string, unknown>>; readonly createdAt: string; }
+export interface OperationsAlertRecord { readonly alertId: string; readonly severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL"; readonly source: string; readonly code: string; readonly message: string; readonly createdAt: string; }
 
 const migrations = [{ id: "001_desktop_runtime", sql: `
 CREATE TABLE desktop_account_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
@@ -36,6 +38,9 @@ CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_ch
 CREATE TABLE desktop_strategy_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
 ` }, { id: "006_desktop_paper_safety_snapshot", sql: `
 CREATE TABLE desktop_paper_safety_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
+` }, { id: "007_desktop_operations", sql: `
+CREATE TABLE desktop_operations_audit (audit_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
+CREATE TABLE desktop_operations_alerts (alert_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, severity TEXT NOT NULL, payload TEXT NOT NULL);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -299,6 +304,26 @@ export class DesktopPersistenceStore {
       connection: this.db,
       transaction: <T>(operation: () => T): T => this.transaction(operation)
     });
+  }
+
+  appendOperationsAudit(record: OperationsAuditRecord): void {
+    this.db.prepare("INSERT INTO desktop_operations_audit (audit_id, created_at, payload) VALUES (?, ?, ?) ON CONFLICT(audit_id) DO NOTHING").run(record.auditId, record.createdAt, JSON.stringify(record));
+  }
+
+  loadOperationsAudit(limit = 50): readonly OperationsAuditRecord[] {
+    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
+    const rows = this.db.prepare("SELECT payload FROM desktop_operations_audit ORDER BY created_at DESC, audit_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
+    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAuditRecord)));
+  }
+
+  appendOperationsAlert(record: OperationsAlertRecord): void {
+    this.db.prepare("INSERT INTO desktop_operations_alerts (alert_id, created_at, severity, payload) VALUES (?, ?, ?, ?) ON CONFLICT(alert_id) DO NOTHING").run(record.alertId, record.createdAt, record.severity, JSON.stringify(record));
+  }
+
+  loadOperationsAlerts(limit = 50): readonly OperationsAlertRecord[] {
+    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
+    const rows = this.db.prepare("SELECT payload FROM desktop_operations_alerts ORDER BY created_at DESC, alert_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
+    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAlertRecord)));
   }
 
   private configureSafetyPragmas(): void {
