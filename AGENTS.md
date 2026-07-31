@@ -1,24 +1,38 @@
 # AGENTS.md
 
-These rules apply to every human or AI agent working on DOKKAEBI.
+These rules apply to every human or AI agent working on NUSA.
+
+## AIPOS recovery is mandatory
+
+Before planning, editing, or generating code:
+
+1. Read `.aipos/aipos.yaml`.
+2. Read `.aipos/state.yaml`.
+3. Follow the recovery protocol and active work order referenced there.
+4. Read `.aipos/architecture.md`, `.aipos/context.md`, and relevant decisions.
+5. Verify changes with the commands recorded in the work order.
+6. Update `.aipos/state.yaml` and the active work order before stopping.
+
+Do not rely on prior conversation history. The repository is the source of truth. Vendor-specific instructions may supplement AIPOS but cannot replace it.
 
 ## Read first
 
 Before changing code:
 
-1. Read `DOKKAEBI.md`.
-2. Inspect the active branch, open PR, tests, and CI state.
-3. Preserve existing architecture unless a documented decision justifies a change.
-4. State the intended profit, safety, efficiency, or convenience impact of the work.
+1. Complete the AIPOS recovery steps above.
+2. Read `DOKKAEBI.md` when the task touches the current paper-trading application.
+3. Inspect the active branch, open PR, tests, and CI state.
+4. Preserve existing architecture unless a documented decision justifies a change.
+5. State the intended profit, safety, efficiency, or convenience impact of the work.
 
 ## Safety rules
 
-- Never enable live trading without explicit owner approval.
+- Never enable live trading without explicit owner approval and an accepted AIPOS work order.
 - Never commit API keys, secrets, tokens, credentials, account identifiers, or private trading data.
 - Never change repository visibility, delete branches, rewrite shared history, or remove production data without explicit approval.
 - Risk checks must not be bypassed by UI, strategy, automation, or exchange adapters.
 - Automatic trading defaults to disabled after fresh install, recovery ambiguity, or fault.
-- Fail closed when market data, persistence, reconciliation, or account state is uncertain.
+- Fail closed when market data, persistence, reconciliation, account state, or AIPOS safety state is uncertain.
 
 ## Architecture rules
 
@@ -30,17 +44,19 @@ Before changing code:
 - Upbit spot and Binance futures must remain separate domain implementations.
 - Paper and live adapters may share interfaces but must not share mutable operating state.
 - Electron renderer must not receive Node.js or credential access.
+- AIPOS integrates through the existing NUSA runtime; do not create a parallel kernel, plugin system, service container, or lifecycle framework.
 
 ## Engineering rules
 
 - Keep changes small, reviewable, and reversible.
 - Add or update tests for every behavior change.
-- Preserve deterministic accounting and idempotency.
+- Preserve deterministic accounting, recovery, and idempotency.
 - Avoid hidden global state and implicit side effects.
 - Validate all IPC and external data at trust boundaries.
 - Prefer explicit domain types over loosely shaped objects.
 - Do not add dependencies without a clear need and license review.
 - Do not claim tests passed unless they were actually run or CI confirms them.
+- Update AIPOS state whenever architecture, scope, current work, or next work changes.
 
 ## Trading research rules
 
@@ -67,9 +83,9 @@ A task is complete only when:
 - relevant tests exist,
 - validation status is truthful,
 - safety boundaries are preserved,
-- documentation is updated when needed,
+- documentation and AIPOS state are updated,
 - no known critical issue is hidden.
 
 ## Current priority
 
-Finish a reliable Upbit spot Paper Trading foundation before any live trading or Binance futures implementation.
+Follow `.aipos/state.yaml`. At the time this entrypoint was updated, the priority was to complete NUSA's cross-AI repository continuity contract while preserving the Upbit spot paper-trading safety boundary.
