@@ -40,13 +40,20 @@ failure states); duplicate start, resume-when-not-paused, and stop-when-not-acti
 throw rather than silently no-op. See `docs/operations/shadow-operational-runtime.md` and
 `docs/operations/shadow-owner-lifecycle.md`.
 
-**Applied to this repository's actual state, Shadow still cannot reach `RUNNING`.**
-`getSafetyState()`'s `deploymentIntegrity` and `reconciliation` fields are wired to the
-same honestly-unresolved values `createPaperSafetySnapshot` already reports (`false` for
-both), matching the rest of this branch's documented "not yet composed" state. The
-wiring added in this phase is real and complete; what it depends on is not. No durable
-`SHADOW_OPERATIONAL` Evidence writer exists yet, no session persists across a restart,
-and Canary is untouched -- all remain WO-0034-A3.
+**The current runtime composition is fail-closed but no longer a hard-coded unresolved
+stub.** `main.ts` derives deployment integrity from the compiled runtime assets and
+derives Paper reconciliation independently from the persisted Paper ledger and account
+snapshot. A fresh, healthy Paper database with an empty ledger can therefore pass those
+two checks. A persisted safety snapshot, recovery ambiguity, mutation counter, ledger
+mismatch, or unavailable persistence keeps the gate blocked and requires the documented
+reconciliation/owner-review path. The shared configured risk gate still refuses any
+uncertain request, and `productionMutationAllowed` remains false.
+
+Shadow's durable Evidence archive, completion verification, and reconnect diagnostics are
+now present in the runtime composition. They do not turn a rehearsal into operational
+Evidence: the repository still has no real operational sessions, and the promotion gate
+must remain `OBSERVATION_INCOMPLETE` until the runbook's operator-collected criteria are
+met. Canary remains untouched.
 
 ### Control Room UI (design system, first slice)
 

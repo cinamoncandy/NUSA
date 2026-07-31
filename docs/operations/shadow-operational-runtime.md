@@ -42,13 +42,11 @@ verified structurally by a test that greps the compiled output for both module n
 
 Shadow's hypothetical dispatch calls the **same `PaperCommandRiskGate` instance**
 `RuntimeCommandService` uses for real Manual and Automatic orders (`path: "SHADOW"` was
-added to the gate's path union). This was a deliberate choice over fabricating a
-separate always-`ALLOW` decision for Shadow: since WO-0032's gate composition
-(approval/reconciliation/deployment state) is not wired into the real order path yet, the
-injected gate in `main.ts` currently returns `HALT` unconditionally with
-`RISK_GATE_NOT_CONFIGURED` -- and Shadow inherits that exact same honest, unconfigured
-state rather than pretending its own hypothetical path is somehow more ready than the
-real one.
+added to the gate's path union). The gate is composed in `main.ts` from the runtime
+deployment check, independent Paper ledger reconciliation, persisted control state, and
+the declared risk fingerprints. It is not an unconditional allow: any missing or failed
+preflight input returns a fail-closed decision, including `RISK_GATE_NOT_CONFIGURED`,
+`RECONCILIATION_FAILED`, or a deployment mismatch.
 
 Shadow tracks no hypothetical position, cash, or PnL. Its hypothetical order quantity
 reuses the real configured Paper order quantity (`control.getOrderQuantity()`) for both
@@ -95,16 +93,18 @@ disconnected stream, Canary/Extended mode active) is `HALTED` and terminal for t
 
 ## Restart
 
-No durable Shadow session persistence exists yet (WO-0034-A3). Every process start
-constructs a brand-new `ShadowOperationalRuntime` at `IDLE`, with a brand-new
-`ClosedCandleAdapter` (warm-up count `0`). This is what makes "no auto-run after
-restart" and "warm-up resets on restart" true by construction, not by a separate
-recovered-session check: there is nothing to recover, so there is nothing to
-auto-continue.
+Every process start constructs a brand-new `ShadowOperationalRuntime` at `IDLE`, with a
+brand-new `ClosedCandleAdapter` (warm-up count `0`). The process also re-checks runtime
+deployment integrity, Paper reconciliation, persisted safety state, and incomplete
+Evidence archives before exposing Shadow as startable. A prior safety snapshot or
+markerless archive blocks the start and enters the existing recovery/reconciliation path;
+no session is automatically continued after restart.
 
 ## What this phase deliberately does not do
 
-- No durable `SHADOW_OPERATIONAL` Evidence writer (WO-0034-A3).
+- No automatic promotion of a rehearsal or fixture to `SHADOW_OPERATIONAL` Evidence.
+  The runtime writes an append-only, hash-chained archive and verifies it on completion;
+  the operator still must collect real sessions before release evidence can pass.
 - No Canary wiring; `canaryPilotRuntime.ts` is untouched and unused here.
 - No owner-identity/authentication model. Every `shadow:*` IPC command is documented as
   "a local explicit owner action" (see `docs/operations/shadow-owner-lifecycle.md`) --
