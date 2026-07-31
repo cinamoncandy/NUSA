@@ -110,10 +110,20 @@ export interface ShadowPilotApi {
 
 export interface NUSAOperationsApi {
   snapshot(): Promise<Readonly<Record<string, unknown>>>;
+  listExecutions(): Promise<readonly unknown[]>;
+  getExecution(executionId: string): Promise<unknown | null>;
+  listTransitions(executionId: string): Promise<readonly unknown[]>;
+  listFills(executionId: string): Promise<readonly unknown[]>;
+  getExecutionHealth(): Promise<Readonly<Record<string, unknown>>>;
 }
 
 const operations: NUSAOperationsApi = Object.freeze({
-  snapshot: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("operations:snapshot")
+  snapshot: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("operations:snapshot"),
+  listExecutions: () => invokeReadWithRecovery<readonly unknown[]>("execution:list"),
+  getExecution: (executionId: string) => invokeReadWithRecovery("execution:get", executionId),
+  listTransitions: (executionId: string) => invokeReadWithRecovery<readonly unknown[]>("execution:transitions", executionId),
+  listFills: (executionId: string) => invokeReadWithRecovery<readonly unknown[]>("execution:fills", executionId),
+  getExecutionHealth: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("execution:health")
 });
 
 const shadowPilot: ShadowPilotApi = Object.freeze({

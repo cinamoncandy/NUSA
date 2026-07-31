@@ -58,6 +58,7 @@ import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
+import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -97,6 +98,7 @@ let broker: PaperBroker;
 let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
+let executionRepository: SqliteDurableExecutionRepository | undefined;
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 // Kill Switch/P0 are persisted safety facts. A generic FAULTED control status is not
@@ -567,6 +569,7 @@ function initializeRuntime(): void {
   let safetyRecoveryBlocked = crashRecoveryRequired;
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
+    executionRepository = persistenceStore.executionRepository();
     const sqliteState = persistenceStore.load();
     if (sqliteState) {
       restored = sqliteState;
@@ -574,6 +577,7 @@ function initializeRuntime(): void {
     } else if (restored) persistenceStore.importLegacy(restored);
   } catch (error) {
     persistenceStore = undefined;
+    executionRepository = undefined;
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
   }
   if (persistenceStore) {
@@ -795,6 +799,23 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
+ipcMain.handle("execution:list", () => executionRepository?.listActive() ?? Object.freeze([]));
+ipcMain.handle("execution:get", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.get(executionId) ?? null;
+});
+ipcMain.handle("execution:transitions", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.transitions(executionId) ?? Object.freeze([]);
+});
+ipcMain.handle("execution:fills", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.fills(executionId) ?? Object.freeze([]);
+});
+ipcMain.handle("execution:health", () => {
+  const active = executionRepository?.listActive() ?? [];
+  return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
+});
 ipcMain.handle("paper:preflight", () => operationalPreflight);
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
@@ -1086,6 +1107,7 @@ ipcMain.handle("operations:snapshot", () => Object.freeze({
     diagnostic: crashRecoveryDiagnostic
   }),
   reconciliation: Object.freeze({ status: operationalPreflight.reconciliation.status }),
+  execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
   risk: Object.freeze({ status: operationalPreflight.riskGate.status }),
   killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
   openP0Codes: persistedOpenP0Codes,

@@ -10,6 +10,7 @@ import { validateResearchRunManifest, type ResearchRunManifest, type ResearchVal
 import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard";
 import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperSafetySnapshot";
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
+import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
@@ -287,6 +288,18 @@ export class DesktopPersistenceStore {
   }
 
   close(): void { this.db.close(); }
+
+  /**
+   * A5D uses the same durable SQLite file as Paper and recovery. The returned repository is
+   * read/write for future execution orchestration, but this method alone performs no order
+   * mutation; the desktop currently exposes only its read-only projections to the renderer.
+   */
+  executionRepository(): SqliteDurableExecutionRepository {
+    return new SqliteDurableExecutionRepository({
+      connection: this.db,
+      transaction: <T>(operation: () => T): T => this.transaction(operation)
+    });
+  }
 
   private configureSafetyPragmas(): void {
     this.db.exec("PRAGMA foreign_keys = ON");

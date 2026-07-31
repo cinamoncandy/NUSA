@@ -40,7 +40,7 @@ function extractPreloadChannels(source) {
   const channels = new Set();
   // `app:` added for the WO-0034-A4O productization channels. Widening the extractor is
   // coverage, not relaxation: a prefix it does not know is a channel it silently ignores.
-  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app|operations):[\w-]+)"/g;
+  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app|operations|execution):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];
@@ -149,6 +149,11 @@ test("preload never lets a caller-supplied value choose the IPC channel", () => 
   void exposed.aiCioDashboard.getAiCioDashboard();
   void exposed.shadowPilot.preflight();
   void exposed.operations.snapshot();
+  void exposed.operations.listExecutions();
+  void exposed.operations.getExecution("execution-id");
+  void exposed.operations.listTransitions("execution-id");
+  void exposed.operations.listFills("execution-id");
+  void exposed.operations.getExecutionHealth();
 
   assert.ok(ipcCalls.length > 0, "expected preload methods to actually reach ipcRenderer during this fuzz pass");
   for (const call of ipcCalls) {
