@@ -57,6 +57,7 @@ import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, p
 import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
+import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -137,6 +138,7 @@ const recoveryReview = new RecoveryReviewState();
 /** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
+let mobileBridge: MobileBridgeHandle | undefined;
 /**
  * WO-0034-A4O productization state. Resolved once, at app-ready, because every path below
  * depends on `app.getPath("userData")` and `app.isPackaged`, neither of which is meaningful
@@ -385,6 +387,7 @@ function handleTicker(ticker: UpbitTicker): void {
   latestTicker = ticker;
   window?.webContents.send("market:ticker", ticker);
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
+  shadowRuntime?.onTicker({ ...ticker, trade_volume: ticker.acc_trade_volume });
   if (!recordLiveMarketRegime(ticker)) return;
 }
 
@@ -1095,6 +1098,7 @@ app.whenReady().then(() => {
     runtime.markUnavailable();
   }
   createWindow();
+  startConfiguredMobileBridge();
   // Public market data is safe to observe even while Paper execution is unavailable.
   // Execution remains fail-closed behind RuntimeCommandService and the risk gate.
   stream.start();
@@ -1121,6 +1125,22 @@ function releaseRuntimeResources(): void {
   if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
   if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
   persistenceStore?.close();
+  void mobileBridge?.stop();
+  mobileBridge = undefined;
+}
+
+function startConfiguredMobileBridge(): void {
+  if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return;
+  const port = Number(process.env.NUSA_MOBILE_MONITOR_PORT ?? "0");
+  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) { logProduct("WARN", "mobile monitor remains disabled: invalid port", {}, "MOBILE_BRIDGE_INVALID_PORT"); return; }
+  mobileBridge = startMobileBridge({
+    port,
+    getStatus: () => Object.freeze({ app: "NUSA", mode: "PAPER", marketConnectionState: marketDataStatus, warmupState: marketDataStatus === "HEALTHY" ? "READY" : marketDataStatus, stale: marketDataStatus === "STALE", observedAt: new Date().toISOString() }),
+    getAccount: () => latestTicker ? broker.snapshot(latestTicker.trade_price) as unknown as Readonly<Record<string, unknown>> : Object.freeze({ available: false, reason: "MARKET_DATA_UNAVAILABLE" }),
+    getOpenOrderCount: () => latestTicker ? broker.snapshot(latestTicker.trade_price).orders.length : 0,
+    getEvents: () => recentErrorCodes.map((code) => Object.freeze({ code }))
+  });
+  logProduct("INFO", "read-only mobile monitor enabled on localhost", { port }, "MOBILE_BRIDGE_STARTED");
 }
 
 /**

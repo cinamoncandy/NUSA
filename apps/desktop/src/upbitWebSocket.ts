@@ -13,6 +13,8 @@ export interface UpbitTicker {
   trade_price: number;
   trade_timestamp: number;
   signed_change_rate?: number;
+  /** Upbit's per-ticker base-asset volume, not the 24h quote turnover field. */
+  acc_trade_volume?: number;
   acc_trade_price_24h?: number;
 }
 
