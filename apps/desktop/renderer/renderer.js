@@ -579,16 +579,20 @@ refreshCioDashboard();
   const overlays = document.getElementById("product-overlays") || document.body;
   const settingsRoot = document.getElementById("product-settings");
   const aboutRoot = document.getElementById("product-about");
+  const evidenceRoot = document.getElementById("evidence");
 
   const about = factory.createAboutPanel({ api });
   const settings = factory.createSettingsPanel({
     api,
     onShowNotice: () => { void showFirstRunNotice(true); }
   });
+  const operations = factory.createOperationsPanel({ api: window.operations });
   if (settingsRoot) settingsRoot.replaceChildren(settings.element);
   if (aboutRoot) aboutRoot.replaceChildren(about.element);
+  if (evidenceRoot) evidenceRoot.replaceChildren(operations.element);
   void settings.refresh();
   void about.refresh();
+  void operations.refresh();
 
   const shutdown = factory.createShutdownOverlay({ api, root: overlays });
   shutdown.listen();

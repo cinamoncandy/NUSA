@@ -328,6 +328,57 @@
     };
   }
 
+  function createOperationsPanel(options) {
+    const api = options.api;
+    const panel = element("section", "product-card");
+    const title = element("h2", "product-card__title", "Evidence and operations records");
+    const refresh = element("button", "ui-button ui-button--secondary", "Refresh read-only records");
+    refresh.type = "button";
+    const status = element("p", "product-status", "No records loaded.");
+    status.setAttribute("role", "status");
+    const grid = element("div", "product-grid");
+    const error = element("p", "product-error");
+    error.setAttribute("role", "alert");
+    panel.append(title, refresh, status, grid, error);
+
+    function list(titleText, records, formatter) {
+      const section = element("section", "product-records");
+      section.append(element("h3", "product-card__title", titleText));
+      const listNode = element("ol", "product-steps");
+      for (const record of records.slice(0, 20)) {
+        const item = element("li", "product-steps__item");
+        item.append(element("span", "product-steps__label", formatter(record)), element("span", "product-steps__status", record.createdAt || ""));
+        listNode.append(item);
+      }
+      if (records.length === 0) listNode.append(element("li", "product-steps__item", "No records.") );
+      section.append(listNode);
+      return section;
+    }
+
+    async function load() {
+      refresh.disabled = true;
+      error.textContent = "";
+      try {
+        const snapshot = await api.snapshot();
+        const audit = Array.isArray(snapshot.audit) ? snapshot.audit : [];
+        const alerts = Array.isArray(snapshot.alerts) ? snapshot.alerts : [];
+        const executions = await api.listExecutions();
+        status.textContent = `Read-only · ${executions.length} active executions · ${audit.length} audit records · ${alerts.length} alerts`;
+        grid.replaceChildren(
+          list("Execution journal", executions, (record) => `${record.state || "UNKNOWN"} · ${record.market || ""} · ${record.clientOrderId || record.executionId || ""}`),
+          list("Audit log", audit, (record) => `${record.action || "EVENT"} · ${record.actor || "SYSTEM"}`),
+          list("Alert center", alerts, (record) => `${record.severity || "UNKNOWN"} · ${record.code || "ALERT"} · ${record.message || ""}`)
+        );
+      } catch (cause) {
+        error.textContent = cause && cause.message ? cause.message : "Read-only records unavailable.";
+      } finally {
+        refresh.disabled = false;
+      }
+    }
+    refresh.addEventListener("click", () => { void load(); });
+    return { element: panel, refresh: load };
+  }
+
   /**
    * The shutdown overlay. Appears when the main process starts sealing and shows each step,
    * so a slow quit reads as work in progress rather than a frozen window.
@@ -393,6 +444,7 @@
     createFirstRunNotice: createFirstRunNotice,
     createSettingsPanel: createSettingsPanel,
     createAboutPanel: createAboutPanel,
+    createOperationsPanel: createOperationsPanel,
     createShutdownOverlay: createShutdownOverlay
   };
 })(window);
