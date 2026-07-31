@@ -1,5 +1,5 @@
-appId: com.dokkaebi.trader
-productName: Dokkaebi
+appId: com.nusa.trader
+productName: NUSA
 asar: true
 directories:
   output: release
@@ -16,6 +16,6 @@ extraMetadata:
   main: dist/apps/desktop/src/main.js
 win:
   target: portable
-  icon: build/dokkaebi-a4p.ico
-  artifactName: Dokkaebi-${version}-Windows-Portable.${ext}
+  icon: build/nusa-a4p.ico
+  artifactName: NUSA-${version}-Windows-Portable.${ext}
   signAndEditExecutable: false

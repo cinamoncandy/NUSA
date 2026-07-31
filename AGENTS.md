@@ -1,12 +1,12 @@
 # AGENTS.md
 
-These rules apply to every human or AI agent working on DOKKAEBI.
+These rules apply to every human or AI agent working on NUSA.
 
 ## Read first
 
 Before changing code:
 
-1. Read `DOKKAEBI.md`.
+1. Read `NUSA.md`.
 2. Inspect the active branch, open PR, tests, and CI state.
 3. Preserve existing architecture unless a documented decision justifies a change.
 4. State the intended profit, safety, efficiency, or convenience impact of the work.

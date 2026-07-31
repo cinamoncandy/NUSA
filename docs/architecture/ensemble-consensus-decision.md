@@ -6,7 +6,7 @@ Architectural input for the Decision Domain roadmap. This document does not enab
 
 ## Product principle
 
-Dokkaebi must not treat one model, one indicator, or one agent as an authority. A trade candidate is the result of a bounded committee process that can also abstain.
+NUSA must not treat one model, one indicator, or one agent as an authority. A trade candidate is the result of a bounded committee process that can also abstain.
 
 The committee answers a narrower question than "what will the market do?":
 

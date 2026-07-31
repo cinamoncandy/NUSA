@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Feature Registry v1 provides immutable, versioned definitions for quantitative features used by DOKKAEBI research, replay, and PAPER/DRY_RUN runtime paths.
+Feature Registry v1 provides immutable, versioned definitions for quantitative features used by NUSA research, replay, and PAPER/DRY_RUN runtime paths.
 
 It does not contain trading logic and cannot submit orders.
 

@@ -20,7 +20,7 @@ import type { UserDataLayout } from "./userDataLayout";
 
 export const SAFETY_POLICY_VERSION = 1 as const;
 
-export type DokkaebiOperatingMode = "PAPER" | "SHADOW";
+export type NUSAOperatingMode = "PAPER" | "SHADOW";
 
 export interface FirstRunNoticeStatement {
   readonly code: string;
@@ -41,7 +41,7 @@ export const FIRST_RUN_STATEMENTS: readonly FirstRunNoticeStatement[] = Object.f
 
 export interface FirstRunNotice {
   readonly safetyPolicyVersion: number;
-  readonly mode: DokkaebiOperatingMode;
+  readonly mode: NUSAOperatingMode;
   readonly statements: readonly FirstRunNoticeStatement[];
   /** Where the user's own data lives, so the notice is not an abstract promise. */
   readonly evidenceDirectory: string;
@@ -102,7 +102,7 @@ export function parseFirstRunAcknowledgement(value: unknown): FirstRunAcknowledg
 }
 
 export class FirstRunNoticeStore {
-  constructor(private readonly layout: UserDataLayout, private readonly mode: DokkaebiOperatingMode = "PAPER") {}
+  constructor(private readonly layout: UserDataLayout, private readonly mode: NUSAOperatingMode = "PAPER") {}
 
   notice(): FirstRunNotice {
     return Object.freeze({

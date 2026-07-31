@@ -1,4 +1,4 @@
-# Dokkaebi Release Checklist
+# NUSA Release Checklist
 
 - [ ] Clean checkout and pinned lockfile
 - [ ] Version, commit, and build date recorded in `release/build-manifest.json`

@@ -8,7 +8,7 @@
 2. [Paper release evidence runbook](../operations/paper-release-evidence-runbook.md)
 3. [Evidence rehearsal](../implementation/evidence-rehearsal-v1.md)
 4. [Repository architecture and safety rules](../../AGENTS.md)
-5. [Project scope and boundaries](../../DOKKAEBI.md)
+5. [Project scope and boundaries](../../NUSA.md)
 
 ## 권장 검토 순서
 

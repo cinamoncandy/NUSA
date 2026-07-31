@@ -30,7 +30,7 @@ const SCRIPT_ORDER = [
   "application-state-mount.js"
 ];
 
-/** Builds a fresh window with the real index.html DOM and a preload-shaped window.dokkaebi /
+/** Builds a fresh window with the real index.html DOM and a preload-shaped window.nusa /
  * window.aiCioDashboard mock installed *before* any renderer script runs -- matching real
  * Electron's own guarantee that contextBridge's exposeInMainWorld() completes before the
  * page's own <script> tags execute. Returns the captured on*() handlers so the test can fire
@@ -59,15 +59,15 @@ function bootstrapRenderer({ initialSnapshot = null, initialControl = null, aiCi
   window.requestAnimationFrame = (callback) => { callback(); return 0; };
 
   const handlers = {};
-  const dokkaebiCalls = [];
-  window.dokkaebi = {
-    placeOrder: (side, quantity) => { dokkaebiCalls.push(["placeOrder", side, quantity]); return Promise.resolve({ order: {}, snapshot: initialSnapshot }); },
-    getSnapshot: () => { dokkaebiCalls.push(["getSnapshot"]); return Promise.resolve(initialSnapshot); },
-    getControlSnapshot: () => { dokkaebiCalls.push(["getControlSnapshot"]); return Promise.resolve(initialControl); },
-    startStrategy: () => { dokkaebiCalls.push(["startStrategy"]); return Promise.resolve(initialControl); },
-    stopStrategy: () => { dokkaebiCalls.push(["stopStrategy"]); return Promise.resolve(initialControl); },
-    setAutoTrade: (enabled) => { dokkaebiCalls.push(["setAutoTrade", enabled]); return Promise.resolve(initialControl); },
-    setStrategyQuantity: (quantity) => { dokkaebiCalls.push(["setStrategyQuantity", quantity]); return Promise.resolve(initialControl); },
+  const nusaCalls = [];
+  window.nusa = {
+    placeOrder: (side, quantity) => { nusaCalls.push(["placeOrder", side, quantity]); return Promise.resolve({ order: {}, snapshot: initialSnapshot }); },
+    getSnapshot: () => { nusaCalls.push(["getSnapshot"]); return Promise.resolve(initialSnapshot); },
+    getControlSnapshot: () => { nusaCalls.push(["getControlSnapshot"]); return Promise.resolve(initialControl); },
+    startStrategy: () => { nusaCalls.push(["startStrategy"]); return Promise.resolve(initialControl); },
+    stopStrategy: () => { nusaCalls.push(["stopStrategy"]); return Promise.resolve(initialControl); },
+    setAutoTrade: (enabled) => { nusaCalls.push(["setAutoTrade", enabled]); return Promise.resolve(initialControl); },
+    setStrategyQuantity: (quantity) => { nusaCalls.push(["setStrategyQuantity", quantity]); return Promise.resolve(initialControl); },
     onTicker: (handler) => { handlers.ticker = handler; return () => { handlers.ticker = undefined; }; },
     onStatus: (handler) => { handlers.status = handler; return () => { handlers.status = undefined; }; },
     onSnapshot: (handler) => { handlers.snapshot = handler; return () => { handlers.snapshot = undefined; }; },
@@ -106,7 +106,7 @@ function bootstrapRenderer({ initialSnapshot = null, initialControl = null, aiCi
   }
   currentScriptName = null;
 
-  return { dom, window, document: window.document, handlers, dokkaebiCalls, errors, getAiCioCallCount: () => aiCioCallCount };
+  return { dom, window, document: window.document, handlers, nusaCalls, errors, getAiCioCallCount: () => aiCioCallCount };
 }
 
 after(() => {

@@ -1,4 +1,4 @@
-/* A4P: DOKKAEBI brand shell. Existing component CSS remains the source of truth for controls. */
+/* A4P: NUSA brand shell. Existing component CSS remains the source of truth for controls. */
 :root,
 :root[data-theme="dark"] {
   --brand-bg: #080b11;

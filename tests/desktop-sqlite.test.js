@@ -15,7 +15,7 @@ const state = () => {
   broker.execute("BUY", 0.001, 1000, new Date("2026-01-01T00:00:00Z"));
   return { paper: broker.exportState(), control: control.exportState() };
 };
-const dbPath = () => join(mkdtempSync(join(tmpdir(), "dokkaebi-sqlite-")), "runtime.db");
+const dbPath = () => join(mkdtempSync(join(tmpdir(), "nusa-sqlite-")), "runtime.db");
 
 test("fresh SQLite install creates schema and starts empty", () => {
   const store = new DesktopPersistenceStore(dbPath());

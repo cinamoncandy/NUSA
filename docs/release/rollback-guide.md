@@ -1,4 +1,4 @@
-# Dokkaebi Rollback Guide
+# NUSA Rollback Guide
 
 Rollback is a controlled install operation, not an in-app trading action.
 Record the current version, commit, Evidence export, diagnostics bundle, and

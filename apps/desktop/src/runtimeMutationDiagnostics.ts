@@ -19,7 +19,7 @@ export interface RuntimeMutationDiagnostic {
   readonly details: Readonly<Record<string, string | number | boolean>>;
 }
 
-const LOG_PREFIX = "[DOKKAEBI_DESKTOP]";
+const LOG_PREFIX = "[NUSA_DESKTOP]";
 
 export function formatRuntimeMutationDiagnostic(diagnostic: RuntimeMutationDiagnostic): string {
   return `${LOG_PREFIX} ${JSON.stringify({

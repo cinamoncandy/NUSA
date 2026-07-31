@@ -56,7 +56,7 @@ Out of scope:
 Use one SQLite file under Electron `userData`, for example:
 
 ```text
-<userData>/dokkaebi.sqlite3
+<userData>/nusa.sqlite3
 ```
 
 The path must be owned by the main process and never exposed to the renderer.

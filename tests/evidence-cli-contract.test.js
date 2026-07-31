@@ -24,7 +24,7 @@ test("evidence status is safe and not evaluated without an explicit database", (
 });
 
 test("status reads a database without mutating it and fails closed for an incomplete schema", () => {
-  const root = mkdtempSync(join(tmpdir(), "dokkaebi-evidence-cli-"));
+  const root = mkdtempSync(join(tmpdir(), "nusa-evidence-cli-"));
   const dbPath = join(root, "evidence.db");
   const db = new DatabaseSync(dbPath);
   db.exec("CREATE TABLE unrelated (id INTEGER PRIMARY KEY)");
@@ -39,7 +39,7 @@ test("status reads a database without mutating it and fails closed for an incomp
 });
 
 test("export and verify commands reject missing required arguments without a stack trace", () => {
-  const root = mkdtempSync(join(tmpdir(), "dokkaebi-evidence-cli-"));
+  const root = mkdtempSync(join(tmpdir(), "nusa-evidence-cli-"));
   const outputPath = join(root, "bundle.json");
   writeFileSync(outputPath, "{}\n", "utf8");
   const exportResult = spawnSync(process.execPath, ["scripts/evidence-cli.js", "export", "--output", outputPath], { encoding: "utf8" });

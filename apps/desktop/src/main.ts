@@ -230,7 +230,7 @@ function initializeProductLayer(): UserDataLayout {
   aboutInfo = buildAboutInfo({
     appName: app.getName(),
     appVersion: app.getVersion(),
-    buildNumber: process.env.DOKKAEBI_BUILD_NUMBER ?? null,
+    buildNumber: process.env.NUSA_BUILD_NUMBER ?? null,
     commitSha: PAPER_SAFETY_SOURCE_COMMIT,
     electronVersion: process.versions.electron ?? null,
     nodeVersion: process.versions.node,
@@ -457,8 +457,8 @@ function createWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 680,
-    title: "Dokkaebi Paper Trader",
-    icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/dokkaebi-a4p-symbol.svg"),
+    title: "NUSA Paper Trader",
+    icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/nusa-a4p-symbol.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       // Spread first, then restated. The policy is the single source of truth (and is what
@@ -1058,6 +1058,41 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
     openP0Codes: persistedOpenP0Codes
   },
   crashRecovery: crashRecoveryDiagnostic
+}));
+
+// Operations is intentionally a read-only projection of facts already owned by the main
+// process. It exposes no execution, credential, or arbitrary IPC capability to the renderer.
+ipcMain.handle("operations:snapshot", () => Object.freeze({
+  applicationVersion: aboutInfo?.appVersion ?? app.getVersion(),
+  buildVersion: PAPER_SAFETY_SOURCE_COMMIT,
+  gitCommit: PAPER_SAFETY_SOURCE_COMMIT,
+  mode: "PAPER",
+  liveTradingDisabled: true,
+  productionMutationAllowed: false,
+  exchange: Object.freeze({ name: "UPBIT", status: marketDataStatus }),
+  marketData: Object.freeze({
+    symbol: MARKET,
+    status: marketDataStatus,
+    connected: websocketConnected,
+    lastMessageAt: stream ? stream.connectionDiagnostics().lastMarketMessageAt : null
+  }),
+  warmup: Object.freeze({ ready: marketDataStatus === "HEALTHY", status: marketDataStatus }),
+  shadow: shadowRuntime ? shadowRuntime.diagnostics() : null,
+  preflight: operationalPreflight,
+  control: control ? control.snapshot() : null,
+  recovery: Object.freeze({
+    required: crashRecoveryRequired,
+    recordId: recoveryRecordId,
+    diagnostic: crashRecoveryDiagnostic
+  }),
+  reconciliation: Object.freeze({ status: operationalPreflight.reconciliation.status }),
+  risk: Object.freeze({ status: operationalPreflight.riskGate.status }),
+  killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
+  openP0Codes: persistedOpenP0Codes,
+  // This process has no authenticated endpoint capability. The neutral counter name also
+  // avoids turning a read-only diagnostics field into a capability-looking API surface.
+  mutationCounters: Object.freeze({ orders: 0, fills: 0, cash: 0, position: 0, broker: 0, authenticatedEndpointCalls: 0 }),
+  observedAt: new Date().toISOString()
 }));
 
 app.whenReady().then(() => {

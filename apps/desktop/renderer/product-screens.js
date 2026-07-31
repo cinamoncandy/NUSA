@@ -1,5 +1,5 @@
 /*
- * DOKKAEBI productization screens (WO-0034-A4O req 11).
+ * NUSA productization screens (WO-0034-A4O req 11).
  *
  * Four small screens, deliberately not a redesign: the first-run safety notice, settings,
  * About, and the shutdown progress overlay. The existing dashboard is untouched.
@@ -389,7 +389,7 @@
     };
   }
 
-  globalScope.DokkaebiProductScreens = {
+  globalScope.NUSAProductScreens = {
     createFirstRunNotice: createFirstRunNotice,
     createSettingsPanel: createSettingsPanel,
     createAboutPanel: createAboutPanel,

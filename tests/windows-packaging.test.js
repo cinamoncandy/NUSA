@@ -23,14 +23,14 @@ test("packaging metadata is deterministic and excludes development sources", () 
   const build = packageJson.build;
   assert.equal(packageJson.main, "dist/apps/desktop/src/main.js");
   assert.equal(packageJson.dependencies.ws, "8.21.0");
-  assert.equal(build.appId, "com.dokkaebi.trader");
-  assert.equal(build.productName, "Dokkaebi");
+  assert.equal(build.appId, "com.nusa.trader");
+  assert.equal(build.productName, "NUSA");
   assert.equal(build.asar, true);
   assert.equal(build.directories.output, "release");
   assert.equal(build.win.target, "nsis");
-  assert.equal(build.win.icon, "build/dokkaebi-a4p.ico");
-  assert.ok(fs.existsSync(path.join(root, "build", "dokkaebi-a4p.ico")));
-  assert.equal(build.win.artifactName, "Dokkaebi-${version}-Windows-Setup.${ext}");
+  assert.equal(build.win.icon, "build/nusa-a4p.ico");
+  assert.ok(fs.existsSync(path.join(root, "build", "nusa-a4p.ico")));
+  assert.equal(build.win.artifactName, "NUSA-${version}-Windows-Setup.${ext}");
   assert.ok(build.files.includes("dist/**/*"));
   assert.ok(build.files.some((entry) => entry.includes("*.ts")));
   assert.ok(build.files.some((entry) => entry.includes("tests")));
@@ -42,7 +42,7 @@ test("desktop production safety invariants remain enabled", () => {
   assert.match(mainSource, /contextIsolation:\s*true/);
   assert.match(mainSource, /nodeIntegration:\s*false/);
   assert.match(mainSource, /sandbox:\s*true/);
-  assert.match(mainSource, /dokkaebi-a4p-symbol\.svg/);
+  assert.match(mainSource, /nusa-a4p-symbol\.svg/);
   assert.match(mainSource, /RISK_GATE_NOT_CONFIGURED/);
   assert.doesNotMatch(mainSource, /private-api|apiKey|secretKey/i);
 });

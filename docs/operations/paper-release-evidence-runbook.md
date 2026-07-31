@@ -24,13 +24,13 @@ Status is safe with no database argument and reports `not evaluated` rather than
 
 ```text
 pnpm evidence:status
-pnpm evidence:status --db C:\absolute\path\dokkaebi.db
+pnpm evidence:status --db C:\absolute\path\nusa.db
 ```
 
 Export is read-only and creates the output file exclusively. It requires the exact validation target:
 
 ```text
-pnpm evidence:export --db C:\absolute\path\dokkaebi.db --output C:\absolute\path\bundle.json --code-version <git-sha> --strategy-id <id> --strategy-version <version> --dataset-id <id> --dataset-checksum <sha256>
+pnpm evidence:export --db C:\absolute\path\nusa.db --output C:\absolute\path\bundle.json --code-version <git-sha> --strategy-id <id> --strategy-version <version> --dataset-id <id> --dataset-checksum <sha256>
 ```
 
 Verify the exported bundle independently:

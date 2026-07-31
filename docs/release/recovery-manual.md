@@ -1,4 +1,4 @@
-# Dokkaebi Recovery Manual
+# NUSA Recovery Manual
 
 If the crash marker is not clean, the next launch enters recovery-required mode
 and does not automatically resume a session. Do not reset a Kill Switch or

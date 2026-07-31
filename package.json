@@ -1,9 +1,9 @@
 {
-  "name": "dokkaebi",
+  "name": "nusa",
   "private": true,
   "version": "0.1.0",
   "description": "Windows Electron paper-trading and deterministic research platform",
-  "author": "Dokkaebi contributors",
+  "author": "NUSA contributors",
   "main": "dist/apps/desktop/src/main.js",
   "packageManager": "pnpm@11.7.0",
   "engines": {
@@ -55,8 +55,8 @@
     "ws": "8.21.0"
   },
   "build": {
-    "appId": "com.dokkaebi.trader",
-    "productName": "Dokkaebi",
+    "appId": "com.nusa.trader",
+    "productName": "NUSA",
     "asar": true,
     "directories": {
       "output": "release"
@@ -76,8 +76,8 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "build/dokkaebi-a4p.ico",
-      "artifactName": "Dokkaebi-${version}-Windows-Setup.${ext}",
+      "icon": "build/nusa-a4p.ico",
+      "artifactName": "NUSA-${version}-Windows-Setup.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {

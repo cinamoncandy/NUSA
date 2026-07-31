@@ -11,8 +11,8 @@
 
 | Artifact | SHA-256 | Result |
 | --- | --- | --- |
-| `Dokkaebi-0.1.0-Windows-Setup.exe` | `49988913d2a096aea9f3bd40d00aa3e27bbee78b9cdf2c920579ad47e717b049` | MATCHED |
-| `Dokkaebi-0.1.0-Windows-Portable.exe` | `7fad900f62eac44ef34928c735ef5eb32d06eb96b88660318efde1c37059c890` | MATCHED |
+| `NUSA-0.1.0-Windows-Setup.exe` | `49988913d2a096aea9f3bd40d00aa3e27bbee78b9cdf2c920579ad47e717b049` | MATCHED |
+| `NUSA-0.1.0-Windows-Portable.exe` | `7fad900f62eac44ef34928c735ef5eb32d06eb96b88660318efde1c37059c890` | MATCHED |
 
 `verification.json` confirms version `0.1.0`, the source commit above, and
 `productionMutationAllowed: false`. The artifact allowlist, checksum file,

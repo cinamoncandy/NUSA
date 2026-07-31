@@ -70,7 +70,7 @@ violation** — the entire point of a Shadow session is that these stay at zero.
 header. `build/icon.png` is the packaged app icon — that is electron-builder's default
 resource path, so the icon applies with no `package.json` change.
 
-The flame silhouette carries a dark pupil so it reads as both a dokkaebi fire and a
+The flame silhouette carries a dark pupil so it reads as both a nusa fire and a
 watching eye; the outer ring and top tick quote an instrument's zero mark. **The crack
 motif is never used in the logo** — cracks are the reserved visual language of `HALTED` and
 `EMERGENCY_STOP`, and mixing them into the everyday brand mark would blunt the danger

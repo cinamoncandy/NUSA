@@ -2,7 +2,7 @@
 
 ## Scope
 
-This is the first executable-policy vertical slice for DOKKAEBI. It is an
+This is the first executable-policy vertical slice for NUSA. It is an
 independent, deterministic and side-effect-free control plane. It evaluates
 declarative conditions and produces a traceable policy recommendation; it does
 not submit orders, mutate Paper state, grant authorization, or override Risk,

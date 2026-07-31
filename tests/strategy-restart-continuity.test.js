@@ -6,7 +6,7 @@ const { tmpdir } = require("node:os");
 const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
 const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
 
-const dbPath = () => join(mkdtempSync(join(tmpdir(), "dokkaebi-strategy-state-")), "runtime.db");
+const dbPath = () => join(mkdtempSync(join(tmpdir(), "nusa-strategy-state-")), "runtime.db");
 
 test("StrategyEngine.restoreHistory replaces price history and is bounded by maxHistory", () => {
   const engine = new StrategyEngine(new SmaCrossoverStrategy(2, 3), 3);

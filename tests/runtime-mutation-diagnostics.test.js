@@ -10,7 +10,7 @@ const {
   createAutomaticExecutionBlockedDiagnostic
 } = require("../dist/apps/desktop/src/runtimeMutationDiagnostics.js");
 
-const LOG_PREFIX = "[DOKKAEBI_DESKTOP] ";
+const LOG_PREFIX = "[NUSA_DESKTOP] ";
 
 function parseFormatted(diagnostic) {
   const formatted = formatRuntimeMutationDiagnostic(diagnostic);

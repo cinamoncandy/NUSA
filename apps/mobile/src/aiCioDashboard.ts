@@ -38,7 +38,7 @@ export function buildAiCioDashboardViewModel(snapshot: AiCioDashboardSnapshot): 
 
   return Object.freeze({
     status: snapshot.status,
-    title: "DOKKAEBI AI CIO",
+    title: "NUSA AI CIO",
     subtitle: snapshot.status === "BLOCKED" ? "Trading is blocked by safety controls" : snapshot.status === "CAUTION" ? "Review warnings before action" : "Paper operations normal",
     tradingEnabled: snapshot.tradingPermitted,
     metrics: Object.freeze(metrics.map((item) => Object.freeze(item))),

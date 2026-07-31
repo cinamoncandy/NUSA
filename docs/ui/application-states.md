@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The application state surface gives the operator one honest summary of whether Dokkaebi can observe, decide, or perform a local Paper action. It does not claim profitability and never implies that a directional opinion overrides safety controls.
+The application state surface gives the operator one honest summary of whether NUSA can observe, decide, or perform a local Paper action. It does not claim profitability and never implies that a directional opinion overrides safety controls.
 
 ## Operational states
 

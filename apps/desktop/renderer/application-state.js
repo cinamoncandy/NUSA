@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.DokkaebiApplicationState = api;
+  else root.NUSAApplicationState = api;
 })(globalThis, function () {
   const catalog = Object.freeze({
     LOADING: { tone: "neutral", title: "운용 상태를 불러오는 중", description: "Paper 계정과 시장 연결 상태를 확인하고 있습니다.", action: "잠시 기다려 주세요." },

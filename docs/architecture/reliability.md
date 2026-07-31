@@ -1,6 +1,6 @@
 # Reliability and Recovery
 
-DOKKAEBI remains PAPER-only. Recovery never enables automatic trading, bypasses a risk check, deletes user data, or turns a failed session into a live session.
+NUSA remains PAPER-only. Recovery never enables automatic trading, bypasses a risk check, deletes user data, or turns a failed session into a live session.
 
 ## Failure flow
 

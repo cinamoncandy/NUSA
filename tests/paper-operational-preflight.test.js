@@ -11,7 +11,7 @@ const {
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
 
 function assets(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-preflight-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-preflight-"));
   const main = path.join(root, "main.js");
   const preload = path.join(root, "preload.js");
   const renderer = path.join(root, "index.html");

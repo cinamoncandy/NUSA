@@ -1,4 +1,4 @@
-# Dokkaebi Windows Installation Guide
+# NUSA Windows Installation Guide
 
 ## Supported release
 
@@ -10,7 +10,7 @@ default for this release and no API key is requested.
 
 Run `pnpm install --frozen-lockfile`, `pnpm run typecheck`, `pnpm run build`,
 `pnpm run package:validate`, and `pnpm run package:win`. The installer is written
-to `release/Dokkaebi-<version>-Windows-Setup.exe`. Run the installer as a normal
+to `release/NUSA-<version>-Windows-Setup.exe`. Run the installer as a normal
 user and keep the default per-user location.
 
 ## Validate

@@ -1,6 +1,6 @@
 # Probability, Rotation, and Execution v0.1
 
-This increment adapts the uploaded Polymarket bot analysis into exchange-neutral DOKKAEBI controls.
+This increment adapts the uploaded Polymarket bot analysis into exchange-neutral NUSA controls.
 
 ## Flow
 

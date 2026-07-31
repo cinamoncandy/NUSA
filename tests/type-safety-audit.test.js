@@ -17,7 +17,7 @@ test("type-safety audit passes against the real repository", () => {
 });
 
 test("type-safety audit fails closed for 'as any', @ts-ignore, and eslint-disable", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-type-safety-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-type-safety-"));
   try {
     fs.mkdirSync(path.join(directory, "apps", "fixture", "src"), { recursive: true });
     fs.mkdirSync(path.join(directory, "scripts"), { recursive: true });
@@ -39,7 +39,7 @@ test("type-safety audit fails closed for 'as any', @ts-ignore, and eslint-disabl
 });
 
 test("type-safety audit ignores declaration files and non-src TypeScript", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-type-safety-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-type-safety-"));
   try {
     fs.mkdirSync(path.join(directory, "apps", "fixture", "src"), { recursive: true });
     fs.mkdirSync(path.join(directory, "scripts"), { recursive: true });

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
 
-describe("DOKKAEBI design system", () => {
+describe("NUSA design system", () => {
   it("defines the approved spacing scale and accessibility themes", () => {
     const tokens = read("apps/desktop/renderer/tokens.css");
     for (const scale of [4, 8, 12, 16, 24, 32, 48, 64, 80, 96]) {

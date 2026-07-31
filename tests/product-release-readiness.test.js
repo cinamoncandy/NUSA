@@ -155,7 +155,7 @@ test("A4O: development and production never share a writable root", () => {
   assert.equal(production.root, path.normalize(base));
   assert.equal(production.evidenceDirectory, path.join(base, "shadow-evidence"));
   assert.equal(production.paperSessionFile, path.join(base, "paper-session.json"));
-  assert.equal(production.databaseFile, path.join(base, "dokkaebi.db"));
+  assert.equal(production.databaseFile, path.join(base, "nusa.db"));
 });
 
 // ---------------------------------------------------------------------------
@@ -232,7 +232,7 @@ function diagnosticsInput(layout, overrides = {}) {
   return Object.assign({
     layout,
     runtime: {
-      appName: "Dokkaebi", appVersion: "0.1.0", commitSha: "abcdef1234567890", electronVersion: "38.0.0",
+      appName: "NUSA", appVersion: "0.1.0", commitSha: "abcdef1234567890", electronVersion: "38.0.0",
       nodeVersion: "v24.0.0", chromeVersion: "140", platform: "win32", osRelease: "10.0.22631",
       arch: "x64", environment: "PRODUCTION", mode: "PAPER"
     },
@@ -255,7 +255,7 @@ test("A4O: the diagnostics export produces a real ZIP with the sections support 
     fs.writeFileSync(path.join(layout.crashDirectory, "crash-marker.json"), "{\"cleanShutdown\":false}\n");
 
     const bundle = buildDiagnosticsPackage(diagnosticsInput(layout, { logFiles: [logFile] }));
-    assert.match(bundle.fileName, /^dokkaebi-diagnostics-.*\.zip$/);
+    assert.match(bundle.fileName, /^nusa-diagnostics-.*\.zip$/);
     const names = readZipEntryNames(bundle.archive);
     for (const expected of ["manifest.json", "safety.json", "recovery.json", "evidence-metadata.json", "error-codes.json", "logs/app-2026-07-29.log", "crash/crash-marker.json"]) {
       assert.ok(names.includes(expected), `bundle is missing ${expected}: ${JSON.stringify(names)}`);
@@ -311,7 +311,7 @@ test("A4O: About reports build identity and never leaks an absolute path to the 
   const { layout, cleanup } = temporaryLayout();
   try {
     const info = buildAboutInfo({
-      appName: "Dokkaebi", appVersion: "0.1.0", buildNumber: "  ", commitSha: "abcdef1234567890abcdef",
+      appName: "NUSA", appVersion: "0.1.0", buildNumber: "  ", commitSha: "abcdef1234567890abcdef",
       electronVersion: "38.0.0", nodeVersion: "v24.0.0", chromeVersion: "140",
       platform: "win32", osRelease: "10.0.22631", arch: "x64", mode: "PAPER", layout
     });

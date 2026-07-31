@@ -17,10 +17,10 @@ import path from "node:path";
  * authenticated endpoint and no key to keep.
  */
 
-export type DokkaebiEnvironment = "PRODUCTION" | "DEVELOPMENT";
+export type NUSAEnvironment = "PRODUCTION" | "DEVELOPMENT";
 
 export interface UserDataLayout {
-  readonly environment: DokkaebiEnvironment;
+  readonly environment: NUSAEnvironment;
   /** The single root everything below is derived from. */
   readonly root: string;
   readonly settingsFile: string;
@@ -62,7 +62,7 @@ export function resolveUserDataLayout(input: UserDataLayoutInput): UserDataLayou
   if (typeof input.userDataPath !== "string" || input.userDataPath.trim().length === 0) {
     throw new Error("userData path is required to resolve the application data layout");
   }
-  const environment: DokkaebiEnvironment = input.packaged ? "PRODUCTION" : "DEVELOPMENT";
+  const environment: NUSAEnvironment = input.packaged ? "PRODUCTION" : "DEVELOPMENT";
   const base = path.normalize(input.userDataPath);
   const root = input.packaged ? base : `${base}${DEVELOPMENT_ROOT_SUFFIX}`;
   return Object.freeze({
@@ -77,14 +77,14 @@ export function resolveUserDataLayout(input: UserDataLayoutInput): UserDataLayou
     diagnosticsDirectory: path.join(root, "diagnostics"),
     paperSessionFile: path.join(root, "paper-session.json"),
     controlSessionFile: path.join(root, "control-session.json"),
-    databaseFile: path.join(root, "dokkaebi.db"),
+    databaseFile: path.join(root, "nusa.db"),
     // Pre-A4O installs wrote these directly under userData. They are still read from there so
     // an upgrade does not silently abandon a user's existing session and evidence.
     legacy: Object.freeze({
       evidenceDirectory: path.join(base, "shadow-evidence"),
       paperSessionFile: path.join(base, "paper-session.json"),
       controlSessionFile: path.join(base, "control-session.json"),
-      databaseFile: path.join(base, "dokkaebi.db")
+      databaseFile: path.join(base, "nusa.db")
     })
   });
 }

@@ -35,7 +35,7 @@ test("Tailwind and shadcn share the CSS variable theme", () => {
 test("theme provider exposes dark and contrast themes without renderer business logic", () => {
   const provider = read("apps/desktop/renderer/theme-provider.js");
   assert.match(provider, /new Set\(\["dark", "contrast"\]\)/);
-  assert.match(provider, /DokkaebiTheme/);
+  assert.match(provider, /NUSATheme/);
   assert.doesNotMatch(provider, /electron|ipcRenderer|PaperBroker|ControlPlane/);
 });
 

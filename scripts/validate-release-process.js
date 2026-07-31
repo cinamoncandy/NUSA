@@ -17,7 +17,7 @@ const requiredDocs = [
 requiredDocs.forEach(requireFile);
 if (pkg.build?.win?.target !== "nsis") failures.push("Windows target must remain nsis");
 if (pkg.build?.asar !== true) failures.push("asar must remain enabled");
-if (pkg.build?.win?.icon !== "build/dokkaebi-a4p.ico") failures.push("A4P icon must remain configured");
+if (pkg.build?.win?.icon !== "build/nusa-a4p.ico") failures.push("A4P icon must remain configured");
 if (pkg.build?.win?.signAndEditExecutable !== false) failures.push("signing must be explicit and non-mutating by default");
 if (pkg.build?.nsis?.deleteAppDataOnUninstall !== false) failures.push("uninstall must preserve user data for recovery");
 if (pkg.build?.extraMetadata?.main !== "dist/apps/desktop/src/main.js") failures.push("compiled main must remain packaged");

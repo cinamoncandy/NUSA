@@ -181,7 +181,7 @@ export function buildDiagnosticsPackage(input: DiagnosticsExportInput): Diagnost
 
   const stamp = new Date(generatedAt).toISOString().replace(/[:.]/g, "-").replace("Z", "");
   return Object.freeze({
-    fileName: `dokkaebi-diagnostics-${stamp}.zip`,
+    fileName: `nusa-diagnostics-${stamp}.zip`,
     archive: createZipArchive(entries),
     manifest
   });

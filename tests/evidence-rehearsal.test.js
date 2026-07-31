@@ -16,7 +16,7 @@ test("rehearsal uses temporary SQLite path and remains ineligible for release", 
 });
 
 test("rehearsal output is immutable JSON and preserves no production path", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-rehearsal-output-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-rehearsal-output-"));
   const output = join(directory, "report.json");
   const report = runEvidenceRehearsal({ generatedAt: Date.UTC(2026, 6, 15), codeVersion: "test-rehearsal", outputPath: output });
   const parsed = JSON.parse(readFileSync(output, "utf8"));

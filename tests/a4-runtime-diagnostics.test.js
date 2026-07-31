@@ -14,7 +14,7 @@ const shadow = (overrides = {}) => ({
 });
 
 test("A4 diagnostics is read-only and reports readiness without leaking paths", async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-a4-diagnostics-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-a4-diagnostics-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const result = await buildA4RuntimeDiagnostics({
     preflight: preflight(), shadow: shadow(), evidenceRoot: path.join(root, "evidence"), incompleteArchives: [],
@@ -35,7 +35,7 @@ test("A4 diagnostics blocks unsafe states and preserves deterministic reason cod
   const result = await buildA4RuntimeDiagnostics({
     preflight: { deployment: diagnostic("BLOCKED", ["DEPLOYMENT_MISMATCH"]), reconciliation: diagnostic(), riskGate: diagnostic() },
     shadow: shadow({ state: "RUNNING", sessionId: "session-1", blockers: ["EVIDENCE_RECOVERY_REQUIRED"] }),
-    evidenceRoot: path.join(os.tmpdir(), "dokkaebi-a4-missing-root"), incompleteArchives: ["UNREADABLE_SHADOW_EVIDENCE"],
+    evidenceRoot: path.join(os.tmpdir(), "nusa-a4-missing-root"), incompleteArchives: ["UNREADABLE_SHADOW_EVIDENCE"],
     evidenceBus: { status: "HALTED", haltReason: "QUEUE_OVERFLOW", haltDetail: "secret/path must not be returned", published: 1, delivered: 0, duplicatesDropped: 0, queueDepth: 1, queueCapacity: 1, highWaterMark: 1, finalized: false },
     startPrecheckBlockers: ["DEPLOYMENT_MISMATCH"],
     mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 1, position: 0 }, generatedAt: 2
@@ -48,7 +48,7 @@ test("A4 diagnostics blocks unsafe states and preserves deterministic reason cod
 test("A4 diagnostics uses the exact Shadow start blocker order", async () => {
   const result = await buildA4RuntimeDiagnostics({
     preflight: preflight(), shadow: shadow({ marketDataStatus: "CONNECTING" }),
-    evidenceRoot: path.join(os.tmpdir(), "dokkaebi-a4-precheck"), incompleteArchives: [], evidenceBus: null,
+    evidenceRoot: path.join(os.tmpdir(), "nusa-a4-precheck"), incompleteArchives: [], evidenceBus: null,
     startPrecheckBlockers: ["MARKET_DATA_DISCONNECTED", "KILL_SWITCH_ACTIVE", "OPEN_P0_ALERT"],
     safety: { killSwitchActive: true, openP0Count: 1, reasonCode: "RUNTIME_FAULT" },
     mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 }, generatedAt: 100

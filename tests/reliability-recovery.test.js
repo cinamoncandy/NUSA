@@ -43,7 +43,7 @@ test("IPC recovery times out without retrying forever", async () => {
 });
 
 test("paper and control sessions restore a valid backup while returning a fail-closed diagnostic", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-recovery-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-recovery-"));
   try {
     const paperPath = join(directory, "paper.json");
     const controlPath = join(directory, "control.json");

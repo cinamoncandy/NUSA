@@ -15,7 +15,7 @@ const {
 } = require("../dist/apps/desktop/src/desktopStartupDiagnostics.js");
 
 const root = path.resolve(__dirname, "..");
-const LOG_PREFIX = "[DOKKAEBI_DESKTOP] ";
+const LOG_PREFIX = "[NUSA_DESKTOP] ";
 
 function parseFormatted(diagnostic) {
   const formatted = formatDesktopStartupDiagnostic(diagnostic);
@@ -136,7 +136,7 @@ test("F: an unparsable http(s)-looking URL redacts to a fixed placeholder instea
 // only on the http(s) prefix, so a drive-letter path under an ordinary install directory
 // exercises the exact same code path without needing a fake username at all.
 test("G: Windows file:// URLs are preserved exactly (drive letter and all), not treated as an http(s) URL", () => {
-  const windowsPath = "file:///C:/Program%20Files/dokkaebi/resources/app/apps/desktop/renderer/index.html";
+  const windowsPath = "file:///C:/Program%20Files/nusa/resources/app/apps/desktop/renderer/index.html";
   const diagnostic = createRendererLoadFailedDiagnostic({
     errorCode: -6,
     errorDescription: "ERR_FILE_NOT_FOUND",
@@ -147,7 +147,7 @@ test("G: Windows file:// URLs are preserved exactly (drive letter and all), not 
 });
 
 test("G: a Windows file:// preload path is likewise preserved exactly, not treated as an http(s) URL", () => {
-  const windowsPreloadPath = "file:///C:/Program%20Files/dokkaebi/resources/app/dist/apps/desktop/src/preload.js";
+  const windowsPreloadPath = "file:///C:/Program%20Files/nusa/resources/app/dist/apps/desktop/src/preload.js";
   const diagnostic = createPreloadErrorDiagnostic({
     preloadPath: windowsPreloadPath,
     errorMessage: "TypeError: contextBridge is not defined"

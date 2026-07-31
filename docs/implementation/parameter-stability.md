@@ -1,6 +1,6 @@
 # Parameter Stability
 
-DOKKAEBI evaluates a base strategy parameter set against an explicit, caller-supplied neighborhood.
+NUSA evaluates a base strategy parameter set against an explicit, caller-supplied neighborhood.
 
 ## Purpose
 

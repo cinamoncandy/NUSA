@@ -33,7 +33,7 @@ test("paper broker blocks invalid and risky orders", () => {
 });
 
 test("paper broker state round-trips through atomic session store", () => {
-  const directory = mkdtempSync(path.join(os.tmpdir(), "dokkaebi-paper-"));
+  const directory = mkdtempSync(path.join(os.tmpdir(), "nusa-paper-"));
   const filePath = path.join(directory, "paper-session.json");
   try {
     const original = new PaperBroker(1_000_000, "KRW-BTC", 0.001);

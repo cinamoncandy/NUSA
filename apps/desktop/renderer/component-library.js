@@ -50,5 +50,5 @@
     document.querySelectorAll(".ui-drawer:not([hidden])").forEach((drawer) => closeDrawer(drawer.id));
   });
 
-  global.DokkaebiComponents = Object.freeze({ closeDialog, closeDrawer, openDialog, openDrawer });
+  global.NUSAComponents = Object.freeze({ closeDialog, closeDrawer, openDialog, openDrawer });
 })(window);

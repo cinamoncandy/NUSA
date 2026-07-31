@@ -1,1 +1,1 @@
-window.DokkaebiApplicationState.mount(document, window);
+window.NUSAApplicationState.mount(document, window);

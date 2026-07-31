@@ -20,12 +20,12 @@ const renderA4Rows = (title, rows) => {
   section.append(list);
   return section;
 };
-function renderA4Diagnostics(diagnostics) {
+function renderA4Diagnostics(diagnostics, operationsSnapshot = null) {
   const verdict = byId("a4-diagnostics-verdict");
   const grid = byId("a4-diagnostics-grid");
   if (!verdict || !grid) return;
-  const bridgeMethods = typeof window.dokkaebi === "object" && window.dokkaebi
-    ? Object.keys(window.dokkaebi).length
+  const bridgeMethods = typeof window.nusa === "object" && window.nusa
+    ? Object.keys(window.nusa).length
     : 0;
   const shadowBridge = typeof window.shadowPilot === "object" && window.shadowPilot;
   const bridgeConnected = bridgeMethods > 0 && Boolean(shadowBridge);
@@ -43,8 +43,18 @@ function renderA4Diagnostics(diagnostics) {
   verdict.className = `a4-verdict ${bridgeConnected && diagnostics.verdict === "READY_FOR_OBSERVATION" ? "ready" : "blocked"}`;
   grid.hidden = false;
   grid.replaceChildren(
+    operationsSnapshot ? renderA4Rows("Operations snapshot", [
+      ["Mode", operationsSnapshot.mode],
+      ["Application", operationsSnapshot.applicationVersion],
+      ["Market", operationsSnapshot.marketData?.status ?? "UNKNOWN"],
+      ["Recovery", operationsSnapshot.recovery?.required ? "REQUIRED" : "CLEAR"],
+      ["Reconciliation", operationsSnapshot.reconciliation?.status ?? "UNKNOWN"],
+      ["Risk", operationsSnapshot.risk?.status ?? "UNKNOWN"],
+      ["Live trading", operationsSnapshot.liveTradingDisabled ? "DISABLED" : "BLOCKED"],
+      ["Production mutation", operationsSnapshot.productionMutationAllowed ? "ENABLED" : "DISABLED"]
+    ]) : renderA4Rows("Operations snapshot", [["Status", "NOT LOADED"]]),
     renderA4Rows("Preload bridge", [
-      ["window.dokkaebi", bridgeMethods > 0 ? "CONNECTED" : "MISSING"],
+      ["window.nusa", bridgeMethods > 0 ? "CONNECTED" : "MISSING"],
       ["window.shadowPilot", shadowBridge ? "CONNECTED" : "MISSING"],
       ["Exposed methods", bridgeMethods],
       ["Arbitrary IPC", "DISABLED"]
@@ -125,12 +135,13 @@ byId("run-a4-diagnostics")?.addEventListener("click", async () => {
   if (error) error.textContent = "";
   try {
     const preflightBlockers = await window.shadowPilot.preflight();
-    const diagnostics = await window.dokkaebi.getA4Diagnostics();
+    const diagnostics = await window.nusa.getA4Diagnostics();
+    const operationsSnapshot = await window.operations.snapshot();
     const reportedBlockers = diagnostics.startPrecheckBlockers;
     if (preflightBlockers.length !== reportedBlockers.length || preflightBlockers.some((blocker, index) => blocker !== reportedBlockers[index])) {
       throw new Error("shadow preflight and diagnostics disagree");
     }
-    renderA4Diagnostics(diagnostics);
+    renderA4Diagnostics(diagnostics, operationsSnapshot);
   } catch {
     if (error) error.textContent = "Diagnostics unavailable. No runtime action was attempted.";
     const verdict = byId("a4-diagnostics-verdict");
@@ -261,7 +272,7 @@ const renderPortfolio = (portfolio, available) => {
 };
 let lastPrice = 0;
 const chartPoints = [];
-const focusModeStorageKey = "dokkaebi.focus-mode";
+const focusModeStorageKey = "nusa.focus-mode";
 
 /*
  * Control room mount, declared before renderControl runs so the panel is always available
@@ -270,8 +281,8 @@ const focusModeStorageKey = "dokkaebi.focus-mode";
  */
 const controlRoom = (() => {
   const root = byId("control-room");
-  if (!root || !window.DokkaebiControlRoom) return null;
-  return window.DokkaebiControlRoom.createControlRoom({ root, document, shadowPilot: window.shadowPilot || null });
+  if (!root || !window.NUSAControlRoom) return null;
+  return window.NUSAControlRoom.createControlRoom({ root, document, shadowPilot: window.shadowPilot || null });
 })();
 let controlRoomTimer;
 function scheduleControlRoomRefresh() {
@@ -392,19 +403,19 @@ function toggleFocusMode() {
   setFocusMode(!document.body.classList.contains("focus-mode"));
 }
 
-window.dokkaebi.onStatus((status) => {
+window.nusa.onStatus((status) => {
   byId("status").textContent = status === "connected" ? "Upbit 연결됨" : status;
   byId("status").classList.toggle("online", status === "connected");
   controlRoom?.setMarketStatus(status);
 });
-window.dokkaebi.onTicker((ticker) => {
+window.nusa.onTicker((ticker) => {
   lastPrice = ticker.trade_price;
   byId("price").textContent = won.format(lastPrice);
   byId("change").textContent = ticker.signed_change_rate == null ? "실시간" : `${(ticker.signed_change_rate * 100).toFixed(2)}%`;
 });
-window.dokkaebi.onSnapshot(renderSnapshot);
-window.dokkaebi.onControl(renderControl);
-window.dokkaebi.onChartPoint((point) => {
+window.nusa.onSnapshot(renderSnapshot);
+window.nusa.onControl(renderControl);
+window.nusa.onChartPoint((point) => {
   chartPoints.push(point);
   if (chartPoints.length > 240) chartPoints.splice(0, chartPoints.length - 240);
   drawChart();
@@ -416,21 +427,21 @@ async function order(side) {
   const quantity = Number(byId("quantity").value);
   if (!Number.isFinite(quantity) || quantity <= 0) { byId("error").textContent = "올바른 수량을 입력하세요."; return; }
   if (!lastPrice) { byId("error").textContent = "시세 연결을 기다려 주세요."; return; }
-  try { renderSnapshot((await window.dokkaebi.placeOrder(side, quantity)).snapshot); }
+  try { renderSnapshot((await window.nusa.placeOrder(side, quantity)).snapshot); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 }
 
 byId("buy").addEventListener("click", () => order("BUY"));
 byId("sell").addEventListener("click", () => order("SELL"));
-byId("strategy-start").addEventListener("click", async () => renderControl(await window.dokkaebi.startStrategy()));
-byId("strategy-stop").addEventListener("click", async () => renderControl(await window.dokkaebi.stopStrategy()));
+byId("strategy-start").addEventListener("click", async () => renderControl(await window.nusa.startStrategy()));
+byId("strategy-stop").addEventListener("click", async () => renderControl(await window.nusa.stopStrategy()));
 byId("auto-trade").addEventListener("change", async (event) => {
-  try { renderControl(await window.dokkaebi.setAutoTrade(event.target.checked)); }
+  try { renderControl(await window.nusa.setAutoTrade(event.target.checked)); }
   catch (error) { event.target.checked = false; byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
 byId("strategy-quantity").addEventListener("change", async (event) => {
   const quantity = Number(event.target.value);
-  try { renderControl(await window.dokkaebi.setStrategyQuantity(quantity)); }
+  try { renderControl(await window.nusa.setStrategyQuantity(quantity)); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
 byId("focus-mode")?.addEventListener("click", toggleFocusMode);
@@ -450,7 +461,7 @@ function focusElement(id) {
   element?.focus?.();
 }
 
-const commandPalette = window.DokkaebiCommandPalette.createCommandPalette({
+const commandPalette = window.NUSACommandPalette.createCommandPalette({
   document,
   storage: window.localStorage,
   commands: () => {
@@ -474,7 +485,7 @@ const commandPalette = window.DokkaebiCommandPalette.createCommandPalette({
   }
 });
 
-Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()]).then(([paper, control]) => {
+Promise.all([window.nusa.getSnapshot(), window.nusa.getControlSnapshot()]).then(([paper, control]) => {
   renderSnapshot(paper);
   renderControl(control);
 }).catch(() => {
@@ -561,8 +572,8 @@ refreshCioDashboard();
  * it is modal, and it is shown before the user can act on anything.
  */
 (function mountProductScreens() {
-  const factory = window.DokkaebiProductScreens;
-  const api = window.dokkaebiApp;
+  const factory = window.NUSAProductScreens;
+  const api = window.nusaApp;
   if (!factory || !api) return;
 
   const overlays = document.getElementById("product-overlays") || document.body;

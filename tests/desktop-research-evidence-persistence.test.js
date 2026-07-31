@@ -8,7 +8,7 @@ const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPer
 const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
 test("desktop SQLite persists immutable research manifests and reports", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-research-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-research-"));
   const filename = join(directory, "paper.sqlite");
   const manifest = createResearchRunManifest({
     runId: "wf-persisted", runType: "WALK_FORWARD", strategyId: "strategy", strategyVersion: "1",

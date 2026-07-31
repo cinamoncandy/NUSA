@@ -57,7 +57,7 @@ function context(nowMs = 1000) {
 }
 
 function withDatabaseFile(run) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-execution-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-execution-"));
   const filename = path.join(directory, "execution.sqlite");
   try { run(filename); }
   finally { fs.rmSync(directory, { recursive: true, force: true }); }

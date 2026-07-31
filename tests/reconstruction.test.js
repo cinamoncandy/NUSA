@@ -200,7 +200,7 @@ test("transaction commit persists its ledger write", () => {
 });
 
 test("file-backed SQLite survives restart with ledger snapshot and marker intact", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-recovery-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recovery-"));
   const filename = path.join(directory, "positions.sqlite");
   const first = createSystem(filename);
   first.wallet.appendAndApply(entry("buy-1", LedgerSide.BUY, 10n, 100n));
@@ -214,7 +214,7 @@ test("file-backed SQLite survives restart with ledger snapshot and marker intact
 });
 
 test("file-backed restart can continue the existing projection", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-continue-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-continue-"));
   const filename = path.join(directory, "positions.sqlite");
   const first = createSystem(filename);
   first.wallet.appendAndApply(entry("buy-1", LedgerSide.BUY, 10n, 100n));

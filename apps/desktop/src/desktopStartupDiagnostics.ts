@@ -21,7 +21,7 @@ export interface DesktopStartupDiagnostic {
   readonly details?: Readonly<Record<string, string | number | boolean>>;
 }
 
-const LOG_PREFIX = "[DOKKAEBI_DESKTOP]";
+const LOG_PREFIX = "[NUSA_DESKTOP]";
 
 /**
  * http/https URLs are stripped to origin + path (query/fragment may carry tokens or

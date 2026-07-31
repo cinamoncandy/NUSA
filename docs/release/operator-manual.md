@@ -1,4 +1,4 @@
-# Dokkaebi Operator Manual
+# NUSA Operator Manual
 
 Before each session, verify API read-only connectivity, balance, open orders,
 Shadow comparison, reconciliation, Risk, and Kill Switch status. Start only
