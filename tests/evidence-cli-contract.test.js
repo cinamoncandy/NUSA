@@ -50,3 +50,14 @@ test("export and verify commands reject missing required arguments without a sta
   assert.equal(withoutKnownRuntimeWarnings(verifyResult.stderr), "evidence command failed\n");
   rmSync(root, { recursive: true, force: true });
 });
+
+test("status independently verifies an explicitly supplied evidence bundle", () => {
+  const root = mkdtempSync(join(tmpdir(), "nusa-evidence-cli-"));
+  const bundlePath = join(root, "bundle.json");
+  writeFileSync(bundlePath, JSON.stringify({ invalid: true }), "utf8");
+  const result = spawnSync(process.execPath, ["scripts/evidence-cli.js", "status", "--bundle", bundlePath], { encoding: "utf8" });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /"bundle": "FAIL"/);
+  assert.match(result.stdout, /"releaseStatus": "BLOCKED"/);
+  rmSync(root, { recursive: true, force: true });
+});

@@ -21,7 +21,7 @@ function printSafe(valueToPrint) {
 const [command, ...args] = process.argv.slice(2);
 try {
   if (command === "status") {
-    printSafe(readEvidenceStatus(value(args, "--db")));
+    printSafe(readEvidenceStatus(value(args, "--db"), value(args, "--bundle")));
   } else if (command === "export") {
     const bundle = exportEvidence({
       databasePath: required(args, "--db"),
