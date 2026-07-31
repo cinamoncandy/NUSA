@@ -1,0 +1,37 @@
+id: WO-0001
+schema_version: 1
+title: "Complete the NUSA repository continuity contract"
+status: in_progress
+priority: 100
+owner: any-compatible-ai
+objective: "Ensure an AI with repository access and no conversation history can identify NUSA's current state, constraints, next task, and verification requirements."
+inputs:
+  - .aipos/aipos.yaml
+  - .aipos/architecture.md
+  - .aipos/state.yaml
+  - .aipos/context.md
+  - .aipos/decisions/ADR-0001-aipos-purpose.md
+  - packages/core/src
+  - packages/aipos/src
+constraints:
+  - "Do not create a second runtime or lifecycle system."
+  - "Do not enable live exchange mutation."
+  - "Do not depend on a specific AI vendor or conversation format."
+  - "Keep all recovery-critical information committed to the repository."
+acceptance_criteria:
+  - "Manifest identifies repository paths and recovery protocol."
+  - "Architecture describes actual NUSA runtime boundaries."
+  - "State identifies completed, active, blocked, and next work."
+  - "At least one decision explains why AIPOS exists inside NUSA."
+  - "Agent entry instructions direct all AIs to .aipos first."
+  - "Typecheck, build, and repository tests pass."
+verification:
+  commands:
+    - "pnpm run typecheck"
+    - "pnpm run build"
+    - "pnpm test"
+completion:
+  update:
+    - .aipos/state.yaml
+    - .aipos/work-orders/WO-0001-repository-contract.yaml
+  stop_after_update: true
