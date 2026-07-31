@@ -1,0 +1,21 @@
+appId: com.dokkaebi.trader
+productName: Dokkaebi
+asar: true
+directories:
+  output: release
+files:
+  - dist/**/*
+  - apps/desktop/renderer/**/*
+  - apps/desktop/package.json
+  - package.json
+  - '!**/*.ts'
+  - '!**/*.map'
+  - '!**/tests{,/**/*}'
+  - '!**/docs{,/**/*}'
+extraMetadata:
+  main: dist/apps/desktop/src/main.js
+win:
+  target: portable
+  icon: build/dokkaebi-a4p.ico
+  artifactName: Dokkaebi-${version}-Windows-Portable.${ext}
+  signAndEditExecutable: false
