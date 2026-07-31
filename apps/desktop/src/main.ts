@@ -1092,7 +1092,9 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
 
 // Operations is intentionally a read-only projection of facts already owned by the main
 // process. It exposes no execution, credential, or arbitrary IPC capability to the renderer.
-ipcMain.handle("operations:snapshot", () => Object.freeze({
+ipcMain.handle("operations:snapshot", () => {
+  const recoveryReviewStatus = recoveryReview.status();
+  return Object.freeze({
   applicationVersion: aboutInfo?.appVersion ?? app.getVersion(),
   buildVersion: PAPER_SAFETY_SOURCE_COMMIT,
   gitCommit: PAPER_SAFETY_SOURCE_COMMIT,
@@ -1113,9 +1115,16 @@ ipcMain.handle("operations:snapshot", () => Object.freeze({
   recovery: Object.freeze({
     required: crashRecoveryRequired,
     recordId: recoveryRecordId,
-    diagnostic: crashRecoveryDiagnostic
+    diagnostic: crashRecoveryDiagnostic,
+    review: recoveryReviewStatus
   }),
-  reconciliation: Object.freeze({ status: operationalPreflight.reconciliation.status }),
+  reconciliation: Object.freeze({
+    status: recoveryReviewStatus.reconciliation,
+    mismatchCodes: recoveryReviewStatus.mismatchCodes,
+    errorCodes: recoveryReviewStatus.errorCodes,
+    checkedAt: recoveryReviewStatus.checkedAt,
+    gate: recoveryReviewStatus.gate
+  }),
   execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
   audit: persistenceStore?.loadOperationsAudit() ?? operationsAudit,
   alerts: persistenceStore?.loadOperationsAlerts() ?? operationsAlerts,
@@ -1126,7 +1135,8 @@ ipcMain.handle("operations:snapshot", () => Object.freeze({
   // avoids turning a read-only diagnostics field into a capability-looking API surface.
   mutationCounters: Object.freeze({ orders: 0, fills: 0, cash: 0, position: 0, broker: 0, authenticatedEndpointCalls: 0 }),
   observedAt: new Date().toISOString()
-}));
+  });
+});
 
 app.whenReady().then(() => {
   // First, before any subsystem asks for a path of its own.
