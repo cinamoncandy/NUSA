@@ -11,6 +11,7 @@ import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard
 import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperSafetySnapshot";
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../cloud/src/investmentCommitteeLedger";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
@@ -304,6 +305,19 @@ export class DesktopPersistenceStore {
       connection: this.db,
       transaction: <T>(operation: () => T): T => this.transaction(operation)
     });
+  }
+
+  /** Reads the existing append-only committee ledger without creating or mutating it. */
+  loadCommitteeDashboardSource(): Readonly<{ decision: RecordedCommitteeDecision | null; integrity: "VALID" | "UNAVAILABLE" | "INVALID" }> {
+    try {
+      const rows = this.db.prepare("SELECT sequence, previous_hash, decision_json, hash FROM investment_committee_events ORDER BY sequence ASC").all() as Array<Record<string, unknown>>;
+      if (rows.length === 0) return Object.freeze({ decision: null, integrity: "UNAVAILABLE" as const });
+      const records = rows.map((row) => Object.freeze({ sequence: Number(row.sequence), previousHash: String(row.previous_hash), decision: JSON.parse(String(row.decision_json)) as RecordedCommitteeDecision, hash: String(row.hash) })) as readonly CommitteeLedgerRecord[];
+      replayCommitteeLedger(records);
+      return Object.freeze({ decision: records[records.length - 1]!.decision, integrity: "VALID" as const });
+    } catch {
+      return Object.freeze({ decision: null, integrity: "INVALID" as const });
+    }
   }
 
   appendOperationsAudit(record: OperationsAuditRecord): void {

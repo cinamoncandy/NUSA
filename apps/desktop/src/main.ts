@@ -11,6 +11,7 @@ import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
+import { buildPersistedCommitteeDashboardSection } from "./committeeDashboardProjection";
 import { resolveRendererIndexPath } from "./rendererPath";
 import {
   createPreloadErrorDiagnostic,
@@ -330,7 +331,12 @@ function publishAiCioDashboard(): void {
         generatedAt
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
-      executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2
+      executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
+      committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
+        ...persistenceStore.loadCommitteeDashboardSource(),
+        generatedAt,
+        maximumAgeMs: 60_000
+      })
     }), generatedAt);
   } catch {
     aiCioSnapshotPublisher.clear();

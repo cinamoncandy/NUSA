@@ -4,6 +4,7 @@ import type {
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
+import type { CommitteeDashboardSection } from "../../cloud/src/dashboardAggregator";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -29,6 +30,7 @@ export interface PaperDashboardProjectionInput {
    * quality. Omitting this field reproduces the prior hardcoded-0 placeholder exactly.
    */
   readonly executionCostBps?: number;
+  readonly committee?: CommitteeDashboardSection;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -131,7 +133,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       blockedStrategies,
       warningStrategies
     }),
-    committee: Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
+    committee: input.committee ?? Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
     execution: Object.freeze({
       status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
       availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
