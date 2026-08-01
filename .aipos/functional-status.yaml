@@ -87,4 +87,4 @@ features:
     test_paths: [tests/secure-session.test.js]
     evidence: [mobile-security-session-audit-2026-08-01.md, "focused tests 3/3", "CI-mode build PASS"]
     blockers: [concrete OS secure-storage, biometric/PIN, and Electron/mobile platform bindings remain]
-    latest_evidence: mobile-security-session-audit-2026-08-01.md; mobile-security tests 7/7; CI-mode build PASS
+    latest_evidence: mobile-security-session-audit-2026-08-01.md; secure-storage-vertical-slice-2026-08-01.md; mobile-security tests 7/7; secure-storage tests 3/3; CI-mode build PASS

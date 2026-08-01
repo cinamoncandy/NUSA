@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: RISK-002-risk-evidence-vertical-slice. RiskDecision now carries timestamp, rule ID, input parameters, account state, market state, and correlation ID; SQLite evidence is append-only, queryable, and recovery-surviving. Affected tests 8/8, typecheck/build PASS. Known Risk surface separation remains.
+Current mission: EP06-003-secure-storage. Added Electron safeStorage adapter plus encrypted dedicated file storage, atomic writes, key rotation, and secure deletion; Secure Storage tests 3/3, typecheck/build PASS. Biometric and trusted-device work remain separate.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
