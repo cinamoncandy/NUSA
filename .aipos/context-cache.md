@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP06-004-mobile-biometric-authentication. Added fail-closed biometric authentication with PIN fallback, configurable lockout, critical-action authentication, and session re-authentication; affected tests 11/11, typecheck/build PASS. Trusted Device remains unchanged.
+Current mission: EP06-005-mobile-security-integration. MobileSecurityCoordinator integrates trusted-device admission, biometric/PIN authentication, secure storage, session lifecycle, and recovery-safe resume. Security/integration/recovery/Ledger/Offline/Risk Evidence suites pass 52/52; typecheck/build PASS.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

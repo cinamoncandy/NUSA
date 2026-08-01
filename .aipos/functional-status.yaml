@@ -95,3 +95,10 @@ features:
     test_paths: [tests/mobile-biometric.test.js]
     evidence: [mobile-biometric-vertical-slice-2026-08-02.md, "affected tests 11/11", "CI-mode typecheck/build PASS"]
     blockers: [native biometric adapter wiring remains platform-dependent]
+  - id: mobile-security.integration
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/mobileSecurityCoordinator.ts]
+    test_paths: [tests/mobile-security-integration.test.js]
+    evidence: [security-verification-report-2026-08-02.md, "integrated suites 52/52", "CI-mode typecheck/build PASS"]
+    blockers: [platform runtime validation remains]
