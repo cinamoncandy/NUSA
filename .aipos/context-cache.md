@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: TE-001-trading-engine-boundary-audit completed the invalid execution-time mutation fix. Next is a minimal ExchangeProfile contract; no second exchange or live mutation.
+Current mission: AC-001-paper-accounting-ledger. Audit found PaperBroker directly owns financial state; accounting is PARTIAL until an append-only fill ledger can replay the same projection. No live mutation.

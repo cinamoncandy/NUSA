@@ -1,14 +1,14 @@
-id: TE-001-trading-engine-boundary-audit
-title: Audit and harden deterministic Paper execution failure boundaries
+id: AC-001-paper-accounting-ledger
+title: Add a backward-compatible append-only Paper accounting ledger
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: trading-engine
+phase: accounting
 status: IN_PROGRESS
 scope:
-  - deterministic Paper execution validation
-  - preserve existing accounting behavior
-  - no exchange or live mutation
+  - append-only Paper fill ledger
+  - replayable accounting projection
+  - preserve existing Paper behavior
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Define and test the smallest ExchangeProfile contract, then inject the existing Upbit Paper profile without changing execution behavior.
+next_recommended_task: Add the smallest backward-compatible Paper ledger entry model and replay parity tests before changing accounting ownership.

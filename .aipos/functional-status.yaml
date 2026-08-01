@@ -23,10 +23,11 @@ features:
     latest_evidence: trading-engine-audit-2026-08-01.md; paper-broker-fill-model 12/12; CI-mode build PASS
   - id: accounting.portfolio-pnl
     priority: critical
-    status: VERIFIED_COMPLETE
+    status: PARTIAL
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
-    blockers: []
+    blockers: [PaperBroker financial state is not yet projected from an authoritative append-only fill ledger]
+    latest_evidence: accounting-portfolio-audit-2026-08-01.md
   - id: persistence.recovery
     priority: critical
     status: VERIFIED_COMPLETE
