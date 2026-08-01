@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-01T14:50:00+09:00"
+updated_at: "2026-08-01T15:13:52+09:00"
 phase: repository-health
 status: blocked
 objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
@@ -43,8 +43,8 @@ verification:
     - "pnpm run release:check"
     - "pnpm run test:coverage"
   last_result: "PASS for all listed commands on 2026-08-01; UI/E2E required external execution because the sandbox blocks Vitest/Playwright parent-path access."
-  last_verified_ci_commit: "ac49fb9e373adc703e7faf128bc29eaa10e0bed5"
-  pr_44_ci: "PASS: pull_request run 30686975667 on ac49fb9e373adc703e7faf128bc29eaa10e0bed5; all CI steps completed successfully."
+  last_verified_ci_commit: "3357e4ab7d66af32c052b6bd081ae3a6d98611e8"
+  pr_44_ci: "PASS: pull_request runs 30687090570 and 30687091954 on 3357e4ab7d66af32c052b6bd081ae3a6d98611e8; all CI steps completed successfully."
   coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; Vitest contract suite only, documented in docs/quality/coverage-baseline.md."
   ci_workflow: "CI now runs typecheck, build, lint, UI, E2E, package validation, release check, full isolated tests, and uploads coverage-baseline."
 human_authority:
