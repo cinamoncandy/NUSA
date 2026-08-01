@@ -19,6 +19,7 @@
     "test:ui": "vitest run --config vitest.config.mjs",
     "test:e2e": "playwright test",
     "coverage": "node scripts/run-coverage.js",
+    "determinism": "node scripts/run-determinism-check.js",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "desktop": "pnpm run build && electron apps/desktop",
