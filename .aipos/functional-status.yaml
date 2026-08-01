@@ -102,3 +102,10 @@ features:
     test_paths: [tests/mobile-security-integration.test.js]
     evidence: [security-verification-report-2026-08-02.md, "integrated suites 52/52", "CI-mode typecheck/build PASS"]
     blockers: [platform runtime validation remains]
+  - id: mobile-security.trusted-devices
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/trustedDeviceManagement.ts]
+    test_paths: [tests/trusted-device-management.test.js]
+    evidence: [trusted-device-vertical-slice-2026-08-02.md, "related tests 19/19", "CI-mode typecheck/build PASS"]
+    blockers: [native device identity and platform verification runtime validation remains]
