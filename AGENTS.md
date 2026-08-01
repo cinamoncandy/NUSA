@@ -20,7 +20,7 @@ Do not rely on prior conversation history. The repository is the source of truth
 Before changing code:
 
 1. Complete the AIPOS recovery steps above.
-2. Read `NUSA.md` when the task touches the current paper-trading application.
+2. Read `DOKKAEBI.md` when the task touches the current paper-trading application.
 3. Inspect the active branch, open PR, tests, and CI state.
 4. Preserve existing architecture unless a documented decision justifies a change.
 5. State the intended profit, safety, efficiency, or convenience impact of the work.
@@ -88,4 +88,4 @@ A task is complete only when:
 
 ## Current priority
 
-Follow `.aipos/state.yaml`. Preserve the Upbit spot paper-trading safety boundary while completing NUSA execution operations, recovery, product identity, and release-readiness integration.
+Follow `.aipos/state.yaml`. At the time this entrypoint was updated, the priority was to complete NUSA's cross-AI repository continuity contract while preserving the Upbit spot paper-trading safety boundary.
