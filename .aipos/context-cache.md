@@ -36,4 +36,8 @@ Accounting release slice: `PaperAccountingService` now isolates multiple Paper a
 
 Offline release slice: `FileOfflineCache` provides atomic durable checksummed storage, `NetworkStateMonitor` gates synchronization on explicit connectivity, and `OfflineSynchronizationService` applies deterministic version/timestamp conflict rules and fails closed on ambiguity. Offline/Recovery/Integration/Ledger/Risk/Security tests pass 59/59.
 
+Sprint C runtime slice: `RuntimeMetricsCollector` adds bounded monotonic CPU/memory samples and fail-closed health classification. Runtime/recovery/reconnect/offline/security tests pass 58/58; native mobile and real external Upbit/long-duration evidence remain external blockers.
+
+Sprint C gate evidence on 2026-08-02: full isolated suite `291` files PASS; UI `4/4` PASS; E2E `4/4` PASS; typecheck/build/lint/diff PASS. Added `apps/execution/src/runtime-metrics.ts` and `tests/runtime-metrics.test.js`. Sprint D remains blocked on native mobile runtime, real Upbit runtime, long-duration CPU/memory/battery evidence, Electron smoke, and installer validation.
+
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

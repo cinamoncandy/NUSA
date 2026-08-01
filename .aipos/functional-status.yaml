@@ -116,3 +116,17 @@ features:
     test_paths: [tests/session-security.test.js, tests/secure-session.test.js]
     evidence: [mobile-security-complete-2026-08-02.md, "security tests 22/22", "integration and recovery tests 61/61"]
     blockers: [platform runtime validation remains]
+  - id: runtime.stability-metrics
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/runtime-metrics.ts]
+    test_paths: [tests/runtime-metrics.test.js, tests/runtime-health-monitor.test.js, tests/shadow-long-running-observation.test.js]
+    evidence: [runtime-stability-sprint-c-2026-08-02.md, "focused runtime suite 58/58", "full isolated suite 291 files PASS", "UI 4/4 PASS", "E2E 4/4 PASS"]
+    blockers: []
+  - id: runtime.long-duration-validation
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/execution/src/runtime-metrics.ts, apps/desktop/src/shadowLongRunningDiagnostics.ts]
+    test_paths: [tests/shadow-long-running-observation.test.js]
+    evidence: [runtime-stability-sprint-c-2026-08-02.md]
+    blockers: [long-duration CPU/memory/battery execution requires external runtime]
