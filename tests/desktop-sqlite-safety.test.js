@@ -7,14 +7,14 @@ const { DatabaseSync } = require("node:sqlite");
 const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
 
 function withTempDirectory(operation) {
-  const directory = mkdtempSync(path.join(tmpdir(), "dokkaebi-desktop-sqlite-"));
+  const directory = mkdtempSync(path.join(tmpdir(), "nusa-desktop-sqlite-"));
   try { return operation(directory); }
   finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 test("desktop persistence applies and verifies required SQLite safety pragmas", () => {
   withTempDirectory((directory) => {
-    const filename = path.join(directory, "dokkaebi.db");
+    const filename = path.join(directory, "nusa.db");
     const store = new DesktopPersistenceStore(filename);
     store.close();
 
@@ -35,7 +35,7 @@ test("desktop persistence applies and verifies required SQLite safety pragmas", 
 
 test("desktop persistence fails closed for a corrupt SQLite file", () => {
   withTempDirectory((directory) => {
-    const filename = path.join(directory, "dokkaebi.db");
+    const filename = path.join(directory, "nusa.db");
     writeFileSync(filename, "not-a-sqlite-database", "utf8");
     assert.throws(() => new DesktopPersistenceStore(filename), /desktop persistence startup verification failed/);
   });

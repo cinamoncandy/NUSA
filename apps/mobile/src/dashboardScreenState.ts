@@ -13,7 +13,7 @@ export interface DashboardScreenState {
 
 export const initialDashboardScreenState = (): DashboardScreenState => Object.freeze({
   phase: "LOADING",
-  headline: "도깨비가 운용 상태를 확인하고 있습니다.",
+  headline: "NUSA가 운용 상태를 확인하고 있습니다.",
   canTrade: false
 });
 

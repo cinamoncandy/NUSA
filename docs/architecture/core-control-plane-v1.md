@@ -2,7 +2,7 @@
 
 ## Decision
 
-DOKKAEBI keeps the existing governance, committee, audit, replay, evidence, recovery and operator capabilities, but removes them from the real-time decision path.
+NUSA keeps the existing governance, committee, audit, replay, evidence, recovery and operator capabilities, but removes them from the real-time decision path.
 
 The real-time path is fixed to seven stages:
 

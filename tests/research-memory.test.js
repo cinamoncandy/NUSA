@@ -5,7 +5,7 @@ const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const { SqliteDatabase, SqliteResearchMemoryRepository } = require("../dist/packages/storage/src/index.js");
 
-const file = () => join(mkdtempSync(join(tmpdir(), "dokkaebi-research-memory-")), "research.db");
+const file = () => join(mkdtempSync(join(tmpdir(), "nusa-research-memory-")), "research.db");
 const hypothesis = () => ({ id: "hypothesis.sma.v1", title: "SMA crossover", statement: "A crossover may outperform after costs.", status: "DRAFT", createdAt: "2026-01-01T00:00:00.000Z" });
 const experiment = () => ({ id: "experiment.sma.v1", datasetId: "upbit_KRW-BTC_1m_20260101_20260101_abc123", contentSha256: "a".repeat(64), manifestSchemaVersion: 1, market: "KRW-BTC", interval: "1m", startOpenTime: 0, endCloseTime: 60_000, walkForwardConfigJson: "{\"trainSize\":3}", resultJson: "{\"markedTotalReturn\":0.01}", createdAt: "2026-01-02T00:00:00.000Z", hypothesisId: "hypothesis.sma.v1" });
 

@@ -36,7 +36,7 @@ async function retryWithTimeout<T>(operation: () => Promise<T>, policy: Readonly
   throw lastError instanceof Error ? lastError : new Error("IPC request failed");
 }
 
-export interface DokkaebiApi {
+export interface NUSAApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
   getSnapshot(): Promise<PaperAccountSnapshot | null>;
   getPreflight(): Promise<OperationalPreflightState>;
@@ -68,7 +68,7 @@ const invokeReadWithRecovery = <T>(channel: string, ...args: readonly unknown[])
 const invokeMutation = <T>(channel: string, ...args: readonly unknown[]): Promise<T> =>
   ipcRenderer.invoke(channel, ...args) as Promise<T>;
 
-const api: DokkaebiApi = {
+const api: NUSAApi = {
   placeOrder: (side, quantity) => invokeMutation("paper:order", { side, quantity }),
   getSnapshot: () => invokeReadWithRecovery("paper:snapshot"),
   getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
@@ -107,6 +107,24 @@ export interface ShadowPilotApi {
   stop(sessionId: string): Promise<unknown>;
   status(): Promise<unknown>;
 }
+
+export interface NUSAOperationsApi {
+  snapshot(): Promise<Readonly<Record<string, unknown>>>;
+  listExecutions(): Promise<readonly unknown[]>;
+  getExecution(executionId: string): Promise<unknown | null>;
+  listTransitions(executionId: string): Promise<readonly unknown[]>;
+  listFills(executionId: string): Promise<readonly unknown[]>;
+  getExecutionHealth(): Promise<Readonly<Record<string, unknown>>>;
+}
+
+const operations: NUSAOperationsApi = Object.freeze({
+  snapshot: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("operations:snapshot"),
+  listExecutions: () => invokeReadWithRecovery<readonly unknown[]>("execution:list"),
+  getExecution: (executionId: string) => invokeReadWithRecovery("execution:get", executionId),
+  listTransitions: (executionId: string) => invokeReadWithRecovery<readonly unknown[]>("execution:transitions", executionId),
+  listFills: (executionId: string) => invokeReadWithRecovery<readonly unknown[]>("execution:fills", executionId),
+  getExecutionHealth: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("execution:health")
+});
 
 const shadowPilot: ShadowPilotApi = Object.freeze({
   preflight: () => invokeReadWithRecovery<readonly string[]>("shadow:preflight"),
@@ -152,7 +170,7 @@ const recoveryReview: RecoveryReviewApi = Object.freeze({
  * `openFolder` takes one of three KEYS, never a path. A renderer able to name a directory
  * would turn "open my logs" into "open anything on this machine, from the main process".
  */
-export interface DokkaebiAppApi {
+export interface NUSAAppApi {
   firstRun(): Promise<unknown>;
   acknowledgeFirstRun(): Promise<unknown>;
   settings(): Promise<unknown>;
@@ -165,7 +183,7 @@ export interface DokkaebiAppApi {
   onShutdown(listener: (progress: unknown) => void): void;
 }
 
-const dokkaebiApp: DokkaebiAppApi = Object.freeze({
+const nusaApp: NUSAAppApi = Object.freeze({
   firstRun: () => invokeReadWithRecovery("app:first-run"),
   // A confirmation is a mutation: it is never retried on the user's behalf, because a retry
   // would record a second acknowledgement nobody clicked for.
@@ -184,8 +202,9 @@ const dokkaebiApp: DokkaebiAppApi = Object.freeze({
   }
 });
 
-contextBridge.exposeInMainWorld("dokkaebi", api);
-contextBridge.exposeInMainWorld("dokkaebiApp", dokkaebiApp);
+contextBridge.exposeInMainWorld("nusa", api);
+contextBridge.exposeInMainWorld("nusaApp", nusaApp);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
 contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);
+contextBridge.exposeInMainWorld("operations", operations);

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none';" />
-  <title>Dokkaebi Paper Trader</title>
+  <title>NUSA Paper Trader</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="components.css" />
   <link rel="stylesheet" href="command-palette.css" />
@@ -24,8 +24,8 @@
   <main class="app-shell" data-testid="app-shell">
     <aside class="app-sidebar" aria-label="Primary navigation">
       <div class="brand-lockup">
-        <img src="assets/dokkaebi-a4p-symbol.svg" alt="도깨비" class="brand-lockup__mark" />
-        <div><strong>도깨비</strong><span>DOKKAEBI</span></div>
+        <img src="assets/nusa-a4p-symbol.svg" alt="NUSA" class="brand-lockup__mark" />
+        <div><strong>NUSA</strong><span>NUSA</span></div>
       </div>
       <p class="sidebar-caption">PAPER INVESTMENT OS</p>
       <nav class="primary-nav" aria-label="Workspace">
@@ -48,7 +48,7 @@
     <div class="app-main">
       <div id="dashboard" class="screen-anchor" aria-hidden="true"></div>
     <header class="app-header">
-      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/dokkaebi-a4p-lockup.svg" alt="Dokkaebi Control Room" /></h1></div>
+      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/nusa-a4p-lockup.svg" alt="NUSA Control Room" /></h1></div>
       <div class="header-actions"><button id="command-palette-trigger" class="ui-button ui-button--secondary ui-button--small" type="button" aria-haspopup="dialog" aria-controls="command-palette">명령 <kbd>Ctrl K</kbd></button><span id="status" class="status">연결 준비</span></div>
     </header>
     <!--
@@ -85,6 +85,7 @@
       <p id="recovery-review-note" class="a4-note">승인 버튼은 대조 결과가 일치(MATCHED)일 때만 활성화됩니다. 승인해도 복구는 자동으로 완료되지 않습니다.</p>
       <p id="recovery-review-error" class="error" role="alert" aria-live="assertive"></p>
     </section>
+    <section id="evidence" class="product-section" aria-label="Evidence and operations records"></section>
     <section id="market" class="hero card">
       <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
       <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
@@ -96,7 +97,7 @@
       <article class="card"><h2>계좌</h2><dl><div><dt>현금</dt><dd id="cash">-</dd></div><div><dt>보유 수량</dt><dd id="position">-</dd></div><div><dt>평균 단가</dt><dd id="average">-</dd></div><div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div><div><dt>실현 손익</dt><dd id="realized">-</dd></div></dl></article>
       <article class="card"><h2>이벤트 로그</h2><ul id="events" class="events"><li>이벤트 없음</li></ul></article>
     </section>
-    <section class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead><tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody></table></section>
+    <section id="orders-panel" class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead><tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody></table></section>
     <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
     <section id="ai-cio-dashboard" class="card cio-panel" aria-label="AI CIO read-only command center" tabindex="-1">
       <div class="cio-header">

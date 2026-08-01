@@ -117,7 +117,7 @@ export class RuntimeCommandService {
       }
       const quantity = signal.type === "SELL" ? Math.min(positionQuantity, this.control.getOrderQuantity()) : this.control.getOrderQuantity();
       let order: PaperOrder;
-      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price); order = this.broker.execute(signal.type, quantity, price); }
+      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price); order = this.broker.execute(signal.type, quantity, price, new Date(), { strategyId: this.strategy.getStrategyId() }); }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);

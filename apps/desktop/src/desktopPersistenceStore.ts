@@ -10,12 +10,18 @@ import { validateResearchRunManifest, type ResearchRunManifest, type ResearchVal
 import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard";
 import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperSafetySnapshot";
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
+import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../cloud/src/investmentCommitteeLedger";
+import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
+import { validateOpportunitySchedule } from "./opportunityDashboardProjection";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
 const SHA256 = /^[a-f0-9]{64}$/i;
 
 export interface DesktopPersistenceState { readonly paper: PaperBrokerState; readonly control: ControlPlaneState; }
+export interface OperationsAuditRecord { readonly auditId: string; readonly actor: string; readonly action: string; readonly target: string | null; readonly metadata: Readonly<Record<string, unknown>>; readonly createdAt: string; }
+export interface OperationsAlertRecord { readonly alertId: string; readonly severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL"; readonly source: string; readonly code: string; readonly message: string; readonly createdAt: string; }
 
 const migrations = [{ id: "001_desktop_runtime", sql: `
 CREATE TABLE desktop_account_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
@@ -35,6 +41,11 @@ CREATE TABLE desktop_owner_review_records (review_id TEXT PRIMARY KEY, bundle_ch
 CREATE TABLE desktop_strategy_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
 ` }, { id: "006_desktop_paper_safety_snapshot", sql: `
 CREATE TABLE desktop_paper_safety_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
+` }, { id: "007_desktop_operations", sql: `
+CREATE TABLE desktop_operations_audit (audit_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
+CREATE TABLE desktop_operations_alerts (alert_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, severity TEXT NOT NULL, payload TEXT NOT NULL);
+` }, { id: "008_desktop_opportunity_schedules", sql: `
+CREATE TABLE desktop_opportunity_schedules (schedule_id TEXT PRIMARY KEY, source TEXT NOT NULL, generated_at INTEGER NOT NULL, payload TEXT NOT NULL, payload_checksum TEXT NOT NULL UNIQUE);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -287,6 +298,102 @@ export class DesktopPersistenceStore {
   }
 
   close(): void { this.db.close(); }
+
+  /**
+   * A5D uses the same durable SQLite file as Paper and recovery. The returned repository is
+   * read/write for future execution orchestration, but this method alone performs no order
+   * mutation; the desktop currently exposes only its read-only projections to the renderer.
+   */
+  executionRepository(): SqliteDurableExecutionRepository {
+    return new SqliteDurableExecutionRepository({
+      connection: this.db,
+      transaction: <T>(operation: () => T): T => this.transaction(operation)
+    });
+  }
+
+  appendResearchEvidenceBundle(entries: readonly Readonly<{ manifest: ResearchRunManifest; report: ResearchValidationReport }>[]): void {
+    if (entries.length === 0) throw new Error("research evidence bundle is empty");
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      validateResearchRunManifest(entry.manifest);
+      this.assertResearchReport(entry.report);
+      if (entry.manifest.runId !== entry.report.runId || entry.manifest.runType !== entry.report.runType || entry.manifest.resultChecksum !== entry.report.resultChecksum) {
+        throw new Error("research evidence bundle identity mismatch");
+      }
+      if (seen.has(entry.manifest.runId)) throw new Error("research evidence bundle contains duplicate runId");
+      seen.add(entry.manifest.runId);
+    }
+    this.transaction(() => {
+      for (const entry of entries) {
+        const manifestPayload = JSON.stringify(entry.manifest);
+        const reportPayload = JSON.stringify(entry.report);
+        const existingManifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(entry.manifest.runId) as { manifest_json: string } | undefined;
+        const existingReport = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(entry.report.runId, entry.report.runType) as { report_json: string } | undefined;
+        if (existingManifest != null && existingManifest.manifest_json !== manifestPayload) throw new Error("research manifest identity conflict");
+        if (existingReport != null && existingReport.report_json !== reportPayload) throw new Error("research validation report identity conflict");
+        if (existingManifest == null) this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(entry.manifest.runId, entry.manifest.runType, entry.manifest.strategyId, entry.manifest.strategyVersion, entry.manifest.datasetId, entry.manifest.datasetChecksum, manifestPayload);
+        if (existingReport == null) this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(entry.report.runId, entry.report.runType, reportPayload);
+      }
+    });
+  }
+
+  /** Reads the existing append-only committee ledger without creating or mutating it. */
+  loadCommitteeDashboardSource(): Readonly<{ decision: RecordedCommitteeDecision | null; integrity: "VALID" | "UNAVAILABLE" | "INVALID" }> {
+    try {
+      const rows = this.db.prepare("SELECT sequence, previous_hash, decision_json, hash FROM investment_committee_events ORDER BY sequence ASC").all() as Array<Record<string, unknown>>;
+      if (rows.length === 0) return Object.freeze({ decision: null, integrity: "UNAVAILABLE" as const });
+      const records = rows.map((row) => Object.freeze({ sequence: Number(row.sequence), previousHash: String(row.previous_hash), decision: JSON.parse(String(row.decision_json)) as RecordedCommitteeDecision, hash: String(row.hash) })) as readonly CommitteeLedgerRecord[];
+      replayCommitteeLedger(records);
+      return Object.freeze({ decision: records[records.length - 1]!.decision, integrity: "VALID" as const });
+    } catch {
+      return Object.freeze({ decision: null, integrity: "INVALID" as const });
+    }
+  }
+
+  appendOperationsAudit(record: OperationsAuditRecord): void {
+    this.db.prepare("INSERT INTO desktop_operations_audit (audit_id, created_at, payload) VALUES (?, ?, ?) ON CONFLICT(audit_id) DO NOTHING").run(record.auditId, record.createdAt, JSON.stringify(record));
+  }
+
+  loadOperationsAudit(limit = 50): readonly OperationsAuditRecord[] {
+    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
+    const rows = this.db.prepare("SELECT payload FROM desktop_operations_audit ORDER BY created_at DESC, audit_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
+    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAuditRecord)));
+  }
+
+  appendOperationsAlert(record: OperationsAlertRecord): void {
+    this.db.prepare("INSERT INTO desktop_operations_alerts (alert_id, created_at, severity, payload) VALUES (?, ?, ?, ?) ON CONFLICT(alert_id) DO NOTHING").run(record.alertId, record.createdAt, record.severity, JSON.stringify(record));
+  }
+
+  loadOperationsAlerts(limit = 50): readonly OperationsAlertRecord[] {
+    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
+    const rows = this.db.prepare("SELECT payload FROM desktop_operations_alerts ORDER BY created_at DESC, alert_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
+    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAlertRecord)));
+  }
+
+  appendOpportunitySchedule(input: Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }>): void {
+    if (!input.scheduleId.trim() || !input.source.trim() || !Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("opportunity schedule identity is invalid");
+    validateOpportunitySchedule(input.schedule);
+    const payload = JSON.stringify(input.schedule);
+    const payloadChecksum = createHash("sha256").update(payload, "utf8").digest("hex");
+    this.transaction(() => {
+      const existing = this.db.prepare("SELECT source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules WHERE schedule_id = ?").get(input.scheduleId) as { source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
+      if (existing != null) {
+        if (existing.source !== input.source || existing.generated_at !== input.generatedAt || existing.payload !== payload || existing.payload_checksum !== payloadChecksum) throw new Error("opportunity schedule identity conflict");
+        return;
+      }
+      this.db.prepare("INSERT INTO desktop_opportunity_schedules (schedule_id, source, generated_at, payload, payload_checksum) VALUES (?, ?, ?, ?, ?)").run(input.scheduleId, input.source, input.generatedAt, payload, payloadChecksum);
+    });
+  }
+
+  loadLatestOpportunitySchedule(): Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }> | undefined {
+    const row = this.db.prepare("SELECT schedule_id, source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules ORDER BY generated_at DESC, schedule_id DESC LIMIT 1").get() as { schedule_id: string; source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
+    if (row == null) return undefined;
+    const checksum = createHash("sha256").update(row.payload, "utf8").digest("hex");
+    if (checksum !== row.payload_checksum) throw new Error("opportunity schedule checksum mismatch");
+    const schedule = JSON.parse(row.payload) as OpportunitySchedule;
+    validateOpportunitySchedule(schedule);
+    return Object.freeze({ scheduleId: row.schedule_id, source: row.source, generatedAt: Number(row.generated_at), schedule: Object.freeze(schedule) });
+  }
 
   private configureSafetyPragmas(): void {
     this.db.exec("PRAGMA foreign_keys = ON");

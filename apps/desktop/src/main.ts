@@ -5,12 +5,14 @@ import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIp
 import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
-import { DesktopPersistenceStore } from "./desktopPersistenceStore";
+import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
+import { buildPersistedCommitteeDashboardSection } from "./committeeDashboardProjection";
+import { buildStrategyAnalytics } from "./strategyAnalytics";
 import { resolveRendererIndexPath } from "./rendererPath";
 import {
   createPreloadErrorDiagnostic,
@@ -57,6 +59,9 @@ import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, p
 import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
+import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
+import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -96,6 +101,9 @@ let broker: PaperBroker;
 let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
+let executionRepository: SqliteDurableExecutionRepository | undefined;
+let operationsAudit: readonly OperationsAuditRecord[] = Object.freeze([]);
+let operationsAlerts: readonly OperationsAlertRecord[] = Object.freeze([]);
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 // Kill Switch/P0 are persisted safety facts. A generic FAULTED control status is not
@@ -137,6 +145,7 @@ const recoveryReview = new RecoveryReviewState();
 /** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
+let mobileBridge: MobileBridgeHandle | undefined;
 /**
  * WO-0034-A4O productization state. Resolved once, at app-ready, because every path below
  * depends on `app.getPath("userData")` and `app.isPackaged`, neither of which is meaningful
@@ -228,7 +237,7 @@ function initializeProductLayer(): UserDataLayout {
   aboutInfo = buildAboutInfo({
     appName: app.getName(),
     appVersion: app.getVersion(),
-    buildNumber: process.env.DOKKAEBI_BUILD_NUMBER ?? null,
+    buildNumber: process.env.NUSA_BUILD_NUMBER ?? null,
     commitSha: PAPER_SAFETY_SOURCE_COMMIT,
     electronVersion: process.versions.electron ?? null,
     nodeVersion: process.versions.node,
@@ -310,8 +319,15 @@ function publishAiCioDashboard(): void {
   }
   const generatedAt = Date.now();
   try {
+    const account = broker.snapshot(latestTicker.trade_price);
+    const strategyAnalytics = buildStrategyAnalytics({
+      orders: account.orders,
+      strategyId: smaStrategy.id,
+      market: MARKET,
+      markPrice: latestTicker.trade_price
+    });
     aiCioSnapshotPublisher.publishIfComplete(buildPaperDashboardSections({
-      account: broker.snapshot(latestTicker.trade_price),
+      account,
       control: control.snapshot(),
       markPrice: latestTicker.trade_price,
       referenceEquity: INITIAL_CASH,
@@ -323,7 +339,14 @@ function publishAiCioDashboard(): void {
         generatedAt
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
-      executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2
+      strategyAnalytics: strategyAnalytics ?? undefined,
+      opportunitySchedule: persistenceStore?.loadLatestOpportunitySchedule()?.schedule,
+      executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
+      committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
+        ...persistenceStore.loadCommitteeDashboardSource(),
+        generatedAt,
+        maximumAgeMs: 60_000
+      })
     }), generatedAt);
   } catch {
     aiCioSnapshotPublisher.clear();
@@ -385,6 +408,7 @@ function handleTicker(ticker: UpbitTicker): void {
   latestTicker = ticker;
   window?.webContents.send("market:ticker", ticker);
   window?.webContents.send("chart:point", { time: ticker.trade_timestamp, value: ticker.trade_price });
+  shadowRuntime?.onTicker({ ...ticker, trade_volume: ticker.acc_trade_volume });
   if (!recordLiveMarketRegime(ticker)) return;
 }
 
@@ -454,8 +478,8 @@ function createWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 680,
-    title: "Dokkaebi Paper Trader",
-    icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/dokkaebi-a4p-symbol.svg"),
+    title: "NUSA Paper Trader",
+    icon: path.join(app.getAppPath(), "apps/desktop/renderer/assets/nusa-a4p-symbol.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       // Spread first, then restated. The policy is the single source of truth (and is what
@@ -564,6 +588,11 @@ function initializeRuntime(): void {
   let safetyRecoveryBlocked = crashRecoveryRequired;
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
+    executionRepository = persistenceStore.executionRepository();
+    const startupAudit: OperationsAuditRecord = Object.freeze({ auditId: `audit-start-${productRunId}`, actor: "SYSTEM", action: "APPLICATION_START", target: null, metadata: { mode: "PAPER", productionMutationAllowed: false }, createdAt: new Date().toISOString() });
+    persistenceStore.appendOperationsAudit(startupAudit);
+    operationsAudit = persistenceStore.loadOperationsAudit();
+    operationsAlerts = persistenceStore.loadOperationsAlerts();
     const sqliteState = persistenceStore.load();
     if (sqliteState) {
       restored = sqliteState;
@@ -571,6 +600,9 @@ function initializeRuntime(): void {
     } else if (restored) persistenceStore.importLegacy(restored);
   } catch (error) {
     persistenceStore = undefined;
+    executionRepository = undefined;
+    operationsAudit = Object.freeze([]);
+    operationsAlerts = Object.freeze([]);
     persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
   }
   if (persistenceStore) {
@@ -792,6 +824,23 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
 });
 
 ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
+ipcMain.handle("execution:list", () => executionRepository?.listActive() ?? Object.freeze([]));
+ipcMain.handle("execution:get", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.get(executionId) ?? null;
+});
+ipcMain.handle("execution:transitions", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.transitions(executionId) ?? Object.freeze([]);
+});
+ipcMain.handle("execution:fills", (_event, executionId: unknown) => {
+  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
+  return executionRepository?.fills(executionId) ?? Object.freeze([]);
+});
+ipcMain.handle("execution:health", () => {
+  const active = executionRepository?.listActive() ?? [];
+  return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
+});
 ipcMain.handle("paper:preflight", () => operationalPreflight);
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
@@ -1057,6 +1106,54 @@ ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
   crashRecovery: crashRecoveryDiagnostic
 }));
 
+// Operations is intentionally a read-only projection of facts already owned by the main
+// process. It exposes no execution, credential, or arbitrary IPC capability to the renderer.
+ipcMain.handle("operations:snapshot", () => {
+  const recoveryReviewStatus = recoveryReview.status();
+  return Object.freeze({
+  applicationVersion: aboutInfo?.appVersion ?? app.getVersion(),
+  buildVersion: PAPER_SAFETY_SOURCE_COMMIT,
+  gitCommit: PAPER_SAFETY_SOURCE_COMMIT,
+  mode: "PAPER",
+  liveTradingDisabled: true,
+  productionMutationAllowed: false,
+  exchange: Object.freeze({ name: "UPBIT", status: marketDataStatus }),
+  marketData: Object.freeze({
+    symbol: MARKET,
+    status: marketDataStatus,
+    connected: websocketConnected,
+    lastMessageAt: stream ? stream.connectionDiagnostics().lastMarketMessageAt : null
+  }),
+  warmup: Object.freeze({ ready: marketDataStatus === "HEALTHY", status: marketDataStatus }),
+  shadow: shadowRuntime ? shadowRuntime.diagnostics() : null,
+  preflight: operationalPreflight,
+  control: control ? control.snapshot() : null,
+  recovery: Object.freeze({
+    required: crashRecoveryRequired,
+    recordId: recoveryRecordId,
+    diagnostic: crashRecoveryDiagnostic,
+    review: recoveryReviewStatus
+  }),
+  reconciliation: Object.freeze({
+    status: recoveryReviewStatus.reconciliation,
+    mismatchCodes: recoveryReviewStatus.mismatchCodes,
+    errorCodes: recoveryReviewStatus.errorCodes,
+    checkedAt: recoveryReviewStatus.checkedAt,
+    gate: recoveryReviewStatus.gate
+  }),
+  execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
+  audit: persistenceStore?.loadOperationsAudit() ?? operationsAudit,
+  alerts: persistenceStore?.loadOperationsAlerts() ?? operationsAlerts,
+  risk: Object.freeze({ status: operationalPreflight.riskGate.status, capability: RISK_CAPABILITY_DESCRIPTOR }),
+  killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
+  openP0Codes: persistedOpenP0Codes,
+  // This process has no authenticated endpoint capability. The neutral counter name also
+  // avoids turning a read-only diagnostics field into a capability-looking API surface.
+  mutationCounters: Object.freeze({ orders: 0, fills: 0, cash: 0, position: 0, broker: 0, authenticatedEndpointCalls: 0 }),
+  observedAt: new Date().toISOString()
+  });
+});
+
 app.whenReady().then(() => {
   // First, before any subsystem asks for a path of its own.
   try {
@@ -1095,6 +1192,7 @@ app.whenReady().then(() => {
     runtime.markUnavailable();
   }
   createWindow();
+  startConfiguredMobileBridge();
   // Public market data is safe to observe even while Paper execution is unavailable.
   // Execution remains fail-closed behind RuntimeCommandService and the risk gate.
   stream.start();
@@ -1121,6 +1219,22 @@ function releaseRuntimeResources(): void {
   if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
   if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
   persistenceStore?.close();
+  void mobileBridge?.stop();
+  mobileBridge = undefined;
+}
+
+function startConfiguredMobileBridge(): void {
+  if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return;
+  const port = Number(process.env.NUSA_MOBILE_MONITOR_PORT ?? "0");
+  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) { logProduct("WARN", "mobile monitor remains disabled: invalid port", {}, "MOBILE_BRIDGE_INVALID_PORT"); return; }
+  mobileBridge = startMobileBridge({
+    port,
+    getStatus: () => Object.freeze({ app: "NUSA", mode: "PAPER", marketConnectionState: marketDataStatus, warmupState: marketDataStatus === "HEALTHY" ? "READY" : marketDataStatus, stale: marketDataStatus === "STALE", observedAt: new Date().toISOString() }),
+    getAccount: () => latestTicker ? broker.snapshot(latestTicker.trade_price) as unknown as Readonly<Record<string, unknown>> : Object.freeze({ available: false, reason: "MARKET_DATA_UNAVAILABLE" }),
+    getOpenOrderCount: () => latestTicker ? broker.snapshot(latestTicker.trade_price).orders.length : 0,
+    getEvents: () => recentErrorCodes.map((code) => Object.freeze({ code }))
+  });
+  logProduct("INFO", "read-only mobile monitor enabled on localhost", { port }, "MOBILE_BRIDGE_STARTED");
 }
 
 /**

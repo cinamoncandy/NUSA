@@ -1,0 +1,21 @@
+appId: com.nusa.trader
+productName: NUSA
+asar: true
+directories:
+  output: release
+files:
+  - dist/**/*
+  - apps/desktop/renderer/**/*
+  - apps/desktop/package.json
+  - package.json
+  - '!**/*.ts'
+  - '!**/*.map'
+  - '!**/tests{,/**/*}'
+  - '!**/docs{,/**/*}'
+extraMetadata:
+  main: dist/apps/desktop/src/main.js
+win:
+  target: portable
+  icon: build/nusa-a4p.ico
+  artifactName: NUSA-${version}-Windows-Portable.${ext}
+  signAndEditExecutable: false

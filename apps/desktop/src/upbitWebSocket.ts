@@ -13,6 +13,8 @@ export interface UpbitTicker {
   trade_price: number;
   trade_timestamp: number;
   signed_change_rate?: number;
+  /** Upbit's per-ticker base-asset volume, not the 24h quote turnover field. */
+  acc_trade_volume?: number;
   acc_trade_price_24h?: number;
 }
 
@@ -102,7 +104,7 @@ export class UpbitWebSocketClient {
     this.now = options.now ?? (() => Date.now());
     this.onConnectionState = options.onConnectionState;
     this.createSocket = options.createSocket ?? (() => new WebSocket("wss://api.upbit.com/websocket/v1", {
-      headers: { "User-Agent": "dokkaebi-desktop/0.1" }
+      headers: { "User-Agent": "nusa-desktop/0.1" }
     }));
     this.supervisor = new MarketConnectionSupervisor({
       policy: this.policy,
@@ -251,7 +253,7 @@ export class UpbitWebSocketClient {
   private sendSubscription(): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
     this.socket.send(JSON.stringify([
-      { ticket: `dokkaebi-${this.now()}` },
+      { ticket: `nusa-${this.now()}` },
       { type: "ticker", codes: this.markets, isOnlyRealtime: true },
       { format: "DEFAULT" }
     ]));

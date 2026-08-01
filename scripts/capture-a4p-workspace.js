@@ -9,7 +9,7 @@ const fs = require("node:fs");
     const page = await app.firstWindow();
     app.process().stderr.on("data", (chunk) => process.stderr.write(String(chunk)));
     await page.waitForTimeout(700);
-    if (name !== "dashboard") await page.evaluate((screen) => window.DokkaebiBrandUI.activate(screen), name);
+    if (name !== "dashboard") await page.evaluate((screen) => window.NUSABrandUI.activate(screen), name);
     await page.waitForTimeout(120);
     await page.screenshot({ path: `${root}/${name}.png`, fullPage: true });
     if (name === "dashboard") {

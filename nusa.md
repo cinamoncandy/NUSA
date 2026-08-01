@@ -1,8 +1,8 @@
-# DOKKAEBI
+# NUSA
 
 ## Mission
 
-DOKKAEBI is a private, single-user trading system built to maximize:
+NUSA is a private, single-user trading system built to maximize:
 
 1. efficiency,
 2. long-term risk-adjusted profit,
@@ -139,7 +139,7 @@ agent/electron-upbit-paper-trading
 Existing Draft PR:
 
 ```text
-#1 Convert Dokkaebi to Electron paper trading app
+#1 Convert NUSA to Electron paper trading app
 ```
 
 Before starting work, read this file, `AGENTS.md`, the active PR, current tests, and the latest branch state.

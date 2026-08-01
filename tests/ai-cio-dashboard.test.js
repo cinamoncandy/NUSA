@@ -24,7 +24,7 @@ test("builds a healthy immutable command center", () => {
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.warnings));
   const view = buildAiCioDashboardViewModel(result);
-  assert.equal(view.title, "DOKKAEBI AI CIO");
+  assert.equal(view.title, "NUSA AI CIO");
   assert.equal(view.tradingEnabled, true);
   assert.ok(Object.isFrozen(view.metrics));
 });

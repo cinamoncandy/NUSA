@@ -1,14 +1,14 @@
-# Dokkaebi Paper-Only Operations Playbook
+# NUSA Paper-Only Operations Playbook
 
 ## Purpose
 
-This document is the single operational index for the Dokkaebi lifecycle. It replaces ad-hoc command chains with a small, explicit state machine.
+This document is the single operational index for the NUSA lifecycle. It replaces ad-hoc command chains with a small, explicit state machine.
 
 It does not authorize live trading, private exchange APIs, credential handling, automatic release, or automatic promotion.
 
 ## Current verified repository state
 
-- Repository: `cinamoncandy/dokkaebi`
+- Repository: `cinamoncandy/nusa`
 - Active development branch: `agent/electron-upbit-paper-trading`
 - Active pull request: Draft PR #1
 - Application mode: Paper-only

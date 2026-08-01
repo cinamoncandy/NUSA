@@ -18,7 +18,7 @@ function reportLine(label: string, status: "PASS" | "FAIL" | "NOT_EVALUATED"): s
  */
 export function formatEvidenceChecklist(status: EvidenceStatus): string {
   const lines: string[] = [];
-  lines.push("Dokkaebi Paper Trading -- Release Evidence Checklist");
+  lines.push("NUSA Paper Trading -- Release Evidence Checklist");
   lines.push("=".repeat(53));
   lines.push(`Database: ${status.database}`);
   lines.push("");

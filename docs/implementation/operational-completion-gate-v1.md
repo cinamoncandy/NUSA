@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The completion gate prevents DOKKAEBI from being declared complete because individual modules or CI checks pass in isolation. It combines four independent evidence families:
+The completion gate prevents NUSA from being declared complete because individual modules or CI checks pass in isolation. It combines four independent evidence families:
 
 1. complete and healthy AI CIO source coverage;
 2. real elapsed Paper validation evidence;

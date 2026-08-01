@@ -4,6 +4,10 @@ import type {
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
+import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../../cloud/src/dashboardAggregator";
+import { verifyStrategyAnalytics, type StrategyAnalyticsSnapshot } from "./strategyAnalytics";
+import { buildOpportunityDashboardSection } from "./opportunityDashboardProjection";
+import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -21,6 +25,8 @@ export interface PaperDashboardProjectionInput {
    * field reproduces the prior "not connected" placeholder behavior exactly.
    */
   readonly strategyWarmup?: { readonly current: number; readonly required: number };
+  /** Persisted, strategy-attributed analytics. Warm-up alone is not performance evidence. */
+  readonly strategyAnalytics?: StrategyAnalyticsSnapshot;
   /**
    * The deterministic adverse-price rate (slippageBps + spreadBps / 2) the PaperBroker's
    * fill model currently applies to every order. This is not an observed market-quality
@@ -29,6 +35,11 @@ export interface PaperDashboardProjectionInput {
    * quality. Omitting this field reproduces the prior hardcoded-0 placeholder exactly.
    */
   readonly executionCostBps?: number;
+  /** Independent opportunity analytics are not inferred from a Paper position. */
+  readonly opportunity?: OpportunityDashboardSection;
+  /** A validated scheduler result may be projected read-only; no schedule is inferred here. */
+  readonly opportunitySchedule?: OpportunitySchedule;
+  readonly committee?: CommitteeDashboardSection;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -47,6 +58,9 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   if (input.executionCostBps !== undefined && (!Number.isFinite(input.executionCostBps) || input.executionCostBps < 0)) {
     throw new Error("executionCostBps must be finite and non-negative");
   }
+  if (input.strategyAnalytics !== undefined && verifyStrategyAnalytics(input.strategyAnalytics).length > 0) {
+    throw new Error("strategy analytics verification failed");
+  }
 
   const marketValue = input.account.position.quantity * input.markPrice;
   if (!Number.isFinite(marketValue) || marketValue < 0) throw new Error("paper market value must be finite and non-negative");
@@ -63,7 +77,13 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   let strategyAvailability: "AVAILABLE" | "UNAVAILABLE";
   let blockedStrategies: number;
   let warningStrategies: number;
-  if (input.control.status === "FAULTED") {
+  if (input.strategyAnalytics === undefined) {
+    strategyReasons = ["STRATEGY_ANALYTICS_NOT_CONNECTED"];
+    strategyStatus = "BLOCKED";
+    strategyAvailability = "UNAVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 0;
+  } else if (input.control.status === "FAULTED") {
     strategyReasons = ["CONTROL_PLANE_FAULTED"];
     strategyStatus = "BLOCKED";
     strategyAvailability = input.strategyWarmup === undefined ? "UNAVAILABLE" : "AVAILABLE";
@@ -107,31 +127,27 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       grossExposureRatio: exposure,
       netExposureRatio: exposure
     }),
-    opportunities: Object.freeze({
-      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
-      availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
+    opportunities: input.opportunity ?? (input.opportunitySchedule === undefined ? Object.freeze({
+      status: input.runtimeAvailable ? "BLOCKED" as const : "BLOCKED" as const,
+      availability: input.runtimeAvailable ? "UNAVAILABLE" as const : "INVALID" as const,
       generatedAt: input.generatedAt,
-      reasons: Object.freeze([...runtimeReasons]),
-      // The only "opportunity" this desktop app can honestly report is the current open
-      // Paper position itself: one strategy, one market, no independent opportunity-scoring
-      // model. topOpportunityScore is intentionally omitted rather than invented.
-      activeCount: input.account.position.quantity > 0 ? 1 : 0,
-      totalAllocatedCapital: marketValue,
-      reservedCash: 0,
-      ...(input.account.position.quantity > 0 ? { topOpportunityId: `paper:${input.account.position.market}` } : {})
-    }),
+      reasons: Object.freeze([input.runtimeAvailable ? "OPPORTUNITY_ANALYTICS_NOT_CONNECTED" : "PAPER_RUNTIME_UNAVAILABLE"]),
+      activeCount: 0,
+      totalAllocatedCapital: 0,
+      reservedCash: 0
+    }) : buildOpportunityDashboardSection(input.opportunitySchedule, input.generatedAt)),
     strategies: Object.freeze({
       status: strategyStatus,
       availability: strategyAvailability,
       generatedAt: input.generatedAt,
       reasons: Object.freeze(strategyReasons),
-      totalTrades: input.account.orders.length,
-      totalNetPnl: input.account.position.realizedPnl + input.account.unrealizedPnl,
-      portfolioCaptureRatio: 0,
+      totalTrades: input.strategyAnalytics?.orderCount ?? 0,
+      totalNetPnl: input.strategyAnalytics?.netPnl ?? 0,
+      portfolioCaptureRatio: input.strategyAnalytics?.portfolioCaptureRatio ?? 0,
       blockedStrategies,
       warningStrategies
     }),
-    committee: Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
+    committee: input.committee ?? Object.freeze({ ...unknown, decision: "WAIT", confidence: 0, edge: 0, risk: 0, conflictLevel: "HIGH" }),
     execution: Object.freeze({
       status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
       availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,

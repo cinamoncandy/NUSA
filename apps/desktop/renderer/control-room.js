@@ -1,5 +1,5 @@
 /*
- * DOKKAEBI Control Room — status-first renderer layer.
+ * NUSA Control Room — status-first renderer layer.
  *
  * Answers "what is the system doing right now" above the fold, before any chart. It owns
  * no trading logic: it reads the Shadow diagnostics snapshot and the control/market
@@ -741,5 +741,5 @@
     };
   }
 
-  globalScope.DokkaebiControlRoom = { createControlRoom, deriveHealth, derivePipeline, describeBlocker, HEALTH, HEALTH_LABEL, STAGES };
+  globalScope.NUSAControlRoom = { createControlRoom, deriveHealth, derivePipeline, describeBlocker, HEALTH, HEALTH_LABEL, STAGES };
 })(window);

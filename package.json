@@ -1,9 +1,9 @@
 {
-  "name": "dokkaebi",
+  "name": "nusa",
   "private": true,
   "version": "0.1.0",
   "description": "Windows Electron paper-trading and deterministic research platform",
-  "author": "Dokkaebi contributors",
+  "author": "NUSA contributors",
   "main": "dist/apps/desktop/src/main.js",
   "packageManager": "pnpm@11.7.0",
   "engines": {
@@ -22,38 +22,46 @@
     "storybook:build": "storybook build",
     "desktop": "pnpm run build && electron apps/desktop",
     "desktop:dev": "pnpm run build && electron apps/desktop",
-    "package:validate": "pnpm run preflight && pnpm run build && node scripts/validate-package.js",
     "package:win": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --win nsis",
+    "package:portable": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --config electron-builder.portable.yml --win portable",
     "package:validate": "node scripts/validate-windows-package.js",
     "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",
+    "release:manifest": "node scripts/release-manifest.js",
+    "release:validate": "node scripts/validate-release-process.js",
+    "release:artifacts": "pnpm run release:manifest && node scripts/release-artifacts.js",
     "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
     "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",
     "evidence:checklist": "pnpm run preflight && pnpm run build && node scripts/evidence-checklist.js",
     "evidence:export": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js export",
     "evidence:verify": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js verify",
+    "research:evidence-import": "pnpm run preflight && pnpm run build && node scripts/import-research-evidence.js",
+    "research:evidence-bundle-import": "pnpm run preflight && pnpm run build && node scripts/import-research-evidence-bundle.js",
+    "opportunity:schedule-import": "pnpm run preflight && pnpm run build && node scripts/import-opportunity-schedule.js",
+    "research:evidence-status": "pnpm run preflight && pnpm run build && node scripts/research-evidence-status.js",
+    "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
     "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@storybook/addon-a11y": "8.6.17",
+    "@storybook/web-components": "8.6.17",
+    "@storybook/web-components-vite": "8.6.17",
     "@types/node": "24.0.0",
     "@types/ws": "8.5.13",
-    "@playwright/test": "1.52.0",
-    "@storybook/addon-a11y": "8.6.14",
-    "@storybook/web-components": "8.6.14",
-    "@storybook/web-components-vite": "8.6.14",
-    "electron": "39.8.1",
-    "electron-builder": "26.0.12",
+    "electron": "39.8.5",
+    "electron-builder": "26.15.0",
     "eslint": "9.39.1",
     "jsdom": "26.0.0",
-    "storybook": "8.6.14",
+    "storybook": "8.6.17",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "vitest": "3.2.6"
   },
   "dependencies": {
     "ws": "8.21.0"
   },
   "build": {
-    "appId": "com.dokkaebi.trader",
-    "productName": "Dokkaebi",
+    "appId": "com.nusa.trader",
+    "productName": "NUSA",
     "asar": true,
     "directories": {
       "output": "release"
@@ -73,8 +81,8 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "build/dokkaebi-a4p.ico",
-      "artifactName": "Dokkaebi-${version}-Windows-Setup.${ext}",
+      "icon": "build/nusa-a4p.ico",
+      "artifactName": "NUSA-${version}-Windows-Setup.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {

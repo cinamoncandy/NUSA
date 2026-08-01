@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This gate controls whether DOKKAEBI may present a limited evidence statement. It does not predict profit and cannot authorize trading.
+This gate controls whether NUSA may present a limited evidence statement. It does not predict profit and cannot authorize trading.
 
 The only permitted positive statement is:
 

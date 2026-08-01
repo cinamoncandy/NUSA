@@ -2,9 +2,9 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.DokkaebiCommandPalette = api;
+  else root.NUSACommandPalette = api;
 }(globalThis, function () {
-  const RECENT_KEY = "dokkaebi.commandPalette.recent.v1";
+  const RECENT_KEY = "nusa.commandPalette.recent.v1";
   const MAX_RECENT = 5;
 
   function normalize(value) { return String(value || "").trim().toLocaleLowerCase(); }

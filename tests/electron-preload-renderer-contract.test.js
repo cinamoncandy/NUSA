@@ -24,7 +24,7 @@ test("BrowserWindow still points webPreferences.preload at the compiled preload 
  * file doesn't know about, instead of silently passing. */
 function extractRendererUsage(source) {
   const usage = new Map(); // namespace -> Set<method>
-  const pattern = /window\.(dokkaebi|aiCioDashboard|shadowPilot)\.(\w+)/g;
+  const pattern = /window\.(nusa|aiCioDashboard|shadowPilot|operations)\.(\w+)/g;
   let match;
   while ((match = pattern.exec(source)) !== null) {
     const [, namespace, method] = match;
@@ -40,7 +40,7 @@ function extractPreloadChannels(source) {
   const channels = new Set();
   // `app:` added for the WO-0034-A4O productization channels. Widening the extractor is
   // coverage, not relaxation: a prefix it does not know is a channel it silently ignores.
-  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app):[\w-]+)"/g;
+  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app|operations|execution):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];
@@ -107,7 +107,7 @@ function loadPreloadWithElectronMock() {
 
 test("preload exposes exactly the globals/methods renderer.js actually calls", () => {
   const rendererUsage = extractRendererUsage(rendererSource);
-  assert.ok(rendererUsage.get("dokkaebi")?.size > 0, "expected renderer.js to reference window.dokkaebi at least once");
+  assert.ok(rendererUsage.get("nusa")?.size > 0, "expected renderer.js to reference window.nusa at least once");
   assert.ok(rendererUsage.get("aiCioDashboard")?.size > 0, "expected renderer.js to reference window.aiCioDashboard at least once");
 
   const { exposed } = loadPreloadWithElectronMock();
@@ -134,20 +134,26 @@ test("preload never lets a caller-supplied value choose the IPC channel", () => 
   // method forwarded a caller argument straight through as the ipcRenderer channel (the
   // `invoke(channel, payload)` / `send(channel, payload)` shape this check exists to catch),
   // it would show up verbatim in ipcCalls below.
-  void exposed.dokkaebi.placeOrder(sentinel, sentinel);
-  void exposed.dokkaebi.getSnapshot();
-  void exposed.dokkaebi.getControlSnapshot();
-  void exposed.dokkaebi.startStrategy();
-  void exposed.dokkaebi.stopStrategy();
-  void exposed.dokkaebi.setAutoTrade(sentinel);
-  void exposed.dokkaebi.setStrategyQuantity(sentinel);
-  const unsubscribeTicker = exposed.dokkaebi.onTicker(() => {});
-  const unsubscribeStatus = exposed.dokkaebi.onStatus(() => {});
-  const unsubscribeSnapshot = exposed.dokkaebi.onSnapshot(() => {});
-  const unsubscribeControl = exposed.dokkaebi.onControl(() => {});
-  const unsubscribeChart = exposed.dokkaebi.onChartPoint(() => {});
+  void exposed.nusa.placeOrder(sentinel, sentinel);
+  void exposed.nusa.getSnapshot();
+  void exposed.nusa.getControlSnapshot();
+  void exposed.nusa.startStrategy();
+  void exposed.nusa.stopStrategy();
+  void exposed.nusa.setAutoTrade(sentinel);
+  void exposed.nusa.setStrategyQuantity(sentinel);
+  const unsubscribeTicker = exposed.nusa.onTicker(() => {});
+  const unsubscribeStatus = exposed.nusa.onStatus(() => {});
+  const unsubscribeSnapshot = exposed.nusa.onSnapshot(() => {});
+  const unsubscribeControl = exposed.nusa.onControl(() => {});
+  const unsubscribeChart = exposed.nusa.onChartPoint(() => {});
   void exposed.aiCioDashboard.getAiCioDashboard();
   void exposed.shadowPilot.preflight();
+  void exposed.operations.snapshot();
+  void exposed.operations.listExecutions();
+  void exposed.operations.getExecution("execution-id");
+  void exposed.operations.listTransitions("execution-id");
+  void exposed.operations.listFills("execution-id");
+  void exposed.operations.getExecutionHealth();
 
   assert.ok(ipcCalls.length > 0, "expected preload methods to actually reach ipcRenderer during this fuzz pass");
   for (const call of ipcCalls) {
@@ -166,7 +172,7 @@ test("preload never lets a caller-supplied value choose the IPC channel", () => 
 test("subscription unsubscribe functions actually remove the registered listener", () => {
   const { exposed, removedListeners } = loadPreloadWithElectronMock();
   const handler = () => {};
-  const unsubscribe = exposed.dokkaebi.onControl(handler);
+  const unsubscribe = exposed.nusa.onControl(handler);
   unsubscribe();
   assert.ok(
     removedListeners.some((entry) => entry.channel === "control:snapshot"),

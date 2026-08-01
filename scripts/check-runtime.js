@@ -4,7 +4,7 @@ const MINIMUM_NODE_MAJOR = 24;
 const major = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
 
 if (!Number.isInteger(major) || major < MINIMUM_NODE_MAJOR) {
-  console.error(`Dokkaebi requires Node.js >= ${MINIMUM_NODE_MAJOR}. Current: ${process.versions.node}`);
+  console.error(`NUSA requires Node.js >= ${MINIMUM_NODE_MAJOR}. Current: ${process.versions.node}`);
   process.exit(1);
 }
 

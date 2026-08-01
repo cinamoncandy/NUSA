@@ -1,4 +1,4 @@
-import type { DokkaebiOperatingMode } from "./firstRunNotice";
+import type { NUSAOperatingMode } from "./firstRunNotice";
 import type { UserDataLayout } from "./userDataLayout";
 
 /**
@@ -35,7 +35,7 @@ export interface AboutInfo {
   readonly operatingSystem: string;
   readonly architecture: string;
   readonly environment: string;
-  readonly mode: DokkaebiOperatingMode;
+  readonly mode: NUSAOperatingMode;
   readonly liveTradingDisabled: true;
   readonly privateApiDisabled: true;
   readonly credentialStorageDisabled: true;
@@ -55,7 +55,7 @@ export interface AboutInfoInput {
   readonly platform: string;
   readonly osRelease: string;
   readonly arch: string;
-  readonly mode: DokkaebiOperatingMode;
+  readonly mode: NUSAOperatingMode;
   readonly layout: UserDataLayout;
 }
 
@@ -88,7 +88,7 @@ export function buildAboutInfo(input: AboutInfoInput): AboutInfo {
     liveTradingDisabled: true,
     privateApiDisabled: true,
     credentialStorageDisabled: true,
-    copyright: `© ${new Date().getUTCFullYear()} Dokkaebi`,
+    copyright: `© ${new Date().getUTCFullYear()} NUSA`,
     license: "Proprietary — 개인 사용 목적의 모의 거래 도구입니다.",
     folders: Object.freeze([
       Object.freeze({ key: "LOGS" as const, label: "로그 폴더", absolutePath: input.layout.logsDirectory }),

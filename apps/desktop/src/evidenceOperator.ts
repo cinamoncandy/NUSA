@@ -59,7 +59,16 @@ function replayFromStore(store: DesktopPersistenceStore): { records: readonly Pa
   return { records, counters: replayPaperScenarioEvidence(records) };
 }
 
-export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
+export function readEvidenceStatus(databasePath?: string, bundlePath?: string): EvidenceStatus {
+  const verifyBundle = (): "PASS" | "FAIL" | "NOT_EVALUATED" => {
+    if (bundlePath == null) return "NOT_EVALUATED";
+    try {
+      verifyEvidenceBundle(bundlePath);
+      return "PASS";
+    } catch {
+      return "FAIL";
+    }
+  };
   const notEvaluated = (reason: string): EvidenceStatus => ({
     database: "not evaluated",
     observedSessions: { current: 0, required: 20 },
@@ -72,7 +81,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
     costStress: "NOT_EVALUATED",
     monteCarlo: "NOT_EVALUATED",
     integrity: "NOT_EVALUATED",
-    bundle: "NOT_EVALUATED",
+    bundle: verifyBundle(),
     ownerReview: "NOT_COMPLETED",
     releaseStatus: "BLOCKED",
     blockingReasons: Object.freeze([reason, "OWNER_REVIEW_REQUIRED"])
@@ -92,6 +101,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       return matching.some((report) => report.status === "PASS") ? "PASS" : "FAIL";
     };
     const representedRegimeCount = new Set(records.map((record) => record.event.type === "REGIME_OBSERVED" ? record.event.scenario : undefined).filter((value): value is string => value != null)).size;
+    const bundle = verifyBundle();
     return {
       database: "evaluated",
       observedSessions: { current: counters.sessionCount, required: 20 },
@@ -104,7 +114,7 @@ export function readEvidenceStatus(databasePath?: string): EvidenceStatus {
       costStress: statusFor("COST_STRESS"),
       monteCarlo: statusFor("MONTE_CARLO"),
       integrity: statusFor("INTEGRITY_CHECK"),
-      bundle: "NOT_EVALUATED",
+      bundle,
       ownerReview: reviews.length > 0 ? "COMPLETED" : "NOT_COMPLETED",
       releaseStatus: "BLOCKED",
       blockingReasons: Object.freeze([

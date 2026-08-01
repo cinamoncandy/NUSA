@@ -6,7 +6,7 @@ const { mkdtempSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 
-const path = () => join(mkdtempSync(join(tmpdir(), "dokkaebi-evidence-store-")), "evidence.db");
+const path = () => join(mkdtempSync(join(tmpdir(), "nusa-evidence-store-")), "evidence.db");
 const event = (eventId, type, occurredAt, scenario) => ({ eventId, type, occurredAt, ...(scenario ? { scenario } : {}) });
 
 test("persists and replays scenario evidence after restart", () => {

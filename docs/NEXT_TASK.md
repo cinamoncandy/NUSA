@@ -40,13 +40,20 @@ failure states); duplicate start, resume-when-not-paused, and stop-when-not-acti
 throw rather than silently no-op. See `docs/operations/shadow-operational-runtime.md` and
 `docs/operations/shadow-owner-lifecycle.md`.
 
-**Applied to this repository's actual state, Shadow still cannot reach `RUNNING`.**
-`getSafetyState()`'s `deploymentIntegrity` and `reconciliation` fields are wired to the
-same honestly-unresolved values `createPaperSafetySnapshot` already reports (`false` for
-both), matching the rest of this branch's documented "not yet composed" state. The
-wiring added in this phase is real and complete; what it depends on is not. No durable
-`SHADOW_OPERATIONAL` Evidence writer exists yet, no session persists across a restart,
-and Canary is untouched -- all remain WO-0034-A3.
+**The current runtime composition is fail-closed but no longer a hard-coded unresolved
+stub.** `main.ts` derives deployment integrity from the compiled runtime assets and
+derives Paper reconciliation independently from the persisted Paper ledger and account
+snapshot. A fresh, healthy Paper database with an empty ledger can therefore pass those
+two checks. A persisted safety snapshot, recovery ambiguity, mutation counter, ledger
+mismatch, or unavailable persistence keeps the gate blocked and requires the documented
+reconciliation/owner-review path. The shared configured risk gate still refuses any
+uncertain request, and `productionMutationAllowed` remains false.
+
+Shadow's durable Evidence archive, completion verification, and reconnect diagnostics are
+now present in the runtime composition. They do not turn a rehearsal into operational
+Evidence: the repository still has no real operational sessions, and the promotion gate
+must remain `OBSERVATION_INCOMPLETE` until the runbook's operator-collected criteria are
+met. Canary remains untouched.
 
 ### Control Room UI (design system, first slice)
 
@@ -217,7 +224,7 @@ vacuous.
 (expiry, symbol scope, fingerprint agreement), `reconcilePaperLedger` (duplicate/orphan/
 invalid fills with recomputed cash, position, and PnL), and `verifyDeployment`.
 
-**Production wiring is currently fail-closed, and this changes runtime behaviour.**
+**Production wiring is fail-closed and now uses a composed read-only gate.**
 `RuntimeCommandService` now requires a `PaperCommandRiskGate` and calls it before every
 manual and strategy order, throwing before `PaperBroker` is reached on any non-`ALLOW`
 decision. In `apps/desktop/src/main.ts` — the only production construction — the injected
@@ -231,6 +238,13 @@ the four fingerprints, a live approval record, a ledger reconciliation result, a
 descriptor, and per-session rate/exposure/session counters that are not currently tracked.
 Until then WO-0031's D-010 stays `INCONCLUSIVE`: a gate that halts everything proves the
 call site is guarded, not that a working risk policy is in force.
+
+Current runtime wiring has since been composed in `main.ts`: deployment asset verification,
+independent Paper ledger reconciliation, persisted safety controls, market state, runtime
+fingerprints, and declared exposure/session limits feed the shared gate. The gate rejects
+missing or uncertain inputs and `productionMutationAllowed` remains false. The older
+description above is retained as historical context; current readiness still requires real
+Paper evidence and owner review of the matching evidence bundle.
 
 ### WO-0033/WO-0034 status: BLOCKED
 

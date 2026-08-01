@@ -18,7 +18,7 @@ directory is intentionally not printed in diagnostics. The relevant files are:
 - `crash-marker.json`: the current run marker, atomically replaced and hash sealed.
 - `recovery-records.jsonl`: append-only records created when an earlier marker was not clean.
 - `shadow-evidence/`: the existing hash-chained Shadow archives and completion markers.
-- `dokkaebi.db`: the existing Paper/recovery persistence store.
+- `nusa.db`: the existing Paper/recovery persistence store.
 
 ## Safe verification procedure
 

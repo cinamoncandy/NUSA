@@ -36,7 +36,7 @@ test("release check stays PAPER-only and disables automatic updates", () => {
   const packageJson = JSON.parse(read("package.json"));
   const check = read("scripts/release-readiness.js");
   assert.equal(packageJson.private, true);
-  assert.equal(packageJson.author, "Dokkaebi contributors");
+  assert.equal(packageJson.author, "NUSA contributors");
   assert.equal(packageJson.main, "dist/apps/desktop/src/main.js");
   assert.equal(packageJson.build.win.signAndEditExecutable, false);
   assert.equal(packageJson.scripts["release:check"].includes("release-readiness.js"), true);

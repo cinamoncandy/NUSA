@@ -2,7 +2,7 @@
 
 ## Scope
 
-This module defines the framework-independent presentation contract for the future React Native DOKKAEBI mobile cockpit.
+This module defines the framework-independent presentation contract for the future React Native NUSA mobile cockpit.
 
 It does not fetch news, call an LLM, place orders, store exchange credentials, or predict guaranteed prices.
 

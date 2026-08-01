@@ -1,14 +1,14 @@
-# DOKKAEBI Design System
+# NUSA Design System
 
 ## Purpose
 
-DOKKAEBI is a calm, evidence-first operating console. The design system provides a dark-first visual foundation for desktop workflows without changing market, strategy, risk, execution, or persistence behavior.
+NUSA is a calm, evidence-first operating console. The design system provides a dark-first visual foundation for desktop workflows without changing market, strategy, risk, execution, or persistence behavior.
 
 `apps/desktop/renderer/tokens.css` is the only source of visual token values. Application CSS and future components consume semantic tokens, never palette values or literal colors.
 
 ## Themes
 
-The renderer starts in `dark` mode. `contrast` strengthens text and borders for high-contrast use. `theme-provider.js` exposes `window.DokkaebiTheme.setTheme("dark" | "contrast")` and persists the selected theme when browser storage is available. It is a renderer-only presentation helper and has no Node.js, Electron IPC, or trading-domain access.
+The renderer starts in `dark` mode. `contrast` strengthens text and borders for high-contrast use. `theme-provider.js` exposes `window.NUSATheme.setTheme("dark" | "contrast")` and persists the selected theme when browser storage is available. It is a renderer-only presentation helper and has no Node.js, Electron IPC, or trading-domain access.
 
 The operating-system `prefers-reduced-motion` setting sets all motion durations to zero.
 

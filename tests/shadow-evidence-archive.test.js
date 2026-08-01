@@ -38,7 +38,7 @@ function pilot(sessionId) {
 }
 
 test("archive writes an append-only hash chain and independently verifies zero mutation", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const sessionId = "shadow-test-1";
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
   for (const event of pilot(sessionId).eventLog()) await archive.append(event, event.timestamp + 1);
@@ -55,7 +55,7 @@ test("archive writes an append-only hash chain and independently verifies zero m
 });
 
 test("completed observation persists an independently hashed SAFE_COMPLETION summary", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-completion-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-completion-"));
   const sessionId = "shadow-completion-evidence";
   const runtime = pilot(sessionId);
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
@@ -73,7 +73,7 @@ test("completed observation persists an independently hashed SAFE_COMPLETION sum
 });
 
 test("tampering with the completion summary fails independent verification", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-completion-tamper-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-completion-tamper-"));
   const sessionId = "shadow-completion-tamper";
   const runtime = pilot(sessionId);
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
@@ -93,7 +93,7 @@ test("tampering with the completion summary fails independent verification", asy
 });
 
 test("payload tampering is detected by re-derived envelope hashes", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const sessionId = "shadow-test-2";
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
   for (const event of pilot(sessionId).eventLog()) await archive.append(event);
@@ -106,7 +106,7 @@ test("payload tampering is detected by re-derived envelope hashes", async () => 
 });
 
 test("manifest tampering is detected independently of event payload hashes", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const sessionId = "shadow-manifest-tamper";
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
   for (const event of pilot(sessionId).eventLog()) await archive.append(event);
@@ -121,7 +121,7 @@ test("manifest tampering is detected independently of event payload hashes", asy
 });
 
 test("partial NDJSON line is classified as corrupted", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const sessionId = "shadow-test-3";
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
   await archive.append(pilot(sessionId).eventLog()[0]);
@@ -133,7 +133,7 @@ test("partial NDJSON line is classified as corrupted", async () => {
 });
 
 test("credential-like fields and absolute user paths are rejected before persistence", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   await assert.rejects(() => ShadowEvidenceArchive.create(root, { ...metadata("shadow-secret"), fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p", apiToken: "secret" } }), /credential-like field/);
   await assert.rejects(() => ShadowEvidenceArchive.create(root, { ...metadata("shadow-path"), sourceCommitSha: "C:\\Users\\person\\secret" }), /absolute user path/);
   const archive = await ShadowEvidenceArchive.create(root, metadata("shadow-event-fields"));
@@ -143,7 +143,7 @@ test("credential-like fields and absolute user paths are rejected before persist
 });
 
 test("an aborted partial session is sealed and verifies without inventing a stop event", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const sessionId = "shadow-aborted-partial";
   const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
   await archive.append(pilot(sessionId).eventLog()[0]);
@@ -155,7 +155,7 @@ test("an aborted partial session is sealed and verifies without inventing a stop
 });
 
 test("open sessions without a completion marker are reported for recovery", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dokkaebi-shadow-evidence-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-evidence-"));
   const archive = await ShadowEvidenceArchive.create(root, metadata("shadow-incomplete"));
   const incomplete = await findIncompleteShadowArchives(root);
   assert.deepEqual(incomplete, [archive.directoryPath()]);

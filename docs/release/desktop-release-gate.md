@@ -9,7 +9,7 @@ linked, checkable source.
 
 - Candidate commit SHA: `4e5ce810919cb123c7055e3095222fd7e9353434`
 - Branch: `agent/electron-upbit-paper-trading`
-- PR: [#1](https://github.com/cinamoncandy/dokkaebi/pull/1) (Draft, open, unmerged)
+- PR: [#1](https://github.com/cinamoncandy/nusa/pull/1) (Draft, open, unmerged)
 - Installer artifact: none produced against this candidate SHA (see G-005..G-011)
 - Signed artifact: none exists
 
@@ -17,7 +17,7 @@ linked, checkable source.
 
 | Gate | Requirement | Evidence | Status | Blocking |
 |------|-------------|----------|--------|----------|
-| G-001 | Typecheck (`pnpm run typecheck`) | CI runs [30203695151](https://github.com/cinamoncandy/dokkaebi/actions/runs/30203695151), [30203696362](https://github.com/cinamoncandy/dokkaebi/actions/runs/30203696362) -- both `success` for `4e5ce81` | PASS | Yes |
+| G-001 | Typecheck (`pnpm run typecheck`) | CI runs [30203695151](https://github.com/cinamoncandy/nusa/actions/runs/30203695151), [30203696362](https://github.com/cinamoncandy/nusa/actions/runs/30203696362) -- both `success` for `4e5ce81` | PASS | Yes |
 | G-002 | Build (`pnpm run build`) | same CI runs as G-001 | PASS | Yes |
 | G-003 | Full test suite (`pnpm test`) | same CI runs as G-001 | PASS | Yes |
 | G-004 | Electron preload/renderer bootstrap contract | `tests/electron-preload-renderer-contract.test.js`, `tests/electron-renderer-bootstrap.test.js` (added in `4e5ce81`), covered by the same green CI runs | PASS | Yes |

@@ -68,6 +68,7 @@ export class StrategyEngine {
   start(): void { this.running = true; }
   stop(): void { this.running = false; }
   isRunning(): boolean { return this.running; }
+  getStrategyId(): string { return this.strategy.id; }
   restoreRunning(running: boolean): void { this.running = running; }
   /**
    * Restores tick price history after a restart so warm-up doesn't silently restart

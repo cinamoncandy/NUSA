@@ -62,7 +62,7 @@ function loadControlRoom() {
   const context = vm.createContext({ window: windowStub, document: createStubDocument(), console });
   context.globalThis = context;
   vm.runInContext(controlRoomSource, context);
-  return { api: windowStub.DokkaebiControlRoom, document: context.document, windowStub };
+  return { api: windowStub.NUSAControlRoom, document: context.document, windowStub };
 }
 
 const diagnostics = (overrides = {}) => ({
@@ -131,11 +131,11 @@ test("index.html loads the control room stylesheet and script", () => {
 });
 
 test("the A4P wordmark and symbol assets referenced by the header exist on disk", () => {
-  assert.match(indexHtml, /assets\/dokkaebi-a4p-lockup\.svg/);
-  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-a4p-lockup.svg")));
-  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/dokkaebi-a4p-symbol.svg")));
+  assert.match(indexHtml, /assets\/nusa-a4p-lockup\.svg/);
+  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/nusa-a4p-lockup.svg")));
+  assert.ok(fs.existsSync(path.join(root, "apps/desktop/renderer/assets/nusa-a4p-symbol.svg")));
   // An <img> must carry a real alt; the brand mark is meaningful content in the header.
-  assert.match(indexHtml, /alt="Dokkaebi Control Room"/);
+  assert.match(indexHtml, /alt="NUSA Control Room"/);
 });
 
 test("control room never uses innerHTML or an inline style attribute", () => {
@@ -314,7 +314,7 @@ test("control room styles honour reduced motion", () => {
 });
 
 test("renderer mounts the control room and refreshes it on a timer", () => {
-  assert.match(rendererSource, /DokkaebiControlRoom\.createControlRoom/);
+  assert.match(rendererSource, /NUSAControlRoom\.createControlRoom/);
   assert.match(rendererSource, /controlRoom\?\.setMarketStatus/);
   assert.match(rendererSource, /controlRoom\?\.setControlSnapshot/);
   assert.match(rendererSource, /clearTimeout\(controlRoomTimer\)/);

@@ -1,7 +1,7 @@
 (function attachThemeProvider(global) {
   "use strict";
 
-  const storageKey = "dokkaebi.theme";
+  const storageKey = "nusa.theme";
   const validThemes = new Set(["dark", "contrast"]);
 
   function resolveTheme(theme) {
@@ -38,6 +38,6 @@
     return applyTheme(storedTheme);
   }
 
-  global.DokkaebiTheme = Object.freeze({ getTheme, initialize, setTheme });
+  global.NUSATheme = Object.freeze({ getTheme, initialize, setTheme });
   initialize();
 })(window);

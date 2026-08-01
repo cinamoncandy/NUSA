@@ -5,7 +5,7 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 
-const databasePath = () => join(mkdtempSync(join(tmpdir(), "dokkaebi-recovery-drill-")), "paper.db");
+const databasePath = () => join(mkdtempSync(join(tmpdir(), "nusa-recovery-drill-")), "paper.db");
 
 test("recovery drill preserves durable state across close and reopen", () => {
   const filename = databasePath();

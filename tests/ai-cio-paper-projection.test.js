@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paperDashboardProjection.js");
 const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/aiCioSnapshotPublisher.js");
+const { buildStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
 
 const input = (overrides = {}) => ({
   generatedAt: 10_000,
@@ -28,10 +29,11 @@ test("projects only verified Paper portfolio values and marks missing engines un
   for (const name of ["strategies", "committee", "research"]) {
     assert.equal(result[name].availability, "UNAVAILABLE");
   }
-  assert.equal(result.opportunities.availability, "AVAILABLE");
-  assert.equal(result.opportunities.activeCount, 1);
-  assert.equal(result.opportunities.totalAllocatedCapital, 240);
-  assert.equal(result.opportunities.topOpportunityId, "paper:KRW-BTC");
+  assert.equal(result.opportunities.availability, "UNAVAILABLE");
+  assert.equal(result.opportunities.status, "BLOCKED");
+  assert.deepEqual(result.opportunities.reasons, ["OPPORTUNITY_ANALYTICS_NOT_CONNECTED"]);
+  assert.equal(result.opportunities.activeCount, 0);
+  assert.equal(result.opportunities.totalAllocatedCapital, 0);
   assert.equal(result.execution.availability, "AVAILABLE");
   assert.equal(result.execution.fillQuality, 1);
   assert.equal(result.execution.slippageBps, 0);
@@ -70,7 +72,7 @@ test("runtime failure is represented as blocked risk and immutable evidence", ()
   assert.equal(result.opportunities.availability, "INVALID");
 });
 
-test("opportunities reports zero active count and omits topOpportunityId with a flat Paper position", () => {
+test("unconnected opportunities never infer analytics from a flat Paper position", () => {
   const result = buildPaperDashboardSections(input({
     account: {
       cash: 1_120, equity: 1_120, unrealizedPnl: 0,
@@ -81,7 +83,46 @@ test("opportunities reports zero active count and omits topOpportunityId with a 
   assert.equal(result.opportunities.activeCount, 0);
   assert.equal(result.opportunities.totalAllocatedCapital, 0);
   assert.equal(result.opportunities.topOpportunityId, undefined);
-  assert.equal(result.opportunities.availability, "AVAILABLE");
+  assert.equal(result.opportunities.availability, "UNAVAILABLE");
+  assert.equal(result.opportunities.status, "BLOCKED");
+});
+
+test("verified opportunity analytics can be projected without being recomputed", () => {
+  const opportunity = Object.freeze({
+    status: "HEALTHY", availability: "AVAILABLE", generatedAt: 10_000, reasons: [],
+    activeCount: 2, totalAllocatedCapital: 240, reservedCash: 10,
+    topOpportunityId: "opp-1", topOpportunityScore: 0.75
+  });
+  const result = buildPaperDashboardSections(input({ opportunity }));
+  assert.equal(result.opportunities, opportunity);
+});
+
+test("projects a validated opportunity schedule without inferring from the paper account", () => {
+  const result = buildPaperDashboardSections(input({ opportunitySchedule: {
+    mode: "PAPER", totalAllocation: 100, reservedCash: 900,
+    opportunities: [{ id: "opp-1", asset: "KRW-BTC", side: "LONG", score: 0.8, allocation: 100, rank: 1, reasons: ["POSITIVE_NET_EDGE"] }],
+    rejected: []
+  } }));
+  assert.equal(result.opportunities.status, "HEALTHY");
+  assert.equal(result.opportunities.activeCount, 1);
+  assert.equal(result.opportunities.topOpportunityId, "opp-1");
+  assert.equal(result.opportunities.topOpportunityScore, 0.8);
+});
+
+test("verified strategy analytics are projected without recomputing the ledger", () => {
+  const result = buildPaperDashboardSections(input({
+    strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics: buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 })
+  }));
+  assert.equal(result.strategies.availability, "AVAILABLE");
+  assert.equal(result.strategies.totalTrades, 0);
+  assert.equal(result.strategies.totalNetPnl, 0);
+  assert.equal(result.strategies.portfolioCaptureRatio, 1);
+});
+
+test("dashboard rejects an altered strategy analytics snapshot", () => {
+  const source = buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 });
+  assert.throws(() => buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 }, strategyAnalytics: { ...source, netPnl: 1 } })), /strategy analytics verification/);
 });
 
 test("projection is deterministic and rejects invalid accounting inputs", () => {
@@ -101,8 +142,10 @@ test("Paper drawdown is deterministic and capped for a depleted account", () => 
   assert.equal(loss.risk.killSwitchActive, false);
 });
 
-test("strategyWarmup connects the real SMA warm-up state to the strategies section, leaving committee unavailable", () => {
-  const warmingUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 3, required: 20 } }));
+const strategyAnalytics = buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 });
+
+test("strategyWarmup connects the real SMA warm-up state when verified analytics are present", () => {
+  const warmingUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 3, required: 20 }, strategyAnalytics }));
   assert.equal(warmingUp.strategies.availability, "AVAILABLE");
   assert.equal(warmingUp.strategies.status, "CAUTION");
   assert.deepEqual(warmingUp.strategies.reasons, ["STRATEGY_WARMING_UP"]);
@@ -112,7 +155,7 @@ test("strategyWarmup connects the real SMA warm-up state to the strategies secti
   assert.equal(warmingUp.committee.availability, "UNAVAILABLE");
   assert.deepEqual(warmingUp.committee.reasons, ["SOURCE_NOT_CONNECTED"]);
 
-  const warmedUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 } }));
+  const warmedUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 }, strategyAnalytics }));
   assert.equal(warmedUp.strategies.status, "HEALTHY");
   assert.deepEqual(warmedUp.strategies.reasons, []);
   assert.equal(warmedUp.strategies.warningStrategies, 0);
@@ -121,6 +164,7 @@ test("strategyWarmup connects the real SMA warm-up state to the strategies secti
 test("strategyWarmup reports a stopped or paused strategy as caution, and a faulted control plane as blocked", () => {
   const stopped = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics,
     control: { status: "STOPPED", strategyId: "sma", autoTradeEnabled: false, orderQuantity: 0.1, events: [] }
   }));
   assert.equal(stopped.strategies.status, "CAUTION");
@@ -128,11 +172,19 @@ test("strategyWarmup reports a stopped or paused strategy as caution, and a faul
 
   const faulted = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics,
     control: { status: "FAULTED", strategyId: "sma", autoTradeEnabled: false, orderQuantity: 0.1, events: [] }
   }));
   assert.equal(faulted.strategies.status, "BLOCKED");
   assert.deepEqual(faulted.strategies.reasons, ["CONTROL_PLANE_FAULTED"]);
   assert.equal(faulted.strategies.blockedStrategies, 1);
+});
+
+test("warm-up without strategy-attributed analytics stays unavailable", () => {
+  const result = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 } }));
+  assert.equal(result.strategies.availability, "UNAVAILABLE");
+  assert.equal(result.strategies.status, "BLOCKED");
+  assert.deepEqual(result.strategies.reasons, ["STRATEGY_ANALYTICS_NOT_CONNECTED"]);
 });
 
 test("executionCostBps connects the real deterministic fill-model rate, staying labeled synthetic", () => {

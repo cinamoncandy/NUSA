@@ -88,7 +88,7 @@ export function runEvidenceRehearsal(options: EvidenceRehearsalOptions): Evidenc
   const startedAt = options.generatedAt;
   if (!Number.isSafeInteger(startedAt) || startedAt < 0 || !options.codeVersion.trim()) throw new Error("invalid rehearsal options");
   if (options.outputPath != null && !isAbsolute(options.outputPath)) throw new Error("rehearsal output must be an absolute path");
-  const root = mkdtempSync(join(tmpdir(), "dokkaebi-evidence-rehearsal-"));
+  const root = mkdtempSync(join(tmpdir(), "nusa-evidence-rehearsal-"));
   const databasePath = join(root, "rehearsal.sqlite");
   const databaseIdentity = checksum({ purpose: "REHEARSAL", databasePath: resolve(databasePath) });
   const target = { strategyId: "rehearsal-strategy", strategyVersion: "1", datasetId: "rehearsal-dataset", datasetChecksum: "a".repeat(64) };

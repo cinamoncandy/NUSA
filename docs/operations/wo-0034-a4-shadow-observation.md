@@ -184,7 +184,7 @@ pnpm desktop
 <앱 사용자 데이터 폴더>/shadow-evidence/<sessionId>/
 ```
 
-Windows 기준 사용자 데이터 폴더는 보통 `%APPDATA%\dokkaebi` 입니다.
+Windows 기준 사용자 데이터 폴더는 보통 `%APPDATA%\nusa` 입니다.
 
 폴더 안에 있어야 하는 파일:
 

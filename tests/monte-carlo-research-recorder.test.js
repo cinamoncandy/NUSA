@@ -14,7 +14,7 @@ const input = Object.freeze({
 });
 
 test("records deterministic Monte Carlo evidence atomically without persisting raw returns or seed", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-mc-recorder-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-mc-recorder-"));
   const store = new DesktopPersistenceStore(join(directory, "paper.sqlite"));
   const first = persistMonteCarloResearch(store, input);
   const second = persistMonteCarloResearch(store, input);
@@ -31,7 +31,7 @@ test("records deterministic Monte Carlo evidence atomically without persisting r
 });
 
 test("paired research persistence rejects mismatched identities without partial rows", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-mc-pair-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-mc-pair-"));
   const store = new DesktopPersistenceStore(join(directory, "paper.sqlite"));
   const recorded = persistMonteCarloResearch(store, input);
   assert.throws(() => store.appendResearchEvidence(recorded.manifest, { ...recorded.report, resultChecksum: "b".repeat(64) }), /checksum mismatch/);

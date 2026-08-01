@@ -1,5 +1,5 @@
 /*
- * DOKKAEBI Control Room — status-first layer.
+ * NUSA Control Room — status-first layer.
  *
  * Every state in here is carried by at least three signals at once: colour, an icon or
  * glyph, and a text label. Colour alone never decides anything, so the panel stays
@@ -64,7 +64,7 @@
   align-items: center;
 }
 
-/* ---------------------------------------------------------------- dokkaebi flame */
+/* ---------------------------------------------------------------- nusa flame */
 
 .cr-flame {
   display: block;

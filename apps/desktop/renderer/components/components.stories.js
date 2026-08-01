@@ -1,6 +1,6 @@
 const render = (markup) => `<main class="component-preview" data-theme="dark">${markup}</main>`;
 
-export default { title: "Dokkaebi/Components" };
+export default { title: "NUSA/Components" };
 
 export const Buttons = {
   render: () => render('<div class="ui-card"><div class="ui-card__header"><div><h2 class="ui-card__title">Actions</h2><p class="ui-card__description">Token-driven button states.</p></div></div><div class="component-preview__actions"><button class="ui-button">Continue</button><button class="ui-button ui-button--secondary">Secondary</button><button class="ui-button ui-button--ghost">Ghost</button><button class="ui-button ui-button--danger">Destructive</button></div></div>')

@@ -1,4 +1,4 @@
-/* DOKKAEBI Design System: dark-first primitive and semantic tokens. */
+/* NUSA Design System: dark-first primitive and semantic tokens. */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -134,10 +134,10 @@
 }
 
 /*
- * DOKKAEBI Control Room brand + status tokens.
+ * NUSA Control Room brand + status tokens.
  *
  * Two axes, deliberately kept apart:
- *   BRAND (ink ground, teal/violet dokkaebi-fire) is always on screen and carries identity.
+ *   BRAND (ink ground, teal/violet nusa-fire) is always on screen and carries identity.
  *   STATUS (teal=ok, amber=warn, red=danger, sky=canary, gold=verified) answers "is this safe".
  * Brand hues are never reused for a pass/fail verdict, so an operator reads danger the same
  * way regardless of how the identity colours are tuned.

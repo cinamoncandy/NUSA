@@ -1,8 +1,8 @@
-# DOKKAEBI Paper-to-Live Readiness Plan
+# NUSA Paper-to-Live Readiness Plan
 
 ## Objective
 
-Move DOKKAEBI from a reliable Upbit spot Paper Trading system toward a **small-capital live candidate** without enabling live orders prematurely.
+Move NUSA from a reliable Upbit spot Paper Trading system toward a **small-capital live candidate** without enabling live orders prematurely.
 
 The first success condition is not profit. It is:
 

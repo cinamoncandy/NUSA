@@ -56,7 +56,7 @@ test("migration runner rejects duplicate or unordered migration plans", () => {
 
 
 test("SqliteDatabase fresh file applies accounting schema and exposes all tables", () => {
-  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "positions.db");
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
     assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control", "004_compliance_control_plane", "005_resilience_control_plane", "006_rules_control_plane", "007_multi_agent_governance"]);
@@ -96,7 +96,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
 });
 
 test("SqliteDatabase rejects an unknown applied migration on reopen", () => {
-  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-storage-")), "future.db");
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-storage-")), "future.db");
   const raw = new DatabaseSync(filename);
   raw.exec("CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
   raw.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("999_future", new Date().toISOString());
@@ -106,7 +106,7 @@ test("SqliteDatabase rejects an unknown applied migration on reopen", () => {
 
 
 test("SqliteDatabase applies safety pragmas and passes quick_check", () => {
-  const filename = join(mkdtempSync(join(tmpdir(), "dokkaebi-pragmas-")), "safe.db");
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-pragmas-")), "safe.db");
   const db = new SqliteDatabase(filename);
   try {
     assert.equal(Object.values(db.connection.prepare("PRAGMA foreign_keys").get())[0], 1);

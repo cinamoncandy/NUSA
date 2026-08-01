@@ -7,7 +7,7 @@ const path = require("node:path");
 const { CrashRecoveryMarkerStore } = require("../dist/apps/desktop/src/crashRecoveryMarker.js");
 
 function store(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "dokkaebi-crash-recovery-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-crash-recovery-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return {
     root,

@@ -10,13 +10,13 @@ const exists = (relative) => fs.existsSync(path.join(root, relative));
 
 required(packageJson.main === "dist/apps/desktop/src/main.js", "root main must point at compiled desktop main");
 required(packageJson.dependencies?.ws === "8.21.0", "runtime WebSocket dependency must be production-scoped and pinned");
-required(build?.appId === "com.dokkaebi.trader", "appId is missing or changed");
-required(build?.productName === "Dokkaebi", "productName is missing or changed");
+required(build?.appId === "com.nusa.trader", "appId is missing or changed");
+required(build?.productName === "NUSA", "productName is missing or changed");
 required(build?.asar === true, "asar must be enabled");
 required(build?.directories?.output === "release", "Windows output must use release/");
 required(build?.win?.target === "nsis", "Windows target must be NSIS");
-required(build?.win?.icon === "build/dokkaebi-a4p.ico" && exists("build/dokkaebi-a4p.ico"), "Windows icon must be build/dokkaebi-a4p.ico");
-required(build?.win?.artifactName === "Dokkaebi-${version}-Windows-Setup.${ext}", "installer artifact name is not deterministic");
+required(build?.win?.icon === "build/nusa-a4p.ico" && exists("build/nusa-a4p.ico"), "Windows icon must be build/nusa-a4p.ico");
+required(build?.win?.artifactName === "NUSA-${version}-Windows-Setup.${ext}", "installer artifact name is not deterministic");
 required(build?.nsis?.oneClick === false, "installer must use explicit install flow");
 
 const files = build?.files ?? [];

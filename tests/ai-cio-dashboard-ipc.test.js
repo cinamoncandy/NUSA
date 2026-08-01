@@ -30,7 +30,7 @@ test("registers only the input-free dashboard read channel", () => {
 });
 
 test("converts internal source and validation errors to a fixed safe response", () => {
-  const service = new AiCioDashboardService({ current: () => { throw new Error("C:\\private\\dokkaebi.db secret stack"); } }, () => 1_000);
+  const service = new AiCioDashboardService({ current: () => { throw new Error("C:\\private\\nusa.db secret stack"); } }, () => 1_000);
   const result = service.getAiCioDashboard();
   assert.deepEqual(result, { ok: false, status: "UNAVAILABLE", message: "AI CIO dashboard is not available" });
   assert.doesNotMatch(JSON.stringify(result), /private|\.db|stack|secret/i);
@@ -47,7 +47,7 @@ test("returns a validated immutable serializable envelope", () => {
 
 test("preload dashboard namespace exposes no control, order, Node or DB method", () => {
   const source = readFileSync(join(process.cwd(), "apps/desktop/src/preload.ts"), "utf8");
-  const dashboardBlock = source.slice(source.indexOf("const aiCioDashboard"), source.indexOf('contextBridge.exposeInMainWorld("dokkaebi"'));
+  const dashboardBlock = source.slice(source.indexOf("const aiCioDashboard"), source.indexOf('contextBridge.exposeInMainWorld("nusa"'));
   assert.match(dashboardBlock, /getAiCioDashboard/);
   assert.doesNotMatch(dashboardBlock, /placeOrder|setAutoTrade|startStrategy|stopStrategy|setStrategyQuantity|require\(|node:|Database/);
 });

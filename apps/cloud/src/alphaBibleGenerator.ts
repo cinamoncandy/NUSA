@@ -115,7 +115,7 @@ export const generateAlphaBible = (registry: AlphaEvidenceRegistrySnapshot, gene
       : entry.evidence.map((item) => `- ${item.relation} | ${item.evidenceId} | confidence ${item.confidence.toFixed(2)} | ${item.summary}`).join("\n");
     return `## ${entry.alphaId} — ${entry.name}\n\n- Version: ${entry.version}\n- Status: ${entry.status}\n- Category: ${entry.category}\n- Owner: ${entry.owner}\n- Markets: ${entry.markets.join(", ") || "None"}\n- Horizon: ${entry.horizon}\n- Capacity: ${money(entry.capacityUsd)}\n- Half-life: ${days(entry.halfLifeDays)}\n- Evidence grade: ${entry.evidenceGrade}\n- Risk class: ${entry.riskClass}\n- Evidence count: ${entry.supports} support / ${entry.rejects} reject / ${entry.neutral} neutral\n\n### Evidence\n${evidenceLines}`;
   });
-  const markdown = `# DOKKAEBI Alpha Bible\n\nGenerated: ${generatedAt}\nSource snapshot: ${registry.snapshotHash}\nAlpha count: ${entries.length}\n\n${sections.join("\n\n")}`;
+  const markdown = `# NUSA Alpha Bible\n\nGenerated: ${generatedAt}\nSource snapshot: ${registry.snapshotHash}\nAlpha count: ${entries.length}\n\n${sections.join("\n\n")}`;
   const payload = { sourceSnapshotHash: registry.snapshotHash, generatedAt, entries: Object.freeze(entries), markdown };
   return Object.freeze({ ...payload, contentHash: hash(payload) });
 };

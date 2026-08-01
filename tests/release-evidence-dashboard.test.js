@@ -32,7 +32,7 @@ test("dashboard derives counts and remains blocked for unverified legacy provena
 });
 
 test("owner review records are append-only and checksum verified", () => {
-  const directory = mkdtempSync(join(tmpdir(), "dokkaebi-review-"));
+  const directory = mkdtempSync(join(tmpdir(), "nusa-review-"));
   const store = new DesktopPersistenceStore(join(directory, "paper.sqlite"));
   const b = bundle();
   const reviewedAt = "2026-07-15T00:00:00.000Z";
