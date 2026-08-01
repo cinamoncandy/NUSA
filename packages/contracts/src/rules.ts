@@ -181,6 +181,17 @@ export interface PolicyCompositionResult {
   readonly productionMutationAllowed: false;
 }
 
+export type DecisionSimulationMode = "SIMULATION" | "SHADOW";
+
+/** A read-only policy observation. It never grants execution authority. */
+export interface DecisionSimulationReport {
+  readonly evaluationId: string;
+  readonly mode: DecisionSimulationMode;
+  readonly trace: DecisionTrace;
+  readonly simulationHash: string;
+  readonly productionMutationAllowed: false;
+}
+
 export interface RuleEvaluationRequest {
   readonly evaluationId: string;
   /** Explicit clock supplied by the caller; evaluation never reads wall time. */

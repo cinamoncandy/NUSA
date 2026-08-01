@@ -17,6 +17,7 @@ const {
   createFormulaDefinition,
   evaluateFormula,
   evaluatePolicy,
+  simulatePolicy,
   registerFormulaVersion,
   registerRuleVersion,
   replayRulesLedger
@@ -87,6 +88,16 @@ test("policy composition is deterministic, preserves strict outcomes, and blocks
   assert.deepEqual(first, second);
   assert.equal(first.productionMutationAllowed, false);
   assert.equal(composePolicies({ evaluationId: "composition-unknown", evaluatedAt: 10, policies: [policy(), restrictivePolicy], rules: [rule()], inputs: { eligible: true } }).decision, RuleDecision.UNKNOWN);
+});
+
+test("simulation and Shadow reports are typed read-only observations", () => {
+  const simulation = simulatePolicy({ ...request(), mode: "SIMULATION" });
+  const shadow = simulatePolicy({ ...request(), mode: "SHADOW" });
+  assert.equal(simulation.productionMutationAllowed, false);
+  assert.equal(shadow.productionMutationAllowed, false);
+  assert.equal(simulation.trace.decision, RuleDecision.APPROVE);
+  assert.notEqual(simulation.simulationHash, shadow.simulationHash);
+  assert.deepEqual(simulation, simulatePolicy({ ...request(), mode: "SIMULATION" }));
 });
 
 test("rules events replay exactly and SQLite snapshot tampering fails closed", () => {

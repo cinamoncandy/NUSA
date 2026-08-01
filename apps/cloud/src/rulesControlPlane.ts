@@ -9,6 +9,8 @@ import {
   type BusinessPolicy,
   type BusinessRule,
   type DecisionTrace,
+  type DecisionSimulationReport,
+  type DecisionSimulationMode,
   type FormulaDefinition,
   type FormulaEvaluation,
   type FormulaEvaluationRequest,
@@ -243,6 +245,17 @@ export function evaluatePolicy(request: RuleEvaluationRequest): DecisionTrace {
   const explanation = decision === RuleDecision.UNKNOWN ? "Decision blocked: no unambiguous published rule outcome." : `Decision ${decision} selected by ${matchedReferences.map(ruleKey).join(", ")}.`;
   const seed = { evaluationId: request.evaluationId, policy: { policyId: policy.policyId, version: policy.version }, references, inputs, matchedReferences, decision, evidenceHash };
   return Object.freeze({ evaluationId: request.evaluationId, policy: Object.freeze({ policyId: policy.policyId, version: policy.version }), ruleVersions: references, inputsHash: hash(canonical(inputs)), normalizedInputs: inputs, matchedRules: matchedReferences, skippedRules: freezeArray([]), rejectedRules: rejected, executionOrder: references, decision, explanation, durationMs: 0, evidenceHash, replayHash: hash(canonical(seed)), productionMutationAllowed: false });
+}
+
+/**
+ * Produces a typed, immutable observation for simulation or Shadow reporting. The
+ * underlying policy evaluator remains the only decision source; this wrapper adds no
+ * execution path and deliberately carries an immutable production hard block.
+ */
+export function simulatePolicy(request: RuleEvaluationRequest & { readonly mode: DecisionSimulationMode }): DecisionSimulationReport {
+  const trace = evaluatePolicy(request);
+  const simulationHash = hash(canonical({ evaluationId: trace.evaluationId, mode: request.mode, replayHash: trace.replayHash, decision: trace.decision }));
+  return Object.freeze({ evaluationId: trace.evaluationId, mode: request.mode, trace, simulationHash, productionMutationAllowed: false as const });
 }
 
 function unknownComposition(request: PolicyCompositionRequest, reason: string): PolicyCompositionResult {
