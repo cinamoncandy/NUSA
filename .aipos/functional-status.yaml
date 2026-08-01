@@ -40,7 +40,7 @@ features:
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/global-risk-gateway.test.js, tests/risk-safety-drills.test.js, tests/independent-risk-gateway.test.js]
     blockers: [desktop Paper gate and execution-domain GlobalRiskGateway remain separate policy surfaces]
-    latest_evidence: risk-engine-audit-2026-08-01.md; risk-evidence-integration-audit-2026-08-01.md; risk-evidence 1/1; CI-mode build PASS
+    latest_evidence: risk-engine-audit-2026-08-01.md; risk-evidence-integration-audit-2026-08-01.md; risk-evidence-vertical-slice-2026-08-01.md; affected tests 8/8; CI-mode build PASS
   - id: strategy.sma-paper-routing
     priority: required
     status: IMPLEMENTED_UNVERIFIED

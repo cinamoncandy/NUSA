@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP05-002-offline-engine. Added bounded OfflineCache, idempotent SyncQueue, checksum validation, deterministic conflict resolution, and expiring prioritized ActionQueue; focused tests 4/4 and CI-mode build pass. Runtime connectivity and durable offline persistence remain. Known recovery reconciliation regression remains.
+Current mission: RISK-002-risk-evidence-vertical-slice. RiskDecision now carries timestamp, rule ID, input parameters, account state, market state, and correlation ID; SQLite evidence is append-only, queryable, and recovery-surviving. Affected tests 8/8, typecheck/build PASS. Known Risk surface separation remains.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
