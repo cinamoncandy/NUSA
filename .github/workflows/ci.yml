@@ -36,6 +36,8 @@ jobs:
         run: pnpm run lint
       - name: UI tests
         run: pnpm run test:ui
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium
       - name: E2E tests
         run: pnpm run test:e2e
       - name: Package validation
@@ -65,9 +67,10 @@ jobs:
       - name: Full isolated test suite
         run: node scripts/run-tests-isolated.js
       - name: Coverage baseline
+        if: always()
         run: pnpm run test:coverage
       - name: Upload coverage baseline
-        if: always()
+        if: always() && hashFiles('coverage/**') != ''
         uses: actions/upload-artifact@v4
         with:
           name: coverage-baseline
