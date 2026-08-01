@@ -8,6 +8,17 @@ export type PublicCandleRequest = (url: string) => Promise<unknown>;
 export class UpbitMinuteCandleSourceError extends Error { constructor(readonly code: "REQUEST_FAILED" | "INVALID_RESPONSE" | "NO_CLOSED_CANDLES" | "GAP_DETECTED" | "OUT_OF_ORDER", message: string) { super(message); this.name = "UpbitMinuteCandleSourceError"; } }
 const minute = 60_000;
 const request: PublicCandleRequest = async (url) => { const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); };
+const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+export interface UpbitMinuteCandleSourceOptions {
+  readonly maxAttempts?: number;
+  readonly baseDelayMs?: number;
+  readonly maxDelayMs?: number;
+  readonly minimumIntervalMs?: number;
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+const retryable = (error: unknown): boolean => /(?:HTTP\s+(?:429|5\d\d)|fetch|network|timeout|timed out|connection|socket|ECONNRESET)/i.test(error instanceof Error ? error.message : String(error));
 
 function parse(value: unknown, symbol: string, now: number): OperationalCandle[] {
   if (!Array.isArray(value)) throw new UpbitMinuteCandleSourceError("INVALID_RESPONSE", "candle response is not an array");
@@ -27,10 +38,43 @@ function parse(value: unknown, symbol: string, now: number): OperationalCandle[]
 }
 
 export class UpbitMinuteCandleSource {
-  constructor(private readonly symbol: string, private readonly fetcher: PublicCandleRequest = request, private readonly clock: () => number = Date.now) { if (!symbol.trim()) throw new Error("candle source symbol is required"); }
+  private lastRequestAt?: number;
+  private readonly maxAttempts: number;
+  private readonly baseDelayMs: number;
+  private readonly maxDelayMs: number;
+  private readonly minimumIntervalMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+
+  constructor(private readonly symbol: string, private readonly fetcher: PublicCandleRequest = request, private readonly clock: () => number = Date.now, options: UpbitMinuteCandleSourceOptions = {}) {
+    if (!symbol.trim()) throw new Error("candle source symbol is required");
+    this.maxAttempts = options.maxAttempts ?? 3;
+    this.baseDelayMs = options.baseDelayMs ?? 250;
+    this.maxDelayMs = options.maxDelayMs ?? 2_000;
+    this.minimumIntervalMs = options.minimumIntervalMs ?? 100;
+    this.sleep = options.sleep ?? defaultSleep;
+    if (!Number.isSafeInteger(this.maxAttempts) || this.maxAttempts < 1 || !Number.isSafeInteger(this.baseDelayMs) || this.baseDelayMs < 0 || !Number.isSafeInteger(this.maxDelayMs) || this.maxDelayMs < this.baseDelayMs || !Number.isSafeInteger(this.minimumIntervalMs) || this.minimumIntervalMs < 0) throw new Error("invalid public candle request policy");
+  }
   async loadClosedCandles(count = 200): Promise<readonly OperationalCandle[]> {
     if (!Number.isSafeInteger(count) || count < 1 || count > 200) throw new Error("candle count must be between 1 and 200");
-    let raw: unknown; try { raw = await this.fetcher(`https://api.upbit.com/v1/candles/minutes/1?market=${encodeURIComponent(this.symbol)}&count=${count}`); } catch (error) { throw new UpbitMinuteCandleSourceError("REQUEST_FAILED", error instanceof Error ? error.message : String(error)); }
+    const url = `https://api.upbit.com/v1/candles/minutes/1?market=${encodeURIComponent(this.symbol)}&count=${count}`;
+    let raw: unknown;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+      try {
+        const now = this.clock();
+        const wait = this.lastRequestAt == null ? 0 : Math.max(0, this.minimumIntervalMs - (now - this.lastRequestAt));
+        if (wait > 0) await this.sleep(wait);
+        this.lastRequestAt = this.clock();
+        raw = await this.fetcher(url);
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!retryable(error) || attempt === this.maxAttempts) break;
+        await this.sleep(Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** (attempt - 1)));
+      }
+    }
+    if (lastError !== undefined) throw new UpbitMinuteCandleSourceError("REQUEST_FAILED", lastError instanceof Error ? lastError.message : String(lastError));
     const parsed = parse(raw, this.symbol, this.clock());
     const ascending = parsed.every((candle, index) => index === 0 || candle.openTime > parsed[index - 1]!.openTime);
     const descending = parsed.every((candle, index) => index === 0 || candle.openTime < parsed[index - 1]!.openTime);
