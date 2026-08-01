@@ -1,7 +1,7 @@
 # NUSA Coverage Baseline Audit
 
 Audit date: 2026-08-01
-Audited recovery head: `7183802f725986418b8bffc6f12c4986ac7dcafd`
+Audited recovery head: `1be2482c2f4bffe809790fc613bd088dcea94af5`
 
 Command: `pnpm run test:coverage`
 
