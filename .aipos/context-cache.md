@@ -28,3 +28,6 @@ Latest verified commands:
 - pnpm run test:e2e (4 tests)
 - pnpm run package:validate
 - git diff --check
+- pnpm run release:check with CI=true
+
+Current gap mission: GAP-001-electron-release-smoke. Release check passed with CI=true; Electron GUI and installer smoke remain unverified.

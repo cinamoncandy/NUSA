@@ -12,7 +12,7 @@ checks:
   ui_tests: PASS
   e2e_tests: PASS
   package_validation: PASS
-  release_check: UNVERIFIED
+  release_check: PASS
   coverage: NOT_MEASURED
 runtime:
   electron: UNVERIFIED
