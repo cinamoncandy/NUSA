@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: AC-003-ledger-authoritative-paper-accounting. PaperBroker now computes candidate fills without mutating financial state, appends the ledger, and rebuilds cash/position from the ledger; focused accounting tests 21/21 and CI-mode build pass. Release installer/Shadow remain environment-gated.
+Current mission: EP06-002-mobile-security-platform-ports. Added platform security ports for secure storage, biometric/PIN authentication, and trusted-device registration/revocation; security tests 7/7 and CI-mode build pass. No secrets are stored by the service. Concrete OS/Electron bindings remain a separate platform integration task.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
