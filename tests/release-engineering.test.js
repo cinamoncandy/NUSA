@@ -21,3 +21,9 @@ test("release documents cover install, operation, recovery, rollback, and checkl
     assert.ok(content.length > 200, file);
   }
 });
+
+test("release metadata is excluded from its own artifact hash input", () => {
+  const script = fs.readFileSync(path.join(root, "scripts", "release-artifacts.js"), "utf8");
+  assert.match(script, /generatedArtifacts/);
+  assert.match(script, /generatedArtifacts\.has\(relative\)/);
+});

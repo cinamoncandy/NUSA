@@ -8,6 +8,12 @@ const root = path.resolve(__dirname, "..");
 const releaseDir = path.join(root, "release");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const forbidden = /(^|[\\/])(?:\.env|.*\.pem$|.*\.pfx$|.*\.key$|.*secret.*|.*credential.*|auth\.json$|token\.json$|npm-debug\.log$|pnpm-debug\.log$)/i;
+const generatedArtifacts = new Set([
+  `${pkg.name}-${pkg.version}-checksums.txt`,
+  `${pkg.name}-${pkg.version}-SBOM.json`,
+  `${pkg.name}-${pkg.version}-release-notes.md`,
+  `${pkg.name}-${pkg.version}-verification.json`
+]);
 const files = [];
 const walk = (directory) => {
   if (!fs.existsSync(directory)) return;
@@ -16,6 +22,7 @@ const walk = (directory) => {
     if (entry.isDirectory()) walk(full);
     else {
       const relative = path.relative(releaseDir, full).replaceAll("\\", "/");
+      if (generatedArtifacts.has(relative)) continue;
       if (forbidden.test(relative)) throw new Error(`forbidden release artifact: ${relative}`);
       const bytes = fs.readFileSync(full);
       files.push({ path: relative, sizeBytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex") });
