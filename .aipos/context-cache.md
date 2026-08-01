@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: RISK-001-canonical-paper-risk-matrix. Audited manual, strategy, Shadow, and durable submit paths; all are fail-closed behind Risk. Remaining gap is unified desktop Risk DTO/policy coverage and durable Risk Evidence. No live mutation.
+Current mission: STRAT-001-deterministic-signal-deduplication completed identical-tick suppression in StrategyEngine. Next is a minimal common StrategyDefinition/Signal contract; execution remains Risk-gated and no live mutation.

@@ -1,14 +1,14 @@
-id: RISK-001-canonical-paper-risk-matrix
-title: Unify and persist the Paper Risk decision matrix
+id: STRAT-001-deterministic-signal-deduplication
+title: Prevent duplicate strategy evaluation for identical market ticks
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: risk
+phase: strategy
 status: IN_PROGRESS
 scope:
-  - canonical Paper risk decision matrix
-  - persisted decision Evidence
-  - preserve fail-closed execution
+  - deterministic signal generation
+  - duplicate tick protection
+  - preserve Risk-before-execution routing
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Add focused coverage for the desktop Paper gate's market, recovery, duplicate, kill-switch, and strategy conditions, then persist the decision Evidence through the existing storage boundary.
+next_recommended_task: Introduce a minimal common StrategyDefinition/Signal contract for static strategies without moving execution or persistence into the Strategy Engine.

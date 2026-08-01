@@ -47,6 +47,7 @@ features:
     implementation_paths: [apps/execution/src, apps/desktop/src]
     test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js]
     blockers: [long-running runtime evidence not executed]
+    latest_evidence: strategy-engine-audit-2026-08-01.md; strategy-restart-continuity 6/6; CI-mode build PASS
   - id: operations.evidence-diagnostics
     priority: required
     status: VERIFIED_COMPLETE
