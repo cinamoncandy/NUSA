@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T07:12:25+09:00"
+updated_at: "2026-08-02T07:13:20+09:00"
 phase: audit
 status: blocked
 objective: "Establish and archive a truthful repository coverage baseline while preserving production-readiness blockers."
@@ -38,7 +38,7 @@ verification:
     - "pnpm run coverage"
     - "git diff --check"
   last_result: "PASS: coverage generated from core 291-file, UI 4-test, and E2E 4-test runs; unified baseline 84.37% statements/lines, 76.37% branches, 92.56% functions. Typecheck, build, lint, full test, UI, E2E, and diff check PASS."
-  current_commit: "ee3f0dd4270e0de3c0f0a62af1fc56265bfe0420"
+  current_commit: "0bd2ec71210b0beb88eb91292c99e9ff92b87f72"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
