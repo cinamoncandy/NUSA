@@ -34,7 +34,7 @@ verification:
     - "pnpm run coverage"
     - "git diff --check"
   last_result: "PASS: coverage generated from core 291-file, UI 4-test, and E2E 4-test runs; unified baseline 84.37% statements/lines, 76.37% branches, 92.56% functions; HTML, JSON, LCOV, and SVG badge artifacts generated. Typecheck, build, lint, full test, UI, E2E, and diff check PASS."
-  current_commit: "0bd2ec71210b0beb88eb91292c99e9ff92b87f72"
+  current_commit: "cd3db11"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
