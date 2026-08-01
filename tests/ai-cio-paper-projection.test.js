@@ -96,6 +96,17 @@ test("verified opportunity analytics can be projected without being recomputed",
   assert.equal(result.opportunities, opportunity);
 });
 
+test("verified strategy analytics are projected without recomputing the ledger", () => {
+  const result = buildPaperDashboardSections(input({
+    strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics: { totalTrades: 2, totalNetPnl: 8, portfolioCaptureRatio: 1, blockedStrategies: 0, warningStrategies: 0 }
+  }));
+  assert.equal(result.strategies.availability, "AVAILABLE");
+  assert.equal(result.strategies.totalTrades, 2);
+  assert.equal(result.strategies.totalNetPnl, 8);
+  assert.equal(result.strategies.portfolioCaptureRatio, 1);
+});
+
 test("projection is deterministic and rejects invalid accounting inputs", () => {
   assert.deepEqual(buildPaperDashboardSections(input()), buildPaperDashboardSections(input()));
   assert.throws(() => buildPaperDashboardSections(input({ markPrice: 0 })), /markPrice/);

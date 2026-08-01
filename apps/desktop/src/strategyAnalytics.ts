@@ -12,6 +12,8 @@ export interface StrategyAnalyticsSnapshot {
   readonly realizedPnl: number;
   readonly unrealizedPnl: number;
   readonly netPnl: number;
+  /** With one fully attributed Paper strategy, all tracked portfolio activity is covered. */
+  readonly portfolioCaptureRatio: number;
 }
 
 function finitePositive(value: number, name: string): void {
@@ -79,6 +81,7 @@ export function buildStrategyAnalytics(input: Readonly<{
     fees,
     realizedPnl,
     unrealizedPnl,
-    netPnl: realizedPnl + unrealizedPnl
+    netPnl: realizedPnl + unrealizedPnl,
+    portfolioCaptureRatio: 1
   });
 }

@@ -12,6 +12,7 @@ import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
 import { buildPersistedCommitteeDashboardSection } from "./committeeDashboardProjection";
+import { buildStrategyAnalytics } from "./strategyAnalytics";
 import { resolveRendererIndexPath } from "./rendererPath";
 import {
   createPreloadErrorDiagnostic,
@@ -318,8 +319,15 @@ function publishAiCioDashboard(): void {
   }
   const generatedAt = Date.now();
   try {
+    const account = broker.snapshot(latestTicker.trade_price);
+    const strategyAnalytics = buildStrategyAnalytics({
+      orders: account.orders,
+      strategyId: smaStrategy.id,
+      market: MARKET,
+      markPrice: latestTicker.trade_price
+    });
     aiCioSnapshotPublisher.publishIfComplete(buildPaperDashboardSections({
-      account: broker.snapshot(latestTicker.trade_price),
+      account,
       control: control.snapshot(),
       markPrice: latestTicker.trade_price,
       referenceEquity: INITIAL_CASH,
@@ -331,6 +339,13 @@ function publishAiCioDashboard(): void {
         generatedAt
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
+      strategyAnalytics: strategyAnalytics == null ? undefined : {
+        totalTrades: strategyAnalytics.orderCount,
+        totalNetPnl: strategyAnalytics.netPnl,
+        portfolioCaptureRatio: strategyAnalytics.portfolioCaptureRatio,
+        blockedStrategies: 0,
+        warningStrategies: 0
+      },
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
       committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
         ...persistenceStore.loadCommitteeDashboardSource(),

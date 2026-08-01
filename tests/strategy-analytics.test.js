@@ -19,6 +19,7 @@ test("replays attributed strategy orders independently", () => {
   assert.equal(result.unrealizedPnl, 0);
   assert.equal(result.netPnl, 8);
   assert.equal(result.fees, 2);
+  assert.equal(result.portfolioCaptureRatio, 1);
 });
 
 test("manual or foreign strategy orders make attribution unavailable", () => {
