@@ -24,6 +24,10 @@ const {
   replayRulesLedger
 } = require("../dist/apps/cloud/src/rulesControlPlane.js");
 const { SqliteDatabase, SqliteRulesControlPlaneStore } = require("../dist/packages/storage/src/index.js");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const evidence = "a".repeat(64);
 const rule = (overrides = {}) => createBusinessRule({
@@ -134,4 +138,18 @@ test("rules ledger projection is deterministic and read-only", () => {
   assert.deepEqual(projection, projectRulesLedger(records));
   projection.eventCount = 99;
   assert.equal(projection.eventCount, 1);
+});
+
+test("rules status CLI reads an explicit ledger without mutating it", () => {
+  const records = appendRulesEvent([], event(RulesEventType.RULE_PUBLISHED, { rule: rule() }, 1));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-rules-status-"));
+  const ledger = path.join(root, "ledger.json");
+  fs.writeFileSync(ledger, JSON.stringify(records));
+  const result = spawnSync(process.execPath, ["scripts/rules-control-plane-status.js", "--ledger", ledger], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.eventCount, 1);
+  assert.equal(output.productionMutationAllowed, false);
+  assert.equal(fs.readFileSync(ledger, "utf8"), JSON.stringify(records));
+  fs.rmSync(root, { recursive: true, force: true });
 });
