@@ -165,7 +165,8 @@ writeManifest(results, "PASS", {
     "coverage/unified-summary.json",
     "coverage/core/index.html",
     "coverage/ui/index.html",
-    "coverage/unified-lcov.info"
+    "coverage/unified-lcov.info",
+    "coverage/badge.svg"
   ],
   browserCoverage: "NOT_AVAILABLE: Playwright runs application code inside Chromium; the current static-server E2E has no browser instrumentation."
 });

@@ -13,7 +13,7 @@ checks:
   e2e_tests: PASS
   package_validation: PASS
   release_check: PASS
-  coverage: NOT_MEASURED
+  coverage: PASS (84.37% statements/lines, 76.37% branches, 92.56% functions)
 runtime:
   electron: UNVERIFIED
   recovery: PASS

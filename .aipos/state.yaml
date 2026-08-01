@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T07:13:20+09:00"
+updated_at: "2026-08-02T08:01:07+09:00"
 phase: audit
 status: blocked
 objective: "Establish and archive a truthful repository coverage baseline while preserving production-readiness blockers."
@@ -17,11 +17,7 @@ completed:
   - id: execution-operations-v0
     evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
     summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
-in_progress:
-  - id: coverage-baseline
-    work_order: .aipos/current-mission.yaml
-    branch: agent/mobile-first-ui-v1
-    pull_request: 45
+in_progress: []
 blocked: []
 next:
   work_order: .aipos/current-mission.yaml
@@ -37,7 +33,7 @@ verification:
     - "pnpm run test:e2e"
     - "pnpm run coverage"
     - "git diff --check"
-  last_result: "PASS: coverage generated from core 291-file, UI 4-test, and E2E 4-test runs; unified baseline 84.37% statements/lines, 76.37% branches, 92.56% functions. Typecheck, build, lint, full test, UI, E2E, and diff check PASS."
+  last_result: "PASS: coverage generated from core 291-file, UI 4-test, and E2E 4-test runs; unified baseline 84.37% statements/lines, 76.37% branches, 92.56% functions; HTML, JSON, LCOV, and SVG badge artifacts generated. Typecheck, build, lint, full test, UI, E2E, and diff check PASS."
   current_commit: "0bd2ec71210b0beb88eb91292c99e9ff92b87f72"
 human_authority:
   live_trading_mutation: prohibited

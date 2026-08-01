@@ -7,7 +7,7 @@ phase: audit
 status: COMPLETE
 scope:
   - unified Node and Vitest coverage collection
-  - coverage summary and HTML/LCOV artifact generation
+  - coverage summary and HTML/JSON/LCOV/SVG artifact generation
   - CI coverage artifact upload
   - critical-path coverage review
 safety:
@@ -23,6 +23,7 @@ verification:
   test_ui: PASS (2 files, 4 tests)
   test_e2e: PASS (4 tests)
   coverage: PASS (84.37% statements/lines, 76.37% branches, 92.56% functions)
+  coverage_badge: PASS (coverage/badge.svg)
   package_validate: PASS
   release_check: PASS
   ci: UPDATED

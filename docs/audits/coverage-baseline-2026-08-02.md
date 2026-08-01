@@ -1,6 +1,6 @@
 # NUSA Coverage Baseline
 
-Audited commit: `ee3f0dd4270e0de3c0f0a62af1fc56265bfe0420`
+Audited commit: `0bd2ec71210b0beb88eb91292c99e9ff92b87f72`
 Generated: 2026-08-02 (Asia/Seoul)
 Environment: Windows, Node `v24.18.0`, pnpm `11.7.0`, x64
 
@@ -67,6 +67,7 @@ CI now runs `pnpm run coverage` and uploads the `coverage/` directory as artifac
 - `coverage/core/index.html`
 - `coverage/ui/index.html`
 - `coverage/baseline-manifest.json`
+- `coverage/badge.svg`
 
 ## Remaining blockers
 
