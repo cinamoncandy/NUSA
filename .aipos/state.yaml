@@ -37,7 +37,7 @@ verification:
     - "pnpm run test:e2e"
     - "git diff --check"
   last_result: "PASS: strict unused-symbol audit, typecheck, build, lint, 291 isolated test files, and git diff --check. Runtime dependency cycles: 0. Production external evidence remains blocked separately."
-  current_commit: "d820cff5a89362fd467690ec08c9e492f489ddd3"
+  current_commit: "174e5b976e076eafd6b046162e24347f9c0ded44"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

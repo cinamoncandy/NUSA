@@ -1,7 +1,7 @@
 # NUSA Dependency Maintenance Report
 
 Audit date: 2026-08-02
-Audited commit: `d820cff5a89362fd467690ec08c9e492f489ddd3`
+Audited commit: `174e5b976e076eafd6b046162e24347f9c0ded44`
 
 ## Direct dependencies
 
