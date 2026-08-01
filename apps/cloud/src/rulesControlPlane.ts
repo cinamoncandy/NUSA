@@ -11,6 +11,7 @@ import {
   type DecisionTrace,
   type DecisionSimulationReport,
   type DecisionSimulationMode,
+  type RulesControlPlaneProjection,
   type FormulaDefinition,
   type FormulaEvaluation,
   type FormulaEvaluationRequest,
@@ -331,6 +332,23 @@ export function replayRulesLedger(records: readonly RulesLedgerRecord[]): RulesR
     previousHash = record.hash; previousTime = event.occurredAt;
   }
   return Object.freeze({ hash: previousHash, rules, policies, formulas, traces });
+}
+
+/** Projects the verified ledger for operators without exposing mutable storage. */
+export function projectRulesLedger(records: readonly RulesLedgerRecord[]): RulesControlPlaneProjection {
+  const replay = replayRulesLedger(records);
+  const decisionCounts = Object.fromEntries(Object.values(RuleDecision).map((decision) => [decision, 0])) as Record<RuleDecision, number>;
+  for (const trace of replay.traces.values()) decisionCounts[trace.decision] += 1;
+  return Object.freeze({
+    ledgerHash: replay.hash,
+    eventCount: records.length,
+    ruleVersionCount: replay.rules.size,
+    policyVersionCount: replay.policies.size,
+    formulaVersionCount: replay.formulas.size,
+    decisionTraceCount: replay.traces.size,
+    decisionCounts: Object.freeze(decisionCounts),
+    latestEventType: records.at(-1)?.event.type
+  });
 }
 
 export function appendRulesEvent(records: readonly RulesLedgerRecord[], event: RulesLedgerEvent): readonly RulesLedgerRecord[] {

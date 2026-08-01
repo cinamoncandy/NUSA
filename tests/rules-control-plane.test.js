@@ -17,6 +17,7 @@ const {
   createFormulaDefinition,
   evaluateFormula,
   evaluatePolicy,
+  projectRulesLedger,
   simulatePolicy,
   registerFormulaVersion,
   registerRuleVersion,
@@ -120,4 +121,17 @@ test("rules events replay exactly and SQLite snapshot tampering fails closed", (
     db.connection.prepare("UPDATE rules_state SET ledger_hash=? WHERE id=1").run("0".repeat(64));
     assert.throws(() => store.verify(), /snapshot mismatch/);
   } finally { db.close(); }
+});
+
+test("rules ledger projection is deterministic and read-only", () => {
+  const records = appendRulesEvent([], event(RulesEventType.RULE_PUBLISHED, { rule: rule() }, 1));
+  const projection = projectRulesLedger(records);
+  assert.equal(projection.eventCount, 1);
+  assert.equal(projection.ruleVersionCount, 1);
+  assert.equal(projection.latestEventType, RulesEventType.RULE_PUBLISHED);
+  assert.equal(projection.decisionTraceCount, 0);
+  assert.ok(Object.isFrozen(projection));
+  assert.deepEqual(projection, projectRulesLedger(records));
+  projection.eventCount = 99;
+  assert.equal(projection.eventCount, 1);
 });

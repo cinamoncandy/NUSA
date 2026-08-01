@@ -258,3 +258,15 @@ export interface RulesLedgerRecord {
   readonly event: RulesLedgerEvent;
   readonly hash: string;
 }
+
+/** Read-only query result derived from the append-only rules ledger. */
+export interface RulesControlPlaneProjection {
+  readonly ledgerHash: string;
+  readonly eventCount: number;
+  readonly ruleVersionCount: number;
+  readonly policyVersionCount: number;
+  readonly formulaVersionCount: number;
+  readonly decisionTraceCount: number;
+  readonly decisionCounts: Readonly<Record<RuleDecision, number>>;
+  readonly latestEventType: RulesEventType | undefined;
+}
