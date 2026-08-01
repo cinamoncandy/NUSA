@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-01T16:28:53+09:00"
-phase: desktop-ui
+updated_at: "2026-08-01T17:00:00+09:00"
+phase: mobile-security
 status: active
-objective: "Complete the functional mobile-first NUSA Paper Trading UI shell; visual design is deferred."
+objective: "Implement the EP-06 secure session lifecycle without storing credentials or enabling live trading."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -18,14 +18,14 @@ completed:
     evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
     summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
 in_progress:
-  - id: simple-paper-trading-ui
-    work_order: .aipos/work-orders/WO-0004-simple-paper-trading-ui.yaml
+  - id: mobile-security-session
+    work_order: .aipos/work-orders/WO-0005-mobile-security-session.yaml
     branch: agent/mobile-first-ui-v1
     pull_request: 45
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0004-simple-paper-trading-ui.yaml
-  reason: "The explicitly requested desktop UI work is active; no backend or live-trading work is authorized by this task."
+  work_order: .aipos/work-orders/WO-0005-mobile-security-session.yaml
+  reason: "EP-06 secure session lifecycle is the current explicitly requested security slice; platform authentication and secure storage remain separate."
 verification:
   required:
     - "pnpm run preflight"
@@ -37,7 +37,7 @@ verification:
     - "pnpm run test:e2e"
     - "git diff --check"
   last_result: "PASS: preflight, typecheck, build, lint, pnpm test (277 isolated test files), test:ui (2 files/4 tests), test:e2e (4 tests including mobile renderer), package:validate, and git diff --check. Targeted renderer tests: 8/8. PR #45 CI remains pending; Electron and installer smoke are unverified."
-  current_commit: "8468cb3bd404979cd9cead998f9e4bfad6c7e800"
+  current_commit: "c645bf8"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

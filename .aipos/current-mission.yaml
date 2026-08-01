@@ -1,14 +1,14 @@
-id: EP05-001-offline-sync-state-machine
-title: Add a fail-closed offline synchronization state machine
+id: EP06-001-secure-session-lifecycle
+title: Add a fail-closed secure session lifecycle
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: offline-sync
+phase: mobile-security
 status: IN_PROGRESS
 scope:
-  - explicit offline synchronization states
-  - strict recovery and synchronization transitions
-  - monotonic timestamp and stale-state protection
+  - session expiry and idle timeout
+  - monotonic activity updates
+  - immediate irreversible revocation
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Add a bounded idempotent incremental synchronization queue after the state machine.
+next_recommended_task: Audit secure storage and Electron session boundaries before adding platform authentication.

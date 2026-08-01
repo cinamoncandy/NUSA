@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP05-001-offline-sync-state-machine. Added a pure fail-closed offline state machine with strict recovery and synchronization transitions; focused tests 3/3 and CI-mode build pass. Incremental sync, offline cache, action queue, and runtime wiring remain. Release installer/Shadow remain environment-gated.
+Current mission: EP06-001-secure-session-lifecycle. Added a pure fail-closed session lifecycle with expiry, idle timeout, monotonic activity, and irreversible revocation; focused tests 3/3 and CI-mode build pass. No credentials or tokens are stored. Secure OS storage, biometric/PIN integration, and Electron wiring remain. Release installer/Shadow remain environment-gated.
