@@ -12,6 +12,8 @@ import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperS
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../cloud/src/investmentCommitteeLedger";
+import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
+import { validateOpportunitySchedule } from "./opportunityDashboardProjection";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
 const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
@@ -42,6 +44,8 @@ CREATE TABLE desktop_paper_safety_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1
 ` }, { id: "007_desktop_operations", sql: `
 CREATE TABLE desktop_operations_audit (audit_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE desktop_operations_alerts (alert_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, severity TEXT NOT NULL, payload TEXT NOT NULL);
+` }, { id: "008_desktop_opportunity_schedules", sql: `
+CREATE TABLE desktop_opportunity_schedules (schedule_id TEXT PRIMARY KEY, source TEXT NOT NULL, generated_at INTEGER NOT NULL, payload TEXT NOT NULL, payload_checksum TEXT NOT NULL UNIQUE);
 ` }];
 
 export class DesktopPersistenceStore {
@@ -364,6 +368,31 @@ export class DesktopPersistenceStore {
     const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
     const rows = this.db.prepare("SELECT payload FROM desktop_operations_alerts ORDER BY created_at DESC, alert_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
     return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAlertRecord)));
+  }
+
+  appendOpportunitySchedule(input: Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }>): void {
+    if (!input.scheduleId.trim() || !input.source.trim() || !Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("opportunity schedule identity is invalid");
+    validateOpportunitySchedule(input.schedule);
+    const payload = JSON.stringify(input.schedule);
+    const payloadChecksum = createHash("sha256").update(payload, "utf8").digest("hex");
+    this.transaction(() => {
+      const existing = this.db.prepare("SELECT source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules WHERE schedule_id = ?").get(input.scheduleId) as { source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
+      if (existing != null) {
+        if (existing.source !== input.source || existing.generated_at !== input.generatedAt || existing.payload !== payload || existing.payload_checksum !== payloadChecksum) throw new Error("opportunity schedule identity conflict");
+        return;
+      }
+      this.db.prepare("INSERT INTO desktop_opportunity_schedules (schedule_id, source, generated_at, payload, payload_checksum) VALUES (?, ?, ?, ?, ?)").run(input.scheduleId, input.source, input.generatedAt, payload, payloadChecksum);
+    });
+  }
+
+  loadLatestOpportunitySchedule(): Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }> | undefined {
+    const row = this.db.prepare("SELECT schedule_id, source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules ORDER BY generated_at DESC, schedule_id DESC LIMIT 1").get() as { schedule_id: string; source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
+    if (row == null) return undefined;
+    const checksum = createHash("sha256").update(row.payload, "utf8").digest("hex");
+    if (checksum !== row.payload_checksum) throw new Error("opportunity schedule checksum mismatch");
+    const schedule = JSON.parse(row.payload) as OpportunitySchedule;
+    validateOpportunitySchedule(schedule);
+    return Object.freeze({ scheduleId: row.schedule_id, source: row.source, generatedAt: Number(row.generated_at), schedule: Object.freeze(schedule) });
   }
 
   private configureSafetyPragmas(): void {

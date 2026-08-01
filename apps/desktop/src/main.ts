@@ -340,6 +340,7 @@ function publishAiCioDashboard(): void {
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
       strategyAnalytics: strategyAnalytics ?? undefined,
+      opportunitySchedule: persistenceStore?.loadLatestOpportunitySchedule()?.schedule,
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
       committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
         ...persistenceStore.loadCommitteeDashboardSource(),
