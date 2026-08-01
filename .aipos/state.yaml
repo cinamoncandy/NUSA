@@ -38,7 +38,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: ten consecutive complete verification runs; typecheck, build, lint, full tests, UI, E2E, and coverage PASS every run with identical coverage, dist hash, and artifact manifest."
-  current_commit: "cd3db11"
+  current_commit: "e7708ec"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
