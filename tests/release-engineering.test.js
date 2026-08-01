@@ -13,6 +13,8 @@ test("release package keeps safe Windows defaults", () => {
   assert.equal(pkg.build.win.signAndEditExecutable, false);
   assert.equal(pkg.build.nsis.deleteAppDataOnUninstall, false);
   assert.equal(pkg.build.extraMetadata.main, "dist/apps/desktop/src/main.js");
+  assert.match(pkg.scripts["package:win"], /--publish never/);
+  assert.match(pkg.scripts["package:portable"], /--publish never/);
 });
 
 test("release documents cover install, operation, recovery, rollback, and checklist", () => {
