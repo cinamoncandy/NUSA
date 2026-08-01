@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paperDashboardProjection.js");
 const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/aiCioSnapshotPublisher.js");
+const { buildStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
 
 const input = (overrides = {}) => ({
   generatedAt: 10_000,
@@ -99,12 +100,17 @@ test("verified opportunity analytics can be projected without being recomputed",
 test("verified strategy analytics are projected without recomputing the ledger", () => {
   const result = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },
-    strategyAnalytics: { totalTrades: 2, totalNetPnl: 8, portfolioCaptureRatio: 1, blockedStrategies: 0, warningStrategies: 0 }
+    strategyAnalytics: buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 })
   }));
   assert.equal(result.strategies.availability, "AVAILABLE");
-  assert.equal(result.strategies.totalTrades, 2);
-  assert.equal(result.strategies.totalNetPnl, 8);
+  assert.equal(result.strategies.totalTrades, 0);
+  assert.equal(result.strategies.totalNetPnl, 0);
   assert.equal(result.strategies.portfolioCaptureRatio, 1);
+});
+
+test("dashboard rejects an altered strategy analytics snapshot", () => {
+  const source = buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 });
+  assert.throws(() => buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 }, strategyAnalytics: { ...source, netPnl: 1 } })), /strategy analytics verification/);
 });
 
 test("projection is deterministic and rejects invalid accounting inputs", () => {
@@ -124,10 +130,7 @@ test("Paper drawdown is deterministic and capped for a depleted account", () => 
   assert.equal(loss.risk.killSwitchActive, false);
 });
 
-const strategyAnalytics = {
-  totalTrades: 0, totalNetPnl: 0, portfolioCaptureRatio: 0,
-  blockedStrategies: 0, warningStrategies: 0
-};
+const strategyAnalytics = buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 120 });
 
 test("strategyWarmup connects the real SMA warm-up state when verified analytics are present", () => {
   const warmingUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 3, required: 20 }, strategyAnalytics }));

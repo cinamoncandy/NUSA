@@ -339,13 +339,7 @@ function publishAiCioDashboard(): void {
         generatedAt
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
-      strategyAnalytics: strategyAnalytics == null ? undefined : {
-        totalTrades: strategyAnalytics.orderCount,
-        totalNetPnl: strategyAnalytics.netPnl,
-        portfolioCaptureRatio: strategyAnalytics.portfolioCaptureRatio,
-        blockedStrategies: 0,
-        warningStrategies: 0
-      },
+      strategyAnalytics: strategyAnalytics ?? undefined,
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
       committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
         ...persistenceStore.loadCommitteeDashboardSource(),

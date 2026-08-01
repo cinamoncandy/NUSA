@@ -4,7 +4,8 @@ import type {
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
-import type { CommitteeDashboardSection, OpportunityDashboardSection, StrategyDashboardSection } from "../../cloud/src/dashboardAggregator";
+import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../../cloud/src/dashboardAggregator";
+import { verifyStrategyAnalytics, type StrategyAnalyticsSnapshot } from "./strategyAnalytics";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -23,7 +24,7 @@ export interface PaperDashboardProjectionInput {
    */
   readonly strategyWarmup?: { readonly current: number; readonly required: number };
   /** Persisted, strategy-attributed analytics. Warm-up alone is not performance evidence. */
-  readonly strategyAnalytics?: Pick<StrategyDashboardSection, "totalTrades" | "totalNetPnl" | "portfolioCaptureRatio" | "blockedStrategies" | "warningStrategies">;
+  readonly strategyAnalytics?: StrategyAnalyticsSnapshot;
   /**
    * The deterministic adverse-price rate (slippageBps + spreadBps / 2) the PaperBroker's
    * fill model currently applies to every order. This is not an observed market-quality
@@ -52,6 +53,9 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   if (!Number.isFinite(input.account.cash) || input.account.cash < 0) throw new Error("paper cash must be finite and non-negative");
   if (input.executionCostBps !== undefined && (!Number.isFinite(input.executionCostBps) || input.executionCostBps < 0)) {
     throw new Error("executionCostBps must be finite and non-negative");
+  }
+  if (input.strategyAnalytics !== undefined && verifyStrategyAnalytics(input.strategyAnalytics).length > 0) {
+    throw new Error("strategy analytics verification failed");
   }
 
   const marketValue = input.account.position.quantity * input.markPrice;
@@ -133,8 +137,8 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       availability: strategyAvailability,
       generatedAt: input.generatedAt,
       reasons: Object.freeze(strategyReasons),
-      totalTrades: input.strategyAnalytics?.totalTrades ?? 0,
-      totalNetPnl: input.strategyAnalytics?.totalNetPnl ?? 0,
+      totalTrades: input.strategyAnalytics?.orderCount ?? 0,
+      totalNetPnl: input.strategyAnalytics?.netPnl ?? 0,
       portfolioCaptureRatio: input.strategyAnalytics?.portfolioCaptureRatio ?? 0,
       blockedStrategies,
       warningStrategies
