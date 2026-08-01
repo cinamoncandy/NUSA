@@ -3,7 +3,7 @@
 Audit date: 2026-08-01
 Audited main SHA: `10ad991ee9cded7f7784064641dd87dbc79c1c69`
 Recovery branch: `agent/repository-health-recovery`
-Recovery head: `1be2482c2f4bffe809790fc613bd088dcea94af5`
+Recovery head: `e2bd51395257a430fbf7055c2de22bed6e8ceb10`
 Recovery PR: #44
 
 ## Environment
@@ -45,8 +45,8 @@ the current PR CI. UI and E2E results were verified in CI on the recovery head.
 - coverage baseline: PASS
 - `git diff --check`: PASS
 
-Current PR #44 CI runs `30687933986` and `30687935055` completed successfully
-on recovery head `1be2482`.
+Current PR #44 CI runs `30688060565` and `30688061593` completed successfully
+on recovery head `e2bd513`.
 
 ## Naming audit
 

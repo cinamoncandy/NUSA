@@ -1,7 +1,7 @@
 # NUSA Security and Supply-Chain Review
 
 Audit date: 2026-08-01
-Audited recovery head: `1be2482c2f4bffe809790fc613bd088dcea94af5`
+Audited recovery head: `e2bd51395257a430fbf7055c2de22bed6e8ceb10`
 
 ## Dependency results
 

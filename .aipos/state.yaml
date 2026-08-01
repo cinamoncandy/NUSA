@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-01T15:36:02+09:00"
+updated_at: "2026-08-01T15:39:59+09:00"
 phase: repository-health
 status: blocked
 objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
@@ -43,8 +43,8 @@ verification:
     - "pnpm run release:check"
     - "pnpm run test:coverage"
   last_result: "PASS for all listed commands on 2026-08-01 at recovery head; PowerShell used pnpm.cmd with CI=true, and UI/E2E passed locally and in CI."
-  last_verified_ci_commit: "1be2482c2f4bffe809790fc613bd088dcea94af5"
-  pr_44_ci: "PASS: pull_request runs 30687933986 and 30687935055 on 1be2482c2f4bffe809790fc613bd088dcea94af5; all CI steps completed successfully."
+  last_verified_ci_commit: "e2bd51395257a430fbf7055c2de22bed6e8ceb10"
+  pr_44_ci: "PASS: pull_request runs 30688060565 and 30688061593 on e2bd51395257a430fbf7055c2de22bed6e8ceb10; all CI steps completed successfully."
   coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; text, JSON, LCOV, and HTML reports; Vitest contract suite limitation documented in docs/audits/coverage-baseline-2026-08-01.md."
   ci_workflow: "CI runs frozen install, preflight, typecheck, build, lint, UI, Playwright E2E, package validation, release check, focused suites, full isolated tests, and coverage artifact upload. Main branch protection is not configured."
 human_authority:
