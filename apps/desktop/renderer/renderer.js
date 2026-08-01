@@ -618,3 +618,62 @@ refreshCioDashboard();
 
   void showFirstRunNotice(false);
 })();
+
+/*
+ * Product navigation is a view switch, not an arbitrary anchor router. The existing
+ * sections remain the source of truth for their data and controls; this layer only groups
+ * them into operator-facing views and keeps the selected view keyboard-visible.
+ */
+(function mountWorkspaceNavigation() {
+  const navigation = Array.from(document.querySelectorAll("[data-nav-target]"));
+  if (!navigation.length) return;
+
+  const views = {
+    dashboard: ["#control-room", "#application-state"],
+    market: ["#market", ".chart-card"],
+    "shadow-session": ["#control-room", "#application-state"],
+    orders: ["#operations-detail", "#orders-panel"],
+    portfolio: [".grid > article:nth-child(3)"],
+    risk: ["#a4-diagnostics", "#operations-detail"],
+    recovery: ["#recovery-review"],
+    evidence: ["#evidence"],
+    diagnostics: ["#ai-cio-dashboard", "#a4-diagnostics"],
+    settings: ["#product-settings"],
+    about: ["#product-about"]
+  };
+  const persistent = [".app-header"];
+  const allContent = [
+    "#control-room", "#application-state", "#market", ".chart-card", "#operations-detail",
+    ".grid > article:nth-child(3)", "#a4-diagnostics", "#recovery-review", "#evidence",
+    "#ai-cio-dashboard", "#product-settings", "#product-about", "#orders-panel"
+  ];
+
+  function setVisible(selector, visible) {
+    document.querySelectorAll(selector).forEach((node) => {
+      node.hidden = !visible;
+      node.setAttribute("aria-hidden", String(!visible));
+    });
+  }
+
+  function activate(name, updateHash) {
+    const selected = views[name] ? name : "dashboard";
+    allContent.forEach((selector) => setVisible(selector, false));
+    (views[selected] || []).forEach((selector) => setVisible(selector, true));
+    persistent.forEach((selector) => setVisible(selector, true));
+    navigation.forEach((link) => {
+      const active = link.dataset.navTarget === selected;
+      link.classList.toggle("is-active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    if (updateHash && window.location.hash !== `#${selected}`) history.replaceState(null, "", `#${selected}`);
+  }
+
+  navigation.forEach((link) => link.addEventListener("click", (event) => {
+    const target = link.dataset.navTarget;
+    if (!views[target]) return;
+    event.preventDefault();
+    activate(target, true);
+  }));
+  activate(window.location.hash.slice(1), false);
+})();

@@ -85,3 +85,12 @@ test("A4P long session values have a copy affordance and keyboard-visible focus"
   assert.match(html, /aria-label="Primary navigation"/);
   assert.match(fs.readFileSync(path.join(root, "product-screens.js"), "utf8"), /product-row__copy/);
 });
+test("workspace navigation switches declared screens instead of only scrolling anchors", () => {
+  for (const screen of ["dashboard", "market", "shadow-session", "orders", "portfolio", "risk", "recovery", "evidence", "diagnostics", "settings", "about"]) {
+    assert.match(html, new RegExp(`data-nav-target="${screen}"`));
+    assert.match(renderer, new RegExp(`["']?${screen.replace(/[-]/g, "\\-")}["']?: \\[`));
+  }
+  assert.match(renderer, /setAttribute\("aria-current", "page"\)/);
+  assert.match(renderer, /history\.replaceState/);
+  assert.match(html, /id="orders-panel"/);
+});
