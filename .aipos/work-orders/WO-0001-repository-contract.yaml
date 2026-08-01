@@ -1,7 +1,7 @@
 id: WO-0001
 schema_version: 1
 title: "Complete the NUSA repository continuity contract"
-status: in_progress
+status: completed
 priority: 100
 owner: any-compatible-ai
 objective: "Ensure an AI with repository access and no conversation history can identify NUSA's current state, constraints, next task, and verification requirements."
@@ -34,4 +34,6 @@ completion:
   update:
     - .aipos/state.yaml
     - .aipos/work-orders/WO-0001-repository-contract.yaml
+  completed_at: "2026-08-01T14:50:00+09:00"
+  evidence: "typecheck, build, and full repository tests passed on agent/repository-health-recovery; repository health follow-up remains blocked only by GitHub write authentication."
   stop_after_update: true

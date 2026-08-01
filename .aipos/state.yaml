@@ -1,32 +1,50 @@
 version: 1
 project: nusa
-updated_at: "2026-07-31T15:00:00+09:00"
-phase: foundation
-status: active
-objective: "Make NUSA self-describing so another AI can safely continue implementation from repository state alone."
+updated_at: "2026-08-01T14:50:00+09:00"
+phase: repository-health
+status: blocked
+objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
 base_branch: main
-active_branch: agent/aipos-foundation-v0
-active_pull_request: 43
+active_branch: agent/repository-health-recovery
+active_pull_request: null
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged as commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
     summary: "Typed event bus, engine registry, plugin lifecycle, runtime composition, and tests."
   - id: aipos-runtime-v0
-    evidence: "PR #43 branch"
+    evidence: "PR #43 merged as commit eed7481c2a8361299acc350147986cecd8836879"
     summary: "AIPOS domain types, store, validation, deterministic recovery, plugin integration, and tests."
-in_progress:
+  - id: execution-operations-v0
+    evidence: "PR #42 merged as commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
+    summary: "NUSA execution operations, product identity, and the current main runtime surface."
   - id: repository-contract-v0
-    work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-blocked: []
+    evidence: "Verified on agent/repository-health-recovery at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
+    summary: "AIPOS manifest, architecture, context, decision, state, and agent recovery contract are present and current."
+in_progress: []
+blocked:
+  - id: github-write-auth
+    reason: "gh auth status reports an invalid token for cinamoncandy; PR comments/closures, current checks, and branch protection cannot be verified or changed."
+  - id: open-pr-cleanup
+    reason: "Public API inspection classified open PRs, but closing obsolete/superseded PRs requires working GitHub write authentication."
 next:
-  work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-  reason: "Cross-AI continuity requires committed repository metadata before further NUSA feature work."
+  work_order: null
+  reason: "Restore GitHub authentication, then close only PRs confirmed obsolete/superseded and recheck current-main CI status."
 verification:
   required:
+    - "pnpm install --frozen-lockfile (CI=true for non-interactive local execution)"
+    - "pnpm run preflight"
     - "pnpm run typecheck"
     - "pnpm run build"
+    - "pnpm run lint"
     - "pnpm test"
-  last_result: not_recorded
+    - "pnpm run test:ui"
+    - "pnpm run test:e2e"
+    - "pnpm run package:validate"
+    - "pnpm run release:check"
+    - "pnpm run test:coverage"
+  last_result: "PASS for all listed commands on 2026-08-01; UI/E2E required external execution because the sandbox blocks Vitest/Playwright parent-path access."
+  coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; Vitest contract suite only, documented in docs/quality/coverage-baseline.md."
+  ci_workflow: "CI now runs typecheck, build, lint, UI, E2E, package validation, release check, full isolated tests, and uploads coverage-baseline."
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
