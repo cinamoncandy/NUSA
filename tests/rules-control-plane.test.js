@@ -15,6 +15,7 @@ const {
   createBusinessPolicy,
   createBusinessRule,
   createFormulaDefinition,
+  certifyRulesLedger,
   evaluateFormula,
   evaluatePolicy,
   projectRulesLedger,
@@ -138,6 +139,21 @@ test("rules ledger projection is deterministic and read-only", () => {
   assert.deepEqual(projection, projectRulesLedger(records));
   projection.eventCount = 99;
   assert.equal(projection.eventCount, 1);
+});
+
+test("rules certification is integrity-only and never grants production authority", () => {
+  const blocked = certifyRulesLedger([]);
+  assert.equal(blocked.status, "BLOCKED");
+  assert.equal(blocked.productionMutationAllowed, false);
+  const records = [
+    event(RulesEventType.RULE_PUBLISHED, { rule: rule() }, 1),
+    event(RulesEventType.POLICY_PUBLISHED, { policy: policy() }, 2),
+    event(RulesEventType.FORMULA_PUBLISHED, { formula: formula() }, 3)
+  ].reduce((ledger, next) => appendRulesEvent(ledger, next), []);
+  const certified = certifyRulesLedger(records);
+  assert.equal(certified.status, "CERTIFIED_ZERO_AUTHORITY");
+  assert.deepEqual(certified.blockers, []);
+  assert.equal(certified.productionMutationAllowed, false);
 });
 
 test("rules status CLI reads an explicit ledger without mutating it", () => {

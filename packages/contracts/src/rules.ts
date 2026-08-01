@@ -270,3 +270,14 @@ export interface RulesControlPlaneProjection {
   readonly decisionCounts: Readonly<Record<RuleDecision, number>>;
   readonly latestEventType: RulesEventType | undefined;
 }
+
+export type RulesCertificationStatus = "CERTIFIED_ZERO_AUTHORITY" | "BLOCKED";
+
+/** Certifies only the integrity of the declarative control plane, never trading authority. */
+export interface RulesCertificationReport {
+  readonly status: RulesCertificationStatus;
+  readonly ledgerHash: string;
+  readonly blockers: readonly string[];
+  readonly evidenceHash: string;
+  readonly productionMutationAllowed: false;
+}

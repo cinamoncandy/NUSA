@@ -12,6 +12,7 @@ import {
   type DecisionSimulationReport,
   type DecisionSimulationMode,
   type RulesControlPlaneProjection,
+  type RulesCertificationReport,
   type FormulaDefinition,
   type FormulaEvaluation,
   type FormulaEvaluationRequest,
@@ -349,6 +350,23 @@ export function projectRulesLedger(records: readonly RulesLedgerRecord[]): Rules
     decisionCounts: Object.freeze(decisionCounts),
     latestEventType: records.at(-1)?.event.type
   });
+}
+
+/**
+ * Certifies the rules ledger itself. This is deliberately not an execution approval:
+ * a successful report still carries a permanent production hard block.
+ */
+export function certifyRulesLedger(records: readonly RulesLedgerRecord[]): RulesCertificationReport {
+  const projection = projectRulesLedger(records);
+  const replay = replayRulesLedger(records);
+  const blockers: string[] = [];
+  if (projection.ruleVersionCount === 0) blockers.push("NO_RULE_VERSIONS");
+  if (projection.policyVersionCount === 0) blockers.push("NO_POLICY_VERSIONS");
+  if (projection.formulaVersionCount === 0) blockers.push("NO_FORMULA_VERSIONS");
+  if ([...replay.traces.values()].some((trace) => trace.decision === RuleDecision.UNKNOWN)) blockers.push("UNKNOWN_DECISION_TRACE");
+  const orderedBlockers = Object.freeze([...new Set(blockers)].sort());
+  const evidenceHash = hash(canonical({ ledgerHash: projection.ledgerHash, blockers: orderedBlockers, status: orderedBlockers.length === 0 ? "CERTIFIED_ZERO_AUTHORITY" : "BLOCKED" }));
+  return Object.freeze({ status: orderedBlockers.length === 0 ? "CERTIFIED_ZERO_AUTHORITY" : "BLOCKED", ledgerHash: projection.ledgerHash, blockers: orderedBlockers, evidenceHash, productionMutationAllowed: false as const });
 }
 
 export function appendRulesEvent(records: readonly RulesLedgerRecord[], event: RulesLedgerEvent): readonly RulesLedgerRecord[] {
