@@ -37,7 +37,7 @@ verification:
     - "pnpm run test:e2e"
     - "git diff --check"
   last_result: "PASS: 291 isolated test files, UI 4/4, E2E 4/4, focused runtime/recovery/security suites 58/58, typecheck, build, lint, and git diff --check. Native platform runtime, real Upbit runtime, long-duration metrics, Electron smoke, and installer remain unverified or blocked."
-  current_commit: "27ae8d3e9de1b78cbf8b6d4d1a54e99b1117c2fc"
+  current_commit: "ad33dbc460e5094a254a0a3541e29c34d2da6a53"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
