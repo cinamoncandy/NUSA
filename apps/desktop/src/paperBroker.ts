@@ -17,6 +17,23 @@ export interface PaperOrder {
   marketImpactCost: number;
 }
 
+export interface PaperLedgerEntry {
+  readonly sequence: number;
+  readonly orderId: string;
+  readonly fillId: string;
+  readonly market: string;
+  readonly side: PaperSide;
+  readonly quantity: number;
+  readonly price: number;
+  readonly fee: number;
+  readonly cashBefore: number;
+  readonly cashAfter: number;
+  readonly positionQuantityBefore: number;
+  readonly positionQuantityAfter: number;
+  readonly realizedPnlAfter: number;
+  readonly occurredAt: string;
+}
+
 export interface PaperPosition {
   market: string;
   quantity: number;
@@ -75,6 +92,7 @@ export interface PaperBrokerState {
   feeRate: number;
   position: PaperPosition;
   orders: readonly PaperOrder[];
+  ledger?: readonly PaperLedgerEntry[];
 }
 
 export interface PaperAccountSnapshot {
@@ -113,6 +131,7 @@ export class PaperBroker {
   private readonly feeRate: number;
   private readonly position: PaperPosition;
   private readonly orders: PaperOrder[];
+  private readonly ledger: PaperLedgerEntry[];
   private readonly riskPolicy: NormalizedPaperRiskPolicy;
   private readonly fillModel: NormalizedPaperFillModel;
 
@@ -172,11 +191,13 @@ export class PaperBroker {
       this.position.quantity = this.normalizePositionQuantity(this.position.quantity);
       if (this.position.quantity === 0) this.position.averagePrice = 0;
       this.orders = restoredState.orders.map((order) => ({ ...order }));
+      this.ledger = (restoredState.ledger ?? []).map((entry) => ({ ...entry }));
     } else {
       this.cash = initialCash;
       this.feeRate = feeRate;
       this.position = { market, quantity: 0, averagePrice: 0, realizedPnl: 0 };
       this.orders = [];
+      this.ledger = [];
     }
   }
 
@@ -196,6 +217,8 @@ export class PaperBroker {
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("now must be a valid date");
+    const cashBefore = this.cash;
+    const positionQuantityBefore = this.position.quantity;
     if (this.riskPolicy.priceTick !== null && !isAlignedToTick(price, this.riskPolicy.priceTick)) {
       throw new Error("price does not align to tick size");
     }
@@ -266,6 +289,7 @@ export class PaperBroker {
       marketImpactCost
     });
     this.orders.unshift(order);
+    this.ledger.push(Object.freeze({ sequence: this.ledger.length + 1, orderId: order.id, fillId: `fill:${order.id}`, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, cashBefore, cashAfter: this.cash, positionQuantityBefore, positionQuantityAfter: this.position.quantity, realizedPnlAfter: this.position.realizedPnl, occurredAt: order.filledAt }));
     return order;
   }
 
@@ -275,7 +299,8 @@ export class PaperBroker {
       cash: this.cash,
       feeRate: this.feeRate,
       position: Object.freeze({ ...this.position }),
-      orders: Object.freeze(this.orders.map((order) => Object.freeze({ ...order })))
+      orders: Object.freeze(this.orders.map((order) => Object.freeze({ ...order }))),
+      ledger: Object.freeze(this.ledger.map((entry) => Object.freeze({ ...entry })))
     });
   }
 
@@ -296,6 +321,7 @@ export class PaperBroker {
     this.position.averagePrice = validated.position.averagePrice;
     this.position.realizedPnl = validated.position.realizedPnl;
     this.orders.splice(0, this.orders.length, ...validated.orders.map((order) => ({ ...order })));
+    this.ledger.splice(0, this.ledger.length, ...(validated.ledger ?? []).map((entry) => ({ ...entry })));
   }
 
   snapshot(markPrice: number): PaperAccountSnapshot {

@@ -27,7 +27,7 @@ features:
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
     blockers: [PaperBroker financial state is not yet projected from an authoritative append-only fill ledger]
-    latest_evidence: accounting-portfolio-audit-2026-08-01.md
+    latest_evidence: accounting-portfolio-audit-2026-08-01.md; paper-broker-fill-model 13/13; CI-mode build PASS; Paper ledger restore parity
   - id: persistence.recovery
     priority: critical
     status: VERIFIED_COMPLETE

@@ -1,14 +1,14 @@
-id: REL-001-release-validation
-title: Complete release, packaging, and Shadow validation evidence
+id: AC-001-paper-accounting-ledger
+title: Add a backward-compatible append-only Paper accounting ledger
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: release
+phase: accounting
 status: IN_PROGRESS
 scope:
-  - repeatable release gate report
-  - packaging and install evidence
-  - Shadow evidence without live mutation
+  - append-only Paper fill ledger
+  - restore-preserved ledger entries
+  - preserve existing Paper behavior
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Run package/install/restart smoke on a permitted Windows host, then collect separate read-only Shadow evidence.
+next_recommended_task: Replay Paper ledger entries into a projection and prove parity with the existing broker snapshot before transferring accounting ownership.
