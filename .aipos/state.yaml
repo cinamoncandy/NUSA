@@ -6,7 +6,7 @@ status: blocked
 objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
 base_branch: main
 active_branch: agent/repository-health-recovery
-active_pull_request: null
+active_pull_request: 44
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged as commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -22,13 +22,13 @@ completed:
     summary: "AIPOS manifest, architecture, context, decision, state, and agent recovery contract are present and current."
 in_progress: []
 blocked:
-  - id: github-write-auth
-    reason: "gh auth status reports an invalid token for cinamoncandy; PR comments/closures, current checks, and branch protection cannot be verified or changed."
+  - id: branch-protection-visibility
+    reason: "GitHub branch protection endpoint requires authentication; required checks are verified on main commit 10ad991 via check-runs/workflow API, but protection enforcement cannot be independently confirmed."
   - id: open-pr-cleanup
-    reason: "Public API inspection classified open PRs, but closing obsolete/superseded PRs requires working GitHub write authentication."
+    reason: "PRs #36 and #39 require rebase before review; #37, #38, and #40 contain unique unmerged work and require owner prioritization."
 next:
   work_order: null
-  reason: "Restore GitHub authentication, then close only PRs confirmed obsolete/superseded and recheck current-main CI status."
+  reason: "Review Draft PR #44, then owner-prioritize the remaining relevant PRs before the next implementation mission."
 verification:
   required:
     - "pnpm install --frozen-lockfile (CI=true for non-interactive local execution)"
