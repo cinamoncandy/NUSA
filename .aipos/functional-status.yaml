@@ -26,8 +26,8 @@ features:
     status: PARTIAL
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
-    blockers: [PaperBroker still owns mutation; ledger replay is verification-only until accounting ownership transfer]
-    latest_evidence: accounting-portfolio-audit-2026-08-01.md; paper-ledger-projection-audit-2026-08-01.md; paper-ledger-projection 2/2; related PaperBroker tests 13/13
+    blockers: [broader multi-account accounting service and fixed-precision policy remain outside this PaperBroker slice]
+    latest_evidence: accounting-portfolio-audit-2026-08-01.md; paper-ledger-projection-audit-2026-08-01.md; authoritative Paper mutation tests 21/21; CI-mode build PASS
   - id: persistence.recovery
     priority: critical
     status: VERIFIED_COMPLETE

@@ -1,14 +1,14 @@
-id: AC-002-paper-ledger-projection
-title: Replay Paper ledger and prove accounting parity
+id: AC-003-ledger-authoritative-paper-accounting
+title: Make Paper ledger authoritative for accounting mutations
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
 phase: accounting
 status: IN_PROGRESS
 scope:
-  - ledger replay projection
-  - sequence and state-transition validation
-  - buy/sell snapshot parity
+  - append ledger before applying accounting projection
+  - rebuild Paper cash and position from ledger
+  - preserve existing Paper order behavior
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Extract ledger-driven accounting mutation in a separate focused slice.
+next_recommended_task: Run the full repository verification gate before moving to the next P1.

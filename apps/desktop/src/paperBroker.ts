@@ -192,6 +192,7 @@ export class PaperBroker {
       if (this.position.quantity === 0) this.position.averagePrice = 0;
       this.orders = restoredState.orders.map((order) => ({ ...order }));
       this.ledger = (restoredState.ledger ?? []).map((entry) => ({ ...entry }));
+      if (this.ledger.length > 0) this.projectFromLedger(this.ledger[0].cashBefore);
     } else {
       this.cash = initialCash;
       this.feeRate = feeRate;
@@ -210,6 +211,29 @@ export class PaperBroker {
   private normalizePositionQuantity(quantity: number): number {
     if (quantity <= this.riskPolicy.dustThreshold) return 0;
     return floorToStep(quantity, this.riskPolicy.quantityStep);
+  }
+
+  private projectFromLedger(initialCash: number): void {
+    let cash = initialCash;
+    let quantity = 0;
+    let averagePrice = 0;
+    let realizedPnl = 0;
+    for (const entry of this.ledger) {
+      if (entry.side === "BUY") {
+        cash -= entry.quantity * entry.price + entry.fee;
+        averagePrice = (averagePrice * quantity + entry.quantity * entry.price) / (quantity + entry.quantity);
+        quantity = this.normalizePositionQuantity(quantity + entry.quantity);
+      } else {
+        cash += entry.quantity * entry.price - entry.fee;
+        realizedPnl += (entry.price - averagePrice) * entry.quantity - entry.fee;
+        quantity = this.normalizePositionQuantity(quantity - entry.quantity);
+        if (quantity === 0) averagePrice = 0;
+      }
+    }
+    this.cash = cash;
+    this.position.quantity = quantity;
+    this.position.averagePrice = averagePrice;
+    this.position.realizedPnl = realizedPnl;
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
@@ -249,16 +273,19 @@ export class PaperBroker {
       throw new Error("paper risk: max realized loss exceeded");
     }
 
+    let nextCash = this.cash;
+    let nextQuantity = this.position.quantity;
+    let nextAveragePrice = this.position.averagePrice;
+    let nextRealizedPnl = this.position.realizedPnl;
     if (side === "BUY") {
-      const nextQuantity = this.normalizePositionQuantity(this.position.quantity + normalizedQuantity);
+      nextQuantity = this.normalizePositionQuantity(this.position.quantity + normalizedQuantity);
       if (this.riskPolicy.maxPositionQuantity !== null && nextQuantity > this.riskPolicy.maxPositionQuantity) {
         throw new Error("paper risk: max position quantity exceeded");
       }
       if (notional + chargedFee > this.cash) throw new Error("insufficient paper cash");
       const previousCost = this.position.quantity * this.position.averagePrice;
-      this.cash -= notional + chargedFee;
-      this.position.quantity = nextQuantity;
-      this.position.averagePrice = (previousCost + notional) / this.position.quantity;
+      nextCash -= notional + chargedFee;
+      nextAveragePrice = (previousCost + notional) / nextQuantity;
     } else {
       const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
       const sellNotional = sellQuantity * fillPrice;
@@ -267,10 +294,10 @@ export class PaperBroker {
       slippageCost = price * sellQuantity * this.fillModel.slippageBps / 10_000;
       marketImpactCost = price * sellQuantity * impactBps / 10_000;
       const pnl = (fillPrice - this.position.averagePrice) * sellQuantity - chargedFee;
-      this.cash += sellNotional - chargedFee;
-      this.position.quantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
-      this.position.realizedPnl += pnl;
-      if (this.position.quantity === 0) this.position.averagePrice = 0;
+      nextCash += sellNotional - chargedFee;
+      nextQuantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
+      nextRealizedPnl += pnl;
+      if (nextQuantity === 0) nextAveragePrice = 0;
     }
 
     const order: PaperOrder = Object.freeze({
@@ -289,7 +316,8 @@ export class PaperBroker {
       marketImpactCost
     });
     this.orders.unshift(order);
-    this.ledger.push(Object.freeze({ sequence: this.ledger.length + 1, orderId: order.id, fillId: `fill:${order.id}`, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, cashBefore, cashAfter: this.cash, positionQuantityBefore, positionQuantityAfter: this.position.quantity, realizedPnlAfter: this.position.realizedPnl, occurredAt: order.filledAt }));
+    this.ledger.push(Object.freeze({ sequence: this.ledger.length + 1, orderId: order.id, fillId: `fill:${order.id}`, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, cashBefore, cashAfter: nextCash, positionQuantityBefore, positionQuantityAfter: nextQuantity, realizedPnlAfter: nextRealizedPnl, occurredAt: order.filledAt }));
+    this.projectFromLedger(this.ledger[0].cashBefore);
     return order;
   }
 
