@@ -130,16 +130,15 @@ System metrics:
 
 ## Current source of truth
 
-Development currently continues on:
+The product base is `main` at the latest merged commit. Repository recovery and
+health validation are currently tracked on:
 
 ```text
-agent/electron-upbit-paper-trading
+agent/repository-health-recovery
 ```
 
-Existing Draft PR:
+The active recovery review is Draft PR #44. It is not a product feature PR and
+must not be treated as merged until GitHub confirms that state.
 
-```text
-#1 Convert NUSA to Electron paper trading app
-```
-
-Before starting work, read this file, `AGENTS.md`, the active PR, current tests, and the latest branch state.
+Before starting work, read this file, `AGENTS.md`, `.aipos/`, the active work
+order, current tests, and the latest branch state.
