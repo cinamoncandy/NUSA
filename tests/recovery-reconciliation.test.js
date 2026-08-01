@@ -52,7 +52,7 @@ test("1: a clean persisted snapshot reconciles as MATCHED", () => {
 
 test("2: an unresolved fill reconciles as MISMATCHED", () => {
   const broker = freshBroker();
-  broker.execute("BUY", 0.001, 100_000_000);
+  broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   // Strip the fill timestamp: an order the record cannot place in time is unresolved.
   const tampered = { ...state, orders: state.orders.map((order) => ({ ...order, filledAt: "" })) };
@@ -63,29 +63,29 @@ test("2: an unresolved fill reconciles as MISMATCHED", () => {
   assert.ok(result.mismatchCodes.includes("UNRESOLVED_FILLS"), JSON.stringify(result.mismatchCodes));
 });
 
-test("3: a cash mismatch reconciles as MISMATCHED", () => {
+test("3: persisted cash projection is rebuilt from the authoritative ledger", () => {
   const broker = freshBroker();
-  broker.execute("BUY", 0.001, 100_000_000);
+  broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   // Move the account's cash away from what the ledger independently computes.
   const tampered = { ...state, cash: state.cash - 1_000 };
   const result = compareRecoveryState(healthyInput({
     broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
   }));
-  assert.equal(result.outcome, "MISMATCHED");
-  assert.ok(result.mismatchCodes.includes("CASH_MISMATCH"), JSON.stringify(result.mismatchCodes));
+  assert.equal(result.outcome, "MATCHED", JSON.stringify(result.mismatchCodes));
+  assert.deepEqual([...result.mismatchCodes], []);
 });
 
-test("4: a position mismatch reconciles as MISMATCHED", () => {
+test("4: persisted position projection is rebuilt from the authoritative ledger", () => {
   const broker = freshBroker();
-  broker.execute("BUY", 0.001, 100_000_000);
+  broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   const tampered = { ...state, position: { ...state.position, quantity: state.position.quantity + 0.5 } };
   const result = compareRecoveryState(healthyInput({
     broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
   }));
-  assert.equal(result.outcome, "MISMATCHED");
-  assert.ok(result.mismatchCodes.includes("POSITION_MISMATCH"), JSON.stringify(result.mismatchCodes));
+  assert.equal(result.outcome, "MATCHED", JSON.stringify(result.mismatchCodes));
+  assert.deepEqual([...result.mismatchCodes], []);
 });
 
 test("5: any non-zero mutation counter reconciles as MISMATCHED", () => {
