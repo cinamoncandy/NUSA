@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: RISK-001-risk-evidence-integration. GlobalRiskGateway now writes every APPROVED/REJECTED/BLOCKED/UNKNOWN decision to an append-only queryable SQLite repository; recovery test 1/1 and CI-mode build pass. Known recovery reconciliation regression remains.
+Current mission: EP05-002-offline-engine. Added bounded OfflineCache, idempotent SyncQueue, checksum validation, deterministic conflict resolution, and expiring prioritized ActionQueue; focused tests 4/4 and CI-mode build pass. Runtime connectivity and durable offline persistence remain. Known recovery reconciliation regression remains.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

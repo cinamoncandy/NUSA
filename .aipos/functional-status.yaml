@@ -78,8 +78,8 @@ features:
     status: PARTIAL
     implementation_paths: [apps/execution/src/offline-synchronization.ts]
     test_paths: [tests/offline-synchronization.test.js]
-    evidence: [offline-sync-audit-2026-08-01.md, "focused tests 3/3", "CI-mode build PASS"]
-    blockers: [network detection, offline cache, incremental action queue, conflict resolution, and runtime wiring remain]
+    evidence: [offline-sync-audit-2026-08-01.md, offline-engine-integration-audit-2026-08-01.md, "focused tests 4/4", "CI-mode build PASS"]
+    blockers: [network detection, durable cache persistence, and runtime wiring remain]
   - id: mobile-security.secure-session
     priority: required
     status: PARTIAL
