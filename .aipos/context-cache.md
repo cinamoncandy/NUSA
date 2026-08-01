@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: AC-001-paper-accounting-ledger. Audit found PaperBroker directly owns financial state; accounting is PARTIAL until an append-only fill ledger can replay the same projection. No live mutation.
+Current mission: RISK-001-canonical-paper-risk-matrix. Audited manual, strategy, Shadow, and durable submit paths; all are fail-closed behind Risk. Remaining gap is unified desktop Risk DTO/policy coverage and durable Risk Evidence. No live mutation.
