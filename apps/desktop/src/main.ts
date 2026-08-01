@@ -7,7 +7,7 @@ import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
-import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
+import { PaperBroker, type PaperOrder } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
@@ -1213,16 +1213,6 @@ app.whenReady().then(() => {
 let shadowEvidenceSealed = false;
 let shutdownInProgress = false;
 
-function releaseRuntimeResources(): void {
-  aiCioSnapshotPublisher.clear();
-  stream?.stop();
-  if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
-  if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
-  persistenceStore?.close();
-  void mobileBridge?.stop();
-  mobileBridge = undefined;
-}
-
 function startConfiguredMobileBridge(): void {
   if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return;
   const port = Number(process.env.NUSA_MOBILE_MONITOR_PORT ?? "0");
@@ -1268,6 +1258,8 @@ function buildShutdownSequence(): ShutdownSequence {
       if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
       if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
       persistenceStore?.close();
+      void mobileBridge?.stop();
+      mobileBridge = undefined;
     },
     flushEvidence: async () => { await shadowRuntime?.awaitEvidenceFinalized(); },
     recordRecovery: (clean) => {

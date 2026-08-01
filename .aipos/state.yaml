@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T05:30:00+09:00"
-phase: release-candidate
-status: active
-objective: "Validate Sprint D release-candidate readiness without implementing new features."
+updated_at: "2026-08-02T06:10:00+09:00"
+phase: maintenance
+status: blocked
+objective: "Maintain repository reliability while preserving the production-readiness blockers truthfully."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -18,14 +18,14 @@ completed:
     evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
     summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
 in_progress:
-  - id: sprint-d-release-candidate-audit
+  - id: maintenance-reliability
     work_order: .aipos/current-mission.yaml
     branch: agent/mobile-first-ui-v1
     pull_request: 45
 blocked: []
 next:
   work_order: .aipos/current-mission.yaml
-  reason: "Automated RC gates pass; external mobile, Upbit, long-duration, Electron, and install smoke evidence remains unverified."
+  reason: "Maintenance cleanup is complete and verified; Sprint E production evidence remains blocked by external runtime requirements."
 verification:
   required:
     - "pnpm run preflight"
@@ -36,8 +36,8 @@ verification:
     - "pnpm run test:ui"
     - "pnpm run test:e2e"
     - "git diff --check"
-  last_result: "PASS: preflight, typecheck, build, lint, 291 isolated test files, UI 4/4, E2E 4/4, package validation, release validation, release check, 81 release artifacts, and NSIS generation with publish disabled. Native platform/runtime soak, Electron installed-app smoke, and install lifecycle remain unverified."
-  current_commit: "f8306defc6b34dcacf54f751ff6bb45b7561ff6d"
+  last_result: "PASS: strict unused-symbol audit, typecheck, build, lint, 291 isolated test files, and git diff --check. Runtime dependency cycles: 0. Production external evidence remains blocked separately."
+  current_commit: "d820cff5a89362fd467690ec08c9e492f489ddd3"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

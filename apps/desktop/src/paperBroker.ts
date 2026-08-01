@@ -275,7 +275,6 @@ export class PaperBroker {
 
     let nextCash = this.cash;
     let nextQuantity = this.position.quantity;
-    let nextAveragePrice = this.position.averagePrice;
     let nextRealizedPnl = this.position.realizedPnl;
     if (side === "BUY") {
       nextQuantity = this.normalizePositionQuantity(this.position.quantity + normalizedQuantity);
@@ -283,9 +282,7 @@ export class PaperBroker {
         throw new Error("paper risk: max position quantity exceeded");
       }
       if (notional + chargedFee > this.cash) throw new Error("insufficient paper cash");
-      const previousCost = this.position.quantity * this.position.averagePrice;
       nextCash -= notional + chargedFee;
-      nextAveragePrice = (previousCost + notional) / nextQuantity;
     } else {
       const sellQuantity = Math.min(normalizedQuantity, this.position.quantity);
       const sellNotional = sellQuantity * fillPrice;
@@ -297,7 +294,6 @@ export class PaperBroker {
       nextCash += sellNotional - chargedFee;
       nextQuantity = this.normalizePositionQuantity(this.position.quantity - sellQuantity);
       nextRealizedPnl += pnl;
-      if (nextQuantity === 0) nextAveragePrice = 0;
     }
 
     const order: PaperOrder = Object.freeze({

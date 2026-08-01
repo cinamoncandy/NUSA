@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { appendPaperScenarioEvent, replayPaperScenarioEvidence, type PaperScenarioEvent, type PaperScenarioRecord } from "../../cloud/src/paperScenarioEvidenceLedger";
-import { buildScenarioPaperEvidenceBundle, scenarioObservationsFromLedger } from "../../cloud/src/scenarioEvidenceBundle";
+import { scenarioObservationsFromLedger } from "../../cloud/src/scenarioEvidenceBundle";
 import { createResearchRunManifest, type ResearchValidationReport } from "../../cloud/src/researchRunValidation";
-import { exportOperatorEvidenceBundle, type OperatorEvidenceBundle } from "../../cloud/src/operatorEvidenceBundle";
+import { exportOperatorEvidenceBundle } from "../../cloud/src/operatorEvidenceBundle";
 
 export interface EvidenceRehearsalOptions {
   readonly outputPath?: string;
@@ -110,7 +110,7 @@ export function runEvidenceRehearsal(options: EvidenceRehearsalOptions): Evidenc
     let records: readonly PaperScenarioRecord[] = [];
     for (const event of readEvents) records = appendPaperScenarioEvent(records, event);
     const counters = replayPaperScenarioEvidence(records);
-    const observations = scenarioObservationsFromLedger(records);
+    scenarioObservationsFromLedger(records);
     const research = createReports(options.codeVersion, target, fixtureAt);
     const bundle = exportOperatorEvidenceBundle({ loadScenarioEvents: () => readEvents }, {
       generatedAt: startedAt, applicationVersion: "rehearsal", codeVersion: options.codeVersion, databaseIdentity,
