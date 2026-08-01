@@ -25,6 +25,14 @@ risks:
     verification: package artifacts and smoke logs
     owner: repository-maintainer
     status: OPEN
+  - id: WINDOWS-PACKAGE-NETWORK-BLOCK
+    risk: electron-builder cannot complete because the restricted environment denies its external HTTPS download.
+    probability: high
+    impact: high
+    mitigation: Run package:win on a permitted Windows build host; do not weaken signing or network policy.
+    verification: package:win exit code and generated installer
+    owner: repository-maintainer
+    status: OPEN
   - id: LIVE-MUTATION
     risk: Any accidental private mutation or credential exposure would violate safety.
     probability: low

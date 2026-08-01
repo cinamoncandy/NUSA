@@ -42,7 +42,7 @@ Focused tests: renderer bootstrap and mobile UI tests.
 Integration tests: Electron launch smoke and package validation.
 Regression tests: full test suite only at the release gate.
 Recovery tests: existing recovery suite; no recovery behavior change.
-Verification: pnpm run release:check with CI=true PASS; PR CI still pending; Electron and installer smoke UNVERIFIED.
+Verification: pnpm run release:check with CI=true PASS; package:validate PASS; package:win reached win-unpacked then failed with EACCES on external HTTPS download; PR CI still pending.
 Rollback: revert the functional UI commit and retain the legacy renderer compatibility surface.
 Expected commit: test(release): verify electron and package smoke
 Expected PR: update PR #45; do not create a new PR.

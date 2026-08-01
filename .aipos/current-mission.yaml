@@ -25,7 +25,8 @@ verification:
   release_check: PASS
   ci: PENDING
   electron_smoke: UNVERIFIED
-  installer: UNVERIFIED
+  installer: BLOCKED
 blockers:
   - CI checks for PR 45 are still pending.
+  - package:win reached electron-builder packaging but external HTTPS download failed with EACCES in the restricted environment.
 next_recommended_task: Verify PR 45 CI, then run Electron launch and Windows package smoke without live mutation.

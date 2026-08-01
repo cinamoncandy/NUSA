@@ -15,7 +15,8 @@ configuration:
   artifactName: NUSA-${version}-Windows-Setup.${ext}
 validation:
   package_validate: PASS
-  package_win: UNVERIFIED
+  package_win: BLOCKED
+  package_win_detail: electron-builder packaging reached win-unpacked, then HTTPS download failed with EACCES in the restricted environment
   installer_smoke: UNVERIFIED
   code_signing: disabled
   live_mutation: false

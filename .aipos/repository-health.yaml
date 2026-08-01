@@ -20,11 +20,11 @@ runtime:
   shadow: UNVERIFIED
 release:
   packaging: PARTIAL
-  installer: UNVERIFIED
+  installer: BLOCKED
   signing: NOT_CONFIGURED
 ci:
   pull_request_45: PENDING
 blockers:
   - CI completion for PR 45
-  - Electron and Windows installer smoke evidence
+  - Electron and Windows installer smoke evidence; package:win external download blocked by EACCES
   - long-duration Shadow evidence
