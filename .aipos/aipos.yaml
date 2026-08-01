@@ -1,0 +1,29 @@
+version: "1.0-draft"
+project:
+  id: nusa
+  name: NUSA
+  purpose: "Build NUSA as an AI-native runtime while preserving cross-AI project continuity."
+source_of_truth:
+  repository: true
+  conversation: false
+paths:
+  architecture: .aipos/architecture.md
+  state: .aipos/state.yaml
+  work_orders: .aipos/work-orders
+  decisions: .aipos/decisions
+  context: .aipos/context.md
+recovery:
+  protocol:
+    - recover
+    - analyze
+    - select_work_order
+    - implement
+    - verify
+    - update_state
+    - stop
+rules:
+  - "Read .aipos before changing implementation."
+  - "Treat repository state as authoritative over conversation history."
+  - "Implement only a ready work order unless a human explicitly overrides it."
+  - "Preserve NUSA safety boundaries and fail closed."
+  - "Update .aipos/state.yaml and the active work order before stopping."
