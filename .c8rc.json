@@ -1,0 +1,11 @@
+{
+  "all": true,
+  "extension": [".js"],
+  "include": ["dist/**/*.js", "apps/desktop/renderer/**/*.js"],
+  "exclude": [
+    "**/*.test.js",
+    "tests/**",
+    "scripts/**",
+    "node_modules/**"
+  ]
+}

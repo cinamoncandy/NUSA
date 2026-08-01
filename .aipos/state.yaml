@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T06:10:00+09:00"
-phase: maintenance
+updated_at: "2026-08-02T07:12:25+09:00"
+phase: audit
 status: blocked
-objective: "Maintain repository reliability while preserving the production-readiness blockers truthfully."
+objective: "Establish and archive a truthful repository coverage baseline while preserving production-readiness blockers."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -18,14 +18,14 @@ completed:
     evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
     summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
 in_progress:
-  - id: maintenance-reliability
+  - id: coverage-baseline
     work_order: .aipos/current-mission.yaml
     branch: agent/mobile-first-ui-v1
     pull_request: 45
 blocked: []
 next:
   work_order: .aipos/current-mission.yaml
-  reason: "Maintenance cleanup is complete and verified; Sprint E production evidence remains blocked by external runtime requirements."
+  reason: "Coverage baseline is complete and archived; focused tests for zero-coverage recovery/reconciliation modules are the next repository task, while Sprint E evidence remains externally blocked."
 verification:
   required:
     - "pnpm run preflight"
@@ -35,9 +35,10 @@ verification:
     - "pnpm test"
     - "pnpm run test:ui"
     - "pnpm run test:e2e"
+    - "pnpm run coverage"
     - "git diff --check"
-  last_result: "PASS: strict unused-symbol audit, typecheck, build, lint, 291 isolated test files, and git diff --check. Runtime dependency cycles: 0. Production external evidence remains blocked separately."
-  current_commit: "174e5b976e076eafd6b046162e24347f9c0ded44"
+  last_result: "PASS: coverage generated from core 291-file, UI 4-test, and E2E 4-test runs; unified baseline 84.37% statements/lines, 76.37% branches, 92.56% functions. Typecheck, build, lint, full test, UI, E2E, and diff check PASS."
+  current_commit: "ee3f0dd4270e0de3c0f0a62af1fc56265bfe0420"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

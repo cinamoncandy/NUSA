@@ -4,5 +4,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.vitest.js"]
+  },
+  coverage: {
+    all: false,
+    include: ["apps/desktop/renderer/**/*.js"],
+    exclude: ["**/*.test.js", "tests/**", "node_modules/**"]
   }
 });
