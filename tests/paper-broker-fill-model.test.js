@@ -19,6 +19,13 @@ test("default fill model reproduces exact, unslipped, fully-filled execution", (
   assert.equal(buy.marketImpactCost, 0);
 });
 
+test("invalid execution time is rejected before Paper accounting mutates", () => {
+  const broker = new PaperBroker(1_000, "KRW-BTC", 0);
+  const before = broker.snapshot(100);
+  assert.throws(() => broker.execute("BUY", 1, 100, new Date("invalid")), /now must be a valid date/);
+  assert.deepEqual(broker.snapshot(100), before);
+});
+
 test("strategy attribution is optional and survives Paper order export", () => {
   const broker = new PaperBroker(1_000, "KRW-BTC", 0);
   const order = broker.execute("BUY", 1, 100, new Date(0), { strategyId: "sma-crossover" });

@@ -20,6 +20,7 @@ features:
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/paper-broker-fill-model.test.js, tests/paper-command-boundary.test.js, tests/order-admission.test.js]
     blockers: []
+    latest_evidence: trading-engine-audit-2026-08-01.md; paper-broker-fill-model 12/12; CI-mode build PASS
   - id: accounting.portfolio-pnl
     priority: critical
     status: VERIFIED_COMPLETE

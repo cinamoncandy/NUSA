@@ -195,6 +195,7 @@ export class PaperBroker {
     if (side !== "BUY" && side !== "SELL") throw new Error("invalid paper side");
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("now must be a valid date");
     if (this.riskPolicy.priceTick !== null && !isAlignedToTick(price, this.riskPolicy.priceTick)) {
       throw new Error("price does not align to tick size");
     }

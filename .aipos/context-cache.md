@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: MX-001-canonical-exchange-profile. Exchange audit found Upbit-specific profile constants in desktop configuration and neutralized Paper execution error wording. Next is a minimal ExchangeProfile contract; no second exchange or live mutation.
+Current mission: TE-001-trading-engine-boundary-audit completed the invalid execution-time mutation fix. Next is a minimal ExchangeProfile contract; no second exchange or live mutation.

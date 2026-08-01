@@ -1,14 +1,14 @@
-id: MX-001-canonical-exchange-profile
-title: Introduce a minimal canonical exchange profile contract for Paper execution
+id: TE-001-trading-engine-boundary-audit
+title: Audit and harden deterministic Paper execution failure boundaries
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: exchange-architecture
+phase: trading-engine
 status: IN_PROGRESS
 scope:
-  - canonical exchange/profile boundary
-  - preserve Upbit Paper behavior
-  - no second exchange or live mutation
+  - deterministic Paper execution validation
+  - preserve existing accounting behavior
+  - no exchange or live mutation
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
