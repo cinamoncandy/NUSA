@@ -28,3 +28,15 @@ before reporting success.
 
 The command prints only run identity and validation status. It never prints credentials,
 database contents, or absolute paths. `productionMutationAllowed` remains `false`.
+
+## Read-only status
+
+To inspect the persisted research gate without opening the application:
+
+```powershell
+pnpm research:evidence-status -- --db C:\path\to\paper.sqlite
+```
+
+The status command opens SQLite read-only and returns `HEALTHY` only when all four
+required report types are present, matched to manifests, and `PASS`. Any missing,
+failed, or unverifiable report leaves the result blocked and exits non-zero.
