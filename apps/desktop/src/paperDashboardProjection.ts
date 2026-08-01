@@ -4,7 +4,7 @@ import type {
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
-import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../../cloud/src/dashboardAggregator";
+import type { CommitteeDashboardSection, OpportunityDashboardSection, StrategyDashboardSection } from "../../cloud/src/dashboardAggregator";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -22,6 +22,8 @@ export interface PaperDashboardProjectionInput {
    * field reproduces the prior "not connected" placeholder behavior exactly.
    */
   readonly strategyWarmup?: { readonly current: number; readonly required: number };
+  /** Persisted, strategy-attributed analytics. Warm-up alone is not performance evidence. */
+  readonly strategyAnalytics?: Pick<StrategyDashboardSection, "totalTrades" | "totalNetPnl" | "portfolioCaptureRatio" | "blockedStrategies" | "warningStrategies">;
   /**
    * The deterministic adverse-price rate (slippageBps + spreadBps / 2) the PaperBroker's
    * fill model currently applies to every order. This is not an observed market-quality
@@ -67,7 +69,13 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
   let strategyAvailability: "AVAILABLE" | "UNAVAILABLE";
   let blockedStrategies: number;
   let warningStrategies: number;
-  if (input.control.status === "FAULTED") {
+  if (input.strategyAnalytics === undefined) {
+    strategyReasons = ["STRATEGY_ANALYTICS_NOT_CONNECTED"];
+    strategyStatus = "BLOCKED";
+    strategyAvailability = "UNAVAILABLE";
+    blockedStrategies = 0;
+    warningStrategies = 0;
+  } else if (input.control.status === "FAULTED") {
     strategyReasons = ["CONTROL_PLANE_FAULTED"];
     strategyStatus = "BLOCKED";
     strategyAvailability = input.strategyWarmup === undefined ? "UNAVAILABLE" : "AVAILABLE";
@@ -125,9 +133,9 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       availability: strategyAvailability,
       generatedAt: input.generatedAt,
       reasons: Object.freeze(strategyReasons),
-      totalTrades: input.account.orders.length,
-      totalNetPnl: input.account.position.realizedPnl + input.account.unrealizedPnl,
-      portfolioCaptureRatio: 0,
+      totalTrades: input.strategyAnalytics?.totalTrades ?? 0,
+      totalNetPnl: input.strategyAnalytics?.totalNetPnl ?? 0,
+      portfolioCaptureRatio: input.strategyAnalytics?.portfolioCaptureRatio ?? 0,
       blockedStrategies,
       warningStrategies
     }),

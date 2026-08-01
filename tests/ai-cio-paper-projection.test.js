@@ -113,8 +113,13 @@ test("Paper drawdown is deterministic and capped for a depleted account", () => 
   assert.equal(loss.risk.killSwitchActive, false);
 });
 
-test("strategyWarmup connects the real SMA warm-up state to the strategies section, leaving committee unavailable", () => {
-  const warmingUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 3, required: 20 } }));
+const strategyAnalytics = {
+  totalTrades: 0, totalNetPnl: 0, portfolioCaptureRatio: 0,
+  blockedStrategies: 0, warningStrategies: 0
+};
+
+test("strategyWarmup connects the real SMA warm-up state when verified analytics are present", () => {
+  const warmingUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 3, required: 20 }, strategyAnalytics }));
   assert.equal(warmingUp.strategies.availability, "AVAILABLE");
   assert.equal(warmingUp.strategies.status, "CAUTION");
   assert.deepEqual(warmingUp.strategies.reasons, ["STRATEGY_WARMING_UP"]);
@@ -124,7 +129,7 @@ test("strategyWarmup connects the real SMA warm-up state to the strategies secti
   assert.equal(warmingUp.committee.availability, "UNAVAILABLE");
   assert.deepEqual(warmingUp.committee.reasons, ["SOURCE_NOT_CONNECTED"]);
 
-  const warmedUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 } }));
+  const warmedUp = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 }, strategyAnalytics }));
   assert.equal(warmedUp.strategies.status, "HEALTHY");
   assert.deepEqual(warmedUp.strategies.reasons, []);
   assert.equal(warmedUp.strategies.warningStrategies, 0);
@@ -133,6 +138,7 @@ test("strategyWarmup connects the real SMA warm-up state to the strategies secti
 test("strategyWarmup reports a stopped or paused strategy as caution, and a faulted control plane as blocked", () => {
   const stopped = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics,
     control: { status: "STOPPED", strategyId: "sma", autoTradeEnabled: false, orderQuantity: 0.1, events: [] }
   }));
   assert.equal(stopped.strategies.status, "CAUTION");
@@ -140,11 +146,19 @@ test("strategyWarmup reports a stopped or paused strategy as caution, and a faul
 
   const faulted = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },
+    strategyAnalytics,
     control: { status: "FAULTED", strategyId: "sma", autoTradeEnabled: false, orderQuantity: 0.1, events: [] }
   }));
   assert.equal(faulted.strategies.status, "BLOCKED");
   assert.deepEqual(faulted.strategies.reasons, ["CONTROL_PLANE_FAULTED"]);
   assert.equal(faulted.strategies.blockedStrategies, 1);
+});
+
+test("warm-up without strategy-attributed analytics stays unavailable", () => {
+  const result = buildPaperDashboardSections(input({ strategyWarmup: { current: 20, required: 20 } }));
+  assert.equal(result.strategies.availability, "UNAVAILABLE");
+  assert.equal(result.strategies.status, "BLOCKED");
+  assert.deepEqual(result.strategies.reasons, ["STRATEGY_ANALYTICS_NOT_CONNECTED"]);
 });
 
 test("executionCostBps connects the real deterministic fill-model rate, staying labeled synthetic", () => {
