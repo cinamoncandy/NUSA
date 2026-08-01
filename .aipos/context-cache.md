@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current gap mission: GAP-001-electron-release-smoke. Release check passed with CI=true; Electron GUI and installer smoke remain unverified.
+Current mission: MX-001-canonical-exchange-profile. Exchange audit found Upbit-specific profile constants in desktop configuration and neutralized Paper execution error wording. Next is a minimal ExchangeProfile contract; no second exchange or live mutation.

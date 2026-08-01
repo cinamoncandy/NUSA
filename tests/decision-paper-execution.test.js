@@ -49,7 +49,7 @@ function approved(action = DecisionAction.LONG, market = "KRW-BTC") {
   return { envelope, authorization, intent };
 }
 
-test("approved LONG executes one Upbit spot Paper buy and returns a linked receipt", () => {
+test("approved LONG executes one spot Paper buy and returns a linked receipt", () => {
   const chain = approved();
   const broker = new PaperBroker(10_000_000, "KRW-BTC", 0.0005);
   const execution = executeSpotPaperDecision({
@@ -79,7 +79,7 @@ test("EXIT sells an existing Paper position", () => {
   assert.equal(broker.snapshot(101_000_000).position.quantity, 0);
 });
 
-test("Upbit spot fails closed for SHORT, expired intents, and duplicate receipts", () => {
+test("spot execution fails closed for SHORT, expired intents, and duplicate receipts", () => {
   const broker = new PaperBroker(10_000_000, "KRW-BTC", 0.0005);
   const shortChain = approved(DecisionAction.SHORT);
   assert.throws(() => executeSpotPaperDecision({
