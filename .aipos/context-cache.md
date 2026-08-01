@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: AC-001-paper-accounting-ledger. PaperBroker now records append-only ledger entries and restores them; 13/13 focused tests pass. Ledger replay projection and full accounting ownership remain. Release installer/Shadow remain environment-gated.
+Current mission: EP05-001-offline-sync-state-machine. Added a pure fail-closed offline state machine with strict recovery and synchronization transitions; focused tests 3/3 and CI-mode build pass. Incremental sync, offline cache, action queue, and runtime wiring remain. Release installer/Shadow remain environment-gated.

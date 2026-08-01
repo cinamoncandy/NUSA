@@ -1,6 +1,6 @@
 version: 1
 audited_at: "2026-08-01T16:28:53+09:00"
-audited_commit: "8468cb3bd404979cd9cead998f9e4bfad6c7e800"
+audited_commit: "fe54316"
 features:
   - id: core.runtime
     priority: critical
@@ -73,3 +73,10 @@ features:
     implementation_paths: []
     test_paths: [tests/deployment-boundary.test.js]
     blockers: []
+  - id: offline.synchronization-state-machine
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/execution/src/offline-synchronization.ts]
+    test_paths: [tests/offline-synchronization.test.js]
+    evidence: [offline-sync-audit-2026-08-01.md, "focused tests 3/3", "CI-mode build PASS"]
+    blockers: [network detection, offline cache, incremental action queue, conflict resolution, and runtime wiring remain]
