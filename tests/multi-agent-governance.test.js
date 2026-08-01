@@ -17,6 +17,7 @@ const {
   evaluateMultiAgentCertification,
   evaluateMultiAgentContainment,
   evaluateMultiAgentDecision,
+  projectMultiAgentGovernance,
   registerAgentDefinition,
   replayMultiAgentGovernance
 } = require("../dist/apps/cloud/src/multiAgentGovernance.js");
@@ -182,6 +183,16 @@ test("multi-agent ledger and SQLite state replay deterministically and reject ta
   const contained = appendMultiAgentGovernanceEvent(opened, event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED, { incidentId: incident.incidentId, containment }, 6));
   const certification = evaluateMultiAgentCertification(certificationInput());
   const records = appendMultiAgentGovernanceEvent(contained, event(MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY, { certification }, 7));
+  const projection = projectMultiAgentGovernance(records);
+  assert.equal(projection.agentCount, 1);
+  assert.equal(projection.evidenceCount, 1);
+  assert.equal(projection.contextCount, 1);
+  assert.equal(projection.decisionResults[decision.result], 1);
+  assert.equal(projection.openIncidentCount, 0);
+  assert.equal(projection.zeroAuthorityCertificationCount, 1);
+  assert.equal(projection.productionMutationAllowed, false);
+  assert.equal(Object.isFrozen(projection), true);
+  assert.equal(Object.isFrozen(projection.decisionResults), true);
   assert.equal(replayMultiAgentGovernance(records).decisions.get("decision-1").decisionHash, decision.decisionHash);
   assert.equal(replayMultiAgentGovernance(records).containments.get(incident.incidentId).action, "contain");
   assert.equal(replayMultiAgentGovernance(records).certifications.get(certification.certificationId).status, "certified_zero_authority");

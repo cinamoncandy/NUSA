@@ -370,3 +370,18 @@ export interface MultiAgentGovernanceRecord {
   readonly event: MultiAgentGovernanceEvent;
   readonly hash: string;
 }
+
+export interface MultiAgentGovernanceProjection {
+  readonly ledgerHash: string;
+  readonly agentCount: number;
+  readonly evidenceCount: number;
+  readonly contextCount: number;
+  readonly decisionCount: number;
+  readonly incidentCount: number;
+  readonly containedIncidentCount: number;
+  readonly certificationCount: number;
+  readonly decisionResults: Readonly<Record<MultiAgentResult, number>>;
+  readonly openIncidentCount: number;
+  readonly zeroAuthorityCertificationCount: number;
+  readonly productionMutationAllowed: false;
+}

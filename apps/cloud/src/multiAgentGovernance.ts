@@ -6,6 +6,7 @@ import {
   EvidenceClaimStatus,
   EvidenceQuality,
   MultiAgentGovernanceEventType,
+  MultiAgentGovernanceProjection,
   type AdversarialReview,
   type AgentCalibrationObservation,
   type AgentCalibrationProfile,
@@ -21,6 +22,7 @@ import {
   type IndependentRiskVerification,
   type MultiAgentDecisionInput,
   type MultiAgentDecisionResult,
+  type MultiAgentResult,
   type MultiAgentCertification,
   type MultiAgentCertificationInput,
   type MultiAgentContainmentResult,
@@ -528,6 +530,36 @@ export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanc
     previousHash = record.hash; previousTime = event.occurredAt;
   }
   return Object.freeze({ hash: previousHash, agents, evidence, contexts, decisions, incidents, containments, certifications });
+}
+
+export function projectMultiAgentGovernance(records: readonly MultiAgentGovernanceRecord[]): MultiAgentGovernanceProjection {
+  const state = replayMultiAgentGovernance(records);
+  const decisionResults: Record<MultiAgentResult, number> = {
+    preview_candidate: 0,
+    deny: 0,
+    incomplete: 0,
+    escalation_required: 0,
+    no_action: 0
+  };
+  for (const decision of state.decisions.values()) decisionResults[decision.result] += 1;
+  let openIncidentCount = 0;
+  for (const incidentId of state.incidents.keys()) if (!state.containments.has(incidentId)) openIncidentCount += 1;
+  let zeroAuthorityCertificationCount = 0;
+  for (const certification of state.certifications.values()) if (certification.status === "certified_zero_authority") zeroAuthorityCertificationCount += 1;
+  return Object.freeze({
+    ledgerHash: state.hash,
+    agentCount: state.agents.size,
+    evidenceCount: state.evidence.size,
+    contextCount: state.contexts.size,
+    decisionCount: state.decisions.size,
+    incidentCount: state.incidents.size,
+    containedIncidentCount: state.containments.size,
+    certificationCount: state.certifications.size,
+    decisionResults: Object.freeze(decisionResults),
+    openIncidentCount,
+    zeroAuthorityCertificationCount,
+    productionMutationAllowed: false
+  });
 }
 
 export function appendMultiAgentGovernanceEvent(records: readonly MultiAgentGovernanceRecord[], event: MultiAgentGovernanceEvent): readonly MultiAgentGovernanceRecord[] {
