@@ -43,8 +43,8 @@ verification:
     - "pnpm run release:check"
     - "pnpm run test:coverage"
   last_result: "PASS for all listed commands on 2026-08-01; UI/E2E required external execution because the sandbox blocks Vitest/Playwright parent-path access."
-  latest_verified_commit: "65684ee18377250d33f5dcab7ef151488af5aaab"
-  pr_44_ci: "PASS: pull_request run 30686856922 on 65684ee18377250d33f5dcab7ef151488af5aaab; all CI steps completed successfully."
+  last_verified_ci_commit: "ac49fb9e373adc703e7faf128bc29eaa10e0bed5"
+  pr_44_ci: "PASS: pull_request run 30686975667 on ac49fb9e373adc703e7faf128bc29eaa10e0bed5; all CI steps completed successfully."
   coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; Vitest contract suite only, documented in docs/quality/coverage-baseline.md."
   ci_workflow: "CI now runs typecheck, build, lint, UI, E2E, package validation, release check, full isolated tests, and uploads coverage-baseline."
 human_authority:
