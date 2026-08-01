@@ -2,6 +2,8 @@ export type PaperSide = "BUY" | "SELL";
 
 export interface PaperOrder {
   id: string;
+  /** Present only when the order was created from an attributed strategy signal. */
+  strategyId?: string;
   market: string;
   side: PaperSide;
   quantity: number;
@@ -189,7 +191,7 @@ export class PaperBroker {
     return floorToStep(quantity, this.riskPolicy.quantityStep);
   }
 
-  execute(side: PaperSide, quantity: number, price: number, now = new Date()): PaperOrder {
+  execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
     if (side !== "BUY" && side !== "SELL") throw new Error("invalid paper side");
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("quantity must be positive");
     if (!Number.isFinite(price) || price <= 0) throw new Error("price must be positive");
@@ -249,6 +251,7 @@ export class PaperBroker {
 
     const order: PaperOrder = Object.freeze({
       id: `${now.getTime()}-${this.orders.length + 1}`,
+      ...(attribution.strategyId === undefined ? {} : { strategyId: attribution.strategyId }),
       market: this.position.market,
       side,
       quantity: normalizedQuantity,

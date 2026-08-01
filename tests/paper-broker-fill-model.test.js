@@ -19,6 +19,13 @@ test("default fill model reproduces exact, unslipped, fully-filled execution", (
   assert.equal(buy.marketImpactCost, 0);
 });
 
+test("strategy attribution is optional and survives Paper order export", () => {
+  const broker = new PaperBroker(1_000, "KRW-BTC", 0);
+  const order = broker.execute("BUY", 1, 100, new Date(0), { strategyId: "sma-crossover" });
+  assert.equal(order.strategyId, "sma-crossover");
+  assert.equal(broker.exportState().orders[0].strategyId, "sma-crossover");
+});
+
 test("market impact adds adverse price movement that scales with order size", () => {
   const small = new PaperBroker(1_000_000, "KRW-BTC", 0, {}, undefined, { marketImpactBpsPerUnit: 1000 });
   const smallOrder = small.execute("BUY", 0.01, 1_000_000);
