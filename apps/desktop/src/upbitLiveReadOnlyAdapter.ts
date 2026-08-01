@@ -43,6 +43,11 @@ export interface UpbitLiveReadOnlyAdapterOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  maxAttempts?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  minimumIntervalMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export class LiveMutationDisabledError extends Error {
@@ -66,6 +71,12 @@ export class UpbitLiveReadOnlyAdapter {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly maxAttempts: number;
+  private readonly baseDelayMs: number;
+  private readonly maxDelayMs: number;
+  private readonly minimumIntervalMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private lastRequestAt?: number;
 
   constructor(options: UpbitLiveReadOnlyAdapterOptions) {
     const accessKey = options.credentials.accessKey.trim();
@@ -80,6 +91,12 @@ export class UpbitLiveReadOnlyAdapter {
     this.baseUrl = (options.baseUrl ?? "https://api.upbit.com").replace(/\/$/, "");
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
+    this.maxAttempts = options.maxAttempts ?? 3;
+    this.baseDelayMs = options.baseDelayMs ?? 250;
+    this.maxDelayMs = options.maxDelayMs ?? 2_000;
+    this.minimumIntervalMs = options.minimumIntervalMs ?? 100;
+    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    if (!Number.isSafeInteger(this.maxAttempts) || this.maxAttempts < 1 || !Number.isSafeInteger(this.baseDelayMs) || this.baseDelayMs < 0 || !Number.isSafeInteger(this.maxDelayMs) || this.maxDelayMs < this.baseDelayMs || !Number.isSafeInteger(this.minimumIntervalMs) || this.minimumIntervalMs < 0) throw new Error("invalid Upbit read request policy");
   }
 
   async getAccounts(signal?: AbortSignal): Promise<UpbitAccountBalance[]> {
@@ -133,30 +150,35 @@ export class UpbitLiveReadOnlyAdapter {
     const url = `${this.baseUrl}${path}${queryString ? `?${queryString}` : ""}`;
     const authorization = this.createAuthorization(queryString);
 
-    const response = await this.fetchImpl(url, {
-      method,
-      headers: {
-        Authorization: authorization,
-        Accept: "application/json",
-      },
-      signal,
-    });
-
-    const text = await response.text();
-    let payload: unknown;
-    try {
-      payload = text ? JSON.parse(text) : null;
-    } catch {
-      throw new Error(`Upbit returned invalid JSON (${response.status})`);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+      try {
+        const now = Date.now();
+        const wait = this.lastRequestAt == null ? 0 : Math.max(0, this.minimumIntervalMs - (now - this.lastRequestAt));
+        if (wait > 0) await this.sleep(wait);
+        this.lastRequestAt = Date.now();
+        const response = await this.fetchImpl(url, { method, headers: { Authorization: authorization, Accept: "application/json" }, signal });
+        const text = await response.text();
+        let payload: unknown;
+        try { payload = text ? JSON.parse(text) : null; } catch { throw new Error(`Upbit returned invalid JSON (${response.status})`); }
+        if (!response.ok) {
+          const message = this.extractErrorMessage(payload) ?? response.statusText;
+          const error = new Error(`Upbit read request failed (${response.status}): ${message}`);
+          if (!this.isRetryableStatus(response.status)) throw error;
+          throw error;
+        }
+        return payload as T;
+      } catch (error) {
+        lastError = error;
+        if (!this.isRetryable(error) || attempt === this.maxAttempts) throw error;
+        await this.sleep(Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** (attempt - 1)));
+      }
     }
-
-    if (!response.ok) {
-      const message = this.extractErrorMessage(payload) ?? response.statusText;
-      throw new Error(`Upbit read request failed (${response.status}): ${message}`);
-    }
-
-    return payload as T;
+    throw lastError instanceof Error ? lastError : new Error("Upbit read request failed");
   }
+
+  private isRetryableStatus(status: number): boolean { return status === 429 || status >= 500; }
+  private isRetryable(error: unknown): boolean { return /(?:HTTP\s+(?:429|5\d\d)|read request failed \((?:429|5\d\d)\)|fetch|network|timeout|timed out|connection|socket|ECONNRESET)/i.test(error instanceof Error ? error.message : String(error)); }
 
   private createAuthorization(queryString: string): string {
     const payload: Record<string, string> = {

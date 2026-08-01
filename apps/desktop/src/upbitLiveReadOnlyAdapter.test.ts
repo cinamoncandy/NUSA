@@ -88,3 +88,23 @@ test("provider errors preserve a safe read failure", async () => {
     /Upbit read request failed \(401\): 허용되지 않은 IP 주소입니다\./,
   );
 });
+
+test("transient read failures retry within the bounded policy", async () => {
+  let calls = 0;
+  const sleeps: number[] = [];
+  const adapter = new UpbitLiveReadOnlyAdapter({
+    credentials: { accessKey: "access-key", secretKey: "secret-key" },
+    maxAttempts: 3,
+    baseDelayMs: 10,
+    maxDelayMs: 20,
+    minimumIntervalMs: 0,
+    sleep: async (ms) => { sleeps.push(ms); },
+    fetchImpl: async () => {
+      calls += 1;
+      return createJsonResponse(calls < 3 ? { error: { message: "temporary" } } : [], calls < 3 ? 503 : 200);
+    },
+  });
+  assert.deepEqual(await adapter.getOpenOrders(), []);
+  assert.equal(calls, 3);
+  assert.deepEqual(sleeps, [10, 20]);
+});
