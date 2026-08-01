@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP06-001-secure-session-lifecycle. Added a pure fail-closed session lifecycle with expiry, idle timeout, monotonic activity, and irreversible revocation; focused tests 3/3 and CI-mode build pass. No credentials or tokens are stored. Secure OS storage, biometric/PIN integration, and Electron wiring remain. Release installer/Shadow remain environment-gated.
+Current mission: AC-002-paper-ledger-projection. Added deterministic Paper ledger replay with sequence, duplicate, before/after-state, invalid-fill, and oversell validation; focused accounting tests 15/15 and CI-mode build pass. Broker mutation is still authoritative, so accounting ownership transfer remains. Release installer/Shadow remain environment-gated.
