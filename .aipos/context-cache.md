@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP06-002-mobile-security-platform-ports. Added platform security ports for secure storage, biometric/PIN authentication, and trusted-device registration/revocation; security tests 7/7 and CI-mode build pass. No secrets are stored by the service. Concrete OS/Electron bindings remain a separate platform integration task.
+Current mission: RISK-001-risk-evidence-integration. GlobalRiskGateway now writes every APPROVED/REJECTED/BLOCKED/UNKNOWN decision to an append-only queryable SQLite repository; recovery test 1/1 and CI-mode build pass. Known recovery reconciliation regression remains.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
