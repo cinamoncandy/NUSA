@@ -97,6 +97,18 @@ test("verified opportunity analytics can be projected without being recomputed",
   assert.equal(result.opportunities, opportunity);
 });
 
+test("projects a validated opportunity schedule without inferring from the paper account", () => {
+  const result = buildPaperDashboardSections(input({ opportunitySchedule: {
+    mode: "PAPER", totalAllocation: 100, reservedCash: 900,
+    opportunities: [{ id: "opp-1", asset: "KRW-BTC", side: "LONG", score: 0.8, allocation: 100, rank: 1, reasons: ["POSITIVE_NET_EDGE"] }],
+    rejected: []
+  } }));
+  assert.equal(result.opportunities.status, "HEALTHY");
+  assert.equal(result.opportunities.activeCount, 1);
+  assert.equal(result.opportunities.topOpportunityId, "opp-1");
+  assert.equal(result.opportunities.topOpportunityScore, 0.8);
+});
+
 test("verified strategy analytics are projected without recomputing the ledger", () => {
   const result = buildPaperDashboardSections(input({
     strategyWarmup: { current: 20, required: 20 },

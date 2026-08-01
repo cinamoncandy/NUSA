@@ -6,6 +6,8 @@ import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
 import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../../cloud/src/dashboardAggregator";
 import { verifyStrategyAnalytics, type StrategyAnalyticsSnapshot } from "./strategyAnalytics";
+import { buildOpportunityDashboardSection } from "./opportunityDashboardProjection";
+import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -35,6 +37,8 @@ export interface PaperDashboardProjectionInput {
   readonly executionCostBps?: number;
   /** Independent opportunity analytics are not inferred from a Paper position. */
   readonly opportunity?: OpportunityDashboardSection;
+  /** A validated scheduler result may be projected read-only; no schedule is inferred here. */
+  readonly opportunitySchedule?: OpportunitySchedule;
   readonly committee?: CommitteeDashboardSection;
 }
 
@@ -123,7 +127,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       grossExposureRatio: exposure,
       netExposureRatio: exposure
     }),
-    opportunities: input.opportunity ?? Object.freeze({
+    opportunities: input.opportunity ?? (input.opportunitySchedule === undefined ? Object.freeze({
       status: input.runtimeAvailable ? "BLOCKED" as const : "BLOCKED" as const,
       availability: input.runtimeAvailable ? "UNAVAILABLE" as const : "INVALID" as const,
       generatedAt: input.generatedAt,
@@ -131,7 +135,7 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       activeCount: 0,
       totalAllocatedCapital: 0,
       reservedCash: 0
-    }),
+    }) : buildOpportunityDashboardSection(input.opportunitySchedule, input.generatedAt)),
     strategies: Object.freeze({
       status: strategyStatus,
       availability: strategyAvailability,
