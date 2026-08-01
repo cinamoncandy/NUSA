@@ -75,11 +75,11 @@ features:
     blockers: []
   - id: offline.synchronization-state-machine
     priority: required
-    status: PARTIAL
-    implementation_paths: [apps/execution/src/offline-synchronization.ts]
-    test_paths: [tests/offline-synchronization.test.js]
-    evidence: [offline-sync-audit-2026-08-01.md, offline-engine-integration-audit-2026-08-01.md, "focused tests 4/4", "CI-mode build PASS"]
-    blockers: [network detection, durable cache persistence, and runtime wiring remain]
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/offline-synchronization.ts, apps/execution/src/offline-engine.ts, apps/execution/src/offline-runtime.ts]
+    test_paths: [tests/offline-runtime.test.js, tests/offline-engine.test.js, tests/offline-synchronization.test.js]
+    evidence: [offline-release-slice-2026-08-02.md, "Offline/Recovery/Integration tests 59/59", "CI-mode typecheck/build PASS"]
+    blockers: []
   - id: mobile-security.secure-session
     priority: required
     status: PARTIAL

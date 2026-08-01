@@ -34,4 +34,6 @@ Current mission: EP06-007-mobile-security-complete. Mobile Security now covers n
 
 Accounting release slice: `PaperAccountingService` now isolates multiple Paper accounts over the existing Ledger-authoritative broker, and `FixedPrecision` centralizes deterministic integer-unit rounding. Accounting/Ledger/Recovery focused tests pass 69/69.
 
+Offline release slice: `FileOfflineCache` provides atomic durable checksummed storage, `NetworkStateMonitor` gates synchronization on explicit connectivity, and `OfflineSynchronizationService` applies deterministic version/timestamp conflict rules and fails closed on ambiguity. Offline/Recovery/Integration/Ledger/Risk/Security tests pass 59/59.
+
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
