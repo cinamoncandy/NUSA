@@ -36,6 +36,7 @@
     "evidence:verify": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js verify",
     "research:evidence-import": "pnpm run preflight && pnpm run build && node scripts/import-research-evidence.js",
     "research:evidence-status": "pnpm run preflight && pnpm run build && node scripts/research-evidence-status.js",
+    "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
     "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js"
   },
   "devDependencies": {
