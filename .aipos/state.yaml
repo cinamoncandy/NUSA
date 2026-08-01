@@ -1,32 +1,52 @@
 version: 1
 project: nusa
-updated_at: "2026-07-31T15:00:00+09:00"
-phase: foundation
-status: active
-objective: "Make NUSA self-describing so another AI can safely continue implementation from repository state alone."
+updated_at: "2026-08-01T15:39:59+09:00"
+phase: repository-health
+status: blocked
+objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
 base_branch: main
-active_branch: agent/aipos-foundation-v0
-active_pull_request: 43
+active_branch: agent/repository-health-recovery
+active_pull_request: 44
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged as commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
     summary: "Typed event bus, engine registry, plugin lifecycle, runtime composition, and tests."
   - id: aipos-runtime-v0
-    evidence: "PR #43 branch"
+    evidence: "PR #43 merged as commit eed7481c2a8361299acc350147986cecd8836879"
     summary: "AIPOS domain types, store, validation, deterministic recovery, plugin integration, and tests."
-in_progress:
+  - id: execution-operations-v0
+    evidence: "PR #42 merged as commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
+    summary: "NUSA execution operations, product identity, and the current main runtime surface."
   - id: repository-contract-v0
-    work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-blocked: []
+    evidence: "Verified on agent/repository-health-recovery at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
+    summary: "AIPOS manifest, architecture, context, decision, state, and agent recovery contract are present and current."
+in_progress: []
+blocked:
+  - id: branch-protection-not-configured
+    reason: "GitHub reports main branch protection is not configured (HTTP 404); passing CI is not an enforced merge requirement."
+  - id: open-pr-cleanup
+    reason: "PRs #36 and #39 require rebase before review; remaining open PRs contain unique work or ambiguous legacy scope and require owner prioritization."
 next:
-  work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-  reason: "Cross-AI continuity requires committed repository metadata before further NUSA feature work."
+  work_order: WO-0003-strategy-registry
+  reason: "PR #40 is the smallest focused existing implementation candidate; owner approval is required before rebase or implementation."
 verification:
   required:
+    - "pnpm install --frozen-lockfile (CI=true for non-interactive local execution)"
+    - "pnpm run preflight"
     - "pnpm run typecheck"
     - "pnpm run build"
+    - "pnpm run lint"
     - "pnpm test"
-  last_result: not_recorded
+    - "pnpm run test:ui"
+    - "pnpm run test:e2e"
+    - "pnpm run package:validate"
+    - "pnpm run release:check"
+    - "pnpm run test:coverage"
+  last_result: "PASS for all listed commands on 2026-08-01 at recovery head; PowerShell used pnpm.cmd with CI=true, and UI/E2E passed locally and in CI."
+  last_verified_ci_commit: "e2bd51395257a430fbf7055c2de22bed6e8ceb10"
+  pr_44_ci: "PASS: pull_request runs 30688060565 and 30688061593 on e2bd51395257a430fbf7055c2de22bed6e8ceb10; all CI steps completed successfully."
+  coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; text, JSON, LCOV, and HTML reports; Vitest contract suite limitation documented in docs/audits/coverage-baseline-2026-08-01.md."
+  ci_workflow: "CI runs frozen install, preflight, typecheck, build, lint, UI, Playwright E2E, package validation, release check, focused suites, full isolated tests, and coverage artifact upload. Main branch protection is not configured."
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

@@ -1,0 +1,62 @@
+id: WO-0002
+schema_version: 1
+title: "Restore truthful repository health and continuity"
+status: blocked
+priority: 90
+owner: any-compatible-ai
+objective: "Recover NUSA repository truth, validate reproducibility, and leave one exact next task without changing product scope."
+scope:
+  - "Repair stale AIPOS and NUSA repository metadata."
+  - "Run the mandatory install, preflight, build, lint, test, UI, E2E, package, release, and coverage checks."
+  - "Classify all open pull requests without losing unique work."
+  - "Record CI, security, dependency, release, and coverage evidence."
+exclusions:
+  - "No new trading feature implementation."
+  - "No live exchange mutation, credentials, or architecture replacement."
+safety_boundaries:
+  - "productionMutationAllowed remains false."
+  - "Paper/read-only and fail-closed controls remain unchanged."
+execution_sequence:
+  - "Recover AIPOS and repository truth."
+  - "Inspect open PRs, CI, dependencies, security, and release state."
+  - "Apply only minimal metadata, CI, coverage, or documentation corrections."
+  - "Run the full verification sequence and record evidence."
+verification_commands:
+  - "pnpm install --frozen-lockfile"
+  - "pnpm run preflight"
+  - "pnpm run typecheck"
+  - "pnpm run build"
+  - "pnpm run lint"
+  - "pnpm test"
+  - "pnpm run test:ui"
+  - "pnpm run test:e2e"
+  - "pnpm run package:validate"
+  - "pnpm run release:check"
+  - "pnpm run test:coverage"
+  - "git diff --check"
+completion_criteria:
+  - "AIPOS reflects actual main, branch, PR, and verification state."
+  - "Every open PR has a documented classification."
+  - "Current main and recovery PR CI results are attached to their actual SHAs."
+  - "Production security boundary remains disabled."
+  - "Remaining blockers and exactly one next task are documented."
+evidence_requirements:
+  - "docs/audits/repository-health-2026-08-01.md"
+  - "docs/audits/open-pr-classification-2026-08-01.md"
+  - "docs/audits/ci-health-2026-08-01.md"
+  - "docs/audits/coverage-baseline-2026-08-01.md"
+  - "docs/audits/security-review-2026-08-01.md"
+rollback_plan: "Revert only the focused metadata, documentation, workflow, or coverage commits; do not reset shared history or delete unique PR branches."
+blockers:
+  - "main branch protection is not configured."
+  - "owner prioritization is required for remaining unique implementation PRs."
+next_action: "Owner selects one existing implementation PR, with PR #40 strategy registry as the recommended focused candidate."
+completion:
+  attempted_at: "2026-08-01T15:31:14+09:00"
+  result: "All repository-health checks passed; remaining blockers are branch-protection configuration and owner decisions for unique open PRs."
+  evidence:
+    - "docs/audits/repository-health-2026-08-01.md"
+    - "docs/audits/open-pr-classification-2026-08-01.md"
+    - "docs/audits/ci-health-2026-08-01.md"
+    - "docs/audits/coverage-baseline-2026-08-01.md"
+    - "docs/audits/security-review-2026-08-01.md"

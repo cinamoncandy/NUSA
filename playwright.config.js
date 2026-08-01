@@ -6,6 +6,7 @@ module.exports = defineConfig({
   webServer: {
     command: "node tests/e2e/serve-components.js",
     url: "http://127.0.0.1:4173/component-preview.html",
-    reuseExistingServer: false
+    reuseExistingServer: false,
+    gracefulShutdown: { signal: "SIGTERM", timeout: 1000 }
   }
 });

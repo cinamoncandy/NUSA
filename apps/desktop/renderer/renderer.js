@@ -666,7 +666,7 @@ refreshCioDashboard();
       if (active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
-    if (updateHash && window.location.hash !== `#${selected}`) history.replaceState(null, "", `#${selected}`);
+    if (updateHash && window.location.hash !== `#${selected}`) window.history.replaceState(null, "", `#${selected}`);
   }
 
   navigation.forEach((link) => link.addEventListener("click", (event) => {
