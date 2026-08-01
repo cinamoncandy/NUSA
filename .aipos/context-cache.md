@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: PERF-001-sma-rolling-allocation completed a measured allocation reduction in StrategyEngine. Benchmark: 143.5161ms -> 57.2973ms for 200k ticks; signals remain deterministic. Next is event-bus queue/listener measurement.
+Current mission: QA-001-runtime-verification-evidence. Full isolated suite passed 277 files; remaining gaps are actual Electron restart/recovery smoke and long-run runtime counters. Strategy benchmark remains 143.5161ms -> 57.2973ms for 200k ticks.

@@ -1,14 +1,14 @@
-id: PERF-001-sma-rolling-allocation
-title: Remove per-tick SMA rolling array allocation
+id: QA-001-runtime-verification-evidence
+title: Close runtime restart and long-run verification evidence gaps
 branch: agent/mobile-first-ui-v1
 pull_request: 45
 base_branch: main
-phase: performance
+phase: verification
 status: IN_PROGRESS
 scope:
-  - measured StrategyEngine hot-path improvement
-  - preserve deterministic signals
-  - preserve bounded history and Risk routing
+  - actual Electron restart/recovery evidence
+  - bounded runtime metrics evidence
+  - preserve functional and safety behavior
 safety:
   productionMutationAllowed: false
   liveTrading: disabled
@@ -29,4 +29,4 @@ verification:
 blockers:
   - CI checks for PR 45 are still pending.
   - package:win external HTTPS download remains blocked by EACCES in the restricted environment.
-next_recommended_task: Measure and bound runtime event-bus queue/listener behavior before considering further optimization.
+next_recommended_task: Run safe Electron launch/restart smoke and collect runtime counters; keep installer and long Shadow as environment-gated evidence.

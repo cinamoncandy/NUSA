@@ -1,5 +1,5 @@
 version: 1
-audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+audited_commit: 04c7a90
 areas:
   core-runtime:
     unit: tests/core-runtime.test.js
@@ -29,3 +29,8 @@ areas:
 coverage:
   status: not-measured
   policy: report-only; no arbitrary threshold introduced
+verification:
+  latest_summary: docs/audits/verification-summary-2026-08-01.md
+  full_isolated_suite: PASS_277_FILES
+  electron_restart_smoke: UNVERIFIED
+  long_runtime_soak: UNVERIFIED
