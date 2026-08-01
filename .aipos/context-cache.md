@@ -32,4 +32,6 @@ Latest verified commands:
 
 Current mission: EP06-007-mobile-security-complete. Mobile Security now covers native secure storage, biometric/PIN authentication, trusted-device verification and lifecycle, plus encrypted session persistence, refresh, expiry, revocation, and multi-device trust checks. Security tests pass 22/22; integration/recovery/Ledger/Offline/Risk tests pass 61/61; typecheck/build/lint/diff PASS. Native device identity and platform runtime verification remain outstanding.
 
+Accounting release slice: `PaperAccountingService` now isolates multiple Paper accounts over the existing Ledger-authoritative broker, and `FixedPrecision` centralizes deterministic integer-unit rounding. Accounting/Ledger/Recovery focused tests pass 69/69.
+
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

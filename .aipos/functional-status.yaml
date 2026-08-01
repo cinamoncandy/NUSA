@@ -23,11 +23,11 @@ features:
     latest_evidence: trading-engine-audit-2026-08-01.md; paper-broker-fill-model 12/12; CI-mode build PASS
   - id: accounting.portfolio-pnl
     priority: critical
-    status: PARTIAL
-    implementation_paths: [apps/execution/src, packages/contracts/src]
-    test_paths: [tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
-    blockers: [broader multi-account accounting service and fixed-precision policy remain outside this PaperBroker slice]
-    latest_evidence: accounting-portfolio-audit-2026-08-01.md; paper-ledger-projection-audit-2026-08-01.md; authoritative Paper mutation tests 21/21; CI-mode build PASS
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/desktop/src/paperBroker.ts, apps/desktop/src/paperAccountingService.ts, apps/execution/src, packages/contracts/src]
+    test_paths: [tests/paper-accounting-service.test.js, tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
+    blockers: []
+    latest_evidence: accounting-release-slice-2026-08-02.md; accounting/Ledger/Recovery tests 69/69; CI-mode typecheck/build PASS
   - id: persistence.recovery
     priority: critical
     status: VERIFIED_COMPLETE
