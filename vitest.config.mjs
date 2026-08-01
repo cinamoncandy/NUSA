@@ -6,7 +6,7 @@ export default defineConfig({
     include: ["tests/**/*.vitest.js"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json", "html", "lcov"],
       reportsDirectory: "./coverage",
       include: ["apps/**/*.js", "packages/**/*.js"],
       exclude: ["**/*.test.js", "tests/**", "dist/**", "coverage/**", "**/fixtures/**"]
