@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="brand-ui.css" />
   <link rel="stylesheet" href="workspace.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="simple-ui.css" />
   <script src="theme-provider.js"></script>
   <script src="component-library.js"></script>
   <script src="command-palette.js"></script>
@@ -21,7 +22,99 @@
   <script src="product-screens.js"></script>
 </head>
 <body>
-  <main class="app-shell" data-testid="app-shell">
+  <div id="simple-ui-root" class="simple-app" data-testid="simple-ui-root">
+    <aside class="simple-sidebar" aria-label="주요 메뉴">
+      <div class="simple-brand">
+        <img src="assets/nusa-a4p-symbol.svg" alt="NUSA" class="simple-brand__mark" />
+        <div><strong>NUSA</strong><span>Paper Trading</span></div>
+      </div>
+      <div class="simple-mode"><span class="simple-mode__dot" aria-hidden="true"></span><div><strong>Paper Trading</strong><span>실거래 비활성</span></div></div>
+      <nav class="simple-nav" aria-label="작업 공간">
+        <button class="simple-nav__item is-active" type="button" data-simple-nav="dashboard" aria-current="page"><span aria-hidden="true">⌂</span>대시보드</button>
+        <button class="simple-nav__item" type="button" data-simple-nav="market"><span aria-hidden="true">◌</span>마켓</button>
+        <button class="simple-nav__item" type="button" data-simple-nav="orders"><span aria-hidden="true">↗</span>주문</button>
+        <button class="simple-nav__item" type="button" data-simple-nav="positions"><span aria-hidden="true">▦</span>자산</button>
+        <button class="simple-nav__item" type="button" data-simple-nav="more"><span aria-hidden="true">•••</span>더보기</button>
+      </nav>
+      <div class="simple-sidebar__footer" aria-label="시스템 상태">
+        <div class="simple-system-status"><span class="simple-status-dot" data-simple-status-dot aria-hidden="true"></span><div><strong data-simple-sidebar-status>확인 중</strong><span>시스템 상태</span></div></div>
+        <span class="simple-version">NUSA Paper Trader</span>
+      </div>
+    </aside>
+    <div class="simple-main">
+      <header class="simple-header">
+        <div><p class="simple-eyebrow">NUSA PAPER TRADING</p><h1 id="simple-page-title">대시보드</h1></div>
+        <div class="simple-header__status">
+          <span class="simple-connection" data-simple-connection><span class="simple-status-dot" aria-hidden="true"></span>연결 상태 확인 중</span>
+          <span class="simple-exchange">Upbit · Public data</span>
+          <span class="simple-paper-badge">PAPER · 실거래 비활성</span>
+          <button class="simple-icon-button" type="button" data-simple-nav="settings" aria-label="설정으로 이동" title="설정">⚙</button>
+        </div>
+      </header>
+      <main id="simple-page-content" class="simple-content" tabindex="-1">
+        <section class="simple-page is-active" data-simple-page="dashboard" aria-labelledby="simple-dashboard-title">
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">OVERVIEW</p><h2 id="simple-dashboard-title">오늘의 상태</h2><p>Paper Trading 계정과 시장 연결을 한눈에 확인하세요.</p></div><span class="simple-update" data-simple-updated>업데이트 대기 중</span></div>
+          <div class="simple-hero-grid">
+            <article class="simple-card simple-card--health"><div class="simple-card__label">시스템 상태</div><div class="simple-health"><span class="simple-status-dot" data-simple-status-dot aria-hidden="true"></span><strong data-simple-health>확인 중</strong></div><p data-simple-health-copy>Paper 계정과 공개 시장 데이터 상태를 확인하고 있습니다.</p></article>
+            <article class="simple-card simple-card--action"><div class="simple-card__label">빠른 행동</div><strong data-simple-next-action>시세 연결을 기다리는 중입니다.</strong><p data-simple-next-copy>주문 화면에서 내용을 확인한 뒤 Paper 주문을 진행합니다.</p><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-quick-order="BUY">Paper 매수</button><button class="simple-button simple-button--secondary" type="button" data-simple-quick-order="SELL">Paper 매도</button></div></article>
+          </div>
+          <div class="simple-summary-grid" aria-label="계정 요약">
+            <article class="simple-card simple-summary-card"><span>총 자산</span><strong data-simple-total-equity>-</strong><small>Paper 계정 평가액</small></article>
+            <article class="simple-card simple-summary-card"><span>평가 손익</span><strong data-simple-pnl>-</strong><small>현재가 기준</small></article>
+            <article class="simple-card simple-summary-card"><span>보유 종목</span><strong data-simple-position-count>-</strong><small>열린 포지션</small></article>
+            <article class="simple-card simple-summary-card"><span>주문 수</span><strong data-simple-order-count>-</strong><small>누적 체결 기준</small></article>
+          </div>
+          <div class="simple-dashboard-grid">
+            <article class="simple-card simple-card--wide"><div class="simple-section-heading"><div><h3>자산 추이</h3><p>Paper 계정 평가액</p></div><div class="simple-segmented" role="group" aria-label="자산 추이 기간"><button class="is-active" type="button" disabled>1일</button><button type="button" disabled>1주</button><button type="button" disabled>1개월</button></div></div><div class="simple-chart" data-simple-equity-chart><div class="simple-empty">아직 표시할 자산 추이 데이터가 없습니다.</div></div></article>
+            <article class="simple-card"><div class="simple-section-heading"><div><h3>포트폴리오 구성</h3><p>KRW와 보유 자산</p></div></div><div class="simple-composition" data-simple-composition><div class="simple-empty">보유 자산이 없습니다.</div></div></article>
+          </div>
+          <div class="simple-dashboard-grid simple-dashboard-grid--lower">
+            <article class="simple-card simple-card--wide"><div class="simple-section-heading"><div><h3>보유 포지션</h3><p>현재 Paper 포지션</p></div><button class="simple-link-button" type="button" data-simple-nav="positions">전체 보기</button></div><div class="simple-table-wrap"><table class="simple-table"><thead><tr><th>마켓</th><th>수량</th><th>평균가</th><th>현재가</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table><tr><td colspan="6"><span class="simple-empty">보유 중인 Paper 포지션이 없습니다.</span></td></tr></tbody></table></div><div class="simple-mobile-list" data-simple-position-cards><div class="simple-empty">보유 중인 Paper 포지션이 없습니다.</div></div></article>
+            <article class="simple-card"><div class="simple-section-heading"><div><h3>최근 주문</h3><p>최근 Paper 체결</p></div><button class="simple-link-button" type="button" data-simple-nav="orders">전체 보기</button></div><div class="simple-activity-list" data-simple-recent-orders><div class="simple-empty">아직 주문 기록이 없습니다.</div></div><div class="simple-mobile-list" data-simple-order-cards><div class="simple-empty">아직 주문 기록이 없습니다.</div></div></article>
+          </div>
+        </section>
+        <section class="simple-page" data-simple-page="market" aria-labelledby="simple-market-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">MARKET</p><h2 id="simple-market-title">마켓</h2><p>공개 시장 데이터의 현재 상태와 최신 가격을 확인합니다.</p></div></div>
+          <div class="simple-toolbar"><label class="simple-search"><span class="sr-only">마켓 검색</span><input type="search" placeholder="마켓 검색" value="KRW-BTC" disabled /></label><span class="simple-filter">★ 즐겨찾기</span></div>
+          <article class="simple-card"><div class="simple-table-wrap"><table class="simple-table simple-market-table"><thead><tr><th>마켓</th><th>현재가</th><th>변동률</th><th>24시간 거래량</th><th>데이터 상태</th></tr></thead><tbody><tr><td><strong>KRW-BTC</strong><small>비트코인 / 원화</small></td><td data-simple-market-price>-</td><td data-simple-market-change>-</td><td class="simple-muted">연결 후 제공</td><td><span class="simple-inline-status" data-simple-market-status>확인 중</span></td></tr></tbody></table></div><div class="simple-market-card"><div><strong>KRW-BTC</strong><small>비트코인 / 원화</small></div><strong data-simple-market-price>-</strong><span data-simple-market-change>-</span><span class="simple-inline-status" data-simple-market-status>확인 중</span></div></article>
+          <article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">i</div><div><strong>공개 데이터만 사용합니다.</strong><p>이 화면은 Upbit Public API 시장 데이터만 표시하며, 계정 정보나 Private API를 사용하지 않습니다.</p></div></article>
+        </section>
+        <section class="simple-page" data-simple-page="orders" aria-labelledby="simple-orders-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ORDERS</p><h2 id="simple-orders-title">주문</h2><p>모든 주문은 Paper 계정에서만 처리됩니다.</p></div><span class="simple-paper-badge">실거래 주문 없음</span></div>
+          <div class="simple-order-layout"><article class="simple-card"><div class="simple-section-heading"><div><h3>Paper 주문</h3><p>시세가 연결된 경우에만 사용할 수 있습니다.</p></div></div><div class="simple-order-form"><label>마켓<input type="text" value="KRW-BTC" disabled /></label><label>수량 (BTC)<input data-simple-order-quantity type="number" min="0.00000001" step="0.0001" value="0.001" /></label><div class="simple-order-summary"><span>현재가</span><strong data-simple-order-price>-</strong><span>예상 주문 금액</span><strong data-simple-order-notional>-</strong><span>예상 수수료</span><strong data-simple-order-fee>연결 후 계산</strong></div><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-order="BUY" disabled>Paper 매수</button><button class="simple-button simple-button--danger" type="button" data-simple-order="SELL" disabled>Paper 매도</button></div><p class="simple-form-message" data-simple-order-message role="status" aria-live="polite"></p></div></article><article class="simple-card"><div class="simple-section-heading"><div><h3>최근 주문</h3><p>체결된 Paper 주문</p></div></div><div class="simple-activity-list" data-simple-order-list><div class="simple-empty">아직 주문 기록이 없습니다.</div></div></article></div>
+        </section>
+        <section class="simple-page" data-simple-page="positions" aria-labelledby="simple-positions-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ASSETS</p><h2 id="simple-positions-title">자산</h2><p>보유 중인 Paper 자산, 포지션, 손익을 확인합니다.</p></div></div><div class="simple-segmented simple-assets-tabs" role="tablist" aria-label="자산 보기"><button class="is-active" type="button" role="tab" aria-selected="true" data-simple-assets-tab="positions">포지션</button><button type="button" role="tab" aria-selected="false" data-simple-assets-tab="balance">자산</button><button type="button" role="tab" aria-selected="false" data-simple-assets-tab="pnl">손익</button></div><article class="simple-card" data-simple-assets-panel="positions"><div class="simple-table-wrap"><table class="simple-table"><thead><tr><th>마켓</th><th>수량</th><th>평균 진입가</th><th>현재가</th><th>시장 가치</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table-full><tr><td colspan="7"><span class="simple-empty">보유 중인 Paper 포지션이 없습니다.</span></td></tr></tbody></table></div><div class="simple-mobile-list" data-simple-position-cards-full><div class="simple-empty">보유 중인 Paper 포지션이 없습니다.</div></div></article><article class="simple-card" data-simple-assets-panel="balance" hidden><div class="simple-balance-grid"><div><span>사용 가능 KRW</span><strong data-simple-cash>-</strong></div><div><span>보유 자산 가치</span><strong data-simple-held-value>-</strong></div><div><span>총 자산</span><strong data-simple-balance-total>-</strong></div></div></article><article class="simple-card" data-simple-assets-panel="pnl" hidden><dl class="simple-detail-list"><div><dt>평가 손익</dt><dd data-simple-pnl>-</dd></div><div><dt>실현 손익</dt><dd data-simple-realized-pnl>-</dd></div><div><dt>수수료</dt><dd>Paper 체결 기록 기준</dd></div></dl></article>
+        </section>
+        <section class="simple-page" data-simple-page="balance" aria-labelledby="simple-balance-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ACCOUNT</p><h2 id="simple-balance-title">잔고</h2><p>Paper Trading 계정의 사용 가능 자산입니다.</p></div></div><div class="simple-balance-grid"><article class="simple-card simple-balance-card"><span>사용 가능 KRW</span><strong data-simple-cash>-</strong><small>주문에 사용할 수 있는 금액</small></article><article class="simple-card simple-balance-card"><span>보유 자산 가치</span><strong data-simple-held-value>-</strong><small>현재가 기준 추정</small></article><article class="simple-card simple-balance-card"><span>총 자산</span><strong data-simple-balance-total>-</strong><small>현금 + 보유 자산</small></article></div><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">₩</div><div><strong>Paper 계정입니다.</strong><p>실제 Upbit 잔고나 개인 계정 정보는 이 화면에 표시되지 않습니다.</p></div></article>
+        </section>
+        <section class="simple-page" data-simple-page="strategy" aria-labelledby="simple-strategy-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">STRATEGY</p><h2 id="simple-strategy-title">전략</h2><p>전략은 신호만 생성하며, 주문은 별도 안전 검증을 통과해야 합니다.</p></div></div><div class="simple-strategy-layout"><article class="simple-card"><div class="simple-section-heading"><div><h3 data-simple-strategy-name>sma-crossover</h3><p>KRW-BTC · 1분봉</p></div><span class="simple-inline-status" data-simple-strategy-status>중지됨</span></div><dl class="simple-detail-list"><div><dt>최근 신호</dt><dd data-simple-last-signal>아직 없음</dd></div><div><dt>Paper 주문 권한</dt><dd>Risk 검증 후</dd></div><div><dt>자동 실행</dt><dd data-simple-auto-trade>꺼짐</dd></div></dl><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-strategy="start">전략 시작</button><button class="simple-button simple-button--secondary" type="button" data-simple-strategy="stop">전략 중지</button></div></article><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">✓</div><div><strong>안전한 실행 경계</strong><p>전략은 신호만 생성합니다. 주문은 Risk 및 Execution 검증 후 Paper 계정에만 반영됩니다. Live Trading은 비활성화되어 있습니다.</p></div></article></div>
+        </section>
+        <section class="simple-page" data-simple-page="logs" aria-labelledby="simple-logs-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">OPERATIONS</p><h2 id="simple-logs-title">로그</h2><p>시스템 상태와 Paper 운영 이벤트를 이해하기 쉽게 표시합니다.</p></div><span class="simple-paper-badge">민감 정보 숨김</span></div><div class="simple-toolbar"><span class="simple-filter is-active">전체</span><span class="simple-filter">주문</span><span class="simple-filter">시장 데이터</span><span class="simple-filter">복구</span><span class="simple-filter">오류</span></div><article class="simple-card"><div class="simple-log-list" data-simple-log-list><div class="simple-empty">아직 운영 로그가 없습니다.</div></div></article>
+        </section>
+        <section class="simple-page" data-simple-page="more" aria-labelledby="simple-more-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">MORE</p><h2 id="simple-more-title">더보기</h2><p>운영과 고급 기능은 필요한 때에만 확인하세요.</p></div></div><div class="simple-more-list" role="list"><button type="button" data-simple-advanced="strategy"><span>✦</span><div><strong>전략</strong><small>전략 상태와 Paper 실행 경계를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="control-room"><span>◉</span><div><strong>운영 상태</strong><small>Shadow와 Paper 운영 상태를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="risk"><span>!</span><div><strong>위험</strong><small>Risk와 fail-closed 상태를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="recovery"><span>↻</span><div><strong>복구</strong><small>재시작 후 상태와 기록을 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="evidence"><span>▤</span><div><strong>Evidence</strong><small>변경할 수 없는 운영 기록을 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="diagnostics"><span>⌁</span><div><strong>진단</strong><small>상세 상태와 연결 정보를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="logs"><span>≡</span><div><strong>로그</strong><small>이해하기 쉬운 운영 이벤트를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="settings"><span>⚙</span><div><strong>설정</strong><small>화면, 알림, 데이터 표시를 관리합니다.</small></div><b aria-hidden="true">›</b></button></div><article class="simple-card simple-advanced-pane" data-simple-advanced-pane hidden><button class="simple-link-button" type="button" data-simple-more-back>‹ 더보기로 돌아가기</button><div class="simple-advanced-mount" data-simple-advanced-mount></div></article>
+        </section>
+        <section class="simple-page" data-simple-page="settings" aria-labelledby="simple-settings-title" hidden>
+          <div class="simple-page-heading"><div><p class="simple-eyebrow">PREFERENCES</p><h2 id="simple-settings-title">설정</h2><p>화면과 진단 표시 방식을 안전하게 관리합니다.</p></div></div><div class="simple-settings-layout"><article class="simple-card"><h3>연결</h3><dl class="simple-detail-list"><div><dt>거래소</dt><dd>Upbit</dd></div><div><dt>시장 데이터</dt><dd data-simple-settings-market>확인 중</dd></div><div><dt>인증 정보</dt><dd>설정되지 않음</dd></div><div><dt>재연결</dt><dd>자동 재연결</dd></div></dl></article><article class="simple-card"><h3>화면과 진단</h3><div class="simple-settings-form"><label>테마<select data-simple-setting="theme"><option value="light">라이트</option><option value="dark">다크</option><option value="contrast">고대비</option></select></label><label>로그 수준<select data-simple-setting="logLevel"><option value="INFO">정보</option><option value="WARNING">주의</option><option value="ERROR">오류</option></select></label><label class="simple-check"><input type="checkbox" data-simple-setting="showDiagnostics" checked /> 상세 진단 표시</label><label class="simple-check"><input type="checkbox" data-simple-setting="showNotifications" checked /> 알림 표시</label><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-settings-save>설정 저장</button><button class="simple-button simple-button--secondary" type="button" data-simple-settings-reset>설정 초기화</button></div><p class="simple-form-message" data-simple-settings-message role="status" aria-live="polite"></p></div></article></div><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">N</div><div><strong>NUSA Paper Trader</strong><p><span data-simple-app-version>버전 확인 중</span> · <span data-simple-app-mode>Paper Trading</span></p><p>LIVE TRADING DISABLED · Private API 비활성</p></div></article>
+        </section>
+      </main>
+      <div class="simple-sheet-backdrop" data-simple-sheet-backdrop hidden>
+        <section class="simple-sheet" data-simple-sheet role="dialog" aria-modal="true" aria-labelledby="simple-order-confirm-title" hidden>
+          <div class="simple-section-heading"><div><p class="simple-eyebrow">PAPER ORDER</p><h2 id="simple-order-confirm-title">Paper 주문 확인</h2></div><button class="simple-link-button" type="button" data-simple-sheet-close aria-label="주문 확인 닫기">닫기</button></div>
+          <dl class="simple-detail-list"><div><dt>모드</dt><dd>Paper Trading</dd></div><div><dt>마켓</dt><dd data-simple-sheet-market>KRW-BTC</dd></div><div><dt>구분</dt><dd data-simple-sheet-side>-</dd></div><div><dt>현재가</dt><dd data-simple-sheet-price>-</dd></div><div><dt>수량</dt><dd data-simple-sheet-quantity>-</dd></div><div><dt>예상 주문 금액</dt><dd data-simple-sheet-notional>-</dd></div><div><dt>예상 수수료</dt><dd data-simple-sheet-fee>-</dd></div></dl>
+          <p class="simple-form-message" data-simple-sheet-message role="status" aria-live="polite"></p>
+          <div class="simple-order-actions"><button class="simple-button simple-button--secondary" type="button" data-simple-sheet-close>주문 취소</button><button class="simple-button simple-button--primary" type="button" data-simple-sheet-confirm>Paper 주문 확인</button></div>
+        </section>
+      </div>
+      <footer class="simple-footer"><span>Paper Trading only</span><span>실거래 · Private API · 인증 정보 비활성</span></footer>
+      <nav class="simple-bottom-nav" aria-label="주요 탭"><button class="is-active" type="button" data-simple-nav="dashboard" aria-current="page"><span aria-hidden="true">⌂</span><strong>홈</strong></button><button type="button" data-simple-nav="market"><span aria-hidden="true">◌</span><strong>마켓</strong></button><button type="button" data-simple-nav="orders"><span aria-hidden="true">↗</span><strong>주문</strong></button><button type="button" data-simple-nav="positions"><span aria-hidden="true">▦</span><strong>자산</strong></button><button type="button" data-simple-nav="more"><span aria-hidden="true">•••</span><strong>더보기</strong></button></nav>
+    </div>
+  </div>
+  <main class="app-shell legacy-renderer-shell" data-testid="app-shell">
     <aside class="app-sidebar" aria-label="Primary navigation">
       <div class="brand-lockup">
         <img src="assets/nusa-a4p-symbol.svg" alt="NUSA" class="brand-lockup__mark" />
@@ -149,5 +242,7 @@
   <script src="renderer.js"></script>
   <script src="application-state.js"></script>
   <script src="application-state-mount.js"></script>
+  <script src="mobile-view-model.js"></script>
+  <script src="simple-ui.js"></script>
 </body>
 </html>
