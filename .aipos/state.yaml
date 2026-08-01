@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-01T15:13:52+09:00"
+updated_at: "2026-08-01T15:31:14+09:00"
 phase: repository-health
 status: blocked
 objective: "Restore repository truth and verify the current main implementation is ready for the next feature mission."
@@ -22,13 +22,13 @@ completed:
     summary: "AIPOS manifest, architecture, context, decision, state, and agent recovery contract are present and current."
 in_progress: []
 blocked:
-  - id: branch-protection-visibility
-    reason: "GitHub branch protection endpoint requires authentication; required checks are verified on main commit 10ad991 via check-runs/workflow API, but protection enforcement cannot be independently confirmed."
+  - id: branch-protection-not-configured
+    reason: "GitHub reports main branch protection is not configured (HTTP 404); passing CI is not an enforced merge requirement."
   - id: open-pr-cleanup
-    reason: "PRs #36 and #39 require rebase before review; #37, #38, and #40 contain unique unmerged work and require owner prioritization."
+    reason: "PRs #36 and #39 require rebase before review; remaining open PRs contain unique work or ambiguous legacy scope and require owner prioritization."
 next:
-  work_order: null
-  reason: "Review Draft PR #44, then owner-prioritize the remaining relevant PRs before the next implementation mission."
+  work_order: WO-0003-strategy-registry
+  reason: "PR #40 is the smallest focused existing implementation candidate; owner approval is required before rebase or implementation."
 verification:
   required:
     - "pnpm install --frozen-lockfile (CI=true for non-interactive local execution)"
@@ -42,11 +42,11 @@ verification:
     - "pnpm run package:validate"
     - "pnpm run release:check"
     - "pnpm run test:coverage"
-  last_result: "PASS for all listed commands on 2026-08-01; UI/E2E required external execution because the sandbox blocks Vitest/Playwright parent-path access."
-  last_verified_ci_commit: "3357e4ab7d66af32c052b6bd081ae3a6d98611e8"
-  pr_44_ci: "PASS: pull_request runs 30687090570 and 30687091954 on 3357e4ab7d66af32c052b6bd081ae3a6d98611e8; all CI steps completed successfully."
-  coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; Vitest contract suite only, documented in docs/quality/coverage-baseline.md."
-  ci_workflow: "CI now runs typecheck, build, lint, UI, E2E, package validation, release check, full isolated tests, and uploads coverage-baseline."
+  last_result: "PASS for all listed commands on 2026-08-01 at recovery head; PowerShell used pnpm.cmd with CI=true, and UI/E2E passed locally and in CI."
+  last_verified_ci_commit: "7183802f725986418b8bffc6f12c4986ac7dcafd"
+  pr_44_ci: "PASS: pull_request runs 30687358946 and 30687359970 on 7183802f725986418b8bffc6f12c4986ac7dcafd; all CI steps completed successfully."
+  coverage_baseline: "Statements 0%, Branches 29.27%, Functions 29.27%, Lines 0%; text, JSON, LCOV, and HTML reports; Vitest contract suite limitation documented in docs/audits/coverage-baseline-2026-08-01.md."
+  ci_workflow: "CI runs frozen install, preflight, typecheck, build, lint, UI, Playwright E2E, package validation, release check, focused suites, full isolated tests, and coverage artifact upload. Main branch protection is not configured."
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

@@ -1,0 +1,39 @@
+id: WO-0003
+schema_version: 1
+title: "Rebase and evaluate the existing strategy registry implementation"
+status: blocked
+priority: 80
+owner: repository-owner
+objective: "Select and, after approval, refresh the existing PR #40 strategy registry work on current main as the next focused implementation task."
+source:
+  pull_request: 40
+  branch: agent/wo-0040-strategy-registry
+scope:
+  - "Review the unique strategy registry source and tests in PR #40."
+  - "Rebase or recreate the work from current main without changing shared history."
+  - "Run the repository verification sequence after any refresh."
+exclusions:
+  - "Do not start until owner prioritization is explicit."
+  - "Do not merge automatically."
+  - "Do not add live trading, credentials, or exchange mutation."
+safety_boundaries:
+  - "productionMutationAllowed remains false."
+  - "Strategy emits signals and does not place orders."
+verification_commands:
+  - "pnpm install --frozen-lockfile"
+  - "pnpm run typecheck"
+  - "pnpm run build"
+  - "pnpm run lint"
+  - "pnpm test"
+  - "pnpm run test:ui"
+  - "pnpm run test:e2e"
+  - "pnpm run package:validate"
+  - "pnpm run release:check"
+completion_criteria:
+  - "Owner approval recorded."
+  - "PR #40 work is based on current main."
+  - "Unique registry tests and behavior pass without weakening safety controls."
+  - "PR evidence references the actual head SHA."
+blockers:
+  - "Owner must approve PR #40 as the next implementation priority."
+next_action: "Obtain owner approval, then refresh PR #40 from current main."
