@@ -26,7 +26,17 @@ export interface TradingStrategy {
   reset(): void;
 }
 
-const average = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+const averageLastIncludingTick = (prices: readonly number[], tickPrice: number, count: number): number => {
+  const start = Math.max(0, prices.length - (count - 1));
+  let total = 0;
+  let length = 0;
+  for (let index = start; index < prices.length; index += 1) {
+    total += prices[index]!;
+    length += 1;
+  }
+  total += tickPrice;
+  return total / (length + 1);
+};
 
 export class SmaCrossoverStrategy implements TradingStrategy {
   readonly id = "sma-crossover";
@@ -40,12 +50,12 @@ export class SmaCrossoverStrategy implements TradingStrategy {
   }
 
   onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
-    const prices = [...context.prices, tick.price].slice(-this.longPeriod);
-    if (prices.length < this.longPeriod) {
+    const available = Math.min(this.longPeriod, context.prices.length + 1);
+    if (available < this.longPeriod) {
       return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
     }
-    const short = average(prices.slice(-this.shortPeriod));
-    const long = average(prices);
+    const short = averageLastIncludingTick(context.prices, tick.price, this.shortPeriod);
+    const long = averageLastIncludingTick(context.prices, tick.price, this.longPeriod);
     const spread = short - long;
     const prior = this.previousSpread;
     this.previousSpread = spread;

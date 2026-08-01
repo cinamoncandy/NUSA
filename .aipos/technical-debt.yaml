@@ -22,3 +22,10 @@ items:
     estimated_cost: low
     suggested_fix: Add repository ignore rules if generated outputs should never appear in status.
     dependencies: []
+  - id: runtime-performance-evidence
+    reason: Only a deterministic StrategyEngine microbenchmark is measured; long-run Electron, IPC, GC, and disk metrics are not yet collected.
+    impact: medium
+    priority: P2
+    estimated_cost: medium
+    suggested_fix: Add bounded runtime counters and a repeatable soak harness before tuning more hot paths.
+    dependencies: [electron-smoke, runtime-metrics]
