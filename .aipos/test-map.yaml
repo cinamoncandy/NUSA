@@ -1,0 +1,31 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+areas:
+  core-runtime:
+    unit: tests/core-runtime.test.js
+    integration: tests/runtime*.test.js
+    recovery: tests/*recovery*.test.js
+    status: PASS
+  market-data:
+    unit: tests/*market*.test.js
+    integration: tests/*websocket*.test.js
+    shadow: not_run
+    status: PASS
+  paper-accounting:
+    unit: tests/*paper*.test.js, tests/*account*.test.js
+    integration: tests/*portfolio*.test.js
+    status: PASS
+  renderer-contract:
+    unit: tests/electron-*.test.js, tests/simple-paper-ui.test.js
+    status: PASS
+  browser-ui:
+    ui: tests/ui/*.test.js
+    e2e: tests/e2e/*.spec.js
+    status: PASS
+  packaging:
+    validation: scripts/validate-windows-package.js
+    installer: not_run
+    status: PARTIAL
+coverage:
+  status: not-measured
+  policy: report-only; no arbitrary threshold introduced

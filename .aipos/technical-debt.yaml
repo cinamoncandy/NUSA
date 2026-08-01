@@ -1,0 +1,24 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+items:
+  - id: legacy-renderer-compatibility-shell
+    reason: Legacy renderer DOM remains hidden for stable IDs and older contracts during migration.
+    impact: medium
+    priority: P2
+    estimated_cost: medium
+    suggested_fix: Remove only after all renderer and contract consumers migrate.
+    dependencies: [renderer-contract-migration]
+  - id: functional-ui-scaffolding
+    reason: New simple UI CSS is intentionally functional and not visually polished.
+    impact: low
+    priority: P3
+    estimated_cost: medium
+    suggested_fix: Separate visual design mission after functional acceptance.
+    dependencies: [PR-45-review]
+  - id: generated-test-artifacts
+    reason: Local coverage and test result directories are untracked after verification.
+    impact: low
+    priority: P3
+    estimated_cost: low
+    suggested_fix: Add repository ignore rules if generated outputs should never appear in status.
+    dependencies: []

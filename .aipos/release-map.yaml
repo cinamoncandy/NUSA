@@ -1,0 +1,21 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+product: NUSA
+version_string: 0.1.0
+electron: 39.8.5
+targets:
+  - windows-nsis
+  - windows-portable
+configuration:
+  appId: com.nusa.trader
+  productName: NUSA
+  asar: true
+  output: release
+  icon: build/nusa-a4p.ico
+  artifactName: NUSA-${version}-Windows-Setup.${ext}
+validation:
+  package_validate: PASS
+  package_win: UNVERIFIED
+  installer_smoke: UNVERIFIED
+  code_signing: disabled
+  live_mutation: false

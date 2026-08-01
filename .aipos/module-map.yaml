@@ -1,0 +1,51 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+modules:
+  - id: core-runtime
+    path: packages/core/src
+    purpose: Runtime lifecycle, events, registry, and health primitives.
+    related_tests: tests/core-runtime.test.js
+    status: VERIFIED_COMPLETE
+    risk: high
+  - id: contracts
+    path: packages/contracts/src
+    purpose: Shared domain and IPC contracts.
+    related_tests: tests/contracts.test.js
+    status: VERIFIED_COMPLETE
+    risk: high
+  - id: execution
+    path: apps/execution/src
+    purpose: Upbit public data, Paper execution, Risk, recovery, and strategy services.
+    related_tests: tests
+    status: VERIFIED_COMPLETE
+    risk: critical
+  - id: storage
+    path: packages/storage/src
+    purpose: Durable SQLite state, Evidence, snapshots, and recovery persistence.
+    related_tests: tests
+    status: VERIFIED_COMPLETE
+    risk: critical
+  - id: desktop-main
+    path: apps/desktop/src
+    purpose: Electron main process and preload bridge.
+    related_tests: tests/electron-*.test.js
+    status: VERIFIED_COMPLETE
+    risk: critical
+  - id: desktop-renderer
+    path: apps/desktop/renderer
+    purpose: Functional Paper Trading presentation and responsive navigation.
+    related_tests: tests/simple-paper-ui.test.js, tests/e2e/mobile-renderer.spec.js
+    status: PARTIAL
+    risk: high
+  - id: validation-scripts
+    path: scripts
+    purpose: Preflight, build, package, release, and Evidence validation.
+    related_tests: tests
+    status: VERIFIED_COMPLETE
+    risk: high
+  - id: test-suite
+    path: tests
+    purpose: Unit, integration, renderer contract, UI, and E2E verification.
+    related_tests: self
+    status: VERIFIED_COMPLETE
+    risk: high

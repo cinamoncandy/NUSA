@@ -36,8 +36,8 @@ verification:
     - "pnpm run test:ui"
     - "pnpm run test:e2e"
     - "git diff --check"
-  last_result: "PASS: preflight, typecheck, build, lint, pnpm test (277 isolated test files), test:ui (2 files/4 tests), test:e2e (4 tests including mobile renderer), package:validate, and git diff --check. Targeted renderer tests: 8/8."
-  current_commit: "10ad991ee9cded7f7784064641dd87dbc79c1c69"
+  last_result: "PASS: preflight, typecheck, build, lint, pnpm test (277 isolated test files), test:ui (2 files/4 tests), test:e2e (4 tests including mobile renderer), package:validate, and git diff --check. Targeted renderer tests: 8/8. PR #45 CI remains pending; Electron and installer smoke are unverified."
+  current_commit: "8468cb3bd404979cd9cead998f9e4bfad6c7e800"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

@@ -49,4 +49,4 @@ rollback:
   - "Revert the focused UI commit; the legacy renderer compatibility surface remains available in the same index document."
 current_status: "Functional implementation and verification completed on agent/mobile-first-ui-v1; visual design is explicitly deferred."
 blockers: []
-next_action: "Review the functional diff, commit the focused change, and create a Draft PR without starting visual redesign."
+next_action: "Verify PR #45 CI, then run Electron launch and Windows package smoke without live mutation."

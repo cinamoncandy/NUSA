@@ -1,0 +1,31 @@
+id: RIME-2026-08-01
+title: Build repository intelligence and memory
+branch: agent/mobile-first-ui-v1
+pull_request: 45
+base_branch: main
+phase: repository-intelligence
+status: IN_PROGRESS
+scope:
+  - durable repository maps
+  - truthful functional status
+  - build and release memory
+  - no visual redesign
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  tests: PASS
+  test_ui: PASS
+  test_e2e: PASS
+  package_validate: PASS
+  ci: PENDING
+  electron_smoke: UNVERIFIED
+  installer: UNVERIFIED
+blockers:
+  - CI checks for PR 45 are still pending.
+next_recommended_task: Verify PR 45 CI, then run Electron launch and Windows package smoke without live mutation.

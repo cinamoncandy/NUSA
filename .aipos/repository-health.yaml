@@ -1,0 +1,30 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+working_tree: DIRTY_GENERATED_ONLY
+status: HEALTHY_WITH_WARNINGS
+checks:
+  install: PASS
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  full_tests: PASS
+  ui_tests: PASS
+  e2e_tests: PASS
+  package_validation: PASS
+  release_check: UNVERIFIED
+  coverage: NOT_MEASURED
+runtime:
+  electron: UNVERIFIED
+  recovery: PASS
+  shadow: UNVERIFIED
+release:
+  packaging: PARTIAL
+  installer: UNVERIFIED
+  signing: NOT_CONFIGURED
+ci:
+  pull_request_45: PENDING
+blockers:
+  - CI completion for PR 45
+  - Electron and Windows installer smoke evidence
+  - long-duration Shadow evidence
