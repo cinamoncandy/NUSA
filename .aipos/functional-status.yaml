@@ -88,3 +88,10 @@ features:
     evidence: [mobile-security-session-audit-2026-08-01.md, "focused tests 3/3", "CI-mode build PASS"]
     blockers: [concrete OS secure-storage, biometric/PIN, and Electron/mobile platform bindings remain]
     latest_evidence: mobile-security-session-audit-2026-08-01.md; secure-storage-vertical-slice-2026-08-01.md; mobile-security tests 7/7; secure-storage tests 3/3; CI-mode build PASS
+  - id: mobile-security.biometric-authentication
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/mobileSecurity.ts]
+    test_paths: [tests/mobile-biometric.test.js]
+    evidence: [mobile-biometric-vertical-slice-2026-08-02.md, "affected tests 11/11", "CI-mode typecheck/build PASS"]
+    blockers: [native biometric adapter wiring remains platform-dependent]

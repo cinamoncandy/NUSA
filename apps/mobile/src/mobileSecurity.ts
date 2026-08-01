@@ -13,6 +13,17 @@ export interface PinAuthenticator {
   verify(pin: string): Promise<boolean>;
 }
 
+export interface BiometricPolicy {
+  readonly maximumFailures: number;
+  readonly lockoutMs: number;
+}
+
+export interface BiometricAuthState {
+  readonly failures: number;
+  readonly lockedUntilMs: number | null;
+  readonly lastAuthenticatedAtMs: number | null;
+}
+
 export interface TrustedDevice {
   readonly deviceId: string;
   readonly label: string;
@@ -24,6 +35,29 @@ export interface TrustedDeviceStore {
   get(deviceId: string): Promise<TrustedDevice | null>;
   save(device: TrustedDevice): Promise<void>;
   revoke(deviceId: string, revokedAtMs: number): Promise<void>;
+}
+
+export class MobileBiometricAuthentication {
+  private state: BiometricAuthState = Object.freeze({ failures: 0, lockedUntilMs: null, lastAuthenticatedAtMs: null });
+  public constructor(private readonly biometric: BiometricAuthenticator, private readonly pin: PinAuthenticator, private readonly policy: BiometricPolicy) {
+    if (!Number.isSafeInteger(policy.maximumFailures) || policy.maximumFailures <= 0 || !Number.isSafeInteger(policy.lockoutMs) || policy.lockoutMs <= 0) throw new Error("invalid biometric policy");
+  }
+
+  public snapshot(): BiometricAuthState { return this.state; }
+
+  public async authenticate(reason: string, pin: string, nowMs: number): Promise<"BIOMETRIC" | "PIN"> {
+    text(reason, "reason"); time(nowMs, "nowMs");
+    if (this.state.lockedUntilMs !== null && nowMs < this.state.lockedUntilMs) throw new Error("authentication is locked");
+    if (this.state.lockedUntilMs !== null && nowMs >= this.state.lockedUntilMs) this.state = Object.freeze({ ...this.state, failures: 0, lockedUntilMs: null });
+    if (await this.biometric.isAvailable() && await this.biometric.authenticate(reason)) { this.state = Object.freeze({ failures: 0, lockedUntilMs: null, lastAuthenticatedAtMs: nowMs }); return "BIOMETRIC"; }
+    if (await this.pin.verify(pin)) { this.state = Object.freeze({ failures: 0, lockedUntilMs: null, lastAuthenticatedAtMs: nowMs }); return "PIN"; }
+    const failures = this.state.failures + 1;
+    this.state = Object.freeze({ failures, lockedUntilMs: failures >= this.policy.maximumFailures ? nowMs + this.policy.lockoutMs : null, lastAuthenticatedAtMs: this.state.lastAuthenticatedAtMs });
+    throw new Error("authentication failed");
+  }
+
+  public async requireCriticalAction(action: string, pin: string, nowMs: number): Promise<"BIOMETRIC" | "PIN"> { return this.authenticate(`Critical action: ${text(action, "action")}`, pin, nowMs); }
+  public async reauthenticateSession(pin: string, nowMs: number): Promise<"BIOMETRIC" | "PIN"> { return this.authenticate("Session re-authentication", pin, nowMs); }
 }
 
 const text = (value: string, field: string): string => {

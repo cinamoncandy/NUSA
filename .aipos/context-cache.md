@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP06-003-secure-storage. Added Electron safeStorage adapter plus encrypted dedicated file storage, atomic writes, key rotation, and secure deletion; Secure Storage tests 3/3, typecheck/build PASS. Biometric and trusted-device work remain separate.
+Current mission: EP06-004-mobile-biometric-authentication. Added fail-closed biometric authentication with PIN fallback, configurable lockout, critical-action authentication, and session re-authentication; affected tests 11/11, typecheck/build PASS. Trusted Device remains unchanged.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.
