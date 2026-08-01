@@ -30,6 +30,6 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: EP06-006-trusted-device-management. TrustedDeviceManager persists encrypted device metadata through SecureStoragePort, requires biometric/PIN critical-action authentication, supports register/rename/revoke/list, and blocks unknown or revoked devices. Related security tests pass 19/19; typecheck/build/diff PASS. Native device identity and platform runtime verification remain outstanding.
+Current mission: EP06-007-mobile-security-complete. Mobile Security now covers native secure storage, biometric/PIN authentication, trusted-device verification and lifecycle, plus encrypted session persistence, refresh, expiry, revocation, and multi-device trust checks. Security tests pass 22/22; integration/recovery/Ledger/Offline/Risk tests pass 61/61; typecheck/build/lint/diff PASS. Native device identity and platform runtime verification remain outstanding.
 
 Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

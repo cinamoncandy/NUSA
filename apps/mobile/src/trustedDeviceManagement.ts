@@ -30,6 +30,11 @@ export class TrustedDeviceManager {
   }
 
   public async isTrusted(deviceId: string): Promise<boolean> { const device = await this.read(text(deviceId, "deviceId")); return device !== null && device.revokedAtMs === null; }
+  public async verify(deviceId: string, pin: string, nowMs: number): Promise<TrustedDevice> {
+    const device = await this.requireTrusted(deviceId);
+    await this.authentication.requireCriticalAction("verify trusted device", pin, nowMs);
+    return device;
+  }
   public async requireTrusted(deviceId: string): Promise<TrustedDevice> { const device = await this.read(text(deviceId, "deviceId")); if (device === null || device.revokedAtMs !== null) throw new Error("unknown or revoked device requires verification"); return device; }
   public async list(): Promise<readonly TrustedDevice[]> { const ids = await this.readIndex(); return Object.freeze((await Promise.all(ids.map(id => this.read(id)))).filter((device): device is TrustedDevice => device !== null)); }
 

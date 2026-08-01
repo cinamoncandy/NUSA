@@ -109,3 +109,10 @@ features:
     test_paths: [tests/trusted-device-management.test.js]
     evidence: [trusted-device-vertical-slice-2026-08-02.md, "related tests 19/19", "CI-mode typecheck/build PASS"]
     blockers: [native device identity and platform verification runtime validation remains]
+  - id: mobile-security.session-security
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/sessionSecurity.ts, apps/mobile/src/secureSession.ts]
+    test_paths: [tests/session-security.test.js, tests/secure-session.test.js]
+    evidence: [mobile-security-complete-2026-08-02.md, "security tests 22/22", "integration and recovery tests 61/61"]
+    blockers: [platform runtime validation remains]
