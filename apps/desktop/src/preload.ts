@@ -14,6 +14,7 @@ export interface ChartPoint { time: number; value: number; }
 // startup. The main-process handler and the public contract intentionally use this exact
 // immutable channel value; the type-only contract import above is erased by TypeScript.
 const AI_CIO_DASHBOARD_CHANNEL = "ai-cio:dashboard:get" as const;
+const RULES_STATUS_CHANNEL = "rules:status:get" as const;
 
 // Sandboxed preloads cannot resolve sibling CommonJS modules. Keep the small read retry
 // primitive in this bundle; all domain/runtime imports above are type-only and are erased.
@@ -126,6 +127,14 @@ const operations: NUSAOperationsApi = Object.freeze({
   getExecutionHealth: () => invokeReadWithRecovery<Readonly<Record<string, unknown>>>("execution:health")
 });
 
+export interface RulesStatusApi {
+  getStatus(): Promise<unknown>;
+}
+
+const rulesStatus: RulesStatusApi = Object.freeze({
+  getStatus: () => invokeReadWithRecovery<unknown>(RULES_STATUS_CHANNEL)
+});
+
 const shadowPilot: ShadowPilotApi = Object.freeze({
   preflight: () => invokeReadWithRecovery<readonly string[]>("shadow:preflight"),
   start: () => invokeMutation("shadow:start", { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion: "sma-crossover:closed-candle-1m-v1" }),
@@ -205,6 +214,7 @@ const nusaApp: NUSAAppApi = Object.freeze({
 contextBridge.exposeInMainWorld("nusa", api);
 contextBridge.exposeInMainWorld("nusaApp", nusaApp);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
+contextBridge.exposeInMainWorld("rulesStatus", rulesStatus);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
 contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);
 contextBridge.exposeInMainWorld("operations", operations);

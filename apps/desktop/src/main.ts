@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { evaluateOperationalReadiness } from "../../cloud/src/operationalReadinessGate";
 import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
+import { InMemoryRulesProjectionSource, registerRulesReadOnlyIpc } from "./rulesIpcBridge";
 import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
 import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
@@ -115,6 +116,7 @@ let persistedOpenP0Codes: readonly string[] = Object.freeze([]);
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
+const rulesProjectionSource = new InMemoryRulesProjectionSource();
 const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
   mode: "PAPER",
   maximumSectionAgeMs: 60_000,
@@ -306,6 +308,7 @@ function completeCrashShutdown(): boolean {
 }
 
 registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource);
+registerRulesReadOnlyIpc(ipcMain, rulesProjectionSource);
 
 function publishControl(): void { window?.webContents.send("control:snapshot", control.snapshot()); }
 function publishPaper(): void {
