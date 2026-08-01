@@ -307,6 +307,32 @@ export class DesktopPersistenceStore {
     });
   }
 
+  appendResearchEvidenceBundle(entries: readonly Readonly<{ manifest: ResearchRunManifest; report: ResearchValidationReport }>[]): void {
+    if (entries.length === 0) throw new Error("research evidence bundle is empty");
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      validateResearchRunManifest(entry.manifest);
+      this.assertResearchReport(entry.report);
+      if (entry.manifest.runId !== entry.report.runId || entry.manifest.runType !== entry.report.runType || entry.manifest.resultChecksum !== entry.report.resultChecksum) {
+        throw new Error("research evidence bundle identity mismatch");
+      }
+      if (seen.has(entry.manifest.runId)) throw new Error("research evidence bundle contains duplicate runId");
+      seen.add(entry.manifest.runId);
+    }
+    this.transaction(() => {
+      for (const entry of entries) {
+        const manifestPayload = JSON.stringify(entry.manifest);
+        const reportPayload = JSON.stringify(entry.report);
+        const existingManifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(entry.manifest.runId) as { manifest_json: string } | undefined;
+        const existingReport = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(entry.report.runId, entry.report.runType) as { report_json: string } | undefined;
+        if (existingManifest != null && existingManifest.manifest_json !== manifestPayload) throw new Error("research manifest identity conflict");
+        if (existingReport != null && existingReport.report_json !== reportPayload) throw new Error("research validation report identity conflict");
+        if (existingManifest == null) this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(entry.manifest.runId, entry.manifest.runType, entry.manifest.strategyId, entry.manifest.strategyVersion, entry.manifest.datasetId, entry.manifest.datasetChecksum, manifestPayload);
+        if (existingReport == null) this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(entry.report.runId, entry.report.runType, reportPayload);
+      }
+    });
+  }
+
   /** Reads the existing append-only committee ledger without creating or mutating it. */
   loadCommitteeDashboardSource(): Readonly<{ decision: RecordedCommitteeDecision | null; integrity: "VALID" | "UNAVAILABLE" | "INVALID" }> {
     try {
