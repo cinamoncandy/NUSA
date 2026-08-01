@@ -30,4 +30,4 @@ Latest verified commands:
 - git diff --check
 - pnpm run release:check with CI=true
 
-Current mission: QA-001-runtime-verification-evidence. Full isolated suite passed 277 files; remaining gaps are actual Electron restart/recovery smoke and long-run runtime counters. Strategy benchmark remains 143.5161ms -> 57.2973ms for 200k ticks.
+Current mission: REL-001-release-validation. Release validation and manifest passed; installer generation is blocked by external HTTPS EACCES, Electron install/restart smoke and Shadow evidence remain unverified. Strategy benchmark remains 143.5161ms -> 57.2973ms for 200k ticks.
