@@ -31,3 +31,5 @@ Latest verified commands:
 - pnpm run release:check with CI=true
 
 Current mission: AC-002-paper-ledger-projection. Added deterministic Paper ledger replay with sequence, duplicate, before/after-state, invalid-fill, and oversell validation; focused accounting tests 15/15 and CI-mode build pass. Broker mutation is still authoritative, so accounting ownership transfer remains. Release installer/Shadow remain environment-gated.
+
+Latest repository audit: `docs/audits/nusa-audit-report-2026-08-01.md`; current HEAD `ae969207f610de5c95ab893812efd969b981ebfd`; typecheck, lint, and full isolated tests PASS (280 files). Coverage, Electron smoke, installer, real Upbit runtime, and Shadow remain unverified or blocked.

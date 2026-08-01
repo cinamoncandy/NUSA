@@ -1,6 +1,6 @@
 version: 1
-audited_at: "2026-08-01T16:28:53+09:00"
-audited_commit: "fe54316"
+audited_at: "2026-08-01T20:47:46+09:00"
+audited_commit: "ae969207f610de5c95ab893812efd969b981ebfd"
 features:
   - id: core.runtime
     priority: critical
