@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PaperOrder } from "./paperBroker";
 
 export interface StrategyAnalyticsSnapshot {
@@ -14,10 +15,19 @@ export interface StrategyAnalyticsSnapshot {
   readonly netPnl: number;
   /** With one fully attributed Paper strategy, all tracked portfolio activity is covered. */
   readonly portfolioCaptureRatio: number;
+  readonly sourceSha256: string;
 }
 
 function finitePositive(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be positive`);
+}
+
+function hash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+}
+
+function payload(snapshot: Omit<StrategyAnalyticsSnapshot, "sourceSha256">): Omit<StrategyAnalyticsSnapshot, "sourceSha256"> {
+  return snapshot;
 }
 
 /**
@@ -70,7 +80,7 @@ export function buildStrategyAnalytics(input: Readonly<{
     }
   }
   const unrealizedPnl = quantity * (input.markPrice - averagePrice);
-  return Object.freeze({
+  const result = {
     strategyId: input.strategyId,
     market: input.market,
     orderCount: ordered.length,
@@ -83,5 +93,19 @@ export function buildStrategyAnalytics(input: Readonly<{
     unrealizedPnl,
     netPnl: realizedPnl + unrealizedPnl,
     portfolioCaptureRatio: 1
-  });
+  } as const;
+  return Object.freeze({ ...result, sourceSha256: hash(payload(result)) });
+}
+
+/** Independent verifier for a persisted or transported analytics snapshot. */
+export function verifyStrategyAnalytics(snapshot: StrategyAnalyticsSnapshot): readonly string[] {
+  const errors: string[] = [];
+  if (!snapshot.strategyId.trim()) errors.push("STRATEGY_ID_MISSING");
+  if (!/^[a-f0-9]{64}$/i.test(snapshot.sourceSha256)) errors.push("SOURCE_HASH_INVALID");
+  for (const [name, value] of Object.entries(snapshot)) {
+    if (name !== "strategyId" && name !== "market" && name !== "sourceSha256" && (!Number.isFinite(value) || value < 0)) errors.push(`FIELD_INVALID:${name}`);
+  }
+  const { sourceSha256, ...withoutHash } = snapshot;
+  if (sourceSha256 !== hash(payload(withoutHash))) errors.push("SOURCE_HASH_MISMATCH");
+  return Object.freeze([...new Set(errors)].sort());
 }

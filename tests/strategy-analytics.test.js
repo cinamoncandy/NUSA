@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
+const { buildStrategyAnalytics, verifyStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
 
 const order = (overrides = {}) => ({
   id: "1", market: "KRW-BTC", side: "BUY", quantity: 1, price: 100, fee: 1,
@@ -20,6 +20,7 @@ test("replays attributed strategy orders independently", () => {
   assert.equal(result.netPnl, 8);
   assert.equal(result.fees, 2);
   assert.equal(result.portfolioCaptureRatio, 1);
+  assert.deepEqual(verifyStrategyAnalytics(result), []);
 });
 
 test("manual or foreign strategy orders make attribution unavailable", () => {
@@ -39,4 +40,9 @@ test("invalid fills fail closed", () => {
     orders: [order(), order({ id: "2", side: "SELL", quantity: 2, filledAt: "2026-01-01T00:01:00.000Z" })],
     strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 100
   }), null);
+});
+
+test("analytics hash detects altered results", () => {
+  const result = buildStrategyAnalytics({ orders: [], strategyId: "sma-crossover", market: "KRW-BTC", markPrice: 100 });
+  assert.deepEqual(verifyStrategyAnalytics({ ...result, netPnl: 99 }), ["SOURCE_HASH_MISMATCH"]);
 });
