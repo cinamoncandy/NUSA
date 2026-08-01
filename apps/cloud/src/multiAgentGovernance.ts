@@ -9,6 +9,7 @@ import {
   MultiAgentGovernanceProjection,
   type AdversarialReview,
   type AgentCalibrationObservation,
+  type AgentCalibrationHistoryEntry,
   type AgentCalibrationProfile,
   type AgentContextSnapshot,
   type AgentContextSnapshotInput,
@@ -159,6 +160,15 @@ export function evaluateAgentCalibration(agentId: string, evaluationWindow: stri
   const error = observations.length === 0 ? undefined : Math.round((total / observations.length) * 1_000_000) / 1_000_000;
   const status = observations.length < minimumSamples ? "insufficient-data" : error! <= maximumExpectedCalibrationError ? "calibrated" : "degraded";
   return Object.freeze({ agentId: agentId.trim(), evaluationWindow: evaluationWindow.trim(), sampleCount: observations.length, expectedCalibrationError: error, calibrationStatus: status });
+}
+
+export function appendAgentCalibrationHistory(history: readonly AgentCalibrationHistoryEntry[], entry: AgentCalibrationHistoryEntry): readonly AgentCalibrationHistoryEntry[] {
+  text(entry.historyId, "calibration historyId"); text(entry.policyId, "calibration policyId"); timestamp(entry.recordedAt, "calibration recordedAt");
+  if (history.some(item => item.historyId === entry.historyId)) throw new Error("calibration history is immutable");
+  const previous = history.at(-1);
+  if (previous != null && entry.recordedAt < previous.recordedAt) throw new Error("calibration history timestamp regression");
+  const normalized = Object.freeze({ ...entry, profile: Object.freeze({ ...entry.profile }) });
+  return Object.freeze([...history, normalized]);
 }
 
 function runReasons(run: AgentRun, agent: AgentDefinition, context: AgentContextSnapshot, evaluatedAt: number): readonly string[] {

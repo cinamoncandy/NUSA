@@ -9,6 +9,7 @@ const {
 } = require("../dist/packages/contracts/src/multiAgentGovernance.js");
 const {
   appendMultiAgentGovernanceEvent,
+  appendAgentCalibrationHistory,
   assessAgentIndependence,
   createAgentContextSnapshot,
   createAgentDefinition,
@@ -127,6 +128,12 @@ test("calibration and independence diagnostics are deterministic and do not crea
   const degraded = evaluateAgentCalibration("proposer", "window-1", [{ predictedConfidence: 1, correct: false }, { predictedConfidence: 1, correct: false }], 2, 0.2);
   assert.equal(degraded.calibrationStatus, "degraded");
   assert.equal(assessAgentIndependence([agent(AgentRole.EVIDENCE_PRODUCER, "a", { correlatedGroupId: "same" }), agent(AgentRole.RISK_VERIFIER, "b", { correlatedGroupId: "same" })]).independent, false);
+  const history = appendAgentCalibrationHistory([], { historyId: "cal-1", profile: calibrated, policyId: "calibration-v1", recordedAt: 10 });
+  const next = appendAgentCalibrationHistory(history, { historyId: "cal-2", profile: degraded, policyId: "calibration-v1", recordedAt: 11 });
+  assert.equal(next.length, 2);
+  assert.equal(next[0].profile.calibrationStatus, "calibrated");
+  assert.throws(() => appendAgentCalibrationHistory(next, { historyId: "cal-2", profile: degraded, policyId: "calibration-v1", recordedAt: 12 }), /immutable/);
+  assert.throws(() => appendAgentCalibrationHistory(next, { historyId: "cal-3", profile: degraded, policyId: "calibration-v1", recordedAt: 9 }), /regression/);
 });
 
 test("critical multi-agent incidents recommend containment without creating runtime authority", () => {

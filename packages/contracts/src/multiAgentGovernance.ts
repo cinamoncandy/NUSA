@@ -213,6 +213,13 @@ export interface AgentCalibrationProfile {
   readonly calibrationStatus: "calibrated" | "degraded" | "uncalibrated" | "insufficient-data";
 }
 
+export interface AgentCalibrationHistoryEntry {
+  readonly historyId: string;
+  readonly profile: AgentCalibrationProfile;
+  readonly policyId: string;
+  readonly recordedAt: number;
+}
+
 export interface AgentIndependenceAssessment {
   readonly agentIds: readonly string[];
   readonly sharedCorrelatedGroups: readonly string[];
