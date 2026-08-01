@@ -4,7 +4,7 @@ import type {
 import type { ResearchDashboardSection } from "../../cloud/src/dashboardAggregator";
 import type { ControlSnapshot } from "./controlPlane";
 import type { PaperAccountSnapshot } from "./paperBroker";
-import type { CommitteeDashboardSection } from "../../cloud/src/dashboardAggregator";
+import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../../cloud/src/dashboardAggregator";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -30,6 +30,8 @@ export interface PaperDashboardProjectionInput {
    * quality. Omitting this field reproduces the prior hardcoded-0 placeholder exactly.
    */
   readonly executionCostBps?: number;
+  /** Independent opportunity analytics are not inferred from a Paper position. */
+  readonly opportunity?: OpportunityDashboardSection;
   readonly committee?: CommitteeDashboardSection;
 }
 
@@ -109,18 +111,14 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       grossExposureRatio: exposure,
       netExposureRatio: exposure
     }),
-    opportunities: Object.freeze({
-      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
-      availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
+    opportunities: input.opportunity ?? Object.freeze({
+      status: input.runtimeAvailable ? "BLOCKED" as const : "BLOCKED" as const,
+      availability: input.runtimeAvailable ? "UNAVAILABLE" as const : "INVALID" as const,
       generatedAt: input.generatedAt,
-      reasons: Object.freeze([...runtimeReasons]),
-      // The only "opportunity" this desktop app can honestly report is the current open
-      // Paper position itself: one strategy, one market, no independent opportunity-scoring
-      // model. topOpportunityScore is intentionally omitted rather than invented.
-      activeCount: input.account.position.quantity > 0 ? 1 : 0,
-      totalAllocatedCapital: marketValue,
-      reservedCash: 0,
-      ...(input.account.position.quantity > 0 ? { topOpportunityId: `paper:${input.account.position.market}` } : {})
+      reasons: Object.freeze([input.runtimeAvailable ? "OPPORTUNITY_ANALYTICS_NOT_CONNECTED" : "PAPER_RUNTIME_UNAVAILABLE"]),
+      activeCount: 0,
+      totalAllocatedCapital: 0,
+      reservedCash: 0
     }),
     strategies: Object.freeze({
       status: strategyStatus,

@@ -28,10 +28,11 @@ test("projects only verified Paper portfolio values and marks missing engines un
   for (const name of ["strategies", "committee", "research"]) {
     assert.equal(result[name].availability, "UNAVAILABLE");
   }
-  assert.equal(result.opportunities.availability, "AVAILABLE");
-  assert.equal(result.opportunities.activeCount, 1);
-  assert.equal(result.opportunities.totalAllocatedCapital, 240);
-  assert.equal(result.opportunities.topOpportunityId, "paper:KRW-BTC");
+  assert.equal(result.opportunities.availability, "UNAVAILABLE");
+  assert.equal(result.opportunities.status, "BLOCKED");
+  assert.deepEqual(result.opportunities.reasons, ["OPPORTUNITY_ANALYTICS_NOT_CONNECTED"]);
+  assert.equal(result.opportunities.activeCount, 0);
+  assert.equal(result.opportunities.totalAllocatedCapital, 0);
   assert.equal(result.execution.availability, "AVAILABLE");
   assert.equal(result.execution.fillQuality, 1);
   assert.equal(result.execution.slippageBps, 0);
@@ -70,7 +71,7 @@ test("runtime failure is represented as blocked risk and immutable evidence", ()
   assert.equal(result.opportunities.availability, "INVALID");
 });
 
-test("opportunities reports zero active count and omits topOpportunityId with a flat Paper position", () => {
+test("unconnected opportunities never infer analytics from a flat Paper position", () => {
   const result = buildPaperDashboardSections(input({
     account: {
       cash: 1_120, equity: 1_120, unrealizedPnl: 0,
@@ -81,7 +82,18 @@ test("opportunities reports zero active count and omits topOpportunityId with a 
   assert.equal(result.opportunities.activeCount, 0);
   assert.equal(result.opportunities.totalAllocatedCapital, 0);
   assert.equal(result.opportunities.topOpportunityId, undefined);
-  assert.equal(result.opportunities.availability, "AVAILABLE");
+  assert.equal(result.opportunities.availability, "UNAVAILABLE");
+  assert.equal(result.opportunities.status, "BLOCKED");
+});
+
+test("verified opportunity analytics can be projected without being recomputed", () => {
+  const opportunity = Object.freeze({
+    status: "HEALTHY", availability: "AVAILABLE", generatedAt: 10_000, reasons: [],
+    activeCount: 2, totalAllocatedCapital: 240, reservedCash: 10,
+    topOpportunityId: "opp-1", topOpportunityScore: 0.75
+  });
+  const result = buildPaperDashboardSections(input({ opportunity }));
+  assert.equal(result.opportunities, opportunity);
 });
 
 test("projection is deterministic and rejects invalid accounting inputs", () => {
