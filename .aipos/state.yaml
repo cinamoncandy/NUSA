@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T09:26:06+09:00"
-phase: security
+updated_at: "2026-08-02T10:12:00+09:00"
+phase: gap-audit
 status: blocked
-objective: "Harden dependency, secret, integrity, and release-artifact security gates without changing product behavior."
+objective: "Audit and resolve repository P0/P1 gaps before any mobile-only release decision."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -26,12 +26,16 @@ completed:
   - id: security-hardening
     evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md; docs/audits/dependency-audit-2026-08-02.md; docs/audits/secret-scan-2026-08-02.md; docs/audits/sbom-2026-08-02.json"
     summary: "Added dependency vulnerability and license checks, lockfile integrity validation, secret scanning, SBOM generation, artifact checksum validation, and CI security reporting."
-in_progress: []
+in_progress:
+  - id: complete-gap-audit
+    evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; working-tree audit against 05477d1f"
+    summary: "Reconciled functional status, current audit reports, TODO/stub search, runtime wiring, release checks, and full verification results."
 blocked:
-  - "Existing release/build-manifest.json declares UNSIGNED_BUILD; release signing cannot pass without an owner-provided code-signing certificate and password in CI secrets."
+  - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
+  - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0009-security-hardening.yaml
-  reason: "Source security gates pass; configure release signing credentials and rerun the artifact gate before trusted distribution."
+  work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
+  reason: "Resolve repository-backed P0/P1 gaps and obtain external evidence before any release-target change."
 verification:
   required:
     - "pnpm run preflight"
@@ -44,7 +48,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: security gate, dependency audit, license verification, lockfile integrity, secret scan, typecheck, lint, build, package validation, release validation, and 293 isolated test files. Artifact checksum PASS; release signing FAIL because existing artifacts are unsigned."
+  last_result: "PASS: frozen install, security gate, typecheck, lint, build, full isolated suite 294 files, UI 4/4 with elevated workspace access, E2E 4/4, coverage, architecture, package, release, and diff checks. Release targets unchanged; external mobile and runtime evidence remain unverified."
   current_commit: "a3df3a99"
 human_authority:
   live_trading_mutation: prohibited

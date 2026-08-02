@@ -1,0 +1,52 @@
+id: WO-0010
+schema_version: 1
+title: "Resolve remaining repository P0/P1 gaps before release-target changes"
+status: BLOCKED
+priority: 95
+objective: "Complete repository-backed P0/P1 work and obtain external runtime evidence before changing production release targets."
+scope:
+  - "Accounting, Ledger, Recovery, Offline, Risk, Evidence, security, and test integrity regressions."
+  - "Real read-only Upbit runtime and bounded reconnect evidence."
+  - "Native mobile runtime, signed build, device recovery, and platform security evidence."
+  - "Long-duration runtime/Shadow evidence."
+exclusions:
+  - "No release-target reclassification before this work order is complete."
+  - "No live trading or production mutation."
+  - "No placeholder Android/iOS implementation."
+  - "No hiding desktop gaps; desktop gaps remain recorded as P2/UNVERIFIED."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+execution_sequence:
+  - "Read repository memory and this backlog."
+  - "Fix any new P0/P1 repository failure with one focused vertical slice."
+  - "Run focused tests, subsystem integration, and release verification."
+  - "Run external Upbit and native mobile evidence collection only in an approved runtime."
+verification:
+  - "pnpm install --frozen-lockfile"
+  - "pnpm run security:gate"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run build"
+  - "pnpm test"
+  - "pnpm run test:ui"
+  - "pnpm run test:e2e"
+  - "pnpm run coverage"
+  - "pnpm run package:validate"
+  - "pnpm run release:validate"
+  - "pnpm run architecture:check"
+  - "git diff --check"
+completion_criteria:
+  - "No repository-backed P0/P1 remains."
+  - "External runtime evidence is recorded, not inferred."
+  - "Only then may a separate release-target decision be made."
+evidence:
+  - "docs/audits/complete-gap-backlog-2026-08-02.md"
+  - "docs/audits/release-candidate-audit-2026-08-02.md"
+rollback: "Revert only the focused P0/P1 fix commit; no trading state or production data is changed."
+blockers:
+  - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
+  - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
+current_status: "Repository gates pass; remaining critical evidence is external and release targets remain unchanged."
+next_action: "Provide one approved runtime environment containing the native mobile toolchains and read-only Upbit/device evidence path."
