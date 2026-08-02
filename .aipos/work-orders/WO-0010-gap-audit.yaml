@@ -46,9 +46,10 @@ evidence:
   - "docs/audits/release-candidate-audit-2026-08-02.md"
   - "commit fe73371: Paper Risk Evidence is persisted through the desktop Paper gate"
   - "commit 6f255f0: Mobile notification queue contract and tests"
+  - "commit 169edb5c: Security license audit ignores platform-selected optional packages"
 rollback: "Revert only the focused P0/P1 fix commit; no trading state or production data is changed."
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable mobile, offline, security, accounting, risk evidence, runtime, coverage, security, and release checks pass on branch cb344b6; the 10-run determinism harness timed out before a result, while native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
-next_action: "First isolate the determinism harness process-lifetime timeout; then use an approved Android/iOS runtime and read-only Upbit/device evidence path before merging PR #45 into main."
+current_status: "Repository-verifiable mobile, offline, security, accounting, risk evidence, runtime, coverage, security, and release checks pass on branch 169edb5c; PR #45 GitHub CI is pending, while native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
+next_action: "Wait for PR #45 CI; if green, resolve the remaining Order Engine runtime-wiring gap before merging, then obtain approved Android/iOS and read-only Upbit/device evidence."
