@@ -42,6 +42,7 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #010 CI second root cause: iOS Release bundle failed to resolve @babel/runtime/helpers/interopRequireDefault; added @babel/runtime to apps/mobile dependencies and regenerated pnpm-lock.yaml."
   - "Issue #010 CI root cause: iOS Release job failed because apps/mobile/metro.config.js was missing; added the standard React Native Metro configuration and validated it locally."
   - "Issue #010 slice on agent/issue-010-release-candidate: Android assembleRelease and iOS simulator Release workflow jobs plus mobile RC checklist; local release validation PASS, local dependency audit UNVERIFIED"
   - "Issue #009 slice on agent/issue-009-settings: validated Settings model, environment configuration, MockSettingsRepository, and SecureSettingsRepository; focused tests 4/4"
