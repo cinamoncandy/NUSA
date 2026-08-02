@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T14:45:00+09:00"
+updated_at: "2026-08-02T15:05:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -57,8 +57,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: typecheck, build, lint, full isolated suite 303 files, trading-screen and related Paper/UI tests 16/16, and git diff --check. Pre-trade unknown/fail states disable execution; renderer/native wiring and device restoration remain unverified."
-  current_commit: "03a903d"
+  last_result: "PASS: typecheck, build, lint, full isolated suite 304 files, portfolio/dashboard focused tests 30/30, and git diff --check. Portfolio projection is fail-closed for allocation and performance inputs; renderer/native wiring and real period performance data remain unverified."
+  current_commit: "1af16c3"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
