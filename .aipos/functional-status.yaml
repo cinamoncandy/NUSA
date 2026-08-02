@@ -145,6 +145,13 @@ features:
     test_paths: [tests/mobile-navigation.test.js, tests/mobile-app-shell.test.js, tests/simple-paper-ui.test.js]
     evidence: ["mobile navigation tests 3/3", "mobile shell/UI tests 14/14", "typecheck PASS", "build PASS"]
     blockers: [native deep-link and force-kill restoration are not device-verified]
+  - id: mobile.dashboard-command-center
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/tradingCommandCenter.ts]
+    test_paths: [tests/trading-command-center.test.js, tests/home-dashboard.test.js, tests/mobile-app-shell.test.js]
+    evidence: ["command center tests 3/3", "related dashboard/shell tests 21/21", "full isolated suite 302 files PASS", "typecheck/build/lint/diff PASS"]
+    blockers: [renderer/native dashboard wiring and device runtime evidence remain unverified]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE
