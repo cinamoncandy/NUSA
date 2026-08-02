@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T19:35:00+09:00"
+updated_at: "2026-08-02T19:55:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -9,8 +9,8 @@ active_branch: agent/issue-010-release-candidate
 active_pull_request: 58
 latest_verified_slice:
   id: release-candidate
-  evidence: "branch agent/issue-010-release-candidate; fixed CI iOS Release bundle failure by adding apps/mobile @babel/runtime and lockfile entry after Metro configuration; local typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
-  summary: "Added unsigned Android/iOS Release candidate workflow jobs, fixed Release-only Metro and Babel runtime configuration failures, and documented mobile RC evidence and external signing boundary."
+  evidence: "branch agent/issue-010-release-candidate; reproduced CI Android/iOS Release bundle failure locally; fixed pnpm symlink resolution in apps/mobile/metro.config.js; local Metro iOS bundle, typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
+  summary: "Added unsigned Android/iOS Release candidate workflow jobs, fixed Release-only Metro, Babel runtime, and pnpm symlink resolver configuration failures, and documented mobile RC evidence and external signing boundary."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -62,7 +62,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
-  current_commit: "6d7ac0276924b9fcdc9f79976790220fe365c49a"
+  current_commit: "5f43c1fcee402894196c7df2acb9cf929e2e7580"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
