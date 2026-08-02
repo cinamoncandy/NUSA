@@ -7,7 +7,7 @@ settings:
 overrides:
   ws@8.18.3: 8.21.0
   brace-expansion@1.1.16: 1.1.17
-  fast-xml-parser: 5.10.1
+  fast-xml-parser: 5.7.0
 
 importers:
 
@@ -955,8 +955,8 @@ packages:
     resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
     engines: {node: '>= 20.19.0'}
 
-  '@nodable/entities@3.0.0':
-    resolution: {integrity: sha512-8L9xFeTYKhm49xfIypoe2W5wV1m/3Z58kT+7kR9A8OyFxcPduI4VmxaUMQyKYrRjUoLLSXv6EKKID5Tvj9cUVw==}
+  '@nodable/entities@2.2.0':
+    resolution: {integrity: sha512-9uGyhaQavEUMC8AIddIjau4NsnsXhou+j5sBAGojCM1oxmQpVKTWR/9JxABD6UAv12vpIms55fPZKFQEhG6uBg==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -2319,8 +2319,8 @@ packages:
   fast-xml-builder@1.3.0:
     resolution: {integrity: sha512-F74cZEdCvuw9P41GAC3rod4X04jjWGM1JPEv/GWSqFTWLsdyMSBMBMlm9Hk3GLBgLBbdBNY8yee0pQh2RBVESQ==}
 
-  fast-xml-parser@5.10.1:
-    resolution: {integrity: sha512-IEMIf7298kXuZSRFoGfMYrl7is8LpavODgbNz1cwIudv7KwVFnuU+UsMporfq6PD6aXSlawZlARiA3UywCTfMw==}
+  fast-xml-parser@5.7.0:
+    resolution: {integrity: sha512-MTcrUoRQ1GSQ9iG3QJzBGquYYYeA7piZaJoIWbPFGbRn6Jj6z7xgoAyi4DrZX4y2ZIQQBF59gc/zmvvejjgoFQ==}
     hasBin: true
 
   fastq@1.20.1:
@@ -2687,9 +2687,6 @@ packages:
   is-unicode-supported@0.1.0:
     resolution: {integrity: sha512-knxG2q4UC3u8stRGyAVJCOdxFmv5DZiRcdlIaAQXAbSfJya+OhopNotLQrstBhququ4ZpuKbDc/8S6mgXgPFPw==}
     engines: {node: '>=10'}
-
-  is-unsafe@2.0.0:
-    resolution: {integrity: sha512-2LdV822R+wmI86unXA93WCFpL6g+av8ynWk0nrHyJqGop5VoocYsSLFgN8jrfalT6iGeLNM4KXuVSsULP53kEA==}
 
   is-wsl@1.1.0:
     resolution: {integrity: sha512-gfygJYZ2gLTDlmbWMI0CE2MwnFzSN/2SZfkMlItC4K/JBlsWVDB0bO6XhqcY13YXE7iMcAJnzTCJjPiTeJJ0Mw==}
@@ -5134,7 +5131,7 @@ snapshots:
 
   '@noble/hashes@2.2.0': {}
 
-  '@nodable/entities@3.0.0': {}
+  '@nodable/entities@2.2.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -5202,7 +5199,7 @@ snapshots:
     dependencies:
       '@react-native-community/cli-tools': 20.1.0
       fast-glob: 3.3.3
-      fast-xml-parser: 5.10.1
+      fast-xml-parser: 5.7.0
       picocolors: 1.1.1
 
   '@react-native-community/cli-config-apple@20.1.0':
@@ -5256,7 +5253,7 @@ snapshots:
       '@react-native-community/cli-config-apple': 20.1.0
       '@react-native-community/cli-tools': 20.1.0
       execa: 5.1.1
-      fast-xml-parser: 5.10.1
+      fast-xml-parser: 5.7.0
       picocolors: 1.1.1
 
   '@react-native-community/cli-platform-ios@20.1.0':
@@ -6839,14 +6836,12 @@ snapshots:
       path-expression-matcher: 1.6.2
       xml-naming: 0.3.0
 
-  fast-xml-parser@5.10.1:
+  fast-xml-parser@5.7.0:
     dependencies:
-      '@nodable/entities': 3.0.0
+      '@nodable/entities': 2.2.0
       fast-xml-builder: 1.3.0
-      is-unsafe: 2.0.0
       path-expression-matcher: 1.6.2
       strnum: 2.4.1
-      xml-naming: 0.3.0
 
   fastq@1.20.1:
     dependencies:
@@ -7233,8 +7228,6 @@ snapshots:
       which-typed-array: 1.1.22
 
   is-unicode-supported@0.1.0: {}
-
-  is-unsafe@2.0.0: {}
 
   is-wsl@1.1.0: {}
 
