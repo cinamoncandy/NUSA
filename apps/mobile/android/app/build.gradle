@@ -46,7 +46,7 @@ react {
     /* Hermes Commands */
     //   The hermes compiler command to run. By default it is 'hermesc'
     def hermesBinDir = org.gradle.internal.os.OperatingSystem.current().isWindows() ? "win64-bin" : (org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? "osx-bin" : "linux64-bin")
-    hermesCommand = file("../../node_modules/hermes-compiler/hermesc/${hermesBinDir}/hermesc")
+    hermesCommand = "../../node_modules/hermes-compiler/hermesc/${hermesBinDir}/hermesc"
     //
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
