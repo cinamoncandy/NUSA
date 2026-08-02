@@ -69,6 +69,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@babel/runtime':
+        specifier: ^7.28.4
+        version: 7.29.7
       '@react-native/new-app-screen':
         specifier: 0.86.0
         version: 0.86.0(@types/react@19.2.18)(react-native@0.86.0(@babel/core@7.29.7)(@react-native-community/cli@20.1.0(typescript@5.9.3))(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
@@ -112,6 +115,9 @@ importers:
       '@types/react-test-renderer':
         specifier: ^19.1.0
         version: 19.1.0
+      hermes-compiler:
+        specifier: 250829098.0.14
+        version: 250829098.0.14
       react-test-renderer:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)

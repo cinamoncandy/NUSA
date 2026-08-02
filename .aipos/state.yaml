@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T18:25:00+09:00"
+updated_at: "2026-08-02T21:05:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/mobile-first-ui-v1
-active_pull_request: 45
+active_branch: agent/issue-010-release-candidate
+active_pull_request: 58
 latest_verified_slice:
-  id: settings-domain
-  evidence: "branch agent/issue-009-settings; focused mobile tests 4/4; pnpm.cmd typecheck, lint, build, and git diff --check PASS"
-  summary: "Added validated theme, locale, notification, environment, mock, and secure settings repositories."
+  id: release-candidate
+  evidence: "branch agent/issue-010-release-candidate; CI diagnostic proved Linux hermesc ELF and direct execution PASS while Gradle relative path start failed; changed OS-aware Gradle hermesCommand to rootDir-based absolute path; local typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
+  summary: "Added unsigned Android/iOS Release candidate workflow jobs, fixed Release-only Metro, Babel runtime, pnpm symlink resolver, and Android Hermes path configuration failures, and documented mobile RC evidence and external signing boundary."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -61,8 +61,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: root and mobile typecheck, lint, build, mobile API/native structure tests 8/8, and git diff --check."
-  current_commit: "ee714ae783986511bf39dcb437300c831d240b80"
+  last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
+  current_commit: "142c4fa944f5e2e7e6a10a336120ba0e4af26244"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
