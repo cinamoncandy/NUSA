@@ -43,9 +43,8 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
 }
 
 function AuthenticatedApp() {
-  const { status, signIn } = useAuth();
+  const { status: authStatus, signIn } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
-  const [authenticated, setAuthenticated] = useState(false);
   const [status, setStatus] = useState<Monitor | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +76,11 @@ function AuthenticatedApp() {
     setRefreshing(false);
   }, [refresh]);
 
-  if (status === "CHECKING") {
+  if (authStatus === "CHECKING") {
     return <SafeAreaView style={theme.container}><View style={styles.authContent}><Text style={styles.brand}>NUSA</Text><Text style={styles.heading}>Loading</Text></View></SafeAreaView>;
   }
 
-  if (status !== "SIGNED_IN") {
+  if (authStatus !== "SIGNED_IN") {
     return (
       <SafeAreaView style={theme.container}>
         <View style={styles.authContent}>
