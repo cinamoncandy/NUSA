@@ -49,6 +49,13 @@ features:
     test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js, tests/regime-policy.test.js, tests/runtime-command-service.test.js]
     blockers: [long-running profitability and runtime evidence not executed]
     latest_evidence: regime-policy.test.js 2/2; automatic forbidden-regime BUY rejection integration test; full isolated suite 299 files; typecheck/build/lint/diff PASS
+  - id: capital.growth-sizing-protection
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/desktop/src/positionSizing.ts, apps/cloud/src/capitalAllocationEngine.ts]
+    test_paths: [tests/capital-growth.test.js, tests/position-sizing.test.js, tests/capital-allocation-engine.test.js, tests/capital-allocation-guard.test.js]
+    blockers: [sizing utility is not yet wired to the operator-set desktop order quantity; long-run profitability comparison is not executed]
+    latest_evidence: capital-growth.test.js 3/3; related sizing/allocation tests 25/25; full isolated suite 300 files; typecheck/build/lint/diff PASS
   - id: operations.evidence-diagnostics
     priority: required
     status: VERIFIED_COMPLETE
