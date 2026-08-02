@@ -1,5 +1,17 @@
 import { createHash } from "node:crypto";
-import type { ShadowOperationalDiagnostics } from "./shadowOperationalRuntime";
+
+interface ShadowCompletionDiagnostics {
+  readonly sessionId: string | null;
+  readonly startedAt: number | null;
+  readonly state: "COMPLETED" | string;
+  readonly signalCount: number;
+  readonly actualOrderCount: number;
+  readonly actualFillCount: number;
+  readonly cashMutationCount: number;
+  readonly positionMutationCount: number;
+  readonly executionGateCallCount: number;
+  readonly actualBrokerCallCount: number;
+}
 
 export type ShadowCompletionSafety = "SAFE_COMPLETION" | "NOT_SAFE_COMPLETION";
 
@@ -37,7 +49,7 @@ export function isSafeShadowCompletion(value: Readonly<Pick<ShadowCompletionEvid
   return value.finalState === "COMPLETED" && [value.actualOrderCount, value.actualFillCount, value.cashMutationCount, value.positionMutationCount, value.executionGateCallCount, value.brokerCallCount, value.privateApiCallCount].every((count) => count === 0);
 }
 
-export function buildShadowCompletionEvidence(input: Readonly<{ diagnostics: ShadowOperationalDiagnostics; completionReason: string; completedAt: number; privateApiCallCount?: number; createdAt?: number }>): ShadowCompletionEvidence | null {
+export function buildShadowCompletionEvidence(input: Readonly<{ diagnostics: ShadowCompletionDiagnostics; completionReason: string; completedAt: number; privateApiCallCount?: number; createdAt?: number }>): ShadowCompletionEvidence | null {
   const d = input.diagnostics;
   if (d.sessionId === null || d.startedAt === null || d.state !== "COMPLETED") return null;
   const privateApiCallCount = input.privateApiCallCount ?? 0;

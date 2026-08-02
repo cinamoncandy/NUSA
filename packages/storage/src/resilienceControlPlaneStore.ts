@@ -1,5 +1,5 @@
 import type { ResilienceLedgerEvent, ResilienceLedgerRecord } from "../../contracts/src/resilience";
-import { appendResilienceEvent, replayResilienceLedger } from "../../../apps/cloud/src/resilienceControlPlane";
+import { appendResilienceEvent, replayResilienceLedger } from "../../contracts/src/persistenceLedger";
 
 export interface ResilienceDatabase { readonly connection: { prepare(sql: string): { all(...args: unknown[]): unknown[]; get(...args: unknown[]): unknown; run(...args: unknown[]): unknown; }; }; transaction<T>(fn: () => T): T; }
 export class SqliteResilienceControlPlaneStore {

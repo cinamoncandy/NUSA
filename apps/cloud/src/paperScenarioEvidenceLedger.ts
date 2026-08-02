@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto";
-
-export type PaperScenarioEventType = "SESSION_OBSERVED" | "ORDER_COMPLETED" | "REGIME_OBSERVED" | "RECOVERY_COMPLETED" | "DUPLICATE_ORDER_CHECKED" | "FAULT_SCENARIO_PASSED";
-export interface PaperScenarioEvent { readonly eventId: string; readonly type: PaperScenarioEventType; readonly occurredAt: number; readonly sessionId?: string; readonly scenario?: string; }
-export interface PaperScenarioRecord { readonly sequence: number; readonly previousHash: string; readonly event: PaperScenarioEvent; readonly hash: string; }
+import type { PaperScenarioEvent, PaperScenarioRecord } from "../../../packages/contracts/src/persistenceLedger";
+export type { PaperScenarioEvent, PaperScenarioRecord, PaperScenarioEventType } from "../../../packages/contracts/src/persistenceLedger";
 export interface PaperScenarioEvidenceSummary { readonly sessionCount: number; readonly completedOrderCount: number; readonly regimeCount: number; readonly recoveryPassCount: number; readonly duplicateOrderCheckCount: number; readonly passedFaultScenarios: readonly string[]; readonly firstOccurredAt: number | null; readonly lastOccurredAt: number | null; }
 
 const ZERO = "0".repeat(64);

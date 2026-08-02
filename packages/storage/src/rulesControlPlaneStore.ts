@@ -1,5 +1,5 @@
 import type { RulesLedgerEvent, RulesLedgerRecord } from "../../contracts/src/rules";
-import { appendRulesEvent, replayRulesLedger } from "../../../apps/cloud/src/rulesControlPlane";
+import { appendRulesEvent, replayRulesLedger } from "../../contracts/src/persistenceLedger";
 
 export interface RulesDatabase {
   readonly connection: {

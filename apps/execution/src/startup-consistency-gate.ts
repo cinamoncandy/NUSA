@@ -1,15 +1,7 @@
-import { DisasterRecoveryDecision, type DisasterRecoveryResult } from "./disaster-recovery";
+import { DisasterRecoveryDecision, StartupGateDecision, type StartupConsistencyResult, type StartupConsistencyInput } from "../../../packages/contracts/src/recovery";
+export { StartupGateDecision } from "../../../packages/contracts/src/recovery";
+export type { StartupConsistencyInput, StartupConsistencyResult } from "../../../packages/contracts/src/recovery";
 
-export enum StartupGateDecision { ALLOW_RESTRICTED_START="ALLOW_RESTRICTED_START", BLOCK_START="BLOCK_START" }
-export interface StartupConsistencyInput {
-  readonly recovery: DisasterRecoveryResult;
-  readonly activeRestrictionCount: number;
-  readonly unresolvedSubmissionCount: number;
-  readonly clockSafe: boolean;
-  readonly websocketSynchronized: boolean;
-  readonly migrationStateKnown: boolean;
-}
-export interface StartupConsistencyResult { readonly decision:StartupGateDecision;readonly productionMutationAllowed:false;readonly blockers:readonly string[]; }
 export function evaluateStartupConsistency(input:StartupConsistencyInput):StartupConsistencyResult{
  if(!Number.isSafeInteger(input.activeRestrictionCount)||input.activeRestrictionCount<0||!Number.isSafeInteger(input.unresolvedSubmissionCount)||input.unresolvedSubmissionCount<0)throw new Error("startup counts are invalid");
  const blockers:string[]=[];

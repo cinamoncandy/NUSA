@@ -1,5 +1,5 @@
-import type { PaperScenarioEvent, PaperScenarioRecord } from "../../../apps/cloud/src/paperScenarioEvidenceLedger";
-import { appendPaperScenarioEvent, replayPaperScenarioEvidence, type PaperScenarioEvidenceSummary } from "../../../apps/cloud/src/paperScenarioEvidenceLedger";
+import type { PaperScenarioEvent, PaperScenarioRecord, PaperScenarioEvidenceSummary } from "../../contracts/src/persistenceLedger";
+import { appendPaperScenarioEvent, replayPaperScenarioEvidence } from "../../contracts/src/persistenceLedger";
 
 export interface EvidenceDatabase { readonly connection: { exec(sql: string): unknown; prepare(sql: string): { all(...args: unknown[]): unknown[]; run(...args: unknown[]): unknown; }; }; transaction<T>(fn: () => T): T; }
 

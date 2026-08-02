@@ -1,5 +1,5 @@
 import type { ComplianceLedgerEvent, ComplianceLedgerRecord } from "../../contracts/src/compliance";
-import { appendComplianceEvent, replayComplianceLedger } from "../../../apps/cloud/src/complianceControlPlane";
+import { appendComplianceEvent, replayComplianceLedger } from "../../contracts/src/persistenceLedger";
 
 export interface ComplianceDatabase { readonly connection: { exec(sql: string): unknown; prepare(sql: string): { all(...args: unknown[]): unknown[]; get(...args: unknown[]): unknown; run(...args: unknown[]): unknown; }; }; transaction<T>(fn: () => T): T; }
 

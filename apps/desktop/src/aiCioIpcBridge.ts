@@ -1,16 +1,13 @@
 import { AI_CIO_DASHBOARD_CHANNEL } from "../../../packages/contracts/src/aiCioDashboard";
 import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import { validateAiCioCommandCenterEnvelope } from "./aiCioCommandCenterAdapter";
-import { AiCioDashboardService } from "./aiCioDashboardService";
+import { AiCioDashboardService, type AiCioEnvelopeSource } from "./aiCioDashboardService";
+export type { AiCioEnvelopeSource } from "./aiCioDashboardService";
 
 export const AI_CIO_SNAPSHOT_CHANNEL = AI_CIO_DASHBOARD_CHANNEL;
 
 export interface ReadOnlyIpcRegistrar {
   handle(channel: string, listener: () => unknown): void;
-}
-
-export interface AiCioEnvelopeSource {
-  current(): AiCioCommandCenterEnvelopeV1 | null;
 }
 
 export class InMemoryAiCioEnvelopeSource implements AiCioEnvelopeSource {

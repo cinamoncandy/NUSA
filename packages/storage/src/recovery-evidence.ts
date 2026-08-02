@@ -1,6 +1,5 @@
-import { DisasterRecoveryDecision, type DisasterRecoveryResult, type RecoveryDomainResult } from "../../../apps/execution/src/disaster-recovery";
-import { StartupGateDecision, type StartupConsistencyResult } from "../../../apps/execution/src/startup-consistency-gate";
-import type { RecoveryEvidenceRepository } from "../../../apps/execution/src/recovery-evidence";
+import { DisasterRecoveryDecision, type DisasterRecoveryResult, type RecoveryDomainResult, StartupGateDecision, type StartupConsistencyResult } from "../../contracts/src/recovery";
+import type { RecoveryEvidenceRepository } from "../../contracts/src/recoveryEvidence";
 import type { SqliteDatabase } from "./index";
 
 type SqlRow=Record<string,string|number|bigint|null>;
