@@ -8,6 +8,7 @@ import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { PaperBroker, PaperSide } from "./paperBroker";
 import { reconcilePaperLedger } from "./paperSafetyGates";
 import { computeConsecutiveLossCount, computeDailyNotional, computeOrderRateState, tradingDayOf, type SessionPeakEquityTracker } from "./paperRiskState";
+import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 
 export interface OperationalPreflightDiagnostic {
   readonly status: "PASS" | "BLOCKED";
@@ -157,7 +158,10 @@ export function createOperationalPaperRiskGate(input: Readonly<{
         symbol: market.symbol, side: command.side, quantity: command.quantity, referencePrice: command.price, requestedAt: now,
         marketDataState: { status: market.status, price: market.price },
         accountState: { cash: account.cash, positionQuantity: account.position.quantity, openOrderCount: account.orders.length },
-        controlState: { killSwitchActive: input.getControl().killSwitchActive, liveCapabilityDetected: false, privateApiCapabilityDetected: false },
+        // Read the declared build capability rather than restating `false` here. The risk gateway
+        // blocks on these two, so a literal at this call site would keep that block unreachable
+        // even after an authenticated order path was added.
+        controlState: { killSwitchActive: input.getControl().killSwitchActive, liveCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, privateApiCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation },
         approvalState: { approved: shadow, expiresAt: now + 1_000, symbols: [market.symbol] },
         persistenceState: { healthy: preflight.riskGate.status === "PASS" },
         reconciliationState: { healthy: preflight.reconciliation.status === "PASS", openP0: input.getControl().openP0 },

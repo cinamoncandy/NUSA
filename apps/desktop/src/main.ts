@@ -51,6 +51,7 @@ import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSu
 import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
 import { evaluateStrategyRegime } from "./regimePolicy";
 import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
+import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -1179,7 +1180,7 @@ ipcMain.handle("app:export-diagnostics", async (_event, input: unknown) => {
       // Named for what is absent rather than for the feature it would be: this process has no
       // authenticated-endpoint capability at all, and the packaging scanner reads main.ts for
       // exactly the identifiers a credential path would introduce.
-      capabilities: { liveTrading: false, authenticatedEndpoint: false, credentialStorage: false },
+      capabilities: { liveTrading: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, authenticatedEndpoint: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation, credentialStorage: RUNTIME_EXCHANGE_CAPABILITIES.credentialStorage },
       killSwitchActive: persistedKillSwitchActive,
       openP0Codes: persistedOpenP0Codes,
       paperTradingAvailable,
