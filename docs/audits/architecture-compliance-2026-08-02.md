@@ -2,9 +2,9 @@
 
 Audited: 2026-08-02
 
-- Source files: 346
-- Runtime edges: 325
-- Type-only edges: 218
+- Source files: 347
+- Runtime edges: 327
+- Type-only edges: 220
 - Runtime cycles: 0
 - Type cycles: 0
 - Layer/forbidden findings: 0

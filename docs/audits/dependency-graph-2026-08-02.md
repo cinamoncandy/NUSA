@@ -126,6 +126,7 @@ Audited: 2026-08-02
 | type | apps/desktop/src/desktopPersistenceStore.ts | packages/contracts/src/paperSafetySnapshot.ts |
 | runtime | apps/desktop/src/desktopPersistenceStore.ts | apps/desktop/src/paperSafetySnapshot.ts |
 | runtime | apps/desktop/src/desktopPersistenceStore.ts | packages/storage/src/durable-execution.ts |
+| runtime | apps/desktop/src/desktopPersistenceStore.ts | packages/storage/src/risk-evidence.ts |
 | runtime | apps/desktop/src/desktopPersistenceStore.ts | apps/cloud/src/investmentCommitteeLedger.ts |
 | type | apps/desktop/src/desktopPersistenceStore.ts | apps/cloud/src/opportunityScheduler.ts |
 | runtime | apps/desktop/src/desktopPersistenceStore.ts | apps/desktop/src/opportunityDashboardProjection.ts |
@@ -197,6 +198,7 @@ Audited: 2026-08-02
 | runtime | apps/desktop/src/main.ts | apps/desktop/src/productIpcValidation.ts |
 | runtime | apps/desktop/src/main.ts | apps/desktop/src/mobileBridge.ts |
 | runtime | apps/desktop/src/main.ts | packages/storage/src/durable-execution.ts |
+| runtime | apps/desktop/src/main.ts | packages/storage/src/risk-evidence.ts |
 | runtime | apps/desktop/src/main.ts | apps/execution/src/global-risk-gateway.ts |
 | type | apps/desktop/src/marketConnectionEvidence.ts | apps/desktop/src/marketConnectionSupervisor.ts |
 | type | apps/desktop/src/marketRegime.ts | apps/desktop/src/backtestEngine.ts |
@@ -216,6 +218,8 @@ Audited: 2026-08-02
 | type | apps/desktop/src/paperDashboardProjection.ts | apps/cloud/src/opportunityScheduler.ts |
 | type | apps/desktop/src/paperIpcValidation.ts | apps/desktop/src/paperBroker.ts |
 | runtime | apps/desktop/src/paperOperationalPreflight.ts | apps/desktop/src/independentRiskGateway.ts |
+| type | apps/desktop/src/paperOperationalPreflight.ts | packages/contracts/src/riskGateway.ts |
+| type | apps/desktop/src/paperOperationalPreflight.ts | apps/execution/src/global-risk-gateway.ts |
 | type | apps/desktop/src/paperOperationalPreflight.ts | apps/desktop/src/runtimeCommandService.ts |
 | type | apps/desktop/src/paperOperationalPreflight.ts | apps/desktop/src/paperBroker.ts |
 | runtime | apps/desktop/src/paperOperationalPreflight.ts | apps/desktop/src/paperSafetyGates.ts |
