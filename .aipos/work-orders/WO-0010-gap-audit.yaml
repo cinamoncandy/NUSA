@@ -54,5 +54,5 @@ rollback: "Revert only the focused P0/P1 fix commit; no trading state or product
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable mobile, offline, security, accounting, risk evidence, runtime, coverage, security, and release checks pass on branch 613cba8; mobile lifecycle/recovery state transitions are tested, while native AppState/NetInfo binding, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
+current_status: "Repository-verifiable mobile, offline, security, accounting, risk evidence, runtime, coverage, security, and release checks pass on branch 7736a6f; mobile lifecycle/recovery state transitions are tested and final PR CI is SUCCESS, while native AppState/NetInfo binding, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
 next_action: "Do not add a duplicate Order Engine path; resolve its runtime integration only after an explicit adapter boundary is selected, then obtain approved Android/iOS and read-only Upbit/device evidence."

@@ -58,7 +58,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: typecheck, build, lint, focused mobile runtime tests 3/3, full suite 297 files, and git diff --check. Native AppState/NetInfo binding, native mobile artifacts, Upbit, long-duration evidence, and Order Engine runtime wiring remain unresolved or external."
-  current_commit: "613cba8"
+  current_commit: "7736a6fef730bb8ef14947c6bfb880dd2dd83ade"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
