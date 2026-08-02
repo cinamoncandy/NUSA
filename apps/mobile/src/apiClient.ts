@@ -99,7 +99,7 @@ export class ApiClient {
         const apiError = error instanceof ApiClientError ? error : new ApiClientError("network request failed", "NETWORK_ERROR", null, true);
         if (apiError.code === "NETWORK_ERROR" && controller.signal.aborted) throw new ApiClientError("request timed out", "TIMEOUT", null, true);
         if (!apiError.retriable || attempt >= this.maxRetries) throw apiError;
-        await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * (2 ** attempt)));
+        await new Promise<void>((resolve) => setTimeout(resolve, this.retryDelayMs * (2 ** attempt)));
         attempt += 1;
       } finally { clearTimeout(timer); }
     }
