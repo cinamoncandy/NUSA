@@ -3,9 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "description": "NUSA mobile Paper Trading client foundation",
-  "main": "App.tsx",
-  "nativeProjectStatus": "BOOTSTRAP_PENDING_TOOLCHAIN",
+  "main": "index.js",
+  "nativeProjectStatus": "RN_0.86.0_BOOTSTRAPPED",
+  "packageManager": "pnpm@11.7.0",
+  "engines": { "node": ">=22.11.0" },
+  "dependencies": {
+    "@react-native/new-app-screen": "0.86.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-safe-area-context": "^5.5.2"
+  },
   "scripts": {
-    "native:status": "node -e \"console.log('Native Android/iOS projects require the platform toolchains before build.')\""
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "test": "jest"
   }
 }
