@@ -46,6 +46,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+      - run: |
+          realpath apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          file apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          test -x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
       - run: ./gradlew :app:assembleDebug
         working-directory: apps/mobile/android
 
@@ -84,6 +89,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+      - run: |
+          realpath apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          file apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          test -x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
+          apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
       - run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
 

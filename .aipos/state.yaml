@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T20:40:00+09:00"
+updated_at: "2026-08-02T20:50:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -9,7 +9,7 @@ active_branch: agent/issue-010-release-candidate
 active_pull_request: 58
 latest_verified_slice:
   id: release-candidate
-  evidence: "branch agent/issue-010-release-candidate; CI showed Android Release Hermes path then executable permission failure; added direct hermes-compiler dependency, lockfile importer entry, OS-aware String Gradle hermesCommand, and CI chmod for Linux hermesc; local typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
+  evidence: "branch agent/issue-010-release-candidate; CI showed Android Release Hermes process-start failure after path/type/permission fixes; added direct hermes-compiler dependency, lockfile importer entry, OS-aware String Gradle hermesCommand, CI chmod, and pre-build realpath/file/executable smoke check; local typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
   summary: "Added unsigned Android/iOS Release candidate workflow jobs, fixed Release-only Metro, Babel runtime, pnpm symlink resolver, and Android Hermes path configuration failures, and documented mobile RC evidence and external signing boundary."
 completed:
   - id: runtime-foundation
