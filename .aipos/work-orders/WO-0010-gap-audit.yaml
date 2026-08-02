@@ -42,6 +42,7 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #006 slice on agent/issue-006-portfolio-domain: read-only Portfolio projection, holdings, realized/unrealized PnL, and MockPortfolioRepository; focused mobile tests 15/15"
   - "Issue #005 slice on agent/issue-005-paper-trading-service: MockTradingService and ApiTradingService; focused mobile tests 12/12; typecheck, lint, build, and diff check PASS"
   - "commit ee714ae783986511bf39dcb437300c831d240b80: root typecheck now includes apps/mobile/App.tsx and mobile source; API retry resolver type error fixed"
   - "docs/audits/complete-gap-backlog-2026-08-02.md"
