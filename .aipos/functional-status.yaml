@@ -164,7 +164,7 @@ features:
     status: IMPLEMENTED_UNVERIFIED
     implementation_paths: [apps/mobile/src/portfolioScreen.ts]
     test_paths: [tests/portfolio-screen.test.js, tests/home-dashboard.test.js, tests/ai-cio-paper-projection.test.js, tests/portfolio-orchestrator.test.js]
-    evidence: ["portfolio screen tests 3/3", "related portfolio tests 27/27", "full isolated suite 304 files PASS", "typecheck/build/lint/diff PASS"]
+    evidence: ["portfolio screen tests 3/3", "related portfolio tests 27/27", "full isolated suite 307 files PASS", "typecheck/build/lint/diff PASS", "allocation segments, position actions, AI insights, and export capability state added"]
     blockers: [renderer/native portfolio wiring and real period performance data remain unverified]
   - id: mobile.analytics-decision-screen
     priority: required

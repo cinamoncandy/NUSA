@@ -18,6 +18,10 @@ test("portfolio projection answers equity, performance, allocation, risk, and st
   assert.equal(result.allocation[0].percentage, 0.5);
   assert.equal(result.strategies[0].id, "sma");
   assert.equal(result.quickActions.closeAll, true);
+  assert.equal(result.allocationSegments[1].name, "CRYPTO");
+  assert.equal(result.positionActions[0].modifyTakeProfitStopLoss, true);
+  assert.equal(result.aiInsights.bestPerformer, "sma");
+  assert.equal(result.exports.pdf, false);
 });
 
 test("empty portfolio exposes cash and next action without fabricating positions", () => {

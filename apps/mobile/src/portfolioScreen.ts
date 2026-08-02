@@ -43,6 +43,7 @@ export interface PortfolioScreenInput {
     readonly contribution: number;
     readonly status: string;
   }[];
+  readonly nextReviewAt?: number | null;
   readonly rebalanceSupported: boolean;
 }
 
@@ -51,6 +52,10 @@ export interface PortfolioScreenState extends Omit<PortfolioScreenInput, "alloca
   readonly positions: readonly PortfolioScreenInput["positions"][number][];
   readonly performance: PortfolioScreenInput["performance"];
   readonly strategies: readonly PortfolioScreenInput["strategies"][number][];
+  readonly allocationSegments: readonly { readonly name: "CASH" | "CRYPTO" | "RESERVED_CAPITAL"; readonly value: number; readonly percentage: number; readonly dailyChange: number }[];
+  readonly positionActions: readonly { readonly symbol: string; readonly view: true; readonly close: true; readonly modifyTakeProfitStopLoss: true; readonly confirmationRequired: true }[];
+  readonly aiInsights: Readonly<{ readonly bestPerformer: string | null; readonly weakestPosition: string | null; readonly highestRisk: string | null; readonly capitalRecommendation: string; readonly nextReviewAt: number | null }>;
+  readonly exports: Readonly<{ portfolioReport: true; csv: true; pdf: false }>;
   readonly quickActions: Readonly<{ closeAll: boolean; exportPortfolio: true; portfolioReport: true; rebalance: boolean; confirmationRequired: true }>;
   readonly emptyState?: { readonly cash: number; readonly showMarketSummary: true; readonly suggestedAction: string };
 }
@@ -80,5 +85,16 @@ export function buildPortfolioScreen(input: PortfolioScreenInput): PortfolioScre
   for (const strategy of input.strategies) { if (!strategy.id.trim()) throw new Error("strategy id is required"); assertFinite(strategy.profit, "strategy.profit"); assertNonNegative(strategy.drawdown, "strategy.drawdown"); if (strategy.winRate < 0 || strategy.winRate > 1) throw new Error("strategy.winRate must be between 0 and 1"); if (strategy.contribution < 0 || strategy.contribution > 1) throw new Error("strategy.contribution must be between 0 and 1"); }
   const strategies = freezeList([...input.strategies].sort((left, right) => right.profit - left.profit || left.id.localeCompare(right.id)));
   const emptyState = input.positions.length === 0 ? Object.freeze({ cash: input.allocation.cash.value, showMarketSummary: true as const, suggestedAction: "마켓을 확인하고 다음 Paper 포지션을 검토하세요." }) : undefined;
-  return Object.freeze({ ...input, allocation, positions: freezeList(input.positions), performance: Object.freeze({ ...input.performance }), strategies, quickActions: Object.freeze({ closeAll: input.positions.length > 0, exportPortfolio: true, portfolioReport: true, rebalance: input.rebalanceSupported, confirmationRequired: true as const }), ...(emptyState ? { emptyState } : {}) });
+  if (input.nextReviewAt !== undefined && input.nextReviewAt !== null && (!Number.isSafeInteger(input.nextReviewAt) || input.nextReviewAt < 0)) throw new Error("nextReviewAt is invalid");
+  const allocationSegments = freezeList([
+    { name: "CASH" as const, value: input.allocation.cash.value, percentage: input.totalEquity === 0 ? 0 : input.allocation.cash.value / input.totalEquity, dailyChange: input.allocation.cash.dailyChange },
+    { name: "CRYPTO" as const, value: input.allocation.activePositions.value, percentage: input.totalEquity === 0 ? 0 : input.allocation.activePositions.value / input.totalEquity, dailyChange: input.allocation.activePositions.dailyChange },
+    { name: "RESERVED_CAPITAL" as const, value: input.allocation.reservedCapital.value, percentage: input.totalEquity === 0 ? 0 : input.allocation.reservedCapital.value / input.totalEquity, dailyChange: input.allocation.reservedCapital.dailyChange }
+  ]);
+  const positionActions = freezeList(input.positions.map((position) => ({ symbol: position.symbol, view: true as const, close: true as const, modifyTakeProfitStopLoss: true as const, confirmationRequired: true as const })));
+  const bestPerformer = strategies[0]?.id ?? null;
+  const weakestPosition = input.positions.length ? [...input.positions].sort((left, right) => left.unrealizedPnl - right.unrealizedPnl || left.symbol.localeCompare(right.symbol))[0]!.symbol : null;
+  const highestRisk = input.positions.find((position) => position.risk === "ACTION_REQUIRED")?.symbol ?? input.positions.find((position) => position.risk === "ATTENTION")?.symbol ?? null;
+  const capitalRecommendation = input.risk.availableCapital > 0 && input.risk.currentDrawdown === 0 ? "Available capital is present; allocate only after Risk approval." : "Preserve available capital until risk conditions improve.";
+  return Object.freeze({ ...input, allocation, allocationSegments, positions: freezeList(input.positions), positionActions, performance: Object.freeze({ ...input.performance }), strategies, aiInsights: Object.freeze({ bestPerformer, weakestPosition, highestRisk, capitalRecommendation, nextReviewAt: input.nextReviewAt ?? null }), exports: Object.freeze({ portfolioReport: true as const, csv: true as const, pdf: false as const }), quickActions: Object.freeze({ closeAll: input.positions.length > 0, exportPortfolio: true, portfolioReport: true, rebalance: input.rebalanceSupported, confirmationRequired: true as const }), ...(emptyState ? { emptyState } : {}) });
 }
