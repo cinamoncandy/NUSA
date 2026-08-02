@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T13:20:00+09:00"
+updated_at: "2026-08-02T13:35:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -57,8 +57,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: typecheck, build, lint, health-score tests 3/3, full suite 298 files, and git diff --check. Strategy profitability and seven-day runtime evidence are UNVERIFIED; native AppState/NetInfo, native artifacts, real Upbit, and Order Engine runtime wiring remain unresolved or external."
-  current_commit: "8a0573d"
+  last_result: "PASS: typecheck, build, lint, full isolated suite 299 files, regime-policy and runtime integration tests 33/33, and git diff --check. Deterministic regime-aware SMA Paper routing is implemented; profitability, seven-day runtime evidence, native AppState/NetInfo, native artifacts, real Upbit, and Order Engine runtime wiring remain unresolved or external."
+  current_commit: "1aa2366"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
