@@ -65,6 +65,10 @@ jobs:
         run: pnpm run release:check
       - name: Deployment capability scan (live trading / credential storage must be absent)
         run: node scripts/build-deployment-descriptor.js --dist dist --output deployment-descriptor.json
+      - name: Risk safety drills
+        run: node scripts/run-risk-safety-drills.js
+      - name: Paper pilot promotion gate (prohibited capabilities must be absent)
+        run: node scripts/verify-paper-pilot-evidence.js
       - name: Runtime persistence atomicity tests
         run: node --test --test-reporter=spec tests/runtime-command-service.test.js
       - name: Control audit ledger tests
