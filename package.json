@@ -21,6 +21,8 @@
     "coverage": "node scripts/run-coverage.js",
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js",
+    "security:gate": "node scripts/security-gate.js",
+    "security:artifacts": "node scripts/security-gate.js --artifacts release",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "desktop": "pnpm run build && electron apps/desktop",

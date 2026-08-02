@@ -28,6 +28,23 @@ jobs:
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Security gate
+        run: pnpm run security:gate
+      - name: Release artifact security gate
+        if: hashFiles('release/build-manifest.json') != ''
+        run: pnpm run security:artifacts
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            docs/audits/dependency-audit-*.md
+            docs/audits/secret-scan-*.md
+            docs/audits/security-hardening-*.md
+            docs/audits/sbom-*.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Typecheck
         run: pnpm run typecheck
       - name: Build
