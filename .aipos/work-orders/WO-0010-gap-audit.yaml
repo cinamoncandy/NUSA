@@ -42,6 +42,7 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #010 CI eighth root cause: Linux hermesc was valid and executable, but Gradle resolved the relative hermesCommand from a different working directory; command now uses rootDir-based absolute path."
   - "Issue #010 CI seventh root cause investigation: Android Hermes process-start failure persisted after chmod; CI now verifies realpath, ELF/file type, executable bit, and direct hermesc invocation before Gradle."
   - "Issue #010 CI sixth root cause: Android Release could not start the hermesc process because pnpm-installed Linux hermesc lacked execute permission; Android jobs now chmod the binary before Gradle builds."
   - "Issue #010 CI fifth root cause: React Native Gradle plugin requires hermesCommand as String, not File; changed the OS-aware Hermes path assignment to a String."
