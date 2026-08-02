@@ -1,6 +1,6 @@
 version: 1
 audited_at: "2026-08-02T10:25:00+09:00"
-audited_commit: "fe73371"
+audited_commit: "df968a3"
 working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
 features:
   - id: core.runtime
