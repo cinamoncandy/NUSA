@@ -82,7 +82,7 @@ function parseLockfile() {
     const version = selector.slice(at + 1);
     const block = lines.slice(index + 1, index + 24).join("\n");
     const integrity = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
-    packages.push({ name, version, integrity });
+    packages.push({ name, version, integrity, platformSpecific: /\n    (?:cpu|os): \[[^\]]+\]/.test(`\n${block}`) });
   }
   const snapshots = source.slice(source.indexOf("snapshots:"));
   const optional = new Set();
@@ -139,7 +139,7 @@ function licenseAudit(lock) {
     return false;
   };
   for (const item of lock.packages) {
-    if (item.optional) continue;
+    if (item.optional || item.platformSpecific) continue;
     const packageInfo = metadata.get(`${item.name}@${item.version}`);
     if (!packageInfo) { missing.push(`${item.name}@${item.version}`); continue; }
     let licenses = Array.isArray(packageInfo.licenses) ? packageInfo.licenses.map((entry) => entry.type ?? entry) : [packageInfo.license];

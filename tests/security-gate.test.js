@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { scanText } = require("../scripts/security-gate.js");
-const { dependencyIntegrity, verifyArtifacts } = require("../scripts/security-gate.js");
+const { dependencyIntegrity, licenseAudit, parseLockfile, verifyArtifacts } = require("../scripts/security-gate.js");
 
 test("secret scanner reports credential material without returning its value", () => {
   const findings = scanText(`const key = "${["ghp_", "12345678901234567890"].join("")}";`);
@@ -21,6 +21,17 @@ test("lockfile contains integrity metadata for every resolved package", () => {
   const result = dependencyIntegrity();
   assert.equal(result.findings.length, 0);
   assert.ok(result.packageCount > 0);
+});
+
+test("license audit ignores platform-selected optional packages without skipping ordinary dependencies", () => {
+  const lock = parseLockfile();
+  const platformPackages = lock.packages.filter((item) => item.platformSpecific);
+  assert.ok(platformPackages.length > 0);
+  assert.ok(platformPackages.some((item) => item.optional));
+  const licenses = licenseAudit(lock);
+  assert.equal(licenses.missing.some((item) => item.startsWith("@esbuild/")), false);
+  assert.equal(licenses.missing.some((item) => item.startsWith("@rollup/rollup-")), false);
+  assert.equal(licenses.missing.some((item) => item.startsWith("fsevents@")), false);
 });
 
 test("artifact verification checks recorded hashes and signing state", () => {
