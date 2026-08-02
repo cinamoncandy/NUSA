@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T10:03:34+09:00"
+updated_at: "2026-08-02T10:25:00+09:00"
 phase: gap-audit
 status: blocked
 objective: "Audit and resolve repository P0/P1 gaps before any mobile-only release decision."
@@ -26,10 +26,13 @@ completed:
   - id: security-hardening
     evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md; docs/audits/dependency-audit-2026-08-02.md; docs/audits/secret-scan-2026-08-02.md; docs/audits/sbom-2026-08-02.json"
     summary: "Added dependency vulnerability and license checks, lockfile integrity validation, secret scanning, SBOM generation, artifact checksum validation, and CI security reporting."
+  - id: paper-risk-evidence-persistence
+    evidence: "commit fe73371; tests/paper-operational-preflight.test.js; tests/paper-risk-evidence-persistence.test.js"
+    summary: "Every desktop Paper Risk decision is converted to immutable queryable evidence and persisted through the existing SQLite store; order decisions remain unchanged."
 in_progress:
   - id: complete-gap-audit
-    evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; working-tree audit against 05477d1f"
-    summary: "Reconciled functional status, current audit reports, TODO/stub search, runtime wiring, release checks, and full verification results."
+    evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; source marker scan; commit fe73371"
+    summary: "Reconciled the requested mobile-critical capability groups, source markers, runtime wiring, and the Paper Risk Evidence vertical slice."
 blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
@@ -48,8 +51,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: frozen install, security gate, typecheck, lint, build, full isolated suite 294 files, UI 4/4 with elevated workspace access, E2E 4/4, coverage, architecture, package, release, and diff checks. Release targets unchanged; external mobile and runtime evidence remain unverified."
-  current_commit: "422502e1"
+  last_result: "PASS: focused Paper Risk Evidence suite 8/8, build, typecheck, lint, and git diff --check. Prior full repository gates remain PASS from the recorded audit; external mobile and runtime evidence remain unverified."
+  current_commit: "fe73371"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

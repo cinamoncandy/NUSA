@@ -1,7 +1,7 @@
 version: 1
-audited_at: "2026-08-02T10:05:00+09:00"
-audited_commit: "05477d1f9787b78788757278305359a8583cdf77"
-working_tree_audit: "Includes uncommitted mobile-release validation and security-fixture correction; no production readiness claim."
+audited_at: "2026-08-02T10:25:00+09:00"
+audited_commit: "fe73371"
+working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
 features:
   - id: core.runtime
     priority: critical
@@ -41,7 +41,7 @@ features:
     implementation_paths: [apps/execution/src, packages/contracts/src]
     test_paths: [tests/global-risk-gateway.test.js, tests/risk-safety-drills.test.js, tests/independent-risk-gateway.test.js]
     blockers: [desktop Paper gate and execution-domain GlobalRiskGateway remain separate policy surfaces]
-    latest_evidence: risk-engine-audit-2026-08-01.md; risk-evidence-integration-audit-2026-08-01.md; risk-evidence-vertical-slice-2026-08-01.md; affected tests 8/8; CI-mode build PASS
+    latest_evidence: risk-engine-audit-2026-08-01.md; risk-evidence-integration-audit-2026-08-01.md; risk-evidence-vertical-slice-2026-08-01.md; paper-risk-evidence-persistence.test.js; affected tests 8/8; build/typecheck/lint PASS; commit fe73371
   - id: strategy.sma-paper-routing
     priority: required
     status: IMPLEMENTED_UNVERIFIED
