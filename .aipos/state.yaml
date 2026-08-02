@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T18:25:00+09:00"
+updated_at: "2026-08-02T18:55:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -8,9 +8,9 @@ base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
 latest_verified_slice:
-  id: settings-domain
-  evidence: "branch agent/issue-009-settings; focused mobile tests 4/4; pnpm.cmd typecheck, lint, build, and git diff --check PASS"
-  summary: "Added validated theme, locale, notification, environment, mock, and secure settings repositories."
+  id: release-candidate
+  evidence: "branch agent/issue-010-release-candidate; release validation PASS; mobile structure/release workflow tests 6/6 PASS; local security gate UNVERIFIED due dependency audit unavailable"
+  summary: "Added unsigned Android/iOS Release candidate workflow jobs and documented mobile RC evidence and external signing boundary."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"

@@ -60,3 +60,12 @@ test("authentication flow exposes Splash, Login guard, and Auth Context", () => 
   assert.match(context, /AuthContext/);
   assert.match(context, /SecureStoragePort/);
 });
+
+test("mobile release workflow validates unsigned Android and iOS candidates", () => {
+  const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8");
+  assert.match(workflow, /android-release-candidate:/);
+  assert.match(workflow, /:app:assembleRelease/);
+  assert.match(workflow, /ios-release-candidate:/);
+  assert.match(workflow, /-configuration Release/);
+  assert.match(workflow, /CODE_SIGNING_ALLOWED=NO/);
+});
