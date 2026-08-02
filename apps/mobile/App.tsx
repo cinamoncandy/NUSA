@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -24,6 +25,25 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export default function App() {
+  return (
+    <AuthContextProvider>
+      <AuthenticatedApp />
+    </AuthContextProvider>
+  );
+}
+
+function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [status, setStatus] = useState<AuthStatus>("CHECKING");
+  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);
+  useEffect(() => {
+    const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250);
+    return () => clearTimeout(timer);
+  }, []);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function AuthenticatedApp() {
+  const { status, signIn } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [authenticated, setAuthenticated] = useState(false);
   const [status, setStatus] = useState<Monitor | null>(null);
@@ -57,7 +77,11 @@ export default function App() {
     setRefreshing(false);
   }, [refresh]);
 
-  if (!authenticated) {
+  if (status === "CHECKING") {
+    return <SafeAreaView style={theme.container}><View style={styles.authContent}><Text style={styles.brand}>NUSA</Text><Text style={styles.heading}>Loading</Text></View></SafeAreaView>;
+  }
+
+  if (status !== "SIGNED_IN") {
     return (
       <SafeAreaView style={theme.container}>
         <View style={styles.authContent}>
@@ -66,7 +90,7 @@ export default function App() {
           <Text style={styles.subtitle}>Authentication foundation</Text>
           <TextInput accessibilityLabel="Email" autoCapitalize="none" placeholder="Email" placeholderTextColor="#94a3b8" style={styles.input} />
           <TextInput accessibilityLabel="Password" secureTextEntry placeholder="Password" placeholderTextColor="#94a3b8" style={styles.input} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={() => setAuthenticated(true)} style={styles.primaryButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={styles.primaryButton}>
             <Text style={styles.primaryButtonLabel}>Sign in</Text>
           </Pressable>
           <Text style={styles.meta}>Mode: {AUTH_MODE}. Server authentication is out of scope.</Text>
