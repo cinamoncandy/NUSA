@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T08:43:20+09:00"
-phase: reliability
-status: blocked
-objective: "Verify deterministic repository execution while preserving production-readiness blockers."
+updated_at: "2026-08-02T09:03:13+09:00"
+phase: architecture
+status: complete
+objective: "Enforce repository dependency direction and verify architecture boundaries without changing business behavior."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -20,11 +20,14 @@ completed:
   - id: deterministic-repository-execution
     evidence: "docs/audits/deterministic-execution-2026-08-02.md; 10 consecutive complete verification runs"
     summary: "Fixed-environment deterministic harness; identical command outcomes, coverage, build hash, and artifact manifest across ten runs."
+  - id: architecture-compliance
+    evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md; docs/audits/dependency-graph-2026-08-02.md; docs/audits/layer-violations-2026-08-02.md; docs/audits/circular-dependencies-2026-08-02.md"
+    summary: "Removed storage-to-application runtime dependencies, centralized persistence boundary contracts, removed runtime and type-only cycles, and added CI architecture validation."
 in_progress: []
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0007-deterministic-repository-execution.yaml
-  reason: "Deterministic repository verification is complete; use the harness at future release gates while external runtime evidence remains blocked."
+  work_order: .aipos/work-orders/WO-0008-architecture-compliance.yaml
+  reason: "Architecture compliance is complete; re-run the repository validator after any module or dependency graph change."
 verification:
   required:
     - "pnpm run preflight"
@@ -37,8 +40,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: ten consecutive complete verification runs; typecheck, build, lint, full tests, UI, E2E, and coverage PASS every run with identical coverage, dist hash, and artifact manifest."
-  current_commit: "e7708ec"
+  last_result: "PASS: architecture check, typecheck, lint, build, git diff --check, and 292 isolated test files."
+  current_commit: "32b0bb52931530b345586efba40078001833e26b"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

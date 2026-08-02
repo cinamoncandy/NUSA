@@ -1,0 +1,45 @@
+id: WO-0008
+schema_version: 1
+title: "Enforce repository architecture compliance"
+status: READY
+priority: 70
+objective: "Keep Presentation -> Application -> Domain -> Infrastructure dependency direction enforceable and observable."
+scope:
+  - "Repository-local import graph scanning for runtime and type-only edges."
+  - "Layer violation, unresolved import, and circular dependency detection."
+  - "CI architecture validation and durable audit reports."
+exclusions:
+  - "No business feature changes."
+  - "No live trading or production mutation."
+  - "No dependency upgrades or visual redesign."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+execution_sequence:
+  - "Read repository memory and active architecture decisions."
+  - "Run pnpm run architecture:check before and after dependency changes."
+  - "Run pnpm run typecheck, pnpm run lint, pnpm run build, and pnpm test at integration gates."
+verification:
+  - "pnpm run architecture:check"
+  - "node --test tests/repository-architecture-validation.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run build"
+  - "pnpm test"
+  - "git diff --check"
+completion_criteria:
+  - "No unresolved local imports."
+  - "No runtime or type-only cycles."
+  - "No forbidden layer references."
+  - "Architecture reports are generated for the audited commit."
+evidence:
+  - "32b0bb52931530b345586efba40078001833e26b"
+  - "docs/audits/architecture-compliance-2026-08-02.md"
+  - "docs/audits/dependency-graph-2026-08-02.md"
+  - "docs/audits/layer-violations-2026-08-02.md"
+  - "docs/audits/circular-dependencies-2026-08-02.md"
+rollback: "Revert commit 32b0bb52931530b345586efba40078001833e26b; no trading state or production data is changed."
+blockers: []
+current_status: "READY for reuse after future architecture-affecting changes"
+next_action: "Run architecture:check whenever source modules, exports, or package dependencies change."
