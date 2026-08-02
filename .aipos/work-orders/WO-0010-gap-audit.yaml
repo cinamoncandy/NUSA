@@ -42,6 +42,7 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #012 slice on agent/issue-012-upbit-websocket: public Upbit ticker/trade/orderbook parser, typed callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and Mock transport; focused tests 7/7, reconnect regression tests 23/23, full isolated suite 314/314; typecheck, build, lint, and git diff check PASS."
   - "Issue #011 slice on agent/issue-011-upbit-rest-api: typed Upbit REST read adapter, JWT claims, env credential validation, retry/error mapping, order chance reads, Mock adapter, and fail-closed live mutation; focused tests 10/10; typecheck, build, lint, and diff check PASS."
   - "Issue #010 CI eighth root cause: Linux hermesc was valid and executable, but Gradle resolved the relative hermesCommand from a different working directory; command now uses rootDir-based absolute path."
   - "Issue #010 CI seventh root cause investigation: Android Hermes process-start failure persisted after chmod; CI now verifies realpath, ELF/file type, executable bit, and direct hermesc invocation before Gradle."
@@ -71,5 +72,5 @@ rollback: "Revert only the focused P0/P1 fix commit; no trading state or product
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, release, and regime-policy checks pass on the feature branch; desktop SMA strategy emits a deterministic regime context and forbidden-regime BUY exposure is fail-closed. Strategy profitability, seven-day runtime evidence, native AppState/NetInfo, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
-next_action: "Run the approved Paper-only long-duration harness and strategy comparison by regime with real or explicitly identified fixture data; do not infer profitability from unit tests."
+current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, release, regime-policy, and public Upbit WebSocket adapter checks pass on the feature branch; native mobile builds, real Upbit runtime, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
+next_action: "Run GitHub native Android/iOS and full CI checks for Issue #012, then obtain approved read-only Upbit runtime evidence; do not infer external runtime PASS from local tests."
