@@ -19,6 +19,7 @@
     "test:ui": "vitest run --config vitest.config.mjs",
     "test:e2e": "playwright test",
     "coverage": "node scripts/run-coverage.js",
+    "test:coverage": "pnpm run coverage",
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js",
     "security:gate": "node scripts/security-gate.js",
