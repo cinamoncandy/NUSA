@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T11:55:00+09:00"
+updated_at: "2026-08-02T12:28:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -37,7 +37,7 @@ completed:
     summary: "Added bounded order replay, partial-fill and ghost-fill recovery contracts, cancel/replace safety, retry and dead-letter handling, WebSocket sequence synchronization, execution reservation tracking, hash-chained audit records, and bounded execution metrics."
 in_progress:
   - id: mobile-rc-integration
-    evidence: "PR #45 updated to 2d052fe; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/release verification PASS"
+    evidence: "PR #45 updated to cb344b6; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; added the coverage command alias."
 blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
@@ -57,8 +57,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: install, preflight, typecheck, build, lint, full suite 296 files, UI 4/4, E2E 4/4, V8 coverage, package validation, release validation, and git diff --check. External native mobile, Upbit, and long-duration evidence remain unverified."
-  current_commit: "2d052fe3"
+  last_result: "PASS: install, preflight, typecheck, build, lint, full suite 296 files, UI 4/4, E2E 4/4, V8 coverage, security gate, architecture check, package validation, release validation, and git diff --check. UNVERIFIED: 10-run determinism harness timed out before first result; native mobile, Upbit, and long-duration evidence remain external."
+  current_commit: "cb344b6a"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
