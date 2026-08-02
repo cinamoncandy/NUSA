@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T12:45:00+09:00"
+updated_at: "2026-08-02T13:10:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -57,8 +57,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: install, preflight, typecheck, build, lint, full suite 296 files, UI 4/4, E2E 4/4, V8 coverage, security gate, package validation, release validation, git diff --check, and GitHub CI on b4513701. Native mobile, Upbit, and long-duration evidence remain external."
-  current_commit: "e4b964a0e28961a0d3a53501e141b5b351a49824"
+  last_result: "PASS: typecheck, build, lint, focused mobile runtime tests 3/3, full suite 297 files, and git diff --check. Native AppState/NetInfo binding, native mobile artifacts, Upbit, long-duration evidence, and Order Engine runtime wiring remain unresolved or external."
+  current_commit: "613cba8"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
