@@ -6,6 +6,7 @@ on:
       - "apps/mobile/**"
       - "apps/desktop/src/upbitRestAdapter*"
       - "apps/desktop/src/upbitWebSocket*"
+      - "apps/desktop/src/liveTradingAdapter*"
       - "tests/mobile-native-structure.test.js"
       - ".github/workflows/mobile-native.yml"
       - "pnpm-lock.yaml"
