@@ -180,6 +180,13 @@ features:
     test_paths: [tests/strategy-management-screen.test.js]
     evidence: ["strategy management projection tests 2/2", "full isolated suite 306 files PASS", "typecheck PASS", "build PASS", "git diff --check PASS"]
     blockers: [renderer/native strategy controls and runtime command wiring remain unverified]
+  - id: mobile.trade-history-journal-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/tradeHistoryJournalScreen.ts]
+    test_paths: [tests/trade-history-journal-screen.test.js]
+    evidence: ["trade history/journal projection tests 2/2", "typecheck PASS", "build PASS", "git diff --check PASS"]
+    blockers: [renderer/native journal persistence and PDF generation remain unverified]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE
