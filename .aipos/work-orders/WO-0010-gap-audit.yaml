@@ -42,6 +42,8 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #005 slice on agent/issue-005-paper-trading-service: MockTradingService and ApiTradingService; focused mobile tests 12/12; typecheck, lint, build, and diff check PASS"
+  - "commit ee714ae783986511bf39dcb437300c831d240b80: root typecheck now includes apps/mobile/App.tsx and mobile source; API retry resolver type error fixed"
   - "docs/audits/complete-gap-backlog-2026-08-02.md"
   - "docs/audits/release-candidate-audit-2026-08-02.md"
   - "commit fe73371: Paper Risk Evidence is persisted through the desktop Paper gate"
