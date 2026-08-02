@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T10:20:00+09:00"
+updated_at: "2026-08-03T11:10:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/issue-011-upbit-rest-api
+active_branch: agent/issue-012-upbit-websocket
 active_pull_request: null
 latest_verified_slice:
-  id: upbit-rest-adapter
-  evidence: "branch agent/issue-011-upbit-rest-api; focused Upbit compatibility and REST tests 10/10; typecheck, build, lint, and git diff --check PASS; no credentials or live mutation enabled"
-  summary: "Added typed Upbit REST read adapter, deterministic JWT claims, environment credential loading, bounded retry/error mapping, order chance reads, and deterministic Mock adapter while preserving fail-closed live mutation."
+  id: upbit-public-websocket-adapter
+  evidence: "branch agent/issue-012-upbit-websocket; Upbit WebSocket tests 7/7, market reconnect regression tests 23/23, full isolated suite 314/314; typecheck, build, lint, and git diff --check PASS; public channels only, no credentials or live mutation"
+  summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport while preserving the existing runtime client."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -48,7 +48,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Obtain native Android/iOS lifecycle and device evidence, then verify Order Engine runtime wiring before merging PR #45 into main."
+  reason: "Obtain CI/native Android/iOS evidence for the public Upbit WebSocket adapter, then verify read-only runtime wiring before any next issue."
 verification:
   required:
     - "pnpm run preflight"

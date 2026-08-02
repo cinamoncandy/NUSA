@@ -18,16 +18,157 @@ export interface UpbitTicker {
   acc_trade_price_24h?: number;
 }
 
+export interface UpbitTrade {
+  type: "trade";
+  code: string;
+  trade_price: number;
+  trade_volume: number;
+  ask_bid: "ASK" | "BID";
+  trade_timestamp: number;
+  sequential_id?: number;
+}
+
+export interface UpbitOrderBookUnit {
+  ask_price: number;
+  bid_price: number;
+  ask_size: number;
+  bid_size: number;
+}
+
+export interface UpbitOrderBook {
+  type: "orderbook";
+  code: string;
+  total_ask_size: number;
+  total_bid_size: number;
+  orderbook_units: readonly UpbitOrderBookUnit[];
+}
+
+export type UpbitPublicMessage = UpbitTicker | UpbitTrade | UpbitOrderBook;
+export type UpbitStreamHealth = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "STALE" | "DEGRADED";
+export type TickerHandler = (ticker: UpbitTicker) => void;
+export type TradeHandler = (trade: UpbitTrade) => void;
+export type OrderBookHandler = (orderBook: UpbitOrderBook) => void;
+export type StatusHandler = (status: string) => void;
+/** Structured counterpart to StatusHandler. Carries state, never a string to be re-parsed. */
+export type ConnectionStateHandler = (diagnostics: MarketConnectionDiagnostics) => void;
+
 export interface UpbitMarketSnapshot {
   readonly generatedAt: number;
   readonly tickers: readonly UpbitTicker[];
 }
 
-export type UpbitStreamHealth = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "STALE" | "DEGRADED";
-export type TickerHandler = (ticker: UpbitTicker) => void;
-export type StatusHandler = (status: string) => void;
-/** Structured counterpart to StatusHandler. Carries state, never a string to be re-parsed. */
-export type ConnectionStateHandler = (diagnostics: MarketConnectionDiagnostics) => void;
+export interface UpbitSocket {
+  readonly readyState: number;
+  on(event: string, listener: (...args: any[]) => void): UpbitSocket;
+  removeAllListeners(): UpbitSocket;
+  send(data: string): void;
+  close(): void;
+  ping?(): void;
+}
+
+export interface UpbitWebSocketTransport {
+  createSocket(): UpbitSocket;
+}
+
+export const UPBIT_WEBSOCKET_OPEN = 1;
+
+function requiredString(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${field} is required`);
+  return value;
+}
+
+function positiveNumber(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw new Error(`${field} is invalid`);
+  return value;
+}
+
+function nonNegativeNumber(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw new Error(`${field} is invalid`);
+  return value;
+}
+
+function timestamp(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) throw new Error(`${field} is invalid`);
+  return value as number;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Upbit public message must be an object");
+  return value as Record<string, unknown>;
+}
+
+function optionalFinite(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${field} is invalid`);
+  return value;
+}
+
+function parseTicker(value: Record<string, unknown>): UpbitTicker {
+  const signedChangeRate = optionalFinite(value.signed_change_rate, "ticker signed_change_rate");
+  const accumulatedVolume = value.acc_trade_volume === undefined ? undefined : nonNegativeNumber(value.acc_trade_volume, "ticker acc_trade_volume");
+  const accumulatedPrice = value.acc_trade_price_24h === undefined ? undefined : nonNegativeNumber(value.acc_trade_price_24h, "ticker acc_trade_price_24h");
+  return Object.freeze({
+    type: "ticker" as const,
+    code: requiredString(value.code, "ticker code"),
+    trade_price: positiveNumber(value.trade_price, "ticker trade_price"),
+    trade_timestamp: timestamp(value.trade_timestamp, "ticker trade_timestamp"),
+    ...(signedChangeRate === undefined ? {} : { signed_change_rate: signedChangeRate }),
+    ...(accumulatedVolume === undefined ? {} : { acc_trade_volume: accumulatedVolume }),
+    ...(accumulatedPrice === undefined ? {} : { acc_trade_price_24h: accumulatedPrice })
+  });
+}
+
+function parseTrade(value: Record<string, unknown>): UpbitTrade {
+  const askBid = value.ask_bid;
+  if (askBid !== "ASK" && askBid !== "BID") throw new Error("trade ask_bid is invalid");
+  const sequentialId = value.sequential_id === undefined ? undefined : timestamp(value.sequential_id, "trade sequential_id");
+  return Object.freeze({
+    type: "trade" as const,
+    code: requiredString(value.code, "trade code"),
+    trade_price: positiveNumber(value.trade_price, "trade trade_price"),
+    trade_volume: positiveNumber(value.trade_volume, "trade trade_volume"),
+    ask_bid: askBid,
+    trade_timestamp: timestamp(value.trade_timestamp, "trade trade_timestamp"),
+    ...(sequentialId === undefined ? {} : { sequential_id: sequentialId })
+  });
+}
+
+function parseOrderBook(value: Record<string, unknown>): UpbitOrderBook {
+  if (!Array.isArray(value.orderbook_units) || value.orderbook_units.length === 0) throw new Error("orderbook orderbook_units is required");
+  const units = value.orderbook_units.map((raw, index) => {
+    const unit = recordValue(raw);
+    return Object.freeze({
+      ask_price: positiveNumber(unit.ask_price, `orderbook_units[${index}].ask_price`),
+      bid_price: positiveNumber(unit.bid_price, `orderbook_units[${index}].bid_price`),
+      ask_size: nonNegativeNumber(unit.ask_size, `orderbook_units[${index}].ask_size`),
+      bid_size: nonNegativeNumber(unit.bid_size, `orderbook_units[${index}].bid_size`)
+    });
+  });
+  return Object.freeze({
+    type: "orderbook" as const,
+    code: requiredString(value.code, "orderbook code"),
+    total_ask_size: nonNegativeNumber(value.total_ask_size, "orderbook total_ask_size"),
+    total_bid_size: nonNegativeNumber(value.total_bid_size, "orderbook total_bid_size"),
+    orderbook_units: Object.freeze(units)
+  });
+}
+
+/** Parses only Upbit public channel payloads. Private and unknown channels fail closed. */
+export function parseUpbitPublicMessage(data: string | Uint8Array): UpbitPublicMessage {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data));
+  } catch {
+    throw new Error("Upbit public message is not valid JSON");
+  }
+  const value = recordValue(parsed);
+  switch (value.type) {
+    case "ticker": return parseTicker(value);
+    case "trade": return parseTrade(value);
+    case "orderbook": return parseOrderBook(value);
+    default: throw new Error("unsupported Upbit WebSocket channel");
+  }
+}
 
 export function normalizeUpbitMarkets(markets: string | readonly string[]): string[] {
   const values = (Array.isArray(markets) ? markets : [markets])
@@ -62,12 +203,15 @@ export interface UpbitWebSocketOptions {
   /** Structured connection-state callback (WO-0034-A4L). Emitted before the status string. */
   readonly onConnectionState?: ConnectionStateHandler;
   /** Test seam. Production leaves this unset and a real `ws` socket is used. */
-  readonly createSocket?: () => WebSocket;
+  readonly createSocket?: () => UpbitSocket;
+  readonly transport?: UpbitWebSocketTransport;
+  readonly onTrade?: TradeHandler;
+  readonly onOrderBook?: OrderBookHandler;
   readonly now?: () => number;
 }
 
 export class UpbitWebSocketClient {
-  private socket?: WebSocket;
+  private socket?: UpbitSocket;
   /** The ONE reconnect timer this client may own. Its liveness is mirrored to the supervisor. */
   private reconnectTimer?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
@@ -75,12 +219,15 @@ export class UpbitWebSocketClient {
   private markets: string[];
   private health: UpbitStreamHealth = "DISCONNECTED";
   private lastMessageAt?: number;
+  private lastPongAt?: number;
   private readonly latestTickers = new Map<string, UpbitTicker>();
   private readonly lastTradeTimestamp = new Map<string, number>();
   private readonly supervisor: MarketConnectionSupervisor;
   private readonly policy: MarketReconnectPolicy;
   private readonly onConnectionState?: ConnectionStateHandler;
-  private readonly createSocket: () => WebSocket;
+  private readonly onTrade?: TradeHandler;
+  private readonly onOrderBook?: OrderBookHandler;
+  private readonly createSocket: () => UpbitSocket;
   private readonly now: () => number;
 
   constructor(
@@ -98,19 +245,19 @@ export class UpbitWebSocketClient {
     if (!Number.isSafeInteger(staleAfterMs) || staleAfterMs < 1_000) {
       throw new Error("staleAfterMs must be an integer >= 1000");
     }
-    // The positional arguments stay authoritative where they are given, so an existing caller
-    // keeps the bounds it asked for; anything it did not specify comes from the shared policy.
     this.policy = Object.freeze({ ...DEFAULT_MARKET_RECONNECT_POLICY, ...options.policy, maxAttempts: maximumReconnectAttempts, staleAfterMs });
     this.now = options.now ?? (() => Date.now());
     this.onConnectionState = options.onConnectionState;
-    this.createSocket = options.createSocket ?? (() => new WebSocket("wss://api.upbit.com/websocket/v1", {
-      headers: { "User-Agent": "nusa-desktop/0.1" }
-    }));
+    this.onTrade = options.onTrade;
+    this.onOrderBook = options.onOrderBook;
+    this.createSocket = options.createSocket
+      ?? options.transport?.createSocket.bind(options.transport)
+      ?? (() => new WebSocket("wss://api.upbit.com/websocket/v1", {
+        headers: { "User-Agent": "nusa-desktop/0.1" }
+      }) as UpbitSocket);
     this.supervisor = new MarketConnectionSupervisor({
       policy: this.policy,
       now: this.now,
-      // One callback and one subscription, counted from the handles themselves rather than
-      // asserted as constants, so a leaked socket would show up here instead of hiding.
       getListenerCount: () => (this.socket === undefined ? 0 : 1),
       getSubscriptionCount: () => (this.socket === undefined ? 0 : this.markets.length)
     });
@@ -140,23 +287,25 @@ export class UpbitWebSocketClient {
         this.lastTradeTimestamp.delete(market);
       }
     }
-    if (this.socket?.readyState === WebSocket.OPEN) this.sendSubscription();
+    if (this.socket?.readyState === UPBIT_WEBSOCKET_OPEN) this.sendSubscription();
   }
 
-  currentHealth(): UpbitStreamHealth {
-    return this.health;
+  unsubscribe(markets: string | readonly string[]): void {
+    const remove = new Set(normalizeUpbitMarkets(markets));
+    const remaining = this.markets.filter((market) => !remove.has(market));
+    if (remaining.length === 0) throw new Error("at least one Upbit market must remain subscribed");
+    this.markets = remaining;
+    for (const market of remove) {
+      this.latestTickers.delete(market);
+      this.lastTradeTimestamp.delete(market);
+    }
+    if (this.socket?.readyState === UPBIT_WEBSOCKET_OPEN) this.sendSubscription();
   }
 
-  /** Read-only. Never opens a connection or mutates state (WO-0034-A4L). */
-  connectionDiagnostics(): MarketConnectionDiagnostics {
-    return this.supervisor.diagnostics();
-  }
+  currentHealth(): UpbitStreamHealth { return this.health; }
 
-  /**
-   * Whether the feed is fresh, stale, or unmeasurable. Separate from the connection state:
-   * a connected socket can be stale, and a reconnecting one is neither fresh nor stale --
-   * its freshness is simply unknown until data flows again.
-   */
+  connectionDiagnostics(): MarketConnectionDiagnostics { return this.supervisor.diagnostics(); }
+
   freshness(latestCandleCloseTime: number | null = null) {
     return evaluateMarketFreshness({
       now: this.now(),
@@ -173,19 +322,14 @@ export class UpbitWebSocketClient {
     });
   }
 
+  lastPongTimestamp(): number | undefined { return this.lastPongAt; }
+
   private setHealth(health: UpbitStreamHealth, status: string): void {
     this.health = health;
-    // Structured state first: a consumer that acts on both must see the specific reason
-    // (MARKET_RECONNECT_TIMEOUT) before the generic status string it superseded.
     this.onConnectionState?.(this.supervisor.diagnostics());
     this.onStatus(status);
   }
 
-  /**
-   * Detaches and closes any socket this client still holds. Called before every connect and
-   * on stop, so a reconnection can never leave the previous socket's listeners attached --
-   * that is what would deliver each ticker twice and double the effective subscription count.
-   */
   private teardownSocket(): void {
     const socket = this.socket;
     this.socket = undefined;
@@ -202,7 +346,6 @@ export class UpbitWebSocketClient {
 
   private connect(): void {
     if (this.stopped) return;
-    // Any previous socket is released BEFORE a new one is created, not after it opens.
     this.teardownSocket();
     this.setHealth("CONNECTING", "connecting");
     const socket = this.createSocket();
@@ -216,18 +359,24 @@ export class UpbitWebSocketClient {
       this.sendSubscription();
     });
 
+    socket.on("pong", () => { this.lastPongAt = this.now(); });
     socket.on("message", (data) => {
       if (this.socket !== socket) return;
       try {
-        const ticker = JSON.parse(data.toString()) as UpbitTicker;
-        const previousTimestamp = this.lastTradeTimestamp.get(ticker.code);
-        if (!shouldAcceptUpbitTicker(ticker, this.markets, previousTimestamp)) return;
+        const message = parseUpbitPublicMessage(typeof data === "string" ? data : data instanceof Uint8Array ? data : String(data));
+        if (!this.markets.includes(message.code)) return;
+        if (message.type === "ticker") {
+          const previousTimestamp = this.lastTradeTimestamp.get(message.code);
+          if (!shouldAcceptUpbitTicker(message, this.markets, previousTimestamp)) return;
+          this.lastTradeTimestamp.set(message.code, message.trade_timestamp);
+          this.latestTickers.set(message.code, message);
+        }
         this.lastMessageAt = this.now();
-        this.lastTradeTimestamp.set(ticker.code, ticker.trade_timestamp);
-        this.latestTickers.set(ticker.code, Object.freeze({ ...ticker }));
         this.supervisor.noteMessage();
         if (this.health !== "CONNECTED") this.setHealth("CONNECTED", "connected");
-        this.onTicker(ticker);
+        if (message.type === "ticker") this.onTicker(message);
+        if (message.type === "trade") this.onTrade?.(message);
+        if (message.type === "orderbook") this.onOrderBook?.(message);
       } catch (error) {
         this.setHealth("DEGRADED", `decode-error: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -238,38 +387,28 @@ export class UpbitWebSocketClient {
       this.setHealth("DEGRADED", `error: ${error.message}`);
     });
     socket.on("close", () => {
-      // A close from a socket this client already replaced is the old connection finishing
-      // its teardown. Acting on it would open a second reconnect episode for a socket that
-      // is no longer in use.
       if (this.socket !== socket) return;
-      // Release it here rather than merely dropping the reference: once `this.socket` is
-      // null the next connect's teardown has nothing left to detach, and this socket's
-      // listeners would survive the reconnection and deliver every ticker twice.
       this.teardownSocket();
       if (!this.stopped) this.scheduleReconnect();
     });
   }
 
   private sendSubscription(): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    if (!this.socket || this.socket.readyState !== UPBIT_WEBSOCKET_OPEN) return;
     this.socket.send(JSON.stringify([
       { ticket: `nusa-${this.now()}` },
       { type: "ticker", codes: this.markets, isOnlyRealtime: true },
+      { type: "trade", codes: this.markets, isOnlyRealtime: true },
+      { type: "orderbook", codes: this.markets, isOnlyRealtime: true },
       { format: "DEFAULT" }
     ]));
   }
 
-  /**
-   * Releases the staleness heartbeat. Called on stop AND on give-up: a client that has
-   * abandoned the feed has nothing left to judge the freshness of, and leaving the interval
-   * running would keep one live timer in the process that no diagnostic counts.
-   */
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = undefined;
   }
 
-  /** Live timers this client owns: the staleness heartbeat plus any armed reconnect timer. */
   activeTimerCount(): number {
     return (this.heartbeatTimer === undefined ? 0 : 1) + this.supervisor.diagnostics().reconnectTimerCount;
   }
@@ -278,7 +417,9 @@ export class UpbitWebSocketClient {
     this.stopHeartbeat();
     const interval = Math.max(1_000, Math.min(5_000, Math.floor(this.policy.staleAfterMs / 2)));
     this.heartbeatTimer = setInterval(() => {
-      if (this.stopped || !this.lastMessageAt || !this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+      if (this.stopped || !this.socket || this.socket.readyState !== UPBIT_WEBSOCKET_OPEN) return;
+      this.socket.ping?.();
+      if (!this.lastMessageAt) return;
       const age = this.now() - this.lastMessageAt;
       if (age > this.policy.staleAfterMs && this.health !== "STALE") {
         this.supervisor.noteStale();
@@ -288,8 +429,6 @@ export class UpbitWebSocketClient {
   }
 
   private scheduleReconnect(): void {
-    // Exactly one timer. The supervisor throws if this client tries to arm a second, so a
-    // duplicate is a loud failure rather than a silently doubled retry rate.
     this.clearReconnectTimer();
     const decision = this.supervisor.noteDisconnected();
     if (decision.action === "GIVE_UP") {
@@ -305,5 +444,52 @@ export class UpbitWebSocketClient {
       this.supervisor.disarmReconnectTimer();
       this.connect();
     }, decision.delayMs);
+  }
+}
+
+export class MockUpbitWebSocket implements UpbitSocket {
+  public readyState = 0;
+  public closed = false;
+  public pingCount = 0;
+  public readonly sent: string[] = [];
+  private readonly listeners = new Map<string, Set<(...args: any[]) => void>>();
+
+  on(event: string, listener: (...args: any[]) => void): UpbitSocket {
+    const listeners = this.listeners.get(event) ?? new Set<(...args: any[]) => void>();
+    listeners.add(listener);
+    this.listeners.set(event, listeners);
+    return this;
+  }
+
+  removeAllListeners(): UpbitSocket {
+    this.listeners.clear();
+    return this;
+  }
+
+  send(data: string): void { this.sent.push(data); }
+  ping(): void { this.pingCount += 1; }
+  open(): void { this.readyState = UPBIT_WEBSOCKET_OPEN; this.emit("open"); }
+  emitMessage(data: string): void { this.emit("message", data); }
+  emitPong(): void { this.emit("pong"); }
+  emitError(error: Error): void { this.emit("error", error); }
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.readyState = 3;
+    this.emit("close");
+  }
+
+  private emit(event: string, ...args: any[]): void {
+    for (const listener of this.listeners.get(event) ?? []) listener(...args);
+  }
+}
+
+export class MockUpbitWebSocketTransport implements UpbitWebSocketTransport {
+  public readonly sockets: MockUpbitWebSocket[] = [];
+
+  createSocket(): UpbitSocket {
+    const socket = new MockUpbitWebSocket();
+    this.sockets.push(socket);
+    return socket;
   }
 }
