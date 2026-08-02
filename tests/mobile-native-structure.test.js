@@ -54,9 +54,9 @@ test("mobile authentication foundation exposes a sign-in entry and environment m
 test("authentication flow exposes Splash, Login guard, and Auth Context", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   const context = fs.readFileSync(path.join(mobile, "src", "authContext.ts"), "utf8");
-  assert.match(app, /status === "CHECKING"/);
+  assert.match(app, /authStatus === "CHECKING"/);
   assert.match(app, /AuthContextProvider/);
-  assert.match(app, /status !== "SIGNED_IN"/);
+  assert.match(app, /authStatus !== "SIGNED_IN"/);
   assert.match(context, /AuthContext/);
   assert.match(context, /SecureStoragePort/);
 });
