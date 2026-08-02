@@ -1,0 +1,11 @@
+{
+  "name": "@nusa/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NUSA mobile Paper Trading client foundation",
+  "main": "App.tsx",
+  "nativeProjectStatus": "BOOTSTRAP_PENDING_TOOLCHAIN",
+  "scripts": {
+    "native:status": "node -e \"console.log('Native Android/iOS projects require the platform toolchains before build.')\""
+  }
+}
