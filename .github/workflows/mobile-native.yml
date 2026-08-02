@@ -1,0 +1,65 @@
+name: Mobile Native
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "tests/mobile-native-structure.test.js"
+      - ".github/workflows/mobile-native.yml"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - run: pnpm install --frozen-lockfile
+      - run: node --test tests/mobile-native-structure.test.js
+
+  android-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: pnpm install --frozen-lockfile
+      - run: chmod +x apps/mobile/android/gradlew
+      - run: ./gradlew :app:assembleDebug
+        working-directory: apps/mobile/android
+
+  ios-debug:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - run: pnpm install --frozen-lockfile
+      - run: pod install
+        working-directory: apps/mobile/ios
+      - run: xcodebuild -workspace NusaMobile.xcworkspace -scheme NusaMobile -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/mobile/ios
