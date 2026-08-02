@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T09:03:13+09:00"
-phase: architecture
-status: complete
-objective: "Enforce repository dependency direction and verify architecture boundaries without changing business behavior."
+updated_at: "2026-08-02T09:26:06+09:00"
+phase: security
+status: blocked
+objective: "Harden dependency, secret, integrity, and release-artifact security gates without changing product behavior."
 base_branch: main
 active_branch: agent/mobile-first-ui-v1
 active_pull_request: 45
@@ -23,11 +23,15 @@ completed:
   - id: architecture-compliance
     evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md; docs/audits/dependency-graph-2026-08-02.md; docs/audits/layer-violations-2026-08-02.md; docs/audits/circular-dependencies-2026-08-02.md"
     summary: "Removed storage-to-application runtime dependencies, centralized persistence boundary contracts, removed runtime and type-only cycles, and added CI architecture validation."
+  - id: security-hardening
+    evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md; docs/audits/dependency-audit-2026-08-02.md; docs/audits/secret-scan-2026-08-02.md; docs/audits/sbom-2026-08-02.json"
+    summary: "Added dependency vulnerability and license checks, lockfile integrity validation, secret scanning, SBOM generation, artifact checksum validation, and CI security reporting."
 in_progress: []
-blocked: []
+blocked:
+  - "Existing release/build-manifest.json declares UNSIGNED_BUILD; release signing cannot pass without an owner-provided code-signing certificate and password in CI secrets."
 next:
-  work_order: .aipos/work-orders/WO-0008-architecture-compliance.yaml
-  reason: "Architecture compliance is complete; re-run the repository validator after any module or dependency graph change."
+  work_order: .aipos/work-orders/WO-0009-security-hardening.yaml
+  reason: "Source security gates pass; configure release signing credentials and rerun the artifact gate before trusted distribution."
 verification:
   required:
     - "pnpm run preflight"
@@ -40,7 +44,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: architecture check, typecheck, lint, build, git diff --check, and 292 isolated test files."
+  last_result: "PASS: security gate, dependency audit, license verification, lockfile integrity, secret scan, typecheck, lint, build, package validation, release validation, and 293 isolated test files. Artifact checksum PASS; release signing FAIL because existing artifacts are unsigned."
   current_commit: "32b0bb52931530b345586efba40078001833e26b"
 human_authority:
   live_trading_mutation: prohibited
