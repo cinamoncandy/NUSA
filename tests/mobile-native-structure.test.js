@@ -10,6 +10,7 @@ test("mobile repository exposes the React Native foundation and native project p
   assert.equal(fs.existsSync(path.join(mobile, "index.js")), true);
   assert.equal(fs.existsSync(path.join(mobile, "app.json")), true);
   assert.equal(fs.existsSync(path.join(mobile, "package.json")), true);
+  assert.equal(fs.existsSync(path.join(mobile, "metro.config.js")), true);
   assert.equal(fs.existsSync(path.join(mobile, "android", "settings.gradle")), true);
   assert.equal(fs.existsSync(path.join(mobile, "android", "build.gradle")), true);
   assert.equal(fs.existsSync(path.join(mobile, "android", "gradlew")), true);

@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T18:55:00+09:00"
+updated_at: "2026-08-02T19:15:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/mobile-first-ui-v1
-active_pull_request: 45
+active_branch: agent/issue-010-release-candidate
+active_pull_request: 58
 latest_verified_slice:
   id: release-candidate
-  evidence: "branch agent/issue-010-release-candidate; release validation PASS; mobile structure/release workflow tests 6/6 PASS; local security gate UNVERIFIED due dependency audit unavailable"
-  summary: "Added unsigned Android/iOS Release candidate workflow jobs and documented mobile RC evidence and external signing boundary."
+  evidence: "branch agent/issue-010-release-candidate; added apps/mobile/metro.config.js after CI iOS Release failure; local typecheck, lint, build, mobile structure/release workflow tests 6/6, and diff check PASS; local security gate UNVERIFIED due dependency audit unavailable"
+  summary: "Added unsigned Android/iOS Release candidate workflow jobs, fixed Release-only Metro configuration failure, and documented mobile RC evidence and external signing boundary."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -61,8 +61,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: root and mobile typecheck, lint, build, mobile API/native structure tests 8/8, and git diff --check."
-  current_commit: "ee714ae783986511bf39dcb437300c831d240b80"
+  last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
+  current_commit: "5ab2d73e17d9ad91ace3d9d1d07dd98e46727ec8"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
