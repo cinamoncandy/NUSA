@@ -45,9 +45,10 @@ evidence:
   - "docs/audits/complete-gap-backlog-2026-08-02.md"
   - "docs/audits/release-candidate-audit-2026-08-02.md"
   - "commit fe73371: Paper Risk Evidence is persisted through the desktop Paper gate"
+  - "commit 6f255f0: Mobile notification queue contract and tests"
 rollback: "Revert only the focused P0/P1 fix commit; no trading state or production data is changed."
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Paper Risk Evidence persistence is verified; repository gates remain healthy, while native mobile, real Upbit, and long-duration runtime evidence remain external."
+current_status: "Paper Risk Evidence and the portable mobile notification queue are verified at source/test level; native mobile, real Upbit, and long-duration runtime evidence remain external."
 next_action: "Provide one approved runtime environment containing the native mobile toolchains and read-only Upbit/device evidence path."

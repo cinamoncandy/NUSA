@@ -29,10 +29,13 @@ completed:
   - id: paper-risk-evidence-persistence
     evidence: "commit fe73371; tests/paper-operational-preflight.test.js; tests/paper-risk-evidence-persistence.test.js"
     summary: "Every desktop Paper Risk decision is converted to immutable queryable evidence and persisted through the existing SQLite store; order decisions remain unchanged."
+  - id: mobile-notification-queue
+    evidence: "commit 6f255f0; apps/mobile/src/notificationQueue.ts; tests/mobile-notification-queue.test.js"
+    summary: "Added a bounded mobile notification queue with deterministic deduplication, expiration, acknowledgement, and fail-closed validation. Native Push transport remains external."
 in_progress:
   - id: complete-gap-audit
-    evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; source marker scan; commit fe73371"
-    summary: "Reconciled the requested mobile-critical capability groups, source markers, runtime wiring, and the Paper Risk Evidence vertical slice."
+    evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; source marker scan; commits fe73371 and 6f255f0"
+    summary: "Reconciled the requested mobile-critical capability groups, source markers, runtime wiring, Paper Risk Evidence, and the mobile notification queue slice."
 blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
@@ -51,8 +54,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: focused Paper Risk Evidence suite 8/8, build, typecheck, lint, and git diff --check. Prior full repository gates remain PASS from the recorded audit; external mobile and runtime evidence remain unverified."
-  current_commit: "fe73371"
+  last_result: "PASS: notification queue tests 3/3, full isolated suite 295 files, direct TypeScript build, direct lint, and git diff --check. Native mobile and external runtime evidence remain unverified."
+  current_commit: "6f255f0"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

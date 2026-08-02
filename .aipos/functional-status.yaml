@@ -117,6 +117,13 @@ features:
     test_paths: [tests/session-security.test.js, tests/secure-session.test.js]
     evidence: [mobile-security-complete-2026-08-02.md, "security tests 22/22", "integration and recovery tests 61/61"]
     blockers: [platform runtime validation remains]
+  - id: mobile.notifications-queue
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/notificationQueue.ts]
+    test_paths: [tests/mobile-notification-queue.test.js]
+    evidence: ["commit 6f255f0", "notification queue tests 3/3", "full isolated suite 295 files PASS"]
+    blockers: [native push transport, platform notification permission flow, and durable application wiring remain]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE

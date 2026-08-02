@@ -81,7 +81,7 @@ The 2026-08-02 source scan found no TODO/FIXME markers in production paths. `thr
 | Mobile Runtime | BLOCKED | No Android/iOS native build or device runtime evidence exists. |
 | Risk Engine | PARTIAL | Paper decisions now persist; policy surfaces remain separate. |
 | Risk Evidence | VERIFIED_COMPLETE | Global and Paper risk evidence is immutable, queryable, and SQLite-persistent. |
-| Notifications | MISSING | No mobile push-notification runtime or device validation is present. |
+| Notifications | IMPLEMENTED_UNVERIFIED | `apps/mobile/src/notificationQueue.ts` and `tests/mobile-notification-queue.test.js` provide a bounded, deduplicated, expiring, acknowledgeable queue; native Push transport and device validation remain absent. |
 | Biometric | PARTIAL | Platform-agnostic biometric/PIN contract and tests exist; native adapter evidence is absent. |
 | Secure Storage | PARTIAL | Desktop native safeStorage path and mobile port exist; mobile native binding evidence is absent. |
 | Trusted Device | PARTIAL | Secure lifecycle exists; native device identity/verification evidence is absent. |
