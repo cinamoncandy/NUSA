@@ -159,6 +159,13 @@ features:
     test_paths: [tests/trading-screen.test.js, tests/paper-ipc-validation.test.js, tests/simple-paper-ui.test.js]
     evidence: ["trading screen tests 4/4", "related Paper/UI tests 12/12", "full isolated suite 303 files PASS", "typecheck/build/lint/diff PASS"]
     blockers: [renderer/native trading-screen wiring and unsupported advanced order types remain unverified]
+  - id: mobile.portfolio-performance-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/portfolioScreen.ts]
+    test_paths: [tests/portfolio-screen.test.js, tests/home-dashboard.test.js, tests/ai-cio-paper-projection.test.js, tests/portfolio-orchestrator.test.js]
+    evidence: ["portfolio screen tests 3/3", "related portfolio tests 27/27", "full isolated suite 304 files PASS", "typecheck/build/lint/diff PASS"]
+    blockers: [renderer/native portfolio wiring and real period performance data remain unverified]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE
