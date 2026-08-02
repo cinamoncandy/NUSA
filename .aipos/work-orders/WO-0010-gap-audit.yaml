@@ -50,9 +50,10 @@ evidence:
   - "commit b4513701: Cross-platform security license regression test"
   - "commit 9d9e69f: Mobile fail-closed lifecycle and recovery state contract"
   - "commit 613cba8: AIPOS status for mobile runtime recovery slice"
+  - "commit 8a0573d: Deterministic cross-dimension health score"
 rollback: "Revert only the focused P0/P1 fix commit; no trading state or production data is changed."
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable mobile, offline, security, accounting, risk evidence, runtime, coverage, security, and release checks pass on branch 7736a6f; mobile lifecycle/recovery state transitions are tested and final PR CI is SUCCESS, while native AppState/NetInfo binding, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
-next_action: "Do not add a duplicate Order Engine path; resolve its runtime integration only after an explicit adapter boundary is selected, then obtain approved Android/iOS and read-only Upbit/device evidence."
+current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, and release checks pass on branch 8a0573d; deterministic health scoring is tested, while strategy profitability, seven-day runtime evidence, native AppState/NetInfo, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
+next_action: "Run the approved Paper-only long-duration harness and strategy comparison with real or explicitly identified fixture data; do not infer profitability from unit tests."

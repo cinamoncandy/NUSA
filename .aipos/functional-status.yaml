@@ -1,6 +1,6 @@
 version: 1
-audited_at: "2026-08-02T13:05:00+09:00"
-audited_commit: "9d9e69f"
+audited_at: "2026-08-02T13:20:00+09:00"
+audited_commit: "8a0573d"
 working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
 features:
   - id: core.runtime
@@ -138,6 +138,13 @@ features:
     test_paths: [tests/runtime-metrics.test.js, tests/runtime-health-monitor.test.js, tests/shadow-long-running-observation.test.js]
     evidence: [runtime-stability-sprint-c-2026-08-02.md, "focused runtime suite 58/58", "full isolated suite 291 files PASS", "UI 4/4 PASS", "E2E 4/4 PASS"]
     blockers: []
+  - id: operations.health-score
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/health-score.ts]
+    test_paths: [tests/health-score.test.js]
+    evidence: ["health score tests 3/3", "typecheck PASS", "build PASS", "full isolated suite 298 files PASS"]
+    blockers: [runtime score remains UNKNOWN until all production dimensions emit current evidence]
   - id: runtime.long-duration-validation
     priority: required
     status: IMPLEMENTED_UNVERIFIED
