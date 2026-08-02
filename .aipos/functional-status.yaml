@@ -159,3 +159,10 @@ features:
     test_paths: [tests/windows-packaging.test.js, tests/e2e/mobile-renderer.spec.js]
     evidence: [docs/audits/release-candidate-audit-2026-08-02.md]
     blockers: [installed-app launch/restart/recovery smoke not executed]
+  - id: paper.order-engine-support
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/order-engine.ts]
+    test_paths: [tests/order-engine.test.js, tests/durable-execution.test.js, tests/order-execution-storage.test.js, tests/recovery-reconciliation.test.js]
+    evidence: ["commit e4dc043", "focused tests 7/7", "full isolated suite 296 files", "typecheck/build/lint/diff PASS"]
+    blockers: []

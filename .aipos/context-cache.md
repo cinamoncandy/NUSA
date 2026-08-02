@@ -32,6 +32,8 @@ Latest verified commands:
 
 Current mission: EP06-007-mobile-security-complete. Mobile Security now covers native secure storage, biometric/PIN authentication, trusted-device verification and lifecycle, plus encrypted session persistence, refresh, expiry, revocation, and multi-device trust checks. Security tests pass 22/22; integration/recovery/Ledger/Offline/Risk tests pass 61/61; typecheck/build/lint/diff PASS. Native device identity and platform runtime verification remain outstanding.
 
+Order Engine slice 2026-08-02: added `apps/execution/src/order-engine.ts` with deterministic order-event replay, bounded queue, cancel/replace sequencing, partial-fill manager, ghost-fill recovery, retry policy, dead-letter queue, WebSocket sequence synchronization, execution reservation tracking, hash-chained execution audit, and bounded metrics. Focused tests 7/7; full isolated suite 296 files; typecheck/build/lint/diff PASS. Financial state remains Ledger-owned; inventory tracking is execution reservation metadata only.
+
 Accounting release slice: `PaperAccountingService` now isolates multiple Paper accounts over the existing Ledger-authoritative broker, and `FixedPrecision` centralizes deterministic integer-unit rounding. Accounting/Ledger/Recovery focused tests pass 69/69.
 
 Offline release slice: `FileOfflineCache` provides atomic durable checksummed storage, `NetworkStateMonitor` gates synchronization on explicit connectivity, and `OfflineSynchronizationService` applies deterministic version/timestamp conflict rules and fails closed on ambiguity. Offline/Recovery/Integration/Ledger/Risk/Security tests pass 59/59.

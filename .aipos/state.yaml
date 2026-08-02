@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T10:25:00+09:00"
+updated_at: "2026-08-02T10:50:00+09:00"
 phase: gap-audit
 status: blocked
 objective: "Audit and resolve repository P0/P1 gaps before any mobile-only release decision."
@@ -32,6 +32,9 @@ completed:
   - id: mobile-notification-queue
     evidence: "commit 6f255f0; apps/mobile/src/notificationQueue.ts; tests/mobile-notification-queue.test.js"
     summary: "Added a bounded mobile notification queue with deterministic deduplication, expiration, acknowledgement, and fail-closed validation. Native Push transport remains external."
+  - id: order-engine-support
+    evidence: "commit e4dc043; tests/order-engine.test.js; full isolated suite 296 files"
+    summary: "Added bounded order replay, partial-fill and ghost-fill recovery contracts, cancel/replace safety, retry and dead-letter handling, WebSocket sequence synchronization, execution reservation tracking, hash-chained audit records, and bounded execution metrics."
 in_progress:
   - id: complete-gap-audit
     evidence: "docs/audits/complete-gap-backlog-2026-08-02.md; source marker scan; commits fe73371 and 6f255f0"
@@ -54,7 +57,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: notification queue tests 3/3, full isolated suite 295 files, UI 4/4, E2E 4/4, direct TypeScript build, direct lint, architecture 0 findings, security gate 0 vulnerabilities/0 secrets, and git diff --check. Native mobile and external runtime evidence remain unverified."
+  last_result: "PASS: Order Engine tests 7/7, full isolated suite 296 files, typecheck, build, lint, and git diff --check. Native mobile and external runtime evidence remain unverified."
   current_commit: "df968a3"
 human_authority:
   live_trading_mutation: prohibited
