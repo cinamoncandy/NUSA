@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T15:20:00+09:00"
+updated_at: "2026-08-02T15:35:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -57,7 +57,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: typecheck, build, full isolated suite 305 files, analytics focused tests 2/2, and git diff --check. Analytics projection preserves unavailable metrics and references actual trade/regime inputs; renderer/native wiring and long-period performance data remain unverified."
+  last_result: "PASS: typecheck, build, full isolated suite 306 files, strategy-management focused tests 2/2, and git diff --check. Strategy controls are projection-only and fail closed on invalid configuration; renderer/native command wiring remains unverified."
   current_commit: "1e63529"
 human_authority:
   live_trading_mutation: prohibited
