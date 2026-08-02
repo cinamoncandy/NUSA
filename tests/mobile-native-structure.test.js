@@ -33,3 +33,11 @@ test("native bootstrap pins the approved React Native and platform configuration
   assert.match(fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8"), /targetSdkVersion = 35/);
   assert.match(fs.readFileSync(path.join(mobile, "ios", "NusaMobile.xcodeproj", "project.pbxproj"), "utf8"), /IPHONEOS_DEPLOYMENT_TARGET = 15\.0/);
 });
+
+test("mobile foundation exposes a Home screen, theme, and five-tab navigation", () => {
+  const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
+  assert.match(app, /useState<Tab>\("Home"\)/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\]/);
+  assert.match(app, /const theme =/);
+  assert.match(app, /accessibilityRole="button"/);
+});
