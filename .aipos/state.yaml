@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-02T15:50:00+09:00"
+updated_at: "2026-08-02T16:05:00+09:00"
 phase: mobile-rc-integration
 status: blocked
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -57,8 +57,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: typecheck, build, full isolated suite 307 files, trade-history/journal focused tests 2/2, and git diff --check. Journal projection is separate from Ledger and order state; renderer/native journal persistence and PDF generation remain unverified."
-  current_commit: "7f0b123"
+  last_result: "PASS: typecheck, build, full isolated suite 307 files, portfolio focused tests 3/3, and git diff --check. Portfolio projection now exposes crypto allocation, position action safety, AI insights, and CSV/PDF capability state; renderer/native wiring and PDF generation remain unverified."
+  current_commit: "e568374"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
