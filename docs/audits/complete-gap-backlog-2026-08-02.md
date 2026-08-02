@@ -30,7 +30,7 @@ This report uses repository implementation, tests, and prior audit evidence. Mis
 | Long-duration stability | IMPLEMENTED_UNVERIFIED | P1 | Shadow observation tests and runtime metrics | External CPU, memory, battery, queue, listener, crash run absent |
 | Desktop functional UI | PARTIAL | P2 | Renderer/bootstrap/E2E tests | Installed Electron smoke not executed |
 | Windows packaging | IMPLEMENTED_UNVERIFIED | P2 | `package:validate` and `release:validate` PASS | Clean install/upgrade/uninstall evidence absent; signing unavailable |
-| Test infrastructure | VERIFIED_COMPLETE | P1 | Full isolated suite 294 files PASS; UI 4/4 PASS; E2E 4/4 PASS; coverage PASS with elevated workspace access | Browser coverage remains separately uninstrumented |
+| Test infrastructure | VERIFIED_COMPLETE | P1 | Full isolated suite 295 files PASS; UI 4/4 PASS; E2E 4/4 PASS; architecture/security gates PASS | Browser coverage remains separately uninstrumented |
 | Security supply chain | VERIFIED_COMPLETE | P0 | Security gate PASS; zero high/critical vulnerabilities; secret scan PASS; lockfile integrity PASS | Existing Windows artifact remains unsigned, but is not mobile evidence |
 | Live trading | OUT_OF_SCOPE | N/A | Deployment boundary tests; mutation remains false | Explicitly excluded from v0.1 |
 

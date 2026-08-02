@@ -54,7 +54,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: notification queue tests 3/3, full isolated suite 295 files, direct TypeScript build, direct lint, and git diff --check. Native mobile and external runtime evidence remain unverified."
+  last_result: "PASS: notification queue tests 3/3, full isolated suite 295 files, UI 4/4, E2E 4/4, direct TypeScript build, direct lint, architecture 0 findings, security gate 0 vulnerabilities/0 secrets, and git diff --check. Native mobile and external runtime evidence remain unverified."
   current_commit: "df968a3"
 human_authority:
   live_trading_mutation: prohibited
