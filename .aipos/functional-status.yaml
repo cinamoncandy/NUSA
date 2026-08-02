@@ -1,6 +1,6 @@
 version: 1
-audited_at: "2026-08-02T10:25:00+09:00"
-audited_commit: "df968a3"
+audited_at: "2026-08-02T11:55:00+09:00"
+audited_commit: "2d052fe3"
 working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
 features:
   - id: core.runtime
@@ -161,8 +161,8 @@ features:
     blockers: [installed-app launch/restart/recovery smoke not executed]
   - id: paper.order-engine-support
     priority: required
-    status: VERIFIED_COMPLETE
+    status: IMPLEMENTED_UNVERIFIED
     implementation_paths: [apps/execution/src/order-engine.ts]
     test_paths: [tests/order-engine.test.js, tests/durable-execution.test.js, tests/order-execution-storage.test.js, tests/recovery-reconciliation.test.js]
-    evidence: ["commit e4dc043", "focused tests 7/7", "full isolated suite 296 files", "typecheck/build/lint/diff PASS"]
-    blockers: []
+    evidence: ["commit e4dc043", "focused tests 7/7", "full isolated suite 296 files", "typecheck/build/lint/diff PASS", "PR #45 updated to 2d052fe3"]
+    blockers: ["no runtime import from the Paper execution path; integration gate remains"]
