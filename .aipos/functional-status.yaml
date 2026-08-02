@@ -1,6 +1,6 @@
 version: 1
-audited_at: "2026-08-02T11:55:00+09:00"
-audited_commit: "2d052fe3"
+audited_at: "2026-08-02T13:05:00+09:00"
+audited_commit: "9d9e69f"
 working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
 features:
   - id: core.runtime
@@ -124,6 +124,13 @@ features:
     test_paths: [tests/mobile-notification-queue.test.js]
     evidence: ["commit 6f255f0", "notification queue tests 3/3", "full isolated suite 295 files PASS"]
     blockers: [native push transport, platform notification permission flow, and durable application wiring remain]
+  - id: mobile.runtime-lifecycle-recovery
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/mobileRuntime.ts]
+    test_paths: [tests/mobile-runtime.test.js]
+    evidence: ["mobile runtime recovery state transition slice", "typecheck PASS", "build PASS", "focused tests 3/3"]
+    blockers: [native AppState/NetInfo binding and real background/foreground device evidence remain]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE
