@@ -45,10 +45,10 @@ features:
   - id: strategy.sma-paper-routing
     priority: required
     status: IMPLEMENTED_UNVERIFIED
-    implementation_paths: [apps/execution/src, apps/desktop/src]
-    test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js]
-    blockers: [long-running runtime evidence not executed]
-    latest_evidence: strategy-engine-audit-2026-08-01.md; strategy-restart-continuity 6/6; CI-mode build PASS
+    implementation_paths: [apps/execution/src, apps/desktop/src/strategyEngine.ts, apps/desktop/src/regimePolicy.ts, apps/desktop/src/runtimeCommandService.ts]
+    test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js, tests/regime-policy.test.js, tests/runtime-command-service.test.js]
+    blockers: [long-running profitability and runtime evidence not executed]
+    latest_evidence: regime-policy.test.js 2/2; automatic forbidden-regime BUY rejection integration test; full isolated suite 299 files; typecheck/build/lint/diff PASS
   - id: operations.evidence-diagnostics
     priority: required
     status: VERIFIED_COMPLETE

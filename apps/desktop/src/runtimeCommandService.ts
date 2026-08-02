@@ -4,6 +4,7 @@ import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
 import { StrategyEngine, type StrategySignal } from "./strategyEngine";
 import type { OperationalReadinessDecision } from "../../cloud/src/operationalReadinessGate";
 import type { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
+import { evaluateStrategyRegime } from "./regimePolicy";
 import {
   createAutomaticExecutionBlockedDiagnostic,
   createPaperTradingDisabledDiagnostic,
@@ -115,7 +116,23 @@ export class RuntimeCommandService {
         this.persist();
         return { outcome: "REJECTED", error: "insufficient paper position" };
       }
-      const quantity = signal.type === "SELL" ? Math.min(positionQuantity, this.control.getOrderQuantity()) : this.control.getOrderQuantity();
+      const regimeDecision = signal.regime === undefined ? undefined : evaluateStrategyRegime(this.strategy.getStrategyId(), signal.regime);
+      if (signal.type === "BUY" && regimeDecision && !regimeDecision.allowNewExposure) {
+        const message = `${regimeDecision.reason}:${regimeDecision.regime}`;
+        this.control.record("RISK", message, regimeDecision);
+        this.persist();
+        return { outcome: "REJECTED", error: message };
+      }
+      const baseQuantity = signal.type === "SELL" ? Math.min(positionQuantity, this.control.getOrderQuantity()) : this.control.getOrderQuantity();
+      const quantity = signal.type === "SELL" || regimeDecision === undefined
+        ? baseQuantity
+        : baseQuantity * regimeDecision.risk.positionSizeMultiplier;
+      if (quantity <= 0) {
+        const message = "regime risk profile reduced order quantity to zero";
+        this.control.record("RISK", message, regimeDecision);
+        this.persist();
+        return { outcome: "REJECTED", error: message };
+      }
       let order: PaperOrder;
       try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price); order = this.broker.execute(signal.type, quantity, price, new Date(), { strategyId: this.strategy.getStrategyId() }); }
       catch (error) {

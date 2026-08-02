@@ -127,7 +127,10 @@ so a classifier bug cannot hide behind its own verifier. Threshold source is
 `FIXED_ABSOLUTE` (training-quantile mode is not implemented and is rejected rather than
 coerced); see `docs/research/market-regime-contract.md` for all disclosed deviations.
 Only a synthetic fixture has been run (`tests/fixtures/regime-analysis/mixed-regimes.json`);
-no production strategy setting changed, and no regime filter was added to the strategy.
+the desktop SMA strategy now emits a deterministic seven-state regime context and the
+Paper automatic path blocks new BUY exposure in forbidden regimes. Profitability and
+long-running runtime evidence remain unverified; this slice does not claim a strategy
+improvement.
 
 ### WO-0030: cross-market / cross-period validation layer
 

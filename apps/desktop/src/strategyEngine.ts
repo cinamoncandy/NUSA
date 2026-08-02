@@ -1,3 +1,5 @@
+import { classifyPriceRegime, type TradingRegime } from "./regimePolicy";
+
 export type StrategySignalType = "BUY" | "SELL" | "HOLD";
 
 export interface MarketTick {
@@ -11,6 +13,7 @@ export interface StrategySignal {
   reason: string;
   confidence: number;
   timestamp: number;
+  regime?: TradingRegime;
 }
 
 export interface StrategyContext {
@@ -102,14 +105,16 @@ export class StrategyEngine {
     if (!Number.isSafeInteger(tick.timestamp) || tick.timestamp < 0) throw new Error("tick timestamp must be a non-negative integer");
     const tickKey = `${tick.market}:${tick.timestamp}:${tick.price}`;
     if (tickKey === this.lastTickKey && this.latestSignal !== undefined) return this.latestSignal;
+    const regime = classifyPriceRegime(this.prices.concat(tick.price), tick.timestamp);
     const signal = this.running
       ? this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity })
       : { type: "HOLD" as const, reason: "strategy-stopped", confidence: 0, timestamp: tick.timestamp };
+    const signalWithRegime = regime === undefined ? signal : { ...signal, regime };
     this.prices.push(tick.price);
     if (this.prices.length > this.maxHistory) this.prices.splice(0, this.prices.length - this.maxHistory);
-    this.latestSignal = signal;
+    this.latestSignal = signalWithRegime;
     this.lastTickKey = tickKey;
-    return signal;
+    return signalWithRegime;
   }
 }
 

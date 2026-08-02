@@ -55,5 +55,5 @@ rollback: "Revert only the focused P0/P1 fix commit; no trading state or product
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, and release checks pass on branch 8a0573d; deterministic health scoring is tested, while strategy profitability, seven-day runtime evidence, native AppState/NetInfo, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
-next_action: "Run the approved Paper-only long-duration harness and strategy comparison with real or explicitly identified fixture data; do not infer profitability from unit tests."
+current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, release, and regime-policy checks pass on the feature branch; desktop SMA strategy emits a deterministic regime context and forbidden-regime BUY exposure is fail-closed. Strategy profitability, seven-day runtime evidence, native AppState/NetInfo, native mobile, real Upbit, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
+next_action: "Run the approved Paper-only long-duration harness and strategy comparison by regime with real or explicitly identified fixture data; do not infer profitability from unit tests."
