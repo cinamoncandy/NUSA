@@ -41,3 +41,12 @@ test("mobile foundation exposes a Home screen, theme, and five-tab navigation", 
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });
+
+test("mobile authentication foundation exposes a sign-in entry and environment mode", () => {
+  const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
+  assert.match(app, /const AUTH_MODE = process\.env\.EXPO_PUBLIC_NUSA_AUTH_MODE/);
+  assert.match(app, /useState\(false\)/);
+  assert.match(app, /accessibilityLabel=\"Email\"/);
+  assert.match(app, /accessibilityLabel=\"Password\"/);
+  assert.match(app, /accessibilityLabel=\"Sign in\"/);
+});

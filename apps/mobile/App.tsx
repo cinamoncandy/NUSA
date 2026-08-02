@@ -6,10 +6,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
+const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
 type Monitor = { marketConnectionState: string; warmupState: string; stale: boolean; observedAt: string };
@@ -23,6 +25,7 @@ async function get<T>(path: string): Promise<T> {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("Home");
+  const [authenticated, setAuthenticated] = useState(false);
   const [status, setStatus] = useState<Monitor | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,24 @@ export default function App() {
     await refresh();
     setRefreshing(false);
   }, [refresh]);
+
+  if (!authenticated) {
+    return (
+      <SafeAreaView style={theme.container}>
+        <View style={styles.authContent}>
+          <Text style={styles.brand}>NUSA</Text>
+          <Text style={styles.heading}>Sign in</Text>
+          <Text style={styles.subtitle}>Authentication foundation</Text>
+          <TextInput accessibilityLabel="Email" autoCapitalize="none" placeholder="Email" placeholderTextColor="#94a3b8" style={styles.input} />
+          <TextInput accessibilityLabel="Password" secureTextEntry placeholder="Password" placeholderTextColor="#94a3b8" style={styles.input} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={() => setAuthenticated(true)} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonLabel}>Sign in</Text>
+          </Pressable>
+          <Text style={styles.meta}>Mode: {AUTH_MODE}. Server authentication is out of scope.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={theme.container}>
@@ -105,6 +126,7 @@ const theme = {
 };
 
 const styles = StyleSheet.create({
+  authContent: { flex: 1, justifyContent: "center", padding: 24, gap: 14 },
   header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
   brand: { color: "#f8fafc", fontSize: 26, fontWeight: "800" },
   mode: { color: "#94a3b8", marginTop: 2 },
@@ -116,6 +138,9 @@ const styles = StyleSheet.create({
   value: { color: "#2dd4bf", fontSize: 24, fontWeight: "700" },
   meta: { color: "#cbd5e1" },
   error: { color: "#fecaca", backgroundColor: "#450a0a", padding: 12, borderRadius: 8 },
+  input: { backgroundColor: "#1e293b", borderRadius: 8, color: "#f8fafc", padding: 14 },
+  primaryButton: { backgroundColor: "#2dd4bf", borderRadius: 8, alignItems: "center", padding: 14 },
+  primaryButtonLabel: { color: "#0f172a", fontWeight: "700" },
   navigation: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#334155", backgroundColor: "#111827", paddingVertical: 10 },
   navItem: { flex: 1, alignItems: "center", paddingVertical: 8 },
   navLabel: { color: "#94a3b8", fontSize: 12 },
