@@ -45,6 +45,7 @@ jobs:
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
       - run: chmod +x apps/mobile/android/gradlew
+      - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: ./gradlew :app:assembleDebug
         working-directory: apps/mobile/android
 
@@ -82,6 +83,7 @@ jobs:
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
       - run: chmod +x apps/mobile/android/gradlew
+      - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
 
