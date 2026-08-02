@@ -7,7 +7,7 @@ const { scanText } = require("../scripts/security-gate.js");
 const { dependencyIntegrity, verifyArtifacts } = require("../scripts/security-gate.js");
 
 test("secret scanner reports credential material without returning its value", () => {
-  const findings = scanText('const key = "ghp_12345678901234567890";');
+  const findings = scanText(`const key = "${["ghp_", "12345678901234567890"].join("")}";`);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].rule, "TOKEN_PREFIX");
   assert.equal(Object.hasOwn(findings[0], "value"), false);
