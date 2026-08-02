@@ -63,30 +63,69 @@ function scanSecrets() {
   return findings;
 }
 
+/**
+ * Strips every trailing peer-suffix group from a lockfile selector.
+ *
+ * pnpm can emit more than one: `foo@1.0.0(react@18)(react-dom@18)`. Removing only the last
+ * group leaves `foo@1.0.0(react@18)`, which then matches nothing anywhere else.
+ */
+function baseSelector(selector) {
+  return selector.replace(/(?:\([^)]*\))+$/, "");
+}
+
+/**
+ * Splits one top-level YAML section into `selector -> block lines`.
+ *
+ * Block-based rather than line-window based. The previous reader took a fixed 24-line slice
+ * after each selector, which both truncates a longer block and runs on into the NEXT
+ * package's fields -- so a package with no integrity of its own could inherit the following
+ * package's. Two blocks in the current lockfile already exceed 24 lines.
+ */
+function sectionBlocks(lines, header) {
+  const blocks = new Map();
+  let inSection = false;
+  let selector = null;
+  let body = [];
+  const flush = () => { if (selector !== null) blocks.set(selector, body); selector = null; body = []; };
+  for (const line of lines) {
+    if (!inSection) { if (line === header) inSection = true; continue; }
+    // A non-indented, non-empty line ends the section.
+    if (line && !line.startsWith("  ")) { flush(); break; }
+    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
+    if (match) { flush(); selector = match[1] ?? match[2]; continue; }
+    if (selector !== null) body.push(line);
+  }
+  flush();
+  return blocks;
+}
+
 function parseLockfile() {
   const source = fs.readFileSync(lockPath, "utf8");
-  const packages = [];
   const lines = source.split(/\r?\n/);
-  let inPackages = false;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line === "packages:") { inPackages = true; continue; }
-    if (inPackages && line && !line.startsWith("  ")) break;
-    if (!inPackages) continue;
-    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
-    if (!match) continue;
-    const selector = (match[1] ?? match[2]).replace(/\([^)]*\)$/, "");
+  const packages = [];
+  for (const [rawSelector, body] of sectionBlocks(lines, "packages:")) {
+    const selector = baseSelector(rawSelector);
     const at = selector.lastIndexOf("@");
     if (at <= 0) continue;
-    const name = selector.slice(0, at);
-    const version = selector.slice(at + 1);
-    const block = lines.slice(index + 1, index + 24).join("\n");
-    const integrity = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
-    packages.push({ name, version, integrity, platformSpecific: /\n    (?:cpu|os): \[[^\]]+\]/.test(`\n${block}`) });
+    const block = body.join("\n");
+    packages.push({
+      name: selector.slice(0, at),
+      version: selector.slice(at + 1),
+      integrity: block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null,
+      platformSpecific: /(?:^|\n)    (?:cpu|os): \[[^\]]+\]/.test(block)
+    });
   }
-  const snapshots = source.slice(source.indexOf("snapshots:"));
+
+  // `optional: true` is a field ANYWHERE in a snapshot block, not necessarily the first line.
+  // pnpm writes it after `dependencies:` and `transitivePeerDependencies:` whenever those
+  // exist, so a reader that only accepted it immediately after the selector silently
+  // classified those packages as required. They then failed the licence audit for having no
+  // installed metadata -- which is correct for an optional package that was never installed,
+  // and the wrong verdict to report.
   const optional = new Set();
-  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
+  for (const [rawSelector, body] of sectionBlocks(lines, "snapshots:")) {
+    if (body.some((line) => /^    optional: true\s*$/.test(line))) optional.add(baseSelector(rawSelector));
+  }
   for (const item of packages) item.optional = optional.has(`${item.name}@${item.version}`);
   return { source, packages };
 }
