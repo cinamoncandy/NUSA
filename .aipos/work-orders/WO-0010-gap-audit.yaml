@@ -42,6 +42,7 @@ completion_criteria:
   - "External runtime evidence is recorded, not inferred."
   - "Only then may a separate release-target decision be made."
 evidence:
+  - "Issue #010 CI fourth root cause: Android Release failed with Couldn't determine Hermesc location; declared hermes-compiler 250829098.0.14 in apps/mobile and set OS-aware Gradle hermesCommand."
   - "Issue #010 CI third root cause: Metro could not resolve pnpm-linked @babel/runtime even after dependency declaration; apps/mobile/metro.config.js now enables symlink resolution and watches the workspace root; local release bundle passes."
   - "Issue #010 CI second root cause: iOS Release bundle failed to resolve @babel/runtime/helpers/interopRequireDefault; added @babel/runtime to apps/mobile dependencies and regenerated pnpm-lock.yaml."
   - "Issue #010 CI root cause: iOS Release job failed because apps/mobile/metro.config.js was missing; added the standard React Native Metro configuration and validated it locally."
