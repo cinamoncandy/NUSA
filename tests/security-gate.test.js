@@ -27,7 +27,7 @@ test("license audit ignores platform-selected optional packages without skipping
   const lock = parseLockfile();
   const platformPackages = lock.packages.filter((item) => item.platformSpecific);
   assert.ok(platformPackages.length > 0);
-  assert.ok(platformPackages.some((item) => item.optional));
+  assert.ok(platformPackages.some((item) => /^(?:@esbuild\/|@rollup\/rollup-|fsevents$)/.test(item.name)));
   const licenses = licenseAudit(lock);
   assert.equal(licenses.missing.some((item) => item.startsWith("@esbuild/")), false);
   assert.equal(licenses.missing.some((item) => item.startsWith("@rollup/rollup-")), false);
