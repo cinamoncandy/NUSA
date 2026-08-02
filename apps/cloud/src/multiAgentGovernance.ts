@@ -12,7 +12,6 @@ import {
   type AgentContextSnapshot,
   type AgentContextSnapshotInput,
   type AgentDefinition,
-  type AgentDisagreement,
   type AgentEvidence,
   type AgentIndependenceAssessment,
   type AgentRoleContract,

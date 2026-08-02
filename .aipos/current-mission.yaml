@@ -1,0 +1,41 @@
+id: EP06-012-coverage-baseline
+title: Establish repository coverage baseline
+branch: agent/mobile-first-ui-v1
+pull_request: 45
+base_branch: main
+phase: audit
+status: COMPLETE
+scope:
+  - unified Node and Vitest coverage collection
+  - coverage summary and HTML/JSON/LCOV/SVG artifact generation
+  - CI coverage artifact upload
+  - critical-path coverage review
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  tests: PASS (291 isolated files)
+  test_ui: PASS (2 files, 4 tests)
+  test_e2e: PASS (4 tests)
+  coverage: PASS (84.37% statements/lines, 76.37% branches, 92.56% functions)
+  coverage_badge: PASS (coverage/badge.svg)
+  package_validate: PASS
+  release_check: PASS
+  ci: UPDATED
+  electron_smoke: UNVERIFIED
+  installer: BLOCKED
+blockers:
+  - id: browser-page-coverage
+    severity: P2
+    status: UNVERIFIED
+    reason: "Playwright executes Chromium page code without a browser instrumentation hook."
+  - id: external-production-evidence
+    severity: P1
+    status: BLOCKED
+    reason: "Native mobile, installed Electron, real Upbit, and long-duration production evidence remain external requirements."
+next_recommended_task: Add focused tests for the eight zero-coverage recovery and reconciliation modules only after their current runtime ownership is confirmed.

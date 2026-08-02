@@ -1,0 +1,238 @@
+version: 1
+audited_at: "2026-08-02T13:20:00+09:00"
+audited_commit: "8a0573d"
+working_tree_audit: "Feature worktree is clean except pre-existing untracked production-readiness audit output and test-results; no production readiness claim."
+features:
+  - id: core.runtime
+    priority: critical
+    status: VERIFIED_COMPLETE
+    implementation_paths: [packages/core/src]
+    test_paths: [tests/core-runtime.test.js, tests/runtime-orchestrator.test.js]
+    blockers: []
+  - id: market.upbit-public-data
+    priority: critical
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/execution/src, apps/desktop/src]
+    test_paths: [tests/upbit-websocket.test.js, tests/market-connection-reconnect.test.js, tests/closed-candle-adapter.test.js]
+    blockers: [real external Upbit runtime not executed]
+  - id: paper.execution
+    priority: critical
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src, packages/contracts/src]
+    test_paths: [tests/paper-broker-fill-model.test.js, tests/paper-command-boundary.test.js, tests/order-admission.test.js]
+    blockers: []
+    latest_evidence: trading-engine-audit-2026-08-01.md; paper-broker-fill-model 12/12; CI-mode build PASS
+  - id: accounting.portfolio-pnl
+    priority: critical
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/desktop/src/paperBroker.ts, apps/desktop/src/paperAccountingService.ts, apps/execution/src, packages/contracts/src]
+    test_paths: [tests/paper-accounting-service.test.js, tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
+    blockers: []
+    latest_evidence: accounting-release-slice-2026-08-02.md; accounting/Ledger/Recovery tests 69/69; CI-mode typecheck/build PASS
+  - id: persistence.recovery
+    priority: critical
+    status: VERIFIED_COMPLETE
+    implementation_paths: [packages/storage/src, apps/execution/src]
+    test_paths: [tests/recovery-reconciliation.test.js, tests/crash-recovery-marker.test.js, tests/sqlite-recovery-drill.test.js]
+    blockers: []
+  - id: risk.kill-switch
+    priority: critical
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src, packages/contracts/src]
+    test_paths: [tests/global-risk-gateway.test.js, tests/risk-safety-drills.test.js, tests/independent-risk-gateway.test.js]
+    blockers: [desktop Paper gate and execution-domain GlobalRiskGateway remain separate policy surfaces]
+    latest_evidence: risk-engine-audit-2026-08-01.md; risk-evidence-integration-audit-2026-08-01.md; risk-evidence-vertical-slice-2026-08-01.md; paper-risk-evidence-persistence.test.js; affected tests 8/8; build/typecheck/lint PASS; commit fe73371
+  - id: strategy.sma-paper-routing
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/execution/src, apps/desktop/src/strategyEngine.ts, apps/desktop/src/regimePolicy.ts, apps/desktop/src/runtimeCommandService.ts]
+    test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js, tests/regime-policy.test.js, tests/runtime-command-service.test.js]
+    blockers: [long-running profitability and runtime evidence not executed]
+    latest_evidence: regime-policy.test.js 2/2; automatic forbidden-regime BUY rejection integration test; full isolated suite 299 files; typecheck/build/lint/diff PASS
+  - id: capital.growth-sizing-protection
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/desktop/src/positionSizing.ts, apps/cloud/src/capitalAllocationEngine.ts]
+    test_paths: [tests/capital-growth.test.js, tests/position-sizing.test.js, tests/capital-allocation-engine.test.js, tests/capital-allocation-guard.test.js]
+    blockers: [sizing utility is not yet wired to the operator-set desktop order quantity; long-run profitability comparison is not executed]
+    latest_evidence: capital-growth.test.js 3/3; related sizing/allocation tests 25/25; full isolated suite 300 files; typecheck/build/lint/diff PASS
+  - id: operations.evidence-diagnostics
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/desktop/src, apps/execution/src, packages/storage/src]
+    test_paths: [tests/a4-runtime-diagnostics.test.js, tests/evidence-cli-contract.test.js, tests/desktop-evidence-atomicity.test.js]
+    blockers: []
+  - id: desktop.functional-ui
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/desktop/renderer/index.html, apps/desktop/renderer/simple-ui.js, apps/desktop/renderer/mobile-view-model.js]
+    test_paths: [tests/simple-paper-ui.test.js, tests/electron-renderer-bootstrap.test.js, tests/e2e/mobile-renderer.spec.js]
+    blockers: [full Electron install and runtime smoke not executed]
+  - id: windows.packaging-validation
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [package.json, scripts/validate-windows-package.js]
+    test_paths: [tests/windows-packaging.test.js]
+    evidence: ["package:validate PASS"]
+    blockers: [installer build not executed in this slice]
+  - id: live-trading
+    priority: out-of-scope
+    status: OUT_OF_SCOPE
+    implementation_paths: []
+    test_paths: [tests/deployment-boundary.test.js]
+    blockers: []
+  - id: offline.synchronization-state-machine
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/offline-synchronization.ts, apps/execution/src/offline-engine.ts, apps/execution/src/offline-runtime.ts]
+    test_paths: [tests/offline-runtime.test.js, tests/offline-engine.test.js, tests/offline-synchronization.test.js]
+    evidence: [offline-release-slice-2026-08-02.md, "Offline/Recovery/Integration tests 59/59", "CI-mode typecheck/build PASS"]
+    blockers: []
+  - id: mobile-security.secure-session
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/secureSession.ts]
+    test_paths: [tests/secure-session.test.js]
+    evidence: [mobile-security-session-audit-2026-08-01.md, "focused tests 3/3", "CI-mode build PASS"]
+    blockers: [concrete OS secure-storage, biometric/PIN, and Electron/mobile platform bindings remain]
+    latest_evidence: mobile-security-session-audit-2026-08-01.md; secure-storage-vertical-slice-2026-08-01.md; mobile-security tests 7/7; secure-storage tests 3/3; CI-mode build PASS
+  - id: mobile-security.biometric-authentication
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/mobileSecurity.ts]
+    test_paths: [tests/mobile-biometric.test.js]
+    evidence: [mobile-biometric-vertical-slice-2026-08-02.md, "affected tests 11/11", "CI-mode typecheck/build PASS"]
+    blockers: [native biometric adapter wiring remains platform-dependent]
+  - id: mobile-security.integration
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/mobileSecurityCoordinator.ts]
+    test_paths: [tests/mobile-security-integration.test.js]
+    evidence: [security-verification-report-2026-08-02.md, "integrated suites 52/52", "CI-mode typecheck/build PASS"]
+    blockers: [platform runtime validation remains]
+  - id: mobile-security.trusted-devices
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/trustedDeviceManagement.ts]
+    test_paths: [tests/trusted-device-management.test.js]
+    evidence: [trusted-device-vertical-slice-2026-08-02.md, "related tests 19/19", "CI-mode typecheck/build PASS"]
+    blockers: [native device identity and platform verification runtime validation remains]
+  - id: mobile-security.session-security
+    priority: required
+    status: PARTIAL
+    implementation_paths: [apps/mobile/src/sessionSecurity.ts, apps/mobile/src/secureSession.ts]
+    test_paths: [tests/session-security.test.js, tests/secure-session.test.js]
+    evidence: [mobile-security-complete-2026-08-02.md, "security tests 22/22", "integration and recovery tests 61/61"]
+    blockers: [platform runtime validation remains]
+  - id: mobile.notifications-queue
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/notificationQueue.ts]
+    test_paths: [tests/mobile-notification-queue.test.js]
+    evidence: ["commit 6f255f0", "notification queue tests 3/3", "full isolated suite 295 files PASS"]
+    blockers: [native push transport, platform notification permission flow, and durable application wiring remain]
+  - id: mobile.runtime-lifecycle-recovery
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/mobileRuntime.ts]
+    test_paths: [tests/mobile-runtime.test.js]
+    evidence: ["mobile runtime recovery state transition slice", "typecheck PASS", "build PASS", "focused tests 3/3"]
+    blockers: [native AppState/NetInfo binding and real background/foreground device evidence remain]
+  - id: mobile.navigation-model
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/mobileNavigation.ts, apps/mobile/src/mobileAppShell.ts]
+    test_paths: [tests/mobile-navigation.test.js, tests/mobile-app-shell.test.js, tests/simple-paper-ui.test.js]
+    evidence: ["mobile navigation tests 3/3", "mobile shell/UI tests 14/14", "typecheck PASS", "build PASS"]
+    blockers: [native deep-link and force-kill restoration are not device-verified]
+  - id: mobile.dashboard-command-center
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/tradingCommandCenter.ts]
+    test_paths: [tests/trading-command-center.test.js, tests/home-dashboard.test.js, tests/mobile-app-shell.test.js]
+    evidence: ["command center tests 3/3", "related dashboard/shell tests 21/21", "full isolated suite 302 files PASS", "typecheck/build/lint/diff PASS"]
+    blockers: [renderer/native dashboard wiring and device runtime evidence remain unverified]
+  - id: mobile.trading-screen-safety
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/tradingScreen.ts]
+    test_paths: [tests/trading-screen.test.js, tests/paper-ipc-validation.test.js, tests/simple-paper-ui.test.js]
+    evidence: ["trading screen tests 4/4", "related Paper/UI tests 12/12", "full isolated suite 303 files PASS", "typecheck/build/lint/diff PASS"]
+    blockers: [renderer/native trading-screen wiring and unsupported advanced order types remain unverified]
+  - id: mobile.portfolio-performance-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/portfolioScreen.ts]
+    test_paths: [tests/portfolio-screen.test.js, tests/home-dashboard.test.js, tests/ai-cio-paper-projection.test.js, tests/portfolio-orchestrator.test.js]
+    evidence: ["portfolio screen tests 3/3", "related portfolio tests 27/27", "full isolated suite 307 files PASS", "typecheck/build/lint/diff PASS", "allocation segments, position actions, AI insights, and export capability state added"]
+    blockers: [renderer/native portfolio wiring and real period performance data remain unverified]
+  - id: mobile.analytics-decision-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/analyticsScreen.ts]
+    test_paths: [tests/analytics-screen.test.js]
+    evidence: ["analytics projection tests 2/2", "typecheck PASS", "build PASS", "git diff --check PASS"]
+    blockers: [renderer/native analytics wiring and real long-period trading data remain unverified]
+  - id: mobile.strategy-management-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/strategyManagementScreen.ts]
+    test_paths: [tests/strategy-management-screen.test.js]
+    evidence: ["strategy management projection tests 2/2", "full isolated suite 306 files PASS", "typecheck PASS", "build PASS", "git diff --check PASS"]
+    blockers: [renderer/native strategy controls and runtime command wiring remain unverified]
+  - id: mobile.trade-history-journal-screen
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/tradeHistoryJournalScreen.ts]
+    test_paths: [tests/trade-history-journal-screen.test.js]
+    evidence: ["trade history/journal projection tests 2/2", "typecheck PASS", "build PASS", "git diff --check PASS"]
+    blockers: [renderer/native journal persistence and PDF generation remain unverified]
+  - id: runtime.stability-metrics
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/runtime-metrics.ts]
+    test_paths: [tests/runtime-metrics.test.js, tests/runtime-health-monitor.test.js, tests/shadow-long-running-observation.test.js]
+    evidence: [runtime-stability-sprint-c-2026-08-02.md, "focused runtime suite 58/58", "full isolated suite 291 files PASS", "UI 4/4 PASS", "E2E 4/4 PASS"]
+    blockers: []
+  - id: operations.health-score
+    priority: required
+    status: VERIFIED_COMPLETE
+    implementation_paths: [apps/execution/src/health-score.ts]
+    test_paths: [tests/health-score.test.js]
+    evidence: ["health score tests 3/3", "typecheck PASS", "build PASS", "full isolated suite 298 files PASS"]
+    blockers: [runtime score remains UNKNOWN until all production dimensions emit current evidence]
+  - id: runtime.long-duration-validation
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/execution/src/runtime-metrics.ts, apps/desktop/src/shadowLongRunningDiagnostics.ts]
+    test_paths: [tests/shadow-long-running-observation.test.js]
+    evidence: [runtime-stability-sprint-c-2026-08-02.md]
+    blockers: [long-duration CPU/memory/battery execution requires external runtime]
+  - id: mobile.release-validation
+    priority: critical
+    status: BLOCKED
+    implementation_paths: []
+    test_paths: [tests/mobile-app-shell.test.js, tests/mobile-security-integration.test.js]
+    evidence: [docs/audits/release-candidate-audit-2026-08-02.md]
+    blockers: [Android/iOS native release artifacts absent, native device evidence absent; release-target change intentionally deferred]
+  - id: exchange.upbit-runtime
+    priority: critical
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/desktop/src/upbit*.ts, apps/execution/src]
+    test_paths: [tests/upbit-websocket.test.js, tests/market-connection-reconnect.test.js]
+    evidence: [docs/audits/exchange-coupling-audit-2026-08-01.md]
+    blockers: [real read-only Upbit runtime and bounded reconnect observation not executed]
+  - id: release.electron-installed-smoke
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [package.json, scripts/validate-windows-package.js]
+    test_paths: [tests/windows-packaging.test.js, tests/e2e/mobile-renderer.spec.js]
+    evidence: [docs/audits/release-candidate-audit-2026-08-02.md]
+    blockers: [installed-app launch/restart/recovery smoke not executed]
+  - id: paper.order-engine-support
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/execution/src/order-engine.ts]
+    test_paths: [tests/order-engine.test.js, tests/durable-execution.test.js, tests/order-execution-storage.test.js, tests/recovery-reconciliation.test.js]
+    evidence: ["commit e4dc043", "focused tests 7/7", "full isolated suite 296 files", "typecheck/build/lint/diff PASS", "PR #45 updated to 2d052fe3"]
+    blockers: ["no runtime import from the Paper execution path; integration gate remains"]

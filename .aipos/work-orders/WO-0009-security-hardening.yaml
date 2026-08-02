@@ -1,0 +1,55 @@
+id: WO-0009
+schema_version: 1
+title: "Harden repository and release-artifact security gates"
+status: BLOCKED
+priority: 90
+objective: "Make dependency, secret, integrity, SBOM, checksum, and signing validation executable and truthful in local and CI release paths."
+scope:
+  - "Dependency vulnerability and license verification."
+  - "pnpm lockfile integrity verification and focused safe overrides for verified high advisories."
+  - "Tracked-source secret and hardcoded credential scanning without secret output."
+  - "CycloneDX SBOM generation and durable audit reports."
+  - "Release artifact checksum and signing-status validation."
+  - "CI security gate and report artifact upload."
+exclusions:
+  - "No new business features."
+  - "No live trading or production mutation."
+  - "No credentials, signing certificates, or private account data committed."
+  - "No broad dependency upgrade."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+execution_sequence:
+  - "Run pnpm install --frozen-lockfile."
+  - "Run pnpm run security:gate."
+  - "Run package and release validation."
+  - "Run pnpm run security:artifacts when release artifacts exist."
+  - "Run typecheck, lint, build, tests, and git diff --check."
+verification:
+  - "pnpm install --frozen-lockfile"
+  - "pnpm run security:gate"
+  - "pnpm run package:validate"
+  - "pnpm run release:validate"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run build"
+  - "pnpm test"
+  - "node --test tests/security-gate.test.js"
+  - "git diff --check"
+completion_criteria:
+  - "Source dependency, license, lockfile, secret, and SBOM gates pass with reports."
+  - "Artifact checksums validate against the release manifest."
+  - "Release signing validates for a signed artifact set."
+  - "CI runs the source gate and conditionally runs the artifact gate."
+evidence:
+  - "docs/audits/security-hardening-2026-08-02.md"
+  - "docs/audits/dependency-audit-2026-08-02.md"
+  - "docs/audits/secret-scan-2026-08-02.md"
+  - "docs/audits/sbom-2026-08-02.json"
+  - "Existing release artifacts: checksum PASS, signing FAIL (UNSIGNED_BUILD)."
+rollback: "Revert the security-gate commit and restore the prior lockfile only if CI compatibility requires it; no trading state or production data is changed."
+blockers:
+  - "Owner must configure the Windows code-signing certificate and password in CI secrets, then rerun pnpm run security:artifacts."
+current_status: "Source hardening complete; release distribution remains blocked by unsigned existing artifacts."
+next_action: "Configure the approved code-signing certificate in the CI secret store and rerun the artifact security gate."

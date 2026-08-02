@@ -1,6 +1,7 @@
 import type { DashboardScreenState } from "./dashboardScreenState";
+import { normalizeMobileTab, PRIMARY_MOBILE_TABS, type LegacyMobileTab, type PrimaryMobileTab } from "./mobileNavigation";
 
-export type MobileTab = "HOME" | "MARKET" | "PORTFOLIO" | "CONTROL" | "SETTINGS";
+export type MobileTab = PrimaryMobileTab | LegacyMobileTab;
 export type MobileSessionState = "SIGNED_OUT" | "AUTHENTICATING" | "SIGNED_IN" | "EXPIRED";
 
 export interface MobileAppShellInput {
@@ -13,7 +14,8 @@ export interface MobileAppShellInput {
 
 export interface MobileAppShellState {
   readonly route: "AUTH" | "APP";
-  readonly activeTab: MobileTab;
+  readonly activeTab: PrimaryMobileTab;
+  readonly primaryTabs: readonly PrimaryMobileTab[];
   readonly title: string;
   readonly canRefresh: boolean;
   readonly canOpenTradingControl: boolean;
@@ -25,7 +27,7 @@ export interface MobileAppShellState {
   readonly lastSuccessfulSyncAt?: number;
 }
 
-const TITLES: Readonly<Record<MobileTab, string>> = Object.freeze({
+const TITLES: Readonly<Record<string, string>> = Object.freeze({
   HOME: "NUSA",
   MARKET: "시장",
   PORTFOLIO: "포트폴리오",
@@ -46,6 +48,7 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
     return Object.freeze({
       route: "AUTH",
       activeTab: "HOME",
+      primaryTabs: PRIMARY_MOBILE_TABS,
       title: "NUSA 로그인",
       canRefresh: false,
       canOpenTradingControl: false,
@@ -69,10 +72,12 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
   const canOpenTradingControl = input.dashboard.phase !== "LOADING" && input.dashboard.phase !== "ERROR";
   const showEmergencyStop = input.dashboard.phase === "READY" || input.dashboard.phase === "CAUTION" || input.dashboard.phase === "BLOCKED";
 
+  const activeTab = normalizeMobileTab(input.activeTab);
   return Object.freeze({
     route: "APP",
-    activeTab: input.activeTab,
-    title: TITLES[input.activeTab],
+    activeTab,
+    primaryTabs: PRIMARY_MOBILE_TABS,
+    title: TITLES[activeTab] ?? activeTab,
     canRefresh: input.dashboard.phase !== "LOADING",
     canOpenTradingControl,
     showEmergencyStop,

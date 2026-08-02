@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RegisteredStrategy, StrategyGovernanceEvent } from "../../contracts/src/strategyGovernance";
-import { appendStrategyGovernanceEvent, replayStrategyGovernanceLedger, type StrategyGovernanceLedgerRecord } from "../../../apps/cloud/src/strategyGovernanceLedger";
+import { appendStrategyGovernanceEvent, replayStrategyGovernanceLedger, type StrategyGovernanceLedgerRecord } from "../../contracts/src/strategyGovernanceLedger";
 export interface StrategyGovernanceDatabase { readonly connection:DatabaseSync; transaction<T>(fn:()=>T):T; }
 export class SqliteStrategyGovernanceStore { constructor(private readonly db:StrategyGovernanceDatabase){this.db.connection.prepare("SELECT 1 FROM strategy_governance_state LIMIT 1").all();}
   claimCommand(commandId:string,fingerprint:string):boolean{return this.db.transaction(()=>{if(!commandId.trim()||!fingerprint.trim())throw new Error("governance command is invalid");const existing=this.db.connection.prepare("SELECT fingerprint FROM strategy_governance_commands WHERE command_id=?").get(commandId) as {fingerprint:string}|undefined;if(existing){if(existing.fingerprint!==fingerprint)throw new Error("governance command conflict");return false;}this.db.connection.prepare("INSERT INTO strategy_governance_commands(command_id,fingerprint) VALUES(?,?)").run(commandId,fingerprint);return true;});}

@@ -29,8 +29,8 @@ export interface SpotPaperDecisionExecution {
 function sideForSpotAction(action: DecisionAction): PaperSide {
   if (action === DecisionAction.LONG) return "BUY";
   if (action === DecisionAction.EXIT) return "SELL";
-  if (action === DecisionAction.SHORT) throw new Error("SHORT is not supported by the Upbit spot Paper broker");
-  throw new Error(`decision action ${action} is not executable on Upbit spot`);
+  if (action === DecisionAction.SHORT) throw new Error("SHORT is not supported by the spot Paper broker");
+  throw new Error(`decision action ${action} is not executable on spot Paper trading`);
 }
 
 function assertIntentUnused(existing: readonly DecisionExecutionReceipt[], intent: DecisionExecutionIntent): void {

@@ -1,0 +1,18 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+limitations:
+  - id: real-upbit-runtime
+    status: UNVERIFIED
+    reason: No external market-data runtime was started during this task.
+  - id: long-shadow
+    status: UNVERIFIED
+    reason: Long-duration Shadow observation is an owner-machine runtime gate.
+  - id: electron-gui
+    status: UNVERIFIED
+    reason: Automated test coverage does not replace a GUI launch smoke.
+  - id: windows-installer
+    status: UNVERIFIED
+    reason: package:validate passed; package:win and install/uninstall smoke were not run.
+  - id: visual-design
+    status: OUT_OF_SCOPE
+    reason: UI visual redesign is explicitly deferred; current work is functional scaffolding.

@@ -41,6 +41,18 @@ function harness(readiness) {
   };
 }
 
+test("automatic Paper BUY is blocked in a forbidden market regime", () => {
+  const h = harness();
+  h.runtime.start();
+  h.runtime.setAutoTrade(true);
+  const result = h.runtime.automaticSignal("KRW-BTC", 50_000_000, 0, {
+    type: "BUY", reason: "crossover", confidence: 1, timestamp: 100, regime: "STRONG_DOWNTREND"
+  });
+  assert.equal(result.outcome, "REJECTED");
+  assert.match(result.error, /NEW_EXPOSURE_BLOCKED_BY_REGIME/);
+  assert.equal(h.broker.exportState().orders.length, 0);
+});
+
 test("persistence recovery guidance matches the supported verified-backup procedure", () => {
   assert.deepEqual(PERSISTENCE_RECOVERY_STEPS, [
     "Stop the application and preserve the failed database file unchanged.",

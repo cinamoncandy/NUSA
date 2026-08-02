@@ -1,0 +1,27 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+toolchain:
+  node: ">=24.0.0"
+  pnpm: ">=11.7.0"
+scripts:
+  preflight: pnpm run preflight
+  typecheck: pnpm run typecheck
+  build: pnpm run build
+  lint: pnpm run lint
+  tests: pnpm test
+  ui: pnpm run test:ui
+  e2e: pnpm run test:e2e
+  package_validate: pnpm run package:validate
+  release_check: pnpm run release:check
+  windows_installer: pnpm run package:win
+  portable: pnpm run package:portable
+last_verified:
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  tests: PASS
+  ui: PASS
+  e2e: PASS
+  package_validate: PASS
+  release_check: not_run_after_current_head

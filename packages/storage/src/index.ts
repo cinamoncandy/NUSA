@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   LedgerSide, PositionScopeType, PositionStatus, type PositionLedgerEntry, type PositionSnapshot,
-  type StrategyPositionSnapshot, type WalletPositionSnapshot, compareLedgerOrder,
+  type StrategyPositionSnapshot, type WalletPositionSnapshot,
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";

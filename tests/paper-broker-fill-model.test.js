@@ -17,6 +17,29 @@ test("default fill model reproduces exact, unslipped, fully-filled execution", (
   assert.equal(buy.spreadCost, 0);
   assert.equal(buy.slippageCost, 0);
   assert.equal(buy.marketImpactCost, 0);
+  assert.equal(broker.exportState().ledger.length, 1);
+  assert.equal(broker.exportState().ledger[0].fillId, `fill:${buy.id}`);
+});
+
+test("Paper ledger appends buy and sell entries and survives restore", () => {
+  const broker = new PaperBroker(1_000, "KRW-BTC", 0);
+  const buy = broker.execute("BUY", 1, 100, new Date(1_000));
+  const sell = broker.execute("SELL", 1, 110, new Date(2_000));
+  const state = broker.exportState();
+  assert.deepEqual(state.ledger.map((entry) => entry.sequence), [1, 2]);
+  assert.equal(state.ledger[0].orderId, buy.id);
+  assert.equal(state.ledger[1].orderId, sell.id);
+  assert.equal(state.ledger[0].cashBefore, 1_000);
+  assert.equal(state.ledger[1].positionQuantityBefore, 1);
+  const restored = new PaperBroker(1_000, "KRW-BTC", 0, {}, state);
+  assert.deepEqual(restored.exportState().ledger, state.ledger);
+});
+
+test("invalid execution time is rejected before Paper accounting mutates", () => {
+  const broker = new PaperBroker(1_000, "KRW-BTC", 0);
+  const before = broker.snapshot(100);
+  assert.throws(() => broker.execute("BUY", 1, 100, new Date("invalid")), /now must be a valid date/);
+  assert.deepEqual(broker.snapshot(100), before);
 });
 
 test("strategy attribution is optional and survives Paper order export", () => {

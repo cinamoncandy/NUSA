@@ -1,4 +1,4 @@
-import { GENESIS_SEAL_HASH, type EvidenceGraphHashSeal } from "../../../apps/execution/src/evidence-graph-seal";
+import { GENESIS_SEAL_HASH, type EvidenceGraphHashSeal } from "../../contracts/src/evidenceGraph";
 import type { EvidenceGraphSealRepository } from "../../../apps/execution/src/evidence-graph-seal-repository";
 import type { SqliteDatabase } from "./index";
 

@@ -98,3 +98,31 @@ test("shared risk gate is configured, but preflight failure remains fail-closed"
   state.deployment.status = "BLOCKED";
   assert.equal(gate.evaluate({ path: "SHADOW", side: "BUY", quantity: 1, price: 100 }).status, "HALT");
 });
+
+test("Paper risk decisions are emitted as queryable evidence without changing the gate result", () => {
+  const broker = new PaperBroker(1_000, "KRW-BTC", 0);
+  const records = [];
+  const state = {
+    deployment: { status: "PASS", method: "test", evidence: [], blockers: [] },
+    reconciliation: { status: "PASS", method: "test", evidence: [], blockers: [] },
+    riskGate: { status: "PASS", method: "test", evidence: [], blockers: [] }
+  };
+  const gate = createOperationalPaperRiskGate({
+    getState: () => state,
+    getBroker: () => broker,
+    getMarket: () => ({ symbol: "KRW-BTC", price: 100, status: "HEALTHY" }),
+    getControl: () => ({ killSwitchActive: false, openP0: false }),
+    identity: { strategyFingerprint: "s", configFingerprint: "c", runtimeFingerprint: "r", riskPolicyFingerprint: "p", seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
+    limits: { maxOrderNotional: 1_000, maxPositionNotional: 1_000, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 10, maxSameSideStreak: 5, maxSymbolExposureNotional: 1_000, maxPortfolioExposureNotional: 1_000, maxDailyBuyNotional: 1_000, maxDailySellNotional: 1_000, maxDailyLoss: 1_000, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
+    fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" },
+    sourceCommitSha: "a".repeat(40),
+    evidence: { append(record) { records.push(record); } }
+  });
+  assert.equal(gate.evaluate({ path: "SHADOW", side: "BUY", quantity: 1, price: 100 }).status, "ALLOW");
+  assert.equal(records.length, 1);
+  assert.equal(records[0].result, "APPROVED");
+  assert.equal(records[0].ruleId, "INDEPENDENT_PAPER_RISK_GATEWAY");
+  assert.equal(records[0].marketState.symbol, "KRW-BTC");
+  assert.equal(records[0].accountState.cash, 1_000);
+  assert.equal(records[0].correlationId, records[0].inputParameters.requestId);
+});

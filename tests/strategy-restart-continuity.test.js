@@ -14,6 +14,27 @@ test("StrategyEngine.restoreHistory replaces price history and is bounded by max
   assert.deepEqual(engine.getHistory(), [3, 4, 5]);
 });
 
+test("StrategyEngine ignores an identical tick after the first evaluation", () => {
+  const engine = new StrategyEngine(new SmaCrossoverStrategy(2, 3), 10);
+  engine.start();
+  const tick = { market: "KRW-BTC", price: 10, timestamp: 1 };
+  const first = engine.onTick(tick, 0);
+  const second = engine.onTick(tick, 0);
+  assert.deepEqual(second, first);
+  assert.equal(engine.getHistory().length, 1);
+});
+
+test("SMA signals remain deterministic after allocation-free rolling calculation", () => {
+  const first = new StrategyEngine(new SmaCrossoverStrategy(2, 3), 10);
+  const second = new StrategyEngine(new SmaCrossoverStrategy(2, 3), 10);
+  first.start();
+  second.start();
+  for (const [index, price] of [10, 11, 12, 11, 10, 9].entries()) {
+    const tick = { market: "KRW-BTC", price, timestamp: index + 1 };
+    assert.deepEqual(first.onTick(tick, 0), second.onTick(tick, 0));
+  }
+});
+
 test("restoreHistory rejects non-positive or non-finite prices", () => {
   const engine = new StrategyEngine(new SmaCrossoverStrategy(2, 3));
   assert.throws(() => engine.restoreHistory([1, 0, 2]), /positive finite/);

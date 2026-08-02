@@ -27,25 +27,25 @@ export class ExchangeSymbolResolutionError extends Error {
   }
 }
 
-const text = (value: string, field: string): string => {
+const text = (value: string): string => {
   const normalized = value.trim().toUpperCase();
   if (!normalized) throw new ExchangeSymbolResolutionError("INVALID_METADATA");
   return normalized;
 };
 
-const nonNegative = (value: number | undefined, field: string): void => {
+const nonNegative = (value: number | undefined): void => {
   if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
     throw new ExchangeSymbolResolutionError("INVALID_METADATA");
   }
 };
 
 const normalize = (item: ExchangeInstrumentMetadata): ExchangeInstrumentMetadata => {
-  const venue = text(item.venue, "venue");
-  const symbol = text(item.symbol, "symbol");
-  const baseAsset = text(item.baseAsset, "baseAsset");
-  const quoteAsset = text(item.quoteAsset, "quoteAsset");
-  nonNegative(item.quantityStep, "quantityStep");
-  nonNegative(item.minimumQuantity, "minimumQuantity");
+  const venue = text(item.venue);
+  const symbol = text(item.symbol);
+  const baseAsset = text(item.baseAsset);
+  const quoteAsset = text(item.quoteAsset);
+  nonNegative(item.quantityStep);
+  nonNegative(item.minimumQuantity);
   if (item.kind === "PERPETUAL" && (!Number.isFinite(item.contractMultiplier) || item.contractMultiplier! <= 0)) {
     throw new ExchangeSymbolResolutionError("INVALID_METADATA");
   }
@@ -56,9 +56,9 @@ export function resolveSpotPerpetualPair(
   instruments: readonly ExchangeInstrumentMetadata[],
   requested: Readonly<{ venue: string; baseAsset: string; quoteAsset: string }>
 ): SpotPerpetualPair {
-  const venue = text(requested.venue, "venue");
-  const baseAsset = text(requested.baseAsset, "baseAsset");
-  const quoteAsset = text(requested.quoteAsset, "quoteAsset");
+  const venue = text(requested.venue);
+  const baseAsset = text(requested.baseAsset);
+  const quoteAsset = text(requested.quoteAsset);
   const matches = instruments.map(normalize).filter((item) =>
     item.active && item.venue === venue && item.baseAsset === baseAsset && item.quoteAsset === quoteAsset
   );

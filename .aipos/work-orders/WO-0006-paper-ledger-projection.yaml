@@ -1,0 +1,20 @@
+id: WO-0006-paper-ledger-projection
+title: Replay Paper ledger and prove accounting parity
+objective: Verify that the append-only Paper ledger deterministically reproduces the existing PaperBroker financial snapshot.
+scope:
+  - ledger replay projection
+  - sequence and state-transition validation
+  - buy/sell parity regression tests
+exclusions:
+  - transferring mutation ownership from PaperBroker
+  - changing monetary precision policy
+  - live trading
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+verification:
+  - pnpm run build
+  - node --test tests/paper-ledger-projection.test.js tests/paper-broker-fill-model.test.js
+status: COMPLETE
+blockers: []
+next_action: Extract ledger-driven accounting mutation only after a separate design and regression slice.

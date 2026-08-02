@@ -7,7 +7,7 @@ import { ControlPlane } from "./controlPlane";
 import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
-import { PaperBroker, type PaperOrder, type PaperSide } from "./paperBroker";
+import { PaperBroker, type PaperOrder } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
@@ -61,6 +61,7 @@ import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
 import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
 
 const MARKET = "KRW-BTC";
@@ -102,6 +103,7 @@ let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
 let executionRepository: SqliteDurableExecutionRepository | undefined;
+let paperRiskEvidenceRepository: SqliteRiskEvidenceRepository | undefined;
 let operationsAudit: readonly OperationsAuditRecord[] = Object.freeze([]);
 let operationsAlerts: readonly OperationsAlertRecord[] = Object.freeze([]);
 let stream: UpbitWebSocketClient;
@@ -589,6 +591,7 @@ function initializeRuntime(): void {
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
     executionRepository = persistenceStore.executionRepository();
+    paperRiskEvidenceRepository = persistenceStore.riskEvidenceRepository();
     const startupAudit: OperationsAuditRecord = Object.freeze({ auditId: `audit-start-${productRunId}`, actor: "SYSTEM", action: "APPLICATION_START", target: null, metadata: { mode: "PAPER", productionMutationAllowed: false }, createdAt: new Date().toISOString() });
     persistenceStore.appendOperationsAudit(startupAudit);
     operationsAudit = persistenceStore.loadOperationsAudit();
@@ -647,6 +650,7 @@ function initializeRuntime(): void {
     limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
     fingerprints: PAPER_SAFETY_FINGERPRINTS,
     sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+    ,evidence: paperRiskEvidenceRepository
   });
   if (persistenceStore) {
     try {
@@ -1213,16 +1217,6 @@ app.whenReady().then(() => {
 let shadowEvidenceSealed = false;
 let shutdownInProgress = false;
 
-function releaseRuntimeResources(): void {
-  aiCioSnapshotPublisher.clear();
-  stream?.stop();
-  if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
-  if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
-  persistenceStore?.close();
-  void mobileBridge?.stop();
-  mobileBridge = undefined;
-}
-
 function startConfiguredMobileBridge(): void {
   if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return;
   const port = Number(process.env.NUSA_MOBILE_MONITOR_PORT ?? "0");
@@ -1268,6 +1262,8 @@ function buildShutdownSequence(): ShutdownSequence {
       if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
       if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
       persistenceStore?.close();
+      void mobileBridge?.stop();
+      mobileBridge = undefined;
     },
     flushEvidence: async () => { await shadowRuntime?.awaitEvidenceFinalized(); },
     recordRecovery: (clean) => {

@@ -1,0 +1,36 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+flows:
+  startup:
+    - node
+    - electron-main
+    - preload-context-isolated-sandbox
+    - renderer
+  market_data:
+    - upbit-public-websocket
+    - normalized-market-events
+    - strategy-and-paper-services
+    - validated-snapshot
+    - renderer-view-model
+  paper_order:
+    - renderer-command
+    - preload-validated-command
+    - main-application-service
+    - risk-gateway
+    - paper-execution
+    - durable-accounting-and-evidence
+  recovery:
+    - startup-recovery-detection
+    - snapshot-journal-evidence-reconciliation
+    - fail-closed-review-gate
+  shutdown:
+    - stop-new-work
+    - close-market-streams
+    - persist-runtime-state
+    - flush-evidence
+    - close-electron
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+  rendererNodeAccess: false

@@ -1,32 +1,64 @@
 version: 1
 project: nusa
-updated_at: "2026-07-31T15:00:00+09:00"
-phase: foundation
-status: active
-objective: "Make NUSA self-describing so another AI can safely continue implementation from repository state alone."
+updated_at: "2026-08-02T16:05:00+09:00"
+phase: mobile-rc-integration
+status: blocked
+objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/aipos-foundation-v0
-active_pull_request: 43
+active_branch: agent/mobile-first-ui-v1
+active_pull_request: 45
 completed:
   - id: runtime-foundation
-    evidence: "PR #41 merged as commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
+    evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
     summary: "Typed event bus, engine registry, plugin lifecycle, runtime composition, and tests."
   - id: aipos-runtime-v0
-    evidence: "PR #43 branch"
+    evidence: "PR #43 merged in main at commit eed7481c2a8361299acc350147986ce8836879"
     summary: "AIPOS domain types, store, validation, deterministic recovery, plugin integration, and tests."
+  - id: execution-operations-v0
+    evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
+    summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
+  - id: deterministic-repository-execution
+    evidence: "docs/audits/deterministic-execution-2026-08-02.md; 10 consecutive complete verification runs"
+    summary: "Fixed-environment deterministic harness; identical command outcomes, coverage, build hash, and artifact manifest across ten runs."
+  - id: architecture-compliance
+    evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md; docs/audits/dependency-graph-2026-08-02.md; docs/audits/layer-violations-2026-08-02.md; docs/audits/circular-dependencies-2026-08-02.md"
+    summary: "Removed storage-to-application runtime dependencies, centralized persistence boundary contracts, removed runtime and type-only cycles, and added CI architecture validation."
+  - id: security-hardening
+    evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md; docs/audits/dependency-audit-2026-08-02.md; docs/audits/secret-scan-2026-08-02.md; docs/audits/sbom-2026-08-02.json"
+    summary: "Added dependency vulnerability and license checks, lockfile integrity validation, secret scanning, SBOM generation, artifact checksum validation, and CI security reporting."
+  - id: paper-risk-evidence-persistence
+    evidence: "commit fe73371; tests/paper-operational-preflight.test.js; tests/paper-risk-evidence-persistence.test.js"
+    summary: "Every desktop Paper Risk decision is converted to immutable queryable evidence and persisted through the existing SQLite store; order decisions remain unchanged."
+  - id: mobile-notification-queue
+    evidence: "commit 6f255f0; apps/mobile/src/notificationQueue.ts; tests/mobile-notification-queue.test.js"
+    summary: "Added a bounded mobile notification queue with deterministic deduplication, expiration, acknowledgement, and fail-closed validation. Native Push transport remains external."
+  - id: order-engine-support
+    evidence: "commit e4dc043; tests/order-engine.test.js; full isolated suite 296 files"
+    summary: "Added bounded order replay, partial-fill and ghost-fill recovery contracts, cancel/replace safety, retry and dead-letter handling, WebSocket sequence synchronization, execution reservation tracking, hash-chained audit records, and bounded execution metrics."
 in_progress:
-  - id: repository-contract-v0
-    work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-blocked: []
+  - id: mobile-rc-integration
+    evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
+    summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
+blocked:
+  - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
+  - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0001-repository-contract.yaml
-  reason: "Cross-AI continuity requires committed repository metadata before further NUSA feature work."
+  work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
+  reason: "Obtain native Android/iOS lifecycle and device evidence, then verify Order Engine runtime wiring before merging PR #45 into main."
 verification:
   required:
+    - "pnpm run preflight"
     - "pnpm run typecheck"
     - "pnpm run build"
+    - "pnpm run lint"
     - "pnpm test"
-  last_result: not_recorded
+    - "pnpm run test:ui"
+    - "pnpm run test:e2e"
+    - "pnpm run coverage"
+    - "pnpm run determinism"
+    - "git diff --check"
+  last_result: "PASS: typecheck, build, full isolated suite 307 files, portfolio focused tests 3/3, and git diff --check. Portfolio projection now exposes crypto allocation, position action safety, AI insights, and CSV/PDF capability state; renderer/native wiring and PDF generation remain unverified."
+  current_commit: "e568374"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

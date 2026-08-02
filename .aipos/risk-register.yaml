@@ -1,0 +1,43 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+risks:
+  - id: RIME-CI-PENDING
+    risk: PR validation is not yet attached as completed on the current head.
+    probability: medium
+    impact: medium
+    mitigation: Query current PR checks before merge.
+    verification: PR 45 check runs
+    owner: repository-maintainer
+    status: OPEN
+  - id: RUNTIME-EXTERNAL-UNVERIFIED
+    risk: Real Upbit public runtime and long Shadow operation were not executed in this environment.
+    probability: medium
+    impact: high
+    mitigation: Run a safe read-only runtime smoke and separate Shadow evidence.
+    verification: runtime diagnostics and Shadow evidence
+    owner: repository-maintainer
+    status: OPEN
+  - id: ELECTRON-SMOKE-UNVERIFIED
+    risk: GUI launch and Windows installer smoke remain unverified.
+    probability: medium
+    impact: high
+    mitigation: Run Electron launch, package, install, and uninstall smoke.
+    verification: package artifacts and smoke logs
+    owner: repository-maintainer
+    status: OPEN
+  - id: WINDOWS-PACKAGE-NETWORK-BLOCK
+    risk: electron-builder cannot complete because the restricted environment denies its external HTTPS download.
+    probability: high
+    impact: high
+    mitigation: Run package:win on a permitted Windows build host; do not weaken signing or network policy.
+    verification: package:win exit code and generated installer
+    owner: repository-maintainer
+    status: OPEN
+  - id: LIVE-MUTATION
+    risk: Any accidental private mutation or credential exposure would violate safety.
+    probability: low
+    impact: critical
+    mitigation: Keep productionMutationAllowed false and retain preload safety tests.
+    verification: static safety tests and descriptor
+    owner: repository-maintainer
+    status: MITIGATED

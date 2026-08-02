@@ -1,0 +1,31 @@
+id: WO-0007
+schema_version: 1
+title: "Verify deterministic repository execution"
+status: COMPLETE
+priority: 80
+objective: "Run the complete repository verification pipeline ten consecutive times under fixed environment controls and detect any result, build, coverage, or artifact divergence."
+scope:
+  - "Typecheck, build, lint, full tests, UI tests, E2E tests, and coverage."
+  - "Fixed CI, UTC, and test-seed environment."
+  - "Deterministic command, coverage, build-tree, and artifact signatures."
+exclusions:
+  - "No business features or trading behavior."
+  - "No test deletion, assertion weakening, timeout inflation, or retry masking."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - "pnpm run determinism"
+completion_criteria:
+  - "Ten consecutive runs pass."
+  - "Pass/fail states, coverage, build hash, and artifact manifest are identical."
+  - "Reliability and flaky-test reports are committed."
+evidence:
+  - "docs/audits/deterministic-execution-2026-08-02.md"
+  - "docs/audits/reliability-report-2026-08-02.md"
+  - "docs/audits/flaky-test-report-2026-08-02.md"
+rollback: "Revert the determinism harness and report-only repository metadata; no runtime business behavior changed."
+blockers:
+  - "Remote CI execution and external runtime evidence remain outside this local verification."
+next_action: "Use the deterministic harness at release gates and investigate any future signature divergence before changing tests."

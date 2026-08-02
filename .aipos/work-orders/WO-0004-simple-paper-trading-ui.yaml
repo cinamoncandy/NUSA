@@ -1,0 +1,52 @@
+id: WO-0004
+schema_version: 1
+title: "Implement NUSA Paper Trading functional UI shell"
+status: in_progress
+priority: 90
+owner: any-compatible-ai
+objective: "Provide a replaceable mobile-first functional shell for NUSA Paper Trading with shared navigation, truthful data states, safe Paper order confirmation, and responsive desktop enhancement without changing trading architecture or safety boundaries."
+scope:
+  - "Provide one shared renderer shell with five mobile primary tabs and desktop rail enhancement at 1024px and above."
+  - "Add dashboard, market, order, asset, strategy, log, settings, and advanced-operation access using existing renderer data and IPC contracts."
+  - "Preserve honest loading, empty, disconnected, and error-safe states."
+  - "Require explicit Paper order confirmation before invoking the existing Paper IPC command."
+  - "Add renderer contract, keyboard, responsive, and safety-focused tests."
+exclusions:
+  - "No new backend, exchange adapter, IPC channel, live trading capability, credential field, or safety-rule change."
+  - "No color, brand, icon, animation, typography, visual-polish, or Figma-matching work in this functional milestone."
+safety_boundaries:
+  - "Paper Trading remains the only visible execution mode."
+  - "productionMutationAllowed remains false and live/private exchange mutation remains unavailable."
+  - "Renderer consumes existing validated preload methods only; credentials and raw exchange responses remain absent."
+  - "Paper order controls remain disabled until a connected public market price is available."
+execution_sequence:
+  - "Inspect the existing renderer, design tokens, preload API, and tests."
+  - "Implement the shared presentation shell and page views without changing main-process contracts."
+  - "Add deterministic renderer contract, order-confirmation, responsive, and accessibility tests."
+  - "Run preflight, typecheck, build, lint, tests, UI tests, E2E when supported, and diff checks."
+  - "Update AIPOS state and the UI documentation with truthful verification results."
+verification:
+  commands:
+    - "pnpm run preflight"
+    - "pnpm run typecheck"
+    - "pnpm run build"
+    - "pnpm run lint"
+    - "pnpm test"
+    - "pnpm run test:ui"
+    - "pnpm run test:e2e"
+    - "git diff --check"
+completion_criteria:
+  - "All requested desktop views are reachable through fixed navigation and only the selected view is shown."
+  - "Paper mode and connection state are always visible and status is not conveyed by color alone."
+  - "Dashboard accurately renders account, PnL, positions, orders, and empty states from existing data."
+  - "Disconnected state disables Paper order actions."
+  - "Renderer tests and repository validation results are recorded without claiming unverified checks."
+evidence:
+  - "Changed renderer files and tests."
+  - "Validation command results and screenshot paths, if generated."
+  - "No live trading or private API calls."
+rollback:
+  - "Revert the focused UI commit; the legacy renderer compatibility surface remains available in the same index document."
+current_status: "Functional implementation and verification completed on agent/mobile-first-ui-v1; visual design is explicitly deferred."
+blockers: []
+next_action: "Verify PR #45 CI, then run Electron launch and Windows package smoke without live mutation."

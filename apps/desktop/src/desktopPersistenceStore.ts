@@ -11,6 +11,7 @@ import type { OwnerReviewRecord } from "../../cloud/src/releaseEvidenceDashboard
 import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperSafetySnapshot";
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
 import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../cloud/src/investmentCommitteeLedger";
 import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
 import { validateOpportunitySchedule } from "./opportunityDashboardProjection";
@@ -309,6 +310,10 @@ export class DesktopPersistenceStore {
       connection: this.db,
       transaction: <T>(operation: () => T): T => this.transaction(operation)
     });
+  }
+
+  riskEvidenceRepository(): SqliteRiskEvidenceRepository {
+    return new SqliteRiskEvidenceRepository({ connection: this.db });
   }
 
   appendResearchEvidenceBundle(entries: readonly Readonly<{ manifest: ResearchRunManifest; report: ResearchValidationReport }>[]): void {

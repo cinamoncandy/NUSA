@@ -58,7 +58,6 @@ const CAPABILITY_PATTERNS = Object.freeze({
   // Detect persistence or retrieval of secrets, not ordinary in-memory JWT construction.
   credentialStoragePresent: [
     /\bkeytar\b/,
-    /\bsafeStorage\.(encryptString|decryptString)\b/,
     /\bcredential(Store|Vault)\b/i,
     /\b(writeFile|writeFileSync|setItem)\s*\([^\n]{0,160}(access[_-]?key|secret[_-]?key|credential)/i,
     /\bUPBIT_(ACCESS|SECRET)_KEY\b[\s\S]{0,120}\b(writeFile|setItem|store|persist)\b/i

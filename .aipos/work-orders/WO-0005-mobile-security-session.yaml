@@ -1,0 +1,26 @@
+id: WO-0005-mobile-security-session
+title: Add fail-closed secure session lifecycle
+objective: Provide deterministic session expiry, idle timeout, activity refresh, and revocation without storing credentials.
+scope:
+  - session metadata validation
+  - maximum lifetime and idle timeout
+  - monotonic activity updates
+  - immediate and irreversible revocation
+exclusions:
+  - biometric or PIN integration
+  - token or secret storage
+  - live-trading authorization
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - pnpm run build
+  - node --test tests/secure-session.test.js
+completion_criteria:
+  - expired and revoked sessions are unusable
+  - stale activity is rejected
+  - no credential-bearing field exists in the session model
+status: COMPLETE
+blockers: []
+next_action: Audit secure storage and Electron session boundaries before adding platform authentication.

@@ -1,0 +1,23 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+bridge_objects:
+  - name: nusa
+    reads: [getSnapshot, getControlSnapshot, onStatus, onTicker, onSnapshot, onControl, onChartPoint, getA4Diagnostics]
+    commands: [placeOrder, startStrategy, stopStrategy, setAutoTrade, setStrategyQuantity]
+  - name: shadowPilot
+    reads: [preflight, status]
+    commands: [start, pause, resume, stop]
+  - name: operations
+    reads: [snapshot]
+  - name: recoveryReview
+    reads: [status]
+    commands: [reconcile, ownerReview, complete]
+  - name: aiCioDashboard
+    reads: [getAiCioDashboard]
+  - name: nusaApp
+    reads: [settings, about, firstRun]
+    commands: [saveSettings, resetSettings]
+rules:
+  - Renderer uses only fixed preload methods.
+  - No live order submission, private exchange mutation, credential, JWT, or authorization channel is exposed.
+  - Order commands remain Paper/Risk controlled by main-process services.

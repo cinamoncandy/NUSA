@@ -19,3 +19,4 @@ dist/
 outputs/
 work/
 release/
+coverage/

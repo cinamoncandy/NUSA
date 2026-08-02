@@ -3,7 +3,7 @@ import {
   isAllowedTransition,
   type OrderExecutionRecord,
   type OrderExecutionStatusRepository
-} from "../../../apps/execution/src/execution-gateway";
+} from "../../contracts/src/executionPersistence";
 import type { SqliteDatabase } from "./index";
 
 type SqlRow = Record<string, string | number | bigint | null>;

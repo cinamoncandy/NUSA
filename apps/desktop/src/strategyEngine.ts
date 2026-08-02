@@ -1,3 +1,5 @@
+import { classifyPriceRegime, type TradingRegime } from "./regimePolicy";
+
 export type StrategySignalType = "BUY" | "SELL" | "HOLD";
 
 export interface MarketTick {
@@ -11,6 +13,7 @@ export interface StrategySignal {
   reason: string;
   confidence: number;
   timestamp: number;
+  regime?: TradingRegime;
 }
 
 export interface StrategyContext {
@@ -26,7 +29,17 @@ export interface TradingStrategy {
   reset(): void;
 }
 
-const average = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+const averageLastIncludingTick = (prices: readonly number[], tickPrice: number, count: number): number => {
+  const start = Math.max(0, prices.length - (count - 1));
+  let total = 0;
+  let length = 0;
+  for (let index = start; index < prices.length; index += 1) {
+    total += prices[index]!;
+    length += 1;
+  }
+  total += tickPrice;
+  return total / (length + 1);
+};
 
 export class SmaCrossoverStrategy implements TradingStrategy {
   readonly id = "sma-crossover";
@@ -40,12 +53,12 @@ export class SmaCrossoverStrategy implements TradingStrategy {
   }
 
   onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
-    const prices = [...context.prices, tick.price].slice(-this.longPeriod);
-    if (prices.length < this.longPeriod) {
+    const available = Math.min(this.longPeriod, context.prices.length + 1);
+    if (available < this.longPeriod) {
       return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
     }
-    const short = average(prices.slice(-this.shortPeriod));
-    const long = average(prices);
+    const short = averageLastIncludingTick(context.prices, tick.price, this.shortPeriod);
+    const long = averageLastIncludingTick(context.prices, tick.price, this.longPeriod);
     const spread = short - long;
     const prior = this.previousSpread;
     this.previousSpread = spread;
@@ -62,6 +75,7 @@ export class StrategyEngine {
   private readonly prices: number[] = [];
   private running = false;
   private latestSignal?: StrategySignal;
+  private lastTickKey?: string;
 
   constructor(private strategy: TradingStrategy, private readonly maxHistory = 500) {}
 
@@ -82,19 +96,25 @@ export class StrategyEngine {
     this.prices.length = 0;
     this.prices.push(...prices.slice(-this.maxHistory));
   }
-  setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; strategy.reset(); }
+  setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; this.lastTickKey = undefined; strategy.reset(); }
   getLatestSignal(): StrategySignal | undefined { return this.latestSignal; }
   getHistory(): readonly number[] { return [...this.prices]; }
 
   onTick(tick: MarketTick, positionQuantity: number): StrategySignal {
     if (!Number.isFinite(tick.price) || tick.price <= 0) throw new Error("tick price must be positive");
+    if (!Number.isSafeInteger(tick.timestamp) || tick.timestamp < 0) throw new Error("tick timestamp must be a non-negative integer");
+    const tickKey = `${tick.market}:${tick.timestamp}:${tick.price}`;
+    if (tickKey === this.lastTickKey && this.latestSignal !== undefined) return this.latestSignal;
+    const regime = classifyPriceRegime(this.prices.concat(tick.price), tick.timestamp);
     const signal = this.running
       ? this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity })
       : { type: "HOLD" as const, reason: "strategy-stopped", confidence: 0, timestamp: tick.timestamp };
+    const signalWithRegime = regime === undefined ? signal : { ...signal, regime };
     this.prices.push(tick.price);
     if (this.prices.length > this.maxHistory) this.prices.splice(0, this.prices.length - this.maxHistory);
-    this.latestSignal = signal;
-    return signal;
+    this.latestSignal = signalWithRegime;
+    this.lastTickKey = tickKey;
+    return signalWithRegime;
   }
 }
 

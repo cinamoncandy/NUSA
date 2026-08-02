@@ -1,5 +1,5 @@
 import type { MultiAgentGovernanceEvent, MultiAgentGovernanceRecord } from "../../contracts/src/multiAgentGovernance";
-import { appendMultiAgentGovernanceEvent, replayMultiAgentGovernance } from "../../../apps/cloud/src/multiAgentGovernance";
+import { appendMultiAgentGovernanceEvent, replayMultiAgentGovernance } from "../../contracts/src/persistenceLedger";
 
 export interface MultiAgentGovernanceDatabase {
   readonly connection: {

@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
+import type { PreTradeRiskDecision, PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
+import type { RiskDecision, RiskEvidenceSink } from "../../../apps/execution/src/global-risk-gateway";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { PaperBroker, PaperSide } from "./paperBroker";
 import { reconcilePaperLedger } from "./paperSafetyGates";
@@ -17,6 +19,46 @@ export interface OperationalPreflightState {
   readonly deployment: OperationalPreflightDiagnostic;
   readonly reconciliation: OperationalPreflightDiagnostic;
   readonly riskGate: OperationalPreflightDiagnostic;
+}
+
+const PAPER_RISK_RULE_ID = "INDEPENDENT_PAPER_RISK_GATEWAY";
+
+export function toPaperRiskEvidence(request: PreTradeRiskRequest, decision: PreTradeRiskDecision): RiskDecision {
+  const result = decision.status === "ALLOW" ? "APPROVED" : decision.status === "REJECT" ? "REJECTED" : "BLOCKED";
+  return Object.freeze({
+    decisionId: decision.decisionSha256,
+    result,
+    policyVersion: request.riskPolicyFingerprint,
+    reasonCodes: Object.freeze([...decision.reasonCodes]),
+    observedAt: new Date(decision.evaluatedAt).toISOString(),
+    executionId: request.commandId,
+    ruleId: PAPER_RISK_RULE_ID,
+    inputParameters: Object.freeze({
+      requestId: request.requestId,
+      signalId: request.signalId,
+      clientOrderId: request.clientOrderId,
+      side: request.side,
+      quantity: request.quantity,
+      referencePrice: request.referencePrice,
+      requestedAt: request.requestedAt,
+      requestSha256: decision.requestSha256
+    }),
+    accountState: Object.freeze({
+      cash: request.accountState.cash,
+      positionQuantity: request.accountState.positionQuantity,
+      openOrderCount: request.accountState.openOrderCount,
+      reconciliationHealthy: request.reconciliationState.healthy ? 1 : 0,
+      persistenceHealthy: request.persistenceState.healthy ? 1 : 0
+    }),
+    marketState: Object.freeze({
+      symbol: request.symbol,
+      marketData: request.marketDataState.status,
+      marketPrice: request.marketDataState.price === null ? "UNAVAILABLE" : String(request.marketDataState.price),
+      deploymentIntegrity: request.deploymentState.integrityVerified ? "VERIFIED" : "FAILED",
+      recovery: request.reconciliationState.healthy ? "MATCHED" : "MISMATCHED"
+    }),
+    correlationId: request.requestId
+  });
 }
 
 function sha256(value: Uint8Array | string): string { return createHash("sha256").update(value).digest("hex"); }
@@ -85,6 +127,7 @@ export function createOperationalPaperRiskGate(input: Readonly<{
   limits: IndependentRiskLimits;
   fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   sourceCommitSha: string;
+  evidence?: RiskEvidenceSink;
 }>): PaperCommandRiskGate {
   return Object.freeze({
     evaluate: (command: Readonly<{ path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY" | "SHADOW"; side: PaperSide; quantity: number; price: number }>) => {
@@ -117,6 +160,7 @@ export function createOperationalPaperRiskGate(input: Readonly<{
         sessionState: { dailyRealizedPnL: account.position.realizedPnl, consecutiveLossCount: 0, sessionPeakEquity: account.equity, sessionEquity: account.equity }
       };
       const decision = evaluatePreTradeRisk(request, input.identity, input.limits);
+      input.evidence?.append(toPaperRiskEvidence(request, decision));
       return Object.freeze({ status: decision.status, reasonCodes: decision.reasonCodes });
     }
   });

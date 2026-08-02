@@ -1,4 +1,4 @@
-import { analyzeEquityCurve, calculatePerformanceMetrics, type EquityAnalytics, type MatchedTrade, type PerformanceMetrics } from "./backtestAnalytics";
+import { analyzeEquityCurve, calculatePerformanceMetrics, type EquityAnalytics, type MatchedTrade } from "./backtestAnalytics";
 import { runBacktest, type BacktestConfig, type BacktestPoint, type BacktestResult } from "./backtestEngine";
 import type { TradingStrategy } from "./strategyEngine";
 

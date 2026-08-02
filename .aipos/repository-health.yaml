@@ -1,0 +1,30 @@
+version: 1
+audited_commit: ae969207f610de5c95ab893812efd969b981ebfd
+working_tree: DIRTY_GENERATED_ONLY
+status: HEALTHY_WITH_WARNINGS
+checks:
+  install: PASS
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  full_tests: PASS (280 isolated test files)
+  ui_tests: PASS
+  e2e_tests: PASS
+  package_validation: PASS
+  release_check: PASS
+  coverage: PASS (84.37% statements/lines, 76.37% branches, 92.56% functions)
+runtime:
+  electron: UNVERIFIED
+  recovery: PASS
+  shadow: UNVERIFIED
+release:
+  packaging: PARTIAL
+  installer: BLOCKED
+  signing: NOT_CONFIGURED
+ci:
+  pull_request_45: PENDING
+blockers:
+  - CI completion for PR 45
+  - Electron and Windows installer smoke evidence; package:win external download blocked by EACCES
+  - long-duration Shadow evidence

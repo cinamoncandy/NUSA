@@ -1,0 +1,41 @@
+version: 1
+audited_commit: 8468cb3bd404979cd9cead998f9e4bfad6c7e800
+edges:
+  - from: desktop-renderer
+    to: desktop-preload
+    kind: runtime-bridge
+    constraint: read-only validated preload methods; no Node.js access
+  - from: desktop-main
+    to: contracts
+    kind: import
+  - from: desktop-main
+    to: execution
+    kind: import
+  - from: desktop-main
+    to: storage
+    kind: import
+  - from: execution
+    to: contracts
+    kind: import
+  - from: execution
+    to: storage
+    kind: import
+  - from: validation-scripts
+    to: package-manifest
+    kind: runtime
+  - from: test-suite
+    to: core-runtime
+    kind: verification
+  - from: test-suite
+    to: execution
+    kind: verification
+  - from: test-suite
+    to: desktop-renderer
+    kind: verification
+external:
+  runtime: [node, electron, ws]
+  test: [vitest, playwright]
+  build: [typescript, eslint, electron-builder]
+notes:
+  - No dependency was added by the RIME work.
+  - Live exchange mutation is not a production dependency or capability.

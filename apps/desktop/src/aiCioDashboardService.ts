@@ -1,7 +1,10 @@
 import { type AiCioDashboardReadResult } from "../../../packages/contracts/src/aiCioDashboard";
 import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
 import { validateAiCioCommandCenterEnvelope } from "./aiCioCommandCenterAdapter";
-import type { AiCioEnvelopeSource } from "./aiCioIpcBridge";
+
+export interface AiCioEnvelopeSource {
+  current(): AiCioCommandCenterEnvelopeV1 | null;
+}
 
 const freeze = <T>(value: T): T => {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {

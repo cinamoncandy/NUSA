@@ -1,12 +1,6 @@
-import type { DisasterRecoveryResult } from "./disaster-recovery";
-import type { StartupConsistencyResult } from "./startup-consistency-gate";
-
-export interface RecoveryEvidenceRepository {
-  appendRecovery(result: DisasterRecoveryResult): void;
-  getRecovery(runId: string): DisasterRecoveryResult | undefined;
-  appendStartup(input: { readonly auditId: string; readonly recoveryRunId: string; readonly result: StartupConsistencyResult; readonly evaluatedAtMs: number }): void;
-  getStartup(auditId: string): { readonly auditId: string; readonly recoveryRunId: string; readonly result: StartupConsistencyResult; readonly evaluatedAtMs: number } | undefined;
-}
+import type { DisasterRecoveryResult, StartupConsistencyResult } from "../../../packages/contracts/src/recovery";
+import type { RecoveryEvidenceRepository } from "../../../packages/contracts/src/recoveryEvidence";
+export type { RecoveryEvidenceRepository } from "../../../packages/contracts/src/recoveryEvidence";
 
 export class InMemoryRecoveryEvidenceRepository implements RecoveryEvidenceRepository {
   private readonly recoveries = new Map<string, DisasterRecoveryResult>();

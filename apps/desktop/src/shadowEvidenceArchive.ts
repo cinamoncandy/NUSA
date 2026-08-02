@@ -127,7 +127,7 @@ export class ShadowEvidenceArchive {
   private eventLines: string[] = [];
   private status: ShadowArchiveStatus = "OPEN";
 
-  private constructor(private readonly root: string, readonly metadata: ShadowEvidenceSessionMetadata) {
+  private constructor(root: string, readonly metadata: ShadowEvidenceSessionMetadata) {
     this.directory = path.join(root, metadata.sessionId);
     this.eventsPath = path.join(this.directory, "events.ndjson");
   }

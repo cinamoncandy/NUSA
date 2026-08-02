@@ -1,9 +1,7 @@
 import { createHash } from "node:crypto";
-
-export interface EvidenceGraphSealNode { readonly evidenceId:string; readonly kind:string; readonly candidateId:string; }
-export interface EvidenceGraphSealEdge { readonly fromEvidenceId:string; readonly toEvidenceId:string; readonly relation:string; }
-export const GENESIS_SEAL_HASH="GENESIS";
-export interface EvidenceGraphHashSeal { readonly sealId:string; readonly candidateId:string; readonly graphHash:string; readonly previousSealHash:string; readonly chainHash:string; readonly nodeCount:number; readonly edgeCount:number; readonly sealedAtMs:number; readonly deploymentAllowed:false; readonly productionMutationAllowed:false; }
+import { GENESIS_SEAL_HASH, type EvidenceGraphHashSeal, type EvidenceGraphSealEdge, type EvidenceGraphSealNode } from "../../../packages/contracts/src/evidenceGraph";
+export { GENESIS_SEAL_HASH } from "../../../packages/contracts/src/evidenceGraph";
+export type { EvidenceGraphHashSeal, EvidenceGraphSealEdge, EvidenceGraphSealNode } from "../../../packages/contracts/src/evidenceGraph";
 
 function canonicalGraph(nodes:readonly EvidenceGraphSealNode[],edges:readonly EvidenceGraphSealEdge[]):string{
  const canonicalNodes=[...nodes].map(n=>({evidenceId:n.evidenceId.trim(),kind:n.kind.trim(),candidateId:n.candidateId.trim()})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
