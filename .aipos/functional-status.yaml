@@ -138,6 +138,13 @@ features:
     test_paths: [tests/mobile-runtime.test.js]
     evidence: ["mobile runtime recovery state transition slice", "typecheck PASS", "build PASS", "focused tests 3/3"]
     blockers: [native AppState/NetInfo binding and real background/foreground device evidence remain]
+  - id: mobile.navigation-model
+    priority: required
+    status: IMPLEMENTED_UNVERIFIED
+    implementation_paths: [apps/mobile/src/mobileNavigation.ts, apps/mobile/src/mobileAppShell.ts]
+    test_paths: [tests/mobile-navigation.test.js, tests/mobile-app-shell.test.js, tests/simple-paper-ui.test.js]
+    evidence: ["mobile navigation tests 3/3", "mobile shell/UI tests 14/14", "typecheck PASS", "build PASS"]
+    blockers: [native deep-link and force-kill restoration are not device-verified]
   - id: runtime.stability-metrics
     priority: required
     status: VERIFIED_COMPLETE
