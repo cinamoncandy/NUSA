@@ -45,7 +45,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: security gate, dependency audit, license verification, lockfile integrity, secret scan, typecheck, lint, build, package validation, release validation, and 293 isolated test files. Artifact checksum PASS; release signing FAIL because existing artifacts are unsigned."
-  current_commit: "32b0bb52931530b345586efba40078001833e26b"
+  current_commit: "a3df3a99"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
