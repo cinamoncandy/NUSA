@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T11:40:00+09:00"
+updated_at: "2026-08-03T12:05:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -42,6 +42,9 @@ completed:
   - id: upbit-public-websocket-adapter
     evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
     summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
+  - id: live-trading-adapter-guard
+    evidence: "PR #61 merged at 7267c2dea2508ef58b8589abf3343a22d6f783ed; CI #1956 and Mobile Native #44 SUCCESS; adapter tests 5/5, Upbit REST regression 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS"
+    summary: "Added default-Mock adapter selection, explicitly gated read-only LIVE adapter construction, runtime mode switching, and fail-closed submit/cancel/withdraw guards. Live mutation remains disabled."
 in_progress:
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
@@ -51,7 +54,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Obtain CI/native Android/iOS evidence for the fail-closed adapter guard, then keep live mutation disabled until a separately approved safety work order exists."
+  reason: "PR #61 CI/native evidence is complete; remaining work is external native/device/runtime evidence. Keep live mutation disabled until a separately approved safety work order exists."
 verification:
   required:
     - "pnpm run preflight"
@@ -65,7 +68,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
-  current_commit: "142c4fa944f5e2e7e6a10a336120ba0e4af26244"
+  current_commit: "79126afa54c0c0a63aea79e4ed3821ce2cc3b7f0"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
