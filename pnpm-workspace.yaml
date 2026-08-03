@@ -8,3 +8,4 @@ allowBuilds:
 overrides:
   ws@8.18.3: 8.21.0
   brace-expansion@1.1.16: 1.1.17
+  fast-xml-parser: 5.7.0

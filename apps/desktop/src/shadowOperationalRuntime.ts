@@ -259,6 +259,7 @@ export class ShadowOperationalRuntime {
   private readonly clockDriftToleranceMs: number;
   private lastOfficialCandleTime?: number;
   private officialClosedCandleCount = 0;
+  private closedCandleHistory: readonly ClosedCandle[] = Object.freeze([]);
   private evidenceBus?: DomainEventBus;
   /** Highest pilot sequence handed to the bus; the runtime half of exactly-once. */
   private publishedSequence = 0;
@@ -300,6 +301,18 @@ export class ShadowOperationalRuntime {
 
   private now(): number {
     return this.deps.now?.() ?? Date.now();
+  }
+
+  /** Bounded, read-only public-market history for the localhost mobile monitor. */
+  recentClosedCandles(limit = 200): readonly ClosedCandle[] {
+    if (!Number.isSafeInteger(limit) || limit < 1) return Object.freeze([]);
+    return Object.freeze(this.closedCandleHistory.slice(-Math.min(200, limit)));
+  }
+
+  private rememberClosedCandle(candle: ClosedCandle): void {
+    if (candle.source !== "UPBIT_PUBLIC_CANDLE") return;
+    if (this.closedCandleHistory.some((item) => item.openTime === candle.openTime)) return;
+    this.closedCandleHistory = Object.freeze([...this.closedCandleHistory, candle].sort((left, right) => left.openTime - right.openTime).slice(-200));
   }
 
   private setMarketDataStatus(status: ShadowMarketDataStatus): void {
@@ -664,6 +677,7 @@ export class ShadowOperationalRuntime {
   }
 
   private onClosedCandle(candle: ClosedCandle): void {
+    this.rememberClosedCandle(candle);
     this.lastClosedCandleTime = candle.closeTime;
     const position = this.deps.getPositionQuantity();
     const signal = this.deps.strategy.onTick({ market: this.deps.symbol, price: candle.close, timestamp: candle.closeTime }, position);

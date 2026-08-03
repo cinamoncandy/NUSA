@@ -1,7 +1,7 @@
 const { existsSync, readdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { join, relative, resolve, dirname, extname } = require("node:path");
 
-const SOURCE_EXTENSIONS = new Set([".ts", ".js", ".mjs"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".json"]);
 const SOURCE_ROOTS = ["apps", "packages"];
 const IGNORED_FILE = /(?:\.test|\.spec)\.|\.stories\./;
 const IGNORED_DIRECTORY = new Set(["node_modules", "dist", "coverage", "release"]);
@@ -102,7 +102,7 @@ function parseImports(source) {
 
 function resolveLocal(file, specifier, nodes, root) {
   const base = resolve(dirname(file), specifier);
-  const candidates = [base, ...[".ts", ".js", ".mjs"].map((extension) => `${base}${extension}`), ...[".ts", ".js", ".mjs"].map((extension) => join(base, `index${extension}`))];
+  const candidates = [base, ...[".ts", ".tsx", ".js", ".mjs", ".json"].map((extension) => `${base}${extension}`), ...[".ts", ".tsx", ".js", ".mjs", ".json"].map((extension) => join(base, `index${extension}`))];
   return candidates.map((candidate) => relative(root, candidate).replaceAll("\\", "/")).find((candidate) => nodes.has(candidate));
 }
 
