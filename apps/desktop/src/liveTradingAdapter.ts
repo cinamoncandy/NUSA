@@ -13,7 +13,7 @@ import {
 
 export type TradingAdapterMode = "MOCK" | "LIVE";
 
-export interface TradingAdapter {
+export interface TradingProvider {
   readonly mode: TradingAdapterMode;
   readonly readOnly: true;
   readonly productionMutationAllowed: false;
@@ -27,6 +27,9 @@ export interface TradingAdapter {
   cancelOrder(): Promise<never>;
   withdraw(): Promise<never>;
 }
+
+/** Backward-compatible name retained for existing desktop callers. */
+export type TradingAdapter = TradingProvider;
 
 export interface TradingAdapterEnvironment {
   readonly mode: TradingAdapterMode;
@@ -54,7 +57,7 @@ export function readTradingAdapterEnvironment(environment: Record<string, string
   });
 }
 
-abstract class ReadOnlyTradingAdapter implements TradingAdapter {
+abstract class ReadOnlyTradingAdapter implements TradingProvider {
   public abstract readonly mode: TradingAdapterMode;
   public readonly readOnly = true;
   public readonly productionMutationAllowed = false;
@@ -82,14 +85,17 @@ export class LiveTradingAdapter extends ReadOnlyTradingAdapter {
   }
 }
 
-/** Deterministic adapter used by default and by tests; it has the same read-only contract. */
-export class MockTradingAdapter extends ReadOnlyTradingAdapter {
+/** Paper provider used by default; it has no external mutation capability. */
+export class PaperTradingAdapter extends ReadOnlyTradingAdapter {
   public readonly mode = "MOCK" as const;
 
   constructor(readAdapter: UpbitReadAdapter = new MockUpbitRestAdapter()) {
     super(readAdapter);
   }
 }
+
+/** Compatibility name retained for existing callers and tests. */
+export class MockTradingAdapter extends PaperTradingAdapter {}
 
 export function createTradingAdapter(
   environment: Record<string, string | undefined> = process.env,
@@ -100,6 +106,14 @@ export function createTradingAdapter(
   if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("LIVE adapter requires NUSA_ENABLE_LIVE_ADAPTER=true");
   const readAdapter = dependencies.liveReadAdapter ?? new UpbitRestClient({ credentials: loadUpbitCredentials(environment) });
   return new LiveTradingAdapter(readAdapter);
+}
+
+/** Canonical provider factory for application code. */
+export function createTradingProvider(
+  environment: Record<string, string | undefined> = process.env,
+  dependencies: TradingAdapterDependencies = {},
+): TradingProvider {
+  return createTradingAdapter(environment, dependencies);
 }
 
 /** Runtime mode switch. Switching is explicit, validated, and never enables mutation. */

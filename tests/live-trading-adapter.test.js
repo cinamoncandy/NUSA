@@ -4,8 +4,10 @@ const {
   LiveAdapterSelectionError,
   LiveTradingAdapter,
   MockTradingAdapter,
+  PaperTradingAdapter,
   TradingAdapterRuntime,
   createTradingAdapter,
+  createTradingProvider,
   readTradingAdapterEnvironment,
 } = require("../dist/apps/desktop/src/liveTradingAdapter.js");
 const { LiveMutationDisabledError, MockUpbitRestAdapter } = require("../dist/apps/desktop/src/upbitRestAdapter.js");
@@ -26,6 +28,13 @@ test("factory returns deterministic Mock adapter by default", async () => {
   assert.equal(adapter.productionMutationAllowed, false);
   assert.deepEqual(await adapter.getAccounts(), []);
   await assert.rejects(adapter.submitOrder(), LiveMutationDisabledError);
+});
+
+test("canonical TradingProvider factory returns a PaperTradingAdapter by default", () => {
+  const provider = createTradingProvider({}, { mockReadAdapter: new MockUpbitRestAdapter() });
+  assert.equal(provider instanceof PaperTradingAdapter, true);
+  assert.equal(provider.mode, "MOCK");
+  assert.equal(provider.productionMutationAllowed, false);
 });
 
 test("Live mode is blocked unless its feature flag is explicitly enabled", () => {
