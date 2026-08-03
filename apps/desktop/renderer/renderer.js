@@ -1,6 +1,22 @@
 const won = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
+const notificationFallbackSettings = Object.freeze({
+  enabled: false,
+  priceAlerts: false,
+  fillAlerts: false,
+  orderStatusAlerts: false,
+  systemErrorAlerts: false,
+  priceAbove: null,
+  priceBelow: null
+});
+const notificationApi = typeof NusaNotificationCenter === "undefined"
+  ? {
+      DEFAULT_SETTINGS: notificationFallbackSettings,
+      normalizeSettings: (value) => value && typeof value === "object" ? value : notificationFallbackSettings,
+      NotificationCenter: class { consume() { return null; } }
+    }
+  : NusaNotificationCenter;
 const textNode = (tag, value, className) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -286,7 +302,7 @@ if (controlRoom) {
   scheduleControlRoomRefresh();
   window.addEventListener("beforeunload", () => clearTimeout(controlRoomTimer));
 }
-const notificationCenter = new NusaNotificationCenter.NotificationCenter();
+const notificationCenter = new notificationApi.NotificationCenter();
 const notificationStorageKey = "nusa.notification-settings.v1";
 let notificationSettings;
 let lastControlEventId = "";
@@ -298,8 +314,8 @@ let priceAlertState = { above: false, below: false };
 function loadNotificationSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(notificationStorageKey) || "null");
-    notificationSettings = NusaNotificationCenter.normalizeSettings(saved);
-  } catch { notificationSettings = NusaNotificationCenter.DEFAULT_SETTINGS; }
+    notificationSettings = notificationApi.normalizeSettings(saved);
+  } catch { notificationSettings = notificationApi.DEFAULT_SETTINGS; }
 }
 
 function saveNotificationSettings() {
@@ -342,7 +358,7 @@ function notify(event) {
 }
 
 function updateNotificationSettings() {
-  notificationSettings = NusaNotificationCenter.normalizeSettings({
+  notificationSettings = notificationApi.normalizeSettings({
     enabled: byId("notifications-enabled").checked,
     priceAlerts: byId("price-alerts").checked,
     fillAlerts: byId("fill-alerts").checked,
