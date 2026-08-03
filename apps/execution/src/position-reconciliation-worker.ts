@@ -28,7 +28,12 @@ export interface PositionReconciliationWorkerResult {
   readonly unavailableCount: number;
   readonly restrictionCount: number;
   readonly truncated: boolean;
+  readonly nextCursor: string | undefined;
   readonly results: readonly PositionReconciliationResult[];
+}
+
+function positionCursorKey(position: WalletPositionSnapshot): string {
+  return `${position.walletId}:${position.symbol}`;
 }
 
 export interface PositionReconciliationRunEvidence {
@@ -40,6 +45,7 @@ export interface PositionReconciliationRunEvidence {
   readonly unavailableCount: number;
   readonly restrictionCount: number;
   readonly truncated: boolean;
+  readonly nextCursor: string | undefined;
   readonly reconciliationIds: readonly string[];
 }
 
@@ -158,6 +164,13 @@ export function runPositionReconciliationWorker(input: {
   readonly restrictions: OrderOperationalRestrictionRepository;
   readonly evidence: PositionReconciliationEvidenceRepository;
   readonly runEvidence?: PositionReconciliationRunEvidenceRepository;
+  /**
+   * Cursor from a previous run's nextCursor. When the position count exceeds
+   * maxPositionsPerRun, passing this back in advances the scan window instead
+   * of rescanning the same alphabetically-first slice on every run, which
+   * would leave positions sorting after the cutoff never reconciled.
+   */
+  readonly cursor?: string;
   readonly nowMs: number;
 }): PositionReconciliationWorkerResult {
   if (input.runId.trim() === "") throw new Error("runId is required");
@@ -168,7 +181,12 @@ export function runPositionReconciliationWorker(input: {
   const all = [...input.positions.list()].sort((left, right) =>
     left.walletId.localeCompare(right.walletId) || left.symbol.localeCompare(right.symbol)
   );
-  const selected = all.slice(0, input.policy.maxPositionsPerRun);
+  const startIndex = input.cursor === undefined ? 0 : (() => {
+    const idx = all.findIndex(position => positionCursorKey(position) > input.cursor!);
+    return idx === -1 ? 0 : idx;
+  })();
+  const rotated = startIndex === 0 ? all : [...all.slice(startIndex), ...all.slice(0, startIndex)];
+  const selected = rotated.slice(0, input.policy.maxPositionsPerRun);
   const results: PositionReconciliationResult[] = [];
   let restrictionCount = 0;
 
@@ -217,6 +235,7 @@ export function runPositionReconciliationWorker(input: {
     unavailableCount: results.filter(result => result.status === PositionReconciliationStatus.PROVIDER_UNAVAILABLE).length,
     restrictionCount,
     truncated: all.length > selected.length,
+    nextCursor: selected.length > 0 ? positionCursorKey(selected[selected.length - 1]) : input.cursor,
     results: Object.freeze(results)
   });
 
@@ -229,6 +248,7 @@ export function runPositionReconciliationWorker(input: {
     unavailableCount: workerResult.unavailableCount,
     restrictionCount: workerResult.restrictionCount,
     truncated: workerResult.truncated,
+    nextCursor: workerResult.nextCursor,
     reconciliationIds: Object.freeze(workerResult.results.map(result => result.reconciliationId))
   }));
 

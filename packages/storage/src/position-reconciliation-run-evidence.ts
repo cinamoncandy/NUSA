@@ -16,6 +16,7 @@ function decode(row: SqlRow): PositionReconciliationRunEvidence {
     unavailableCount: Number(row.unavailable_count),
     restrictionCount: Number(row.restriction_count),
     truncated: Number(row.truncated) === 1,
+    nextCursor: row.next_cursor == null ? undefined : String(row.next_cursor),
     reconciliationIds: Object.freeze(JSON.parse(String(row.reconciliation_ids_json)) as string[])
   });
 }
@@ -32,6 +33,7 @@ export class SqlitePositionReconciliationRunEvidenceRepository implements Positi
         unavailable_count INTEGER NOT NULL,
         restriction_count INTEGER NOT NULL,
         truncated INTEGER NOT NULL CHECK (truncated IN (0, 1)),
+        next_cursor TEXT,
         reconciliation_ids_json TEXT NOT NULL
       );
     `);
@@ -41,8 +43,8 @@ export class SqlitePositionReconciliationRunEvidenceRepository implements Positi
     this.db.connection.prepare(`
       INSERT INTO position_reconciliation_runs (
         run_id, started_at_ms, scanned_count, matched_count, mismatch_count,
-        unavailable_count, restriction_count, truncated, reconciliation_ids_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        unavailable_count, restriction_count, truncated, next_cursor, reconciliation_ids_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       run.runId,
       run.startedAtMs.toString(),
@@ -52,6 +54,7 @@ export class SqlitePositionReconciliationRunEvidenceRepository implements Positi
       run.unavailableCount,
       run.restrictionCount,
       run.truncated ? 1 : 0,
+      run.nextCursor ?? null,
       JSON.stringify([...run.reconciliationIds])
     );
     return this.getById(run.runId)!;
