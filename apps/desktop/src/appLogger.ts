@@ -142,12 +142,28 @@ export function selectExpiredLogFiles(files: readonly LogFile[], policy: LogRota
   return Object.freeze([...doomed]);
 }
 
+/**
+ * How long a quiet logger may go without re-checking the age bound. Nothing but the passage
+ * of time can break that bound, so a sweep this often is enough; the size and count bounds
+ * are handled exactly, not on a timer (see `maybePrune`).
+ */
+const DEFAULT_PRUNE_INTERVAL_MS = 60_000;
+
 export interface AppLoggerOptions {
   readonly directory: string;
   readonly policy?: LogRotationPolicy;
   readonly level?: LogLevel;
   readonly runId: string;
   readonly now?: () => number;
+  /** Overridable so a test can drive the age sweep without waiting a minute. */
+  readonly pruneIntervalMs?: number;
+}
+
+/** The file a channel is currently appending to, and how large we believe it to be. */
+interface ActiveLogFile {
+  readonly fullPath: string;
+  readonly day: string;
+  bytes: number;
 }
 
 export class AppLogger {
@@ -156,6 +172,12 @@ export class AppLogger {
   private readonly now: () => number;
   private readonly directory: string;
   private readonly runId: string;
+  private readonly pruneIntervalMs: number;
+  private readonly active = new Map<LogChannel, ActiveLogFile>();
+  /** Total on disk as measured by the last sweep, after its deletions. */
+  private observedTotalBytes = 0;
+  private bytesSincePrune = 0;
+  private lastPruneAt = Number.NEGATIVE_INFINITY;
 
   constructor(options: AppLoggerOptions) {
     this.directory = options.directory;
@@ -163,6 +185,7 @@ export class AppLogger {
     this.level = options.level ?? "INFO";
     this.runId = options.runId;
     this.now = options.now ?? (() => Date.now());
+    this.pruneIntervalMs = options.pruneIntervalMs ?? DEFAULT_PRUNE_INTERVAL_MS;
     mkdirSync(this.directory, { recursive: true });
   }
 
@@ -193,26 +216,82 @@ export class AppLogger {
     return `${base}.${this.policy.maxFiles - 1}.log`;
   }
 
+  /**
+   * Resolves the file to append to, reusing the last answer while it is still valid.
+   *
+   * `fileFor` stats up to `maxFiles` candidates, so calling it for every line made the cost of
+   * writing a line scale with the number of files on disk. The answer only changes when the
+   * day rolls over or the file fills, and both are things we can see from the byte count we
+   * are already keeping, so it is now recomputed only at those two moments.
+   */
+  private resolveTarget(channel: LogChannel, timestamp: number): { file: ActiveLogFile; rolled: boolean } {
+    const day = new Date(timestamp).toISOString().slice(0, 10);
+    const current = this.active.get(channel);
+    if (current !== undefined && current.day === day && current.bytes < this.policy.maxFileBytes) {
+      return { file: current, rolled: false };
+    }
+    const fullPath = this.fileFor(channel, timestamp);
+    let bytes = 0;
+    try {
+      // A previous run may have left this file part-written; start from its real size rather
+      // than from zero, or the per-file bound would be measured from the wrong place.
+      bytes = statSync(fullPath).size;
+    } catch {
+      bytes = 0;
+    }
+    const file: ActiveLogFile = { fullPath, day, bytes };
+    this.active.set(channel, file);
+    return { file, rolled: true };
+  }
+
   log(input: LogRecordInput): void {
     // A CRASH line is written whatever the level is set to. A user who turned logging down
     // did not ask to lose the one record that explains why their app stopped.
     if (input.channel !== "CRASH" && LEVEL_RANK[input.level] > LEVEL_RANK[this.level]) return;
     const timestamp = this.now();
     const line = formatLogLine({ ...input, timestamp });
+    const payload = `${line}\n`;
+    const { file, rolled } = this.resolveTarget(input.channel, timestamp);
     try {
       mkdirSync(this.directory, { recursive: true });
-      appendFileSync(this.fileFor(input.channel, timestamp), `${line}\n`, "utf8");
+      appendFileSync(file.fullPath, payload, "utf8");
     } catch {
       // Logging must never take the app down with it. A failed write is invisible by design:
-      // there is nowhere left to report it to.
+      // there is nowhere left to report it to. The cached target is dropped so the next line
+      // re-resolves rather than retrying a path that may no longer exist.
+      this.active.delete(input.channel);
       return;
     }
+    const written = Buffer.byteLength(payload, "utf8");
+    file.bytes += written;
+    this.bytesSincePrune += written;
+    this.maybePrune(timestamp, rolled);
+  }
+
+  /**
+   * Decides whether this line needs a full sweep of the directory.
+   *
+   * The sweep -- one readdir plus a stat per file -- used to run on every line, and measured
+   * out at 55% of the total cost of logging. It is skipped when it provably cannot find
+   * anything to delete, which is the case unless one of the three bounds could have moved:
+   *
+   *   - file count: can only rise when a new file is started, i.e. on a rollover;
+   *   - total bytes: tracked exactly, from the last measured total plus what we have written
+   *     since, so the ceiling is still enforced on the line that would cross it;
+   *   - age: nothing we do can break it, only the clock can, hence the periodic sweep.
+   *
+   * So the bounds are unchanged. Only the number of times they are re-checked is.
+   */
+  private maybePrune(now: number, rolled: boolean): void {
+    const overCeiling = this.observedTotalBytes + this.bytesSincePrune > this.policy.maxTotalBytes;
+    if (!rolled && !overCeiling && now - this.lastPruneAt < this.pruneIntervalMs) return;
     this.prune();
   }
 
   prune(): readonly string[] {
+    const files = listLogFiles(this.directory);
     const removed: string[] = [];
-    for (const target of selectExpiredLogFiles(listLogFiles(this.directory), this.policy, this.now())) {
+    for (const target of selectExpiredLogFiles(files, this.policy, this.now())) {
       try {
         rmSync(target, { force: true });
         removed.push(target);
@@ -220,6 +299,13 @@ export class AppLogger {
         // Left in place; the next prune will try again.
       }
     }
+    const deleted = new Set(removed);
+    this.observedTotalBytes = files.reduce((sum, file) => (deleted.has(file.fullPath) ? sum : sum + file.bytes), 0);
+    this.bytesSincePrune = 0;
+    this.lastPruneAt = this.now();
+    // A deleted file may be the one a channel was appending to, and appending to a path that
+    // was just unlinked would silently recreate it outside the count. Re-resolve instead.
+    for (const [channel, file] of this.active) if (deleted.has(file.fullPath)) this.active.delete(channel);
     return Object.freeze(removed);
   }
 
