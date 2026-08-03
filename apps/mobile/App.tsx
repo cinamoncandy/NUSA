@@ -12,6 +12,7 @@ import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, NusaTextField } from "./src/components";
 import { ThemeProvider, useTheme } from "./src/ThemeProvider";
 import { PortfolioView, type PortfolioAccountResponse } from "./src/portfolioView";
+import { TradingView } from "./src/tradingView";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -104,7 +105,7 @@ function AuthenticatedApp() {
         <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Paper Trading</Text>
       </View>
-      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : <ScrollView
+      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : activeTab === "Trade" ? <TradingView error={error} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} stale={status?.stale ?? true} /> : <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
