@@ -16,7 +16,8 @@ import { PortfolioView, type PortfolioAccountResponse } from "./src/portfolioVie
 import { TradingView } from "./src/tradingView";
 import { MarketsView } from "./src/marketsView";
 import { WatchlistRepository } from "./src/watchlist";
-import { OrderHistoryView } from "./src/orderHistoryView";
+import { MoreView } from "./src/moreView";
+import type { SettingsRepository } from "./src/settings";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -62,6 +63,15 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
+  const settingsRepository = useMemo<SettingsRepository>(() => ({
+    load: async () => {
+      const raw = await AsyncStorage.getItem("nusa:app-settings");
+      return raw ? JSON.parse(raw) as Awaited<ReturnType<SettingsRepository["load"]>> : null;
+    },
+    save: async (next) => {
+      await AsyncStorage.setItem("nusa:app-settings", JSON.stringify(next));
+    },
+  }), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -119,7 +129,7 @@ function AuthenticatedApp() {
         <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Paper Trading</Text>
       </View>
-      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : activeTab === "Trade" ? <TradingView error={error} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} stale={status?.stale ?? true} /> : activeTab === "Markets" ? <MarketsView error={error} currentPrice={account?.account.available === false ? null : account?.account.markPrice ?? null} market={CHART_MARKET} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} rawCandles={candles} rawMarkets={markets} refreshing={refreshing} repository={watchlistRepository} stale={status?.stale ?? true} /> : activeTab === "More" ? <OrderHistoryView error={error} onRefresh={onRefresh} rawOrders={account?.account.orders ?? null} refreshing={refreshing} /> : <ScrollView
+      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : activeTab === "Trade" ? <TradingView error={error} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} stale={status?.stale ?? true} /> : activeTab === "Markets" ? <MarketsView error={error} currentPrice={account?.account.available === false ? null : account?.account.markPrice ?? null} market={CHART_MARKET} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} rawCandles={candles} rawMarkets={markets} refreshing={refreshing} repository={watchlistRepository} stale={status?.stale ?? true} /> : activeTab === "More" ? <MoreView error={error} onRefresh={onRefresh} rawOrders={account?.account.orders ?? null} refreshing={refreshing} settingsRepository={settingsRepository} /> : <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >

@@ -38,6 +38,7 @@ test("order history UI uses design system, read-only data, and all required stat
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(app, /activeTab === "More"/);
-  assert.match(app, /<OrderHistoryView/);
+  assert.match(app, /<MoreView/);
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8"), /<OrderHistoryView/);
   assert.match(app, /account\?\.account\.orders/);
 });
