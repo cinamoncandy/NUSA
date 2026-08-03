@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T14:45:00+09:00"
+updated_at: "2026-08-03T15:05:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: codex/issue-027-performance-analytics
-active_pull_request: 79
+active_branch: codex/issue-028-ai-data-pipeline
+active_pull_request: 80
 latest_verified_slice:
-  id: performance-analytics-027
-  evidence: "PR #79 merged at 801d3360e91e2b1d33f07a2dece397e0d9ad5cb7 from commit 750b52a; CI run 30786753634 and test run 30786753639 SUCCESS; focused analytics/regression tests 15/15, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
-  summary: "Added deterministic Paper performance analytics for maximum drawdown, win/loss averages, streaks, symbol/hour/strategy aggregation, and empty-data-safe summaries."
+  id: ai-data-pipeline-028
+  evidence: "PR #80 merged at 17e52f530ad936f824c20226fc06296f4024078d from commit c805ac8; CI run 30787365207 and test run 30787365228 SUCCESS; focused pipeline/research/analytics/risk tests 30/30, isolated suite 326 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+  summary: "Added Paper event collection, anonymized versioned feature-vector export, deterministic dataset integrity checksum, and fail-closed validation for AI inputs."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -84,6 +84,9 @@ completed:
   - id: performance-analytics-027
     evidence: "PR #79 merged at 801d3360e91e2b1d33f07a2dece397e0d9ad5cb7 from commit 750b52a; CI run 30786753634 and test run 30786753639 SUCCESS; focused analytics/regression tests 15/15, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
     summary: "Paper-only performance summary now includes MDD, win/loss averages, consecutive streaks, and deterministic symbol, UTC-hour, and strategy performance buckets."
+  - id: ai-data-pipeline-028
+    evidence: "PR #80 merged at 17e52f530ad936f824c20226fc06296f4024078d from commit c805ac8; CI run 30787365207 and test run 30787365228 SUCCESS; focused pipeline/research/analytics/risk tests 30/30, isolated suite 326 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+    summary: "AI dataset pipeline collects typed Paper events, strips identifiers/credentials, creates deterministic numeric feature vectors, versions exports, and verifies integrity."
 in_progress:
   - id: live-trading-provider-015
     evidence: "branch codex/issue-015-live-trading-adapter; commit b0441e8; pushed to origin; PR creation blocked because GitHub API egress is unavailable."
@@ -99,7 +102,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Performance Analytics #027 is merged and verified; continue only with the next approved P0/P1 work order. Keep live mutation disabled."
+  reason: "AI Data Pipeline #028 is merged and verified; continue only with the next approved P0/P1 work order. Keep live mutation disabled."
 verification:
   required:
     - "pnpm run preflight"
@@ -112,8 +115,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: PR #79 merged; CI run 30786753634 and test run 30786753639 SUCCESS; focused analytics/regression tests 15/15, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
-  current_commit: "801d3360e91e2b1d33f07a2dece397e0d9ad5cb7"
+  last_result: "PASS: PR #80 merged; CI run 30787365207 and test run 30787365228 SUCCESS; focused pipeline/research/analytics/risk tests 30/30, isolated suite 326 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+  current_commit: "17e52f530ad936f824c20226fc06296f4024078d"
 operational_sessions:
   rc-07:
     status: BLOCKED
