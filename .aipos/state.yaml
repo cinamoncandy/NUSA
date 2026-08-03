@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T17:20:00+09:00"
+updated_at: "2026-08-03T17:01:22+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: codex/issue-036-ai-strategy-engine
-active_pull_request: 85
+active_branch: codex/issue-037-backtest-engine
+active_pull_request: 86
 latest_verified_slice:
-  id: ai-strategy-engine-036
-  evidence: "commit 7030f53; PR #85; focused DSL/AI Coach/strategy governance tests 19/19; local typecheck, build, lint, and git diff --check PASS; CI run 30791638698 and Mobile Native run 30791638733 SUCCESS."
-  summary: "Added deterministic restricted natural-language to Strategy DSL conversion, schema validation, dataset provenance, versioned idempotent Registry, and a fail-closed Paper evaluation boundary with no order authority."
+  id: dsl-backtest-engine-037
+  evidence: "commit ac42cf1; PR #86; focused DSL/backtest/regression tests 13/13; local typecheck, build, lint, and git diff --check PASS; CI run 30795373740 and Mobile Native run 30795373824 SUCCESS."
+  summary: "Added deterministic Strategy DSL candle replay with Registry admission, exact Dataset provenance, risk sizing, fee/slippage, equity and performance metrics, look-ahead evidence, and integrity-checked report persistence."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -51,7 +51,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "#036 AI Strategy Engine is verified; keep #037 Backtest Engine blocked until this slice is merged and a separate approved work order is active."
+  reason: "#037 Backtest Engine is verified; await a separate approved work order before starting the next AI capability."
 verification:
   required:
     - "pnpm run preflight"
@@ -64,8 +64,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: PR #85 CI run 30791638698 and Mobile Native run 30791638733; typecheck, build, lint, security, architecture, UI, E2E, release, coverage, isolated suite, Android/iOS Debug/Release, Foundation smoke, and git diff --check all passed."
-  current_commit: "4fb3aed"
+  last_result: "PASS: PR #86 CI run 30795373740 and Mobile Native run 30795373824; typecheck, build, lint, security, architecture, UI, E2E, release, coverage, isolated suite, Android/iOS Debug/Release, Foundation smoke, and git diff --check all passed."
+  current_commit: "ac42cf1"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
