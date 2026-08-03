@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T17:01:22+09:00"
-phase: mobile-rc-integration
+updated_at: "2026-08-03T17:25:05+09:00"
+phase: ai-research
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: codex/issue-037-backtest-engine
-active_pull_request: 86
+active_branch: codex/issue-038-strategy-optimizer
+active_pull_request: null
 latest_verified_slice:
-  id: dsl-backtest-engine-037
-  evidence: "commit ac42cf1; PR #86; focused DSL/backtest/regression tests 13/13; local typecheck, build, lint, and git diff --check PASS; CI run 30795373740 and Mobile Native run 30795373824 SUCCESS."
-  summary: "Added deterministic Strategy DSL candle replay with Registry admission, exact Dataset provenance, risk sizing, fee/slippage, equity and performance metrics, look-ahead evidence, and integrity-checked report persistence."
+  id: strategy-optimizer-038
+  evidence: "commit 96df0a0; focused Strategy/Backtest/Optimizer regression tests 22/22; local typecheck, build, lint, and git diff --check PASS."
+  summary: "Added bounded deterministic DSL candidate generation, Train/Validation walk-forward scoring, reserved Holdout gating, Dataset reuse protection, provenance checks, complexity/generalization penalties, and owner-approved promotion candidates."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -43,6 +43,9 @@ completed:
     evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
     summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
 in_progress:
+  - id: strategy-optimizer-038
+    evidence: "commit 96df0a0; tests/ai-strategy-optimizer.test.js 5/5; local static verification PASS; remote CI pending"
+    summary: "Strategy Optimizer is implemented as a Research/Paper-only layer over StrategyRegistry and runDslBacktest; automatic replacement remains disabled."
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
@@ -50,8 +53,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "#037 Backtest Engine is verified; await a separate approved work order before starting the next AI capability."
+  work_order: .aipos/work-orders/WO-0011-strategy-optimizer.yaml
+  reason: "#038 Strategy Optimizer is implemented locally; finish remote CI and merge verification before starting #039."
 verification:
   required:
     - "pnpm run preflight"
@@ -64,8 +67,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: PR #86 CI run 30795373740 and Mobile Native run 30795373824; typecheck, build, lint, security, architecture, UI, E2E, release, coverage, isolated suite, Android/iOS Debug/Release, Foundation smoke, and git diff --check all passed."
-  current_commit: "ac42cf1"
+  last_result: "PASS locally: #038 focused/regression tests 22/22, typecheck, build, lint, and git diff --check; remote CI not yet run."
+  current_commit: "96df0a0"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
