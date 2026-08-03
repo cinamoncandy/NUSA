@@ -15,6 +15,7 @@ export interface StoredOrderReconciliationRunSummary {
   readonly overdueCount: number;
   readonly criticalCount: number;
   readonly truncated: boolean;
+  readonly nextCursor: string | undefined;
 }
 
 export interface StoredOrderReconciliationItem {
@@ -46,7 +47,8 @@ export class SqliteOrderReconciliationEvidenceRepository implements UnknownSubmi
         unresolved_count INTEGER NOT NULL,
         overdue_count INTEGER NOT NULL,
         critical_count INTEGER NOT NULL,
-        truncated INTEGER NOT NULL CHECK (truncated IN (0, 1))
+        truncated INTEGER NOT NULL CHECK (truncated IN (0, 1)),
+        next_cursor TEXT
       );
       CREATE TABLE IF NOT EXISTS order_reconciliation_items (
         run_id TEXT NOT NULL,
@@ -75,8 +77,8 @@ export class SqliteOrderReconciliationEvidenceRepository implements UnknownSubmi
       this.db.connection.prepare(`
         INSERT INTO order_reconciliation_runs (
           run_id, started_at_ms, scanned_count, resolved_count, unresolved_count,
-          overdue_count, critical_count, truncated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          overdue_count, critical_count, truncated, next_cursor
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         run.runId,
         run.startedAtMs.toString(),
@@ -85,7 +87,8 @@ export class SqliteOrderReconciliationEvidenceRepository implements UnknownSubmi
         run.unresolvedCount,
         run.overdueCount,
         run.criticalCount,
-        run.truncated ? 1 : 0
+        run.truncated ? 1 : 0,
+        run.nextCursor ?? null
       );
 
       const insertItem = this.db.connection.prepare(`
@@ -124,7 +127,8 @@ export class SqliteOrderReconciliationEvidenceRepository implements UnknownSubmi
       unresolvedCount: Number(row.unresolved_count),
       overdueCount: Number(row.overdue_count),
       criticalCount: Number(row.critical_count),
-      truncated: Number(row.truncated) === 1
+      truncated: Number(row.truncated) === 1,
+      nextCursor: row.next_cursor == null ? undefined : String(row.next_cursor)
     })));
   }
 
