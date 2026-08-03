@@ -3,6 +3,7 @@ export type AiEventType = "TRADE" | "PORTFOLIO_SNAPSHOT" | "MARKET_SNAPSHOT" | "
 export interface AiDataEvent { readonly type: AiEventType; readonly timestamp: number; readonly payload: Readonly<Record<string, string | number | boolean | null | readonly number[]>>; }
 export interface FeatureVector { readonly eventType: AiEventType; readonly timestamp: number; readonly values: readonly number[]; }
 export interface AiDatasetExport { readonly datasetVersion: string; readonly generatedAt: number; readonly events: readonly AiDataEvent[]; readonly featureVectors: readonly FeatureVector[]; readonly checksum: string; }
+export interface AiDatasetReplay { readonly datasetVersion: string; readonly eventCount: number; readonly countsByType: Readonly<Record<AiEventType, number>>; readonly featureVectorCount: number; readonly checksum: string; }
 
 const EVENT_TYPES: readonly AiEventType[] = ["TRADE", "PORTFOLIO_SNAPSHOT", "MARKET_SNAPSHOT", "ANALYTICS", "STRATEGY", "RISK"];
 const SENSITIVE_KEYS = /account|user|email|phone|token|secret|api.?key|credential|order.?id|client.?id/i;
@@ -40,3 +41,11 @@ export class AiDataPipeline {
 }
 
 export function verifyAiDatasetExport(dataset: AiDatasetExport): boolean { if (!dataset.datasetVersion.trim() || !Number.isSafeInteger(dataset.generatedAt) || !Array.isArray(dataset.events) || !Array.isArray(dataset.featureVectors)) return false; const { checksum: expected, ...body } = dataset; return checksum(body) === expected; }
+
+export function replayAiDataset(dataset: AiDatasetExport): AiDatasetReplay {
+  if (!verifyAiDatasetExport(dataset)) throw new Error("AI dataset integrity check failed");
+  const counts = Object.fromEntries(EVENT_TYPES.map((type) => [type, 0])) as Record<AiEventType, number>;
+  for (const event of dataset.events) { if (!EVENT_TYPES.includes(event.type)) throw new Error("AI dataset event type is invalid"); counts[event.type] += 1; }
+  if (dataset.featureVectors.length !== dataset.events.length) throw new Error("AI dataset feature vector count mismatch");
+  return Object.freeze({ datasetVersion: dataset.datasetVersion, eventCount: dataset.events.length, countsByType: Object.freeze(counts), featureVectorCount: dataset.featureVectors.length, checksum: checksum({ datasetVersion: dataset.datasetVersion, events: dataset.events, featureVectors: dataset.featureVectors }) });
+}
