@@ -13,6 +13,7 @@ export interface WatchlistStorage {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
 }
+import { VersionedJsonStore } from "./mobilePersistence";
 
 export interface WatchlistViewModel {
   readonly state: "LOADING" | "EMPTY" | "READY" | "ERROR";
@@ -57,23 +58,16 @@ export function parseWatchlistMarkets(raw: unknown): readonly WatchlistMarket[] 
 }
 
 export class WatchlistRepository {
-  public constructor(private readonly storage: WatchlistStorage, private readonly key = WATCHLIST_KEY) {}
+  private readonly durable: VersionedJsonStore<readonly string[]>;
+  public constructor(storage: WatchlistStorage, key = WATCHLIST_KEY) { this.durable = new VersionedJsonStore(storage, key, 1, (value) => { if (!Array.isArray(value) || !value.every((item): item is string => typeof item === "string")) throw new Error("invalid watchlist payload"); return normalizeWatchlist(value); }); }
 
   public async load(): Promise<readonly string[]> {
-    const raw = await this.storage.getItem(this.key);
-    if (raw === null) return freeze([]);
-    try {
-      const value: unknown = JSON.parse(raw);
-      if (!Array.isArray(value) || !value.every((item): item is string => typeof item === "string")) throw new Error("invalid watchlist payload");
-      return normalizeWatchlist(value);
-    } catch {
-      throw new Error("stored watchlist is invalid");
-    }
+    try { return (await this.durable.load()) ?? freeze([]); } catch { throw new Error("stored watchlist is invalid"); }
   }
 
   public async save(markets: readonly string[]): Promise<readonly string[]> {
     const normalized = normalizeWatchlist(markets);
-    await this.storage.setItem(this.key, JSON.stringify(normalized));
+    await this.durable.save(normalized);
     return normalized;
   }
 
