@@ -6,14 +6,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
+import { NusaButton, NusaCard, NusaTextField } from "./src/components";
+import { ThemeProvider, useTheme } from "./src/ThemeProvider";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
+const theme = { container: { flex: 1 } } as const;
 type Tab = (typeof tabs)[number];
 type Monitor = { marketConnectionState: string; warmupState: string; stale: boolean; observedAt: string };
 type Account = { mode: string; account: Record<string, unknown>; openOrderCount: number };
@@ -25,11 +27,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export default function App() {
-  return (
-    <AuthContextProvider>
-      <AuthenticatedApp />
-    </AuthContextProvider>
-  );
+  return <ThemeProvider initialMode="dark"><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></ThemeProvider>;
 }
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -44,7 +42,10 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
 
 function AuthenticatedApp() {
   const { status: authStatus, signIn } = useAuth();
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Monitor | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,21 +78,19 @@ function AuthenticatedApp() {
   }, [refresh]);
 
   if (authStatus === "CHECKING") {
-    return <SafeAreaView style={theme.container}><View style={styles.authContent}><Text style={styles.brand}>NUSA</Text><Text style={styles.heading}>Loading</Text></View></SafeAreaView>;
+    return <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}><View style={styles.authContent}><Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text><Text style={[styles.heading, { color: theme.colors.text }]}>Loading</Text></View></SafeAreaView>;
   }
 
   if (authStatus !== "SIGNED_IN") {
     return (
-      <SafeAreaView style={theme.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.authContent}>
-          <Text style={styles.brand}>NUSA</Text>
-          <Text style={styles.heading}>Sign in</Text>
-          <Text style={styles.subtitle}>Authentication foundation</Text>
-          <TextInput accessibilityLabel="Email" autoCapitalize="none" placeholder="Email" placeholderTextColor="#94a3b8" style={styles.input} />
-          <TextInput accessibilityLabel="Password" secureTextEntry placeholder="Password" placeholderTextColor="#94a3b8" style={styles.input} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={signIn} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonLabel}>Sign in</Text>
-          </Pressable>
+          <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
+          <Text style={[styles.heading, { color: theme.colors.text }]}>Sign in</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Authentication foundation</Text>
+          <NusaTextField accessibilityLabel="Email" label="Email" onChangeText={setEmail} placeholder="Email" testID="auth-email" value={email} />
+          <NusaTextField accessibilityLabel="Password" label="Password" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" value={password} />
+          <NusaButton accessibilityLabel="Sign in" label="Sign in" onPress={signIn} testID="auth-submit" />
           <Text style={styles.meta}>Mode: {AUTH_MODE}. Server authentication is out of scope.</Text>
         </View>
       </SafeAreaView>
@@ -99,32 +98,22 @@ function AuthenticatedApp() {
   }
 
   return (
-    <SafeAreaView style={theme.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.brand}>NUSA</Text>
-        <Text style={styles.mode}>Paper Trading</Text>
+        <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
+        <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Paper Trading</Text>
       </View>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text style={styles.heading}>{activeTab}</Text>
+        <Text style={[styles.heading, { color: theme.colors.text }]}>{activeTab}</Text>
         {activeTab === "Home" ? (
           <>
-            <Text style={styles.subtitle}>Trading command center</Text>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <View style={styles.card}>
-              <Text style={styles.label}>Market Connection</Text>
-              <Text style={styles.value}>{status?.marketConnectionState ?? "Checking"}</Text>
-              <Text style={styles.meta}>Warm-up: {status?.warmupState ?? "Checking"}</Text>
-              <Text style={styles.meta}>Data: {status?.stale ? "Stale" : "Current"}</Text>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.label}>Account</Text>
-              <Text style={styles.value}>{account ? `${Object.keys(account.account).length} assets` : "Checking"}</Text>
-              <Text style={styles.meta}>Open orders: {account?.openOrderCount ?? "-"}</Text>
-              <Text style={styles.meta}>Mode: {account?.mode ?? "PAPER"}</Text>
-            </View>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Trading command center</Text>
+            {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error}</Text> : null}
+            <NusaCard testID="market-card"><Text style={[styles.label, { color: theme.colors.textMuted }]}>Market Connection</Text><Text style={[styles.value, { color: theme.colors.primary }]}>{status?.marketConnectionState ?? "Checking"}</Text><Text style={styles.meta}>Warm-up: {status?.warmupState ?? "Checking"}</Text><Text style={styles.meta}>Data: {status?.stale ? "Stale" : "Current"}</Text></NusaCard>
+            <NusaCard testID="account-card"><Text style={[styles.label, { color: theme.colors.textMuted }]}>Account</Text><Text style={[styles.value, { color: theme.colors.primary }]}>{account ? `${Object.keys(account.account).length} assets` : "Checking"}</Text><Text style={styles.meta}>Open orders: {account?.openOrderCount ?? "-"}</Text><Text style={styles.meta}>Mode: {account?.mode ?? "PAPER"}</Text></NusaCard>
           </>
         ) : (
           <View style={styles.card}>
@@ -144,11 +133,8 @@ function AuthenticatedApp() {
   );
 }
 
-const theme = {
-  container: { flex: 1, backgroundColor: "#0f172a" } as const,
-};
-
 const styles = StyleSheet.create({
+  container: theme.container,
   authContent: { flex: 1, justifyContent: "center", padding: 24, gap: 14 },
   header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
   brand: { color: "#f8fafc", fontSize: 26, fontWeight: "800" },
