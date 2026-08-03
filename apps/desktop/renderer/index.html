@@ -131,6 +131,7 @@
     <section id="product-settings" class="product-section" aria-label="설정"></section>
     <section id="product-about" class="product-section" aria-label="앱 정보"></section>
     </div>
+    <section class="card notification-card"><h2>Notifications - Paper only</h2><label class="toggle"><input id="notifications-enabled" type="checkbox" /> Enable notifications</label><div class="notification-settings-grid"><label><input id="price-alerts" type="checkbox" /> Price alerts</label><label><input id="fill-alerts" type="checkbox" /> Fill alerts</label><label><input id="order-status-alerts" type="checkbox" /> Order status</label><label><input id="system-error-alerts" type="checkbox" /> System errors</label><label>Above (KRW)<input id="price-above" type="number" min="0" step="1000" /></label><label>Below (KRW)<input id="price-below" type="number" min="0" step="1000" /></label></div><ul id="notifications" class="notifications" aria-live="polite"></ul></section>
   </main>
   <div id="product-overlays"></div>
   <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
@@ -145,6 +146,8 @@
     </section>
   </div>
   <script src="brand-ui.js"></script>
+  <script src="notification-center.js"></script>
+  <script src="notification-center.js"></script>
   <script src="renderer.js"></script>
   <script src="application-state.js"></script>
   <script src="application-state-mount.js"></script>
