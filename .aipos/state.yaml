@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T16:45:00+09:00"
+updated_at: "2026-08-03T17:20:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: codex/issue-035-ai-personal-coach
-active_pull_request: 83
+active_branch: codex/issue-036-ai-strategy-engine
+active_pull_request: 85
 latest_verified_slice:
-  id: ai-personal-coach-035
-  evidence: "branch agent/issue-013-live-trading-adapter; adapter/factory/mode-switch tests 5/5, Upbit REST regression tests 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS; all mutation methods fail closed and productionMutationAllowed remains false"
-  summary: "Added default-Mock adapter selection, explicitly gated live-read adapter construction, runtime mode switching, and shared read-only mutation guards without enabling live order, cancel, or withdrawal execution."
+  id: ai-strategy-engine-036
+  evidence: "commit 7030f53; PR #85; focused DSL/AI Coach/strategy governance tests 19/19; local typecheck, build, lint, and git diff --check PASS; CI run 30791638698 and Mobile Native run 30791638733 SUCCESS."
+  summary: "Added deterministic restricted natural-language to Strategy DSL conversion, schema validation, dataset provenance, versioned idempotent Registry, and a fail-closed Paper evaluation boundary with no order authority."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -51,7 +51,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Obtain CI/native Android/iOS evidence for the fail-closed adapter guard, then keep live mutation disabled until a separately approved safety work order exists."
+  reason: "#036 AI Strategy Engine is verified; keep #037 Backtest Engine blocked until this slice is merged and a separate approved work order is active."
 verification:
   required:
     - "pnpm run preflight"
@@ -64,8 +64,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
-  current_commit: "142c4fa944f5e2e7e6a10a336120ba0e4af26244"
+  last_result: "PASS: PR #85 CI run 30791638698 and Mobile Native run 30791638733; typecheck, build, lint, security, architecture, UI, E2E, release, coverage, isolated suite, Android/iOS Debug/Release, Foundation smoke, and git diff --check all passed."
+  current_commit: "4fb3aed"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

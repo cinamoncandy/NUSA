@@ -73,5 +73,5 @@ rollback: "Revert only the focused P0/P1 fix commit; no trading state or product
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "#035 AI Personal Coach is merged and CI-verified in PR #83. Coach is read-only, dataset-bound, evidence-backed, and cannot mutate orders or strategies; real Paper operations and Owner Review remain external blockers."
-next_action: "Run GitHub native Android/iOS and full CI checks for Issue #013; keep live mutation disabled and do not infer external runtime PASS from local tests."
+current_status: "#036 AI Strategy Engine is implemented and CI-verified in PR #85. Natural-language generation is restricted to a validated DSL; Registry admission and Paper evaluation fail closed, and no order authority is exposed."
+next_action: "Do not start #037 Backtest Engine until PR #85 is merged; keep live mutation disabled and retain external Paper/runtime evidence blockers."
