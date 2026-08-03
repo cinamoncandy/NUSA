@@ -13,6 +13,7 @@ export interface AnalyticsTrade {
   readonly timestamp: number;
   readonly strategyId: string | null;
   readonly regime: string | null;
+  readonly symbol?: string;
 }
 
 export interface AnalyticsEquityPoint { readonly timestamp: number; readonly equity: number; }
@@ -34,6 +35,11 @@ export interface AnalyticsScreenState extends AnalyticsScreenInput {
   readonly winRate: number;
   readonly profitFactor: number | null;
   readonly expectancy: number | null;
+  readonly maximumDrawdown: number | null;
+  readonly averageWin: number | null;
+  readonly averageLoss: number | null;
+  readonly consecutiveWins: number;
+  readonly consecutiveLosses: number;
   readonly sharpeRatio: number | null;
   readonly sortinoRatio: number | null;
   readonly averageR: number | null;
@@ -45,6 +51,9 @@ export interface AnalyticsScreenState extends AnalyticsScreenInput {
   readonly monthlyReturns: readonly { readonly timestamp: number; readonly value: number }[];
   readonly distribution: Readonly<{ winning: number; losing: number; long: number; short: number; buy: number; sell: number; holdingDuration: readonly { readonly label: string; readonly count: number }[]; positionSize: readonly { readonly label: string; readonly count: number }[] }>;
   readonly strategyComparison: readonly AnalyticsScreenInput["strategies"][number][];
+  readonly symbolPerformance: readonly { readonly symbol: string; readonly tradeCount: number; readonly netProfit: number; readonly winRate: number; readonly profitFactor: number | null }[];
+  readonly hourlyPerformance: readonly { readonly hour: number; readonly tradeCount: number; readonly netProfit: number; readonly winRate: number }[];
+  readonly strategyPerformance: readonly { readonly strategyId: string; readonly tradeCount: number; readonly netProfit: number; readonly winRate: number; readonly profitFactor: number | null }[];
   readonly regimeAnalysis: readonly { readonly name: string; readonly tradeCount: number; readonly netProfit: number; readonly winRate: number; readonly expectancy: number | null }[];
   readonly bestRegime: string | null;
   readonly worstRegime: string | null;
@@ -109,6 +118,13 @@ export function buildAnalyticsScreen(input: AnalyticsScreenInput): AnalyticsScre
   const downsideDeviation = deviation(returnValues.filter((value) => value < 0));
   const strategyComparison = Object.freeze([...input.strategies].sort((left, right) => right.netProfit - left.netProfit || left.id.localeCompare(right.id)));
   const regimeAnalysis = Object.freeze(input.regimes.map((regime) => { const regimeWins = regime.trades.filter((trade) => trade.netPnl > 0); const profit = regime.trades.reduce((sum, trade) => sum + trade.netPnl, 0); return { name: regime.name, tradeCount: regime.trades.length, netProfit: profit, winRate: regime.trades.length ? regimeWins.length / regime.trades.length : 0, expectancy: regime.trades.length ? profit / regime.trades.length : null }; }).sort((left, right) => right.netProfit - left.netProfit || left.name.localeCompare(right.name)));
+  const groupedPerformance = (keyOf: (trade: AnalyticsTrade) => string) => Object.freeze([...input.trades.reduce((groups, trade) => { const key = keyOf(trade); const group = groups.get(key) ?? []; group.push(trade); groups.set(key, group); return groups; }, new Map<string, AnalyticsTrade[]>()).entries()].map(([key, trades]) => { const groupWins = trades.filter((trade) => trade.netPnl > 0); const groupGrossWins = groupWins.reduce((sum, trade) => sum + trade.netPnl, 0); const groupGrossLosses = trades.filter((trade) => trade.netPnl < 0).reduce((sum, trade) => sum + Math.abs(trade.netPnl), 0); return { key, tradeCount: trades.length, netProfit: trades.reduce((sum, trade) => sum + trade.netPnl, 0), winRate: groupWins.length / trades.length, profitFactor: ratio(groupGrossWins, groupGrossLosses) }; }).sort((left, right) => right.netProfit - left.netProfit || left.key.localeCompare(right.key)));
+  const symbolPerformance = Object.freeze(groupedPerformance((trade) => trade.symbol ?? "UNKNOWN").map(({ key, ...result }) => ({ symbol: key, ...result })));
+  const hourlyPerformance = Object.freeze(groupedPerformance((trade) => String(new Date(trade.timestamp).getUTCHours())).map(({ key, ...result }) => ({ hour: Number(key), tradeCount: result.tradeCount, netProfit: result.netProfit, winRate: result.winRate })).sort((left, right) => left.hour - right.hour));
+  const strategyPerformance = Object.freeze(groupedPerformance((trade) => trade.strategyId ?? "UNKNOWN").map(({ key, ...result }) => ({ strategyId: key, ...result })));
+  let currentWins = 0; let currentLosses = 0; let consecutiveWins = 0; let consecutiveLosses = 0;
+  for (const trade of input.trades) { if (trade.netPnl > 0) { currentWins += 1; currentLosses = 0; consecutiveWins = Math.max(consecutiveWins, currentWins); } else if (trade.netPnl < 0) { currentLosses += 1; currentWins = 0; consecutiveLosses = Math.max(consecutiveLosses, currentLosses); } }
+  const maximumDrawdown = returns.drawdown.length ? Math.max(...returns.drawdown.map((point) => point.drawdown)) : null;
   const insightSource = (source: string): string => `source:${source}`;
   const bestRegime = regimeAnalysis[0]?.name ?? null;
   const worstRegime = regimeAnalysis.at(-1)?.name ?? null;
@@ -119,7 +135,7 @@ export function buildAnalyticsScreen(input: AnalyticsScreenInput): AnalyticsScre
     ...(worstRegime && worstRegime !== bestRegime ? [{ kind: "RISK" as const, text: `Treat the ${worstRegime} regime as a review area before adding exposure.`, source: insightSource("regimes.netProfit") }] : [])
   ]);
   const distribution = freeze({ winning: wins.length, losing: losses.length, long: input.trades.filter((trade) => trade.direction === "LONG").length, short: input.trades.filter((trade) => trade.direction === "SHORT").length, buy: input.trades.filter((trade) => trade.side === "BUY").length, sell: input.trades.filter((trade) => trade.side === "SELL").length, holdingDuration: Object.freeze([{ label: "<1h", count: input.trades.filter((trade) => trade.holdingTimeMs < 3_600_000).length }, { label: "1h-1d", count: input.trades.filter((trade) => trade.holdingTimeMs >= 3_600_000 && trade.holdingTimeMs < 86_400_000).length }, { label: ">=1d", count: input.trades.filter((trade) => trade.holdingTimeMs >= 86_400_000).length }]), positionSize: Object.freeze([{ label: "small", count: input.trades.filter((trade) => trade.positionSize < 100).length }, { label: "medium", count: input.trades.filter((trade) => trade.positionSize >= 100 && trade.positionSize < 1_000).length }, { label: "large", count: input.trades.filter((trade) => trade.positionSize >= 1_000).length }]) });
-  const state = { ...input, netProfit, totalReturn: input.initialEquity === 0 || !input.equityCurve.length ? null : input.equityCurve.at(-1)!.equity / input.initialEquity - 1, winRate: input.trades.length ? wins.length / input.trades.length : 0, profitFactor: ratio(grossWins, grossLosses), expectancy: input.trades.length ? netProfit / input.trades.length : null, sharpeRatio: returnDeviation && returnDeviation > 0 ? mean(returnValues)! / returnDeviation * Math.sqrt(252) : null, sortinoRatio: downsideDeviation && downsideDeviation > 0 ? mean(returnValues)! / downsideDeviation * Math.sqrt(252) : null, averageR: mean(input.trades.map((trade) => trade.rMultiple).filter((value): value is number => value !== null)), averageHoldingTimeMs: mean(input.trades.map((trade) => trade.holdingTimeMs)), averageFee: mean(input.trades.map((trade) => trade.fees)), averageSlippage: mean(input.trades.map((trade) => trade.slippage).filter((value): value is number => value !== null)), drawdownCurve: returns.drawdown, dailyReturns, monthlyReturns, distribution, strategyComparison, regimeAnalysis, bestRegime, worstRegime, insights, export: { csv: "", json: "" } };
+  const state = { ...input, netProfit, totalReturn: input.initialEquity === 0 || !input.equityCurve.length ? null : input.equityCurve.at(-1)!.equity / input.initialEquity - 1, winRate: input.trades.length ? wins.length / input.trades.length : 0, profitFactor: ratio(grossWins, grossLosses), expectancy: input.trades.length ? netProfit / input.trades.length : null, averageWin: mean(wins.map((trade) => trade.netPnl)), averageLoss: mean(losses.map((trade) => trade.netPnl)), maximumDrawdown, consecutiveWins, consecutiveLosses, sharpeRatio: returnDeviation && returnDeviation > 0 ? mean(returnValues)! / returnDeviation * Math.sqrt(252) : null, sortinoRatio: downsideDeviation && downsideDeviation > 0 ? mean(returnValues)! / downsideDeviation * Math.sqrt(252) : null, averageR: mean(input.trades.map((trade) => trade.rMultiple).filter((value): value is number => value !== null)), averageHoldingTimeMs: mean(input.trades.map((trade) => trade.holdingTimeMs)), averageFee: mean(input.trades.map((trade) => trade.fees)), averageSlippage: mean(input.trades.map((trade) => trade.slippage).filter((value): value is number => value !== null)), drawdownCurve: returns.drawdown, dailyReturns, monthlyReturns, distribution, strategyComparison, symbolPerformance, hourlyPerformance, strategyPerformance, regimeAnalysis, bestRegime, worstRegime, insights, export: { csv: "", json: "" } };
   const exported = freeze({ csv: csv(state), json: JSON.stringify({ period: state.period, metrics: { netProfit: state.netProfit, totalReturn: state.totalReturn, winRate: state.winRate, profitFactor: state.profitFactor, expectancy: state.expectancy }, insights: state.insights }) });
   return freeze({ ...state, export: exported });
 }

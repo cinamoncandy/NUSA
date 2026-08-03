@@ -18,6 +18,7 @@ import { MarketsView } from "./src/marketsView";
 import { WatchlistRepository } from "./src/watchlist";
 import { MoreView } from "./src/moreView";
 import type { SettingsRepository } from "./src/settings";
+import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -63,15 +64,7 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
-  const settingsRepository = useMemo<SettingsRepository>(() => ({
-    load: async () => {
-      const raw = await AsyncStorage.getItem("nusa:app-settings");
-      return raw ? JSON.parse(raw) as Awaited<ReturnType<SettingsRepository["load"]>> : null;
-    },
-    save: async (next) => {
-      await AsyncStorage.setItem("nusa:app-settings", JSON.stringify(next));
-    },
-  }), []);
+  const settingsRepository = useMemo<SettingsRepository>(() => new VersionedSettingsRepository(AsyncStorage), []);
 
   const refresh = useCallback(async () => {
     try {

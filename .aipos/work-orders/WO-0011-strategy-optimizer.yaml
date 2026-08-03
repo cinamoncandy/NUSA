@@ -1,0 +1,39 @@
+id: WO-0011
+schema_version: 1
+title: "Implement deterministic Strategy Optimizer"
+status: COMPLETE
+priority: 90
+objective: "Compare validated Paper strategies with deterministic parameter search while preventing data leakage and unauthorized promotion."
+scope:
+  - "Generate bounded DSL candidates from an explicit parameter grid."
+  - "Run Train/Validation walk-forward windows through the existing Backtest Engine."
+  - "Evaluate one selected candidate on a reserved Holdout split."
+  - "Preserve Dataset provenance and Strategy Registry admission."
+  - "Emit an owner-approval-gated promotion candidate without replacing existing strategies."
+exclusions:
+  - "No live trading or production mutation."
+  - "No automatic strategy replacement or promotion."
+  - "No AI model training or probabilistic optimization."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - "Focused Strategy Optimizer tests"
+  - "Strategy DSL and Backtest regression tests"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run build"
+  - "git diff --check"
+completion_criteria:
+  - "Candidate generation is deterministic and bounded."
+  - "Train, Validation, and Holdout are separated."
+  - "Holdout failure blocks promotion candidate creation."
+  - "Repeated Dataset reuse is rejected by the run repository."
+  - "All verification commands pass and CI is green."
+evidence:
+  - "Feature commit 96df0a0: apps/mobile/src/aiStrategyOptimizer.ts and tests/ai-strategy-optimizer.test.js"
+  - "Focused/regression tests 22/22 PASS; typecheck, lint, build, and git diff --check PASS locally."
+current_status: "#038 Strategy Optimizer implemented, verified, and merged in PR #87."
+next_action: "Await a separate approved work order before starting #039 AI Evaluation."
+rollback: "Revert only the focused optimizer commit; no trading state or production data is changed."
