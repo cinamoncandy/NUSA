@@ -11,6 +11,7 @@ export interface PortfolioAccountSnapshot {
     readonly averagePrice: number;
     readonly realizedPnl: number;
   }>;
+  readonly orders?: readonly unknown[];
 }
 
 export interface PortfolioAccountResponse {

@@ -25,3 +25,7 @@ intervals, but it never fabricates missing prices or volume.
 The markets endpoint returns only validated Upbit public ticker DTOs. The
 watchlist stores market identifiers locally through AsyncStorage; it never
 stores credentials or creates trading mutations.
+
+The order history screen reads the validated Paper order snapshot included in
+`GET /api/account`. The desktop Paper broker persists that snapshot; the mobile
+screen remains read-only and does not create, cancel, or replace orders.
