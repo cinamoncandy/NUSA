@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T11:40:00+09:00"
+updated_at: "2026-08-03T14:25:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/issue-013-live-trading-adapter
-active_pull_request: null
+active_branch: codex/issue-026-risk-management
+active_pull_request: 78
 latest_verified_slice:
-  id: live-trading-adapter-guard
-  evidence: "branch agent/issue-013-live-trading-adapter; adapter/factory/mode-switch tests 5/5, Upbit REST regression tests 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS; all mutation methods fail closed and productionMutationAllowed remains false"
-  summary: "Added default-Mock adapter selection, explicitly gated live-read adapter construction, runtime mode switching, and shared read-only mutation guards without enabling live order, cancel, or withdrawal execution."
+  id: risk-management-026
+  evidence: "PR #78 merged at 6525703e285ef4e3c78100a5c6abb8c3df547ff4 from commit bc918ee; CI run 30786219141 and test run 30786219151 SUCCESS; focused risk/trading tests 38/38, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+  summary: "Added deterministic common risk evaluation with daily loss, position, symbol exposure, quantity, consecutive-loss and circuit-breaker gates, explicit acknowledged resume conditions, portfolio risk levels, and production mutation permanently disabled."
 completed:
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
@@ -42,7 +42,52 @@ completed:
   - id: upbit-public-websocket-adapter
     evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
     summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
+  - id: live-trading-adapter-guard
+    evidence: "PR #61 merged at 7267c2dea2508ef58b8589abf3343a22d6f783ed; CI #1956 and Mobile Native #44 SUCCESS; adapter tests 5/5, Upbit REST regression 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS"
+    summary: "Added default-Mock adapter selection, explicitly gated read-only LIVE adapter construction, runtime mode switching, and fail-closed submit/cancel/withdraw guards. Live mutation remains disabled."
+  - id: design-system-016
+    evidence: "PR #63 merged at 05cfc7f966cceba733dc7d0247a49fa3be5adead from commit 5b4b54c; CI #1959 SUCCESS and Mobile Native #46 SUCCESS; mobile design system tests 4/4, mobile regression tests 19/19, full isolated suite 317/317, typecheck, build, lint, and git diff --check PASS."
+    summary: "Added semantic design tokens, light/dark ThemeProvider, and reusable Button, TextField, and Card components while preserving the mobile foundation and Paper-only safety."
+  - id: portfolio-ui-017
+    evidence: "PR #65 merged at 2e92dd57d51bc682db4ab512e34f39a470740f09 from commit 90ace09; CI #1961 and Mobile Native #48 SUCCESS; changed files 5; focused Portfolio/mobile regression tests 22/22, full isolated suite 316/316, typecheck, build, lint, and git diff --check PASS."
+    summary: "Added the read-only mobile Portfolio screen with total equity, PnL, unavailable-safe return display, allocation, holdings, pull-to-refresh, loading, error, and empty states using the Design System."
+  - id: trading-ui-018
+    evidence: "PR #66 merged at b14725ad041f56456e24ee7e3c584ea406021d14 from commit bad49d1; CI #1963 and Mobile Native #50 SUCCESS; changed files 5; focused Trading/UI regression tests 24/24, Full isolated suite, coverage, typecheck, build, lint, UI/E2E, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+    summary: "Added Paper-only mobile Trading controls with verified price and market gates, Buy/Sell and Market/Limit inputs, balance checks, estimated notional, loading/empty/error states, and disabled mutation in the existing read-only bridge."
+  - id: advanced-chart-019
+    evidence: "PR #67 merged at 43c0f376564cd6264b9eee3f8bad5c4bea9762cc from commit 0ffc2a0; CI test and Mobile Native jobs SUCCESS; focused chart/mobile regression tests 31/31 and isolated suite 319 files PASS."
+    summary: "Added public-data-only mobile candlesticks, timeframe aggregation, volume, verified price line, and read-only bridge exposure without adding order or Live mutation paths."
+  - id: watchlist-020
+    evidence: "PR #68 merged at aac5cf89f01e50ed33b76da8e1bea4a9250e640d from commit de01e58; CI test run 30780681156 and Mobile Native run 30780681157 SUCCESS. Focused tests 36/36, isolated suite 320 files, typecheck, build, lint, preflight, architecture validation, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+    summary: "Added persistent read-only Watchlist UI, public ticker bridge DTOs, AsyncStorage persistence, deterministic search/sort/state handling, and no mutation paths."
+  - id: order-history-021
+    evidence: "PR #69 merged at eaa94a661bb176688693eac4f65b92a47d4faee6 from commit bc6c7f9; CI test run 30781663806 and Mobile Native run 30781663762 SUCCESS. Focused tests 39/39, isolated suite 321 files, typecheck, build, lint, preflight, architecture validation, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+    summary: "Added read-only Order History and fill history presentation from the persisted Paper account snapshot, with duplicate protection, filters, search, sort, paging, and required UI states."
+  - id: settings-ui-022
+    evidence: "PR #70 merged at f6a9d6b86baa5f97d0b530871577a6f1cb7c84aa from commit 5c9e4c4; CI test run 30782258771 and Mobile Native run 30782258777 SUCCESS."
+    summary: "Added Settings UI for theme, locale, notifications, Paper mode, app information, reset, and normalized AsyncStorage persistence in the More workspace."
+  - id: order-history-023
+    evidence: "PR #73 merged at b4037d378335104b7ee6c04996d3ad88d6eb1310 from commit 445c4e1; CI test run 30783755712 and Mobile Native run 30783755724 SUCCESS."
+    summary: "Added deterministic period filtering and validated read-only order/fill detail presentation to the existing Order History screen."
+  - id: notifications-024
+    evidence: "PR #74 merged at 41e57c42dda503a259933cd3402448559099a452 from commit 6afe6ab; CI test run 30784290117 and Mobile Native run 30784290146 SUCCESS."
+    summary: "Added Paper-only notification routing and UI with settings compliance and duplicate prevention."
+  - id: persistence-025
+    evidence: "PR #75 merged at 0ece75f90a5f6b5035298ed6fe8d15e1d9a52c67 from commit e1a771e; CI test run 30785103038 and Mobile Native run 30785103043 SUCCESS."
+    summary: "Added versioned persistence, checksums, backup recovery, and Watchlist corruption recovery tests."
+  - id: persistence-qa-076
+    evidence: "PR #77 merged at 59ed77d64256d8b4af4c9d08e22421346f0de3b6 from commit 47c8797; CI test run 30785718934 and Mobile Native run 30785718949 SUCCESS."
+    summary: "Wired Portfolio, Order History, and Settings to versioned persistence and added migration, rollback, and backup recovery verification."
+  - id: risk-management-026
+    evidence: "PR #78 merged at 6525703e285ef4e3c78100a5c6abb8c3df547ff4 from commit bc918ee; CI run 30786219141 and test run 30786219151 SUCCESS; focused risk/trading tests 38/38, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+    summary: "Deterministic common risk evaluation and fail-closed Paper safety gates for daily loss, position, exposure, quantity, consecutive losses, circuit breaker recovery, and portfolio risk level."
 in_progress:
+  - id: live-trading-provider-015
+    evidence: "branch codex/issue-015-live-trading-adapter; commit b0441e8; pushed to origin; PR creation blocked because GitHub API egress is unavailable."
+    summary: "Paper and Live provider contracts are locally verified; Live order, cancel, and withdrawal mutation remain disabled."
+  - id: portfolio-sync-014
+    evidence: "branch codex/issue-014-portfolio-sync; commit 8015586; pushed to origin; PR creation blocked because gh authentication token is invalid and GitHub API egress is unavailable."
+    summary: "Portfolio projection is synchronized and persisted after filled mobile Paper orders; merge and remote CI remain unverified."
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
@@ -51,7 +96,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Obtain CI/native Android/iOS evidence for the fail-closed adapter guard, then keep live mutation disabled until a separately approved safety work order exists."
+  reason: "Risk Management #026 is merged and verified; continue only with the next approved P0/P1 work order. Keep live mutation disabled."
 verification:
   required:
     - "pnpm run preflight"
@@ -64,8 +109,32 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
-  current_commit: "142c4fa944f5e2e7e6a10a336120ba0e4af26244"
+  last_result: "PASS: PR #78 merged; CI run 30786219141 and test run 30786219151 SUCCESS; focused risk/trading tests 38/38, isolated suite 325 files, typecheck, build, lint, Android/iOS Debug/Release, Foundation smoke, and git diff --check PASS."
+  current_commit: "6525703e285ef4e3c78100a5c6abb8c3df547ff4"
+operational_sessions:
+  rc-07:
+    status: BLOCKED
+    evidence: "Actual Electron PAPER runtime launched at 2026-08-03T07:25:37+09:00 with app version 0.1.0 and source HEAD 07f70b0ea6af9a1a50e7a588a456af870901831b. Preflight deployment/reconciliation/risk gates PASS; public Upbit market exhausted reconnect attempts and ended DISCONNECTED with no first ticker, so Paper order controls stayed disabled. No orders were created and no synthetic/test counts were credited."
+    started_at: "2026-08-03T07:25:37+09:00"
+    ended_at: "2026-08-03T07:28:41+09:00"
+    orders_created: 0
+    orders_completed: 0
+    blocker: "EXTERNAL_PUBLIC_MARKET_NETWORK_UNAVAILABLE"
+    raw_logs: "C:\\Users\\PC\\AppData\\Local\\Temp\\NUSA-RC07-paper-session-20260803-1236"
+    observation: "runtime-observation.json records PAPER mode, liveTrading/privateApi/credentialStorage false, orders 0, ledger/account equity match at 10000000, and final market DISCONNECTED after reconnect attempt 10."
+  rc-04-network-diagnostic:
+    status: BLOCKED
+    evidence: "2026-08-03T07:33:36+09:00. Repository endpoint is wss://api.upbit.com/websocket/v1. DNS resolved api.upbit.com through CNAME api.upbitit.cool; TCP 443 failed for resolved addresses; curl HTTPS probe failed before TLS; Node ws failed with EACCES and close code 1006 before open; no ping, pong, or ticker. example.com TCP/HTTPS also failed, so this is an environment/network egress blocker rather than an application-only endpoint failure. No proxy variables were configured and WinHTTP reports direct access. Windows Firewall shows active outbound rule codex_sandbox_offline_block_outbound; Electron/Node/Git/gh-specific outbound blocking was not found in the filtered rule output. VPN and antivirus status were not readable in this session."
+    endpoint: "wss://api.upbit.com/websocket/v1"
+    dns: "RESOLVED, CNAME api.upbitit.cool"
+    tcp: "FAIL"
+    tls: "NOT_REACHED; no certificate error observed"
+    websocket_handshake: "FAIL, EACCES / close 1006"
+    ping: "NOT_SENT"
+    pong: "NOT_RECEIVED"
+    first_ticker: "NOT_RECEIVED"
+    retry_count: 10
+    raw_runtime_evidence: "C:\\Users\\PC\\AppData\\Local\\Temp\\NUSA-RC07-paper-session-20260803-1236; Windows Firewall rule: codex_sandbox_offline_block_outbound"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

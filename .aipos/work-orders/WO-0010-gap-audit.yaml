@@ -43,6 +43,7 @@ completion_criteria:
   - "Only then may a separate release-target decision be made."
 evidence:
   - "Issue #013 slice on agent/issue-013-live-trading-adapter: default-Mock adapter, explicitly gated LIVE read adapter, runtime mode switch, and fail-closed submit/cancel/withdraw guards; adapter tests 5/5, Upbit REST regression 10/10, deployment descriptor 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff check PASS. No live mutation was enabled."
+  - "PR #61 merged at 7267c2dea2508ef58b8589abf3343a22d6f783ed; CI #1956 and Mobile Native #44 SUCCESS, including Android/iOS debug and release plus Foundation Smoke."
   - "Issue #012 slice on agent/issue-012-upbit-websocket: public Upbit ticker/trade/orderbook parser, typed callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and Mock transport; focused tests 7/7, reconnect regression tests 23/23, full isolated suite 314/314; typecheck, build, lint, and git diff check PASS."
   - "Issue #011 slice on agent/issue-011-upbit-rest-api: typed Upbit REST read adapter, JWT claims, env credential validation, retry/error mapping, order chance reads, Mock adapter, and fail-closed live mutation; focused tests 10/10; typecheck, build, lint, and diff check PASS."
   - "Issue #010 CI eighth root cause: Linux hermesc was valid and executable, but Gradle resolved the relative hermesCommand from a different working directory; command now uses rootDir-based absolute path."
@@ -73,5 +74,7 @@ rollback: "Revert only the focused P0/P1 fix commit; no trading state or product
 blockers:
   - "Native Android/iOS toolchains, signed artifacts, and device evidence are unavailable."
   - "Real Upbit runtime and long-duration runtime/Shadow execution require an external approved environment."
-current_status: "Repository-verifiable execution, accounting, recovery, offline, security, coverage, release, regime-policy, public Upbit WebSocket, and fail-closed adapter guard checks pass on the feature branch; native mobile builds, real Upbit runtime, long-duration runtime, and Order Engine runtime-wiring evidence remain external or unverified."
-next_action: "Run GitHub native Android/iOS and full CI checks for Issue #013; keep live mutation disabled and do not infer external runtime PASS from local tests."
+  - "RC-07 actual PAPER session blocked: public Upbit market connection remained RECONNECTING in the approved PAPER runtime; no orders were created and no operational count was credited. Raw evidence: %TEMP%\\NUSA-RC07-paper-session-20260803-1236."
+  - "RC-04 root cause identified: active Windows Firewall outbound rule codex_sandbox_offline_block_outbound blocks egress; Upbit TCP 443 and example.com HTTPS failed, Node ws returned EACCES/1006, no proxy configured. Disabling the rule requires administrator approval."
+current_status: "#026 Risk Management is verified complete. PR #78 merged at 6525703e285ef4e3c78100a5c6abb8c3df547ff4 from bc918ee; focused risk/trading tests 38/38, isolated suite 325 files, CI run 30786219141 and test run 30786219151 SUCCESS, including Android/iOS Debug/Release and Foundation smoke; live mutation remains disabled."
+next_action: "Continue only with the next approved P0/P1 work order; keep live mutation disabled."
