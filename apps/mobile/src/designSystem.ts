@@ -58,19 +58,19 @@ export function createTheme(mode: ThemeMode): Theme {
   return freezeTheme({
     mode,
     colors: {
-      background: dark ? "#0f172a" : "#f8fafc",
-      surface: dark ? "#1e293b" : "#ffffff",
-      surfaceRaised: dark ? "#334155" : "#f1f5f9",
-      text: dark ? "#f8fafc" : "#0f172a",
-      textMuted: dark ? "#94a3b8" : "#475569",
-      primary: dark ? "#2dd4bf" : "#0f766e",
-      onPrimary: dark ? "#0f172a" : "#ffffff",
-      border: dark ? "#334155" : "#cbd5e1",
-      success: dark ? "#34d399" : "#047857",
-      warning: dark ? "#fbbf24" : "#b45309",
-      danger: dark ? "#fb7185" : "#be123c",
+      background: dark ? "#081426" : "#f4f8ff",
+      surface: dark ? "#0d1b32" : "#ffffff",
+      surfaceRaised: dark ? "#132543" : "#eaf2ff",
+      text: dark ? "#f5f7fa" : "#0a1730",
+      textMuted: dark ? "#8fa6c7" : "#53657d",
+      primary: dark ? "#1a73ff" : "#075fd8",
+      onPrimary: "#ffffff",
+      border: dark ? "#203858" : "#c8d8ee",
+      success: dark ? "#00e6a7" : "#008a68",
+      warning: dark ? "#ffb44a" : "#a85a00",
+      danger: dark ? "#ff6680" : "#c32548",
       onDanger: "#ffffff",
-      focus: dark ? "#5eead4" : "#0f766e",
+      focus: dark ? "#00dfff" : "#087da5",
     },
     typography: {
       fontFamily: "System",
@@ -86,9 +86,9 @@ export function createTheme(mode: ThemeMode): Theme {
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 4, md: 8, lg: 12, xl: 16, full: 9999 },
     shadows: {
-      sm: { color: "#000000", offset: { width: 0, height: 2 }, opacity: dark ? 0.18 : 0.08, radius: 6, elevation: 2 },
-      md: { color: "#000000", offset: { width: 0, height: 8 }, opacity: dark ? 0.24 : 0.12, radius: 24, elevation: 5 },
-      focus: { color: dark ? "#5eead4" : "#0f766e", offset: { width: 0, height: 0 }, opacity: 0.32, radius: 3, elevation: 0 },
+      sm: { color: "#001b45", offset: { width: 0, height: 4 }, opacity: dark ? 0.28 : 0.08, radius: 12, elevation: 3 },
+      md: { color: "#001b45", offset: { width: 0, height: 12 }, opacity: dark ? 0.34 : 0.12, radius: 28, elevation: 7 },
+      focus: { color: dark ? "#00dfff" : "#087da5", offset: { width: 0, height: 0 }, opacity: 0.4, radius: 6, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
   });
@@ -101,8 +101,8 @@ export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
     background: tone === "danger" ? theme.colors.danger : tone === "neutral" ? theme.colors.surfaceRaised : theme.colors.primary,
     foreground: tone === "danger" ? theme.colors.onDanger : tone === "neutral" ? theme.colors.text : theme.colors.onPrimary,
     disabledOpacity: 0.48,
-    radius: theme.radii.md,
-    minHeight: 48,
+    radius: theme.radii.lg,
+    minHeight: 50,
     horizontalPadding: theme.spacing.lg,
   });
 }
@@ -114,8 +114,8 @@ export function fieldTokens(theme: Theme) {
     placeholder: theme.colors.textMuted,
     border: theme.colors.border,
     focus: theme.colors.focus,
-    radius: theme.radii.md,
-    minHeight: 48,
+    radius: theme.radii.lg,
+    minHeight: 50,
   });
 }
 
@@ -123,7 +123,7 @@ export function cardTokens(theme: Theme) {
   return Object.freeze({
     background: theme.colors.surface,
     border: theme.colors.border,
-    radius: theme.radii.lg,
+    radius: theme.radii.xl,
     padding: theme.spacing.lg,
     shadow: theme.shadows.sm,
   });
