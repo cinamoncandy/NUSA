@@ -89,3 +89,12 @@ footer { padding: var(--space-24); color: hsl(var(--color-text-muted)); font-siz
   .cio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .a4-diagnostics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.notification-card { margin-top: var(--space-24); }
+.notification-settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); margin-top: var(--space-16); }
+.notification-settings-grid label { display: flex; align-items: center; gap: var(--space-8); }
+.notification-settings-grid input[type="checkbox"], .toggle input { width: auto; margin: 0; }
+.notification-settings-grid input[type="number"] { margin-top: var(--space-8); }
+.notifications { display: grid; gap: var(--space-8); margin: var(--space-16) 0 0; padding: 0; list-style: none; }
+.notification { display: flex; justify-content: space-between; gap: var(--space-12); padding: var(--space-12); border: 1px solid hsl(var(--color-border)); border-radius: var(--radius-md); background: hsl(var(--color-surface-raised)); }
+.notification span { color: hsl(var(--color-text-muted)); text-align: right; }
+@media (max-width: 47.5rem) { .notification-settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
