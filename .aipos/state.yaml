@@ -1,17 +1,20 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T11:40:00+09:00"
-phase: mobile-rc-integration
+updated_at: "2026-08-03T17:38:00+09:00"
+phase: ai-research
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/issue-013-live-trading-adapter
-active_pull_request: null
+active_branch: codex/issue-038-strategy-optimizer
+active_pull_request: 87
 latest_verified_slice:
-  id: live-trading-adapter-guard
-  evidence: "branch agent/issue-013-live-trading-adapter; adapter/factory/mode-switch tests 5/5, Upbit REST regression tests 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS; all mutation methods fail closed and productionMutationAllowed remains false"
-  summary: "Added default-Mock adapter selection, explicitly gated live-read adapter construction, runtime mode switching, and shared read-only mutation guards without enabling live order, cancel, or withdrawal execution."
+  id: strategy-optimizer-038
+  evidence: "commits 96df0a0 and fd450ec; PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; focused Strategy/Backtest/Optimizer regression tests 22/22; CI test run 30797419234 SUCCESS; Mobile Native run 30797419236 SUCCESS after iOS release rerun."
+  summary: "Added bounded deterministic DSL candidate generation, Train/Validation walk-forward scoring, reserved Holdout gating, Dataset reuse protection, provenance checks, complexity/generalization penalties, and owner-approved promotion candidates."
 completed:
+  - id: strategy-optimizer-038
+    evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
+    summary: "Added a bounded deterministic Strategy Optimizer over the existing StrategyRegistry and Backtest Engine with walk-forward validation, reserved Holdout gating, Dataset reuse protection, and owner-approved promotion candidates."
   - id: runtime-foundation
     evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
     summary: "Typed event bus, engine registry, plugin lifecycle, runtime composition, and tests."
@@ -50,8 +53,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0010-gap-audit.yaml
-  reason: "Obtain CI/native Android/iOS evidence for the fail-closed adapter guard, then keep live mutation disabled until a separately approved safety work order exists."
+  work_order: .aipos/work-orders/WO-0011-strategy-optimizer.yaml
+  reason: "#038 Strategy Optimizer is merged and verified; await a separate approved work order before starting #039."
 verification:
   required:
     - "pnpm run preflight"
@@ -64,8 +67,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: root and mobile typecheck, lint, build, mobile release structure tests 6/6, and git diff --check; local security gate UNVERIFIED because dependency audit is unavailable."
-  current_commit: "142c4fa944f5e2e7e6a10a336120ba0e4af26244"
+  last_result: "PASS: #038 focused/regression tests 22/22; PR #87 CI test run 30797419234 and Mobile Native run 30797419236 SUCCESS. iOS release passed on rerun after transient CocoaPods pathname failure."
+  current_commit: "fd450ec"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
