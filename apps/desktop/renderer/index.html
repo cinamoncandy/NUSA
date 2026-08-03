@@ -44,7 +44,9 @@
     </section>
     <section class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th></tr></thead><tbody id="orders"><tr><td colspan="5">체결 없음</td></tr></tbody></table></section>
     <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
+    <section class="card notification-card"><h2>Notifications - Paper only</h2><label class="toggle"><input id="notifications-enabled" type="checkbox" /> Enable notifications</label><div class="notification-settings-grid"><label><input id="price-alerts" type="checkbox" /> Price alerts</label><label><input id="fill-alerts" type="checkbox" /> Fill alerts</label><label><input id="order-status-alerts" type="checkbox" /> Order status</label><label><input id="system-error-alerts" type="checkbox" /> System errors</label><label>Above (KRW)<input id="price-above" type="number" min="0" step="1000" /></label><label>Below (KRW)<input id="price-below" type="number" min="0" step="1000" /></label></div><ul id="notifications" class="notifications" aria-live="polite"></ul></section>
   </main>
+  <script src="notification-center.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

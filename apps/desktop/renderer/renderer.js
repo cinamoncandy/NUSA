@@ -3,6 +3,73 @@ const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
 let lastPrice = 0;
 const chartPoints = [];
+const notificationCenter = new NusaNotificationCenter.NotificationCenter();
+const notificationStorageKey = "nusa.notification-settings.v1";
+let notificationSettings;
+let lastControlEventId = "";
+let lastOrderId = "";
+let controlSnapshotInitialized = false;
+let orderSnapshotInitialized = false;
+let priceAlertState = { above: false, below: false };
+
+function loadNotificationSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(notificationStorageKey) || "null");
+    notificationSettings = NusaNotificationCenter.normalizeSettings(saved);
+  } catch { notificationSettings = NusaNotificationCenter.DEFAULT_SETTINGS; }
+}
+
+function saveNotificationSettings() {
+  try { localStorage.setItem(notificationStorageKey, JSON.stringify(notificationSettings)); }
+  catch { /* browser storage is optional */ }
+}
+
+function renderNotificationSettings() {
+  const settings = notificationSettings;
+  byId("notifications-enabled").checked = settings.enabled;
+  byId("price-alerts").checked = settings.priceAlerts;
+  byId("fill-alerts").checked = settings.fillAlerts;
+  byId("order-status-alerts").checked = settings.orderStatusAlerts;
+  byId("system-error-alerts").checked = settings.systemErrorAlerts;
+  byId("price-above").value = settings.priceAbove == null ? "" : String(settings.priceAbove);
+  byId("price-below").value = settings.priceBelow == null ? "" : String(settings.priceBelow);
+}
+
+function showNotification(event) {
+  const target = byId("notifications");
+  if (!target || !event) return;
+  const item = document.createElement("li");
+  item.className = `notification notification-${event.kind.toLowerCase()}`;
+  const title = document.createElement("strong");
+  title.textContent = event.title;
+  const body = document.createElement("span");
+  body.textContent = event.body;
+  item.append(title, body);
+  target.prepend(item);
+  while (target.children.length > 5) target.lastElementChild.remove();
+  if (event.delivery === "SYSTEM" && typeof Notification === "function") {
+    try {
+      if (Notification.permission === "granted") new Notification(event.title, { body: event.body, tag: event.id });
+    } catch { /* in-app notification remains available */ }
+  }
+}
+
+function notify(event) {
+  showNotification(notificationCenter.consume(event, notificationSettings, document.visibilityState === "hidden"));
+}
+
+function updateNotificationSettings() {
+  notificationSettings = NusaNotificationCenter.normalizeSettings({
+    enabled: byId("notifications-enabled").checked,
+    priceAlerts: byId("price-alerts").checked,
+    fillAlerts: byId("fill-alerts").checked,
+    orderStatusAlerts: byId("order-status-alerts").checked,
+    systemErrorAlerts: byId("system-error-alerts").checked,
+    priceAbove: Number(byId("price-above").value) || null,
+    priceBelow: Number(byId("price-below").value) || null
+  });
+  saveNotificationSettings();
+}
 
 function renderSnapshot(snapshot) {
   if (!snapshot) return;
@@ -28,6 +95,20 @@ function renderControl(snapshot) {
   byId("events").innerHTML = snapshot.events.length
     ? snapshot.events.slice(0, 30).map((event) => `<li><time>${new Date(event.timestamp).toLocaleTimeString("ko-KR")}</time><strong>${event.type}</strong><span>${event.message}</span></li>`).join("")
     : "<li>이벤트 없음</li>";
+}
+
+function handlePaperSnapshot(snapshot) {
+  renderSnapshot(snapshot);
+  const latest = snapshot?.orders?.[0];
+  if (!orderSnapshotInitialized) {
+    lastOrderId = latest?.id || "";
+    orderSnapshotInitialized = true;
+    return;
+  }
+  if (latest && latest.id !== lastOrderId) {
+    lastOrderId = latest.id;
+    notify({ id: `fill:${latest.id}`, kind: "FILL", title: `${latest.side} filled`, body: `${number.format(latest.quantity)} BTC at ${won.format(latest.price)}`, timestamp: latest.filledAt });
+  }
 }
 
 function drawChart() {
@@ -62,14 +143,33 @@ function drawChart() {
 window.dokkaebi.onStatus((status) => {
   byId("status").textContent = status === "connected" ? "Upbit 연결됨" : status;
   byId("status").classList.toggle("online", status === "connected");
+  if (status !== "connected") notify({ id: `status:${status}`, kind: "SYSTEM_ERROR", title: "Market data unavailable", body: status });
 });
 window.dokkaebi.onTicker((ticker) => {
   lastPrice = ticker.trade_price;
   byId("price").textContent = won.format(lastPrice);
   byId("change").textContent = ticker.signed_change_rate == null ? "실시간" : `${(ticker.signed_change_rate * 100).toFixed(2)}%`;
+  const above = notificationSettings.priceAbove != null && lastPrice >= notificationSettings.priceAbove;
+  const below = notificationSettings.priceBelow != null && lastPrice <= notificationSettings.priceBelow;
+  if (above && !priceAlertState.above) notify({ id: `price:above:${notificationSettings.priceAbove}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is above your threshold` });
+  if (below && !priceAlertState.below) notify({ id: `price:below:${notificationSettings.priceBelow}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is below your threshold` });
+  priceAlertState = { above, below };
 });
-window.dokkaebi.onSnapshot(renderSnapshot);
-window.dokkaebi.onControl(renderControl);
+window.dokkaebi.onSnapshot((snapshot) => handlePaperSnapshot(snapshot));
+window.dokkaebi.onControl((snapshot) => {
+  renderControl(snapshot);
+  const event = snapshot?.events?.[0];
+  if (!controlSnapshotInitialized) {
+    lastControlEventId = event?.id || "";
+    controlSnapshotInitialized = true;
+    return;
+  }
+  if (!event || event.id === lastControlEventId) return;
+  lastControlEventId = event.id;
+  if (event.type === "ORDER") return;
+  const kind = event.type === "SYSTEM" ? "SYSTEM_ERROR" : "ORDER_STATUS";
+  notify({ id: `control:${event.id}`, kind, title: event.type === "SYSTEM" ? "System error" : "Order status", body: event.message, timestamp: event.timestamp });
+});
 window.dokkaebi.onChartPoint((point) => {
   chartPoints.push(point);
   if (chartPoints.length > 240) chartPoints.splice(0, chartPoints.length - 240);
@@ -82,7 +182,7 @@ async function order(side) {
   const quantity = Number(byId("quantity").value);
   if (!Number.isFinite(quantity) || quantity <= 0) { byId("error").textContent = "올바른 수량을 입력하세요."; return; }
   if (!lastPrice) { byId("error").textContent = "시세 연결을 기다려 주세요."; return; }
-  try { renderSnapshot((await window.dokkaebi.placeOrder(side, quantity)).snapshot); }
+  try { handlePaperSnapshot((await window.dokkaebi.placeOrder(side, quantity)).snapshot); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 }
 
@@ -100,8 +200,12 @@ byId("strategy-quantity").addEventListener("change", async (event) => {
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
 
+["notifications-enabled", "price-alerts", "fill-alerts", "order-status-alerts", "system-error-alerts", "price-above", "price-below"].forEach((id) => byId(id)?.addEventListener("change", updateNotificationSettings));
+loadNotificationSettings();
+renderNotificationSettings();
+
 Promise.all([window.dokkaebi.getSnapshot(), window.dokkaebi.getControlSnapshot()]).then(([paper, control]) => {
-  renderSnapshot(paper);
+  handlePaperSnapshot(paper);
   renderControl(control);
 });
 
