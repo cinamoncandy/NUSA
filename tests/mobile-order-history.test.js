@@ -25,12 +25,22 @@ test("order history supports filters, search, sorting and deterministic paging",
   assert.equal(buildOrderHistoryViewModel({ rawOrders: null, query: "", filter: "ALL", sort: "TIME_DESC", page: 1 }).state, "LOADING");
 });
 
+test("order history supports deterministic periods and fill detail data", () => {
+  const detailed = [{ ...orders[0], filledAt: "2026-08-01T00:00:00.000Z", fills: [{ id: "fill-1", quantity: 1, price: 100, filledAt: "2026-08-01T00:00:01.000Z" }] }];
+  const within = buildOrderHistoryViewModel({ rawOrders: detailed, query: "", filter: "ALL", sort: "TIME_DESC", page: 1, period: "7D", referenceAt: "2026-08-03T00:00:00.000Z" });
+  assert.equal(within.total, 1);
+  assert.equal(within.orders[0].fills[0].id, "fill-1");
+  assert.equal(buildOrderHistoryViewModel({ rawOrders: detailed, query: "", filter: "ALL", sort: "TIME_DESC", page: 1, period: "TODAY", referenceAt: "2026-08-03T00:00:00.000Z" }).state, "EMPTY");
+});
+
 test("order history UI uses design system, read-only data, and all required states", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "orderHistoryView.tsx"), "utf8");
   assert.match(source, /Order History/);
   assert.match(source, /order-history-filters/);
   assert.match(source, /order-history-sorts/);
   assert.match(source, /order-history-pagination/);
+  assert.match(source, /order-history-periods/);
+  assert.match(source, /fill-detail/);
   assert.match(source, /order-history-loading/);
   assert.match(source, /order-history-error/);
   assert.match(source, /order-history-empty/);
