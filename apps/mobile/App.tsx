@@ -11,6 +11,7 @@ import {
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, NusaTextField } from "./src/components";
 import { ThemeProvider, useTheme } from "./src/ThemeProvider";
+import { PortfolioView, type PortfolioAccountResponse } from "./src/portfolioView";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -18,7 +19,7 @@ const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 const theme = { container: { flex: 1 } } as const;
 type Tab = (typeof tabs)[number];
 type Monitor = { marketConnectionState: string; warmupState: string; stale: boolean; observedAt: string };
-type Account = { mode: string; account: Record<string, unknown>; openOrderCount: number };
+type Account = PortfolioAccountResponse;
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`);
@@ -103,7 +104,7 @@ function AuthenticatedApp() {
         <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Paper Trading</Text>
       </View>
-      <ScrollView
+      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -121,7 +122,7 @@ function AuthenticatedApp() {
             <Text style={styles.meta}>This workspace is ready for the next feature slice.</Text>
           </View>
         )}
-      </ScrollView>
+      </ScrollView>}
       <View style={styles.navigation}>
         {tabs.map((tab) => (
           <Pressable key={tab} accessibilityRole="button" onPress={() => setActiveTab(tab)} style={styles.navItem}>
