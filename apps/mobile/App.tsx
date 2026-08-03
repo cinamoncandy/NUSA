@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Pressable,
   RefreshControl,
@@ -13,7 +14,8 @@ import { NusaButton, NusaCard, NusaTextField } from "./src/components";
 import { ThemeProvider, useTheme } from "./src/ThemeProvider";
 import { PortfolioView, type PortfolioAccountResponse } from "./src/portfolioView";
 import { TradingView } from "./src/tradingView";
-import { ChartView } from "./src/chartView";
+import { MarketsView } from "./src/marketsView";
+import { WatchlistRepository } from "./src/watchlist";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -23,6 +25,7 @@ type Tab = (typeof tabs)[number];
 type Monitor = { marketConnectionState: string; warmupState: string; stale: boolean; observedAt: string };
 type Account = PortfolioAccountResponse;
 type CandleResponse = { readonly market: string; readonly interval: string; readonly candles: unknown[] };
+type MarketsResponse = { readonly markets: unknown[] };
 const CHART_MARKET = "KRW-BTC";
 
 async function get<T>(path: string): Promise<T> {
@@ -53,19 +56,23 @@ function AuthenticatedApp() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Monitor | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
+  const [markets, setMarkets] = useState<unknown[] | null>(null);
   const [candles, setCandles] = useState<unknown[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
 
   const refresh = useCallback(async () => {
     try {
-      const [nextStatus, nextAccount] = await Promise.all([
+      const [nextStatus, nextAccount, nextMarkets] = await Promise.all([
         get<Monitor>("/api/status"),
         get<Account>("/api/account"),
+        get<MarketsResponse>("/api/markets"),
       ]);
       const nextCandles = await get<CandleResponse>(`/api/candles?market=${encodeURIComponent(CHART_MARKET)}&interval=1m&count=120`);
       setStatus(nextStatus);
       setAccount(nextAccount);
+      setMarkets(nextMarkets.markets);
       setCandles(nextCandles.candles);
       setError(null);
     } catch {
@@ -111,7 +118,7 @@ function AuthenticatedApp() {
         <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Paper Trading</Text>
       </View>
-      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : activeTab === "Trade" ? <TradingView error={error} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} stale={status?.stale ?? true} /> : activeTab === "Markets" ? <ChartView error={error} currentPrice={account?.account.available === false ? null : account?.account.markPrice ?? null} market={CHART_MARKET} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} rawCandles={candles} refreshing={refreshing} stale={status?.stale ?? true} /> : <ScrollView
+      {activeTab === "Portfolio" ? <PortfolioView error={error} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} /> : activeTab === "Trade" ? <TradingView error={error} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} refreshing={refreshing} snapshot={account} stale={status?.stale ?? true} /> : activeTab === "Markets" ? <MarketsView error={error} currentPrice={account?.account.available === false ? null : account?.account.markPrice ?? null} market={CHART_MARKET} marketConnectionState={status?.marketConnectionState ?? "UNKNOWN"} onRefresh={onRefresh} rawCandles={candles} rawMarkets={markets} refreshing={refreshing} repository={watchlistRepository} stale={status?.stale ?? true} /> : <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >

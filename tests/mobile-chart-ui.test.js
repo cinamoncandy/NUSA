@@ -50,6 +50,7 @@ test("chart remains fail-closed for loading, stale, missing-price, and incomplet
 
 test("chart UI is read-only and exposes required states and timeframe controls", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
+  const workspace = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(source, /PUBLIC \/ READ ONLY/);
   assert.match(source, /chart-loading/);
@@ -59,5 +60,6 @@ test("chart UI is read-only and exposes required states and timeframe controls",
   assert.match(source, /chart-intervals/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
   assert.match(app, /\/api\/candles/);
-  assert.match(app, /<ChartView/);
+  assert.match(app, /<MarketsView/);
+  assert.match(workspace, /<ChartView/);
 });
