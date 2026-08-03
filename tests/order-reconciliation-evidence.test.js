@@ -54,7 +54,8 @@ test("reconciliation run and item evidence are persisted append-only", () => {
       unresolvedCount: 0,
       overdueCount: 0,
       criticalCount: 0,
-      truncated: false
+      truncated: false,
+      nextCursor: "execution-1"
     }]);
     assert.deepEqual(evidence.listItems("reconciliation-run-1"), [{
       runId: "reconciliation-run-1",

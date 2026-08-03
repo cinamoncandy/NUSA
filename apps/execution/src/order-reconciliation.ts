@@ -44,6 +44,7 @@ export interface UnknownSubmissionReconciliationRun {
   readonly overdueCount: number;
   readonly criticalCount: number;
   readonly truncated: boolean;
+  readonly nextCursor: string | undefined;
   readonly items: readonly UnknownSubmissionReconciliationItem[];
 }
 
@@ -106,7 +107,14 @@ export function reconcileUnknownSubmissions(
   provider: OrderProvider,
   policy: UnknownSubmissionReconciliationPolicy,
   evidence?: UnknownSubmissionReconciliationEvidenceContext,
-  restriction?: UnknownSubmissionRestrictionContext
+  restriction?: UnknownSubmissionRestrictionContext,
+  /**
+   * executionId of the last record scanned by the previous run (its nextCursor).
+   * When the unknown-submission count exceeds maximumRecordsPerRun, passing this
+   * back in advances the scan window instead of rescanning the same oldest slice
+   * every run, which would leave newer unknown submissions never reconciled.
+   */
+  cursor?: string
 ): UnknownSubmissionReconciliationRun {
   validatePolicy(policy);
   const runId = evidence?.createRunId();
@@ -118,7 +126,13 @@ export function reconcileUnknownSubmissions(
   }
 
   const allUnknown = repository.listByStatus(OrderSubmissionStatus.SUBMISSION_UNKNOWN);
-  const selected = allUnknown.slice(0, policy.maximumRecordsPerRun);
+  const startIndex = (() => {
+    if (cursor === undefined || allUnknown.length === 0) return 0;
+    const cursorIndex = allUnknown.findIndex(record => record.executionId === cursor);
+    return cursorIndex === -1 ? 0 : (cursorIndex + 1) % allUnknown.length;
+  })();
+  const rotated = startIndex === 0 ? allUnknown : [...allUnknown.slice(startIndex), ...allUnknown.slice(0, startIndex)];
+  const selected = rotated.slice(0, policy.maximumRecordsPerRun);
   const items = selected.map(record => {
     const assessment = assessUnknownSubmission(record, nowMs, policy);
     const reconciliation = reconcileUnknownSubmission(record.intentId, nowMs, repository, provider);
@@ -134,6 +148,7 @@ export function reconcileUnknownSubmissions(
     overdueCount: items.filter(item => !item.reconciliation.resolved && item.assessment.ageStatus === UnknownSubmissionAgeStatus.OVERDUE).length,
     criticalCount: items.filter(item => !item.reconciliation.resolved && item.assessment.ageStatus === UnknownSubmissionAgeStatus.CRITICAL).length,
     truncated: allUnknown.length > selected.length,
+    nextCursor: selected.length > 0 ? selected[selected.length - 1].executionId : cursor,
     items: Object.freeze(items)
   }) as UnknownSubmissionReconciliationRun;
 
