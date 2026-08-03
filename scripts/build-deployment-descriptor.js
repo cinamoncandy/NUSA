@@ -64,7 +64,18 @@ const CAPABILITY_PATTERNS = Object.freeze({
   ]
 });
 
-const KILL_SWITCH_PATTERNS = [/kill[\s_-]?switch/i, /emergency[\s_-]?stop/i];
+// Matching the words "kill switch" anywhere finds the renderer's read-only status label just as
+// easily as an actual control, and on this tree that is exactly what happened: the descriptor
+// reported killSwitchReachable: true on the strength of a display string, while no code path
+// could set the switch at all. Require something that actually flips it -- an activation call,
+// an assignment, or an IPC channel that reaches one.
+const KILL_SWITCH_PATTERNS = [
+  /\bkillSwitch\s*\.\s*trigger\s*\(/,
+  /\btrigger(?:Many)?\s*\(\s*["'`](?:MANUAL_STOP|EXCHANGE_DISCONNECT|DAILY_LOSS_EXCEEDED|EXPOSURE_EXCEEDED|API_FAILURE|UNKNOWN_SUBMISSION|RECONCILIATION_FAILURE|BALANCE_MISMATCH)["'`]/,
+  /\b(?:activate|engage|pull)KillSwitch\s*\(/,
+  /\bkillSwitch(?:Active)?\s*=\s*true\b/,
+  /ipcMain\s*\.\s*handle\s*\(\s*["'`][^"'`]*kill[\s_-]?switch/i
+];
 const SHIPPING_DIRS = ["apps", "packages"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
@@ -99,9 +110,12 @@ function hashTree(root) {
   return { sha256: createHash("sha256").update(summary.join("\n"), "utf8").digest("hex"), fileCount: files.length };
 }
 
-function scanCapabilities() {
+// `root` exists so the scanner can be exercised against a fixture tree. Without it the only way
+// to test a detection rule is to add matching code to the repository itself, which is how a rule
+// ends up verified by the thing it is supposed to be judging.
+function scanCapabilities(root = REPO_ROOT) {
   const files = SHIPPING_DIRS
-    .map((dir) => path.join(REPO_ROOT, dir))
+    .map((dir) => path.join(root, dir))
     .filter((dir) => fs.existsSync(dir))
     .flatMap((dir) => walk(dir, (file) => {
       if (!SOURCE_EXTENSIONS.has(path.extname(file))) return false;
