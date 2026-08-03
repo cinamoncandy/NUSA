@@ -59,7 +59,7 @@ import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, p
 import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
-import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
+import { startMobileBridge, type MobileBridgeHandle, type MobileCandleDto } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
 import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
@@ -1226,6 +1226,9 @@ function startConfiguredMobileBridge(): void {
     getStatus: () => Object.freeze({ app: "NUSA", mode: "PAPER", marketConnectionState: marketDataStatus, warmupState: marketDataStatus === "HEALTHY" ? "READY" : marketDataStatus, stale: marketDataStatus === "STALE", observedAt: new Date().toISOString() }),
     getAccount: () => latestTicker ? broker.snapshot(latestTicker.trade_price) as unknown as Readonly<Record<string, unknown>> : Object.freeze({ available: false, reason: "MARKET_DATA_UNAVAILABLE" }),
     getOpenOrderCount: () => latestTicker ? broker.snapshot(latestTicker.trade_price).orders.length : 0,
+    getCandles: (market, interval, count): readonly MobileCandleDto[] => market === MARKET && interval === "1m"
+      ? shadowRuntime.recentClosedCandles(count).map((candle) => Object.freeze({ market: candle.symbol, interval: "1m" as const, openTime: candle.openTime, closeTime: candle.closeTime, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, source: "UPBIT_PUBLIC_CANDLE" as const }))
+      : Object.freeze([]),
     getEvents: () => recentErrorCodes.map((code) => Object.freeze({ code }))
   });
   logProduct("INFO", "read-only mobile monitor enabled on localhost", { port }, "MOBILE_BRIDGE_STARTED");
