@@ -99,6 +99,7 @@ export interface PaperAccountSnapshot {
   cash: number;
   equity: number;
   unrealizedPnl: number;
+  markPrice: number;
   position: PaperPosition;
   orders: readonly PaperOrder[];
 }
@@ -356,6 +357,7 @@ export class PaperBroker {
       cash: this.cash,
       equity: this.cash + marketValue,
       unrealizedPnl,
+      markPrice,
       position: Object.freeze({ ...this.position }),
       orders: Object.freeze([...this.orders])
     });

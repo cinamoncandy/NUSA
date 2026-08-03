@@ -1,5 +1,5 @@
 export type ThemeMode = "light" | "dark";
-export type ButtonTone = "primary" | "danger";
+export type ButtonTone = "primary" | "danger" | "neutral";
 
 export interface ShadowToken {
   readonly color: string;
@@ -98,8 +98,8 @@ export const themes = Object.freeze({ light: createTheme("light"), dark: createT
 
 export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
   return Object.freeze({
-    background: tone === "danger" ? theme.colors.danger : theme.colors.primary,
-    foreground: tone === "danger" ? theme.colors.onDanger : theme.colors.onPrimary,
+    background: tone === "danger" ? theme.colors.danger : tone === "neutral" ? theme.colors.surfaceRaised : theme.colors.primary,
+    foreground: tone === "danger" ? theme.colors.onDanger : tone === "neutral" ? theme.colors.text : theme.colors.onPrimary,
     disabledOpacity: 0.48,
     radius: theme.radii.md,
     minHeight: 48,

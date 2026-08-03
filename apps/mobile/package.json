@@ -6,9 +6,12 @@
   "main": "index.js",
   "nativeProjectStatus": "RN_0.86.0_BOOTSTRAPPED",
   "packageManager": "pnpm@11.7.0",
-  "engines": { "node": ">=22.11.0" },
+  "engines": {
+    "node": ">=22.11.0"
+  },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native/new-app-screen": "0.86.0",
     "react": "19.2.3",
     "react-native": "0.86.0",
