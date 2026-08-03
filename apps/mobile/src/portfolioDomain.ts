@@ -1,4 +1,4 @@
-import type { Balance, Position, TradingSnapshot } from "./tradingService";
+import type { Balance, Order, PlaceOrderRequest, Position, TradingService, TradingSnapshot } from "./tradingService";
 
 export interface Asset {
   readonly market: string;
@@ -26,11 +26,83 @@ export interface PortfolioRepository {
   save(summary: PortfolioSummary): Promise<void>;
 }
 
+export interface PortfolioStorage {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string): Promise<void>;
+}
+
+const freezePortfolioSummary = (summary: PortfolioSummary): PortfolioSummary => Object.freeze({
+  ...summary,
+  assets: Object.freeze(summary.assets.map((asset) => Object.freeze({ ...asset }))),
+});
+
+const validatePortfolioSummary = (value: unknown): PortfolioSummary => {
+  if (!value || typeof value !== "object") throw new Error("portfolio summary must be an object");
+  const summary = value as Partial<PortfolioSummary>;
+  if (typeof summary.quoteCurrency !== "string" || !summary.quoteCurrency.trim()) throw new Error("portfolio quote currency is invalid");
+  for (const field of ["cash", "assetValue", "equity", "realizedPnl", "unrealizedPnl", "totalPnl"] as const) {
+    if (typeof summary[field] !== "number" || !Number.isFinite(summary[field])) throw new Error(`portfolio ${field} is invalid`);
+  }
+  if (!Array.isArray(summary.assets)) throw new Error("portfolio assets are invalid");
+  for (const asset of summary.assets) {
+    if (!asset || typeof asset !== "object" || typeof asset.market !== "string" || !asset.market.trim()) throw new Error("portfolio asset is invalid");
+    for (const field of ["quantity", "averageEntryPrice", "currentPrice", "marketValue", "unrealizedPnl", "realizedPnl"] as const) {
+      if (typeof asset[field] !== "number" || !Number.isFinite(asset[field])) throw new Error(`portfolio asset ${field} is invalid`);
+    }
+  }
+  return freezePortfolioSummary(summary as PortfolioSummary);
+};
+
 export class MockPortfolioRepository implements PortfolioRepository {
   private value: PortfolioSummary | null = null;
 
-  public async load(): Promise<PortfolioSummary | null> { return this.value; }
-  public async save(summary: PortfolioSummary): Promise<void> { this.value = summary; }
+  public async load(): Promise<PortfolioSummary | null> { return this.value ? validatePortfolioSummary(this.value) : null; }
+  public async save(summary: PortfolioSummary): Promise<void> { this.value = validatePortfolioSummary(summary); }
+}
+
+export class JsonPortfolioRepository implements PortfolioRepository {
+  public constructor(private readonly storage: PortfolioStorage, private readonly key = "nusa.portfolio.summary.v1") {}
+
+  public async load(): Promise<PortfolioSummary | null> {
+    const raw = await this.storage.read(this.key);
+    if (raw === null) return null;
+    try {
+      return validatePortfolioSummary(JSON.parse(raw));
+    } catch (error) {
+      const reason = error instanceof Error ? `: ${error.message}` : "";
+      throw new Error(`portfolio persistence is invalid${reason}`);
+    }
+  }
+
+  public async save(summary: PortfolioSummary): Promise<void> {
+    await this.storage.write(this.key, JSON.stringify(validatePortfolioSummary(summary)));
+  }
+}
+
+export interface PortfolioSyncResult {
+  readonly order: Order;
+  readonly portfolio: PortfolioSummary;
+}
+
+export class PortfolioSyncService {
+  public constructor(private readonly trading: TradingService, private readonly repository: PortfolioRepository, private readonly quoteCurrency = "KRW") {}
+
+  public async sync(currentPrices: ReadonlyMap<string, number>): Promise<PortfolioSummary> {
+    const snapshot = await this.trading.getSnapshot();
+    const summary = buildPortfolioSummary(snapshot, currentPrices, this.quoteCurrency);
+    await this.repository.save(summary);
+    return summary;
+  }
+
+  public restore(): Promise<PortfolioSummary | null> {
+    return this.repository.load();
+  }
+
+  public async placePaperOrderAndSync(request: PlaceOrderRequest, currentPrices: ReadonlyMap<string, number>): Promise<PortfolioSyncResult> {
+    const order = await this.trading.placePaperOrder(request);
+    if (order.status !== "FILLED") throw new Error("portfolio sync requires a filled order");
+    return Object.freeze({ order, portfolio: await this.sync(currentPrices) });
+  }
 }
 
 const finiteNonNegative = (value: number, field: string): number => {
