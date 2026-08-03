@@ -119,9 +119,30 @@ export class ShutdownSequence {
     });
   }
 
+  /**
+   * The one place the progress callback is invoked.
+   *
+   * That callback draws a window, and a window can already be destroyed by the time a quit
+   * reaches it -- Electron throws "Object has been destroyed" when something still sends to
+   * one. An exception escaping from here would unwind `execute()` mid-sequence, most
+   * damagingly between sealing the archive and writing the clean marker: the next launch
+   * would then find no marker and treat a tidy quit as a crash.
+   *
+   * Telling someone a step happened must never be able to stop the step after it. The throw
+   * is therefore swallowed HERE, and only here -- a failing shutdown STEP is still reported
+   * as FAILED and still leaves the clean marker unwritten.
+   */
+  private notifyProgress(progress: ShutdownProgress): void {
+    try {
+      this.deps.onProgress?.(progress);
+    } catch {
+      // Nothing to report it to: the reporting channel is what just failed.
+    }
+  }
+
   private setStep(id: ShutdownStepId, status: ShutdownStepStatus, detail: string | null = null): void {
     this.steps = this.steps.map((step) => (step.id === id ? { ...step, status, detail } : step));
-    this.deps.onProgress?.(this.progress());
+    this.notifyProgress(this.progress());
   }
 
   /**
@@ -144,7 +165,7 @@ export class ShutdownSequence {
     this.startedAt = this.now();
     this.observationWasRunning = this.deps.observationIsRunning();
     const sessionId = this.deps.currentSessionId();
-    this.deps.onProgress?.(this.progress());
+    this.notifyProgress(this.progress());
     try {
       this.deps.beginShutdownRecord(sessionId);
     } catch {
@@ -212,7 +233,7 @@ export class ShutdownSequence {
     }
     this.finishedAt = this.now();
     const result = this.progress();
-    this.deps.onProgress?.(result);
+    this.notifyProgress(result);
     return result;
   }
 
