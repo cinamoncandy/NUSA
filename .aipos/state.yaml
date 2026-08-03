@@ -1,14 +1,14 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T11:40:00+09:00"
+updated_at: "2026-08-03T16:45:00+09:00"
 phase: mobile-rc-integration
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: agent/issue-013-live-trading-adapter
-active_pull_request: null
+active_branch: codex/issue-035-ai-personal-coach
+active_pull_request: 83
 latest_verified_slice:
-  id: live-trading-adapter-guard
+  id: ai-personal-coach-035
   evidence: "branch agent/issue-013-live-trading-adapter; adapter/factory/mode-switch tests 5/5, Upbit REST regression tests 10/10, deployment descriptor tests 9/9, full isolated suite 315/315; typecheck, build, lint, and git diff --check PASS; all mutation methods fail closed and productionMutationAllowed remains false"
   summary: "Added default-Mock adapter selection, explicitly gated live-read adapter construction, runtime mode switching, and shared read-only mutation guards without enabling live order, cancel, or withdrawal execution."
 completed:
