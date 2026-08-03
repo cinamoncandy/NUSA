@@ -817,12 +817,21 @@ export class ShadowOperationalRuntime {
       sessionId, createdAt: now, sourceCommitSha: this.deps.sourceCommitSha,
       symbol: this.deps.symbol, strategyId: this.deps.strategyId, fingerprints: this.deps.fingerprints
     });
-    // Every condition ShadowPilotRuntime's own precheck checks was already confirmed by
-    // computeReadinessBlockers() above; this call is the existing, unmodified contract's
-    // own gate, kept as a second, independent confirmation rather than duplicated logic.
+    // ShadowPilotRuntime's own precheck is kept as a second confirmation of the conditions
+    // computeReadinessBlockers() checked above. It is only a confirmation if it is given the
+    // live state: passing literals meant it could only ever return READY, so a condition
+    // computeReadinessBlockers stopped covering would pass both gates unnoticed. Read the same
+    // state that produced the blockers, so the two can actually disagree.
+    const pilotSafety = this.deps.getSafetyState();
     const pilotStatus = pilot.precheck({
-      paperOnly: true, deploymentIntegrity: true, reconciliation: true, killSwitch: false,
-      openP0: false, marketDataHealthy: true, warmedUp: true, automaticTrading: false
+      paperOnly: true,
+      deploymentIntegrity: pilotSafety.deploymentIntegrity,
+      reconciliation: pilotSafety.reconciliation,
+      killSwitch: pilotSafety.killSwitch,
+      openP0: pilotSafety.openP0,
+      marketDataHealthy: this.webSocketConnected && (this.marketDataStatus === "HEALTHY" || this.marketDataStatus === "WARMING_UP"),
+      warmedUp: this.officialWarmupComplete() || this.candleAdapter.inspectState().warmupComplete,
+      automaticTrading: pilotSafety.automaticTrading
     });
     this.pilot = pilot;
     if (pilotStatus !== "READY") {
