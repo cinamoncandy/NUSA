@@ -1,7 +1,7 @@
 id: WO-0011
 schema_version: 1
 title: "Implement deterministic Strategy Optimizer"
-status: IN_PROGRESS
+status: COMPLETE
 priority: 90
 objective: "Compare validated Paper strategies with deterministic parameter search while preventing data leakage and unauthorized promotion."
 scope:
@@ -34,6 +34,6 @@ completion_criteria:
 evidence:
   - "Feature commit 96df0a0: apps/mobile/src/aiStrategyOptimizer.ts and tests/ai-strategy-optimizer.test.js"
   - "Focused/regression tests 22/22 PASS; typecheck, lint, build, and git diff --check PASS locally."
-current_status: "Implementation complete locally; PR and remote CI verification pending."
-next_action: "Push codex/issue-038-strategy-optimizer, open PR, verify all checks, and merge only after every required check passes."
+current_status: "#038 Strategy Optimizer implemented, verified, and merged in PR #87."
+next_action: "Await a separate approved work order before starting #039 AI Evaluation."
 rollback: "Revert only the focused optimizer commit; no trading state or production data is changed."
