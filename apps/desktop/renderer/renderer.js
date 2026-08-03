@@ -310,6 +310,7 @@ let lastOrderId = "";
 let controlSnapshotInitialized = false;
 let orderSnapshotInitialized = false;
 let priceAlertState = { above: false, below: false };
+let priceAlertGeneration = { above: 0, below: 0 };
 
 function loadNotificationSettings() {
   try {
@@ -368,6 +369,9 @@ function updateNotificationSettings() {
     priceBelow: Number(byId("price-below").value) || null
   });
   saveNotificationSettings();
+  if (notificationSettings.enabled && typeof Notification === "function" && Notification.permission === "default" && typeof Notification.requestPermission === "function") {
+    void Notification.requestPermission().catch(() => {});
+  }
 }
 
 function renderSnapshot(snapshot) {
@@ -501,8 +505,14 @@ window.dokkaebi.onTicker((ticker) => {
   byId("change").textContent = ticker.signed_change_rate == null ? "실시간" : `${(ticker.signed_change_rate * 100).toFixed(2)}%`;
   const above = notificationSettings.priceAbove != null && lastPrice >= notificationSettings.priceAbove;
   const below = notificationSettings.priceBelow != null && lastPrice <= notificationSettings.priceBelow;
-  if (above && !priceAlertState.above) notify({ id: `price:above:${notificationSettings.priceAbove}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is above your threshold` });
-  if (below && !priceAlertState.below) notify({ id: `price:below:${notificationSettings.priceBelow}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is below your threshold` });
+  if (above && !priceAlertState.above) {
+    priceAlertGeneration.above += 1;
+    notify({ id: `price:above:${notificationSettings.priceAbove}:${priceAlertGeneration.above}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is above your threshold` });
+  }
+  if (below && !priceAlertState.below) {
+    priceAlertGeneration.below += 1;
+    notify({ id: `price:below:${notificationSettings.priceBelow}:${priceAlertGeneration.below}`, kind: "PRICE_ALERT", title: "Price alert", body: `${won.format(lastPrice)} is below your threshold` });
+  }
   priceAlertState = { above, below };
 });
 window.dokkaebi.onSnapshot((snapshot) => handlePaperSnapshot(snapshot));
@@ -516,9 +526,10 @@ window.dokkaebi.onControl((snapshot) => {
   }
   if (!event || event.id === lastControlEventId) return;
   lastControlEventId = event.id;
-  if (event.type === "ORDER") return;
+  if (event.type !== "ORDER" && event.type !== "SYSTEM") return;
   const kind = event.type === "SYSTEM" ? "SYSTEM_ERROR" : "ORDER_STATUS";
-  notify({ id: `control:${event.id}`, kind, title: event.type === "SYSTEM" ? "System error" : "Order status", body: event.message, timestamp: event.timestamp });
+  const orderId = event.type === "ORDER" && event.data && typeof event.data === "object" && "id" in event.data ? String(event.data.id) : "";
+  notify({ id: orderId ? `fill:${orderId}` : `control:${event.id}`, kind, title: event.type === "SYSTEM" ? "System error" : "Order status", body: event.message, timestamp: event.timestamp });
 });
 window.dokkaebi.onChartPoint((point) => {
   chartPoints.push(point);
