@@ -34,6 +34,7 @@ import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
 import type { MarketConnectionDiagnostics } from "./marketConnectionSupervisor";
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
 import { createHash } from "node:crypto";
+import { deriveRuntimeFingerprint } from "./runtimeFingerprint";
 import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
 import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
 import { findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
@@ -81,10 +82,25 @@ const RISK_POLICY = { maxOrderNotional: 2_000_000, maxPositionQuantity: 0.1, max
 // rather than assuming unrealistic perfect execution. Simulated fills only; no real exchange order is placed.
 const FILL_MODEL = { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 };
 const PAPER_SAFETY_SOURCE_COMMIT = process.env.GITHUB_SHA ?? "local-paper-build";
+// The runtime fingerprint exists to catch a persisted snapshot from a DIFFERENT build being
+// recovered by this one -- a schema migration, a platform change, a version bump. A fixed
+// string here (as this used to be) can never change, so `recoverPaperSafetySnapshot`'s
+// `FINGERPRINT_RUNTIME_MISMATCH` check could never fire regardless of what actually changed
+// between the crash and this restart. `deriveRuntimeFingerprint` is the module this project
+// already built to solve exactly this problem (see runtimeFingerprint.ts); it was defined but
+// never called from here. `sourceCommitSha` is passed through PAPER_SAFETY_SOURCE_COMMIT
+// itself as a second signal, so this fingerprint only needs to be internally consistent with
+// that value, not the sole detector of a commit change.
 const PAPER_SAFETY_FINGERPRINTS = Object.freeze({
   strategy: createHash("sha256").update("sma-crossover:5:20").digest("hex"),
   config: createHash("sha256").update(JSON.stringify({ MARKET, INITIAL_CASH, FEE_RATE })).digest("hex"),
-  runtime: createHash("sha256").update("desktop-paper-runtime-v1").digest("hex"),
+  runtime: deriveRuntimeFingerprint({
+    appVersion: app.getVersion(),
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    persistenceSchemaVersion: 1,
+    platform: process.platform,
+    nodeMajorVersion: Number(process.versions.node.split(".")[0])
+  }),
   riskPolicy: createHash("sha256").update(JSON.stringify(RISK_POLICY)).digest("hex")
 });
 // One gate instance is shared by RuntimeCommandService and Shadow. It is assigned only after
