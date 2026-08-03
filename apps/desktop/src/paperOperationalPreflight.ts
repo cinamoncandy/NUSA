@@ -7,6 +7,7 @@ import type { RiskDecision, RiskEvidenceSink } from "../../../apps/execution/src
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { PaperBroker, PaperSide } from "./paperBroker";
 import { reconcilePaperLedger } from "./paperSafetyGates";
+import { computeConsecutiveLossCount, computeDailyNotional, computeOrderRateState, tradingDayOf, type SessionPeakEquityTracker } from "./paperRiskState";
 
 export interface OperationalPreflightDiagnostic {
   readonly status: "PASS" | "BLOCKED";
@@ -127,6 +128,7 @@ export function createOperationalPaperRiskGate(input: Readonly<{
   limits: IndependentRiskLimits;
   fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   sourceCommitSha: string;
+  sessionPeakEquity: SessionPeakEquityTracker;
   evidence?: RiskEvidenceSink;
 }>): PaperCommandRiskGate {
   return Object.freeze({
@@ -135,8 +137,13 @@ export function createOperationalPaperRiskGate(input: Readonly<{
       const broker = input.getBroker();
       const market = input.getMarket();
       const account = broker.snapshot(command.price);
+      const brokerState = broker.exportState();
       const shadow = command.path === "SHADOW";
       const now = Date.now();
+      const rateState = computeOrderRateState(brokerState.orders, now, command.side);
+      const dailyNotional = computeDailyNotional(brokerState.orders, tradingDayOf(new Date(now).toISOString()));
+      const consecutiveLossCount = computeConsecutiveLossCount(brokerState.ledger ?? []);
+      const sessionPeakEquity = input.sessionPeakEquity.observe(account.equity);
       const request = {
         schemaVersion: 1 as const,
         requestId: `${input.sourceCommitSha}:${command.path}:${now}`,
@@ -155,9 +162,9 @@ export function createOperationalPaperRiskGate(input: Readonly<{
         persistenceState: { healthy: preflight.riskGate.status === "PASS" },
         reconciliationState: { healthy: preflight.reconciliation.status === "PASS", openP0: input.getControl().openP0 },
         deploymentState: { integrityVerified: preflight.deployment.status === "PASS" },
-        rateState: { ordersInLastSecond: 0, ordersInLastMinute: 0, sameSideStreak: 0 },
-        exposureState: { symbolExposureNotional: account.position.quantity * command.price, portfolioExposureNotional: account.position.quantity * command.price, dailyBuyNotional: 0, dailySellNotional: 0 },
-        sessionState: { dailyRealizedPnL: account.position.realizedPnl, consecutiveLossCount: 0, sessionPeakEquity: account.equity, sessionEquity: account.equity }
+        rateState,
+        exposureState: { symbolExposureNotional: account.position.quantity * command.price, portfolioExposureNotional: account.position.quantity * command.price, dailyBuyNotional: dailyNotional.dailyBuyNotional, dailySellNotional: dailyNotional.dailySellNotional },
+        sessionState: { dailyRealizedPnL: account.position.realizedPnl, consecutiveLossCount, sessionPeakEquity, sessionEquity: account.equity }
       };
       const decision = evaluatePreTradeRisk(request, input.identity, input.limits);
       input.evidence?.append(toPaperRiskEvidence(request, decision));

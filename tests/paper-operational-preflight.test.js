@@ -9,6 +9,7 @@ const {
   createOperationalPaperRiskGate
 } = require("../dist/apps/desktop/src/paperOperationalPreflight.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { createSessionPeakEquityTracker } = require("../dist/apps/desktop/src/paperRiskState.js");
 
 function assets(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-preflight-"));
@@ -92,7 +93,8 @@ test("shared risk gate is configured, but preflight failure remains fail-closed"
     getControl: () => ({ killSwitchActive: false, openP0: false }),
     identity: { strategyFingerprint: "s", configFingerprint: "c", runtimeFingerprint: "r", riskPolicyFingerprint: "p", seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
     limits: { maxOrderNotional: 1_000, maxPositionNotional: 1_000, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 10, maxSameSideStreak: 5, maxSymbolExposureNotional: 1_000, maxPortfolioExposureNotional: 1_000, maxDailyBuyNotional: 1_000, maxDailySellNotional: 1_000, maxDailyLoss: 1_000, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
-    fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" }, sourceCommitSha: "a".repeat(40)
+    fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" }, sourceCommitSha: "a".repeat(40),
+    sessionPeakEquity: createSessionPeakEquityTracker(1_000)
   });
   assert.equal(gate.evaluate({ path: "SHADOW", side: "BUY", quantity: 1, price: 100 }).status, "ALLOW");
   state.deployment.status = "BLOCKED";
@@ -116,6 +118,7 @@ test("Paper risk decisions are emitted as queryable evidence without changing th
     limits: { maxOrderNotional: 1_000, maxPositionNotional: 1_000, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 10, maxSameSideStreak: 5, maxSymbolExposureNotional: 1_000, maxPortfolioExposureNotional: 1_000, maxDailyBuyNotional: 1_000, maxDailySellNotional: 1_000, maxDailyLoss: 1_000, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
     fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" },
     sourceCommitSha: "a".repeat(40),
+    sessionPeakEquity: createSessionPeakEquityTracker(1_000),
     evidence: { append(record) { records.push(record); } }
   });
   assert.equal(gate.evaluate({ path: "SHADOW", side: "BUY", quantity: 1, price: 100 }).status, "ALLOW");
