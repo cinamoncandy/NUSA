@@ -1,0 +1,8 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { buildAiCoach } = require("../dist/apps/mobile/src/aiCoach.js");
+
+const analytics = (overrides = {}) => ({ trades: [{ netPnl: 10 }, { netPnl: -5 }], winRate: 0.5, profitFactor: 2, netProfit: 5, maximumDrawdown: 0.2, consecutiveLosses: 3, averageHoldingTimeMs: 1_800_000, symbolPerformance: [{ symbol: "KRW-BTC" }], hourlyPerformance: [{ hour: 9 }], ...overrides });
+test("builds evidence-backed habits, risk findings and suggestions without mutation authority", () => { const result = buildAiCoach({ analytics: analytics(), datasetVersion: "paper-ai-v1", datasetChecksum: "a".repeat(64) }); assert.equal(result.tradingStyle, "SHORT_TERM"); assert.ok(result.insights.length >= 3); assert.ok(result.suggestions.length >= 2); assert.equal(result.mutationAllowed, false); assert.ok(result.insights.every((insight) => insight.source)); });
+test("uses verified dataset identity in natural-language summary", () => { const result = buildAiCoach({ analytics: analytics({ trades: [] }), datasetVersion: "paper-ai-v2", datasetChecksum: "b".repeat(64) }); assert.match(result.summary, /paper-ai-v2/); assert.match(result.insights[0].text, /No completed/); });
+test("fails closed for missing dataset identity or invalid analytics", () => { assert.throws(() => buildAiCoach({ analytics: analytics(), datasetVersion: "", datasetChecksum: "a".repeat(64) }), /datasetVersion/); assert.throws(() => buildAiCoach({ analytics: analytics(), datasetVersion: "v1", datasetChecksum: "bad" }), /datasetChecksum/); assert.throws(() => buildAiCoach({ analytics: analytics({ winRate: 2 }), datasetVersion: "v1", datasetChecksum: "a".repeat(8) }), /winRate/); });
