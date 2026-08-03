@@ -68,10 +68,35 @@ const DAY_MS = 86_400_000;
 
 function assertFinite(value: number, name: string): void { if (!Number.isFinite(value)) throw new Error(`${name} must be finite`); }
 function assertPositive(value: number, name: string): void { assertFinite(value, name); if (value <= 0) throw new Error(`${name} must be positive`); }
-function stableDigest(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) { hash ^= value.charCodeAt(index); hash = Math.imul(hash, 16777619); }
-  return (hash >>> 0).toString(16).padStart(8, "0").repeat(8);
+const FNV_OFFSET_BASIS = 2166136261;
+const FNV_PRIME = 16777619;
+
+/** One FNV-1a pass, seeded so that different lanes are independent computations rather than the same one repeated. */
+function fnv1aLane(value: string, seed: number): number {
+  let hash = (FNV_OFFSET_BASIS ^ seed) >>> 0;
+  for (let index = 0; index < value.length; index += 1) { hash ^= value.charCodeAt(index); hash = Math.imul(hash, FNV_PRIME); }
+  return hash >>> 0;
+}
+
+/**
+ * A 64-hex-character digest built from eight independently seeded FNV-1a lanes.
+ *
+ * Not a cryptographic hash -- React Native has no built-in `node:crypto`, and this
+ * check exists to catch accidental corruption of a Paper backtest report, not to
+ * resist a determined attacker. What it must not do is CLAIM more strength than it
+ * has. The previous implementation computed ONE 32-bit FNV-1a hash and repeated the
+ * same 8 hex characters eight times to fill the 64-character field: every "lane" was
+ * identical, so the field carried exactly 32 bits of real entropy behind what reads
+ * as a 256-bit digest. Two payloads that collide under ordinary 32-bit FNV-1a --
+ * expected within roughly 77,000 payloads by the birthday bound, not an attacker
+ * scenario -- were therefore indistinguishable to restoreBacktestReport's integrity
+ * check. Eight independently seeded lanes make each block a genuinely separate
+ * computation instead of the same one tiled.
+ */
+export function stableDigest(value: string): string {
+  let digest = "";
+  for (let lane = 0; lane < 8; lane += 1) digest += fnv1aLane(value, lane * 0x9e3779b1).toString(16).padStart(8, "0");
+  return digest;
 }
 function payloadOf(report: BacktestReport): string { const { integrityDigest: _ignored, ...payload } = report as BacktestReport & { integrityDigest?: string }; return JSON.stringify(payload); }
 function validateDataset(dataset: BacktestDatasetIdentity): void {
