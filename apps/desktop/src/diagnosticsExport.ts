@@ -50,7 +50,11 @@ export function sanitizeDiagnosticsValue(value: unknown, withheld: string[] = []
       continue;
     }
     const sanitized = sanitizeDiagnosticsValue(item, withheld, child);
-    if (sanitized !== undefined) output[child.split(".").pop()!] = sanitized;
+    // The output key is the ORIGINAL key, not the last segment of the path. A key that itself
+    // contains a dot -- a version string, a market code, a settings path -- would otherwise be
+    // renamed to its own tail, and two such keys sharing a tail would silently overwrite each
+    // other. A diagnostics bundle that drops a field without saying so is worse than none.
+    if (sanitized !== undefined) output[key] = sanitized;
   }
   return output;
 }
