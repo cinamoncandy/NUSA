@@ -15,7 +15,7 @@ test("mobile bridge source is localhost-only and has no mutation or wildcard COR
 });
 
 test("mobile bridge is localhost read-only and exposes safe DTOs only", async () => {
-  const bridge = startMobileBridge({ port: 41731, getStatus: () => ({ app: "NUSA", mode: "PAPER", marketConnectionState: "HEALTHY", warmupState: "READY", stale: false, observedAt: new Date().toISOString() }), getAccount: () => ({ available: true, cash: 100 }), getOpenOrderCount: () => 0, getCandles: () => [{ market: "KRW-BTC", interval: "1m", openTime: 0, closeTime: 60000, open: 100, high: 101, low: 99, close: 100, volume: 1, source: "UPBIT_PUBLIC_CANDLE" }], getEvents: () => [{ code: "SAFE" }] });
+  const bridge = startMobileBridge({ port: 41731, getStatus: () => ({ app: "NUSA", mode: "PAPER", marketConnectionState: "HEALTHY", warmupState: "READY", stale: false, observedAt: new Date().toISOString() }), getAccount: () => ({ available: true, cash: 100 }), getOpenOrderCount: () => 0, getMarkets: () => [{ market: "KRW-BTC", price: 100, changeRate: 0.01, volume: 2, observedAt: new Date().toISOString(), source: "UPBIT_PUBLIC_TICKER" }], getCandles: () => [{ market: "KRW-BTC", interval: "1m", openTime: 0, closeTime: 60000, open: 100, high: 101, low: 99, close: 100, volume: 1, source: "UPBIT_PUBLIC_CANDLE" }], getEvents: () => [{ code: "SAFE" }] });
   try {
     await new Promise((resolve) => setTimeout(resolve, 20));
     const health = await fetch("http://127.0.0.1:41731/health");
@@ -23,6 +23,9 @@ test("mobile bridge is localhost read-only and exposes safe DTOs only", async ()
     assert.equal((await health.json()).ok, true);
     const account = await fetch("http://127.0.0.1:41731/api/account");
     assert.equal((await account.json()).account.cash, 100);
+    const markets = await fetch("http://127.0.0.1:41731/api/markets");
+    assert.equal(markets.status, 200);
+    assert.equal((await markets.json()).markets.length, 1);
     const candles = await fetch("http://127.0.0.1:41731/api/candles?market=KRW-BTC&interval=1m&count=1");
     assert.equal(candles.status, 200);
     assert.equal((await candles.json()).candles.length, 1);

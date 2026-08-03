@@ -1,8 +1,9 @@
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 export interface MobileMonitorStatus { readonly app: "NUSA"; readonly mode: "PAPER" | "SHADOW"; readonly marketConnectionState: string; readonly warmupState: string; readonly stale: boolean; readonly observedAt: string; }
+export interface MobileMarketDto { readonly market: string; readonly price: number; readonly changeRate: number | null; readonly volume: number | null; readonly observedAt: string; readonly source: "UPBIT_PUBLIC_TICKER"; }
 export interface MobileCandleDto { readonly market: string; readonly interval: "1m"; readonly openTime: number; readonly closeTime: number; readonly open: number; readonly high: number; readonly low: number; readonly close: number; readonly volume: number; readonly source: "UPBIT_PUBLIC_CANDLE"; }
-export interface MobileBridgeOptions { readonly port: number; readonly getStatus: () => MobileMonitorStatus; readonly getAccount: () => Readonly<Record<string, unknown>>; readonly getOpenOrderCount: () => number; readonly getEvents: () => readonly Readonly<Record<string, unknown>>[]; readonly getCandles?: (market: string, interval: string, count: number) => readonly MobileCandleDto[]; }
+export interface MobileBridgeOptions { readonly port: number; readonly getStatus: () => MobileMonitorStatus; readonly getAccount: () => Readonly<Record<string, unknown>>; readonly getOpenOrderCount: () => number; readonly getEvents: () => readonly Readonly<Record<string, unknown>>[]; readonly getMarkets?: () => readonly MobileMarketDto[]; readonly getCandles?: (market: string, interval: string, count: number) => readonly MobileCandleDto[]; }
 export interface MobileBridgeHandle { readonly port: number; stop(): Promise<void>; }
 
 function send(res: ServerResponse, status: number, value: unknown): void { res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); res.end(JSON.stringify(value)); }
@@ -20,6 +21,7 @@ export function startMobileBridge(options: MobileBridgeOptions): MobileBridgeHan
       if (path === "/api/status") return send(res, 200, status);
       if (path === "/api/account") return send(res, 200, { observedAt: status.observedAt, mode: status.mode, account: options.getAccount(), openOrderCount: options.getOpenOrderCount() });
       if (path === "/api/market") return send(res, 200, { observedAt: status.observedAt, marketConnectionState: status.marketConnectionState, warmupState: status.warmupState, stale: status.stale });
+      if (path === "/api/markets") return send(res, 200, { observedAt: status.observedAt, markets: options.getMarkets?.() ?? [] });
       if (path === "/api/candles") {
         const market = url?.searchParams.get("market") ?? "";
         const interval = url?.searchParams.get("interval") ?? "1m";

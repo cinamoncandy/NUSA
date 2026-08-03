@@ -7,6 +7,7 @@ endpoints exposed by the desktop localhost bridge:
 - `GET /api/status`
 - `GET /api/account`
 - `GET /api/market`
+- `GET /api/markets`
 - `GET /api/candles?market=KRW-BTC&interval=1m&count=120`
 - `GET /api/events`
 
@@ -20,3 +21,7 @@ LAN exposure is intentionally outside this phase.
 The candle endpoint returns only validated Upbit public closed-candle DTOs. The
 mobile chart may aggregate those 1-minute candles into supported display
 intervals, but it never fabricates missing prices or volume.
+
+The markets endpoint returns only validated Upbit public ticker DTOs. The
+watchlist stores market identifiers locally through AsyncStorage; it never
+stores credentials or creates trading mutations.
