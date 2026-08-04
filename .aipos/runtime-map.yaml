@@ -16,6 +16,7 @@ flows:
     - renderer-command
     - preload-validated-command
     - main-application-service
+    - core-runtime-managed-paper-command-service
     - risk-gateway
     - paper-execution
     - durable-accounting-and-evidence
@@ -25,6 +26,7 @@ flows:
     - fail-closed-review-gate
   shutdown:
     - stop-new-work
+    - core-runtime-disables-paper-commands
     - close-market-streams
     - persist-runtime-state
     - flush-evidence

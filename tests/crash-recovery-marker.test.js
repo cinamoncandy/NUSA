@@ -93,7 +93,7 @@ test("main startup keeps recovery fail-closed and does not auto-resume", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
   assert.match(source, /CrashRecoveryMarkerStore/);
   assert.match(source, /crashRecoveryRequired/);
-  assert.match(source, /runtime\.markUnavailable\(\)/);
+  assert.match(source, /paperCommandService\(\)\.markUnavailable\(\)/);
   assert.doesNotMatch(source, /if \(crashRecoveryRequired\)[^]*shadowRuntime\.start\(/);
   assert.match(source, /recovery:reconcile/);
   assert.match(source, /recovery:owner-review/);

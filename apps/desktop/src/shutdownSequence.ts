@@ -75,7 +75,7 @@ export interface ShutdownSequenceDependencies {
   /** Whether an observation is live. Read once at the start, so the record cannot drift. */
   readonly observationIsRunning: () => boolean;
   readonly currentSessionId: () => string | null;
-  readonly stopSignalIntake: () => void;
+  readonly stopSignalIntake: () => void | Promise<void>;
   readonly unsubscribeMarket: () => void;
   readonly clearTimers: () => void;
   readonly flushEvidence: () => Promise<void>;
@@ -173,12 +173,20 @@ export class ShutdownSequence {
       // aborting the shutdown over it would leave the archive open for no gain.
     }
 
+    let failed = false;
+    this.setStep("STOP_SIGNALS", "RUNNING");
+    try {
+      await this.deps.stopSignalIntake();
+      this.setStep("STOP_SIGNALS", "DONE");
+    } catch (error) {
+      failed = true;
+      this.setStep("STOP_SIGNALS", "FAILED", error instanceof Error ? error.message : String(error));
+    }
+
     const synchronousSteps: readonly [ShutdownStepId, () => void][] = [
-      ["STOP_SIGNALS", this.deps.stopSignalIntake],
       ["UNSUBSCRIBE_MARKET", this.deps.unsubscribeMarket],
       ["CLEAR_TIMERS", this.deps.clearTimers]
     ];
-    let failed = false;
     for (const [id, action] of synchronousSteps) {
       this.setStep(id, "RUNNING");
       try {

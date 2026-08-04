@@ -26,5 +26,5 @@ test("missing session evidence persistence fails closed", () => {
   const helper = source.match(/function failClosedEvidenceWrite\(\): void \{[\s\S]*?\n\}/);
   assert.ok(helper, "failClosedEvidenceWrite helper is required");
   assert.match(helper[0], /control\.fault\(PERSISTENCE_FAULT_MESSAGE\)/);
-  assert.match(helper[0], /runtime\.markUnavailable\(\)/);
+  assert.match(helper[0], /paperCommandService\(\)\.markUnavailable\(\)/);
 });

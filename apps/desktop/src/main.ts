@@ -25,6 +25,7 @@ import {
   formatDesktopStartupDiagnostic
 } from "./desktopStartupDiagnostics";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService, type PaperCommandRiskGate } from "./runtimeCommandService";
+import { PaperRuntimeIntegration } from "./paperRuntimeIntegration";
 import { formatRuntimeMutationDiagnostic } from "./runtimeMutationDiagnostics";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
@@ -154,7 +155,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
   maximumEnvelopeAgeMs: 30_000
 });
 let control: ControlPlane;
-let runtime: RuntimeCommandService;
+let paperRuntimeIntegration: PaperRuntimeIntegration | undefined;
 let shadowRuntime: ShadowOperationalRuntime;
 let diagnosticsEvidenceRoot = "";
 let shadowIncompleteEvidence: readonly string[] = [];
@@ -389,7 +390,7 @@ function publishAiCioDashboard(): void {
 function failClosedEvidenceWrite(): void {
   paperTradingAvailable = false;
   control.fault(PERSISTENCE_FAULT_MESSAGE);
-  runtime.markUnavailable();
+  paperCommandService().markUnavailable();
   publishControl();
   publishAiCioDashboard();
 }
@@ -410,10 +411,11 @@ function assertFreshMarketData(): UpbitTicker {
 
 function disableAutomaticTradingForMarketFault(status: string): void {
   if (!control.snapshot().autoTradeEnabled) return;
+  const commands = paperCommandService();
   try {
-    runtime.setAutoTrade(false);
+    commands.setAutoTrade(false);
   } finally {
-    paperTradingAvailable = runtime.isAvailable();
+    paperTradingAvailable = commands.isAvailable();
     publishControl();
     publishAiCioDashboard();
   }
@@ -452,8 +454,9 @@ function handleProductionSignal(input: { market: string; price: number; position
       // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
     }
   }
-  runtime.automaticSignal(input.market, input.price, input.positionQuantity, input.signal);
-  paperTradingAvailable = runtime.isAvailable();
+  const commands = paperCommandService();
+  commands.automaticSignal(input.market, input.price, input.positionQuantity, input.signal);
+  paperTradingAvailable = commands.isAvailable();
   publishPaper();
   publishControl();
   publishAiCioDashboard();
@@ -487,7 +490,7 @@ function handleMarketStatus(status: string): void {
     recordRecovery("WEBSOCKET", "CRITICAL", "Market WebSocket recovery exhausted");
     paperTradingAvailable = false;
     control.fault("Market WebSocket recovery exhausted");
-    runtime.markUnavailable();
+    paperCommandService().markUnavailable();
     publishControl();
     publishAiCioDashboard();
     return;
@@ -582,7 +585,12 @@ function observeHealth(): void {
   }
 }
 
-function initializeRuntime(): void {
+function paperCommandService(): RuntimeCommandService {
+  if (!paperRuntimeIntegration) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
+  return paperRuntimeIntegration.commandService();
+}
+
+async function initializeRuntime(): Promise<void> {
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
   runtimeEvidenceState = new PaperRuntimeEvidenceState();
@@ -741,7 +749,7 @@ function initializeRuntime(): void {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     persistenceStore.saveWithPaperSafetySnapshot(paper, controlState, createSafetySnapshot(paper));
   };
-  runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
+  const commands = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     saveSafety(paper, controlState);
   }, saveWithScenarioEvent: (paper, controlState, event) => {
@@ -773,6 +781,8 @@ function initializeRuntime(): void {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
+  paperRuntimeIntegration = new PaperRuntimeIntegration(commands);
+  await paperRuntimeIntegration.start();
   // Every process start constructs a fresh instance at IDLE. Shadow deliberately never
   // restores a previous session -- "no auto-run after restart" is true by construction. What
   // the durable archive adds is the opposite guarantee: a session that did run leaves a
@@ -835,7 +845,7 @@ function initializeRuntime(): void {
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
-  if (!paperTradingAvailable) runtime.markUnavailable();
+  if (!paperTradingAvailable) paperCommandService().markUnavailable();
   if (paperTradingAvailable) {
     try {
       if (!evidenceRecorder) throw new Error("Paper evidence recorder is unavailable");
@@ -857,8 +867,9 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
   const { side, quantity } = parsePaperOrderIpc(input);
   const ticker = assertFreshMarketData();
   let order: PaperOrder;
-  try { order = runtime.manualOrder(side, quantity, ticker.trade_price); }
-  finally { paperTradingAvailable = runtime.isAvailable(); }
+  const commands = paperCommandService();
+  try { order = commands.manualOrder(side, quantity, ticker.trade_price); }
+  finally { paperTradingAvailable = commands.isAvailable(); }
   publishControl();
   publishAiCioDashboard();
   return { order, snapshot: broker.snapshot(ticker.trade_price) };
@@ -905,21 +916,21 @@ ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => 
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }
-  finally { paperTradingAvailable = runtime.isAvailable(); }
+  finally { paperTradingAvailable = paperCommandService().isAvailable(); }
   publishControl();
   publishAiCioDashboard();
   return control.snapshot();
 }
-ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
-ipcMain.handle("control:stop", () => runControlCommand(() => runtime.stop()));
+ipcMain.handle("control:start", () => runControlCommand(() => paperCommandService().start()));
+ipcMain.handle("control:stop", () => runControlCommand(() => paperCommandService().stop()));
 ipcMain.handle("control:auto", (_event, enabled: unknown) => {
   if (typeof enabled !== "boolean") throw new Error("invalid auto-trade input");
   if (enabled) assertFreshMarketData();
-  return runControlCommand(() => runtime.setAutoTrade(enabled));
+  return runControlCommand(() => paperCommandService().setAutoTrade(enabled));
 });
 ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
-  return runControlCommand(() => runtime.setOrderQuantity(quantity));
+  return runControlCommand(() => paperCommandService().setOrderQuantity(quantity));
 });
 
 function requireCurrentShadowSession(input: unknown): void {
@@ -1214,7 +1225,7 @@ ipcMain.handle("operations:snapshot", () => {
   });
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // First, before any subsystem asks for a path of its own.
   try {
     initializeProductLayer();
@@ -1245,11 +1256,11 @@ app.whenReady().then(() => {
       detectedAt: Date.now()
     });
   }
-  initializeRuntime();
+  await initializeRuntime();
   if (crashRecoveryRequired) {
     control.fault("RECOVERY_REQUIRED: previous Electron run was not cleanly shut down");
     paperTradingAvailable = false;
-    runtime.markUnavailable();
+    paperCommandService().markUnavailable();
   }
   createWindow();
   startConfiguredMobileBridge();
@@ -1309,7 +1320,8 @@ function buildShutdownSequence(): ShutdownSequence {
     runId: productRunId,
     observationIsRunning: () => shadowRuntime !== undefined && ["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state),
     currentSessionId: () => shadowRuntime?.diagnostics().sessionId ?? null,
-    stopSignalIntake: () => {
+    stopSignalIntake: async () => {
+      await paperRuntimeIntegration?.stop();
       if (!shadowRuntime) return;
       // Only a session that is actually open is stopped; calling stop() on an IDLE runtime
       // throws, and a shutdown must not fail because there was nothing to shut down.

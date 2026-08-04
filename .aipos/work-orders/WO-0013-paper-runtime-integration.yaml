@@ -1,0 +1,32 @@
+id: WO-0013
+schema_version: 1
+title: "Integrate Core Runtime with the Paper command lifecycle"
+status: COMPLETE
+priority: 100
+objective: "Route existing Paper commands through the existing Core Runtime lifecycle and fail closed before shutdown continues."
+scope:
+  - "Register the existing RuntimeCommandService in NusaRuntime."
+  - "Resolve all desktop Paper command calls through that registered service."
+  - "Await Core Runtime shutdown before market unsubscription."
+exclusions:
+  - "No new order type, strategy, risk policy, IPC payload, UI, or live-trading capability."
+  - "No change to PaperBroker execution, accounting, or persistence semantics."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - "Paper Runtime integration and shutdown sequencing tests"
+  - "pnpm run typecheck"
+  - "pnpm test"
+  - "pnpm run build"
+  - "git diff --check"
+completion_criteria:
+  - "The Core Runtime exposes the same RuntimeCommandService used by Paper IPC and automatic signals."
+  - "Core Runtime shutdown disables manual and automatic Paper commands before market unsubscription."
+  - "Pre-shutdown Paper command behavior remains unchanged."
+  - "All required verification commands pass with a clean worktree."
+blockers: []
+current_status: "Focused integration tests 4/4 PASS; pnpm run typecheck, pnpm test (347 isolated files), and pnpm run build PASS."
+next_action: "Await a separately approved work order; do not expand this slice."
+rollback: "Revert this focused integration only; Paper orders, ledger data, and persisted account state are unchanged."

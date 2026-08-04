@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-04T11:09:29+09:00"
-phase: ai-research
+updated_at: "2026-08-04T21:12:09+09:00"
+phase: runtime-integration
 status: in_progress
-objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
+objective: "Integrate the existing Core Runtime with the existing Paper command lifecycle while preserving Paper-only safety."
 base_branch: main
-active_branch: codex/issue-039-ai-evaluation
-active_pull_request: 100
+active_branch: fix/paper-runtime-lifecycle
+active_pull_request: null
 latest_verified_slice:
-  id: ai-evaluation-039
-  evidence: "commits 9a6e5ba, 0bfe41c, 316d6f1; local AI Evaluation/regression tests 26/26 PASS; security-gate tests 6/6 PASS; pnpm security:gate reports 0 high/critical vulnerabilities; Typecheck, Build, Lint, Coverage, and git diff --check PASS. PR #100 CI run 30870584221 SUCCESS and Mobile Native run 30870584225 SUCCESS, including Android Debug/Release, iOS Debug/Release, and Foundation smoke."
-  summary: "Added deterministic Backtest/Optimizer replay, recommendation accuracy/success/coverage/calibration, immutable regression baselines, dataset provenance checks, and Paper-only safety gates."
+  id: paper-runtime-integration-013
+  evidence: "Focused integration tests 4/4 PASS; pnpm run typecheck PASS; pnpm test PASS across 347 isolated files; pnpm run build PASS."
+  summary: "The existing Core Runtime now owns the existing Paper command lifecycle and shuts it down fail-closed before market unsubscription; Paper order semantics are unchanged."
 completed:
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
@@ -53,8 +53,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0012-ai-evaluation.yaml
-  reason: "#039 AI Evaluation and its dependency security blocker are resolved with green CI; do not start #040 without a new approved work order."
+  work_order: null
+  reason: "WO-0013 is complete; await a separately approved work order."
 verification:
   required:
     - "pnpm run preflight"
@@ -67,7 +67,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: local AI/security/regression verification; Typecheck, Build, Lint, Coverage, and git diff --check; CI 30870584221; Mobile Native 30870584225."
+  last_result: "PASS: WO-0013 focused integration tests 4/4; Typecheck; Build; full isolated suite 347 files."
   current_commit: "316d6f1"
 human_authority:
   live_trading_mutation: prohibited
