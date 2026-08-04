@@ -588,6 +588,21 @@ byId("ai-summarize-session")?.addEventListener("click", async () => {
     button.disabled = false;
   }
 });
+byId("ai-explain-regime")?.addEventListener("click", async () => {
+  const button = byId("ai-explain-regime");
+  const output = byId("ai-regime-output");
+  button.disabled = true;
+  try {
+    const result = await window.aiResearch.explainRegime();
+    output.textContent = result.explanation;
+    output.hidden = false;
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
 byId("ai-explain-risk")?.addEventListener("click", async () => {
   const button = byId("ai-explain-risk");
   const output = byId("ai-risk-output");

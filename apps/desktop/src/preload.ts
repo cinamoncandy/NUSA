@@ -8,6 +8,7 @@ import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
 import type { AiSessionSummary } from "./aiSessionSummary";
+import type { AiRegimeExplanation } from "./aiRegimeExplainer";
 import type { AiRiskCommentary } from "./aiRiskCommentary";
 import type { AiChallengerObservation } from "./aiChallengerObserver";
 import type { AiDisagreementExplanation } from "./aiChallengerDisagreementExplainer";
@@ -219,6 +220,7 @@ export interface AiResearchApi {
   explainLatestSignal(): Promise<AiSignalExplanation>;
   askFollowUpQuestion(question: string): Promise<AiSignalFollowUpAnswer>;
   summarizeSession(): Promise<AiSessionSummary>;
+  explainRegime(): Promise<AiRegimeExplanation>;
   explainRisk(): Promise<AiRiskCommentary>;
 }
 
@@ -226,6 +228,7 @@ const aiResearch: AiResearchApi = Object.freeze({
   explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal"),
   askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question),
   summarizeSession: () => invokeReadWithRecovery<AiSessionSummary>("ai:summarize-session"),
+  explainRegime: () => invokeReadWithRecovery<AiRegimeExplanation>("ai:explain-regime"),
   explainRisk: () => invokeReadWithRecovery<AiRiskCommentary>("ai:explain-risk")
 });
 

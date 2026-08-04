@@ -48,6 +48,8 @@ import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStra
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
 import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
 import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
+import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
+import { evaluateStrategyRegime } from "./regimePolicy";
 import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
@@ -161,6 +163,9 @@ const aiDisagreementExplainerClient: AiDisagreementExplainerClient | undefined =
 // On-demand session summary: same dark-by-default pattern as the other AI features.
 const aiSessionSummaryClient: AiSessionSummaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicSessionSummaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// On-demand regime explanation: same dark-by-default pattern as the other AI features.
+const aiRegimeExplainerClient: AiRegimeExplainerClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicRegimeExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 // On-demand risk commentary: explains the AI CIO risk dashboard section in plain Korean.
 const aiRiskCommentaryClient: AiRiskCommentaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicRiskCommentaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
@@ -951,6 +956,16 @@ ipcMain.handle("ai:summarize-session", async () => {
     challengerStats: aiChallengerObserver.getStats()
   };
   return summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() });
+});
+ipcMain.handle("ai:explain-regime", async () => {
+  const signal = strategy.getLatestSignal();
+  const request: RegimeExplanationRequest | undefined = signal?.regime === undefined ? undefined : {
+    market: MARKET,
+    regime: signal.regime,
+    recentPrices: strategy.getHistory(),
+    decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
+  };
+  return explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() });
 });
 ipcMain.handle("ai:explain-risk", async () => {
   const envelope = aiCioEnvelopeSource.current();
