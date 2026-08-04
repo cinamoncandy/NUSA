@@ -74,11 +74,11 @@ test("createAnthropicSignalExplainerClient sends the API key and prompt, and ret
       json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: "설명입니다" }] })
     };
   };
-  const client = createAnthropicSignalExplainerClient({ apiKey: "test-key", fetchImpl });
+  const client = createAnthropicSignalExplainerClient({ apiKey: "hunter2hunter2", fetchImpl });
   const explanation = await client.explain({ market: "KRW-BTC", signal: signal(), recentPrices: [100] });
   assert.equal(explanation, "설명입니다");
   assert.equal(capturedUrl, "https://api.anthropic.com/v1/messages");
-  assert.equal(capturedInit.headers["x-api-key"], "test-key");
+  assert.equal(capturedInit.headers["x-api-key"], "hunter2hunter2");
   const body = JSON.parse(capturedInit.body);
   assert.equal(body.model, "claude-opus-5");
   assert.ok(body.messages[0].content.includes("KRW-BTC"));
@@ -86,13 +86,13 @@ test("createAnthropicSignalExplainerClient sends the API key and prompt, and ret
 
 test("createAnthropicSignalExplainerClient throws on a non-ok HTTP response", async () => {
   const fetchImpl = async () => ({ ok: false, status: 500, json: async () => ({}) });
-  const client = createAnthropicSignalExplainerClient({ apiKey: "test-key", fetchImpl });
+  const client = createAnthropicSignalExplainerClient({ apiKey: "hunter2hunter2", fetchImpl });
   await assert.rejects(() => client.explain({ market: "KRW-BTC", signal: signal(), recentPrices: [] }));
 });
 
 test("createAnthropicSignalExplainerClient throws when the API declines the request", async () => {
   const fetchImpl = async () => ({ ok: true, json: async () => ({ stop_reason: "refusal", content: [] }) });
-  const client = createAnthropicSignalExplainerClient({ apiKey: "test-key", fetchImpl });
+  const client = createAnthropicSignalExplainerClient({ apiKey: "hunter2hunter2", fetchImpl });
   await assert.rejects(() => client.explain({ market: "KRW-BTC", signal: signal(), recentPrices: [] }));
 });
 
@@ -101,7 +101,7 @@ test("end to end: explainStrategySignal with the real Anthropic client shape (ne
     ok: true,
     json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: "단기 이동평균이 장기 이동평균을 상향 돌파했습니다." }] })
   });
-  const client = createAnthropicSignalExplainerClient({ apiKey: "test-key", fetchImpl });
+  const client = createAnthropicSignalExplainerClient({ apiKey: "hunter2hunter2", fetchImpl });
   const request = { market: "KRW-BTC", signal: signal(), recentPrices: [100, 101, 102] };
   const result = await explainStrategySignal({ request, client, nowMs: 9999 });
   assert.equal(result.status, "OK");
