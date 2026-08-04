@@ -484,9 +484,11 @@ byId("ai-followup-ask")?.addEventListener("click", async () => {
     button.disabled = false;
   }
 });
+let lastSeenChallengerTimestamp;
 async function refreshAiChallenger() {
   if (!window.aiChallenger) return;
   const card = byId("ai-challenger");
+  const disagreementButton = byId("ai-explain-disagreement");
   try {
     const { configured, latest, stats } = await window.aiChallenger.status();
     card.hidden = !configured;
@@ -496,6 +498,13 @@ async function refreshAiChallenger() {
       byId("ai-challenger-ai").textContent = `${latest.aiSignal.type} (신뢰도 ${latest.aiSignal.confidence.toFixed(2)})`;
       byId("ai-challenger-agreement").textContent = latest.agreesWithChampion ? "일치" : "불일치";
       byId("ai-challenger-reason").textContent = latest.aiSignal.reason;
+      disagreementButton.hidden = latest.agreesWithChampion;
+      if (latest.timestamp !== lastSeenChallengerTimestamp) {
+        const disagreementOutput = byId("ai-disagreement-output");
+        disagreementOutput.hidden = true;
+        disagreementOutput.textContent = "";
+        lastSeenChallengerTimestamp = latest.timestamp;
+      }
     }
     const rateNode = byId("ai-challenger-agreement-rate");
     rateNode.textContent = stats.agreementRate === null
@@ -510,6 +519,21 @@ async function refreshAiChallenger() {
   }
 }
 refreshAiChallenger();
+byId("ai-explain-disagreement")?.addEventListener("click", async () => {
+  const button = byId("ai-explain-disagreement");
+  const output = byId("ai-disagreement-output");
+  button.disabled = true;
+  try {
+    const result = await window.aiChallenger.explainDisagreement();
+    output.textContent = result.explanation;
+    output.hidden = false;
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
 byId("ai-summarize-session")?.addEventListener("click", async () => {
   const button = byId("ai-summarize-session");
   const output = byId("ai-summary-output");
