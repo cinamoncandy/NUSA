@@ -484,6 +484,27 @@ byId("ai-followup-ask")?.addEventListener("click", async () => {
     button.disabled = false;
   }
 });
+async function refreshAiChallenger() {
+  if (!window.aiChallenger) return;
+  const card = byId("ai-challenger");
+  try {
+    const { configured, latest } = await window.aiChallenger.status();
+    card.hidden = !configured;
+    if (configured && latest) {
+      byId("ai-challenger-champion").textContent = `${latest.championSignal.type} (${latest.championSignal.reason})`;
+      byId("ai-challenger-ai").textContent = `${latest.aiSignal.type} (신뢰도 ${latest.aiSignal.confidence.toFixed(2)})`;
+      byId("ai-challenger-agreement").textContent = latest.agreesWithChampion ? "일치" : "불일치";
+      byId("ai-challenger-reason").textContent = latest.aiSignal.reason;
+    }
+  } catch {
+    card.hidden = true;
+  } finally {
+    // Self-rescheduling rather than setInterval so a slow IPC round-trip can never overlap
+    // with the next poll.
+    setTimeout(refreshAiChallenger, 15000);
+  }
+}
+refreshAiChallenger();
 byId("focus-mode")?.addEventListener("click", toggleFocusMode);
 window.addEventListener("keydown", (event) => {
   const target = event.target;

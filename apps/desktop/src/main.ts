@@ -45,6 +45,7 @@ import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
 import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
+import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -145,6 +146,12 @@ const aiSignalExplainerClient: AiSignalExplainerClient | undefined =
 // Holds the context+text of the last explanation shown to the user, so a follow-up
 // question can be answered without the renderer having to round-trip that state back.
 let lastAiSignalExplanation: Readonly<{ request: SignalExplanationRequest; explanation: string }> | undefined;
+// AI "challenger" observer: on every champion signal transition, asks what an LLM would have
+// signaled and records the comparison. It has no reference to PaperBroker, the risk gate, or
+// runtime -- there is no path from here to a real or hypothetical order.
+const aiChallengerClient: AiChallengerClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicChallengerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+const aiChallengerObserver = new AiChallengerObserver(aiChallengerClient);
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -457,6 +464,13 @@ function handleProductionSignal(input: { market: string; price: number; position
   publishPaper();
   publishControl();
   publishAiCioDashboard();
+  // Fire-and-forget: never awaited, never allowed to affect the signal/order path above.
+  void aiChallengerObserver.observe({
+    market: input.market,
+    championSignal: { type: input.signal.type, reason: input.signal.reason },
+    recentPrices: strategy.getHistory(),
+    regime: input.signal.regime
+  });
 }
 
 /**
@@ -902,6 +916,10 @@ ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => 
     nowMs: Date.now()
   });
 });
+ipcMain.handle("ai:challenger-status", () => ({
+  configured: aiChallengerClient !== undefined,
+  latest: aiChallengerObserver.getLatestObservation() ?? null
+}));
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }
