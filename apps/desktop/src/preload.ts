@@ -6,7 +6,7 @@ import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker"
 import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
-import type { AiSignalExplanation } from "./aiSignalExplainer";
+import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -204,16 +204,21 @@ const nusaApp: NUSAAppApi = Object.freeze({
 });
 
 /**
- * Read-only research assistant bridge. One method, no arguments the renderer can
- * shape -- the main process derives the signal and history it explains from
- * state it already holds, never from anything the renderer passes in.
+ * Read-only research assistant bridge. `explainLatestSignal` takes no arguments the
+ * renderer can shape -- the main process derives the signal and history it explains
+ * from state it already holds. `askFollowUpQuestion` is the one method here that does
+ * take renderer-authored content, because a free-text question IS the input; the main
+ * process still supplies all the grounding context (signal/history/prices) itself, and
+ * the answer is scoped to the explanation already on screen, not a fresh channel choice.
  */
 export interface AiResearchApi {
   explainLatestSignal(): Promise<AiSignalExplanation>;
+  askFollowUpQuestion(question: string): Promise<AiSignalFollowUpAnswer>;
 }
 
 const aiResearch: AiResearchApi = Object.freeze({
-  explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal")
+  explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal"),
+  askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question)
 });
 
 contextBridge.exposeInMainWorld("nusa", api);

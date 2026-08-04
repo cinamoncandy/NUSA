@@ -31,6 +31,15 @@ test("lockfile pins the patched versions for audited high advisories", () => {
   assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
 });
 
+test("optional detection finds optional: true even when other snapshot keys sit between it and the header", () => {
+  // postject's snapshot entry has a "dependencies:" block before "optional: true" --
+  // a package whose optional flag isn't the line immediately after its header must
+  // still be recognized as optional, or license/audit checks wrongly flag it as missing.
+  const postject = parseLockfile().packages.find((item) => item.name === "postject");
+  assert.ok(postject, "postject must still be present in the lockfile for this regression test to mean anything");
+  assert.equal(postject.optional, true);
+});
+
 test("license audit ignores platform-selected optional packages without skipping ordinary dependencies", () => {
   const lock = parseLockfile();
   const platformPackages = lock.packages.filter((item) => item.platformSpecific);

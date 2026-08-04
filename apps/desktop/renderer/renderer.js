@@ -447,14 +447,39 @@ byId("strategy-quantity").addEventListener("change", async (event) => {
 byId("ai-explain-signal")?.addEventListener("click", async () => {
   const button = byId("ai-explain-signal");
   const output = byId("ai-explain-output");
+  const followup = byId("ai-followup");
+  const followupAnswer = byId("ai-followup-answer");
   button.disabled = true;
   try {
     const result = await window.aiResearch.explainLatestSignal();
     output.textContent = result.explanation;
     output.hidden = false;
+    followupAnswer.hidden = true;
+    followupAnswer.textContent = "";
+    followup.hidden = result.status !== "OK";
   } catch (error) {
     output.textContent = error instanceof Error ? error.message : String(error);
     output.hidden = false;
+    followup.hidden = true;
+  } finally {
+    button.disabled = false;
+  }
+});
+byId("ai-followup-ask")?.addEventListener("click", async () => {
+  const button = byId("ai-followup-ask");
+  const questionInput = byId("ai-followup-question");
+  const answer = byId("ai-followup-answer");
+  const question = questionInput.value.trim();
+  if (question.length === 0) return;
+  button.disabled = true;
+  try {
+    const result = await window.aiResearch.askFollowUpQuestion(question);
+    answer.textContent = result.answer;
+    answer.hidden = false;
+    if (result.status === "OK") questionInput.value = "";
+  } catch (error) {
+    answer.textContent = error instanceof Error ? error.message : String(error);
+    answer.hidden = false;
   } finally {
     button.disabled = false;
   }

@@ -84,9 +84,14 @@ function parseLockfile() {
     const integrity = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
     packages.push({ name, version, integrity, platformSpecific: /\n    (?:cpu|os): \[[^\]]+\]/.test(`\n${block}`) });
   }
-  const snapshots = source.slice(source.indexOf("snapshots:"));
+  // Normalized to \n line endings (matching how `lines`/`block` above are built) so this
+  // regex isn't broken by a CRLF checkout -- the raw source substring below is not.
+  const snapshots = source.slice(source.indexOf("snapshots:")).split(/\r?\n/).join("\n");
   const optional = new Set();
-  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
+  // "optional: true" isn't always the line right after the header -- a "dependencies:"
+  // block (or others) can sit between them, as it does for postject. Skip any number of
+  // 4-space-indented lines before it, but stop at the next 2-space-indented package header.
+  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n(?:    .+\n)*?    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
   for (const item of packages) item.optional = optional.has(`${item.name}@${item.version}`);
   return { source, packages };
 }
