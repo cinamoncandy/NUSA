@@ -444,6 +444,21 @@ byId("strategy-quantity").addEventListener("change", async (event) => {
   try { renderControl(await window.nusa.setStrategyQuantity(quantity)); }
   catch (error) { byId("error").textContent = error instanceof Error ? error.message : String(error); }
 });
+byId("ai-explain-signal")?.addEventListener("click", async () => {
+  const button = byId("ai-explain-signal");
+  const output = byId("ai-explain-output");
+  button.disabled = true;
+  try {
+    const result = await window.aiResearch.explainLatestSignal();
+    output.textContent = result.explanation;
+    output.hidden = false;
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
 byId("focus-mode")?.addEventListener("click", toggleFocusMode);
 window.addEventListener("keydown", (event) => {
   const target = event.target;

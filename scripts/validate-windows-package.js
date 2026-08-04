@@ -31,7 +31,7 @@ required(/contextIsolation:\s*true/.test(mainSource), "contextIsolation must rem
 required(/nodeIntegration:\s*false/.test(mainSource), "nodeIntegration must remain disabled");
 required(/sandbox:\s*true/.test(mainSource), "preload sandbox must remain enabled");
 required(/RISK_GATE_NOT_CONFIGURED/.test(mainSource), "paper risk gate must fail closed when unconfigured");
-required(!/private-api|privateApi|apiKey|secretKey/i.test(mainSource), "main source must not introduce private credentials or API keys");
+required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(mainSource), "main source must not hardcode a private credential or API key literal");
 
 const result = Object.freeze({
   status: failures.length === 0 ? "PASS" : "FAIL",

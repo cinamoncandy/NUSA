@@ -161,14 +161,27 @@ function runDependencyAudit() {
   } catch (error) {
     const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${error.message ?? ""}`;
     if (output.includes("ERR_PNPM_MISSING_PACKAGE_INDEX_FILE")) return { unavailable: true, error: "pnpm audit could not read the installed package index; run frozen install first.", vulnerabilities: {} };
-    try { return parseAudit(output); } catch { return { unavailable: true, error: "pnpm audit did not return machine-readable output.", vulnerabilities: {} }; }
+    try { return parseAudit(output); } catch {
+      process.stderr.write(`pnpm audit raw output (diagnostic, truncated to 2000 chars):\n${output.slice(0, 2000)}\n`);
+      return { unavailable: true, error: "pnpm audit did not return machine-readable output.", vulnerabilities: {} };
+    }
   }
 }
 
 function parseAudit(output) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("audit JSON missing");
-  const value = JSON.parse(output.slice(start));
+  // pnpm audit exits non-zero whenever it finds any vulnerabilities -- that's normal,
+  // not a failure -- so the caller may hand us stdout with stderr/error.message appended
+  // after the JSON. Extract only the balanced {...} object, ignoring trailing text.
+  let depth = 0;
+  let end = -1;
+  for (let index = start; index < output.length; index += 1) {
+    if (output[index] === "{") depth += 1;
+    else if (output[index] === "}") { depth -= 1; if (depth === 0) { end = index; break; } }
+  }
+  if (end < 0) throw new Error("audit JSON missing");
+  const value = JSON.parse(output.slice(start, end + 1));
   return { unavailable: false, error: null, vulnerabilities: value.metadata?.vulnerabilities ?? value.vulnerabilities ?? {} };
 }
 

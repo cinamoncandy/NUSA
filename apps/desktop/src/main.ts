@@ -44,6 +44,7 @@ import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
+import { createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient } from "./aiSignalExplainer";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -135,6 +136,12 @@ let persistedOpenP0Codes: readonly string[] = Object.freeze([]);
 // safety snapshot when available, so SESSION_DRAWDOWN_LIMIT compares against a real
 // peak instead of the current equity (which always yields a drawdown of zero).
 const sessionPeakEquityTracker: SessionPeakEquityTracker = createSessionPeakEquityTracker(INITIAL_CASH);
+// Read-only research assistant: explains strategy signals in plain language,
+// on demand only. There is no UI to enter or store a credential -- an operator
+// who wants this feature sets ANTHROPIC_API_KEY in the process environment
+// before launch. Feature stays dark (NOT_CONFIGURED) when unset.
+const aiSignalExplainerClient: AiSignalExplainerClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicSignalExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -873,6 +880,11 @@ ipcMain.handle("execution:health", () => {
   return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
 });
 ipcMain.handle("paper:preflight", () => operationalPreflight);
+ipcMain.handle("ai:explain-latest-signal", async () => {
+  const signal = strategy.getLatestSignal();
+  const request = signal === undefined ? undefined : { market: MARKET, signal, recentPrices: strategy.getHistory() };
+  return explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() });
+});
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }
