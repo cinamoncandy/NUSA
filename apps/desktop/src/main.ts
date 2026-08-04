@@ -934,6 +934,7 @@ ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChalleng
   client: aiDisagreementExplainerClient,
   nowMs: Date.now()
 }));
+ipcMain.handle("ai:challenger-history", () => aiChallengerObserver.getHistory());
 ipcMain.handle("ai:summarize-session", async () => {
   const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
     market: MARKET,
