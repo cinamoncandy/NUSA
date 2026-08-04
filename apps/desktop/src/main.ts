@@ -43,6 +43,7 @@ import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
+import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -130,6 +131,10 @@ let persistedKillSwitchActive = false;
 let persistedKillSwitchReason: string | null = null;
 let persistedKillSwitchActivatedAt: number | null = null;
 let persistedOpenP0Codes: readonly string[] = Object.freeze([]);
+// Tracks the highest equity observed this run, restored from the last persisted
+// safety snapshot when available, so SESSION_DRAWDOWN_LIMIT compares against a real
+// peak instead of the current equity (which always yields a drawdown of zero).
+const sessionPeakEquityTracker: SessionPeakEquityTracker = createSessionPeakEquityTracker(INITIAL_CASH);
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -665,7 +670,8 @@ function initializeRuntime(): void {
     identity: { strategyFingerprint: PAPER_SAFETY_FINGERPRINTS.strategy, configFingerprint: PAPER_SAFETY_FINGERPRINTS.config, runtimeFingerprint: PAPER_SAFETY_FINGERPRINTS.runtime, riskPolicyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
     limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
     fingerprints: PAPER_SAFETY_FINGERPRINTS,
-    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    sessionPeakEquity: sessionPeakEquityTracker
     ,evidence: paperRiskEvidenceRepository
   });
   if (persistenceStore) {
@@ -678,6 +684,7 @@ function initializeRuntime(): void {
         persistedOpenP0Codes = Object.freeze(safety.openAlerts
           .filter((alert) => alert.severity === "P0" && alert.status !== "RESOLVED")
           .map((alert) => alert.reasonCode));
+        sessionPeakEquityTracker.observe(safety.lossState.sessionPeakEquity);
         const recovery = recoverPaperSafetySnapshot(safety, { sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT, fingerprints: PAPER_SAFETY_FINGERPRINTS });
         control.record("SYSTEM", `Paper safety recovery: ${recovery.reasonCodes.join(",")}`);
         // WO-0034-A4H: identifies the recovery the reconciliation and owner review are about.
@@ -708,11 +715,15 @@ function initializeRuntime(): void {
   }
   const createSafetySnapshot = (paper: ReturnType<PaperBroker["exportState"]>) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+    const markPrice = latestTicker?.trade_price ?? 1;
+    const account = broker.snapshot(markPrice);
+    const sessionPeakEquity = sessionPeakEquityTracker.observe(account.equity);
+    const sessionDrawdown = sessionPeakEquity > 0 ? Math.max(0, (sessionPeakEquity - account.equity) / sessionPeakEquity) : 0;
     const snapshot = createPaperSafetySnapshot({
       snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: persistedKillSwitchActive, activatedAt: persistedKillSwitchActivatedAt, reason: persistedKillSwitchReason }, approval: null,
       fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: operationalPreflight.deployment.status === "PASS" ? "PASS" : "UNKNOWN", checkedAt: Date.now(), reasonCodes: operationalPreflight.deployment.blockers }, reconciliation: { status: operationalPreflight.reconciliation.status === "PASS" ? "PASS" : "REQUIRED", checkedAt: Date.now(), ledgerSha256: null, reasonCodes: operationalPreflight.reconciliation.blockers },
       idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: persistedOpenP0Codes.map((reasonCode, index) => ({ alertId: `persisted-p0-${index + 1}`, severity: "P0" as const, status: "OPEN" as const, reasonCode, createdAt: Date.now() })),
-      lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: 0, unrealizedDailyPnl: 0, consecutiveLossCount: 0, sessionPeakEquity: INITIAL_CASH, sessionDrawdown: 0 }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+      lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: account.position.realizedPnl, unrealizedDailyPnl: account.unrealizedPnl, consecutiveLossCount: computeConsecutiveLossCount(paper.ledger ?? []), sessionPeakEquity, sessionDrawdown }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
     });
     return snapshot;
   };
