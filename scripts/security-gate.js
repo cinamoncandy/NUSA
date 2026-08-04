@@ -171,7 +171,17 @@ function runDependencyAudit() {
 function parseAudit(output) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("audit JSON missing");
-  const value = JSON.parse(output.slice(start));
+  // pnpm audit exits non-zero whenever it finds any vulnerabilities -- that's normal,
+  // not a failure -- so the caller may hand us stdout with stderr/error.message appended
+  // after the JSON. Extract only the balanced {...} object, ignoring trailing text.
+  let depth = 0;
+  let end = -1;
+  for (let index = start; index < output.length; index += 1) {
+    if (output[index] === "{") depth += 1;
+    else if (output[index] === "}") { depth -= 1; if (depth === 0) { end = index; break; } }
+  }
+  if (end < 0) throw new Error("audit JSON missing");
+  const value = JSON.parse(output.slice(start, end + 1));
   return { unavailable: false, error: null, vulnerabilities: value.metadata?.vulnerabilities ?? value.vulnerabilities ?? {} };
 }
 
