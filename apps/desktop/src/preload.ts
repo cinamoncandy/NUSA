@@ -9,6 +9,7 @@ import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
 import type { AiSessionSummary } from "./aiSessionSummary";
 import type { AiChallengerObservation } from "./aiChallengerObserver";
+import type { AiDisagreementExplanation } from "./aiChallengerDisagreementExplainer";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -238,10 +239,12 @@ export interface AiChallengerStatus {
 
 export interface AiChallengerApi {
   status(): Promise<AiChallengerStatus>;
+  explainDisagreement(): Promise<AiDisagreementExplanation>;
 }
 
 const aiChallenger: AiChallengerApi = Object.freeze({
-  status: () => invokeReadWithRecovery<AiChallengerStatus>("ai:challenger-status")
+  status: () => invokeReadWithRecovery<AiChallengerStatus>("ai:challenger-status"),
+  explainDisagreement: () => invokeReadWithRecovery<AiDisagreementExplanation>("ai:explain-challenger-disagreement")
 });
 
 contextBridge.exposeInMainWorld("nusa", api);

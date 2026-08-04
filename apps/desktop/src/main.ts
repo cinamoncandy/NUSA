@@ -46,6 +46,7 @@ import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimeP
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
 import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
+import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
 import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
@@ -153,6 +154,9 @@ let lastAiSignalExplanation: Readonly<{ request: SignalExplanationRequest; expla
 const aiChallengerClient: AiChallengerClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicChallengerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const aiChallengerObserver = new AiChallengerObserver(aiChallengerClient);
+// On-demand explanation for why the AI challenger's latest signal diverged from the champion's.
+const aiDisagreementExplainerClient: AiDisagreementExplainerClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicDisagreementExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 // On-demand session summary: same dark-by-default pattern as the other AI features.
 const aiSessionSummaryClient: AiSessionSummaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicSessionSummaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
@@ -924,6 +928,11 @@ ipcMain.handle("ai:challenger-status", () => ({
   configured: aiChallengerClient !== undefined,
   latest: aiChallengerObserver.getLatestObservation() ?? null,
   stats: aiChallengerObserver.getStats()
+}));
+ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChallengerDisagreement({
+  observation: aiChallengerObserver.getLatestObservation(),
+  client: aiDisagreementExplainerClient,
+  nowMs: Date.now()
 }));
 ipcMain.handle("ai:summarize-session", async () => {
   const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
