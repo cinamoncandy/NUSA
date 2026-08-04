@@ -25,7 +25,7 @@ import {
   formatDesktopStartupDiagnostic
 } from "./desktopStartupDiagnostics";
 import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService, type PaperCommandRiskGate } from "./runtimeCommandService";
-import { PaperRuntimeIntegration } from "./paperRuntimeIntegration";
+import { DesktopCompositionRoot } from "./desktopCompositionRoot";
 import { formatRuntimeMutationDiagnostic } from "./runtimeMutationDiagnostics";
 import { PaperSessionStore } from "./paperSessionStore";
 import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
@@ -63,7 +63,7 @@ import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, p
 import { mkdirSync } from "node:fs";
 import { shell } from "electron";
 import os from "node:os";
-import { startMobileBridge, type MobileBridgeHandle } from "./mobileBridge";
+import type { MobileBridgeOptions } from "./mobileBridge";
 import type { MonitorCandle, MonitorMarket } from "../../../packages/contracts/src/monitorRead";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
@@ -156,7 +156,7 @@ const aiCioSnapshotPublisher = new AiCioSnapshotPublisher(aiCioEnvelopeSource, {
   maximumEnvelopeAgeMs: 30_000
 });
 let control: ControlPlane;
-let paperRuntimeIntegration: PaperRuntimeIntegration | undefined;
+let desktopCompositionRoot: DesktopCompositionRoot | undefined;
 let shadowRuntime: ShadowOperationalRuntime;
 let diagnosticsEvidenceRoot = "";
 let shadowIncompleteEvidence: readonly string[] = [];
@@ -180,7 +180,6 @@ const recoveryReview = new RecoveryReviewState();
 /** Set when a persisted snapshot actually produced a recovery that needs reconciling. */
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
-let mobileBridge: MobileBridgeHandle | undefined;
 /**
  * WO-0034-A4O productization state. Resolved once, at app-ready, because every path below
  * depends on `app.getPath("userData")` and `app.isPackaged`, neither of which is meaningful
@@ -587,11 +586,12 @@ function observeHealth(): void {
 }
 
 function paperCommandService(): RuntimeCommandService {
-  if (!paperRuntimeIntegration) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
-  return paperRuntimeIntegration.commandService();
+  if (!desktopCompositionRoot) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
+  return desktopCompositionRoot.commandService();
 }
 
 async function initializeRuntime(): Promise<void> {
+  if (desktopCompositionRoot) throw new Error("desktop runtime is already composed");
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
   runtimeEvidenceState = new PaperRuntimeEvidenceState();
@@ -782,8 +782,11 @@ async function initializeRuntime(): Promise<void> {
     const logger = diagnostic.kind === "PERSISTENCE_ROLLBACK_COMPLETED" ? console.info : console.error;
     logger(formatRuntimeMutationDiagnostic(diagnostic));
   });
-  paperRuntimeIntegration = new PaperRuntimeIntegration(commands);
-  await paperRuntimeIntegration.start();
+  desktopCompositionRoot = new DesktopCompositionRoot({
+    commands,
+    getMonitorOptions: configuredMobileMonitorOptions
+  });
+  await desktopCompositionRoot.startRuntime();
   // Every process start constructs a fresh instance at IDLE. Shadow deliberately never
   // restores a previous session -- "no auto-run after restart" is true by construction. What
   // the durable archive adds is the opposite guarantee: a session that did run leaves a
@@ -1264,7 +1267,8 @@ app.whenReady().then(async () => {
     paperCommandService().markUnavailable();
   }
   createWindow();
-  startConfiguredMobileBridge();
+  const monitor = desktopCompositionRoot?.startMonitor();
+  if (monitor) logProduct("INFO", "read-only mobile monitor enabled on localhost", { port: monitor.port }, "MOBILE_BRIDGE_STARTED");
   // Public market data is safe to observe even while Paper execution is unavailable.
   // Execution remains fail-closed behind RuntimeCommandService and the risk gate.
   stream.start();
@@ -1285,11 +1289,11 @@ app.whenReady().then(async () => {
 let shadowEvidenceSealed = false;
 let shutdownInProgress = false;
 
-function startConfiguredMobileBridge(): void {
-  if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return;
+function configuredMobileMonitorOptions(): MobileBridgeOptions | undefined {
+  if (process.env.NUSA_MOBILE_MONITOR_ENABLED !== "true") return undefined;
   const port = Number(process.env.NUSA_MOBILE_MONITOR_PORT ?? "0");
-  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) { logProduct("WARN", "mobile monitor remains disabled: invalid port", {}, "MOBILE_BRIDGE_INVALID_PORT"); return; }
-  mobileBridge = startMobileBridge({
+  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) { logProduct("WARN", "mobile monitor remains disabled: invalid port", {}, "MOBILE_BRIDGE_INVALID_PORT"); return undefined; }
+  return {
     port,
     getStatus: () => Object.freeze({ app: "NUSA", mode: "PAPER", marketConnectionState: marketDataStatus, warmupState: marketDataStatus === "HEALTHY" ? "READY" : marketDataStatus, stale: marketDataStatus === "STALE", observedAt: new Date().toISOString() }),
     getAccount: () => latestTicker ? broker.snapshot(latestTicker.trade_price) : Object.freeze({ available: false as const, reason: "MARKET_DATA_UNAVAILABLE" }),
@@ -1299,8 +1303,7 @@ function startConfiguredMobileBridge(): void {
       ? shadowRuntime.recentClosedCandles(count).map((candle) => Object.freeze({ market: candle.symbol, interval: "1m" as const, openTime: candle.openTime, closeTime: candle.closeTime, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, source: "UPBIT_PUBLIC_CANDLE" as const }))
       : Object.freeze([]),
     getEvents: () => recentErrorCodes.map((code) => Object.freeze({ code }))
-  });
-  logProduct("INFO", "read-only mobile monitor enabled on localhost", { port }, "MOBILE_BRIDGE_STARTED");
+  };
 }
 
 /**
@@ -1322,7 +1325,7 @@ function buildShutdownSequence(): ShutdownSequence {
     observationIsRunning: () => shadowRuntime !== undefined && ["RUNNING", "PAUSED", "HALTED"].includes(shadowRuntime.diagnostics().state),
     currentSessionId: () => shadowRuntime?.diagnostics().sessionId ?? null,
     stopSignalIntake: async () => {
-      await paperRuntimeIntegration?.stop();
+      await desktopCompositionRoot?.stopRuntime();
       if (!shadowRuntime) return;
       // Only a session that is actually open is stopped; calling stop() on an IDLE runtime
       // throws, and a shutdown must not fail because there was nothing to shut down.
@@ -1335,8 +1338,7 @@ function buildShutdownSequence(): ShutdownSequence {
       if (healthTimer) { clearInterval(healthTimer); healthTimer = undefined; }
       if (officialCandleTimer) { clearInterval(officialCandleTimer); officialCandleTimer = undefined; }
       persistenceStore?.close();
-      void mobileBridge?.stop();
-      mobileBridge = undefined;
+      void desktopCompositionRoot?.stopMonitor();
     },
     flushEvidence: async () => { await shadowRuntime?.awaitEvidenceFinalized(); },
     recordRecovery: (clean) => {

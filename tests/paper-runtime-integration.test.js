@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 
 const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { PaperRuntimeIntegration, PAPER_COMMAND_RUNTIME_SERVICE } = require("../dist/apps/desktop/src/paperRuntimeIntegration.js");
+const { PaperRuntimeIntegration, PAPER_COMMAND_RUNTIME_SERVICE, createPaperCommandEngine } = require("../dist/apps/desktop/src/paperRuntimeIntegration.js");
+const { RuntimeCompositionRoot } = require("../dist/packages/core/src/runtimeCompositionRoot.js");
 const { RuntimeCommandService, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/runtimeCommandService.js");
 const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
 
@@ -23,9 +24,10 @@ function harness() {
 
 test("Core Runtime owns the Paper command lifecycle without changing pre-shutdown execution", async () => {
   const h = harness();
-  const integration = new PaperRuntimeIntegration(h.commands);
+  const root = new RuntimeCompositionRoot([createPaperCommandEngine(h.commands)]);
+  const integration = new PaperRuntimeIntegration(root);
 
-  await integration.start();
+  await root.start();
   assert.equal(integration.isStarted(), true);
   assert.strictEqual(integration.commandService(), h.commands);
   assert.equal(PAPER_COMMAND_RUNTIME_SERVICE, "desktop.paper-command");
@@ -40,7 +42,7 @@ test("Core Runtime owns the Paper command lifecycle without changing pre-shutdow
   );
 
   const beforeStop = h.broker.exportState();
-  await integration.stop();
+  await root.stop();
 
   assert.equal(integration.isStarted(), false);
   assert.equal(h.commands.isAvailable(), false);

@@ -1,46 +1,28 @@
 import type { Engine } from "../../../packages/core/src/engineRegistry";
-import { NusaRuntime } from "../../../packages/core/src/runtime";
+import { RuntimeCompositionRoot } from "../../../packages/core/src/runtimeCompositionRoot";
 import { RuntimeCommandService } from "./runtimeCommandService";
 
 export const PAPER_COMMAND_RUNTIME_SERVICE = "desktop.paper-command";
 
+export function createPaperCommandEngine(commands: RuntimeCommandService): Engine {
+  return {
+    id: PAPER_COMMAND_RUNTIME_SERVICE,
+    start: ({ services, signal }) => {
+      if (signal.aborted) {
+        commands.markUnavailable();
+        throw signal.reason;
+      }
+      services.register(PAPER_COMMAND_RUNTIME_SERVICE, commands);
+    },
+    stop: () => commands.markUnavailable()
+  };
+}
+
 export class PaperRuntimeIntegration {
-  private readonly runtime = new NusaRuntime();
-
-  constructor(private readonly commands: RuntimeCommandService) {
-    const engine: Engine = {
-      id: PAPER_COMMAND_RUNTIME_SERVICE,
-      start: ({ services, signal }) => {
-        if (signal.aborted) {
-          this.commands.markUnavailable();
-          throw signal.reason;
-        }
-        services.register(PAPER_COMMAND_RUNTIME_SERVICE, this.commands);
-      },
-      stop: () => this.commands.markUnavailable()
-    };
-    this.runtime.engines.register(engine);
-  }
-
-  async start(): Promise<void> {
-    try {
-      await this.runtime.start();
-    } catch (error) {
-      this.commands.markUnavailable();
-      throw error;
-    }
-  }
-
-  async stop(): Promise<void> {
-    try {
-      await this.runtime.stop();
-    } finally {
-      this.commands.markUnavailable();
-    }
-  }
+  constructor(private readonly runtime: RuntimeCompositionRoot) {}
 
   commandService(): RuntimeCommandService {
-    return this.runtime.services.resolve<RuntimeCommandService>(PAPER_COMMAND_RUNTIME_SERVICE);
+    return this.runtime.resolve<RuntimeCommandService>(PAPER_COMMAND_RUNTIME_SERVICE);
   }
 
   isStarted(): boolean {
