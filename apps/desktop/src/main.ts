@@ -50,6 +50,7 @@ import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreeme
 import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
 import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
 import { evaluateStrategyRegime } from "./regimePolicy";
+import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -165,6 +166,9 @@ const aiSessionSummaryClient: AiSessionSummaryClient | undefined =
 // On-demand regime explanation: same dark-by-default pattern as the other AI features.
 const aiRegimeExplainerClient: AiRegimeExplainerClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicRegimeExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// On-demand risk commentary: explains the AI CIO risk dashboard section in plain Korean.
+const aiRiskCommentaryClient: AiRiskCommentaryClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicRiskCommentaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -939,6 +943,7 @@ ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChalleng
   client: aiDisagreementExplainerClient,
   nowMs: Date.now()
 }));
+ipcMain.handle("ai:challenger-history", () => aiChallengerObserver.getHistory());
 ipcMain.handle("ai:summarize-session", async () => {
   const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
     market: MARKET,
@@ -961,6 +966,16 @@ ipcMain.handle("ai:explain-regime", async () => {
     decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
   };
   return explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() });
+});
+ipcMain.handle("ai:explain-risk", async () => {
+  const envelope = aiCioEnvelopeSource.current();
+  const request: RiskCommentaryRequest | undefined = envelope === null ? undefined : {
+    market: MARKET,
+    dashboardStatus: envelope.snapshot.status,
+    risk: envelope.snapshot.risk,
+    warnings: envelope.snapshot.warnings
+  };
+  return explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() });
 });
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {

@@ -171,3 +171,40 @@ test("getStats computes the agreement rate across recorded observations", async 
   assert.equal(stats.agreementCount, 2);
   assert.ok(Math.abs(stats.agreementRate - 2 / 3) < 1e-9);
 });
+
+test("getHistory returns observations newest-first without hash-chain bookkeeping fields", async () => {
+  let seen = 0;
+  const timestamps = [100, 200, 300];
+  const client = { generateSignal: async () => ({ type: "BUY", reason: `응답${seen}`, confidence: 0.5 }) };
+  const observer = new AiChallengerObserver(client, () => timestamps[seen++]);
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "BUY" }), recentPrices: [100] });
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "HOLD" }), recentPrices: [100] });
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "SELL" }), recentPrices: [100] });
+  const history = observer.getHistory();
+  assert.equal(history.length, 3);
+  assert.deepEqual(history.map((entry) => entry.timestamp), [300, 200, 100]);
+  for (const entry of history) {
+    assert.equal(Object.hasOwn(entry, "sequence"), false);
+    assert.equal(Object.hasOwn(entry, "eventSha256"), false);
+    assert.equal(Object.hasOwn(entry, "previousEventSha256"), false);
+  }
+});
+
+test("getHistory respects the limit and keeps only the most recent entries", async () => {
+  let call = 0;
+  const client = { generateSignal: async () => ({ type: "BUY", reason: `응답${call}`, confidence: 0.5 }) };
+  const observer = new AiChallengerObserver(client, () => call);
+  const types = ["BUY", "SELL", "HOLD", "BUY", "SELL"];
+  for (const type of types) {
+    call += 1;
+    await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type }), recentPrices: [100] });
+  }
+  const limited = observer.getHistory(2);
+  assert.equal(limited.length, 2);
+  assert.deepEqual(limited.map((entry) => entry.timestamp), [5, 4]);
+});
+
+test("getHistory returns an empty array when there are no observations yet", () => {
+  const observer = new AiChallengerObserver(undefined);
+  assert.deepEqual(observer.getHistory(), []);
+});

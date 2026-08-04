@@ -9,6 +9,7 @@ import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
 import type { AiSessionSummary } from "./aiSessionSummary";
 import type { AiRegimeExplanation } from "./aiRegimeExplainer";
+import type { AiRiskCommentary } from "./aiRiskCommentary";
 import type { AiChallengerObservation } from "./aiChallengerObserver";
 import type { AiDisagreementExplanation } from "./aiChallengerDisagreementExplainer";
 
@@ -220,13 +221,15 @@ export interface AiResearchApi {
   askFollowUpQuestion(question: string): Promise<AiSignalFollowUpAnswer>;
   summarizeSession(): Promise<AiSessionSummary>;
   explainRegime(): Promise<AiRegimeExplanation>;
+  explainRisk(): Promise<AiRiskCommentary>;
 }
 
 const aiResearch: AiResearchApi = Object.freeze({
   explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal"),
   askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question),
   summarizeSession: () => invokeReadWithRecovery<AiSessionSummary>("ai:summarize-session"),
-  explainRegime: () => invokeReadWithRecovery<AiRegimeExplanation>("ai:explain-regime")
+  explainRegime: () => invokeReadWithRecovery<AiRegimeExplanation>("ai:explain-regime"),
+  explainRisk: () => invokeReadWithRecovery<AiRiskCommentary>("ai:explain-risk")
 });
 
 /**
@@ -243,11 +246,13 @@ export interface AiChallengerStatus {
 export interface AiChallengerApi {
   status(): Promise<AiChallengerStatus>;
   explainDisagreement(): Promise<AiDisagreementExplanation>;
+  history(): Promise<readonly AiChallengerObservation[]>;
 }
 
 const aiChallenger: AiChallengerApi = Object.freeze({
   status: () => invokeReadWithRecovery<AiChallengerStatus>("ai:challenger-status"),
-  explainDisagreement: () => invokeReadWithRecovery<AiDisagreementExplanation>("ai:explain-challenger-disagreement")
+  explainDisagreement: () => invokeReadWithRecovery<AiDisagreementExplanation>("ai:explain-challenger-disagreement"),
+  history: () => invokeReadWithRecovery<readonly AiChallengerObservation[]>("ai:challenger-history")
 });
 
 contextBridge.exposeInMainWorld("nusa", api);

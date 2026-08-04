@@ -148,6 +148,13 @@ export class AiChallengerObserver {
 
   getLatestObservation(): AiChallengerObservation | undefined { return this.latest; }
   eventLog(): readonly AiChallengerEvent[] { return Object.freeze([...this.events]); }
+  /** Most recent observations first, capped at limit. Strips the hash-chain bookkeeping
+   * fields (sequence/previousEventSha256/eventSha256) -- callers that need those for
+   * integrity verification should use eventLog() instead. */
+  getHistory(limit = 50): readonly AiChallengerObservation[] {
+    return Object.freeze(this.events.slice(-limit).reverse().map(({ timestamp, market, championSignal, aiSignal, agreesWithChampion }) =>
+      Object.freeze({ timestamp, market, championSignal, aiSignal, agreesWithChampion })));
+  }
   /** agreementRate is null (not 0) when there are no observations yet, so callers can tell
    * "no data" apart from "AI has never once agreed with the champion". */
   getStats(): Readonly<{ totalObservations: number; agreementCount: number; agreementRate: number | null }> {
