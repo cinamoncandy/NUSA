@@ -488,14 +488,19 @@ async function refreshAiChallenger() {
   if (!window.aiChallenger) return;
   const card = byId("ai-challenger");
   try {
-    const { configured, latest } = await window.aiChallenger.status();
+    const { configured, latest, stats } = await window.aiChallenger.status();
     card.hidden = !configured;
-    if (configured && latest) {
+    if (!configured) return;
+    if (latest) {
       byId("ai-challenger-champion").textContent = `${latest.championSignal.type} (${latest.championSignal.reason})`;
       byId("ai-challenger-ai").textContent = `${latest.aiSignal.type} (신뢰도 ${latest.aiSignal.confidence.toFixed(2)})`;
       byId("ai-challenger-agreement").textContent = latest.agreesWithChampion ? "일치" : "불일치";
       byId("ai-challenger-reason").textContent = latest.aiSignal.reason;
     }
+    const rateNode = byId("ai-challenger-agreement-rate");
+    rateNode.textContent = stats.agreementRate === null
+      ? "관찰 없음"
+      : `${Math.round(stats.agreementRate * 100)}% (${stats.agreementCount}/${stats.totalObservations}건)`;
   } catch {
     card.hidden = true;
   } finally {

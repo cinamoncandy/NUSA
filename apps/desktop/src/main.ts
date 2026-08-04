@@ -918,7 +918,8 @@ ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => 
 });
 ipcMain.handle("ai:challenger-status", () => ({
   configured: aiChallengerClient !== undefined,
-  latest: aiChallengerObserver.getLatestObservation() ?? null
+  latest: aiChallengerObserver.getLatestObservation() ?? null,
+  stats: aiChallengerObserver.getStats()
 }));
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
