@@ -48,6 +48,8 @@ import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStra
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
 import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
 import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
+import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
+import { evaluateStrategyRegime } from "./regimePolicy";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -160,6 +162,9 @@ const aiDisagreementExplainerClient: AiDisagreementExplainerClient | undefined =
 // On-demand session summary: same dark-by-default pattern as the other AI features.
 const aiSessionSummaryClient: AiSessionSummaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicSessionSummaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// On-demand regime explanation: same dark-by-default pattern as the other AI features.
+const aiRegimeExplainerClient: AiRegimeExplainerClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicRegimeExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -946,6 +951,16 @@ ipcMain.handle("ai:summarize-session", async () => {
     challengerStats: aiChallengerObserver.getStats()
   };
   return summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() });
+});
+ipcMain.handle("ai:explain-regime", async () => {
+  const signal = strategy.getLatestSignal();
+  const request: RegimeExplanationRequest | undefined = signal?.regime === undefined ? undefined : {
+    market: MARKET,
+    regime: signal.regime,
+    recentPrices: strategy.getHistory(),
+    decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
+  };
+  return explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() });
 });
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
