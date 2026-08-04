@@ -26,18 +26,13 @@ test("ledger replay rejects sequence and before-state tampering", () => {
   assert.throws(() => replayPaperLedger([{ ...ledger[0], cashBefore: 999 }], 1_000, 100), /before-state mismatch/);
 });
 
-test("restore derives the portfolio from ledger instead of persisted projection fields", () => {
+test("restore rejects persisted projection fields that diverge from the ledger", () => {
   const broker = new PaperBroker(1_000, "KRW-BTC", 0);
   broker.execute("BUY", 1, 100, new Date(1_000));
   const state = broker.exportState();
-  const restored = new PaperBroker(1_000, "KRW-BTC", 0, {}, {
+  assert.throws(() => new PaperBroker(1_000, "KRW-BTC", 0, {}, {
     ...state,
     cash: 1,
     position: { ...state.position, quantity: 99, averagePrice: 1, realizedPnl: 999 }
-  });
-  const snapshot = restored.snapshot(100);
-  assert.equal(snapshot.cash, 900);
-  assert.equal(snapshot.position.quantity, 1);
-  assert.equal(snapshot.position.averagePrice, 100);
-  assert.equal(snapshot.position.realizedPnl, 0);
+  }), /PROJECTION_MISMATCH/);
 });

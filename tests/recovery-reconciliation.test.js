@@ -50,42 +50,30 @@ test("1: a clean persisted snapshot reconciles as MATCHED", () => {
 
 // -------------------------------------------- 2-5. MISMATCHED, one cause each
 
-test("2: an unresolved fill reconciles as MISMATCHED", () => {
+test("2: an unresolved fill is rejected before recovery reconciliation", () => {
   const broker = freshBroker();
   broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   // Strip the fill timestamp: an order the record cannot place in time is unresolved.
   const tampered = { ...state, orders: state.orders.map((order) => ({ ...order, filledAt: "" })) };
-  const result = compareRecoveryState(healthyInput({
-    broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
-  }));
-  assert.equal(result.outcome, "MISMATCHED");
-  assert.ok(result.mismatchCodes.includes("UNRESOLVED_FILLS"), JSON.stringify(result.mismatchCodes));
+  assert.throws(() => new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 }), /paper ledger recovery validation failed/);
 });
 
-test("3: persisted cash projection is rebuilt from the authoritative ledger", () => {
+test("3: persisted cash projection mismatch is rejected before recovery reconciliation", () => {
   const broker = freshBroker();
   broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   // Move the account's cash away from what the ledger independently computes.
   const tampered = { ...state, cash: state.cash - 1_000 };
-  const result = compareRecoveryState(healthyInput({
-    broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
-  }));
-  assert.equal(result.outcome, "MATCHED", JSON.stringify(result.mismatchCodes));
-  assert.deepEqual([...result.mismatchCodes], []);
+  assert.throws(() => new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 }), /PROJECTION_MISMATCH/);
 });
 
-test("4: persisted position projection is rebuilt from the authoritative ledger", () => {
+test("4: persisted position projection mismatch is rejected before recovery reconciliation", () => {
   const broker = freshBroker();
   broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
   const tampered = { ...state, position: { ...state.position, quantity: state.position.quantity + 0.5 } };
-  const result = compareRecoveryState(healthyInput({
-    broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
-  }));
-  assert.equal(result.outcome, "MATCHED", JSON.stringify(result.mismatchCodes));
-  assert.deepEqual([...result.mismatchCodes], []);
+  assert.throws(() => new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 }), /PROJECTION_MISMATCH/);
 });
 
 test("5: any non-zero mutation counter reconciles as MISMATCHED", () => {

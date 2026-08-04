@@ -1,3 +1,5 @@
+import { validatePaperLedgerRecovery } from "./paperLedgerValidation";
+
 export type PaperSide = "BUY" | "SELL";
 
 export interface PaperOrder {
@@ -183,6 +185,8 @@ export class PaperBroker {
     this.fillModel = Object.freeze({ slippageBps, spreadBps, maxFillRatio, marketImpactBpsPerUnit });
 
     if (restoredState) {
+      const validation = validatePaperLedgerRecovery(restoredState, initialCash);
+      if (validation.status === "INVALID") throw new Error(`paper ledger recovery validation failed: ${validation.reasonCodes.join(",")}`);
       if (restoredState.version !== 1) throw new Error("unsupported paper broker state version");
       if (restoredState.position.market !== market) throw new Error("paper state market mismatch");
       if (restoredState.feeRate !== feeRate) throw new Error("paper state fee rate mismatch");
@@ -340,7 +344,8 @@ export class PaperBroker {
     if (this.riskPolicy.priceTick !== null) publicPolicy.priceTick = this.riskPolicy.priceTick;
     if (this.riskPolicy.minOrderNotional !== null) publicPolicy.minOrderNotional = this.riskPolicy.minOrderNotional;
 
-    const validated = new PaperBroker(1, this.position.market, this.feeRate, publicPolicy, state).exportState();
+    const recoveryInitialCash = state.ledger?.[0]?.cashBefore ?? 1;
+    const validated = new PaperBroker(recoveryInitialCash, this.position.market, this.feeRate, publicPolicy, state).exportState();
     this.cash = validated.cash;
     this.position.quantity = validated.position.quantity;
     this.position.averagePrice = validated.position.averagePrice;

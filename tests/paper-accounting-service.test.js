@@ -24,13 +24,22 @@ test("central fixed precision rounds all accounting boundaries deterministically
   assert.equal(snapshot.position.averagePrice, 1.01);
 });
 
-test("account restoration preserves the ledger as the source of projection", () => {
+test("account restoration preserves a matching ledger projection", () => {
   const service = new PaperAccountingService(new FixedPrecision({ scale: 100 }));
   service.openAccount("a", 1000, "KRW-BTC", 0);
   service.execute("a", "BUY", 2, 100, new Date(1000));
   const state = service.exportAccount("a");
   const restored = new PaperAccountingService(new FixedPrecision({ scale: 100 }));
-  restored.restoreAccount({ accountId: "a", broker: { ...state.broker, cash: 1, position: { ...state.broker.position, quantity: 99 } } });
+  restored.restoreAccount(state);
   assert.equal(restored.snapshot("a", 100).cash, 800);
   assert.equal(restored.snapshot("a", 100).position.quantity, 2);
+});
+
+test("account restoration rejects a mismatched ledger projection", () => {
+  const service = new PaperAccountingService(new FixedPrecision({ scale: 100 }));
+  service.openAccount("a", 1000, "KRW-BTC", 0);
+  service.execute("a", "BUY", 2, 100, new Date(1000));
+  const state = service.exportAccount("a");
+  const restored = new PaperAccountingService(new FixedPrecision({ scale: 100 }));
+  assert.throws(() => restored.restoreAccount({ accountId: "a", broker: { ...state.broker, cash: 1 } }), /PROJECTION_MISMATCH/);
 });

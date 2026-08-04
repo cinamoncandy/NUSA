@@ -1,17 +1,20 @@
 version: 1
 project: nusa
-updated_at: "2026-08-04T21:12:09+09:00"
+updated_at: "2026-08-04T22:30:00+09:00"
 phase: runtime-integration
 status: in_progress
-objective: "Integrate the existing Core Runtime with the existing Paper command lifecycle while preserving Paper-only safety."
+objective: "Validate persisted Paper Ledger recovery state fail-closed while preserving Paper-only safety."
 base_branch: main
 active_branch: fix/paper-runtime-lifecycle
 active_pull_request: null
 latest_verified_slice:
-  id: paper-runtime-integration-013
-  evidence: "Focused integration tests 4/4 PASS; pnpm run typecheck PASS; pnpm test PASS across 347 isolated files; pnpm run build PASS."
-  summary: "The existing Core Runtime now owns the existing Paper command lifecycle and shuts it down fail-closed before market unsubscription; Paper order semantics are unchanged."
+  id: paper-ledger-recovery-validation-014
+  evidence: "Ledger validation tests 12/12 PASS; pnpm run typecheck PASS; pnpm test PASS across 351 isolated files; pnpm run build PASS."
+  summary: "Persisted Paper Ledger recovery now validates deterministic invariants and reason codes before SQLite/Legacy recovery, failing closed without changing Paper order semantics."
 completed:
+  - id: paper-ledger-recovery-validation-014
+    evidence: "tests/paper-ledger-recovery-validation.test.js; pnpm run typecheck PASS; pnpm test PASS across 351 isolated files; pnpm run build PASS"
+    summary: "Added fail-closed validation for persisted Paper Ledger recovery with stable reason codes and generalized user recovery errors."
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
     summary: "Added a bounded deterministic Strategy Optimizer over the existing StrategyRegistry and Backtest Engine with walk-forward validation, reserved Holdout gating, Dataset reuse protection, and owner-approved promotion candidates."
@@ -54,7 +57,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: null
-  reason: "WO-0013 is complete; await a separately approved work order."
+  reason: "WO-0014 is complete; await a separately approved work order."
 verification:
   required:
     - "pnpm run preflight"
@@ -67,7 +70,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: WO-0013 focused integration tests 4/4; Typecheck; Build; full isolated suite 347 files."
+  last_result: "PASS: WO-0014 Ledger validation tests 12/12; Typecheck; Build; full isolated suite 351 files."
   current_commit: "316d6f1"
 human_authority:
   live_trading_mutation: prohibited

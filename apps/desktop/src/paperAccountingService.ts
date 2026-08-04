@@ -39,7 +39,8 @@ export class PaperAccountingService {
     const accountId = id(state.accountId, "accountId");
     if (this.accounts.has(accountId)) throw new Error("account is already open");
     const market = state.broker.position.market;
-    this.accounts.set(accountId, new PaperBroker(1, market, state.broker.feeRate, {}, state.broker));
+    const initialCash = state.broker.ledger?.[0]?.cashBefore ?? state.broker.cash;
+    this.accounts.set(accountId, new PaperBroker(initialCash, market, state.broker.feeRate, {}, state.broker));
   }
 
   public execute(accountId: string, side: "BUY" | "SELL", quantity: number, price: number, now = new Date()): PaperOrder {

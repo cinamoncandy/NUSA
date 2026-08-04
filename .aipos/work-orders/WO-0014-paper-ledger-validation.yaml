@@ -1,0 +1,31 @@
+id: WO-0014
+schema_version: 1
+title: "Fail-closed Paper Ledger recovery validation"
+status: COMPLETE
+priority: 100
+objective: "Validate persisted Paper Ledger state before import or PaperBroker recovery, and reject invalid state fail-closed."
+scope:
+  - "Return deterministic Ledger validation reason codes."
+  - "Validate SQLite-first and Legacy fallback recovery candidates before import or projection."
+  - "Keep manual and automatic Paper commands unavailable after validation failure."
+exclusions:
+  - "No order, fill, risk, Ledger schema, IPC, UI, or Live Trading change."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - "Ledger validation regression and corrupted-state tests"
+  - "pnpm run typecheck"
+  - "pnpm test"
+  - "pnpm run build"
+  - "git diff --check"
+completion_criteria:
+  - "Every required Ledger invariant returns its stable reason code on corruption."
+  - "Only VALID candidates enter Legacy import or PaperBroker recovery."
+  - "Recovery failure records reason codes and leaves Paper commands fail-closed."
+  - "All required verification commands pass with a clean worktree."
+blockers: []
+current_status: "pnpm run typecheck PASS; pnpm test PASS across 351 isolated files; pnpm run build PASS."
+next_action: "Complete; await a separately approved work order."
+rollback: "Revert this validation slice; no persisted data migration or order semantics changed."

@@ -8,6 +8,7 @@ import { ControlSessionStore } from "./controlSessionStore";
 import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder } from "./paperBroker";
+import { selectPaperLedgerRecoveryCandidate } from "./paperLedgerValidation";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
@@ -624,29 +625,43 @@ async function initializeRuntime(): Promise<void> {
   controlStore = new ControlSessionStore(layout.controlSessionFile);
   const paperLoad = sessionStore.loadSafe();
   const controlLoad = controlStore.loadSafe();
-  let restored = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
+  const legacyState = paperLoad.state && controlLoad.state ? { paper: paperLoad.state, control: controlLoad.state } : undefined;
+  let restored: typeof legacyState | undefined;
   let restoredFromSqlite = false;
   let persistenceDiagnostic: string | undefined;
+  let persistenceUserDiagnostic: string | undefined;
   let safetyRecoveryBlocked = crashRecoveryRequired;
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
     executionRepository = persistenceStore.executionRepository();
     paperRiskEvidenceRepository = persistenceStore.riskEvidenceRepository();
+    const sqliteState = persistenceStore.load();
+    const recovery = selectPaperLedgerRecoveryCandidate(sqliteState, legacyState, INITIAL_CASH);
+    if (recovery) {
+      const { state: candidate, validation } = recovery;
+      if (validation.status === "INVALID") {
+        persistenceDiagnostic = `PAPER_LEDGER_VALIDATION:${validation.reasonCodes.join(",")}`;
+        persistenceUserDiagnostic = PERSISTENCE_REPAIR_MESSAGE;
+        recordRecovery("STORAGE", "CRITICAL", persistenceDiagnostic);
+        throw new Error("paper ledger recovery validation failed");
+      }
+      restored = candidate;
+      if (recovery.source === "SQLITE") restoredFromSqlite = true;
+      else persistenceStore.importLegacy(candidate);
+    }
     const startupAudit: OperationsAuditRecord = Object.freeze({ auditId: `audit-start-${productRunId}`, actor: "SYSTEM", action: "APPLICATION_START", target: null, metadata: { mode: "PAPER", productionMutationAllowed: false }, createdAt: new Date().toISOString() });
     persistenceStore.appendOperationsAudit(startupAudit);
     operationsAudit = persistenceStore.loadOperationsAudit();
     operationsAlerts = persistenceStore.loadOperationsAlerts();
-    const sqliteState = persistenceStore.load();
-    if (sqliteState) {
-      restored = sqliteState;
-      restoredFromSqlite = true;
-    } else if (restored) persistenceStore.importLegacy(restored);
   } catch (error) {
+    persistenceStore?.close();
     persistenceStore = undefined;
     executionRepository = undefined;
+    paperRiskEvidenceRepository = undefined;
     operationsAudit = Object.freeze([]);
     operationsAlerts = Object.freeze([]);
-    persistenceDiagnostic = `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
+    persistenceDiagnostic ??= `SQLite recovery failed: ${error instanceof Error ? error.message : String(error)}`;
+    persistenceUserDiagnostic ??= PERSISTENCE_REPAIR_MESSAGE;
   }
   if (persistenceStore) {
     try {
@@ -846,7 +861,7 @@ async function initializeRuntime(): Promise<void> {
   });
   paperTradingAvailable = !crashRecoveryRequired && !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING" && paperTradingAvailable) strategy.start();
-  for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
+  for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceUserDiagnostic ?? persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
   if (!paperTradingAvailable) paperCommandService().markUnavailable();
