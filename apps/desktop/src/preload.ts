@@ -227,12 +227,18 @@ const aiResearch: AiResearchApi = Object.freeze({
  * the main process has already observed by comparing the AI's hypothetical signal against
  * the champion strategy's real signal. There is no method here shaped like a trading action.
  */
+export interface AiChallengerStatus {
+  readonly configured: boolean;
+  readonly latest: AiChallengerObservation | null;
+  readonly stats: Readonly<{ totalObservations: number; agreementCount: number; agreementRate: number | null }>;
+}
+
 export interface AiChallengerApi {
-  status(): Promise<Readonly<{ configured: boolean; latest: AiChallengerObservation | null }>>;
+  status(): Promise<AiChallengerStatus>;
 }
 
 const aiChallenger: AiChallengerApi = Object.freeze({
-  status: () => invokeReadWithRecovery<Readonly<{ configured: boolean; latest: AiChallengerObservation | null }>>("ai:challenger-status")
+  status: () => invokeReadWithRecovery<AiChallengerStatus>("ai:challenger-status")
 });
 
 contextBridge.exposeInMainWorld("nusa", api);

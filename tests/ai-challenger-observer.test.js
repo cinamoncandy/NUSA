@@ -147,3 +147,27 @@ test("createAnthropicChallengerClient rejects an out-of-range confidence", async
   const client = createAnthropicChallengerClient({ apiKey: "hunter2hunter2", fetchImpl });
   await assert.rejects(() => client.generateSignal({ market: "KRW-BTC", recentPrices: [100] }));
 });
+
+test("getStats reports a null rate (not zero) when there are no observations yet", () => {
+  const observer = new AiChallengerObserver(undefined);
+  const stats = observer.getStats();
+  assert.deepEqual(stats, { totalObservations: 0, agreementCount: 0, agreementRate: null });
+});
+
+test("getStats computes the agreement rate across recorded observations", async () => {
+  const responses = [
+    { type: "BUY", reason: "일치1", confidence: 0.5 },
+    { type: "SELL", reason: "불일치", confidence: 0.5 },
+    { type: "SELL", reason: "일치2", confidence: 0.5 }
+  ];
+  let call = 0;
+  const client = { generateSignal: async () => responses[call++] };
+  const observer = new AiChallengerObserver(client, () => 1);
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "BUY" }), recentPrices: [100] });
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "HOLD" }), recentPrices: [100] });
+  await observer.observe({ market: "KRW-BTC", championSignal: championSignal({ type: "SELL" }), recentPrices: [100] });
+  const stats = observer.getStats();
+  assert.equal(stats.totalObservations, 3);
+  assert.equal(stats.agreementCount, 2);
+  assert.ok(Math.abs(stats.agreementRate - 2 / 3) < 1e-9);
+});

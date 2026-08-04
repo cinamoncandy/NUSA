@@ -148,6 +148,13 @@ export class AiChallengerObserver {
 
   getLatestObservation(): AiChallengerObservation | undefined { return this.latest; }
   eventLog(): readonly AiChallengerEvent[] { return Object.freeze([...this.events]); }
+  /** agreementRate is null (not 0) when there are no observations yet, so callers can tell
+   * "no data" apart from "AI has never once agreed with the champion". */
+  getStats(): Readonly<{ totalObservations: number; agreementCount: number; agreementRate: number | null }> {
+    const totalObservations = this.events.length;
+    const agreementCount = this.events.reduce((count, event) => count + (event.agreesWithChampion ? 1 : 0), 0);
+    return Object.freeze({ totalObservations, agreementCount, agreementRate: totalObservations === 0 ? null : agreementCount / totalObservations });
+  }
 
   private append(observation: AiChallengerObservation): void {
     const raw = { sequence: this.events.length + 1, ...observation, previousEventSha256: this.events.at(-1)?.eventSha256 ?? "GENESIS" };
