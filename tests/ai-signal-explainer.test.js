@@ -2,7 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   buildSignalExplanationPrompt,
+  buildSignalFollowUpPrompt,
   explainStrategySignal,
+  answerSignalFollowUp,
   createAnthropicSignalExplainerClient
 } = require("../dist/apps/desktop/src/aiSignalExplainer.js");
 
@@ -106,4 +108,74 @@ test("end to end: explainStrategySignal with the real Anthropic client shape (ne
   const result = await explainStrategySignal({ request, client, nowMs: 9999 });
   assert.equal(result.status, "OK");
   assert.equal(result.explanation, "단기 이동평균이 장기 이동평균을 상향 돌파했습니다.");
+});
+
+test("buildSignalExplanationPrompt includes recent signal transitions when present", () => {
+  const history = [signal({ type: "HOLD", reason: "no-cross", timestamp: 500 }), signal({ type: "BUY", timestamp: 1000 })];
+  const withHistory = buildSignalExplanationPrompt({ market: "KRW-BTC", signal: signal(), recentPrices: [], signalHistory: history });
+  assert.ok(withHistory.includes("HOLD (no-cross)"));
+  assert.ok(withHistory.includes("BUY (short-SMA crossed above long-SMA)"));
+  const withoutHistory = buildSignalExplanationPrompt({ market: "KRW-BTC", signal: signal(), recentPrices: [] });
+  assert.ok(withoutHistory.includes("no prior transitions recorded"));
+});
+
+test("buildSignalFollowUpPrompt includes the prior explanation and the question", () => {
+  const prompt = buildSignalFollowUpPrompt({
+    request: { market: "KRW-BTC", signal: signal(), recentPrices: [100] },
+    priorExplanation: "단기 이동평균이 장기 이동평균을 상향 돌파했습니다.",
+    question: "신뢰도가 왜 낮아요?"
+  });
+  assert.ok(prompt.includes("단기 이동평균이 장기 이동평균을 상향 돌파했습니다."));
+  assert.ok(prompt.includes("신뢰도가 왜 낮아요?"));
+  assert.ok(prompt.includes("PAPER-TRADING"));
+});
+
+test("answerSignalFollowUp reports NOT_CONFIGURED when no client is wired", async () => {
+  const result = await answerSignalFollowUp({ request: undefined, priorExplanation: undefined, question: "왜?", client: undefined, nowMs: 5000 });
+  assert.equal(result.status, "NOT_CONFIGURED");
+});
+
+test("answerSignalFollowUp reports NO_SIGNAL when there is no prior explanation to follow up on", async () => {
+  const client = { explain: async () => "unused", answerFollowUp: async () => "should not be called" };
+  const result = await answerSignalFollowUp({ request: undefined, priorExplanation: undefined, question: "왜?", client, nowMs: 5000 });
+  assert.equal(result.status, "NO_SIGNAL");
+});
+
+test("answerSignalFollowUp reports INVALID_QUESTION for empty or overlong questions", async () => {
+  const client = { explain: async () => "unused", answerFollowUp: async () => "should not be called" };
+  const request = { market: "KRW-BTC", signal: signal(), recentPrices: [] };
+  const empty = await answerSignalFollowUp({ request, priorExplanation: "설명", question: "   ", client, nowMs: 5000 });
+  assert.equal(empty.status, "INVALID_QUESTION");
+  const overlong = await answerSignalFollowUp({ request, priorExplanation: "설명", question: "a".repeat(301), client, nowMs: 5000 });
+  assert.equal(overlong.status, "INVALID_QUESTION");
+});
+
+test("answerSignalFollowUp returns OK with the client's answer", async () => {
+  const client = { explain: async () => "unused", answerFollowUp: async ({ question }) => `답변: ${question}` };
+  const request = { market: "KRW-BTC", signal: signal(), recentPrices: [] };
+  const result = await answerSignalFollowUp({ request, priorExplanation: "설명", question: "왜?", client, nowMs: 5000 });
+  assert.equal(result.status, "OK");
+  assert.equal(result.answer, "답변: 왜?");
+});
+
+test("answerSignalFollowUp reports UNAVAILABLE instead of throwing when the client fails", async () => {
+  const client = { explain: async () => "unused", answerFollowUp: async () => { throw new Error("network down"); } };
+  const request = { market: "KRW-BTC", signal: signal(), recentPrices: [] };
+  const result = await answerSignalFollowUp({ request, priorExplanation: "설명", question: "왜?", client, nowMs: 5000 });
+  assert.equal(result.status, "UNAVAILABLE");
+});
+
+test("createAnthropicSignalExplainerClient.answerFollowUp sends the follow-up prompt", async () => {
+  let capturedInit;
+  const fetchImpl = async (_url, init) => {
+    capturedInit = init;
+    return { ok: true, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: "답변입니다" }] }) };
+  };
+  const client = createAnthropicSignalExplainerClient({ apiKey: "hunter2hunter2", fetchImpl });
+  const request = { market: "KRW-BTC", signal: signal(), recentPrices: [100] };
+  const answer = await client.answerFollowUp({ request, priorExplanation: "이전 설명", question: "왜?" });
+  assert.equal(answer, "답변입니다");
+  const body = JSON.parse(capturedInit.body);
+  assert.ok(body.messages[0].content.includes("이전 설명"));
+  assert.ok(body.messages[0].content.includes("왜?"));
 });

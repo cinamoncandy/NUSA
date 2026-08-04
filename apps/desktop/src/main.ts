@@ -44,7 +44,7 @@ import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
-import { createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient } from "./aiSignalExplainer";
+import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -142,6 +142,9 @@ const sessionPeakEquityTracker: SessionPeakEquityTracker = createSessionPeakEqui
 // before launch. Feature stays dark (NOT_CONFIGURED) when unset.
 const aiSignalExplainerClient: AiSignalExplainerClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicSignalExplainerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// Holds the context+text of the last explanation shown to the user, so a follow-up
+// question can be answered without the renderer having to round-trip that state back.
+let lastAiSignalExplanation: Readonly<{ request: SignalExplanationRequest; explanation: string }> | undefined;
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -882,8 +885,22 @@ ipcMain.handle("execution:health", () => {
 ipcMain.handle("paper:preflight", () => operationalPreflight);
 ipcMain.handle("ai:explain-latest-signal", async () => {
   const signal = strategy.getLatestSignal();
-  const request = signal === undefined ? undefined : { market: MARKET, signal, recentPrices: strategy.getHistory() };
-  return explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() });
+  const request: SignalExplanationRequest | undefined = signal === undefined
+    ? undefined
+    : { market: MARKET, signal, recentPrices: strategy.getHistory(), signalHistory: strategy.getSignalHistory() };
+  const result = await explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() });
+  lastAiSignalExplanation = request !== undefined && result.status === "OK" ? Object.freeze({ request, explanation: result.explanation }) : undefined;
+  return result;
+});
+ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => {
+  if (typeof question !== "string") throw new Error("invalid follow-up question");
+  return answerSignalFollowUp({
+    request: lastAiSignalExplanation?.request,
+    priorExplanation: lastAiSignalExplanation?.explanation,
+    question,
+    client: aiSignalExplainerClient,
+    nowMs: Date.now()
+  });
 });
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {

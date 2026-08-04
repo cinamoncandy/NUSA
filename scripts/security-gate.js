@@ -86,7 +86,10 @@ function parseLockfile() {
   }
   const snapshots = source.slice(source.indexOf("snapshots:"));
   const optional = new Set();
-  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
+  // "optional: true" isn't always the line right after the header -- a "dependencies:"
+  // block (or others) can sit between them, as it does for postject. Skip any number of
+  // 4-space-indented lines before it, but stop at the next 2-space-indented package header.
+  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n(?:    .+\n)*?    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
   for (const item of packages) item.optional = optional.has(`${item.name}@${item.version}`);
   return { source, packages };
 }

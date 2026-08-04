@@ -73,11 +73,12 @@ export class SmaCrossoverStrategy implements TradingStrategy {
 
 export class StrategyEngine {
   private readonly prices: number[] = [];
+  private readonly signalHistory: StrategySignal[] = [];
   private running = false;
   private latestSignal?: StrategySignal;
   private lastTickKey?: string;
 
-  constructor(private strategy: TradingStrategy, private readonly maxHistory = 500) {}
+  constructor(private strategy: TradingStrategy, private readonly maxHistory = 500, private readonly maxSignalHistory = 20) {}
 
   start(): void { this.running = true; }
   stop(): void { this.running = false; }
@@ -96,9 +97,13 @@ export class StrategyEngine {
     this.prices.length = 0;
     this.prices.push(...prices.slice(-this.maxHistory));
   }
-  setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.latestSignal = undefined; this.lastTickKey = undefined; strategy.reset(); }
+  setStrategy(strategy: TradingStrategy): void { this.strategy = strategy; this.prices.length = 0; this.signalHistory.length = 0; this.latestSignal = undefined; this.lastTickKey = undefined; strategy.reset(); }
   getLatestSignal(): StrategySignal | undefined { return this.latestSignal; }
   getHistory(): readonly number[] { return [...this.prices]; }
+  /** Recorded transitions only (type or reason changed from the prior entry), oldest to
+   * newest, capped at maxSignalHistory -- most ticks re-confirm the same HOLD state, and a
+   * buffer of "no-cross" repeats would drown out the handful of signals worth narrating. */
+  getSignalHistory(): readonly StrategySignal[] { return [...this.signalHistory]; }
 
   onTick(tick: MarketTick, positionQuantity: number): StrategySignal {
     if (!Number.isFinite(tick.price) || tick.price <= 0) throw new Error("tick price must be positive");
@@ -112,6 +117,11 @@ export class StrategyEngine {
     const signalWithRegime = regime === undefined ? signal : { ...signal, regime };
     this.prices.push(tick.price);
     if (this.prices.length > this.maxHistory) this.prices.splice(0, this.prices.length - this.maxHistory);
+    const previous = this.signalHistory.at(-1);
+    if (previous === undefined || previous.type !== signalWithRegime.type || previous.reason !== signalWithRegime.reason) {
+      this.signalHistory.push(signalWithRegime);
+      if (this.signalHistory.length > this.maxSignalHistory) this.signalHistory.splice(0, this.signalHistory.length - this.maxSignalHistory);
+    }
     this.latestSignal = signalWithRegime;
     this.lastTickKey = tickKey;
     return signalWithRegime;
