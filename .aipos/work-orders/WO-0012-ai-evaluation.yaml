@@ -1,0 +1,36 @@
+id: WO-0012
+schema_version: 1
+title: "Implement deterministic AI Evaluation"
+status: COMPLETE
+priority: 85
+objective: "Evaluate AI research outputs for accuracy, replay determinism, provenance, safety, and regression stability without granting execution authority."
+scope:
+  - "Replay identical Backtest and Strategy Optimizer inputs and detect divergence."
+  - "Benchmark labeled recommendations for accuracy, outcome success, coverage, and calibration."
+  - "Compare replay results with immutable regression baselines."
+  - "Emit an immutable evaluation report with explicit safety gates."
+exclusions:
+  - "No new model training or external model calls."
+  - "No live trading or production mutation."
+  - "No automatic strategy promotion or replacement."
+safety:
+  productionMutationAllowed: false
+  liveTrading: disabled
+  credentials: not-configured
+verification:
+  - "AI Evaluation focused tests"
+  - "Strategy, Backtest, Optimizer regression tests"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run build"
+  - "git diff --check"
+completion_criteria:
+  - "Replay divergence fails the evaluation gate."
+  - "Dataset provenance is exact for every benchmark case and replay."
+  - "Regression baseline mismatch is reported as FAIL."
+  - "Unsafe or incomplete research output cannot produce PASS."
+  - "All verification commands pass and CI is green."
+blockers: []
+current_status: "Completed in commits 9a6e5ba, 0bfe41c, and 316d6f1; audited dependency vulnerabilities were patched, the security gate returned zero high/critical findings, and PR #100 CI plus Mobile Native verification passed."
+next_action: "Record the completed evidence and await a separately approved next work order; do not start #040 automatically."
+rollback: "Revert only the focused evaluation commit; no trading state or production data is changed."

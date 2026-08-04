@@ -23,6 +23,14 @@ test("lockfile contains integrity metadata for every resolved package", () => {
   assert.ok(result.packageCount > 0);
 });
 
+test("lockfile pins the patched versions for audited high advisories", () => {
+  const packages = parseLockfile().packages;
+  assert.ok(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.5"));
+  assert.ok(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.18"));
+  assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.4"), false);
+  assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
+});
+
 test("license audit ignores platform-selected optional packages without skipping ordinary dependencies", () => {
   const lock = parseLockfile();
   const platformPackages = lock.packages.filter((item) => item.platformSpecific);

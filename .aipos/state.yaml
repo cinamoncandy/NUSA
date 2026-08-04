@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-03T17:38:00+09:00"
+updated_at: "2026-08-04T11:09:29+09:00"
 phase: ai-research
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
 base_branch: main
-active_branch: codex/issue-038-strategy-optimizer
-active_pull_request: 87
+active_branch: codex/issue-039-ai-evaluation
+active_pull_request: 100
 latest_verified_slice:
-  id: strategy-optimizer-038
-  evidence: "commits 96df0a0 and fd450ec; PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; focused Strategy/Backtest/Optimizer regression tests 22/22; CI test run 30797419234 SUCCESS; Mobile Native run 30797419236 SUCCESS after iOS release rerun."
-  summary: "Added bounded deterministic DSL candidate generation, Train/Validation walk-forward scoring, reserved Holdout gating, Dataset reuse protection, provenance checks, complexity/generalization penalties, and owner-approved promotion candidates."
+  id: ai-evaluation-039
+  evidence: "commits 9a6e5ba, 0bfe41c, 316d6f1; local AI Evaluation/regression tests 26/26 PASS; security-gate tests 6/6 PASS; pnpm security:gate reports 0 high/critical vulnerabilities; Typecheck, Build, Lint, Coverage, and git diff --check PASS. PR #100 CI run 30870584221 SUCCESS and Mobile Native run 30870584225 SUCCESS, including Android Debug/Release, iOS Debug/Release, and Foundation smoke."
+  summary: "Added deterministic Backtest/Optimizer replay, recommendation accuracy/success/coverage/calibration, immutable regression baselines, dataset provenance checks, and Paper-only safety gates."
 completed:
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
@@ -53,8 +53,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0011-strategy-optimizer.yaml
-  reason: "#038 Strategy Optimizer is merged and verified; await a separate approved work order before starting #039."
+  work_order: .aipos/work-orders/WO-0012-ai-evaluation.yaml
+  reason: "#039 AI Evaluation and its dependency security blocker are resolved with green CI; do not start #040 without a new approved work order."
 verification:
   required:
     - "pnpm run preflight"
@@ -67,8 +67,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: #038 focused/regression tests 22/22; PR #87 CI test run 30797419234 and Mobile Native run 30797419236 SUCCESS. iOS release passed on rerun after transient CocoaPods pathname failure."
-  current_commit: "fd450ec"
+  last_result: "PASS: local AI/security/regression verification; Typecheck, Build, Lint, Coverage, and git diff --check; CI 30870584221; Mobile Native 30870584225."
+  current_commit: "316d6f1"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
