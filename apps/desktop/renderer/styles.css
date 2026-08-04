@@ -31,6 +31,8 @@ button.sell { background: hsl(var(--color-danger)); color: hsl(var(--color-dange
 button.secondary { background: hsl(var(--color-surface-raised)); color: hsl(var(--color-fg)); }
 .toggle { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-16); }
 .toggle input { width: auto; margin: 0; }
+.ai-signal-explain { margin-top: var(--space-16); }
+.ai-signal-explain__output { margin-top: var(--space-8); padding: var(--space-12); border-radius: var(--radius-md); background: hsl(var(--color-surface-raised)); color: hsl(var(--color-fg)); font-size: var(--font-size-body-sm); line-height: 1.5; }
 .error { min-height: 1.125rem; color: hsl(var(--color-danger)); font-size: var(--font-size-body-sm); }
 dl { margin: 0; }
 dl div { display: flex; justify-content: space-between; padding-block: var(--space-8); border-bottom: 1px solid hsl(var(--color-border)); }

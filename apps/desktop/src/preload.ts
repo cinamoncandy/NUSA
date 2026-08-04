@@ -6,6 +6,7 @@ import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker"
 import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
+import type { AiSignalExplanation } from "./aiSignalExplainer";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -202,9 +203,23 @@ const nusaApp: NUSAAppApi = Object.freeze({
   }
 });
 
+/**
+ * Read-only research assistant bridge. One method, no arguments the renderer can
+ * shape -- the main process derives the signal and history it explains from
+ * state it already holds, never from anything the renderer passes in.
+ */
+export interface AiResearchApi {
+  explainLatestSignal(): Promise<AiSignalExplanation>;
+}
+
+const aiResearch: AiResearchApi = Object.freeze({
+  explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal")
+});
+
 contextBridge.exposeInMainWorld("nusa", api);
 contextBridge.exposeInMainWorld("nusaApp", nusaApp);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
 contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);
 contextBridge.exposeInMainWorld("operations", operations);
+contextBridge.exposeInMainWorld("aiResearch", aiResearch);
