@@ -534,6 +534,45 @@ byId("ai-explain-disagreement")?.addEventListener("click", async () => {
     button.disabled = false;
   }
 });
+byId("ai-challenger-history-toggle")?.addEventListener("click", async () => {
+  const table = byId("ai-challenger-history-table");
+  if (!table.hidden) {
+    table.hidden = true;
+    return;
+  }
+  const button = byId("ai-challenger-history-toggle");
+  const body = byId("ai-challenger-history-body");
+  button.disabled = true;
+  try {
+    const history = await window.aiChallenger.history();
+    if (!history.length) {
+      const row = document.createElement("tr");
+      const cell = textNode("td", "관찰 기록 없음");
+      cell.colSpan = 4;
+      row.append(cell);
+      body.replaceChildren(row);
+    } else body.replaceChildren(...history.map((entry) => {
+      const row = document.createElement("tr");
+      row.append(
+        textNode("td", new Date(entry.timestamp).toLocaleTimeString("ko-KR")),
+        textNode("td", `${entry.championSignal.type} (${entry.championSignal.reason})`),
+        textNode("td", `${entry.aiSignal.type} (신뢰도 ${entry.aiSignal.confidence.toFixed(2)})`),
+        textNode("td", entry.agreesWithChampion ? "일치" : "불일치")
+      );
+      return row;
+    }));
+    table.hidden = false;
+  } catch (error) {
+    const row = document.createElement("tr");
+    const cell = textNode("td", error instanceof Error ? error.message : String(error));
+    cell.colSpan = 4;
+    row.append(cell);
+    body.replaceChildren(row);
+    table.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
 byId("ai-summarize-session")?.addEventListener("click", async () => {
   const button = byId("ai-summarize-session");
   const output = byId("ai-summary-output");

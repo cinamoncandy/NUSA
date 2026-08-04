@@ -240,11 +240,13 @@ export interface AiChallengerStatus {
 export interface AiChallengerApi {
   status(): Promise<AiChallengerStatus>;
   explainDisagreement(): Promise<AiDisagreementExplanation>;
+  history(): Promise<readonly AiChallengerObservation[]>;
 }
 
 const aiChallenger: AiChallengerApi = Object.freeze({
   status: () => invokeReadWithRecovery<AiChallengerStatus>("ai:challenger-status"),
-  explainDisagreement: () => invokeReadWithRecovery<AiDisagreementExplanation>("ai:explain-challenger-disagreement")
+  explainDisagreement: () => invokeReadWithRecovery<AiDisagreementExplanation>("ai:explain-challenger-disagreement"),
+  history: () => invokeReadWithRecovery<readonly AiChallengerObservation[]>("ai:challenger-history")
 });
 
 contextBridge.exposeInMainWorld("nusa", api);
