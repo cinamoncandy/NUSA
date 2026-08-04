@@ -239,6 +239,18 @@ function main() {
   } else {
     console.log(`[deployment] real comparisons: ${provenance.expectationsSupplied.join(", ")}`);
   }
+
+  // The release boundary is Paper/Shadow only (README, "Release boundary"). A descriptor is
+  // worthless as a gate if it can report a dangerous capability and still exit 0 -- CI would
+  // keep going green while the invariant it exists to check quietly stopped holding.
+  const dangerous = ["liveTradingCapabilityPresent", "privateApiCapabilityPresent", "credentialStoragePresent"].filter((flag) => descriptor[flag]);
+  if (dangerous.length > 0) {
+    console.error(`[deployment] FAIL: forbidden capability present: ${dangerous.join(", ")}`);
+    for (const flag of dangerous) {
+      for (const finding of provenance.capabilityEvidence.findings[flag]) console.error(`  - ${flag}: ${finding.file} matched ${finding.pattern}`);
+    }
+    process.exitCode = 1;
+  }
 }
 
 if (require.main === module) main();
