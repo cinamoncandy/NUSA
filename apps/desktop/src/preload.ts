@@ -7,6 +7,7 @@ import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
+import type { AiChallengerObservation } from "./aiChallengerObserver";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -221,10 +222,24 @@ const aiResearch: AiResearchApi = Object.freeze({
   askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question)
 });
 
+/**
+ * Read-only AI challenger status bridge. One method, no arguments -- `latest` is whatever
+ * the main process has already observed by comparing the AI's hypothetical signal against
+ * the champion strategy's real signal. There is no method here shaped like a trading action.
+ */
+export interface AiChallengerApi {
+  status(): Promise<Readonly<{ configured: boolean; latest: AiChallengerObservation | null }>>;
+}
+
+const aiChallenger: AiChallengerApi = Object.freeze({
+  status: () => invokeReadWithRecovery<Readonly<{ configured: boolean; latest: AiChallengerObservation | null }>>("ai:challenger-status")
+});
+
 contextBridge.exposeInMainWorld("nusa", api);
 contextBridge.exposeInMainWorld("nusaApp", nusaApp);
 contextBridge.exposeInMainWorld("aiCioDashboard", aiCioDashboard);
 contextBridge.exposeInMainWorld("shadowPilot", shadowPilot);
 contextBridge.exposeInMainWorld("recoveryReview", recoveryReview);
 contextBridge.exposeInMainWorld("operations", operations);
+contextBridge.exposeInMainWorld("aiChallenger", aiChallenger);
 contextBridge.exposeInMainWorld("aiResearch", aiResearch);
