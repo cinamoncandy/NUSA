@@ -46,6 +46,7 @@ import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimeP
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
 import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
+import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -152,6 +153,9 @@ let lastAiSignalExplanation: Readonly<{ request: SignalExplanationRequest; expla
 const aiChallengerClient: AiChallengerClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicChallengerClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const aiChallengerObserver = new AiChallengerObserver(aiChallengerClient);
+// On-demand session summary: same dark-by-default pattern as the other AI features.
+const aiSessionSummaryClient: AiSessionSummaryClient | undefined =
+  process.env.ANTHROPIC_API_KEY ? createAnthropicSessionSummaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -921,6 +925,19 @@ ipcMain.handle("ai:challenger-status", () => ({
   latest: aiChallengerObserver.getLatestObservation() ?? null,
   stats: aiChallengerObserver.getStats()
 }));
+ipcMain.handle("ai:summarize-session", async () => {
+  const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
+    market: MARKET,
+    account: (() => {
+      const account = broker.snapshot(latestTicker!.trade_price);
+      return { cash: account.cash, equity: account.equity, unrealizedPnl: account.unrealizedPnl, realizedPnl: account.position.realizedPnl };
+    })(),
+    latestSignal: strategy.getLatestSignal(),
+    signalHistory: strategy.getSignalHistory(),
+    challengerStats: aiChallengerObserver.getStats()
+  };
+  return summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() });
+});
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }

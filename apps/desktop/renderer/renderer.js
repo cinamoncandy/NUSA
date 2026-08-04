@@ -510,6 +510,21 @@ async function refreshAiChallenger() {
   }
 }
 refreshAiChallenger();
+byId("ai-summarize-session")?.addEventListener("click", async () => {
+  const button = byId("ai-summarize-session");
+  const output = byId("ai-summary-output");
+  button.disabled = true;
+  try {
+    const result = await window.aiResearch.summarizeSession();
+    output.textContent = result.summary;
+    output.hidden = false;
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
 byId("focus-mode")?.addEventListener("click", toggleFocusMode);
 window.addEventListener("keydown", (event) => {
   const target = event.target;

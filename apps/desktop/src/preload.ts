@@ -7,6 +7,7 @@ import type { UpbitTicker } from "./upbitWebSocket";
 import type { OperationalPreflightState } from "./paperOperationalPreflight";
 import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
+import type { AiSessionSummary } from "./aiSessionSummary";
 import type { AiChallengerObservation } from "./aiChallengerObserver";
 
 export interface ChartPoint { time: number; value: number; }
@@ -215,11 +216,13 @@ const nusaApp: NUSAAppApi = Object.freeze({
 export interface AiResearchApi {
   explainLatestSignal(): Promise<AiSignalExplanation>;
   askFollowUpQuestion(question: string): Promise<AiSignalFollowUpAnswer>;
+  summarizeSession(): Promise<AiSessionSummary>;
 }
 
 const aiResearch: AiResearchApi = Object.freeze({
   explainLatestSignal: () => invokeReadWithRecovery<AiSignalExplanation>("ai:explain-latest-signal"),
-  askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question)
+  askFollowUpQuestion: (question: string) => invokeReadWithRecovery<AiSignalFollowUpAnswer>("ai:ask-followup-question", question),
+  summarizeSession: () => invokeReadWithRecovery<AiSessionSummary>("ai:summarize-session")
 });
 
 /**
