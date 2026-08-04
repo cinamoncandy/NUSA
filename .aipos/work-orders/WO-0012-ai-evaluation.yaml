@@ -1,7 +1,7 @@
 id: WO-0012
 schema_version: 1
 title: "Implement deterministic AI Evaluation"
-status: BLOCKED
+status: COMPLETE
 priority: 85
 objective: "Evaluate AI research outputs for accuracy, replay determinism, provenance, safety, and regression stability without granting execution authority."
 scope:
@@ -30,8 +30,7 @@ completion_criteria:
   - "Regression baseline mismatch is reported as FAIL."
   - "Unsafe or incomplete research output cannot produce PASS."
   - "All verification commands pass and CI is green."
-blockers:
-  - "PR #100 CI security gate cannot obtain pnpm audit JSON; local and GitHub runner report fetch failed. The gate remains fail-closed."
-current_status: "Implemented in commit 9a6e5ba; local focused/regression verification passed; PR #100 Mobile Native passed, but CI security gate failed closed because pnpm audit returned fetch failed."
-next_action: "Restore a working dependency advisory audit endpoint or approved CI audit service, then rerun PR #100 without weakening the security gate."
+blockers: []
+current_status: "Completed in commits 9a6e5ba, 0bfe41c, and 316d6f1; audited dependency vulnerabilities were patched, the security gate returned zero high/critical findings, and PR #100 CI plus Mobile Native verification passed."
+next_action: "Record the completed evidence and await a separately approved next work order; do not start #040 automatically."
 rollback: "Revert only the focused evaluation commit; no trading state or production data is changed."

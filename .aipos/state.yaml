@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-04T10:29:49+09:00"
+updated_at: "2026-08-04T11:09:29+09:00"
 phase: ai-research
 status: in_progress
 objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
@@ -9,7 +9,7 @@ active_branch: codex/issue-039-ai-evaluation
 active_pull_request: 100
 latest_verified_slice:
   id: ai-evaluation-039
-  evidence: "commit 9a6e5ba; local AI Evaluation/regression tests 26/26 PASS; Typecheck, Build, Lint, and git diff --check PASS. PR #100 Mobile Native run 30869070239 SUCCESS; CI run 30869070237 remains blocked by dependency audit unavailable (pnpm audit fetch failed) and its downstream coverage artifact step."
+  evidence: "commits 9a6e5ba, 0bfe41c, 316d6f1; local AI Evaluation/regression tests 26/26 PASS; security-gate tests 6/6 PASS; pnpm security:gate reports 0 high/critical vulnerabilities; Typecheck, Build, Lint, Coverage, and git diff --check PASS. PR #100 CI run 30870584221 SUCCESS and Mobile Native run 30870584225 SUCCESS, including Android Debug/Release, iOS Debug/Release, and Foundation smoke."
   summary: "Added deterministic Backtest/Optimizer replay, recommendation accuracy/success/coverage/calibration, immutable regression baselines, dataset provenance checks, and Paper-only safety gates."
 completed:
   - id: strategy-optimizer-038
@@ -49,16 +49,12 @@ in_progress:
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
-  - id: ai-evaluation-039
-    evidence: "commit 9a6e5ba; PR #100 opened. Local focused/related AI tests 26/26 PASS; Mobile Native run 30869070239 SUCCESS. CI run 30869070237 failed at Security gate because pnpm audit returned fetch failed; coverage upload then failed because coverage was not reached."
-    summary: "Added deterministic Backtest/Optimizer replay, recommendation benchmarking, baseline regression checks, provenance validation, and immutable Paper-only safety gates; no execution authority."
 blocked:
-  - "P1 CI external/tooling: PR #100 Security gate cannot obtain pnpm audit JSON; both local and GitHub runner report dependency audit unavailable/fetch failed. Do not mark security PASS without an advisory result."
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0012-ai-evaluation.yaml
-  reason: "#039 AI Evaluation is implemented and locally verified; PR #100 is blocked by the fail-closed dependency audit fetch, so do not start #040."
+  reason: "#039 AI Evaluation and its dependency security blocker are resolved with green CI; do not start #040 without a new approved work order."
 verification:
   required:
     - "pnpm run preflight"
@@ -71,8 +67,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "LOCAL PASS: #039 focused and related AI regression tests 26/26; Typecheck, Build, Lint, and git diff --check PASS. REMOTE BLOCKED: CI 30869070237 security audit unavailable; Mobile Native 30869070239 SUCCESS."
-  current_commit: "9a6e5ba"
+  last_result: "PASS: local AI/security/regression verification; Typecheck, Build, Lint, Coverage, and git diff --check; CI 30870584221; Mobile Native 30870584225."
+  current_commit: "316d6f1"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
