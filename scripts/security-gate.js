@@ -161,7 +161,10 @@ function runDependencyAudit() {
   } catch (error) {
     const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${error.message ?? ""}`;
     if (output.includes("ERR_PNPM_MISSING_PACKAGE_INDEX_FILE")) return { unavailable: true, error: "pnpm audit could not read the installed package index; run frozen install first.", vulnerabilities: {} };
-    try { return parseAudit(output); } catch { return { unavailable: true, error: "pnpm audit did not return machine-readable output.", vulnerabilities: {} }; }
+    try { return parseAudit(output); } catch {
+      process.stderr.write(`pnpm audit raw output (diagnostic, truncated to 2000 chars):\n${output.slice(0, 2000)}\n`);
+      return { unavailable: true, error: "pnpm audit did not return machine-readable output.", vulnerabilities: {} };
+    }
   }
 }
 
