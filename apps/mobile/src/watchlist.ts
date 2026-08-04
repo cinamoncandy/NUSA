@@ -1,13 +1,8 @@
 export type WatchlistSort = "MARKET" | "PRICE" | "CHANGE" | "VOLUME";
 
-export interface WatchlistMarket {
-  readonly market: string;
-  readonly price: number;
-  readonly changeRate: number | null;
-  readonly volume: number | null;
-  readonly observedAt: string;
-  readonly source: "UPBIT_PUBLIC_TICKER";
-}
+import type { MonitorMarket } from "../../../packages/contracts/src/monitorRead";
+
+export type WatchlistMarket = MonitorMarket;
 
 export interface WatchlistStorage {
   getItem(key: string): Promise<string | null>;
@@ -82,7 +77,7 @@ function compareMarkets(left: WatchlistMarket, right: WatchlistMarket, sort: Wat
   return left.market.localeCompare(right.market);
 }
 
-export function buildWatchlistViewModel(input: { readonly rawMarkets: unknown[] | null; readonly watchlist: readonly string[] | null; readonly query: string; readonly sort: WatchlistSort }): WatchlistViewModel {
+export function buildWatchlistViewModel(input: { readonly rawMarkets: readonly unknown[] | null; readonly watchlist: readonly string[] | null; readonly query: string; readonly sort: WatchlistSort }): WatchlistViewModel {
   const empty = (state: WatchlistViewModel["state"], error: string | null): WatchlistViewModel => freeze({ state, error, query: input.query, sort: input.sort, watchlist: input.watchlist ?? [], activeMarkets: [], searchResults: [] });
   const watchlist = input.watchlist;
   if (input.rawMarkets === null || watchlist === null) return empty("LOADING", null);

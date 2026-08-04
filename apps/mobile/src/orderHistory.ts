@@ -3,14 +3,7 @@ export type OrderHistorySort = "TIME_DESC" | "TIME_ASC" | "PRICE_DESC" | "QUANTI
 export type OrderHistoryStatus = "FILLED" | "CANCELLED" | "OPEN" | "FAILED";
 export type OrderHistoryPeriod = "ALL" | "TODAY" | "7D" | "30D";
 
-export interface OrderHistoryEntry {
-  readonly id: string;
-  readonly market: string;
-  readonly side: "BUY" | "SELL";
-  readonly quantity: number;
-  readonly price: number;
-  readonly fee: number;
-  readonly filledAt: string;
+export interface OrderHistoryEntry extends Pick<MonitorOrder, "id" | "market" | "side" | "quantity" | "price" | "fee" | "filledAt"> {
   readonly status: OrderHistoryStatus;
   readonly fills: readonly { readonly id: string; readonly quantity: number; readonly price: number; readonly filledAt: string }[];
 }
@@ -83,3 +76,4 @@ export function buildOrderHistoryViewModel(input: { readonly rawOrders: readonly
   const page = Math.min(Math.max(Number.isSafeInteger(input.page) ? input.page : 1, 1), pageCount);
   return freeze({ state: "READY", error: null, query: input.query, filter: input.filter, sort: input.sort, period, page, pageCount, total: sorted.length, orders: freeze(sorted.slice((page - 1) * pageSize, page * pageSize)) });
 }
+import type { MonitorOrder } from "../../../packages/contracts/src/monitorRead";

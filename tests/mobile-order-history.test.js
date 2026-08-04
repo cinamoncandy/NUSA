@@ -50,5 +50,5 @@ test("order history UI uses design system, read-only data, and all required stat
   assert.match(app, /activeTab === "More"/);
   assert.match(app, /<MoreView/);
   assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8"), /<OrderHistoryView/);
-  assert.match(app, /account\?\.account\.orders/);
+  assert.match(app, /availableAccount\?\.orders/);
 });

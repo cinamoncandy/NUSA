@@ -1,25 +1,6 @@
-export interface PortfolioAccountSnapshot {
-  readonly available?: boolean;
-  readonly reason?: string;
-  readonly cash: number;
-  readonly equity: number;
-  readonly unrealizedPnl: number;
-  readonly markPrice: number;
-  readonly position: Readonly<{
-    readonly market: string;
-    readonly quantity: number;
-    readonly averagePrice: number;
-    readonly realizedPnl: number;
-  }>;
-  readonly orders?: readonly unknown[];
-}
+import type { MonitorAccountResponse } from "../../../packages/contracts/src/monitorRead";
 
-export interface PortfolioAccountResponse {
-  readonly observedAt: string;
-  readonly mode: "PAPER" | "SHADOW";
-  readonly account: PortfolioAccountSnapshot;
-  readonly openOrderCount: number;
-}
+export type PortfolioAccountResponse = MonitorAccountResponse;
 
 export interface PortfolioViewModel {
   readonly totalEquity: number;

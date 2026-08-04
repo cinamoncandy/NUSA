@@ -6,7 +6,7 @@ import { buildWatchlistViewModel, type WatchlistMarket, type WatchlistRepository
 
 interface WatchlistViewProps {
   readonly repository: WatchlistRepository;
-  readonly rawMarkets: unknown[] | null;
+  readonly rawMarkets: readonly unknown[] | null;
   readonly error: string | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;

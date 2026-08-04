@@ -8,8 +8,8 @@ import type { WatchlistRepository } from "./watchlist";
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
   readonly market: string;
-  readonly rawMarkets: unknown[] | null;
-  readonly rawCandles: unknown[] | null;
+  readonly rawMarkets: readonly unknown[] | null;
+  readonly rawCandles: readonly unknown[] | null;
   readonly currentPrice: number | null;
   readonly marketConnectionState: string;
   readonly stale: boolean;

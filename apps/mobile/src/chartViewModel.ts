@@ -4,18 +4,9 @@ export type ChartState = "LOADING" | "EMPTY" | "ERROR" | "READY";
 const ONE_MINUTE_MS = 60_000;
 const INTERVAL_MINUTES: Readonly<Record<ChartInterval, number>> = Object.freeze({ "1m": 1, "5m": 5, "15m": 15, "1h": 60 });
 
-export interface PublicCandle {
-  readonly market: string;
-  readonly interval: "1m";
-  readonly openTime: number;
-  readonly closeTime: number;
-  readonly open: number;
-  readonly high: number;
-  readonly low: number;
-  readonly close: number;
-  readonly volume: number;
-  readonly source: "UPBIT_PUBLIC_CANDLE";
-}
+import type { MonitorCandle } from "../../../packages/contracts/src/monitorRead";
+
+export type PublicCandle = MonitorCandle;
 
 export interface ChartCandle extends Omit<PublicCandle, "interval"> {
   readonly interval: ChartInterval;
@@ -115,7 +106,7 @@ function chartBar(candle: ChartCandle, low: number, range: number): ChartBar {
   return freeze({ ...candle, up: candle.close >= candle.open, bodyTop, bodyHeight, wickTop: scale(candle.high), wickHeight: Math.max(2, scale(candle.low) - scale(candle.high)) });
 }
 
-export function buildChartViewModel(input: { readonly market: string; readonly interval: ChartInterval; readonly rawCandles: unknown[] | null; readonly currentPrice: number | null; readonly connectionState: string; readonly stale: boolean }): ChartViewModel {
+export function buildChartViewModel(input: { readonly market: string; readonly interval: ChartInterval; readonly rawCandles: readonly unknown[] | null; readonly currentPrice: number | null; readonly connectionState: string; readonly stale: boolean }): ChartViewModel {
   const empty = (state: ChartState, error: string | null, candles: readonly ChartCandle[] = []): ChartViewModel => freeze({ state, market: input.market, interval: input.interval, error, candles, bars: [], currentPrice: null, priceLine: null, high: null, low: null, volume: null });
   if (input.rawCandles === null) return empty("LOADING", null);
   if (input.connectionState !== "CONNECTED" && input.connectionState !== "HEALTHY" || input.stale) return empty("ERROR", "MARKET_DATA_NOT_READY");

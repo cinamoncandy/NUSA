@@ -6,7 +6,7 @@ import { buildChartViewModel, formatChartPrice, type ChartInterval, type ChartVi
 
 interface ChartViewProps {
   readonly market: string;
-  readonly rawCandles: unknown[] | null;
+  readonly rawCandles: readonly unknown[] | null;
   readonly currentPrice: number | null;
   readonly marketConnectionState: string;
   readonly stale: boolean;
