@@ -7,10 +7,16 @@ test("the checker watches the capability fields that gate real money, and only t
   // reconciliation, which scenario runners legitimately build by hand; it produced 37 findings
   // against almost entirely correct code. A check that needs thirty waivers on its first run
   // teaches people to write waivers.
+  //
+  // openP0 was added back after an audit of the cloud paper-engine port found a real, unwaived
+  // instance of the pattern this file exists to catch (apps/cloud/src/paperEngineControlState.ts
+  // hands the risk gate a hardcoded absent value with no P0 alert ledger behind it). killSwitch,
+  // warmedUp, and reconciliation stay excluded for the original reason above.
   assert.deepEqual([...SAFETY_INPUT_FIELDS].sort(), [
     "credentialAbsent",
     "liveAbsent",
     "liveCapabilityDetected",
+    "openP0",
     "privateApiAbsent",
     "privateApiCapabilityDetected"
   ]);
