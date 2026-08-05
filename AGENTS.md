@@ -20,7 +20,7 @@ Do not rely on prior conversation history. The repository is the source of truth
 Before changing code:
 
 1. Complete the AIPOS recovery steps above.
-2. Read `DOKKAEBI.md` when the task touches the current paper-trading application.
+2. Read `nusa.md` when the task touches the current paper-trading application.
 3. Inspect the active branch, open PR, tests, and CI state.
 4. Preserve existing architecture unless a documented decision justifies a change.
 5. State the intended profit, safety, efficiency, or convenience impact of the work.
