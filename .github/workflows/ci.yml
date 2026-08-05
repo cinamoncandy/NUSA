@@ -69,6 +69,8 @@ jobs:
         run: node scripts/run-risk-safety-drills.js
       - name: Paper pilot promotion gate (prohibited capabilities must be absent)
         run: node scripts/verify-paper-pilot-evidence.js
+      - name: Shadow pilot verification (no real broker mutation)
+        run: node scripts/run-shadow-paper-pilot.js --dry-run
       - name: Runtime persistence atomicity tests
         run: node --test --test-reporter=spec tests/runtime-command-service.test.js
       - name: Control audit ledger tests
