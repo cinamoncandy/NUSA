@@ -22,6 +22,7 @@
     "test:coverage": "pnpm run coverage",
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js",
+    "safety:inputs": "node scripts/check-safety-input-literals.js",
     "security:gate": "node scripts/security-gate.js",
     "security:artifacts": "node scripts/security-gate.js --artifacts release",
     "storybook": "storybook dev -p 6006",

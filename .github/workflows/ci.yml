@@ -28,6 +28,8 @@ jobs:
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Safety input literals (capability gates must not be handed constants)
+        run: pnpm run safety:inputs
       - name: Security gate
         run: pnpm run security:gate
       - name: Release artifact security gate
