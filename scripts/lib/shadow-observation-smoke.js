@@ -122,6 +122,10 @@ async function runShadowObservationSmoke(options) {
     getHypotheticalOrderQuantity: () => 0.001,
     getSafetyState: () => ({
       deploymentIntegrity: true, reconciliation: true, killSwitch: false,
+      // safety-input-literal-ok: read-only shadow observation smoke harness. This run has no
+      // broker and takes no action regardless of what getSafetyState reports (see
+      // onProductionSignal above); the fixed fixture proves the wiring runs end to end, it is
+      // not a live safety input a real Shadow session would use.
       openP0: false, automaticTrading: false, currentModeIsCanaryOrExtended: false
     }),
     now,

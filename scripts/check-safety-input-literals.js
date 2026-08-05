@@ -32,18 +32,28 @@ const SCAN_ROOTS = ["apps/desktop/src", "apps/cloud/src", "scripts"];
  *
  * - `productionMutationAllowed` and similar hard blocks. The code enforces those by never
  *   setting them true anywhere, so a literal false is the enforcement, not an unasked question.
- * - Preconditions like killSwitch, openP0, warmedUp, and reconciliation. Scenario runners and
- *   smoke harnesses legitimately construct these by hand -- risk-safety-drill-runner.js builds
- *   63 request fixtures that way. Flagging them produced 37 findings, nearly all correct code.
+ * - killSwitch, warmedUp, and reconciliation. Scenario runners and smoke harnesses legitimately
+ *   construct these by hand -- risk-safety-drill-runner.js builds 63 request fixtures that way.
+ *   Flagging every one of these produced 37 findings on the first run, nearly all correct code.
  *   A check that needs thirty waivers on its first run teaches people to add waivers, which is
  *   the same failure it exists to prevent.
+ *
+ * `openP0` was added back in after an audit of the cloud paper-engine port found a real,
+ * unwaived instance of the exact pattern this file exists to catch: the cloud control-state
+ * adapter hands the risk gate a hardcoded absent value with no P0 alert ledger behind it -- a
+ * HALT-level reason code (OPEN_P0_ALERT) that can never fire on the cloud path. That file's own
+ * doc comment already explained the gap; what it didn't do was register in the one place a
+ * reviewer would see every occurrence of "a safety field the gate blocks on is answered with a
+ * constant." The three legitimate scenario/dry-run sites this field touches are each waived
+ * individually where they occur, same as this field was excluded wholesale before.
  */
 const SAFETY_INPUT_FIELDS = [
   "liveCapabilityDetected",
   "privateApiCapabilityDetected",
   "liveAbsent",
   "privateApiAbsent",
-  "credentialAbsent"
+  "credentialAbsent",
+  "openP0"
 ];
 
 const FIELD_PATTERN = new RegExp(`\\b(${SAFETY_INPUT_FIELDS.join("|")})\\s*:\\s*(true|false)\\b`, "g");

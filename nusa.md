@@ -58,6 +58,10 @@ Market Data
 - SMA strategy engine
 - Control plane
 - Desktop chart and event display
+- `apps/cloud`: substantial server-side domain logic (investment committee, strategy governance,
+  hash-chained control audit ledger with a mobile-triggered kill switch, mobile dashboard API/HTTP
+  server, and a Paper trading engine ported from the desktop core). Present in the source tree and
+  covered by tests, but not deployed and not wired into any running process yet.
 
 ### Not active
 
@@ -65,6 +69,9 @@ Market Data
 - API key storage
 - Binance futures
 - Autonomous real-money AI execution
+- Any cloud-hosted process. `apps/cloud`'s server and trading engine exist as source only --
+  persistence, hosting, and authentication for a real deployment are open decisions, not
+  implementation gaps.
 
 ## Product stages
 

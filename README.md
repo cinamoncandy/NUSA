@@ -46,6 +46,11 @@ pnpm package:win
 - `apps/desktop/src/upbitWebSocket.ts`: public Upbit market-data WebSocket and reconnect handling
 - `apps/desktop/src/paperBroker.ts`: Paper cash, positions, fees, and PnL
 - `apps/desktop/renderer`: NUSA desktop workspace
+- `apps/cloud/src`: server-side domain logic (investment committee, strategy governance, control
+  audit ledger, and a Paper trading engine port of the desktop core). Not currently deployed or
+  wired into a running process -- see `apps/cloud/src/server.ts` and
+  `apps/cloud/src/paperEngineControlState.ts` for what exists and what is explicitly still open
+  (a real token issuer, a persistence backend, and a hosting decision).
 - `packages/contracts`: shared accounting and risk contracts
 - `packages/storage`: SQLite accounting storage
 
