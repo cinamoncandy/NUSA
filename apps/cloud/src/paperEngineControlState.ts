@@ -32,5 +32,10 @@ export interface PaperEngineControlState {
  */
 export function readPaperEngineControlState(records: readonly ControlAuditRecord[]): PaperEngineControlState {
   const replayed = replayControlAuditLedger(records);
+  // safety-input-literal-ok: tracked gap, not a hidden one. OPEN_P0_ALERT is a HALT-level reason
+  // code in independentRiskGateway.ts and this constant is the only thing standing between the
+  // cloud path and it, so it stays visible to scripts/check-safety-input-literals.js rather than
+  // silently outside its scanned field list. Remove this waiver only alongside building real P0
+  // alert tracking for cloud, not by widening the literal's justification.
   return Object.freeze({ killSwitchActive: replayed.killSwitchActive, openP0: false });
 }
