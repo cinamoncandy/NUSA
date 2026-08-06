@@ -4,15 +4,32 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
+import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
+import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
+import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 
 export interface CloudRuntimeDashboardHydratorLike {
-  hydrate(provider: CloudDashboardStateProvider): void;
+  hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
 }
+
+export interface CloudRuntimeMarketDataClientLike {
+  subscribe(markets: readonly string[]): void;
+  start(): void;
+  stop(): void;
+}
+
+export type CloudRuntimeMarketDataClientFactory = (
+  markets: readonly string[],
+  onTicker: (ticker: UpbitTicker) => void,
+  onConnectionState: (state: string) => void
+) => CloudRuntimeMarketDataClientLike;
 
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
-  dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator()
+  dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator(),
+  marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState) =>
+    new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions)
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -20,6 +37,32 @@ export function startCloudRuntime(
     dashboardHydrator.hydrate(stateProvider);
   } catch {
     stateProvider.clear();
+  }
+  const observations = new Map<string, IntelligenceObservation>();
+  const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
+    try { dashboardHydrator.hydrate(stateProvider, next); } catch { stateProvider.clear(); }
+  };
+  const marketDataClient = config.upbitPublicDataEnabled
+    ? marketDataClientFactory(
+      config.upbitMarkets,
+      (ticker) => {
+        const observation = upbitTickerToIntelligenceObservation(ticker, { now: Date.now() });
+        if (!observation) { safeHydrate([]); return; }
+        observations.set(observation.id, observation);
+        while (observations.size > 50) observations.delete(observations.keys().next().value!);
+        safeHydrate([...observations.values()]);
+      },
+      (state) => {
+        if (state !== "CONNECTED") {
+          observations.clear();
+          safeHydrate([]);
+        }
+      }
+    )
+    : undefined;
+  if (marketDataClient) {
+    marketDataClient.subscribe(config.upbitMarkets);
+    marketDataClient.start();
   }
   const handle = startCloudDashboardServer({
     port: config.port,
@@ -32,7 +75,13 @@ export function startCloudRuntime(
     }
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
-  return handle;
+  return {
+    ...handle,
+    stop: async () => {
+      marketDataClient?.stop();
+      await handle.stop();
+    }
+  };
 }
 
 /**

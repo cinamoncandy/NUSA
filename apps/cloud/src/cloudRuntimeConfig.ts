@@ -12,11 +12,26 @@ export interface CloudRuntimeConfig {
   readonly port: number;
   readonly host?: string;
   readonly dashboardToken: string;
+  readonly upbitMarkets: readonly string[];
+  readonly upbitPublicDataEnabled: boolean;
 }
 
 const PORT_ENV = "NUSA_CLOUD_DASHBOARD_PORT";
 const HOST_ENV = "NUSA_CLOUD_DASHBOARD_HOST";
 const TOKEN_ENV = "NUSA_CLOUD_DASHBOARD_TOKEN";
+const MARKETS_ENV = "NUSA_CLOUD_UPBIT_MARKETS";
+const PUBLIC_DATA_ENV = "NUSA_CLOUD_UPBIT_PUBLIC_DATA";
+export const DEFAULT_CLOUD_UPBIT_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH"]);
+
+function readMarkets(raw: string | undefined): readonly string[] {
+  const values = (raw === undefined ? DEFAULT_CLOUD_UPBIT_MARKETS : raw.split(","))
+    .map((value) => value.trim().toUpperCase()).filter(Boolean);
+  const markets = [...new Set(values)];
+  if (markets.length === 0 || markets.length > 5 || markets.some((market) => !/^KRW-[A-Z0-9-]+$/.test(market))) {
+    throw new Error(`${MARKETS_ENV} must contain 1-5 KRW markets`);
+  }
+  return Object.freeze(markets);
+}
 
 export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConfig {
   const portRaw = env[PORT_ENV];
@@ -39,6 +54,8 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   return Object.freeze({
     port,
     dashboardToken: token,
+    upbitMarkets: readMarkets(env[MARKETS_ENV]),
+    upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true",
     ...(host ? { host } : {})
   });
 }

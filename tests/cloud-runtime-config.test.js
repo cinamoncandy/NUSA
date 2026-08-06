@@ -12,6 +12,16 @@ test("a complete, valid environment produces a config", () => {
   assert.equal(config.port, 41799);
   assert.equal(config.dashboardToken, "a-real-secret");
   assert.equal("host" in config, false, "host must be omitted, not defaulted here -- server.ts owns that default");
+  assert.deepEqual([...config.upbitMarkets], ["KRW-BTC", "KRW-ETH"]);
+  assert.equal(config.upbitPublicDataEnabled, false);
+});
+
+test("public Upbit data requires explicit enablement and accepts only bounded KRW markets", () => {
+  const config = readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC,KRW-XRP" });
+  assert.equal(config.upbitPublicDataEnabled, true);
+  assert.deepEqual([...config.upbitMarkets], ["KRW-BTC", "KRW-XRP"]);
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_UPBIT_MARKETS: "BTC-USDT" }), /KRW markets/);
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_UPBIT_MARKETS: "" }), /KRW markets/);
 });
 
 test("an explicit host is passed through", () => {

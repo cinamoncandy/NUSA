@@ -1,0 +1,41 @@
+id: WO-0015
+schema_version: 1
+title: "Upbit Market Data Ingestion"
+status: VERIFIED
+priority: 100
+objective: "Connect the existing public Upbit WebSocket ticker stream to safe cloud dashboard observations."
+scope:
+  - "Upbit ticker to IntelligenceObservation mapping"
+  - "Observation-aware dashboard hydration"
+  - "Explicitly enabled, bounded KRW market subscription"
+  - "Fail-closed disconnect/stale handling and graceful socket stop"
+exclusions:
+  - "No private Upbit API"
+  - "No live trading mutation"
+  - "No capital allocation"
+  - "No hidden RuntimeOrchestrator dashboard state"
+safety:
+  productionMutationAllowed: false
+  defaultMode: PAPER
+  killSwitchActive: true
+  tradingAllowed: false
+  liveTrading: disabled
+verification:
+  - "pnpm.cmd typecheck"
+  - "pnpm.cmd build"
+  - "pnpm.cmd lint"
+  - "pnpm.cmd test"
+  - "git diff --check"
+evidence:
+  - "Ticker observation tests PASS"
+  - "Cloud runtime/config focused tests 22/22 PASS"
+  - "366 isolated test files PASS"
+  - "Typecheck PASS"
+  - "Build PASS"
+  - "Lint PASS"
+  - "git diff --check PASS"
+completion_criteria:
+  - "Stable bounded ticker observations are produced"
+  - "Fresh observations yield DEGRADED read-only dashboard state"
+  - "Stale/disconnected feed returns safe DOWN state"
+  - "Configured public socket is stopped during runtime shutdown"
