@@ -1,4 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 import type { DashboardPrincipal, DashboardTokenVerifier } from "./mobileDashboardHttp";
 
 /**
@@ -14,6 +16,7 @@ export interface CloudRuntimeConfig {
   readonly dashboardToken: string;
   readonly upbitMarkets: readonly string[];
   readonly upbitPublicDataEnabled: boolean;
+  readonly cloudStateDbPath: string;
 }
 
 const PORT_ENV = "NUSA_CLOUD_DASHBOARD_PORT";
@@ -21,7 +24,9 @@ const HOST_ENV = "NUSA_CLOUD_DASHBOARD_HOST";
 const TOKEN_ENV = "NUSA_CLOUD_DASHBOARD_TOKEN";
 const MARKETS_ENV = "NUSA_CLOUD_UPBIT_MARKETS";
 const PUBLIC_DATA_ENV = "NUSA_CLOUD_UPBIT_PUBLIC_DATA";
+const STATE_DB_ENV = "NUSA_CLOUD_STATE_DB_PATH";
 export const DEFAULT_CLOUD_UPBIT_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH"]);
+export const DEFAULT_CLOUD_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
 
 function readMarkets(raw: string | undefined): readonly string[] {
   const values = (raw === undefined ? DEFAULT_CLOUD_UPBIT_MARKETS : raw.split(","))
@@ -56,6 +61,7 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
     dashboardToken: token,
     upbitMarkets: readMarkets(env[MARKETS_ENV]),
     upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true",
+    cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH,
     ...(host ? { host } : {})
   });
 }
