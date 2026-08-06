@@ -132,3 +132,45 @@ test("runtime starts with a hydrated safe state", async () => {
     await handle.stop();
   }
 });
+
+test("ticker hydration exposes a degraded read-only dashboard and stops the socket gracefully", async () => {
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider();
+  let onTicker;
+  let onConnectionState;
+  const calls = [];
+  const client = {
+    subscribe: (markets) => calls.push(["subscribe", [...markets]]),
+    start: () => calls.push(["start"]),
+    stop: () => calls.push(["stop"])
+  };
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    provider,
+    new CloudRuntimeDashboardHydrator(),
+    (markets, tickerHandler, stateHandler) => {
+      onTicker = tickerHandler;
+      onConnectionState = stateHandler;
+      return client;
+    }
+  );
+  try {
+    assert.deepEqual(calls, [["subscribe", ["KRW-BTC"]], ["start"]]);
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: Date.now(), signed_change_rate: 0.01, acc_trade_price_24h: 1000 });
+    const hydrated = await request(port);
+    assert.equal(hydrated.status, 200);
+    assert.equal(hydrated.body.overallHealth, "DEGRADED");
+    assert.equal(hydrated.body.killSwitchActive, true);
+    assert.equal(hydrated.body.tradingAllowed, false);
+    assert.equal(hydrated.body.deployableCapital, 0);
+    assert.equal(hydrated.body.staleIntelligenceSources?.includes("CHART") ?? false, false);
+    onConnectionState("DISCONNECTED");
+    const safe = await request(port);
+    assert.equal(safe.body.overallHealth, "DOWN");
+    assert.equal(safe.body.killSwitchActive, true);
+    assert.equal(safe.body.tradingAllowed, false);
+  } finally {
+    await handle.stop();
+  }
+  assert.deepEqual(calls.at(-1), ["stop"]);
+});
