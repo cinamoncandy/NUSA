@@ -51,10 +51,10 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   }
 
   const token = env[TOKEN_ENV];
-  if (token === undefined || token.trim().length === 0) {
+  if (token === undefined || token.trim().length === 0 || Buffer.byteLength(token, "utf8") < 32 || token.length < 16) {
     // There is no default that accepts any token -- an unset secret must refuse to start, not
     // fall back to "accept everything" or "accept nothing silently while reporting healthy".
-    throw new Error(`${TOKEN_ENV} is required -- there is no default that accepts any token`);
+    throw new Error(`${TOKEN_ENV} is required and must contain at least 32 UTF-8 bytes`);
   }
 
   const host = env[HOST_ENV]?.trim();

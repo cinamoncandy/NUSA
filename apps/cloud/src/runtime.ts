@@ -13,6 +13,9 @@ import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import { operationalLog } from "./structuredOperationalLog";
+import { CanonicalRiskSafetyGate, InMemoryRiskSafetyPersistence } from "../../../apps/execution/src/risk-safety-integration";
+import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/risk-safety";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -51,6 +54,8 @@ export function startCloudRuntime(
   paperExecutionLoop?: PaperTradingExecutionLoop
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
+  const correlationId = env.NUSA_CLOUD_CORRELATION_ID?.trim() || `cloud-${Date.now()}`;
+  operationalLog("INFO", "startup", correlationId, { host: config.host ?? "127.0.0.1", port: config.port });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   const effectiveProvider = durableRepository == null
@@ -60,9 +65,25 @@ export function startCloudRuntime(
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteCloudPaperAccountRepository(durableRepository.database())
     : undefined);
+  const canonicalPersistence = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteRiskSafetyPersistence(durableRepository.database())
+    : new InMemoryRiskSafetyPersistence();
+  const canonicalGate = new CanonicalRiskSafetyGate(canonicalPersistence);
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
-    : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+    : new PaperTradingExecutionLoop({
+      initialCapital: config.paperInitialCapitalKrw,
+      repository: effectivePaperRepository,
+      canonicalRiskGate: {
+        evaluate: (input) => canonicalGate.evaluate({
+          accountId: "paper-default", requestId: input.idempotencyKey, boundary: "STRATEGY", mode: input.mode, symbol: input.market,
+          strategyId: "cloud-tick", policyFingerprint: "cloud-canonical", nowMs: input.nowMs, currentEquity: 0,
+          marketDataFresh: true, marketHealthy: input.overallHealth === "HEALTHY", killSwitchActive: input.killSwitchActive,
+          liveMutationAllowed: false, recoveryReady: true, persistenceHealthy: true, maxDailyLoss: 0, maxOpenOrders: 0,
+          idempotency: { accountId: "paper-default", commandId: input.idempotencyKey, signalId: input.idempotencyKey, clientOrderId: `paper:${input.idempotencyKey}`, payloadFingerprint: "PENDING", createdAtMs: input.nowMs }
+        })
+      }
+    }));
   const clearPaperProjection = (): void => {
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
@@ -132,6 +153,11 @@ export function startCloudRuntime(
     port: config.port,
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
+    readiness: () => {
+      const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
+      const checks = { database: durableRepository == null || state !== undefined, migration: true, dashboardPersistence: state !== undefined, runtimeRecovery: recovered || durableRepository == null };
+      return Object.freeze({ ok: Object.values(checks).every(Boolean), checks: Object.freeze(checks) });
+    },
     loadDashboard: (principal) => {
       const input = effectiveProvider.read(principal);
       if (input === undefined) throw new Error("dashboard state is not ready");
@@ -141,7 +167,8 @@ export function startCloudRuntime(
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
   return {
     ...handle,
-    stop: async () => {
+      stop: async () => {
+        operationalLog("INFO", "shutdown", correlationId);
       try {
         marketDataClient?.stop();
         await handle.stop();

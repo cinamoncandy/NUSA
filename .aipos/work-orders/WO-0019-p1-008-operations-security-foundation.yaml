@@ -1,0 +1,143 @@
+id: WO-0019
+title: "P1 #008 Operations & Security Foundation"
+status: IN_PROGRESS
+owner: codex
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8afa1167ce82fb5e883b9d37e2eb6bd1424cf7ec
+objective: "Establish a reproducible, fail-closed Oracle Paper operations and security foundation without enabling LIVE mutation."
+owner_decisions:
+  systemd:
+    repository_managed_templates: true
+    actual_etc_install_requires_manual_approval: true
+    service_user: ubuntu
+    root_execution: false
+  secret_token:
+    environment_file: /etc/nusa/cloud-runtime.env
+    owner_group: root:nusa
+    mode: "0640"
+    minimum_random_token_bytes: 32
+    rotation: "atomic environment replacement followed by service restart"
+    old_token_grace_period: false
+    exposure: "never log, return through API, or place in process args"
+  backup:
+    directory: /var/backups/nusa
+    daily_retention: 7
+    weekly_retention: 4
+    method: sqlite_online_backup
+    manifest: sha256
+    integrity_check: "PRAGMA integrity_check"
+    encryption_and_offsite: deferred
+  logging:
+    destination: journald
+    format: structured_json
+    fields:
+      - severity
+      - event
+      - correlation
+    events:
+      - startup
+      - shutdown
+      - migration
+      - corruption
+      - backup
+      - restore
+      - readiness
+      - disk_warning
+      - memory_warning
+    external_alert_channel: deferred
+  health:
+    health_endpoint: unauthenticated_liveness
+    readiness_endpoint: authenticated
+    readiness_checks:
+      - database
+      - migrations
+      - dashboard_persistence
+      - runtime_recovery
+    readiness_failure_restarts_service: false
+    process_failure_restart_policy: on-failure
+  network:
+    bind: 127.0.0.1
+    public_port_3000: false
+    firewall_ssh_minimum_privilege_validation: true
+    reverse_proxy_tls: deferred
+  deployment:
+    release_root: /opt/nusa/releases/<commit-sha>
+    current_symlink: /opt/nusa/current
+    switch: atomic_after_build_and_preflight
+    readiness_failure: rollback_to_previous_release
+    destructive_migrations: false
+    migration_policy: backward_compatible_only
+  canonical_risk_parity:
+    cloud_tick_uses_canonical_decision: true
+    desktop_cloud_shared_policy_state_contract: true
+    full_execution_service_integration: false
+scope:
+  in_scope:
+    - Oracle systemd unit template
+    - service user/group and filesystem permission policy
+    - environment validation
+    - authenticated readiness endpoint
+    - structured operational logging
+    - SQLite online backup, SHA-256 manifest, integrity check, and retention
+    - restore and fail-closed runbook
+    - token generation and rotation script and runbook
+    - versioned release, atomic deployment, and rollback scripts
+    - firewall, SSH, and minimum privilege validation
+    - Cloud tick canonical risk parity
+    - Oracle manual verification checklist
+    - stale operations documentation cleanup
+    - state metadata update
+  out_of_scope:
+    - OAuth/OIDC/RBAC
+    - external secret manager
+    - backup encryption/offsite storage
+    - reverse proxy/TLS
+    - remote log aggregation
+    - external paging/alert integration
+    - HA, multi-node, or multi-region deployment
+    - automatic incident remediation
+    - LIVE mutation enablement
+acceptance_criteria:
+  - "Repository contains a reviewable systemd template, install/validate scripts, and Oracle runbook; /etc changes remain manual approval only."
+  - "Runtime refuses unsafe environment, DB path, token, ownership, or permission configuration."
+  - "Authenticated /ready reports database, migration, dashboard persistence, and runtime recovery state; /health remains unauthenticated liveness."
+  - "Operational events are structured JSON with severity, event, and correlation fields and include all required lifecycle and resource-warning events."
+  - "SQLite online backups produce retained daily/weekly artifacts, SHA-256 manifest, and passing PRAGMA integrity_check."
+  - "Restore procedure preserves the failed database, verifies checksum/integrity, and leaves Paper execution fail-closed until review."
+  - "Token generation produces at least 32 random bytes; rotation atomically replaces the environment file, restarts the service, and invalidates the old token."
+  - "Release deployment uses /opt/nusa/releases/<commit-sha> and an atomic /opt/nusa/current switch; readiness failure restores the previous release."
+  - "Destructive migrations are rejected and only backward-compatible migrations are deployable."
+  - "Firewall, SSH, rootless execution, and filesystem permission checks are scripted and documented."
+  - "Cloud tick and Desktop use the same canonical risk policy/state contract and reason codes; LIVE mutation remains disabled."
+  - "Focused tests, full tests, typecheck, build, lint, diff-check, and Oracle manual checklist are defined and executable."
+test_plan:
+  focused:
+    - systemd template and environment validation
+    - authenticated readiness and liveness separation
+    - structured operational event schema
+    - SQLite backup, manifest, retention, integrity, and restore
+    - token generation, atomic rotation, invalidation, and non-disclosure
+    - versioned release switch and rollback
+    - migration compatibility and fail-closed behavior
+    - firewall, SSH, service-user, and filesystem permission validation
+    - Cloud/Desktop canonical risk parity and dashboard projection
+  required_commands:
+    - "pnpm run typecheck"
+    - "pnpm run lint"
+    - "pnpm run build"
+    - "pnpm test"
+    - "git diff --check"
+oracle_manual_verification:
+  - "Inspect systemctl cat/status for nusa.service, restart policy, service identity, environment file, and hardening options."
+  - "Verify /etc/nusa/cloud-runtime.env owner root:nusa, mode 0640, and no token exposure in logs, API responses, shell history, or process arguments."
+  - "Verify /var/lib/nusa/cloud-state.db, WAL/SHM, backup directory, and release paths have least-privilege ownership and modes."
+  - "Verify ss -lntp and Oracle firewall/NSG/UFW rules expose no external port 3000 and preserve 127.0.0.1 binding."
+  - "Verify SSH root/password login policy and minimum-privilege service account."
+  - "Run restart, reboot, readiness-failure, DB-corruption, migration-failure, backup, restore, disk-pressure, and memory-warning drills."
+  - "Verify old dashboard token fails immediately after rotation and new token succeeds."
+  - "Verify atomic deployment rollback leaves the prior release serving after post-start readiness failure."
+notes:
+  implementation_allowed: true
+  current_step: "implementation in progress; commit authorization not requested"
+  commit: "not created by instruction"

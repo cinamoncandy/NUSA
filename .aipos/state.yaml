@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-06T21:25:00+09:00"
-phase: p0-risk-safety-integration
-status: verified
-objective: "Prepare the canonical, persistent, fail-closed PAPER risk and safety integration work order without enabling LIVE mutation."
+updated_at: "2026-08-07T00:00:00+09:00"
+phase: p1-operations-security-foundation
+status: in_progress
+objective: "Prepare the Oracle Paper operations and security foundation work order without enabling LIVE mutation."
 base_branch: main
 active_branch: agent/p0-007-risk-safety-integration
 active_pull_request: null
-base_commit: d6f166fb9b96596ac3c7c28f3fd43c492da23b5f
+base_commit: 8afa1167ce82fb5e883b9d37e2eb6bd1424cf7ec
 latest_verified_slice:
   id: risk-safety-runtime-wiring-009
   evidence: "Base d6f166fb9b96596ac3c7c28f3fd43c492da23b5f; focused runtime wiring/parity/risk/storage tests 43/43 PASS; full pnpm test 370 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
@@ -54,8 +54,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0018-p0-007-risk-safety-integration.yaml
-  reason: "Review the verified P0-007 implementation and authorize commit; no commit created by instruction."
+  work_order: .aipos/work-orders/WO-0019-p1-008-operations-security-foundation.yaml
+  reason: "P1-008 implementation in progress; no commit created by instruction."
 verification:
   required:
     - "pnpm run preflight"
