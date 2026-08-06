@@ -37,6 +37,12 @@ export interface CloudDashboardServerHandle {
  *   process runs -- none of which this file can decide.
  * - **CORS.** Not set. A browser-based client would need an explicit, non-wildcard origin list;
  *   none is configured because none is known to be needed yet.
+ *
+ * `/health` is the one exception to "everything goes through handleMobileDashboardHttp": it is
+ * unauthenticated on purpose (a process supervisor checking liveness has no bearer token to
+ * offer) and reports only that the HTTP listener itself is accepting connections -- not that the
+ * dashboard data path behind it is configured or healthy. Every other path, including a typo of
+ * `/health`, still goes through the real handler and its GET-only/Bearer-auth/scope checks.
  */
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) {
@@ -46,6 +52,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
   const server: Server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     try {
+      if (req.method === "GET" && req.url === "/health") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify({ ok: true, observedAt: new Date().toISOString() }));
+        return;
+      }
       const dashboardRequest: DashboardHttpRequest = Object.freeze({
         method: req.method ?? "GET",
         headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>)
