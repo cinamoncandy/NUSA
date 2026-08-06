@@ -71,7 +71,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: pnpm install --frozen-lockfile; typecheck; build; lint; architecture check; 365 isolated test files; 17 focused cloud/runtime tests; git diff --check."
-  current_commit: "393a252eff3039147fd6ce6f14754f4eeaa672f5"
+  current_commit: "edf5c3882dc243504feb24a00ed25c19fe483bee"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
