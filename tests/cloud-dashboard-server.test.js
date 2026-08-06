@@ -32,9 +32,9 @@ const dashboardPayload = () => buildMobileDashboardResponse({
   intelligence: { signals: [], staleSources: [], generatedAt: 1000 }
 });
 
-async function withServer(run) {
+async function withServer(run, port = 41799) {
   const handle = startCloudDashboardServer({
-    port: 41799,
+    port,
     tokenVerifier: verifier,
     loadDashboard: () => dashboardPayload()
   });
@@ -44,6 +44,33 @@ async function withServer(run) {
     await handle.stop();
   }
 }
+
+// Dedicated ports (41801/41802), not the 41799 the tests below share: starting and stopping a
+// real listener on the same fixed port back-to-back across separate tests is exactly the kind of
+// OS-level port-release race the pre-existing "stopped and released" test below already avoids
+// by using its own port (41800) instead of 41799.
+test("/health responds without authentication and reports liveness only", async () => {
+  await withServer(async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.equal(res.status, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.ok, true);
+    assert.ok(typeof body.observedAt === "string" && body.observedAt.length > 0);
+  }, 41801);
+});
+
+test("a non-GET request to /health is not treated as the health check -- it still goes through the real handler", async () => {
+  await withServer(async (handle) => {
+    const post = await new Promise((resolve, reject) => {
+      const req = http.request({ host: "127.0.0.1", port: handle.port, path: "/health", method: "POST" }, (res) => {
+        let body = ""; res.on("data", (c) => body += c); res.on("end", () => resolve({ status: res.statusCode, body }));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(post.status, 405);
+  }, 41802);
+});
 
 test("an unauthenticated request is rejected over a real socket, not just in-process", async () => {
   await withServer(async (handle) => {
