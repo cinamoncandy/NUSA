@@ -1,28 +1,24 @@
-import type { MobileDashboardResponse } from "../../../packages/contracts/src/mobileDashboard";
+import { buildMobileDashboardResponse } from "./mobileDashboardApi";
+import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle } from "./server";
 
-/**
- * Nothing in apps/cloud/src wires a real portfolio/control-plane data source into
- * `loadDashboard` yet -- that is the cloud-vs-mobile architecture question the paper-engine port
- * (3-2) explicitly left open, not something this bootstrap can invent. Throwing here is the
- * honest answer: `handleMobileDashboardHttp` catches it and reports 503 DASHBOARD_UNAVAILABLE,
- * so the process is genuinely up (health check below reflects that) while plainly saying the
- * data path is not configured, instead of returning fabricated numbers.
- */
-function loadDashboardNotConfigured(): MobileDashboardResponse {
-  throw new Error("no dashboard data source is wired into the cloud runtime yet");
-}
-
-export function startCloudRuntime(env: NodeJS.ProcessEnv = process.env): CloudDashboardServerHandle {
+export function startCloudRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider()
+): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
   const handle = startCloudDashboardServer({
     port: config.port,
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
-    loadDashboard: loadDashboardNotConfigured
+    loadDashboard: (principal) => {
+      const input = stateProvider.read(principal);
+      if (input === undefined) throw new Error("dashboard state is not ready");
+      return buildMobileDashboardResponse(input);
+    }
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
   return handle;
