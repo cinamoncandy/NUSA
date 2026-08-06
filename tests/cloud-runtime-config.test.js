@@ -24,6 +24,14 @@ test("public Upbit data requires explicit enablement and accepts only bounded KR
   assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_UPBIT_MARKETS: "" }), /KRW markets/);
 });
 
+test("paper initial capital is opt-in and validated", () => {
+  assert.equal(readCloudRuntimeConfig(VALID_ENV).paperInitialCapitalKrw, undefined);
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000000" }).paperInitialCapitalKrw, 1_000_000);
+  for (const value of ["0", "-1", "not-a-number"]) {
+    assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: value }), /NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW/);
+  }
+});
+
 test("an explicit host is passed through", () => {
   const config = readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_HOST: "0.0.0.0" });
   assert.equal(config.host, "0.0.0.0");

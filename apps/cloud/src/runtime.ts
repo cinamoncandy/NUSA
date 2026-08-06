@@ -4,6 +4,7 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
@@ -45,7 +46,9 @@ export function startCloudRuntime(
   dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator(),
   marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState) =>
     new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions),
-  snapshotRepository?: CloudDashboardSnapshotRepository
+  snapshotRepository?: CloudDashboardSnapshotRepository,
+  paperAccountRepository?: PaperAccountRepository,
+  paperExecutionLoop?: PaperTradingExecutionLoop
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -54,6 +57,12 @@ export function startCloudRuntime(
     ? stateProvider
     : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteCloudPaperAccountRepository(durableRepository.database())
+    : undefined);
+  const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
+    ? undefined
+    : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
   try {
     if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
   } catch {
@@ -72,6 +81,31 @@ export function startCloudRuntime(
         observations.set(observation.id, observation);
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
+        const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
+        if (effectivePaperLoop != null && state != null) {
+          const dashboard = buildMobileDashboardResponse(state);
+          const result = effectivePaperLoop.processTick({
+            now: Date.now(),
+            market: ticker.code,
+            price: ticker.trade_price,
+            observedAt: ticker.trade_timestamp,
+            mode: state.mode,
+            killSwitchActive: state.killSwitchActive,
+            tradingAllowed: dashboard.tradingAllowed,
+            overallHealth: state.overallHealth,
+            decisions: state.decisions
+          });
+          if (result.status === "FILLED") {
+            try {
+              effectiveProvider.set(effectivePaperLoop.applyToDashboard(state, Date.now()));
+            } catch {
+              // The account is durable before the dashboard projection. Clear both sides on a
+              // projection failure so restart cannot observe a paper account without its snapshot.
+              try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
+              effectiveProvider.clear();
+            }
+          }
+        }
       },
       (state) => {
         if (state !== "CONNECTED") {

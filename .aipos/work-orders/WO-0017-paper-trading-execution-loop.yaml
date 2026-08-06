@@ -1,0 +1,27 @@
+id: WO-0017
+title: "P0 Paper Trading Execution Loop"
+status: VERIFIED
+owner: codex
+branch: feat/paper-trading-execution-loop
+base_commit: 8c315d83f71d6ecad1f7bd0b2361ceda1de7d1c0
+objective: "Connect public market observations to a deterministic, PAPER-only order, fill, account, and dashboard projection loop."
+scope:
+  - "Paper account cash, positions, weighted fee-inclusive entry price, realized/unrealized PnL, equity, orders, and fills."
+  - "BUY, SELL, WAIT execution with market-price fills and deterministic idempotency."
+  - "SQLite/WAL persistence and restart recovery using the existing storage layer."
+  - "Fail-closed execution gates and dashboard/account consistency handling."
+safety:
+  - "PAPER mode only."
+  - "killSwitchActive must be false and tradingAllowed must be true; default runtime remains kill-switched."
+  - "No private API, credentials, live mutation, or automatic kill-switch reset."
+verification:
+  commands:
+    - "pnpm run typecheck"
+    - "pnpm run build"
+    - "pnpm run lint"
+    - "pnpm test"
+    - "git diff --check"
+  focused: "cloud paper execution, runtime config, storage migration tests"
+evidence:
+  status: VERIFIED
+  note: "34 focused paper execution/configuration/migration tests PASS; 368 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
