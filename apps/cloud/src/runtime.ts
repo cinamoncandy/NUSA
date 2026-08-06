@@ -3,13 +3,24 @@ import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider }
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle } from "./server";
+import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
+
+export interface CloudRuntimeDashboardHydratorLike {
+  hydrate(provider: CloudDashboardStateProvider): void;
+}
 
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
-  stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider()
+  stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
+  dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator()
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
+  try {
+    dashboardHydrator.hydrate(stateProvider);
+  } catch {
+    stateProvider.clear();
+  }
   const handle = startCloudDashboardServer({
     port: config.port,
     ...(config.host ? { host: config.host } : {}),

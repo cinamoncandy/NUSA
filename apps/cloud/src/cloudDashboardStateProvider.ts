@@ -7,6 +7,8 @@ import type { MobileDashboardApiInput } from "./mobileDashboardApi";
  */
 export interface CloudDashboardStateProvider {
   read(principal: DashboardPrincipal): MobileDashboardApiInput | undefined;
+  set(state: MobileDashboardApiInput): void;
+  clear(): void;
 }
 
 /**
