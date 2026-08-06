@@ -283,4 +283,17 @@ CREATE TABLE IF NOT EXISTS multi_agent_orchestration_runs (orchestration_run_id 
 CREATE TABLE IF NOT EXISTS multi_agent_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS multi_agent_incidents (incident_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS multi_agent_certifications (certification_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
+` }, { id: "008_cloud_dashboard_snapshots", sql: `
+CREATE TABLE IF NOT EXISTS cloud_dashboard_snapshots (
+  snapshot_id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL,
+  source_commit TEXT NOT NULL,
+  source_version TEXT NOT NULL,
+  generated_at INTEGER NOT NULL,
+  saved_at INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('VALID','CORRUPTED','INVALID'))
+);
+CREATE INDEX IF NOT EXISTS idx_cloud_dashboard_snapshots_latest ON cloud_dashboard_snapshots (status, saved_at DESC);
 ` }];

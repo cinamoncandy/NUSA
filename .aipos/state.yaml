@@ -3,14 +3,14 @@ project: nusa
 updated_at: "2026-08-06T17:00:00+09:00"
 phase: p0-cloud-dashboard
 status: in_progress
-objective: "Connect public Upbit market data to safe cloud dashboard observations while preserving Paper-only safety."
+objective: "Persist and safely recover the cloud dashboard projection while preserving Paper-only safety."
 base_branch: main
-active_branch: feat/cloud-runtime-dashboard-hydration
+active_branch: feat/upbit-market-data-ingestion
 active_pull_request: null
 latest_verified_slice:
-  id: upbit-market-data-ingestion-004
-  evidence: "WO-0015; 22 focused tests PASS; 366 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
-  summary: "Existing public Upbit WebSocket ticker flow is mapped into bounded intelligence observations and wired to safe degraded dashboard hydration with fail-closed disconnect handling."
+  id: cloud-dashboard-persistence-005
+  evidence: "WO-0016; 25 focused persistence/runtime/config tests PASS; 367 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
+  summary: "Added SQLite-backed cloud dashboard snapshots with checksums, schema/provenance, transactional save, and fail-closed restart recovery."
 completed:
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
@@ -46,9 +46,6 @@ completed:
     evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
     summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
 in_progress:
-  - id: upbit-market-data-ingestion-004
-    evidence: "WO-0015; apps/cloud/src/upbitTickerObservation.ts; apps/cloud/src/runtime.ts; tests/upbit-ticker-observation.test.js"
-    summary: "Public ticker ingestion and safe dashboard wiring verified locally; live network evidence remains external."
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
@@ -56,8 +53,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0015-upbit-market-data-ingestion.yaml
-  reason: "Public Upbit ingestion is verified locally; next work requires repository integration/commit decision."
+  work_order: .aipos/work-orders/WO-0016-cloud-dashboard-persistence.yaml
+  reason: "Complete full verification for durable dashboard state and restart recovery."
 verification:
   required:
     - "pnpm run preflight"
@@ -70,7 +67,7 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: typecheck; build; lint; 366 isolated test files; 22 focused Upbit/runtime tests; git diff --check."
+  last_result: "PASS: typecheck; build; lint; 25 focused persistence/runtime/config tests; 367 isolated test files; git diff --check."
   current_commit: "working-tree changes"
 human_authority:
   live_trading_mutation: prohibited

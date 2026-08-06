@@ -1,0 +1,38 @@
+id: WO-0016
+schema_version: 1
+title: "Durable Cloud Dashboard State and Restart Recovery"
+status: VERIFIED
+priority: 100
+objective: "Persist the safe cloud dashboard projection in SQLite and recover only a validated, kill-switched PAPER state after restart."
+scope:
+  - "Cloud dashboard snapshot contract with schema, checksum, timestamp, and provenance"
+  - "SQLite migration and transactional latest-snapshot repository"
+  - "Durable provider save, fail-closed storage failure, and idempotent close"
+  - "Validated stale/corrupt/unsupported snapshot recovery"
+exclusions:
+  - "No RuntimeSnapshot reuse"
+  - "No JSON file persistence"
+  - "No live trading or private exchange API"
+  - "No capital allocation on recovery"
+safety:
+  productionMutationAllowed: false
+  defaultMode: PAPER
+  killSwitchActive: true
+  tradingAllowed: false
+  liveTrading: disabled
+verification:
+  - "pnpm.cmd typecheck"
+  - "pnpm.cmd build"
+  - "pnpm.cmd lint"
+  - "pnpm.cmd test"
+  - "git diff --check"
+evidence:
+  - "Cloud snapshot round-trip, corruption, unsupported schema, stale recovery, restart reopen, and save-failure tests"
+  - "Runtime/dashboard regression tests"
+  - "367 isolated test files PASS"
+  - "Typecheck, Build, Lint, and git diff --check PASS"
+completion_criteria:
+  - "Snapshot state is persisted atomically through @nusa/storage SQLite"
+  - "Restart recovery is PAPER, kill-switched, DOWN, and has zero deployable capital"
+  - "Invalid, stale, or unavailable persistence never produces a trading-allowed state"
+  - "Graceful shutdown closes the snapshot repository safely"

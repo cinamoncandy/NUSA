@@ -1,6 +1,11 @@
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
+import { SqliteDatabase } from "../../../packages/storage/src/index";
+import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
+import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import fs from "node:fs";
+import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
@@ -24,23 +29,39 @@ export type CloudRuntimeMarketDataClientFactory = (
   onConnectionState: (state: string) => void
 ) => CloudRuntimeMarketDataClientLike;
 
+function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
+  if (pathname !== ":memory:") {
+    const absolute = path.resolve(pathname);
+    const sourceTree = path.resolve(process.cwd()) + path.sep;
+    if (absolute === path.resolve(process.cwd()) || absolute.startsWith(sourceTree)) throw new Error("cloud state database must not be inside the source tree");
+    fs.mkdirSync(path.dirname(absolute), { recursive: true });
+  }
+  return new SqliteCloudDashboardSnapshotRepository(new SqliteDatabase(pathname));
+}
+
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
   dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator(),
   marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState) =>
-    new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions)
+    new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions),
+  snapshotRepository?: CloudDashboardSnapshotRepository
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
+  const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
+  const effectiveProvider = durableRepository == null
+    ? stateProvider
+    : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
+  const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
   try {
-    dashboardHydrator.hydrate(stateProvider);
+    if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
   } catch {
-    stateProvider.clear();
+    effectiveProvider.clear();
   }
   const observations = new Map<string, IntelligenceObservation>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
-    try { dashboardHydrator.hydrate(stateProvider, next); } catch { stateProvider.clear(); }
+    try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); }
   };
   const marketDataClient = config.upbitPublicDataEnabled
     ? marketDataClientFactory(
@@ -69,7 +90,7 @@ export function startCloudRuntime(
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     loadDashboard: (principal) => {
-      const input = stateProvider.read(principal);
+      const input = effectiveProvider.read(principal);
       if (input === undefined) throw new Error("dashboard state is not ready");
       return buildMobileDashboardResponse(input);
     }
@@ -78,8 +99,12 @@ export function startCloudRuntime(
   return {
     ...handle,
     stop: async () => {
-      marketDataClient?.stop();
-      await handle.stop();
+      try {
+        marketDataClient?.stop();
+        await handle.stop();
+      } finally {
+        if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close();
+      }
     }
   };
 }
@@ -107,7 +132,8 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 }
 
 function main(): void {
-  const handle = startCloudRuntime();
+  const config = readCloudRuntimeConfig(process.env);
+  const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath));
   registerGracefulShutdown(handle);
 }
 
