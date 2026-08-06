@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
+const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudRuntimeDashboardHydrator.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
 const dashboardInput = (now = Date.now()) => ({
@@ -63,19 +64,70 @@ test("in-memory provider starts empty and only exposes explicitly set state", ()
   assert.equal(provider.read(principal), undefined);
 });
 
-test("cloud runtime returns 503 until state is ready and 200 for provider state", async () => {
+test("cloud runtime hydrates a safe state and returns 200, then serves explicit provider state", async () => {
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
   const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" }, provider);
   try {
-    const unavailable = await request(port);
-    assert.equal(unavailable.status, 503);
+    const safe = await request(port);
+    assert.equal(safe.status, 200);
+    assert.equal(safe.body.killSwitchActive, true);
+    assert.equal(safe.body.tradingAllowed, false);
     provider.set(dashboardInput(Date.now()));
     const ready = await request(port);
     assert.equal(ready.status, 200);
     assert.equal(ready.body.mode, "PAPER");
     assert.equal(ready.body.tradingAllowed, true);
     assert.equal(ready.body.deployableCapital, 1000);
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("runtime hydration failure clears state and keeps dashboard at 503", async () => {
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider(dashboardInput(100));
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" },
+    provider,
+    { hydrate() { throw new Error("hydration failed"); } }
+  );
+  try {
+    const response = await request(port);
+    assert.equal(response.status, 503);
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("runtime hydration creates a safe PAPER state without market data", () => {
+  const provider = new InMemoryCloudDashboardStateProvider();
+  new CloudRuntimeDashboardHydrator({ now: () => 100 }).hydrate(provider);
+  const state = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
+  assert.equal(state.mode, "PAPER");
+  assert.equal(state.killSwitchActive, true);
+  assert.equal(state.overallHealth, "DOWN");
+  assert.equal(state.portfolio.allocations.length, 0);
+  assert.equal(state.intelligence.signals.length, 1);
+  assert.equal(state.decisions[0].action, "WAIT");
+});
+
+test("hydration failure clears the provider and preserves fail-closed state", () => {
+  const provider = new InMemoryCloudDashboardStateProvider(dashboardInput(100));
+  new CloudRuntimeDashboardHydrator({ now: () => -1 }).hydrate(provider);
+  assert.equal(provider.read({ userId: "operator", scopes: ["dashboard:read"] }), undefined);
+});
+
+test("runtime starts with a hydrated safe state", async () => {
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider();
+  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" }, provider);
+  try {
+    const response = await request(port);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.mode, "PAPER");
+    assert.equal(response.body.killSwitchActive, true);
+    assert.equal(response.body.tradingAllowed, false);
   } finally {
     await handle.stop();
   }

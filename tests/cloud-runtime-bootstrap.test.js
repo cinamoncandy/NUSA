@@ -95,10 +95,13 @@ test("the real bootstrap process starts, serves /health without auth, and enforc
     const wrongToken = await get(port, "/", { authorization: "Bearer not-the-token" });
     assert.equal(wrongToken.status, 401);
 
-    // The token is accepted, but no dashboard data source is wired in yet -- 503, not fake data.
+    // The token is accepted and startup hydrates an explicit safe PAPER dashboard state.
     const rightToken = await get(port, "/", { authorization: `Bearer ${authToken}` });
-    assert.equal(rightToken.status, 503);
-    assert.equal(JSON.parse(rightToken.body).error, "DASHBOARD_UNAVAILABLE");
+    assert.equal(rightToken.status, 200);
+    const dashboard = JSON.parse(rightToken.body);
+    assert.equal(dashboard.mode, "PAPER");
+    assert.equal(dashboard.killSwitchActive, true);
+    assert.equal(dashboard.tradingAllowed, false);
   } finally {
     child.kill("SIGTERM");
   }

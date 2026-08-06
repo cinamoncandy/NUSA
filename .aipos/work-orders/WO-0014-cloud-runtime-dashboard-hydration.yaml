@@ -1,0 +1,38 @@
+id: WO-0014
+schema_version: 1
+title: "Cloud Runtime Dashboard Hydration"
+status: VERIFIED
+priority: 100
+objective: "Hydrate an explicit safe PAPER dashboard state at cloud runtime startup without fabricating market data."
+scope:
+  - "Cloud runtime dashboard hydration composition"
+  - "Reuse market intelligence, CIO decision, and portfolio plan pure functions"
+  - "Fail-closed provider clearing on hydration failure"
+exclusions:
+  - "No live trading mutation"
+  - "No fabricated market observations"
+  - "No Upbit connection"
+safety:
+  productionMutationAllowed: false
+  defaultMode: PAPER
+  killSwitchActive: true
+  liveTrading: disabled
+verification:
+  - "pnpm.cmd typecheck"
+  - "pnpm.cmd build"
+  - "pnpm.cmd lint"
+  - "pnpm.cmd test"
+  - "node --test tests/cloud-dashboard-state-provider.test.js"
+  - "git diff --check"
+evidence:
+  - "6 focused dashboard hydration tests PASS"
+  - "365 isolated test files PASS"
+  - "Typecheck PASS"
+  - "Build PASS"
+  - "Lint PASS"
+  - "git diff --check PASS"
+completion_criteria:
+  - "Runtime startup calls provider hydration"
+  - "Safe PAPER state has kill switch active and trading disabled"
+  - "Hydration failure clears provider and preserves HTTP 503"
+  - "No market data is synthesized"
