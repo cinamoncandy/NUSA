@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-06T17:55:00+09:00"
+updated_at: "2026-08-06T19:51:31+09:00"
 phase: p0-cloud-dashboard
 status: in_progress
 objective: "Connect a deterministic PAPER-only execution loop to public market observations while preserving fail-closed recovery and dashboard consistency."
 base_branch: main
-active_branch: feat/paper-trading-execution-loop
+active_branch: fix/paper-account-dashboard-projection
 active_pull_request: null
 latest_verified_slice:
-  id: paper-trading-execution-loop-006
-  evidence: "WO-0017; 34 focused paper execution/configuration/migration tests PASS; 368 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
-  summary: "Added opt-in PAPER account execution with deterministic market fills, fee-inclusive accounting, idempotency, SQLite recovery, and fail-closed dashboard consistency handling."
+  id: paper-account-dashboard-projection-007
+  evidence: "Base 5df702c2ede7d7d201245986a75ed8a175d8cb2d; 20 focused cloud dashboard/paper execution tests PASS; 368 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
+  summary: "Projects a PAPER account immediately, after durable recovery, and after every non-failed tick result while preserving the default kill switch and fail-closed consistency behavior."
 completed:
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
@@ -54,7 +54,7 @@ blocked:
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
   work_order: .aipos/work-orders/WO-0017-paper-trading-execution-loop.yaml
-  reason: "Complete full verification for the PAPER execution loop before any commit or integration."
+  reason: "Paper account dashboard projection is verified on fix/paper-account-dashboard-projection; changes remain uncommitted by owner instruction."
 verification:
   required:
     - "pnpm run preflight"
@@ -68,7 +68,7 @@ verification:
     - "pnpm run determinism"
     - "git diff --check"
   last_result: "PASS: typecheck; build; lint; 34 focused paper execution/configuration/migration tests; 368 isolated test files; git diff --check."
-  current_commit: "working-tree changes (uncommitted by instruction)"
+  current_commit: "5df702c2ede7d7d201245986a75ed8a175d8cb2d plus working-tree changes (uncommitted by instruction)"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

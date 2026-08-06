@@ -63,10 +63,25 @@ export function startCloudRuntime(
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+  const clearPaperProjection = (): void => {
+    try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
+    effectiveProvider.clear();
+  };
+  const projectPaperAccount = (): void => {
+    if (effectivePaperLoop == null) return;
+    const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
+    if (state == null) { clearPaperProjection(); return; }
+    try {
+      effectiveProvider.set(effectivePaperLoop.applyToDashboard(state, Date.now()));
+    } catch {
+      clearPaperProjection();
+    }
+  };
   try {
     if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
+    projectPaperAccount();
   } catch {
-    effectiveProvider.clear();
+    clearPaperProjection();
   }
   const observations = new Map<string, IntelligenceObservation>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
@@ -95,16 +110,10 @@ export function startCloudRuntime(
             overallHealth: state.overallHealth,
             decisions: state.decisions
           });
-          if (result.status === "FILLED") {
-            try {
-              effectiveProvider.set(effectivePaperLoop.applyToDashboard(state, Date.now()));
-            } catch {
-              // The account is durable before the dashboard projection. Clear both sides on a
-              // projection failure so restart cannot observe a paper account without its snapshot.
-              try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
-              effectiveProvider.clear();
-            }
-          }
+          if (result.status === "FAILED") clearPaperProjection();
+          else projectPaperAccount();
+        } else if (effectivePaperLoop != null) {
+          clearPaperProjection();
         }
       },
       (state) => {
