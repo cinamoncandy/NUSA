@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
 const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudRuntimeDashboardHydrator.js");
+const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
 const dashboardInput = (now = Date.now()) => ({
@@ -173,4 +174,110 @@ test("ticker hydration exposes a degraded read-only dashboard and stops the sock
     await handle.stop();
   }
   assert.deepEqual(calls.at(-1), ["stop"]);
+});
+
+test("runtime projects initial paper capital and preserves it while the kill switch blocks ticks", async () => {
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider();
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 100_000 });
+  let onTicker;
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    provider,
+    new CloudRuntimeDashboardHydrator(),
+    (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },
+    undefined,
+    undefined,
+    loop
+  );
+  try {
+    const initial = await request(port);
+    assert.equal(initial.body.cashCapital, 100_000);
+    assert.equal(initial.body.deployableCapital, 100_000);
+    assert.equal(initial.body.deployedCapital, 0);
+    assert.equal(initial.body.killSwitchActive, true);
+    assert.equal(initial.body.tradingAllowed, false);
+
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: Date.now(), signed_change_rate: 0.01, acc_trade_price_24h: 1_000 });
+    const blocked = await request(port);
+    assert.equal(blocked.body.cashCapital, 100_000);
+    assert.equal(blocked.body.deployableCapital, 100_000);
+    assert.equal(blocked.body.killSwitchActive, true);
+    assert.equal(blocked.body.tradingAllowed, false);
+    const projected = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
+    assert.equal(projected.paper.equity, 100_000);
+    assert.equal(projected.paper.unrealizedPnL, 0);
+    assert.equal(loop.snapshot().orders.length, 0);
+    assert.equal(loop.snapshot().fills.length, 0);
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("runtime restores and projects the durable paper account after restart", async () => {
+  let saved;
+  const repository = { save: (state) => { saved = state; }, loadLatest: () => saved, clear: () => { saved = undefined; } };
+  const initial = new PaperTradingExecutionLoop({ initialCapital: 100_000, repository });
+  initial.processTick({
+    now: 1_000, market: "KRW-BTC", price: 100, observedAt: 1_000, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY",
+    decisions: [{ symbol: "KRW-BTC", action: "BUY", confidence: 1, risk: "LOW", allocation: 0.5, leverage: 1, score: 1, reasons: ["test"], decidedAt: 1_000 }]
+  });
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider();
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000" },
+    provider,
+    new CloudRuntimeDashboardHydrator(),
+    undefined,
+    undefined,
+    repository
+  );
+  try {
+    const restored = await request(port);
+    assert.equal(restored.body.cashCapital, initial.snapshot().cash);
+    assert.equal(restored.body.deployedCapital, 50_000);
+    assert.equal(restored.body.deployableCapital, initial.snapshot().equity);
+    assert.equal(restored.body.positions.length, 1);
+    assert.equal(restored.body.killSwitchActive, true);
+    assert.equal(restored.body.tradingAllowed, false);
+    const projected = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
+    assert.equal(projected.paper.equity, initial.snapshot().equity);
+    assert.equal(projected.paper.unrealizedPnL, initial.snapshot().unrealizedPnL);
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("WAIT ticks keep the projected paper account synchronized", async () => {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000 });
+  loop.processTick({
+    now: 1_000, market: "KRW-BTC", price: 100, observedAt: 1_000, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY",
+    decisions: [{ symbol: "KRW-BTC", action: "BUY", confidence: 1, risk: "LOW", allocation: 0.5, leverage: 1, score: 1, reasons: ["test"], decidedAt: 1_000 }]
+  });
+  const port = await freePort();
+  const provider = new InMemoryCloudDashboardStateProvider();
+  let onTicker;
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    provider,
+    { hydrate(target) { target.set(dashboardInput(Date.now())); } },
+    (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },
+    undefined,
+    undefined,
+    loop
+  );
+  try {
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: Date.now(), signed_change_rate: 0.01, acc_trade_price_24h: 1_000 });
+    const dashboard = await request(port);
+    assert.equal(dashboard.body.cashCapital, loop.snapshot().cash);
+    assert.equal(dashboard.body.deployedCapital, 500);
+    assert.equal(dashboard.body.deployableCapital, loop.snapshot().equity);
+    const projected = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
+    assert.equal(projected.paper.realizedPnL, loop.snapshot().realizedPnL);
+    assert.equal(projected.paper.unrealizedPnL, loop.snapshot().unrealizedPnL);
+    assert.equal(loop.snapshot().orders.length, 1);
+    assert.equal(loop.snapshot().fills.length, 1);
+  } finally {
+    await handle.stop();
+  }
 });
