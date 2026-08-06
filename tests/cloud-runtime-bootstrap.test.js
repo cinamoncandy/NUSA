@@ -59,8 +59,8 @@ test("the real bootstrap process fails closed and exits non-zero when required e
 
 test("the real bootstrap process starts, serves /health without auth, enforces the configured token, and shuts down cleanly on SIGTERM", async () => {
   const port = 41831;
-  const token = "runtime-bootstrap-test-token";
-  const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token });
+  const authToken = "runtime-bootstrap-test-token";
+  const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   try {
     await waitForListening(child, port, STARTUP_TIMEOUT_MS);
 
@@ -75,7 +75,7 @@ test("the real bootstrap process starts, serves /health without auth, enforces t
     assert.equal(wrongToken.status, 401);
 
     // The token is accepted, but no dashboard data source is wired in yet -- 503, not fake data.
-    const rightToken = await get(port, "/", { authorization: `Bearer ${token}` });
+    const rightToken = await get(port, "/", { authorization: `Bearer ${authToken}` });
     assert.equal(rightToken.status, 503);
     assert.equal(JSON.parse(rightToken.body).error, "DASHBOARD_UNAVAILABLE");
   } finally {
@@ -88,8 +88,8 @@ test("the real bootstrap process starts, serves /health without auth, enforces t
 
 test("SIGINT also triggers a clean shutdown", async () => {
   const port = 41832;
-  const token = "runtime-bootstrap-sigint-token";
-  const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token });
+  const authToken = "runtime-bootstrap-sigint-token";
+  const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(child, port, STARTUP_TIMEOUT_MS);
   child.kill("SIGINT");
   const { code, signal } = await waitForExit(child, SHUTDOWN_TIMEOUT_MS);
@@ -99,13 +99,13 @@ test("SIGINT also triggers a clean shutdown", async () => {
 
 test("after SIGTERM shutdown, the port is actually released (not left bound by a lingering handle)", async () => {
   const port = 41833;
-  const token = "runtime-bootstrap-release-token";
-  const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token });
+  const authToken = "runtime-bootstrap-release-token";
+  const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(first, port, STARTUP_TIMEOUT_MS);
   first.kill("SIGTERM");
   await waitForExit(first, SHUTDOWN_TIMEOUT_MS);
 
-  const second = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token });
+  const second = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   try {
     await waitForListening(second, port, STARTUP_TIMEOUT_MS);
     const health = await get(port, "/health");
