@@ -8,6 +8,7 @@ import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../
 import { verifyStrategyAnalytics, type StrategyAnalyticsSnapshot } from "./strategyAnalytics";
 import { buildOpportunityDashboardSection } from "./opportunityDashboardProjection";
 import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
+import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
@@ -40,6 +41,8 @@ export interface PaperDashboardProjectionInput {
   /** A validated scheduler result may be projected read-only; no schedule is inferred here. */
   readonly opportunitySchedule?: OpportunitySchedule;
   readonly committee?: CommitteeDashboardSection;
+  /** Last decision produced by the canonical runtime risk gate. */
+  readonly canonicalRiskDecision?: CanonicalRiskDecision;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -159,11 +162,13 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
     }),
     research: input.research ?? Object.freeze({ ...unknown, walkForwardPassed: false, monteCarloPassed: false, costStressPassed: false, paperPromotionEligible: false }),
     risk: Object.freeze({
-      status: input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const,
+      status: input.canonicalRiskDecision === undefined
+        ? input.runtimeAvailable ? "HEALTHY" as const : "BLOCKED" as const
+        : input.canonicalRiskDecision.status === "APPROVED" ? "HEALTHY" as const : "BLOCKED" as const,
       availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
       generatedAt: input.generatedAt,
-      reasons: Object.freeze([...runtimeReasons]),
-      killSwitchActive: !input.runtimeAvailable,
+      reasons: Object.freeze(input.canonicalRiskDecision === undefined ? [...runtimeReasons] : [...input.canonicalRiskDecision.reasonCodes]),
+      killSwitchActive: input.canonicalRiskDecision === undefined ? !input.runtimeAvailable : input.canonicalRiskDecision.status !== "APPROVED",
       dailyDrawdownRatio: drawdown,
       liquidationBufferRatio: 1,
       portfolioHeatRatio: exposure

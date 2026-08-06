@@ -21,7 +21,22 @@ export interface RuntimePersistence {
   saveWithScenarioEvent?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, event: ScenarioEvent): void;
   saveWithScenarioEvents?(paper: ReturnType<PaperBroker["exportState"]>, control: ReturnType<ControlPlane["exportState"]>, events: readonly ScenarioEvent[]): void;
 }
-export interface PaperCommandRiskGate { evaluate(command: Readonly<{ path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY" | "SHADOW"; side: PaperSide; quantity: number; price: number }>): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>; }
+export interface PaperCommandRiskGate {
+  evaluate(command: Readonly<{
+    path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY" | "SHADOW";
+    side: PaperSide;
+    quantity: number;
+    price: number;
+    accountId?: string;
+    strategyId?: string;
+    approvalId?: string;
+    commandId?: string;
+    signalId?: string;
+    clientOrderId?: string;
+    nowMs?: number;
+  }>): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>;
+  recordOrder?(order: Readonly<{ orderId: string; status: "OPEN" | "PENDING" | "FILLED" | "CANCELLED" | "REJECTED"; nowMs?: number }>): void;
+}
 
 export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
 export const PERSISTENCE_RECOVERY_STEPS = Object.freeze([
@@ -52,7 +67,10 @@ export class RuntimeCommandService {
     private readonly evidence?: PaperScenarioEvidenceRecorder,
     private readonly onDiagnostic?: (diagnostic: RuntimeMutationDiagnostic) => void
   ) {}
-  private requireRiskApproval(path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY", side: PaperSide, quantity: number, price: number): void { const decision = this.riskGate.evaluate(Object.freeze({ path, side, quantity, price })); if (decision.status !== "ALLOW") throw new Error(`paper risk ${decision.status}: ${decision.reasonCodes.join(",")}`); }
+  private requireRiskApproval(path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY", side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; strategyId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): void {
+    const decision = this.riskGate.evaluate(Object.freeze({ path, side, quantity, price, ...metadata }));
+    if (decision.status !== "ALLOW") throw new Error(`paper risk ${decision.status}: ${decision.reasonCodes.join(",")}`);
+  }
 
   /** Diagnostics must never affect the trading-safety path, so a broken callback is swallowed here. */
   private emit(diagnostic: RuntimeMutationDiagnostic): void {
@@ -62,11 +80,22 @@ export class RuntimeCommandService {
   isAvailable(): boolean { return this.available; }
   markUnavailable(): void { this.available = false; this.strategy.stop(); }
 
-  manualOrder(side: PaperSide, quantity: number, price: number): PaperOrder {
+  manualOrder(side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): PaperOrder {
     return this.commit("manual paper order", () => {
-      this.requireRiskApproval("MANUAL", side, quantity, price);
+      this.requireRiskApproval("MANUAL", side, quantity, price, metadata);
       const order = this.broker.execute(side, quantity, price);
+      this.riskGate.recordOrder?.({ orderId: order.id, status: "FILLED", nowMs: metadata.nowMs });
       this.control.record("ORDER", `manual ${side} filled`, order);
+      return order;
+    }, (order) => this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) }));
+  }
+
+  replayOrder(side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): PaperOrder {
+    return this.commit("reconnect paper order replay", () => {
+      this.requireRiskApproval("RECONNECT_REPLAY", side, quantity, price, metadata);
+      const order = this.broker.execute(side, quantity, price);
+      this.riskGate.recordOrder?.({ orderId: order.id, status: "FILLED", nowMs: metadata.nowMs });
+      this.control.record("ORDER", `reconnect replay ${side} filled`, order);
       return order;
     }, (order) => this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) }));
   }
@@ -88,7 +117,7 @@ export class RuntimeCommandService {
   setAutoTrade(enabled: boolean): void { this.commit("control auto", () => this.control.setAutoTrade(enabled)); }
   setOrderQuantity(quantity: number): void { this.commit("control quantity", () => this.control.setOrderQuantity(quantity)); }
 
-  automaticSignal(market: string, price: number, positionQuantity: number, signal: StrategySignal): AutomaticResult {
+  automaticSignal(market: string, price: number, positionQuantity: number, signal: StrategySignal, metadata: Readonly<Partial<{ accountId: string; approvalId: string }>> = {}): AutomaticResult {
     if (!this.available) return { outcome: "SKIPPED" };
     const snapshot = this.capture();
     try {
@@ -134,13 +163,17 @@ export class RuntimeCommandService {
         return { outcome: "REJECTED", error: message };
       }
       let order: PaperOrder;
-      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price); order = this.broker.execute(signal.type, quantity, price, new Date(), { strategyId: this.strategy.getStrategyId() }); }
+      const signalId = `${market}:${signal.timestamp}:${signal.type}`;
+      const commandId = `strategy:${signalId}`;
+      const clientOrderId = `paper:${commandId}`;
+      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price, { ...metadata, strategyId: this.strategy.getStrategyId(), signalId, commandId, clientOrderId, nowMs: signal.timestamp }); order = this.broker.execute(signal.type, quantity, price, new Date(), { strategyId: this.strategy.getStrategyId() }); }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);
         this.persist();
         return { outcome: "REJECTED", error: message };
       }
+      this.riskGate.recordOrder?.({ orderId: order.id, status: "FILLED", nowMs: signal.timestamp });
       this.control.record("ORDER", `automatic ${signal.type} filled`, order);
       const orderEvidence = this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) });
       this.persist(orderEvidence);

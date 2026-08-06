@@ -55,3 +55,4 @@ export * from "./certification-snapshot";
 export * from "./synthetic-baseline-closure-report";
 export * from "./final-certification";
 export * from "./order-engine";
+export * from "./risk-safety-integration";

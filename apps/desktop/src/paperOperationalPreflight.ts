@@ -9,6 +9,7 @@ import type { PaperBroker, PaperSide } from "./paperBroker";
 import { reconcilePaperLedger } from "./paperSafetyGates";
 import { computeConsecutiveLossCount, computeDailyNotional, computeOrderRateState, tradingDayOf, type SessionPeakEquityTracker } from "./paperRiskState";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
+import { CanonicalRiskSafetyGate, type CanonicalRiskDecision, type RiskSafetyPersistence } from "../../../apps/execution/src/risk-safety-integration";
 
 export interface OperationalPreflightDiagnostic {
   readonly status: "PASS" | "BLOCKED";
@@ -173,6 +174,66 @@ export function createOperationalPaperRiskGate(input: Readonly<{
       const decision = evaluatePreTradeRisk(request, input.identity, input.limits);
       input.evidence?.append(toPaperRiskEvidence(request, decision));
       return Object.freeze({ status: decision.status, reasonCodes: decision.reasonCodes });
+    }
+  });
+}
+
+/**
+ * Production desktop adapter for WO-0018. The legacy preflight gate remains available to
+ * compatibility fixtures, but main.ts uses this adapter so every real desktop order boundary
+ * enters the same persistent canonical decision source.
+ */
+export function createCanonicalOperationalPaperRiskGate(input: Readonly<{
+  getState: () => OperationalPreflightState;
+  getBroker: () => PaperBroker;
+  getMarket: () => Readonly<{ symbol: string; price: number | null; status: "HEALTHY" | "STALE" | "RECONNECTING" | "WARMING_UP" | "GAP_DETECTED" | "OUT_OF_ORDER" | "INVALID" }>;
+  getControl: () => Readonly<{ killSwitchActive: boolean; openP0: boolean }>;
+  persistence: RiskSafetyPersistence;
+  accountId: string;
+  policyFingerprint: string;
+  maxDailyLoss: number;
+  maxOpenOrders: number;
+  onDecision?: (decision: CanonicalRiskDecision) => void;
+}>): PaperCommandRiskGate {
+  const canonical = new CanonicalRiskSafetyGate(input.persistence);
+  return Object.freeze({
+    evaluate: (command: Readonly<Parameters<PaperCommandRiskGate["evaluate"]>[0]>) => {
+      const nowMs = command.nowMs ?? Date.now();
+      const market = input.getMarket();
+      const control = input.getControl();
+      const preflight = input.getState();
+      const account = input.getBroker().snapshot(command.price);
+      const commandId = command.commandId ?? `${command.path}:${market.symbol}:${nowMs}:${command.side}`;
+      const signalId = command.signalId ?? `${command.path}:${market.symbol}:${nowMs}:${command.side}`;
+      const clientOrderId = command.clientOrderId ?? `paper:${commandId}`;
+      const strategyId = command.strategyId ?? (command.path === "MANUAL" || command.path === "IPC" ? "MANUAL" : "sma-crossover");
+      const decision = canonical.evaluate({
+        accountId: command.accountId ?? input.accountId,
+        requestId: `${command.path}:${commandId}`,
+        boundary: command.path === "IPC" ? "MANUAL" : command.path,
+        mode: command.path === "SHADOW" ? "SHADOW" : "PAPER",
+        symbol: market.symbol,
+        strategyId,
+        policyFingerprint: input.policyFingerprint,
+        ...(command.approvalId === undefined ? {} : { approvalId: command.approvalId }),
+        nowMs,
+        currentEquity: account.equity,
+        marketDataFresh: market.status === "HEALTHY" && market.price !== null,
+        marketHealthy: market.status === "HEALTHY",
+        killSwitchActive: control.killSwitchActive,
+        liveMutationAllowed: false,
+        recoveryReady: preflight.deployment.status === "PASS" && preflight.reconciliation.status === "PASS" && !control.openP0,
+        persistenceHealthy: preflight.riskGate.status === "PASS",
+        maxDailyLoss: input.maxDailyLoss,
+        maxOpenOrders: input.maxOpenOrders,
+        idempotency: { accountId: command.accountId ?? input.accountId, commandId, signalId, clientOrderId, payloadFingerprint: "PENDING", createdAtMs: nowMs }
+      });
+      input.onDecision?.(decision);
+      const status = decision.status === "APPROVED" ? "ALLOW" : decision.status === "REJECTED" ? "REJECT" : "HALT";
+      return Object.freeze({ status, reasonCodes: decision.reasonCodes });
+    },
+    recordOrder: (order: Readonly<{ orderId: string; status: "OPEN" | "PENDING" | "FILLED" | "CANCELLED" | "REJECTED"; nowMs?: number }>) => {
+      input.persistence.saveOrder({ accountId: input.accountId, orderId: order.orderId, status: order.status, updatedAtMs: order.nowMs ?? Date.now() });
     }
   });
 }

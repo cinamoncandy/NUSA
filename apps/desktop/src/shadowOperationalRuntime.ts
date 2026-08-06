@@ -715,9 +715,10 @@ export class ShadowOperationalRuntime {
     if (!this.pilot) return;
     const side = signal.type as PaperSide;
     const quantity = this.deps.getHypotheticalOrderQuantity();
-    const decision = this.deps.riskGate.evaluate(Object.freeze({ path: "SHADOW" as const, side, quantity, price: candle.close }));
     const signalId = `${this.deps.symbol}:${candle.closeTime}:${signal.type}`;
-    const commandId = randomUUID();
+    const commandId = `shadow:${signalId}`;
+    const clientOrderId = `paper:${commandId}`;
+    const decision = this.deps.riskGate.evaluate(Object.freeze({ path: "SHADOW" as const, side, quantity, price: candle.close, strategyId: this.deps.strategyId, signalId, commandId, clientOrderId, nowMs: candle.closeTime }));
     const fillsBefore = this.pilot.snapshot().counters.hypotheticalFillCount;
     this.pilot.observe({ timestamp: candle.closeTime, signalId, commandId, side, quantity, decision: decision.status, reasonCodes: decision.reasonCodes });
     this.lastSignalTime = candle.closeTime;
