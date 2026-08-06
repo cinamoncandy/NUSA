@@ -17,6 +17,7 @@ export { SqliteRulesControlPlaneStore } from "./rulesControlPlaneStore";
 export type { RulesDatabase } from "./rulesControlPlaneStore";
 export { SqliteMultiAgentGovernanceStore } from "./multiAgentGovernanceStore";
 export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
+export { SqliteRiskSafetyPersistence } from "./risk-safety";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -304,5 +305,38 @@ CREATE TABLE IF NOT EXISTS cloud_paper_accounts (
   state_json TEXT NOT NULL,
   checksum TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('VALID','CORRUPTED','INVALID'))
+);
+` }, { id: "010_risk_safety_integration", sql: `
+CREATE TABLE IF NOT EXISTS risk_paper_approvals (
+  approval_id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  expires_at_ms INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('VALID','REVOKED'))
+);
+CREATE TABLE IF NOT EXISTS risk_daily_loss_state (
+  account_id TEXT PRIMARY KEY,
+  trading_day TEXT NOT NULL,
+  day_start_equity REAL NOT NULL,
+  updated_at_ms INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS risk_idempotency_records (
+  account_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  signal_id TEXT NOT NULL,
+  client_order_id TEXT NOT NULL,
+  payload_fingerprint TEXT NOT NULL,
+  created_at_ms INTEGER NOT NULL,
+  PRIMARY KEY (account_id, idempotency_key),
+  UNIQUE (account_id, command_id),
+  UNIQUE (account_id, signal_id),
+  UNIQUE (account_id, client_order_id)
+);
+CREATE TABLE IF NOT EXISTS risk_order_state (
+  account_id TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('OPEN','PENDING','FILLED','CANCELLED','REJECTED')),
+  updated_at_ms INTEGER NOT NULL,
+  PRIMARY KEY (account_id, order_id)
 );
 ` }];

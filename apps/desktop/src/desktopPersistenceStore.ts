@@ -12,6 +12,7 @@ import type { PaperSafetySnapshot } from "../../../packages/contracts/src/paperS
 import { validatePaperSafetySnapshot } from "./paperSafetySnapshot";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
+import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/risk-safety";
 import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../cloud/src/investmentCommitteeLedger";
 import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
 import { validateOpportunitySchedule } from "./opportunityDashboardProjection";
@@ -47,6 +48,11 @@ CREATE TABLE desktop_operations_audit (audit_id TEXT PRIMARY KEY, created_at TEX
 CREATE TABLE desktop_operations_alerts (alert_id TEXT PRIMARY KEY, created_at TEXT NOT NULL, severity TEXT NOT NULL, payload TEXT NOT NULL);
 ` }, { id: "008_desktop_opportunity_schedules", sql: `
 CREATE TABLE desktop_opportunity_schedules (schedule_id TEXT PRIMARY KEY, source TEXT NOT NULL, generated_at INTEGER NOT NULL, payload TEXT NOT NULL, payload_checksum TEXT NOT NULL UNIQUE);
+` }, { id: "009_desktop_risk_safety", sql: `
+CREATE TABLE risk_paper_approvals (approval_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, expires_at_ms INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('VALID', 'REVOKED')));
+CREATE TABLE risk_daily_loss_state (account_id TEXT PRIMARY KEY, trading_day TEXT NOT NULL, day_start_equity REAL NOT NULL, updated_at_ms INTEGER NOT NULL);
+CREATE TABLE risk_idempotency_records (account_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, command_id TEXT NOT NULL, signal_id TEXT NOT NULL, client_order_id TEXT NOT NULL, payload_fingerprint TEXT NOT NULL, created_at_ms INTEGER NOT NULL, PRIMARY KEY(account_id, idempotency_key), UNIQUE(account_id, command_id), UNIQUE(account_id, signal_id), UNIQUE(account_id, client_order_id));
+CREATE TABLE risk_order_state (account_id TEXT NOT NULL, order_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('OPEN', 'PENDING', 'FILLED', 'CANCELLED', 'REJECTED')), updated_at_ms INTEGER NOT NULL, PRIMARY KEY(account_id, order_id));
 ` }];
 
 export class DesktopPersistenceStore {
@@ -314,6 +320,13 @@ export class DesktopPersistenceStore {
 
   riskEvidenceRepository(): SqliteRiskEvidenceRepository {
     return new SqliteRiskEvidenceRepository({ connection: this.db });
+  }
+
+  riskSafetyRepository(): SqliteRiskSafetyPersistence {
+    return new SqliteRiskSafetyPersistence({
+      connection: this.db,
+      transaction: <T>(operation: () => T): T => this.transaction(operation)
+    });
   }
 
   appendResearchEvidenceBundle(entries: readonly Readonly<{ manifest: ResearchRunManifest; report: ResearchValidationReport }>[]): void {

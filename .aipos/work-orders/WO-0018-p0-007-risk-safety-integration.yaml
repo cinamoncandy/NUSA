@@ -1,0 +1,112 @@
+id: WO-0018
+title: "P0 #007 Risk and Safety Integration"
+status: VERIFIED
+owner: codex
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d6f166fb9b96596ac3c7c28f3fd43c492da23b5f
+active_branch: agent/p0-007-risk-safety-integration
+objective: "Integrate one canonical, persistent, fail-closed risk and safety decision path across manual PAPER orders, strategy orders, reconnect replay, shadow/canary boundaries, and dashboard projection."
+owner_decisions:
+  approval:
+    manual_paper_requires_explicit_user_approval: true
+    strategy_paper_requires_preapproved_strategy_scope: true
+    scope_fields:
+      - mode
+      - symbol
+      - strategyId
+      - policyFingerprint
+      - expiry
+    invalidation:
+      - expired
+      - scope_mismatch
+      - policy_fingerprint_mismatch
+    shadow_execution: evaluation_only
+  daily_loss:
+    timezone: Asia/Seoul
+    trading_day_boundary: "00:00 KST"
+    day_start_equity_persisted: true
+    formula: "currentEquity - dayStartEquity"
+    date_change_reset: deterministic
+    restart_recovery: same_trading_day_basis
+  open_orders:
+    counted_statuses:
+      - OPEN
+      - PENDING
+    excluded_statuses:
+      - FILLED
+      - CANCELLED
+      - REJECTED
+    immediate_paper_fill_open_order_count: 0
+  canonical_gate:
+    shared_by:
+      - manual
+      - strategy
+      - reconnect_replay
+      - shadow
+      - canary
+      - dashboard
+    dashboard_uses_same_decision_and_reason_codes: true
+    duplicate_policy_constants_forbidden: true
+  safety:
+    live_mutation_enabled: false
+    default_kill_switch_active: true
+    approval_failure_fail_closed: true
+    projection_failure_fail_closed: true
+    persistence_failure_fail_closed: true
+    recovery_failure_fail_closed: true
+scope:
+  in_scope:
+    - "Approval lifecycle, scope validation, expiry, fingerprinting, and persistence."
+    - "KST trading-day daily-loss state, deterministic reset, and restart recovery."
+    - "OPEN/PENDING order state separated from terminal order history."
+    - "Persistent commandId, signalId, and clientOrderId idempotency."
+    - "One canonical risk decision source with shared dashboard projection and reason codes."
+    - "Restart and recovery consistency across approval, risk, orders, and dashboard state."
+    - "Stale documentation updates discovered during implementation."
+  out_of_scope:
+    - "LIVE mutation or live order activation."
+    - "Weekly or rolling loss limits."
+    - "Correlated exposure controls."
+    - "Multiple exchanges or accounts."
+    - "Dynamic slippage."
+    - "Capital scaling."
+    - "Long-duration Shadow or Canary operations."
+acceptance_criteria:
+  - "Manual PAPER order without valid explicit approval is rejected with deterministic reason code."
+  - "Strategy PAPER order requires a matching, unexpired pre-approved strategy scope."
+  - "Expired, mismatched, or fingerprint-invalid approval fails closed."
+  - "SHADOW evaluates risk but never produces an executable order."
+  - "Daily loss uses persisted dayStartEquity at the 00:00 KST boundary and resets deterministically on date change."
+  - "Restart during the same KST trading day preserves dayStartEquity and daily PnL."
+  - "Only OPEN/PENDING records contribute to openOrderCount; terminal records do not."
+  - "Immediately filled Paper orders leave openOrderCount at zero."
+  - "commandId, signalId, and clientOrderId duplicate replays are rejected deterministically after restart."
+  - "Manual, strategy, reconnect replay, shadow/canary, and dashboard use the same canonical decision and reason codes."
+  - "Approval, projection, persistence, and recovery uncertainty keeps the kill switch active and blocks execution."
+  - "Relevant unit, integration, recovery, persistence, and regression tests pass."
+verification:
+  focused_tests:
+    - "approval lifecycle and scope persistence"
+    - "KST daily loss and date-boundary reset"
+    - "open-order status projection"
+    - "command/signal/client idempotency persistence"
+    - "canonical risk decision and dashboard reason-code projection"
+    - "restart/recovery fail-closed behavior"
+  commands:
+    - "pnpm run typecheck"
+    - "pnpm run lint"
+    - "pnpm run build"
+    - "pnpm test"
+    - "git diff --check"
+  evidence_required:
+    - "base SHA and branch evidence"
+    - "focused test output"
+    - "full test output"
+    - "diff and architecture review"
+    - "no LIVE mutation or credential changes"
+notes:
+  implementation_allowed: true
+  current_step: "runtime wiring verified; awaiting review and commit authorization"
+  verification: "Focused runtime wiring/parity/risk/storage tests 43/43 PASS; full pnpm test 370 isolated test files PASS; typecheck, build, lint, and git diff --check PASS. Desktop and Cloud parity remains enforced."
+  commit: "not created by instruction"

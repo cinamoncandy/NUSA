@@ -42,7 +42,7 @@ import { SHADOW_OBSERVATION_PROFILE } from "./shadowObservationProfile";
 import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
 import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
-import { createOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
+import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
 import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
@@ -52,6 +52,7 @@ import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExpla
 import { evaluateStrategyRegime } from "./regimePolicy";
 import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
+import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
 import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
 import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
@@ -71,7 +72,6 @@ import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle, type MobileCandleDto, type MobileMarketDto } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
-import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
 import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
 
 const MARKET = "KRW-BTC";
@@ -128,14 +128,13 @@ let sessionStore: PaperSessionStore;
 let controlStore: ControlSessionStore;
 let persistenceStore: DesktopPersistenceStore | undefined;
 let executionRepository: SqliteDurableExecutionRepository | undefined;
-let paperRiskEvidenceRepository: SqliteRiskEvidenceRepository | undefined;
 let operationsAudit: readonly OperationsAuditRecord[] = Object.freeze([]);
 let operationsAlerts: readonly OperationsAlertRecord[] = Object.freeze([]);
 let stream: UpbitWebSocketClient;
 let paperTradingAvailable = false;
 // Kill Switch/P0 are persisted safety facts. A generic FAULTED control status is not
 // itself evidence that either safety condition is active.
-let persistedKillSwitchActive = false;
+let persistedKillSwitchActive = true;
 let persistedKillSwitchReason: string | null = null;
 let persistedKillSwitchActivatedAt: number | null = null;
 let persistedOpenP0Codes: readonly string[] = Object.freeze([]);
@@ -204,6 +203,15 @@ const recoveryReview = new RecoveryReviewState();
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
 let mobileBridge: MobileBridgeHandle | undefined;
+let lastCanonicalRiskDecision: CanonicalRiskDecision = Object.freeze({
+  status: "BLOCKED",
+  reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]),
+  reason: "risk gate not configured",
+  evaluatedAtMs: 0,
+  decisionId: "UNINITIALIZED",
+  productionMutationAllowed: false,
+  dashboard: Object.freeze({ status: "BLOCKED", reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]) })
+});
 /**
  * WO-0034-A4O productization state. Resolved once, at app-ready, because every path below
  * depends on `app.getPath("userData")` and `app.isPackaged`, neither of which is meaningful
@@ -398,6 +406,7 @@ function publishAiCioDashboard(): void {
       }),
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
       strategyAnalytics: strategyAnalytics ?? undefined,
+      canonicalRiskDecision: lastCanonicalRiskDecision,
       opportunitySchedule: persistenceStore?.loadLatestOpportunitySchedule()?.schedule,
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
       committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
@@ -654,7 +663,6 @@ function initializeRuntime(): void {
   try {
     persistenceStore = new DesktopPersistenceStore(layout.databaseFile);
     executionRepository = persistenceStore.executionRepository();
-    paperRiskEvidenceRepository = persistenceStore.riskEvidenceRepository();
     const startupAudit: OperationsAuditRecord = Object.freeze({ auditId: `audit-start-${productRunId}`, actor: "SYSTEM", action: "APPLICATION_START", target: null, metadata: { mode: "PAPER", productionMutationAllowed: false }, createdAt: new Date().toISOString() });
     persistenceStore.appendOperationsAudit(startupAudit);
     operationsAudit = persistenceStore.loadOperationsAudit();
@@ -704,17 +712,18 @@ function initializeRuntime(): void {
     reconciliation,
     riskGate: Object.freeze({ status: "PASS", method: "INDEPENDENT_RISK_GATEWAY_WITH_RUNTIME_PREFLIGHT_STATE", evidence: Object.freeze(["evaluatePreTradeRisk"]), blockers: Object.freeze([]) })
   });
-  paperCommandRiskGate = createOperationalPaperRiskGate({
+  const riskSafetyPersistence = persistenceStore?.riskSafetyRepository();
+  paperCommandRiskGate = riskSafetyPersistence == null ? { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_PERSISTENCE_UNAVAILABLE"]) }) } : createCanonicalOperationalPaperRiskGate({
     getState: () => operationalPreflight,
     getBroker: () => broker,
     getMarket: () => ({ symbol: MARKET, price: latestTicker?.trade_price ?? null, status: marketDataStatus }),
     getControl: () => ({ killSwitchActive: persistedKillSwitchActive, openP0: persistedOpenP0Codes.length > 0 }),
-    identity: { strategyFingerprint: PAPER_SAFETY_FINGERPRINTS.strategy, configFingerprint: PAPER_SAFETY_FINGERPRINTS.config, runtimeFingerprint: PAPER_SAFETY_FINGERPRINTS.runtime, riskPolicyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
-    limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
-    fingerprints: PAPER_SAFETY_FINGERPRINTS,
-    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
-    sessionPeakEquity: sessionPeakEquityTracker
-    ,evidence: paperRiskEvidenceRepository
+    persistence: riskSafetyPersistence,
+    accountId: "desktop-paper",
+    policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy,
+    maxDailyLoss: RISK_POLICY.maxRealizedLoss,
+    maxOpenOrders: 1,
+    onDecision: (decision) => { lastCanonicalRiskDecision = decision; }
   });
   if (persistenceStore) {
     try {
