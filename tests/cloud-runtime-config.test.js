@@ -4,13 +4,13 @@ const { readCloudRuntimeConfig, createSharedSecretTokenVerifier } = require("../
 
 const VALID_ENV = Object.freeze({
   NUSA_CLOUD_DASHBOARD_PORT: "41799",
-  NUSA_CLOUD_DASHBOARD_TOKEN: "a-real-secret"
+  NUSA_CLOUD_DASHBOARD_TOKEN: "a-real-secret-token-with-32-bytes!!"
 });
 
 test("a complete, valid environment produces a config", () => {
   const config = readCloudRuntimeConfig(VALID_ENV);
   assert.equal(config.port, 41799);
-  assert.equal(config.dashboardToken, "a-real-secret");
+  assert.equal(config.dashboardToken, "a-real-secret-token-with-32-bytes!!");
   assert.equal("host" in config, false, "host must be omitted, not defaulted here -- server.ts owns that default");
   assert.deepEqual([...config.upbitMarkets], ["KRW-BTC", "KRW-ETH"]);
   assert.equal(config.upbitPublicDataEnabled, false);
@@ -59,6 +59,13 @@ test("a missing token fails closed -- no default accepts any token", () => {
 
 test("an empty-string token fails closed", () => {
   assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "   " }), /NUSA_CLOUD_DASHBOARD_TOKEN is required/);
+});
+
+test("token length is measured in UTF-8 bytes", () => {
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "x".repeat(31) }), /32 UTF-8 bytes/);
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "x".repeat(32) }).dashboardToken.length, 32);
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "가".repeat(16) }).dashboardToken, "가".repeat(16));
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "가".repeat(15) }), /32 UTF-8 bytes/);
 });
 
 test("the shared-secret verifier accepts only the exact configured token", () => {

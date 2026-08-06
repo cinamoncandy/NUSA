@@ -13,6 +13,7 @@ export interface CloudDashboardServerOptions {
   readonly host?: string;
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
+  readonly readiness?: () => Readonly<{ ok: boolean; checks: Readonly<Record<string, boolean>> }>;
 }
 
 export interface CloudDashboardServerHandle {
@@ -55,6 +56,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         res.end(JSON.stringify({ ok: true, observedAt: new Date().toISOString() }));
+        return;
+      }
+      if (req.method === "GET" && req.url === "/ready") {
+        const auth = handleMobileDashboardHttp({ method: "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>) }, { tokenVerifier: options.tokenVerifier, loadDashboard: options.loadDashboard });
+        if (auth.status !== 200) { res.writeHead(auth.status, auth.headers as Record<string, string>); res.end(auth.body); return; }
+        const readiness = options.readiness?.() ?? { ok: false, checks: { readiness: false } };
+        res.writeHead(readiness.ok ? 200 : 503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        res.end(JSON.stringify(readiness));
         return;
       }
       const dashboardRequest: DashboardHttpRequest = Object.freeze({

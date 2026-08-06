@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
+import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -149,6 +150,7 @@ export interface PaperTradingExecutionLoopOptions {
   readonly staleWindowMs?: number;
   readonly repository?: PaperAccountRepository;
   readonly restoredState?: PaperAccountState;
+  readonly canonicalRiskGate?: { evaluate(input: Readonly<{ nowMs: number; market: string; price: number; mode: "PAPER"; killSwitchActive: boolean; tradingAllowed: boolean; overallHealth: MobileDashboardApiInput["overallHealth"]; idempotencyKey: string }>): CanonicalRiskDecision };
 }
 
 export class PaperTradingExecutionLoop {
@@ -156,6 +158,8 @@ export class PaperTradingExecutionLoop {
   private readonly feeRate: number;
   private readonly staleWindowMs: number;
   private readonly repository?: PaperAccountRepository;
+  private readonly canonicalRiskGate?: PaperTradingExecutionLoopOptions["canonicalRiskGate"];
+  private lastCanonicalDecision?: CanonicalRiskDecision;
 
   public constructor(options: PaperTradingExecutionLoopOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("paper initial capital must be positive");
@@ -164,6 +168,7 @@ export class PaperTradingExecutionLoop {
     if (!Number.isFinite(this.feeRate) || this.feeRate < 0) throw new Error("paper fee rate must be non-negative");
     if (!Number.isSafeInteger(this.staleWindowMs) || this.staleWindowMs < 1_000) throw new Error("paper stale window is invalid");
     this.repository = options.repository;
+    this.canonicalRiskGate = options.canonicalRiskGate;
     const restored = options.restoredState ?? this.repository?.loadLatest();
     this.state = restored == null ? initialState(options.initialCapital) : restored;
     if (Math.abs(this.state.initialCapital - options.initialCapital) > Number.EPSILON) throw new Error("paper initial capital mismatch");
@@ -171,6 +176,7 @@ export class PaperTradingExecutionLoop {
   }
 
   public snapshot(): PaperAccountState { return this.state; }
+  public canonicalDecision(): CanonicalRiskDecision | undefined { return this.lastCanonicalDecision; }
 
   public processTick(tick: PaperExecutionTick): PaperExecutionResult {
     if (!Number.isSafeInteger(tick.now) || tick.now < 0 || !Number.isFinite(tick.price) || tick.price <= 0) return this.result("FAILED", "invalid tick");
@@ -188,6 +194,11 @@ export class PaperTradingExecutionLoop {
     for (const decision of actionable.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.action.localeCompare(b.action))) {
       const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
       if (existingKeys.has(key)) return this.result("DUPLICATE", key);
+      if (this.canonicalRiskGate != null) {
+        const canonical = this.canonicalRiskGate.evaluate({ nowMs: tick.now, market: tick.market, price: tick.price, mode: "PAPER", killSwitchActive: tick.killSwitchActive, tradingAllowed: tick.tradingAllowed, overallHealth: tick.overallHealth, idempotencyKey: key });
+        this.lastCanonicalDecision = canonical;
+        if (canonical.status !== "APPROVED") return this.result(canonical.status === "BLOCKED" ? "BLOCKED" : "REJECTED", canonical.reasonCodes.join(","));
+      }
       const position = working.positions.find((item) => item.market === tick.market);
       const quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
@@ -213,7 +224,7 @@ export class PaperTradingExecutionLoop {
     const deployed = this.state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0);
     const allocations = this.state.positions.filter((position) => position.quantity > 0).map((position) => Object.freeze({ symbol: position.market, instrument: "SPOT" as const, action: "HOLD" as const, capital: round8(position.quantity * position.markPrice), share: this.state.equity > 0 ? round8(position.quantity * position.markPrice / this.state.equity) : 0, leverage: 1, confidence: 0, risk: "LOW" as const }));
     const portfolio: PortfolioPlan = Object.freeze({ allocations: Object.freeze(allocations), deployedCapital: round8(deployed), cashCapital: round8(this.state.cash), reservedCapital: 0, grossShare: this.state.equity > 0 ? round8(deployed / this.state.equity) : 0, futuresShare: 0, decidedAt: now });
-    return Object.freeze({ ...base, now, portfolio, paper: Object.freeze({ cash: this.state.cash, equity: this.state.equity, realizedPnL: this.state.realizedPnL, unrealizedPnL: this.state.unrealizedPnL, orders: Object.freeze(this.state.orders.slice(0, 20)), fills: Object.freeze(this.state.fills.slice(0, 20)) }) });
+    return Object.freeze({ ...base, now, portfolio, paper: Object.freeze({ cash: this.state.cash, equity: this.state.equity, realizedPnL: this.state.realizedPnL, unrealizedPnL: this.state.unrealizedPnL, orders: Object.freeze(this.state.orders.slice(0, 20)), fills: Object.freeze(this.state.fills.slice(0, 20)), ...(this.lastCanonicalDecision === undefined ? {} : { canonicalRiskDecision: this.lastCanonicalDecision }) }) });
   }
 
   private result(status: PaperExecutionResult["status"], reason: string): PaperExecutionResult { return Object.freeze({ status, reason, orders: Object.freeze([]), fills: Object.freeze([]), state: this.state }); }
