@@ -296,4 +296,13 @@ CREATE TABLE IF NOT EXISTS cloud_dashboard_snapshots (
   status TEXT NOT NULL CHECK(status IN ('VALID','CORRUPTED','INVALID'))
 );
 CREATE INDEX IF NOT EXISTS idx_cloud_dashboard_snapshots_latest ON cloud_dashboard_snapshots (status, saved_at DESC);
+` }, { id: "009_cloud_paper_accounts", sql: `
+CREATE TABLE IF NOT EXISTS cloud_paper_accounts (
+  account_id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  state_json TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('VALID','CORRUPTED','INVALID'))
+);
 ` }];

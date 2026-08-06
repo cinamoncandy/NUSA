@@ -17,6 +17,7 @@ export interface CloudRuntimeConfig {
   readonly upbitMarkets: readonly string[];
   readonly upbitPublicDataEnabled: boolean;
   readonly cloudStateDbPath: string;
+  readonly paperInitialCapitalKrw?: number;
 }
 
 const PORT_ENV = "NUSA_CLOUD_DASHBOARD_PORT";
@@ -25,6 +26,7 @@ const TOKEN_ENV = "NUSA_CLOUD_DASHBOARD_TOKEN";
 const MARKETS_ENV = "NUSA_CLOUD_UPBIT_MARKETS";
 const PUBLIC_DATA_ENV = "NUSA_CLOUD_UPBIT_PUBLIC_DATA";
 const STATE_DB_ENV = "NUSA_CLOUD_STATE_DB_PATH";
+const PAPER_INITIAL_CAPITAL_ENV = "NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW";
 export const DEFAULT_CLOUD_UPBIT_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH"]);
 export const DEFAULT_CLOUD_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
 
@@ -56,12 +58,18 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   }
 
   const host = env[HOST_ENV]?.trim();
+  const paperInitialCapitalRaw = env[PAPER_INITIAL_CAPITAL_ENV]?.trim();
+  const paperInitialCapitalKrw = paperInitialCapitalRaw === undefined || paperInitialCapitalRaw === "" ? undefined : Number(paperInitialCapitalRaw);
+  if (paperInitialCapitalKrw !== undefined && (!Number.isFinite(paperInitialCapitalKrw) || paperInitialCapitalKrw <= 0)) {
+    throw new Error(`${PAPER_INITIAL_CAPITAL_ENV} must be a positive number when provided`);
+  }
   return Object.freeze({
     port,
     dashboardToken: token,
     upbitMarkets: readMarkets(env[MARKETS_ENV]),
     upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true",
     cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH,
+    ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }),
     ...(host ? { host } : {})
   });
 }

@@ -71,6 +71,8 @@ export class SqliteCloudDashboardSnapshotRepository implements CloudDashboardSna
 
   public constructor(private readonly db: SqliteDatabase) {}
 
+  public database(): SqliteDatabase { return this.db; }
+
   public save(snapshot: CloudDashboardSnapshot): void {
     assertSnapshot(snapshot);
     const payloadJson = JSON.stringify(snapshot.payload);
