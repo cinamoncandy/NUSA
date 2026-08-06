@@ -1,0 +1,35 @@
+id: WO-0013
+schema_version: 1
+title: "Cloud Dashboard State Provider"
+status: VERIFIED
+priority: 100
+objective: "Wire authenticated cloud dashboard responses to an explicit state provider without fabricating operational data."
+scope:
+  - "CloudDashboardStateProvider contract"
+  - "Runtime dashboard input assembly and response building"
+  - "Fail-closed 503 before state readiness and 200 after explicit state injection"
+exclusions:
+  - "No live trading mutation"
+  - "No fabricated operational state"
+  - "No unrelated cloud runtime redesign"
+safety:
+  productionMutationAllowed: false
+  defaultMode: STOPPED
+  liveTrading: disabled
+verification:
+  - "pnpm install --frozen-lockfile"
+  - "pnpm typecheck"
+  - "pnpm build"
+  - "pnpm lint"
+  - "pnpm test"
+  - "pnpm architecture:check"
+  - "git diff --check"
+evidence:
+  - "tests/cloud-dashboard-state-provider.test.js"
+  - "365 isolated test files PASS"
+  - "17 focused cloud/runtime tests PASS; 2 Windows signal tests skipped by existing platform condition"
+completion_criteria:
+  - "Provider state is explicit and queryable by runtime"
+  - "Dashboard response is built through buildMobileDashboardResponse"
+  - "Missing state remains HTTP 503"
+  - "Ready PAPER state returns HTTP 200"

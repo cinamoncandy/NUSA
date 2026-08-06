@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-04T11:09:29+09:00"
-phase: ai-research
+updated_at: "2026-08-06T15:00:36+09:00"
+phase: p0-cloud-dashboard
 status: in_progress
-objective: "Complete repository-verifiable Mobile RC work while preserving Paper-only safety and recording external blockers."
+objective: "Complete P0 cloud dashboard state wiring while preserving Paper-only safety and fail-closed behavior."
 base_branch: main
-active_branch: codex/issue-039-ai-evaluation
-active_pull_request: 100
+active_branch: feat/cloud-dashboard-state-provider
+active_pull_request: null
 latest_verified_slice:
   id: ai-evaluation-039
   evidence: "commits 9a6e5ba, 0bfe41c, 316d6f1; local AI Evaluation/regression tests 26/26 PASS; security-gate tests 6/6 PASS; pnpm security:gate reports 0 high/critical vulnerabilities; Typecheck, Build, Lint, Coverage, and git diff --check PASS. PR #100 CI run 30870584221 SUCCESS and Mobile Native run 30870584225 SUCCESS, including Android Debug/Release, iOS Debug/Release, and Foundation smoke."
@@ -46,6 +46,9 @@ completed:
     evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
     summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
 in_progress:
+  - id: cloud-dashboard-state-provider-002
+    evidence: "WO-0013; apps/cloud/src/cloudDashboardStateProvider.ts; apps/cloud/src/runtime.ts; tests/cloud-dashboard-state-provider.test.js"
+    summary: "Cloud runtime now reads explicit provider state, builds the versioned dashboard response, returns 503 until ready, and preserves PAPER-only safe operation."
   - id: mobile-rc-integration
     evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
     summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
@@ -53,8 +56,8 @@ blocked:
   - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
   - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
 next:
-  work_order: .aipos/work-orders/WO-0012-ai-evaluation.yaml
-  reason: "#039 AI Evaluation and its dependency security blocker are resolved with green CI; do not start #040 without a new approved work order."
+  work_order: .aipos/work-orders/WO-0013-cloud-dashboard-state-provider.yaml
+  reason: "Verify and integrate the P0 cloud dashboard state provider before resuming unrelated work."
 verification:
   required:
     - "pnpm run preflight"
@@ -67,8 +70,8 @@ verification:
     - "pnpm run coverage"
     - "pnpm run determinism"
     - "git diff --check"
-  last_result: "PASS: local AI/security/regression verification; Typecheck, Build, Lint, Coverage, and git diff --check; CI 30870584221; Mobile Native 30870584225."
-  current_commit: "316d6f1"
+  last_result: "PASS: pnpm install --frozen-lockfile; typecheck; build; lint; architecture check; 365 isolated test files; 17 focused cloud/runtime tests; git diff --check."
+  current_commit: "393a252eff3039147fd6ce6f14754f4eeaa672f5"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
