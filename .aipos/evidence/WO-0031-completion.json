@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0031-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0031",
+    "path": ".aipos/work-orders/WO-0031-restricted-live.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "3b3c013f54fd55c4de9a5407b29634858b17aadc"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "924ac50eb9c39d00683606b4097a2da0af59bbab"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T20:45:00+09:00",
+  "provenance": ["github:pull/144", "github:actions/run/31174473589", "git:implementation/feb0d6060e8538faeaac2c26f8072968650bd922", "git:merge/924ac50eb9c39d00683606b4097a2da0af59bbab"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31174473589"},
+    {"name": "focused_restricted_live_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "two_distinct_human_approvers_required", "status": "PASS"},
+    {"name": "automatic_live_activation_prohibited", "status": "PASS"},
+    {"name": "live_execution_transport_disconnected", "status": "PASS"},
+    {"name": "credential_storage_absent", "status": "PASS"},
+    {"name": "hard_risk_kill_switch_halt_override_prohibited", "status": "PASS"},
+    {"name": "break_glass_risk_increase_prohibited", "status": "PASS"}
+  ]
+}
