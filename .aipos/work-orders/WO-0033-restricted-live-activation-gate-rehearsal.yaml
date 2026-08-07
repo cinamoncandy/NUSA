@@ -1,0 +1,42 @@
+id: WO-0033
+title: "Restricted LIVE Activation Gate Rehearsal"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
+implementation_branch: agent/restricted-live-activation-gate-rehearsal
+objective: "Rehearse the complete human-authorized Restricted LIVE activation gate with production-like inputs while structurally suppressing all real execution, credentials, broker transport, and state mutation."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0033 validates the pre-activation ceremony and decision path only. A PASS may emit WOULD_ALLOW, never ACTIVE or an executable order. Human LIVE authority remains final and actual activation remains a separate future constitutional boundary."
+requirements:
+  - "Use SIMULATED_ONLY activation intent; real-money execution and broker/exchange mutation remain prohibited."
+  - "Require exactly two distinct HUMAN approvers and an auditable human requester for risk-increasing rehearsal."
+  - "Require exact deployment bundle, capability, strategy, symbol, notional/exposure, start/expiry, cooldown, and verified rollback target."
+  - "Require SAFE state, safety-critical UNKNOWN=false, hard-risk PASS, deployment integrity PASS, kill switch inactive, and no open P0."
+  - "Require immutable audit receipt, single-use authorization identity, reason, and explicit executionSuppressed=true."
+  - "A fully valid rehearsal may return WOULD_ALLOW only; it must never connect transport, load credentials, submit orders, create fills, mutate cash, or mutate positions."
+  - "Any invalid authority, duplicate approver, scope mismatch, expiry, safety failure, missing rollback/audit, transport/credential presence, or mutation counter >0 fails closed."
+  - "AI, Meta-AI, CI, Shadow, strategy, provider, or automation cannot become HUMAN LIVE authority."
+acceptance:
+  - "Activation-gate rehearsal regressions PASS."
+  - "Valid rehearsal emits WOULD_ALLOW with executionSuppressed=true and zero mutation counters."
+  - "Invalid cases emit BLOCKED and fail closed."
+  - "Execution transport remains disconnected and credential storage absent."
+  - "Full existing architecture, AIPOS, safety, Restricted LIVE, readiness, PAPER, and security gates PASS."
+  - "Full required GitHub CI PASS."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_storage: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+  execution_suppressed: required
+completion_rule: "Merge + required test/CI PASS. Completion proves activation-gate rehearsal only and cannot activate LIVE execution."
