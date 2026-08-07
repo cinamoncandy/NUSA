@@ -1,6 +1,6 @@
 id: WO-0035
 title: "Restricted LIVE Capability Surface Guard"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

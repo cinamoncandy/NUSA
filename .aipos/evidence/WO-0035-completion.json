@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0035-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0035",
+    "path": ".aipos/work-orders/WO-0035-restricted-live-capability-surface-guard.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "2fae5189826d772e8e7e9d576ec2ce3bd92b1486"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "7291cd53391905660e110a864101ed8833a220c9"},
+  "configuration": {
+    "snapshot": {"mode": "RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD", "live_trading_mutation": "prohibited", "execution_transport_connected": false, "credential_resolution_enabled": false, "real_money_execution_allowed": false},
+    "hash": {"algorithm": "sha256", "value": "c46d77ef2f10a0a209362539f016b800f79c83a01df8682b02d0bff6c61bf4b7"}
+  },
+  "observed_at": "2026-08-07T22:17:00+09:00",
+  "provenance": ["github:pull/150", "github:actions/run/31181264134", "github:actions/run/31181264242", "github:actions/artifact/8994871987", "git:merge/7291cd53391905660e110a864101ed8833a220c9"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31181264134"},
+    {"name": "capability_surface_guard_workflow", "status": "PASS", "detail": "31181264242"},
+    {"name": "capability_surface_artifact", "status": "PASS", "detail": "8994871987 sha256:7425d7696bef930d5523cd4d5b3c976393ea080058190be47d490b571750a25b"},
+    {"name": "prohibited_live_permissions_absent", "status": "PASS"},
+    {"name": "execution_transport_disconnected", "status": "PASS"},
+    {"name": "credential_resolution_disabled", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
