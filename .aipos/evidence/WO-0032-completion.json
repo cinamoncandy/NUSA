@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0032-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0032",
+    "path": ".aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "614c2ca258c06e3ad8835594b45ad14450db9533"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "1c03af1bfc3fb93ec9d7a55a6b4d5f11d6825682"},
+  "configuration": {
+    "snapshot": {"mode": "RESTRICTED_LIVE_READINESS", "live_trading_mutation": "prohibited", "execution_transport_connected": false, "credential_storage_present": false, "real_money_execution_allowed": false},
+    "hash": {"algorithm": "sha256", "value": "56ef62e7913d71bfbac32c0d40d8681a6771834a60060b60e0f2770aeb0179c7"}
+  },
+  "observed_at": "2026-08-07T21:07:00+09:00",
+  "provenance": ["github:pull/146", "github:actions/run/31176205294", "github:actions/artifact/8992960586", "git:merge/c878e0b7e549428b9b8b1759588afeb25144f8b6"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31176205294"},
+    {"name": "readiness_artifact", "status": "PASS", "detail": "8992960586 sha256:11968ccb0c8cbc2b97a80d1a4eff8b7ff91a61829bc7a9f5d15e4b782e5bd5de"},
+    {"name": "focused_readiness_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "live_execution_transport_disconnected", "status": "PASS"},
+    {"name": "credential_storage_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"},
+    {"name": "broker_order_fill_cash_position_mutations_zero", "status": "PASS"},
+    {"name": "automatic_live_activation_prohibited", "status": "PASS"}
+  ]
+}
