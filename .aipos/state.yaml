@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T16:02:00+09:00"
+updated_at: "2026-08-07T16:09:00+09:00"
 phase: p0-capability-contract-registry
-status: implementing
+status: verifying
 objective: "Create a machine-readable versioned capability contract registry that keeps NUSA provider-agnostic and prevents implementation identity from becoming core architecture."
 base_branch: main
 active_branch: agent/p0-c-capability-contract-registry
-active_pull_request: null
+active_pull_request: 136
 base_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
 claimed_state:
   work_order: WO-0023
@@ -31,12 +31,12 @@ completed:
     summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
   - id: WO-0023
-    evidence: ".aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml"
-    summary: "Implement machine-readable versioned capability contracts, registry validation, provider-independent implementation bindings, focused regressions, and CI enforcement."
+    evidence: ".aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml; PR #136"
+    summary: "Provider-independent capability contracts, registry validation, schema references, implementation bindings, focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml
-  reason: "Capability contracts are the next stable-core abstraction after drift, evidence integrity, and repeatable operational proof."
+  reason: "Complete PR #136 verification and merge P0-C before P0-D Architecture Change Lifecycle begins."
 verification:
   required:
     - "Focused capability contract registry tests"
@@ -46,8 +46,8 @@ verification:
     - "P0-A Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "P0-F COMPLETE: PR #135 merged at e9c83375e3d2e2d9eb6fc56fc328b320ea41a978 with official CI PASS and operational evidence artifact present. P0-C implementation not yet verified."
-  current_commit: "e9c83375e3d2e2d9eb6fc56fc328b320ea41a978 plus P0-C AIPOS setup commits"
+  last_result: "P0-C implementation committed on PR #136; official required CI pending. P0-F remains evidence-backed COMPLETE."
+  current_commit: "e0293b0051aed4e90abf524ef744401fdd6fd775 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
