@@ -1,0 +1,46 @@
+id: WO-0025
+title: "P0-E AIPOS Cross-AI Conformance"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ae390bad8efb343ed9dd29abc4e203990615ea0b
+implementation_branch: agent/p0-e-aipos-cross-ai-conformance
+objective: "Make cross-AI handoff deterministic and testable so different capable AI systems recover the same authoritative NUSA objective, constraints, verified state, and next permitted action from repository state alone."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-E operationalizes the existing AI-agnostic handoff contract. It adds canonical recovery/conformance contracts and tests without changing architecture authority, Risk Governor, Deployment Gate, human LIVE authority, or production mutation boundaries."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+requirements:
+  - "Define a provider-neutral canonical handoff snapshot derived only from authoritative repository state."
+  - "The snapshot must include project/objective, active work order/status, verified work order/status/evidence, branch/base/PR state, safety constraints, blockers, required verification, and next permitted action."
+  - "Provide multiple independent adapter/parsing paths that consume the same repository fixtures and must converge on the same canonical handoff fingerprint."
+  - "Fail closed on missing, stale, contradictory, ambiguous, provider-private, or conversation-dependent continuity state."
+  - "Prove handoff output does not require secrets, hidden chain-of-thought, prior conversation memory, or a specific AI provider."
+  - "Emit deterministic machine-readable conformance output and fingerprint suitable for CI evidence."
+  - "Add focused regressions for equivalent recovery, contradictory state, missing active WO, stale branch/PR identity, provider-private dependency, and next-action divergence."
+  - "Integrate cross-AI conformance into CI while preserving P0-A/P0-B/P0-F/P0-C/P0-D gates and LIVE mutation prohibition."
+acceptance:
+  - "Cross-AI conformance validator PASS."
+  - "Focused cross-AI conformance regression tests PASS."
+  - "At least three independent adapter/parsing paths produce the same canonical fingerprint for the repository fixture."
+  - "Contradictory or provider-private handoff fixtures fail closed."
+  - "Existing architecture, lifecycle, capability, evidence, drift, and PAPER operational gates PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before AI Research / Champion-Challenger work begins."
+safety:
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+  prior_chat_dependency: prohibited
+  hidden_chain_of_thought_dependency: prohibited
+completion_rule: "Merge + required test/CI PASS. Do not begin AI Research / Champion-Challenger before this work order is complete."

@@ -24,6 +24,7 @@
     "architecture:check": "node scripts/validate-architecture.js",
     "architecture:lifecycle": "node scripts/validate-architecture-change-lifecycle.js",
     "aipos:drift": "node scripts/validate-aipos-drift.js",
+    "aipos:conformance": "node scripts/validate-aipos-cross-ai-conformance.js",
     "capability:check": "node scripts/validate-capability-registry.js",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",

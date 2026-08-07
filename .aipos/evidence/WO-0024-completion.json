@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0024-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0024",
+    "path": ".aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "699ce4370d136b76795730ca7d0e27ebbbf024c3"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "ae390bad8efb343ed9dd29abc4e203990615ea0b"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "656e1ddffdbb04943e68969b39b9ba2bf14088d77a0c1acc32397dc1fd6812d7"
+    }
+  },
+  "observed_at": "2026-08-07T16:54:00+09:00",
+  "provenance": [
+    "github:pull/137",
+    "github:actions/run/31158602723",
+    "git:merge/ae390bad8efb343ed9dd29abc4e203990615ea0b"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31158602723"},
+    {"name": "architecture_lifecycle_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "architecture_lifecycle_gate", "status": "PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"}
+  ]
+}

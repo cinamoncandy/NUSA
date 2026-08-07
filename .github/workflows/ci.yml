@@ -65,6 +65,10 @@ jobs:
         run: node scripts/validate-aipos-evidence.js
       - name: AIPOS evidence integrity regression tests
         run: node --test --test-reporter=spec tests/aipos-evidence-integrity.test.js
+      - name: AIPOS cross-AI handoff conformance
+        run: pnpm run aipos:conformance
+      - name: AIPOS cross-AI conformance regression tests
+        run: node --test --test-reporter=spec tests/aipos-cross-ai-conformance.test.js
       - name: Capability contract registry validation
         run: pnpm run capability:check
       - name: Capability contract registry regression tests
