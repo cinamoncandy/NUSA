@@ -73,6 +73,10 @@ jobs:
         run: pnpm run capability:check
       - name: Capability contract registry regression tests
         run: node --test --test-reporter=spec tests/capability-contract-registry.test.js
+      - name: Champion/Challenger governance validation
+        run: pnpm run research:champion-challenger
+      - name: Champion/Challenger governance regression tests
+        run: node --test --test-reporter=spec tests/champion-challenger-governance.test.js
       - name: Operational evidence harness regression tests
         run: node --test --test-reporter=spec tests/operational-evidence-harness.test.js
       - name: PAPER runtime operational verification
