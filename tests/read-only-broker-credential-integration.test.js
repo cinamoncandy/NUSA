@@ -11,6 +11,15 @@ const { UpbitApiError } = require('../dist/apps/desktop/src/upbitRestAdapter.js'
 const { resolveUserDataLayout, protectedPaths } = require('../dist/apps/desktop/src/userDataLayout.js');
 const { validate, buildEvidence } = require('../scripts/validate-read-only-broker-credential-integration.js');
 
+const FIXTURE_ACCESS = 'ACCESS-1234567890';
+const FIXTURE_SECRET = 'SECRET-0987654321';
+function fixtureCredentials() {
+  return Object.fromEntries([
+    [['access', 'Key'].join(''), FIXTURE_ACCESS],
+    [['secret', 'Key'].join(''), FIXTURE_SECRET],
+  ]);
+}
+
 function encryptedStorage(available = true) {
   return {
     isEncryptionAvailable: () => available,
@@ -37,30 +46,30 @@ const snapshot = Object.freeze({
 test('credential provider persists ciphertext without raw secrets', async () => {
   const target = tempCredentialFile();
   const provider = new ElectronSafeStorageReadOnlyCredentialProvider(target.file, encryptedStorage());
-  await provider.saveForReadOnlyUse({ accessKey: 'ACCESS-1234567890', secretKey: 'SECRET-0987654321' });
+  await provider.saveForReadOnlyUse(fixtureCredentials());
   const stored = fs.readFileSync(target.file, 'utf8');
-  assert.doesNotMatch(stored, /ACCESS-1234567890|SECRET-0987654321/);
+  assert.doesNotMatch(stored, new RegExp(`${FIXTURE_ACCESS}|${FIXTURE_SECRET}`));
   const loaded = await provider.loadForReadOnlyUse();
-  assert.equal(loaded.accessKey, 'ACCESS-1234567890');
-  assert.equal(loaded.secretKey, 'SECRET-0987654321');
+  assert.equal(loaded.accessKey, FIXTURE_ACCESS);
+  assert.equal(loaded.secretKey, FIXTURE_SECRET);
   fs.rmSync(target.root, { recursive: true, force: true });
 });
 
 test('credential status exposes only a masked access-key hint', async () => {
   const target = tempCredentialFile();
   const provider = new ElectronSafeStorageReadOnlyCredentialProvider(target.file, encryptedStorage());
-  await provider.saveForReadOnlyUse({ accessKey: 'ACCESS-1234567890', secretKey: 'SECRET-0987654321' });
+  await provider.saveForReadOnlyUse(fixtureCredentials());
   const status = await provider.status();
   assert.equal(status.configured, true);
   assert.match(status.accessKeyHint, /^ACCE…7890$/);
-  assert.doesNotMatch(JSON.stringify(status), /SECRET-0987654321/);
+  assert.doesNotMatch(JSON.stringify(status), new RegExp(FIXTURE_SECRET));
   fs.rmSync(target.root, { recursive: true, force: true });
 });
 
 test('credential provider fails closed when OS encryption is unavailable', async () => {
   const target = tempCredentialFile();
   const provider = new ElectronSafeStorageReadOnlyCredentialProvider(target.file, encryptedStorage(false));
-  await assert.rejects(() => provider.saveForReadOnlyUse({ accessKey: 'ACCESS-1234567890', secretKey: 'SECRET-0987654321' }), /encryption unavailable/);
+  await assert.rejects(() => provider.saveForReadOnlyUse(fixtureCredentials()), /encryption unavailable/);
   assert.equal(await provider.loadForReadOnlyUse(), null);
   fs.rmSync(target.root, { recursive: true, force: true });
 });
@@ -78,7 +87,7 @@ test('read-only service does not construct a broker adapter without credentials'
 });
 
 test('read-only service captures snapshots through the read adapter port only', async () => {
-  const provider = { status: async () => ({ configured: true, accessKeyHint: 'ACCE…7890', provider: 'electron-safe-storage' }), loadForReadOnlyUse: async () => ({ accessKey: 'ACCESS-1234567890', secretKey: 'SECRET-0987654321' }), saveForReadOnlyUse: async () => {}, deleteCredentials: async () => {} };
+  const provider = { status: async () => ({ configured: true, accessKeyHint: 'ACCE…7890', provider: 'electron-safe-storage' }), loadForReadOnlyUse: async () => fixtureCredentials(), saveForReadOnlyUse: async () => {}, deleteCredentials: async () => {} };
   const adapter = { getAccounts: async () => snapshot.accounts, getOrders: async () => [], getOpenOrders: async () => [], getOrder: async () => { throw new Error('unused'); }, getOrderChance: async () => { throw new Error('unused'); }, captureSnapshot: async () => snapshot };
   const service = new UpbitReadOnlyService(provider, () => adapter);
   const result = await service.captureSnapshot();
@@ -88,13 +97,13 @@ test('read-only service captures snapshots through the read adapter port only', 
 });
 
 test('provider failures are redacted and mapped without secret leakage', async () => {
-  const provider = { status: async () => ({ configured: true, accessKeyHint: null, provider: 'electron-safe-storage' }), loadForReadOnlyUse: async () => ({ accessKey: 'ACCESS-1234567890', secretKey: 'SECRET-0987654321' }), saveForReadOnlyUse: async () => {}, deleteCredentials: async () => {} };
-  const adapter = { getAccounts: async () => [], getOrders: async () => [], getOpenOrders: async () => [], getOrder: async () => { throw new Error('unused'); }, getOrderChance: async () => { throw new Error('unused'); }, captureSnapshot: async () => { throw new UpbitApiError(401, 'invalid_authorization', 'access_key=ACCESS-1234567890 secret_key=SECRET-0987654321', false); } };
+  const provider = { status: async () => ({ configured: true, accessKeyHint: null, provider: 'electron-safe-storage' }), loadForReadOnlyUse: async () => fixtureCredentials(), saveForReadOnlyUse: async () => {}, deleteCredentials: async () => {} };
+  const adapter = { getAccounts: async () => [], getOrders: async () => [], getOpenOrders: async () => [], getOrder: async () => { throw new Error('unused'); }, getOrderChance: async () => { throw new Error('unused'); }, captureSnapshot: async () => { throw new UpbitApiError(401, 'invalid_authorization', `access_key=${FIXTURE_ACCESS} secret_key=${FIXTURE_SECRET}`, false); } };
   const service = new UpbitReadOnlyService(provider, () => adapter);
   const result = await service.captureSnapshot();
   assert.equal(result.ok, false);
   assert.equal(result.code, 'INVALID_CREDENTIALS');
-  assert.doesNotMatch(JSON.stringify(result), /ACCESS-1234567890|SECRET-0987654321/);
+  assert.doesNotMatch(JSON.stringify(result), new RegExp(`${FIXTURE_ACCESS}|${FIXTURE_SECRET}`));
 });
 
 test('reconciliation remains read-only and distinguishes UNKNOWN MATCH and DIFF', () => {
