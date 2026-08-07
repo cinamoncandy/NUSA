@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T13:48:00+09:00"
+updated_at: "2026-08-07T13:57:00+09:00"
 phase: p0-verified-state-evidence-integrity
 status: implementing
 objective: "Separate claimed execution state from evidence-backed verified state and prevent completion claims from outrunning durable evidence."
@@ -14,14 +14,14 @@ claimed_state:
 verified_state:
   work_order: WO-0020
   status: COMPLETED
-  evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml"
+  evidence: ".aipos/evidence/WO-0020-completion.json"
 latest_verified_slice:
   id: wo-0020-architecture-aipos-drift-gate-complete
-  evidence: "PR #133 merged at 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3; official CI run 31147330756 PASS; focused drift regressions 7/7 PASS; existing architecture validation PASS."
+  evidence: ".aipos/evidence/WO-0020-completion.json"
   summary: "WO-0020 / P0-A is complete. Architecture/AIPOS drift validation is enforced in CI without weakening existing architecture or LIVE safety boundaries."
 completed:
   - id: WO-0020
-    evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml; PR #133; merge 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3; CI 31147330756 PASS."
+    evidence: ".aipos/evidence/WO-0020-completion.json"
     summary: "Added deterministic Architecture/AIPOS drift validation, regression tests, and CI enforcement."
   - id: WO-0019
     evidence: ".aipos/work-orders/WO-0019-p0-007-paper-risk-wiring-regression.yaml; PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; Oracle real-environment verification PASS."
@@ -42,8 +42,8 @@ verification:
     - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "P0-A COMPLETE: PR #133 merged; official CI PASS. P0-B implementation not yet verified."
-  current_commit: "99d7ce07d3fd8d19094690b9fd13f1a37312a0e3 plus P0-B AIPOS setup commits"
+  last_result: "P0-A COMPLETE: PR #133 merged; official CI PASS. P0-B implementation in progress."
+  current_commit: "99d7ce07d3fd8d19094690b9fd13f1a37312a0e3 plus P0-B implementation commits"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
