@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0028-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0028",
+    "path": ".aipos/work-orders/WO-0028-deployment-rollback.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "d9b5d55729954d1ea64bfc10e1f730857d7fcf94"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "6e9871566b27cf0db6fce06ab0879eb7f38d51f9"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T19:30:00+09:00",
+  "provenance": ["github:pull/141", "github:actions/run/31166606427", "git:merge/6e9871566b27cf0db6fce06ab0879eb7f38d51f9"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31166606427"},
+    {"name": "deployment_bundle_regressions", "status": "PASS", "detail": "8 focused regressions included in successful CI"},
+    {"name": "artifact_runtime_binding", "status": "PASS"},
+    {"name": "atomic_verified_rollback", "status": "PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"},
+    {"name": "production_promotion_mutation_prohibited", "status": "PASS"}
+  ]
+}

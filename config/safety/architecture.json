@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "operationalStates": [
+    {"id": "SAFE", "severity": 0, "allowRiskIncrease": true},
+    {"id": "DEGRADED", "severity": 1, "allowRiskIncrease": true},
+    {"id": "RESTRICTED", "severity": 2, "allowRiskIncrease": false},
+    {"id": "HALT", "severity": 3, "allowRiskIncrease": false}
+  ],
+  "authorities": {
+    "hardRiskGovernor": {"id": "deterministic-hard-risk-governor", "finalForHardLimits": true, "learnedOverrideAllowed": false},
+    "learnedRisk": {"id": "learned-risk-advisor", "mayTighten": true, "mayRelaxHardLimits": false},
+    "recovery": {"haltImprovementRequiresHumanAuthorization": true, "authorizationEvidenceRequired": true}
+  },
+  "unknownPolicy": {
+    "safetyCriticalUnknownBlocksRiskIncrease": true,
+    "unknownMayAuthorizeRiskIncrease": false
+  },
+  "actionPolicy": {
+    "restrictedAllowsRiskReduction": true,
+    "haltAllowsRiskReductionOnlyWhenHardGovernorDoesNotHalt": true,
+    "neutralActionInHalt": "BLOCK"
+  },
+  "protectedAuthorityPrincipals": ["meta-ai", "strategy", "model", "provider", "deployment-component"],
+  "forbiddenOverrides": ["hard-risk-limit", "kill-switch", "human-live-authority", "production-promotion-authority"],
+  "liveTradingMutation": "prohibited",
+  "productionPromotionMutation": "prohibited"
+}
