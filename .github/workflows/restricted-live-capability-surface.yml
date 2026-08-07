@@ -1,0 +1,36 @@
+name: Restricted LIVE Capability Surface Guard
+
+on:
+  push:
+    branches: ["agent/restricted-live-capability-surface-guard"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Capability surface regressions
+        run: node --test --test-reporter=spec tests/restricted-live-capability-surface.test.js
+      - name: Capability surface evidence
+        run: node scripts/validate-restricted-live-capability-surface.js --output artifacts/operational-evidence/restricted-live-capability-surface.json
+      - name: Upload capability surface evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: restricted-live-capability-surface-evidence
+          path: artifacts/operational-evidence/restricted-live-capability-surface.json
+          if-no-files-found: error
+          retention-days: 14
