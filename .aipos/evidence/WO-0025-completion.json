@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0025-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0025",
+    "path": ".aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "c6eff58f13fd72e3881644d7cfb11ab82c46c8f7"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "ffda0db82b42c729167d5bd0a787d765dfd43878"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "656e1ddffdbb04943e68969b39b9ba2bf14088d77a0c1acc32397dc1fd6812d7"
+    }
+  },
+  "observed_at": "2026-08-07T17:12:00+09:00",
+  "provenance": [
+    "github:pull/138",
+    "github:actions/run/31160043538",
+    "git:merge/ffda0db82b42c729167d5bd0a787d765dfd43878"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31160043538"},
+    {"name": "cross_ai_conformance", "status": "PASS"},
+    {"name": "focused_regressions", "status": "PASS", "detail": "8 cases"},
+    {"name": "live_mutation_prohibited", "status": "PASS"}
+  ]
+}

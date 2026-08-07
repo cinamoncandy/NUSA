@@ -1,11 +1,13 @@
 id: WO-0025
 title: "P0-E AIPOS Cross-AI Conformance"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: ae390bad8efb343ed9dd29abc4e203990615ea0b
 implementation_branch: agent/p0-e-aipos-cross-ai-conformance
+merged_pull_request: 138
+merge_commit: ffda0db82b42c729167d5bd0a787d765dfd43878
 objective: "Make cross-AI handoff deterministic and testable so different capable AI systems recover the same authoritative NUSA objective, constraints, verified state, and next permitted action from repository state alone."
 source_of_truth:
   architecture:
@@ -38,6 +40,12 @@ acceptance:
   - "Existing architecture, lifecycle, capability, evidence, drift, and PAPER operational gates PASS."
   - "Full required GitHub CI PASS."
   - "PR merged before AI Research / Champion-Challenger work begins."
+verification:
+  head_commit: 601e02e80d5f58fa023da00aefd6ea9c4d5013ec
+  github_actions_run: 31160043538
+  github_actions_result: PASS
+  focused_regressions: PASS
+  cross_ai_conformance: PASS
 safety:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
