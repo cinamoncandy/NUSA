@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T20:45:00+09:00"
+updated_at: "2026-08-07T20:52:00+09:00"
 phase: restricted-live-operational-readiness
-status: implementing
+status: verifying
 objective: "Prove the Restricted LIVE pre-activation path fails closed under production-like inputs without connecting execution transport, storing credentials, or permitting real-money mutation."
 base_branch: main
 active_branch: agent/restricted-live-operational-readiness
-active_pull_request: null
+active_pull_request: 146
 base_commit: 924ac50eb9c39d00683606b4097a2da0af59bbab
 claimed_state:
   work_order: WO-0032
@@ -37,12 +37,12 @@ completed:
     summary: "Added canonical Data & Strategy Identity contracts and temporal correctness."
 in_progress:
   - id: WO-0032
-    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml"
-    summary: "Operational readiness harness, zero-mutation evidence, transport/credential absence checks, focused regressions, and CI artifact enforcement are being implemented."
+    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml; PR #146"
+    summary: "Operational readiness harness, zero-mutation evidence, transport/credential absence checks, 8 focused regressions, and CI artifact enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml
-  reason: "Complete operational readiness verification and merge. Real-money LIVE execution remains prohibited."
+  reason: "Complete PR #146 official verification and merge. Real-money LIVE execution remains prohibited."
 verification:
   required:
     - "Restricted LIVE operational readiness regression tests"
@@ -61,8 +61,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0031 is evidence-backed COMPLETE. WO-0032 implementation is in progress. LIVE execution transport remains disconnected."
-  current_commit: "restricted-live readiness implementation in progress"
+  last_result: "WO-0032 implementation committed on PR #146; official required CI pending. LIVE execution transport remains disconnected."
+  current_commit: "9f4ace0bbb87f7035380f5ee06205256c39f8ba2 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
