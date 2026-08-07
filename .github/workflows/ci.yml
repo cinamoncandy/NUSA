@@ -53,6 +53,8 @@ jobs:
         run: pnpm run build
       - name: Architecture validation
         run: pnpm run architecture:check
+      - name: Architecture/AIPOS drift validation
+        run: pnpm run aipos:drift
       - name: Lint
         run: pnpm run lint
       - name: UI tests
