@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0036-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0036",
+    "path": ".aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "ae88e8f89fe1565157eaff903cc588f5b9ce726b"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "23a4743e147cc8e9f16f2cecba4b4585b06425c3"},
+  "configuration": {
+    "snapshot": {"mode":"READ_ONLY_BROKER_CREDENTIAL_INTEGRATION","live_trading_mutation":"prohibited","execution_transport_connected":false,"credential_execution_use":"prohibited","order_mutation":"prohibited","withdrawals":"prohibited","real_money_execution_allowed":false},
+    "hash": {"algorithm": "sha256", "value": "c6119d55aeb5f5a7ab8d609d18400e0228d06e94d481cedbb45bd2a71f36420d"}
+  },
+  "observed_at": "2026-08-07T22:49:00+09:00",
+  "provenance": ["github:pull/151","github:actions/run/31183574496","github:actions/run/31183574521","github:actions/artifact/8995807712","git:merge/23a4743e147cc8e9f16f2cecba4b4585b06425c3"],
+  "result": "PASS",
+  "assertions": [
+    {"name":"official_full_ci","status":"PASS","detail":"31183574496"},
+    {"name":"read_only_broker_credential_workflow","status":"PASS","detail":"31183574521"},
+    {"name":"read_only_broker_credential_artifact","status":"PASS","detail":"8995807712 sha256:9354467152aaf17779d8d5932b5795418cfb390ac24d71da80f8756939094df5"},
+    {"name":"capability_surface_guard","status":"PASS","detail":"31183574356"},
+    {"name":"execution_transport_disconnected","status":"PASS"},
+    {"name":"credential_execution_use_prohibited","status":"PASS"},
+    {"name":"order_mutation_prohibited","status":"PASS"},
+    {"name":"withdrawals_prohibited","status":"PASS"},
+    {"name":"real_money_execution_prohibited","status":"PASS"}
+  ]
+}
