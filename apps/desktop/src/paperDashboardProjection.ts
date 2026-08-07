@@ -43,6 +43,13 @@ export interface PaperDashboardProjectionInput {
   readonly committee?: CommitteeDashboardSection;
   /** Last decision produced by the canonical runtime risk gate. */
   readonly canonicalRiskDecision?: CanonicalRiskDecision;
+  /**
+   * WO-0019. The real, persisted kill switch state. When supplied, this -- and only this --
+   * drives risk.killSwitchActive; a risk gate rejection for any other reason (daily loss,
+   * missing approval, stale market data, ...) is reported through risk.lastRiskDecision
+   * instead, never mislabeled as the kill switch.
+   */
+  readonly killSwitchActive?: boolean;
 }
 
 const unavailable = (generatedAt: number, reasons: readonly string[]) => ({
@@ -168,7 +175,15 @@ export function buildPaperDashboardSections(input: PaperDashboardProjectionInput
       availability: input.runtimeAvailable ? "AVAILABLE" as const : "INVALID" as const,
       generatedAt: input.generatedAt,
       reasons: Object.freeze(input.canonicalRiskDecision === undefined ? [...runtimeReasons] : [...input.canonicalRiskDecision.reasonCodes]),
-      killSwitchActive: input.canonicalRiskDecision === undefined ? !input.runtimeAvailable : input.canonicalRiskDecision.status !== "APPROVED",
+      // The real switch only. A DAILY_LOSS_LIMIT or APPROVAL_MISSING rejection must never read
+      // as "Kill Switch ACTIVE" -- that distinction is what lastRiskDecision below is for.
+      killSwitchActive: input.killSwitchActive ?? (input.canonicalRiskDecision === undefined ? !input.runtimeAvailable : false),
+      lastRiskDecision: input.canonicalRiskDecision === undefined ? undefined : Object.freeze({
+        status: input.canonicalRiskDecision.status,
+        gate: "COMPOSITE",
+        reasonCodes: input.canonicalRiskDecision.reasonCodes,
+        evaluatedAt: input.canonicalRiskDecision.evaluatedAtMs
+      }),
       dailyDrawdownRatio: drawdown,
       liquidationBufferRatio: 1,
       portfolioHeatRatio: exposure

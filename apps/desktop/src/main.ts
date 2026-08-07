@@ -72,7 +72,12 @@ import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle, type MobileCandleDto, type MobileMarketDto } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
+import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
 import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
+import { CanonicalRiskSafetyGate } from "../../../apps/execution/src/risk-safety-integration";
+import { PaperApprovalService } from "./paperApprovalService";
+import { parseKillSwitchReleaseIpc, parseKillSwitchActivateIpc } from "./killSwitchIpcValidation";
+import { randomUUID } from "node:crypto";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -203,6 +208,15 @@ const recoveryReview = new RecoveryReviewState();
 let recoveryRecordId: string | null = null;
 let crashRecoveryStore: CrashRecoveryMarkerStore | undefined;
 let mobileBridge: MobileBridgeHandle | undefined;
+let paperRiskEvidenceRepository: SqliteRiskEvidenceRepository | undefined;
+let paperApprovalService: PaperApprovalService | undefined;
+/**
+ * WO-0019. The STRATEGY-boundary approval currently in force, if any. Reset to undefined on
+ * every process start (see initializeRuntime) -- a restart never revives or reissues one, and
+ * automaticSignal is passed exactly this value, so the strategy stays blocked with
+ * APPROVAL_MISSING until an operator explicitly starts it again.
+ */
+let currentStrategyApprovalId: string | undefined;
 let lastCanonicalRiskDecision: CanonicalRiskDecision = Object.freeze({
   status: "BLOCKED",
   reasonCodes: Object.freeze(["RISK_GATE_NOT_CONFIGURED"]),
@@ -407,6 +421,7 @@ function publishAiCioDashboard(): void {
       strategyWarmup: { current: strategy.getHistory().length, required: REQUIRED_WARMUP_SAMPLES },
       strategyAnalytics: strategyAnalytics ?? undefined,
       canonicalRiskDecision: lastCanonicalRiskDecision,
+      killSwitchActive: persistedKillSwitchActive,
       opportunitySchedule: persistenceStore?.loadLatestOpportunitySchedule()?.schedule,
       executionCostBps: FILL_MODEL.slippageBps + FILL_MODEL.spreadBps / 2,
       committee: persistenceStore == null ? undefined : buildPersistedCommitteeDashboardSection({
@@ -486,7 +501,7 @@ function handleProductionSignal(input: { market: string; price: number; position
       // Best-effort continuity only; never affects paperTradingAvailable or the account/control write path.
     }
   }
-  runtime.automaticSignal(input.market, input.price, input.positionQuantity, input.signal);
+  runtime.automaticSignal(input.market, input.price, input.positionQuantity, input.signal, { approvalId: currentStrategyApprovalId });
   paperTradingAvailable = runtime.isAvailable();
   publishPaper();
   publishControl();
@@ -623,6 +638,32 @@ function observeHealth(): void {
   }
 }
 
+/**
+ * Hoisted out of initializeRuntime (WO-0019) so IPC handlers outside the runtime bootstrap --
+ * specifically the kill-switch release/activate handlers -- can persist a safety snapshot
+ * immediately after an operator action, without waiting for the next order or control command
+ * to pass through RuntimeCommandService.commit(). Reads the same module-level `broker`,
+ * `control`, `persistedKillSwitchActive`, etc. that initializeRuntime assigns.
+ */
+function createSafetySnapshot(paper: ReturnType<PaperBroker["exportState"]>) {
+  if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+  const markPrice = latestTicker?.trade_price ?? 1;
+  const account = broker.snapshot(markPrice);
+  const sessionPeakEquity = sessionPeakEquityTracker.observe(account.equity);
+  const sessionDrawdown = sessionPeakEquity > 0 ? Math.max(0, (sessionPeakEquity - account.equity) / sessionPeakEquity) : 0;
+  const snapshot = createPaperSafetySnapshot({
+    snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: persistedKillSwitchActive, activatedAt: persistedKillSwitchActivatedAt, reason: persistedKillSwitchReason }, approval: null,
+    fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: operationalPreflight.deployment.status === "PASS" ? "PASS" : "UNKNOWN", checkedAt: Date.now(), reasonCodes: operationalPreflight.deployment.blockers }, reconciliation: { status: operationalPreflight.reconciliation.status === "PASS" ? "PASS" : "REQUIRED", checkedAt: Date.now(), ledgerSha256: null, reasonCodes: operationalPreflight.reconciliation.blockers },
+    idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: persistedOpenP0Codes.map((reasonCode, index) => ({ alertId: `persisted-p0-${index + 1}`, severity: "P0" as const, status: "OPEN" as const, reasonCode, createdAt: Date.now() })),
+    lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: account.position.realizedPnl, unrealizedDailyPnl: account.unrealizedPnl, consecutiveLossCount: computeConsecutiveLossCount(paper.ledger ?? []), sessionPeakEquity, sessionDrawdown }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
+  });
+  return snapshot;
+}
+function saveSafety(paper: ReturnType<PaperBroker["exportState"]>, controlState: ReturnType<ControlPlane["exportState"]>): void {
+  if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
+  persistenceStore.saveWithPaperSafetySnapshot(paper, controlState, createSafetySnapshot(paper));
+}
+
 function initializeRuntime(): void {
   aiCioSnapshotPublisher.clear();
   evidenceRecorder = undefined;
@@ -713,6 +754,9 @@ function initializeRuntime(): void {
     riskGate: Object.freeze({ status: "PASS", method: "INDEPENDENT_RISK_GATEWAY_WITH_RUNTIME_PREFLIGHT_STATE", evidence: Object.freeze(["evaluatePreTradeRisk"]), blockers: Object.freeze([]) })
   });
   const riskSafetyPersistence = persistenceStore?.riskSafetyRepository();
+  paperRiskEvidenceRepository = persistenceStore?.riskEvidenceRepository();
+  paperApprovalService = riskSafetyPersistence == null ? undefined : new PaperApprovalService(new CanonicalRiskSafetyGate(riskSafetyPersistence));
+  currentStrategyApprovalId = undefined;
   paperCommandRiskGate = riskSafetyPersistence == null ? { evaluate: () => Object.freeze({ status: "HALT" as const, reasonCodes: Object.freeze(["RISK_PERSISTENCE_UNAVAILABLE"]) }) } : createCanonicalOperationalPaperRiskGate({
     getState: () => operationalPreflight,
     getBroker: () => broker,
@@ -723,6 +767,14 @@ function initializeRuntime(): void {
     policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy,
     maxDailyLoss: RISK_POLICY.maxRealizedLoss,
     maxOpenOrders: 1,
+    // WO-0019: the independent gateway's exposure/rate/drawdown/consecutive-loss/price-deviation
+    // limits, restored to the live desktop path after WO-0018 had silently dropped them.
+    identity: { strategyFingerprint: PAPER_SAFETY_FINGERPRINTS.strategy, configFingerprint: PAPER_SAFETY_FINGERPRINTS.config, runtimeFingerprint: PAPER_SAFETY_FINGERPRINTS.runtime, riskPolicyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() },
+    limits: { maxOrderNotional: RISK_POLICY.maxOrderNotional, maxPositionNotional: RISK_POLICY.maxOrderNotional, maxOpenOrders: 1, maxOrdersPerSecond: 1, maxOrdersPerMinute: 60, maxSameSideStreak: 10, maxSymbolExposureNotional: RISK_POLICY.maxOrderNotional, maxPortfolioExposureNotional: RISK_POLICY.maxOrderNotional, maxDailyBuyNotional: RISK_POLICY.maxOrderNotional, maxDailySellNotional: RISK_POLICY.maxOrderNotional, maxDailyLoss: RISK_POLICY.maxRealizedLoss, maxConsecutiveLosses: 3, maxSessionDrawdownRatio: 0.2, maxPriceDeviationRatio: 0.05 },
+    sessionPeakEquity: sessionPeakEquityTracker,
+    fingerprints: PAPER_SAFETY_FINGERPRINTS,
+    sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT,
+    evidence: paperRiskEvidenceRepository,
     onDecision: (decision) => { lastCanonicalRiskDecision = decision; }
   });
   if (persistenceStore) {
@@ -764,24 +816,6 @@ function initializeRuntime(): void {
       }
     }, evidenceSessionId);
   }
-  const createSafetySnapshot = (paper: ReturnType<PaperBroker["exportState"]>) => {
-    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-    const markPrice = latestTicker?.trade_price ?? 1;
-    const account = broker.snapshot(markPrice);
-    const sessionPeakEquity = sessionPeakEquityTracker.observe(account.equity);
-    const sessionDrawdown = sessionPeakEquity > 0 ? Math.max(0, (sessionPeakEquity - account.equity) / sessionPeakEquity) : 0;
-    const snapshot = createPaperSafetySnapshot({
-      snapshotId: `paper-safety-${Date.now()}`, createdAt: Date.now(), tradingMode: "PAPER_MANUAL", killSwitch: { active: persistedKillSwitchActive, activatedAt: persistedKillSwitchActivatedAt, reason: persistedKillSwitchReason }, approval: null,
-      fingerprints: PAPER_SAFETY_FINGERPRINTS, deploymentIntegrity: { status: operationalPreflight.deployment.status === "PASS" ? "PASS" : "UNKNOWN", checkedAt: Date.now(), reasonCodes: operationalPreflight.deployment.blockers }, reconciliation: { status: operationalPreflight.reconciliation.status === "PASS" ? "PASS" : "REQUIRED", checkedAt: Date.now(), ledgerSha256: null, reasonCodes: operationalPreflight.reconciliation.blockers },
-      idempotency: { signalIds: [], commandIds: [], clientOrderIds: [], orderIds: paper.orders.map((order) => order.id), fillIds: paper.orders.map((order) => order.id) }, openAlerts: persistedOpenP0Codes.map((reasonCode, index) => ({ alertId: `persisted-p0-${index + 1}`, severity: "P0" as const, status: "OPEN" as const, reasonCode, createdAt: Date.now() })),
-      lossState: { tradingDay: new Date().toISOString().slice(0, 10), dayStartEquity: INITIAL_CASH, realizedDailyPnl: account.position.realizedPnl, unrealizedDailyPnl: account.unrealizedPnl, consecutiveLossCount: computeConsecutiveLossCount(paper.ledger ?? []), sessionPeakEquity, sessionDrawdown }, marketDataRecovery: { status: "WARMING_UP", consecutiveHealthyClosedCandles: 0, reconnectCount: 0 }, sourceCommitSha: PAPER_SAFETY_SOURCE_COMMIT
-    });
-    return snapshot;
-  };
-  const saveSafety = (paper: ReturnType<PaperBroker["exportState"]>, controlState: ReturnType<ControlPlane["exportState"]>) => {
-    if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
-    persistenceStore.saveWithPaperSafetySnapshot(paper, controlState, createSafetySnapshot(paper));
-  };
   runtime = new RuntimeCommandService(broker, control, strategy, { save: (paper, controlState) => {
     if (!persistenceStore) throw new Error("SQLite persistence is unavailable");
     saveSafety(paper, controlState);
@@ -890,6 +924,14 @@ function initializeRuntime(): void {
   updateCrashMarker();
 }
 
+/**
+ * WO-0019. The renderer must show its confirmation UI (exact side/quantity/symbol) and only
+ * invoke this channel once the user has passed it -- that confirmation is what "explicit user
+ * confirmation" means here, and this handler trusts that it already happened. What this
+ * handler does NOT trust is a renderer- or test-supplied approvalId: the approval is minted
+ * right here, by PaperApprovalService, bound to a freshly generated commandId and the exact
+ * side/quantity/symbol of this call, and is therefore usable for this order alone.
+ */
 ipcMain.handle("paper:order", (_event, input: unknown) => {
   if (!paperTradingAvailable) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
   if (input == null || typeof input !== "object") throw new Error("invalid paper order input");
@@ -897,8 +939,16 @@ ipcMain.handle("paper:order", (_event, input: unknown) => {
   if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
   const { side, quantity } = parsePaperOrderIpc(input);
   const ticker = assertFreshMarketData();
+  if (!paperApprovalService) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
+  const nowMs = Date.now();
+  const commandId = `manual:${nowMs}:${randomUUID()}`;
+  const signalId = commandId;
+  const clientOrderId = `paper:${commandId}`;
+  // Approval issuance failure is fail-closed by construction: nothing below this line runs
+  // (manualOrder is never called) unless an approval was actually persisted.
+  const approval = paperApprovalService.issueManualApproval({ symbol: MARKET, side, commandId, policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, nowMs });
   let order: PaperOrder;
-  try { order = runtime.manualOrder(side, quantity, ticker.trade_price); }
+  try { order = runtime.manualOrder(side, quantity, ticker.trade_price, { approvalId: approval.approvalId, commandId, signalId, clientOrderId, nowMs }); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
   publishControl();
   publishAiCioDashboard();
@@ -995,8 +1045,30 @@ function runControlCommand(command: () => void): ReturnType<ControlPlane["snapsh
   publishAiCioDashboard();
   return control.snapshot();
 }
-ipcMain.handle("control:start", () => runControlCommand(() => runtime.start()));
-ipcMain.handle("control:stop", () => runControlCommand(() => runtime.stop()));
+/**
+ * WO-0019. "Explicit user starts the strategy" is exactly this IPC call -- there is no other
+ * path that reaches runtime.start(). A fresh STRATEGY approval is minted every time it fires,
+ * and any approval left over from a previous start is revoked first, so at most one is ever
+ * live. Nothing here re-issues automatically: a process restart calls neither this handler
+ * nor issueStrategyApproval, so automaticSignal stays blocked with APPROVAL_MISSING until an
+ * operator clicks start again.
+ */
+ipcMain.handle("control:start", () => {
+  if (!paperApprovalService) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
+  if (currentStrategyApprovalId !== undefined) {
+    try { paperApprovalService.revoke(currentStrategyApprovalId, "STRATEGY_RESTARTED"); } catch { /* best-effort: an already-expired/missing id is not an error */ }
+  }
+  const approval = paperApprovalService.issueStrategyApproval({ symbol: MARKET, strategyId: smaStrategy.id, policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, nowMs: Date.now() });
+  currentStrategyApprovalId = approval.approvalId;
+  return runControlCommand(() => runtime.start());
+});
+ipcMain.handle("control:stop", () => {
+  if (currentStrategyApprovalId !== undefined && paperApprovalService) {
+    try { paperApprovalService.revoke(currentStrategyApprovalId, "STRATEGY_STOPPED"); } catch { /* best-effort */ }
+    currentStrategyApprovalId = undefined;
+  }
+  return runControlCommand(() => runtime.stop());
+});
 ipcMain.handle("control:auto", (_event, enabled: unknown) => {
   if (typeof enabled !== "boolean") throw new Error("invalid auto-trade input");
   if (enabled) assertFreshMarketData();
@@ -1005,6 +1077,57 @@ ipcMain.handle("control:auto", (_event, enabled: unknown) => {
 ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
   return runControlCommand(() => runtime.setOrderQuantity(quantity));
+});
+
+/**
+ * WO-0019. The audit record is written BEFORE persistedKillSwitchActive changes. If the write
+ * throws, this function throws too, and the caller (both IPC handlers below) never reaches the
+ * state assignment -- so an audit failure leaves the kill switch exactly where it was.
+ */
+function recordKillSwitchAudit(action: "KILL_SWITCH_RELEASED" | "KILL_SWITCH_ACTIVATED", reason: string, previousState: boolean, newState: boolean): void {
+  if (!persistenceStore) throw new Error("application data layout is not ready");
+  const auditRecord: OperationsAuditRecord = Object.freeze({
+    auditId: `audit-kill-switch-${Date.now()}-${randomUUID()}`,
+    actor: "LOCAL_OPERATOR",
+    action,
+    target: null,
+    metadata: Object.freeze({ reason, previousState, newState }),
+    createdAt: new Date().toISOString()
+  });
+  persistenceStore.appendOperationsAudit(auditRecord);
+  operationsAudit = persistenceStore.loadOperationsAudit();
+}
+
+ipcMain.handle("safety:kill-switch-release", (_event, input: unknown) => {
+  const { reason } = parseKillSwitchReleaseIpc(input);
+  const previousState = persistedKillSwitchActive;
+  recordKillSwitchAudit("KILL_SWITCH_RELEASED", reason, previousState, false);
+  persistedKillSwitchActive = false;
+  persistedKillSwitchReason = null;
+  persistedKillSwitchActivatedAt = null;
+  // Durable immediately: a crash right after this call must still recover to "released" on
+  // restart, not fall back to whatever the last order/command happened to persist.
+  try { saveSafety(broker.exportState(), control.exportState()); } catch { /* best-effort continuity; the audit record above is the authoritative account of this action */ }
+  publishControl();
+  publishAiCioDashboard();
+  return { killSwitchActive: persistedKillSwitchActive };
+});
+
+ipcMain.handle("safety:kill-switch-activate", (_event, input: unknown) => {
+  const { reason } = parseKillSwitchActivateIpc(input);
+  const previousState = persistedKillSwitchActive;
+  recordKillSwitchAudit("KILL_SWITCH_ACTIVATED", reason, previousState, true);
+  persistedKillSwitchActive = true;
+  persistedKillSwitchReason = reason;
+  persistedKillSwitchActivatedAt = Date.now();
+  if (currentStrategyApprovalId !== undefined && paperApprovalService) {
+    try { paperApprovalService.revoke(currentStrategyApprovalId, "KILL_SWITCH_ACTIVATED"); } catch { /* best-effort */ }
+    currentStrategyApprovalId = undefined;
+  }
+  try { saveSafety(broker.exportState(), control.exportState()); } catch { /* best-effort continuity; the audit record above is the authoritative account of this action */ }
+  publishControl();
+  publishAiCioDashboard();
+  return { killSwitchActive: persistedKillSwitchActive };
 });
 
 function requireCurrentShadowSession(input: unknown): void {

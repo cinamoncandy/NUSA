@@ -32,7 +32,8 @@ const IDENTICAL_FILES = [
   "runtimeExchangeCapabilities.ts",
   "paperSafetyGates.ts",
   "paperRiskState.ts",
-  "independentRiskGateway.ts"
+  "independentRiskGateway.ts",
+  "paperApprovalService.ts"
 ];
 
 // Files ported with import-path rewrites only, because their desktop originals reached across

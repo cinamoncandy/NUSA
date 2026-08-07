@@ -433,6 +433,33 @@ async function order(side) {
 
 byId("buy").addEventListener("click", () => order("BUY"));
 byId("sell").addEventListener("click", () => order("SELL"));
+
+/**
+ * WO-0019. The exact confirmation phrase is re-validated by the main process regardless of
+ * what this reads here -- this client-side check exists only to give the operator an early,
+ * readable error instead of a rejected IPC call.
+ */
+byId("kill-switch-release")?.addEventListener("click", async () => {
+  const message = byId("kill-switch-message");
+  const reason = byId("kill-switch-reason")?.value ?? "";
+  const confirmationText = byId("kill-switch-confirm")?.value ?? "";
+  try {
+    const result = await window.nusa.releaseKillSwitch(confirmationText, reason);
+    if (message) message.textContent = `Kill Switch ${result.killSwitchActive ? "ACTIVE" : "해제됨"}`;
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "Kill Switch를 해제하지 못했습니다.";
+  }
+});
+byId("kill-switch-activate")?.addEventListener("click", async () => {
+  const message = byId("kill-switch-message");
+  const reason = byId("kill-switch-reason")?.value ?? "";
+  try {
+    const result = await window.nusa.activateKillSwitch(reason);
+    if (message) message.textContent = `Kill Switch ${result.killSwitchActive ? "ACTIVE" : "해제됨"}`;
+  } catch (error) {
+    if (message) message.textContent = error instanceof Error ? error.message : "Kill Switch를 재활성화하지 못했습니다.";
+  }
+});
 byId("strategy-start").addEventListener("click", async () => renderControl(await window.nusa.startStrategy()));
 byId("strategy-stop").addEventListener("click", async () => renderControl(await window.nusa.stopStrategy()));
 byId("auto-trade").addEventListener("change", async (event) => {
@@ -682,7 +709,7 @@ function renderCioUnavailable(status) {
   statusNode.textContent = label;
   statusNode.className = `cio-status ${blocked ? "blocked" : "no-data"}`;
   cioText("cio-freshness", blocked ? "Dashboard 조회 실패 · 이전 상태는 유효하지 않음" : "Dashboard 데이터 없음");
-  for (const id of ["cio-system", "cio-opportunity", "cio-strategy", "cio-committee", "cio-execution", "cio-risk", "cio-research"]) cioText(id, "데이터 없음");
+  for (const id of ["cio-system", "cio-opportunity", "cio-strategy", "cio-committee", "cio-execution", "cio-risk", "cio-risk-reasons", "cio-research"]) cioText(id, "데이터 없음");
   renderPortfolio(undefined, false);
   renderWarnings(byId("cio-warnings"), [blocked ? "Dashboard unavailable" : "Dashboard 데이터 없음"]);
 }
@@ -700,7 +727,11 @@ function renderCioDashboard(envelope) {
   cioText("cio-strategy", cioSectionAvailable(snapshot.strategies) ? `거래 ${snapshot.strategies.totalTrades} · 차단 ${snapshot.strategies.blockedStrategies} · 경고 ${snapshot.strategies.warningStrategies}` : "데이터 없음");
   cioText("cio-committee", cioSectionAvailable(snapshot.committee) ? `${snapshot.committee.decision} · Confidence ${cioPercent(snapshot.committee.confidence)} · Edge ${cioPercent(snapshot.committee.edge)} · Risk ${cioPercent(snapshot.committee.risk)}` : "데이터 없음");
   cioText("cio-execution", cioSectionAvailable(snapshot.execution) ? `Fill ${cioPercent(snapshot.execution.fillQuality)} · Slippage ${snapshot.execution.slippageBps.toFixed(2)} bps · Latency ${snapshot.execution.latencyMs} ms` : "데이터 없음");
+  // WO-0019: killSwitchActive is the real, persisted switch only. A rejection for any other
+  // reason (daily loss, missing approval, stale market data, ...) shows up in the reasons line
+  // below, never relabeled as "Kill Switch ACTIVE".
   cioText("cio-risk", cioSectionAvailable(snapshot.risk) ? `Drawdown ${cioPercent(snapshot.risk.dailyDrawdownRatio)} · Heat ${cioPercent(snapshot.risk.portfolioHeatRatio)} · Kill Switch ${snapshot.risk.killSwitchActive ? "ACTIVE" : "OFF"}` : "데이터 없음");
+  cioText("cio-risk-reasons", cioSectionAvailable(snapshot.risk) && snapshot.risk.reasons.length ? `차단 사유: ${snapshot.risk.reasons.join(", ")}` : "차단 사유 없음");
   cioText("cio-research", cioSectionAvailable(snapshot.research) ? `Walk-forward ${snapshot.research.walkForwardPassed ? "PASS" : "FAIL"} · Monte Carlo ${snapshot.research.monteCarloPassed ? "PASS" : "FAIL"} · Cost Stress ${snapshot.research.costStressPassed ? "PASS" : "FAIL"}` : "데이터 없음");
   renderWarnings(byId("cio-warnings"), snapshot.warnings.length ? snapshot.warnings : ["경고 없음"]);
 }
