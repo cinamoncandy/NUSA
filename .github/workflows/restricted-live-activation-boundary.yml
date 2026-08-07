@@ -1,0 +1,44 @@
+name: Restricted LIVE Activation Boundary
+
+on:
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+    branches: [main, "agent/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restricted-live-activation-boundary-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  activation-boundary:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Activation boundary regressions
+        run: node --test --test-reporter=spec tests/restricted-live-activation-boundary.test.js
+      - name: Activation boundary verification
+        run: pnpm run restricted-live:activation-boundary -- --output artifacts/operational-evidence/restricted-live-activation-boundary.json
+      - name: Upload activation boundary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restricted-live-activation-boundary-evidence
+          path: artifacts/operational-evidence/restricted-live-activation-boundary.json
+          if-no-files-found: error
+          retention-days: 14
