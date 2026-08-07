@@ -34,6 +34,11 @@
           "implementation": "research/fixtures/regime-detection-challenger-v1"
         }
       },
+      "lineage_independence": {
+        "assessment": "PARTIALLY_INDEPENDENT",
+        "differing_dimensions": ["model", "provider", "implementation"],
+        "shared_dimensions": ["data", "tools"]
+      },
       "evaluation": {
         "benchmark": {
           "id": "regime-benchmark-v1",
