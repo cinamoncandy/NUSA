@@ -27,6 +27,7 @@
     "aipos:conformance": "node scripts/validate-aipos-cross-ai-conformance.js",
     "capability:check": "node scripts/validate-capability-registry.js",
     "research:champion-challenger": "node scripts/validate-champion-challenger.js",
+    "identity:check": "node scripts/validate-data-strategy-identity.js",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
@@ -80,35 +81,10 @@
     "appId": "com.nusa.trader",
     "productName": "NUSA",
     "asar": true,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "apps/desktop/renderer/**/*",
-      "apps/desktop/package.json",
-      "package.json",
-      "!**/*.ts",
-      "!**/*.map",
-      "!**/tests{,/**/*}",
-      "!**/docs{,/**/*}"
-    ],
-    "extraMetadata": {
-      "main": "dist/apps/desktop/src/main.js"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "build/nusa-a4p.ico",
-      "artifactName": "NUSA-${version}-Windows-Setup.${ext}",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false
-    }
+    "directories": {"output": "release"},
+    "files": ["dist/**/*","apps/desktop/renderer/**/*","apps/desktop/package.json","package.json","!**/*.ts","!**/*.map","!**/tests{,/**/*}","!**/docs{,/**/*}"],
+    "extraMetadata": {"main": "dist/apps/desktop/src/main.js"},
+    "win": {"target": "nsis","icon": "build/nusa-a4p.ico","artifactName": "NUSA-${version}-Windows-Setup.${ext}","signAndEditExecutable": false},
+    "nsis": {"oneClick": false,"perMachine": false,"allowToChangeInstallationDirectory": false,"createDesktopShortcut": true,"createStartMenuShortcut": true,"deleteAppDataOnUninstall": false}
   }
 }
