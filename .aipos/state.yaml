@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T19:48:00+09:00"
+updated_at: "2026-08-07T19:54:00+09:00"
 phase: shadow
-status: implementing
+status: verifying
 objective: "Govern production-equivalent Shadow observation as a strictly non-mutating evidence stage that can observe real/public market inputs without creating broker, order, fill, cash, position, LIVE, or production-promotion authority."
 base_branch: main
 active_branch: agent/shadow
-active_pull_request: null
+active_pull_request: 143
 base_commit: 3607a8796a680101175701582a6729db26334778
 claimed_state:
   work_order: WO-0030
@@ -40,12 +40,12 @@ completed:
     summary: "Added architecture change lifecycle governance."
 in_progress:
   - id: WO-0030
-    evidence: ".aipos/work-orders/WO-0030-shadow.yaml"
-    summary: "Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, focused regressions, and CI enforcement are being implemented."
+    evidence: ".aipos/work-orders/WO-0030-shadow.yaml; PR #143"
+    summary: "Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, 8 focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0030-shadow.yaml
-  reason: "Complete Shadow verification and merge before Restricted LIVE begins."
+  reason: "Complete PR #143 official verification and merge before Restricted LIVE begins."
 verification:
   required:
     - "Shadow governance validation"
@@ -63,8 +63,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0029 is evidence-backed COMPLETE. WO-0030 implementation is in progress; official CI not yet run."
-  current_commit: "124baae18e040777db09299747de9c07d56bda7c plus AIPOS state commit"
+  last_result: "WO-0030 implementation committed on PR #143; official required CI pending. WO-0029 remains evidence-backed COMPLETE."
+  current_commit: "864c502453abc6ceb9db19fe3812f1d41fc101d8 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
