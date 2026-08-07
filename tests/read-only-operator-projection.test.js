@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { projectReadOnlyOperatorState } = require('../dist/apps/desktop/src/readOnlyOperatorProjection.js');
+const { validate, buildEvidence } = require('../scripts/validate-read-only-operator-projection.js');
 
 test('projection is read-only and secret-free', () => {
   const value = projectReadOnlyOperatorState({ observedAt: '2026-08-07T00:00:00.000Z', connectionCode: 'CONNECTED', configured: true, assetCount: 2, openOrderCount: 1, krwBalance: '1000.25', reconciliationStatus: 'MATCH' });
@@ -28,4 +29,15 @@ test('unknown and invalid source data fail closed', () => {
 test('reconciliation DIFF is explicitly unhealthy', () => {
   const value = projectReadOnlyOperatorState({ observedAt: '2026-08-07T00:00:00.000Z', connectionCode: 'CONNECTED', configured: true, assetCount: 1, openOrderCount: 0, krwBalance: '1', reconciliationStatus: 'DIFF' });
   assert.equal(value.reconciliation.healthy, false);
+});
+
+test('operator projection evidence validator passes fail-closed boundary', () => {
+  const result = validate();
+  assert.equal(result.pass, true, result.failures.join('\n'));
+  const evidence = buildEvidence(result, 'test-sha');
+  assert.equal(evidence.result, 'PASS');
+  assert.equal(evidence.executionAuthority, false);
+  assert.equal(evidence.orderMutationAuthority, false);
+  assert.equal(evidence.withdrawalAuthority, false);
+  assert.equal(evidence.credentialMaterialIncluded, false);
 });
