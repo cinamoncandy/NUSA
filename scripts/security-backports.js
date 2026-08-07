@@ -33,14 +33,9 @@ function patchExact(text, before, after, expectedCount, label) {
 }
 
 function patchImageSizeIcns(text) {
-  const existing = (text.match(/if \(imageHeader\[1\] < 8\) throw new TypeError\('Invalid ICNS entry size'\);/g) || []).length;
-  if (existing === 2) return { text, changed: false };
-  if (existing !== 0) throw new Error(`SECURITY_BACKPORT_SOURCE_SHAPE:image-size/icns-existing:${existing}`);
-  const pattern = /const imageHeader = readImageHeader\(input, imageOffset\);\r?\n(\s*)const imageSize = getImageSize\(imageHeader\[0\]\);/g;
-  const matches = [...text.matchAll(pattern)];
-  if (matches.length !== 2) throw new Error(`SECURITY_BACKPORT_SOURCE_SHAPE:image-size/icns:${matches.length}`);
-  const patched = text.replace(pattern, (_match, indent) => `const imageHeader = readImageHeader(input, imageOffset);\n${indent}if (imageHeader[1] < 8) throw new TypeError('Invalid ICNS entry size');\n${indent}const imageSize = getImageSize(imageHeader[0]);`);
-  return { text: patched, changed: true };
+  const before = "imageOffset += imageHeader[1];";
+  const after = "if (imageHeader[1] < 8) throw new TypeError('Invalid ICNS entry size');\n        imageOffset += imageHeader[1];";
+  return patchExact(text, before, after, 2, "image-size/icns-offset");
 }
 
 function patchNanoidSync(text, label) {
