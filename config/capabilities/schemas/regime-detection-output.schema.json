@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nusa://capabilities/regime-detection/output/1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["regime", "confidence", "evidenceRefs"],
+  "properties": {
+    "regime": {"type": "string", "minLength": 1},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "evidenceRefs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}
