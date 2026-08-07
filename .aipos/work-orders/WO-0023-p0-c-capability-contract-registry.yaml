@@ -1,6 +1,6 @@
 id: WO-0023
 title: "P0-C Capability Contract Registry"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -33,6 +33,15 @@ acceptance:
   - "P0-A drift, P0-B evidence-integrity, P0-F operational verification, and architecture validation PASS."
   - "Full required GitHub CI PASS."
   - "PR merged before P0-D begins."
+completion_evidence:
+  pull_request: 136
+  head_commit: 3136d17bb02dc568ef7d9cf5cfdb3d8f48ec418b
+  merge_commit: 6a4de464ea0cfa99c45830089ebae9744485e86b
+  ci_runs:
+    - 31156588017
+    - 31156582045
+  ci_result: PASS
+  completed_at: "2026-08-07T16:30:00+09:00"
 safety:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

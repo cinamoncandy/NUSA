@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "lifecycle": [
+    "PROPOSAL",
+    "IMPACT_ANALYSIS",
+    "ARCHITECTURE_REVIEW",
+    "MIGRATION_PLAN",
+    "APPROVAL",
+    "STAGED_ADOPTION",
+    "VERIFICATION",
+    "ROLLBACK"
+  ],
+  "minimum_stage_for_governing_architecture_mutation": "APPROVAL",
+  "governed_paths": [
+    "docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md",
+    "docs/NUSA_AI_ARCHITECTURE_V1.md",
+    "docs/NUSA_AI_EVOLUTION_PRINCIPLE.md",
+    ".aipos/architecture.md",
+    ".aipos/AI_HANDOFF_CONTRACT.md",
+    ".aipos/aipos.yaml"
+  ],
+  "constitutional_paths": [
+    "docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md"
+  ],
+  "protected_boundaries": [
+    "production_promotion_authority",
+    "hard_safety_authority",
+    "human_live_authority",
+    "evidence_and_audit_obligations",
+    "constitutional_change_approval"
+  ],
+  "rules": {
+    "architecture_to_aipos_only": true,
+    "rollback_plan_required_before_approval": true,
+    "human_approval_required_for_constitutional_or_safety_sensitive_change": true,
+    "missing_or_invalid_change_record_fails_closed": true
+  }
+}

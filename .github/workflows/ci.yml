@@ -19,6 +19,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
@@ -53,6 +55,10 @@ jobs:
         run: pnpm run build
       - name: Architecture validation
         run: pnpm run architecture:check
+      - name: Architecture change lifecycle validation
+        run: pnpm run architecture:lifecycle
+      - name: Architecture change lifecycle regression tests
+        run: node --test --test-reporter=spec tests/architecture-change-lifecycle.test.js
       - name: Architecture/AIPOS drift validation
         run: pnpm run aipos:drift
       - name: AIPOS verified-state evidence integrity

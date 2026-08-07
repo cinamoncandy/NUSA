@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0023-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0023",
+    "path": ".aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "bed766434748ba7e9e22004c6e1dfb006baa3a9a"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "6a4de464ea0cfa99c45830089ebae9744485e86b"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "656e1ddffdbb04943e68969b39b9ba2bf14088d77a0c1acc32397dc1fd6812d7"
+    }
+  },
+  "observed_at": "2026-08-07T16:30:00+09:00",
+  "provenance": [
+    "github:pull/136",
+    "github:actions/run/31156588017",
+    "github:actions/run/31156582045",
+    "git:merge/6a4de464ea0cfa99c45830089ebae9744485e86b"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31156588017"},
+    {"name": "capability_registry_validation", "status": "PASS"},
+    {"name": "focused_capability_registry_regressions", "status": "PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"}
+  ]
+}

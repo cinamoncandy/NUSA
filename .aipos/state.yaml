@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T16:09:00+09:00"
-phase: p0-capability-contract-registry
+updated_at: "2026-08-07T16:40:00+09:00"
+phase: p0-architecture-change-lifecycle
 status: verifying
-objective: "Create a machine-readable versioned capability contract registry that keeps NUSA provider-agnostic and prevents implementation identity from becoming core architecture."
+objective: "Make architecture evolution explicit, reviewable, staged, evidence-backed, and rollback-capable so governing architecture cannot be silently mutated."
 base_branch: main
-active_branch: agent/p0-c-capability-contract-registry
-active_pull_request: 136
-base_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
+active_branch: agent/p0-d-architecture-change-lifecycle
+active_pull_request: 137
+base_commit: 6a4de464ea0cfa99c45830089ebae9744485e86b
 claimed_state:
-  work_order: WO-0023
+  work_order: WO-0024
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0022
+  work_order: WO-0023
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0022-completion.json"
+  evidence: ".aipos/evidence/WO-0023-completion.json"
 latest_verified_slice:
-  id: wo-0022-operational-evidence-harness-complete
-  evidence: ".aipos/evidence/WO-0022-completion.json"
-  summary: "WO-0022 / P0-F is complete. PAPER runtime verification is repeatable through a single command and emits durable machine-readable operational evidence while LIVE mutation remains prohibited."
+  id: wo-0023-capability-contract-registry-complete
+  evidence: ".aipos/evidence/WO-0023-completion.json"
+  summary: "WO-0023 / P0-C is complete. Capability identity is provider-independent and governed by machine-readable versioned contracts with CI validation."
 completed:
+  - id: WO-0023
+    evidence: ".aipos/evidence/WO-0023-completion.json"
+    summary: "Added provider-independent capability contract registry, deterministic validation, focused regressions, and CI enforcement."
   - id: WO-0022
     evidence: ".aipos/evidence/WO-0022-completion.json"
     summary: "Added one-command PAPER operational verification and CI evidence artifact generation."
@@ -30,24 +33,25 @@ completed:
     evidence: ".aipos/evidence/WO-0020-completion.json"
     summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
-  - id: WO-0023
-    evidence: ".aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml; PR #136"
-    summary: "Provider-independent capability contracts, registry validation, schema references, implementation bindings, focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0024
+    evidence: ".aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml; PR #137"
+    summary: "Machine-readable lifecycle, Git-diff-aware governing architecture gate, human approval requirements, rollback-before-approval rule, focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml
-  reason: "Complete PR #136 verification and merge P0-C before P0-D Architecture Change Lifecycle begins."
+  work_order: .aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml
+  reason: "Complete PR #137 verification and merge P0-D before cross-AI conformance work begins."
 verification:
   required:
-    - "Focused capability contract registry tests"
+    - "Focused architecture lifecycle regression tests"
+    - "Architecture change lifecycle validation"
     - "Capability registry validation"
-    - "P0-F PAPER runtime operational verification"
-    - "P0-B evidence-integrity validation"
-    - "P0-A Architecture/AIPOS drift validation"
+    - "PAPER runtime operational verification"
+    - "Verified-state/evidence-integrity validation"
+    - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "P0-C implementation committed on PR #136; official required CI pending. P0-F remains evidence-backed COMPLETE."
-  current_commit: "e0293b0051aed4e90abf524ef744401fdd6fd775 plus AIPOS PR-state commit"
+  last_result: "P0-D implementation committed on PR #137; official required CI pending. P0-C remains evidence-backed COMPLETE."
+  current_commit: "694561b8bfef9472eb020d7ac749d224def22688 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
