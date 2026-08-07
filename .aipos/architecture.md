@@ -13,6 +13,7 @@ The design source of truth is the approved NUSA architecture, led by:
 - `docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md`
 - `docs/NUSA_AI_ARCHITECTURE_V1.md`
 - `docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md`
+- `docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md`
 - durable architecture decisions under `.aipos/decisions/`
 
 AIPOS is the execution-plan and execution-state source of truth. It must synchronize implementation planning with approved architecture, but it must not silently redefine architecture.
@@ -52,6 +53,8 @@ AIPOS provides:
 
 Investment-related execution planning must preserve the governed distinction between Foundational Knowledge, Market Knowledge, and Learned Knowledge defined by `docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md`. Financial knowledge is not trading authority, and learned investment intelligence may not weaken independent safety or deployment controls.
 
+User-facing execution planning must preserve the semantics defined by `docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md`: internal complexity should be progressively disclosed rather than leaked into ordinary workflows, while PAPER/LIVE authority, kill-switch state, risk decisions, approvals, uncertainty, and system health must remain semantically accurate.
+
 The TypeScript package may expose runtime APIs, but `.aipos/` remains the cross-AI execution-state source of truth.
 
 ## Cross-AI continuity
@@ -60,11 +63,11 @@ Any capable AI or agent must be able to take over active NUSA work by reading re
 
 Conversation history, model memory, provider-private context, and hidden chain-of-thought are never required project dependencies.
 
-Different AI systems may reason differently internally, but they must recover the same authoritative objective, constraints, active work order, safety boundaries, evidence requirements, financial reasoning constraints where applicable, and next permitted action from the repository contract.
+Different AI systems may reason differently internally, but they must recover the same authoritative objective, constraints, active work order, safety boundaries, evidence requirements, financial reasoning constraints where applicable, user-facing safety semantics where applicable, and next permitted action from the repository contract.
 
 ## Architecture-to-AIPOS synchronization
 
-When approved architecture changes materially affect capabilities, dependencies, safety boundaries, interfaces, validation requirements, investment-knowledge contracts, or implementation order, AIPOS must run an impact analysis and synchronize the affected execution metadata.
+When approved architecture changes materially affect capabilities, dependencies, safety boundaries, interfaces, validation requirements, investment-knowledge contracts, user-facing product semantics, or implementation order, AIPOS must run an impact analysis and synchronize the affected execution metadata.
 
 Synchronization may update:
 
@@ -101,3 +104,4 @@ AIPOS is implemented for NUSA first. Standalone CLI, certification, plugin marke
 - Work completion requires durable evidence, not a conversational assertion.
 - AI replacement or handoff must never weaken Risk Governor, Deployment Gate, evidence, approval, or kill-switch boundaries.
 - Learned investment knowledge must never silently redefine hard financial safety constraints or become production authority by itself.
+- UI simplification must never hide or change authoritative trading mode, approval, risk, kill-switch, uncertainty, or health semantics.
