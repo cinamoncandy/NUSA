@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "market-regime-fixture",
+      "version": "1.0.0",
+      "source": "internal-fixture",
+      "schemaVersion": "1",
+      "provenance": ["fixture:market-regime-v1"],
+      "temporal": {
+        "eventTimeField": "event_time",
+        "receivedTimeField": "received_time",
+        "modelAvailableTimeField": "model_available_time",
+        "ordering": "EVENT_LE_RECEIVED_LE_MODEL_AVAILABLE"
+      },
+      "contentHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "snapshotId": "market-regime-fixture@1.0.0",
+      "canonicalHash": "sha256:c609ff653c5b9e21b10d52b1890d0bf5b426fd03762c6b6f7198ddddfbe1a0da"
+    }
+  ],
+  "featureSets": [
+    {
+      "id": "regime-core-features",
+      "version": "1.0.0",
+      "definitions": [
+        {"name": "returns", "version": "1"},
+        {"name": "volatility", "version": "1"}
+      ],
+      "sourceDatasets": [
+        {"id": "market-regime-fixture", "version": "1.0.0", "canonicalHash": "sha256:c609ff653c5b9e21b10d52b1890d0bf5b426fd03762c6b6f7198ddddfbe1a0da"}
+      ],
+      "availabilitySemantics": "MODEL_AVAILABLE_TIME",
+      "canonicalHash": "sha256:55ea60a8939bc60e0d141a56414e7bf3026d0a3ca0cadf6a8f463a145e8c9f9c"
+    }
+  ],
+  "strategies": [
+    {
+      "id": "regime-adaptive-baseline",
+      "version": "1.0.0",
+      "genome": {
+        "family": "regime-adaptive",
+        "rules": ["BULL:ALLOW_LONG", "BEAR:REDUCE_RISK", "UNKNOWN:HALT_NEW_RISK"]
+      },
+      "parameters": {"maxRiskBudgetBps": 100},
+      "featureSets": [
+        {"id": "regime-core-features", "version": "1.0.0", "canonicalHash": "sha256:55ea60a8939bc60e0d141a56414e7bf3026d0a3ca0cadf6a8f463a145e8c9f9c"}
+      ],
+      "datasets": [
+        {"id": "market-regime-fixture", "version": "1.0.0", "canonicalHash": "sha256:c609ff653c5b9e21b10d52b1890d0bf5b426fd03762c6b6f7198ddddfbe1a0da"}
+      ],
+      "capabilities": [
+        {"id": "REGIME_DETECTION", "contractVersion": "1.0.0", "implementationId": "statistical-regime-baseline"}
+      ],
+      "models": [],
+      "tools": [],
+      "objectivePolicyVersion": "economic-objective-v1",
+      "canonicalHash": "sha256:f6b974441a1eb407e9f0fcdf45f6ebb2729be3587e821601093417ea04e5f174"
+    }
+  ]
+}
