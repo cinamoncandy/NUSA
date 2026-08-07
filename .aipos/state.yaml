@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T21:07:00+09:00"
+updated_at: "2026-08-07T21:14:00+09:00"
 phase: restricted-live-activation-gate-rehearsal
-status: implementing
+status: verifying
 objective: "Rehearse the complete human-authorized Restricted LIVE activation gate under production-like inputs while structurally suppressing all real execution, credentials, broker transport, and state mutation."
 base_branch: main
 active_branch: agent/restricted-live-activation-gate-rehearsal
-active_pull_request: null
+active_pull_request: 148
 base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
 claimed_state:
   work_order: WO-0033
@@ -34,12 +34,12 @@ completed:
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
 in_progress:
   - id: WO-0033
-    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml"
-    summary: "Activation gate rehearsal profile, WOULD_ALLOW/BLOCKED fail-closed harness, zero-mutation enforcement, focused regressions, and dedicated evidence workflow are being implemented."
+    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml; PR #148"
+    summary: "Activation gate rehearsal profile, WOULD_ALLOW/BLOCKED fail-closed harness, zero-mutation enforcement, 8 focused regressions, and dedicated evidence workflow implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml
-  reason: "Complete activation-gate rehearsal verification and merge. Actual LIVE activation remains prohibited and is not authorized by this work order."
+  reason: "Complete PR #148 official verification and merge. Actual LIVE activation remains prohibited and is not authorized by this work order."
 verification:
   required:
     - "Restricted LIVE activation gate rehearsal regression tests"
@@ -54,8 +54,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0032 evidence-backed COMPLETE. WO-0033 activation-gate rehearsal implementation in progress."
-  current_commit: "activation-gate rehearsal implementation in progress"
+  last_result: "WO-0033 implementation committed on PR #148; official required CI pending. Actual LIVE execution remains prohibited."
+  current_commit: "PR #148 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
