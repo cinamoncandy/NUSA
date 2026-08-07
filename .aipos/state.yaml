@@ -1,60 +1,55 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T22:59:00+09:00"
-phase: read-only-operator-projection
-status: verifying
-objective: "Expose secret-free read-only broker observation to operator/mobile surfaces without adding execution authority, mutation handles, or credential material."
+updated_at: "2026-08-07T23:18:00+09:00"
+phase: restricted-live-state-machine-governance
+status: implementing
+objective: "Define fail-closed Restricted LIVE state semantics without enabling execution transport, execution credentials, order mutation, or real-money execution."
 base_branch: main
-active_branch: agent/wo-0037-read-only-operator-projection
-active_pull_request: 152
-base_commit: ff7756bfc9f5a9ecf1dab2a947d87df6a3b483d3
+active_branch: agent/wo-0038-live-state-machine-governance
+active_pull_request: null
+base_commit: f7b9d0c5af5aaaea035f620c2b6e22dac50f586e
 claimed_state:
-  work_order: WO-0037
+  work_order: WO-0038
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0036
+  work_order: WO-0037
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0036-completion.json"
+  evidence: ".aipos/evidence/WO-0037-completion.json"
 latest_verified_slice:
-  id: wo-0036-read-only-broker-credential-integration-complete
-  evidence: ".aipos/evidence/WO-0036-completion.json"
-  summary: "WO-0036 is complete. Authenticated broker observation and OS-encrypted read-only credentials passed official exact-head CI with execution and mutation prohibited."
+  id: wo-0037-read-only-operator-projection-complete
+  evidence: ".aipos/evidence/WO-0037-completion.json"
+  summary: "WO-0037 completed with exact-head Full CI and Restricted LIVE safety gates PASS."
 completed:
+  - id: WO-0037
+    evidence: ".aipos/evidence/WO-0037-completion.json"
+    summary: "Added secret-free mutation-free operator projection."
   - id: WO-0036
     evidence: ".aipos/evidence/WO-0036-completion.json"
     summary: "Added read-only broker and secure credential integration with no execution authority."
   - id: WO-0035
     evidence: ".aipos/evidence/WO-0035-completion.json"
-    summary: "Added a fail-closed capability surface guard against unauthorized LIVE execution permissions."
-  - id: WO-0034
-    evidence: ".aipos/evidence/WO-0034-completion.json"
-    summary: "Added disabled read-only transport and credential readiness with zero mutation and official CI artifact proof."
-  - id: WO-0033
-    evidence: ".aipos/evidence/WO-0033-completion.json"
-    summary: "Validated the human-authorized Restricted LIVE activation ceremony without activating LIVE execution."
+    summary: "Added fail-closed capability surface guard."
 in_progress:
-  - id: WO-0037
-    evidence: ".aipos/work-orders/WO-0037-read-only-operator-projection.yaml; PR #152"
-    summary: "Secret-free read-only operator/mobile projection implemented with fail-closed source semantics and Full-CI-bound validator regressions; official verification pending."
+  - id: WO-0038
+    evidence: ".aipos/work-orders/WO-0038-live-state-machine-governance.yaml"
+    summary: "Fail-closed Restricted LIVE governance state machine implementation and regressions in progress."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0037-read-only-operator-projection.yaml
-  reason: "Complete PR #152 exact-head verification and merge. Actual LIVE execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0038-live-state-machine-governance.yaml
+  reason: "Complete governance state machine verification and merge; actual LIVE execution remains prohibited."
 verification:
   required:
-    - "Read-only operator projection regression tests"
-    - "Read-only operator projection evidence validator"
+    - "Restricted LIVE state machine governance regression tests"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
-    - "Restricted LIVE governance validation"
-    - "Safety Architecture validation"
+    - "Read-only broker credential integration"
     - "AIPOS verified-state evidence integrity"
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0037 implementation on PR #152; official exact-head verification pending."
-  current_commit: "PR #152 verification pending"
+  last_result: "WO-0038 implementation started; no LIVE execution authorized."
+  current_commit: "implementation pending PR"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -66,43 +61,23 @@ human_authority:
 restricted_live_authority:
   default_state: DISABLED
   execution_transport_connected: false
-  credential_storage_scope: EXECUTION_CREDENTIALS
-  read_only_credential_storage_present: true
-  read_only_broker_transport_allowed: true
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
-read_only_broker_integration:
-  mode: READ_ONLY_BROKER_CREDENTIAL_INTEGRATION
-  provider: upbit
-  broker_transport_class: OBSERVATION_ONLY
-  read_only_broker_transport_allowed: true
+live_governance_state_machine:
+  states: "DISABLED,ARMED,AUTHORIZED,ACTIVE,COOLDOWN,HALT"
+  default_state: DISABLED
+  active_entry_currently_allowed: false
+  unknown_semantics: HALT
+  authorization: human_two_approver_single_use_expiring
   execution_transport_connected: false
-  credential_storage: OS_ENCRYPTED
-  credential_purpose: READ_ONLY_BROKER_AUTH
-  read_only_credential_resolution_allowed: true
-  credential_execution_use_allowed: false
-  renderer_secret_exposure_allowed: false
-  ai_secret_exposure_allowed: false
-  evidence_secret_exposure_allowed: false
-  log_secret_exposure_allowed: false
-  order_mutation: prohibited
-  withdrawals: prohibited
-  portfolio_mutation_from_reconciliation: prohibited
-  ci_real_broker_calls_allowed: false
-read_only_operator_projection:
-  mode: READ_ONLY
-  secret_material_allowed: false
-  execution_authority: false
-  order_mutation_authority: false
-  withdrawal_authority: false
-  unknown_semantics: fail_closed
+  execution_credential_use: prohibited
+  real_money_execution: prohibited
 capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
   unknown_permission_semantics: fail_closed
   execution_transport_required: disconnected
-  credential_resolution_scope: EXECUTION_CREDENTIALS
   real_money_execution_required: prohibited
 safety_authority:
   hard_risk_override: prohibited
