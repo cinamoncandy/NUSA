@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T15:24:00+09:00"
+updated_at: "2026-08-07T15:32:00+09:00"
 phase: p0-operational-evidence-harness
-status: implementing
+status: verifying
 objective: "Turn the verified PAPER approval/risk/safety runtime path into a repeatable one-command operational verification that emits durable machine-readable evidence."
 base_branch: main
 active_branch: agent/p0-f-operational-evidence-harness
-active_pull_request: null
+active_pull_request: 135
 base_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
 claimed_state:
   work_order: WO-0022
@@ -31,12 +31,12 @@ completed:
     summary: "Restored and verified the real PAPER approval/risk/safety wiring and closed the regression with durable GitHub and Oracle evidence."
 in_progress:
   - id: WO-0022
-    evidence: ".aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml"
-    summary: "Implement one-command PAPER runtime operational verification and machine-readable evidence emission over existing verified runtime tests."
+    evidence: ".aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml; PR #135"
+    summary: "One-command PAPER runtime operational verification, machine-readable evidence emission, focused harness regressions, and CI artifact upload implemented; official PR verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml
-  reason: "Automate repeatable operational proof of the verified PAPER runtime before capability-contract registry work begins."
+  reason: "Complete PR #135 verification and merge P0-F before P0-C Capability Contract Registry begins."
 verification:
   required:
     - "Focused operational evidence harness tests"
@@ -47,8 +47,8 @@ verification:
     - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "P0-B COMPLETE: PR #134 merged at fba685eabdefab23ff4b325ee56a282500e5cce0; required CI PASS. P0-F implementation not yet verified."
-  current_commit: "fba685eabdefab23ff4b325ee56a282500e5cce0 plus P0-F AIPOS setup commits"
+  last_result: "P0-F implementation committed on PR #135; official required CI pending. P0-B remains evidence-backed COMPLETE."
+  current_commit: "f6242e0e06c915387aa40120c00eaaf7870e6cf9 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
