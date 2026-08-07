@@ -25,12 +25,14 @@ if (start >= 0) {
   } catch { console.log("[audit-diagnostic] audit-json-parse-failed"); }
 }
 console.log(`[registry-diagnostic] nanoid@3.3.17 integrity=${run("pnpm view nanoid@3.3.17 dist.integrity")}`);
-const packageRoot = path.dirname(require.resolve("image-size/package.json"));
-for (const relative of ["dist/types/icns.js", "dist/types/utils.js", "dist/types/heif.js", "dist/types/jxl.js"]) {
-  const file = path.join(packageRoot, relative);
-  console.log(`[image-size-file] ${relative} exists=${fs.existsSync(file)}`);
-  if (fs.existsSync(file)) {
-    const text = fs.readFileSync(file, "utf8");
-    console.log(`[image-size-file-content:${relative}]\n${text}\n[/image-size-file-content:${relative}]`);
+const virtualStore = path.join(root, "node_modules", ".pnpm");
+const entry = fs.readdirSync(virtualStore).find((name) => name.startsWith("image-size@1.2.1"));
+console.log(`[image-size-path] entry=${entry ?? "missing"}`);
+if (entry) {
+  const packageRoot = path.join(virtualStore, entry, "node_modules", "image-size");
+  for (const relative of ["dist/types/icns.js", "dist/types/utils.js", "dist/types/heif.js", "dist/types/jxl.js"]) {
+    const file = path.join(packageRoot, relative);
+    console.log(`[image-size-file] ${relative} exists=${fs.existsSync(file)}`);
+    if (fs.existsSync(file)) console.log(`[image-size-file-content:${relative}]\n${fs.readFileSync(file, "utf8")}\n[/image-size-file-content:${relative}]`);
   }
 }
