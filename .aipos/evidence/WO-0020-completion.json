@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0020-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0020",
+    "path": ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "02d9b8c7bd77bf38ce661f933cc6adcb2afafc03"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "99d7ce07d3fd8d19094690b9fd13f1a37312a0e3"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "656e1ddffdbb04943e68969b39b9ba2bf14088d77a0c1acc32397dc1fd6812d7"
+    }
+  },
+  "observed_at": "2026-08-07T13:47:05+09:00",
+  "provenance": [
+    "github:pull/133",
+    "github:actions/run/31147330756",
+    "git:merge/99d7ce07d3fd8d19094690b9fd13f1a37312a0e3"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "focused_drift_regressions", "status": "PASS", "detail": "7/7"},
+    {"name": "architecture_validation", "status": "PASS"},
+    {"name": "official_ci", "status": "PASS", "detail": "31147330756"}
+  ]
+}
