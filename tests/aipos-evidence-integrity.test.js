@@ -15,7 +15,8 @@ function fixture(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "nusa-aipos-evidence-"));
   const workOrderPath = ".aipos/work-orders/WO-0020.yaml";
   const evidencePath = ".aipos/evidence/WO-0020.json";
-  const workOrder = `id: WO-0020\nstatus: COMPLETED\nmerge_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3\n`;
+  const canonicalWorkOrder = `id: WO-0020\nstatus: COMPLETED\nmerge_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3\n`;
+  const workOrder = options.crlfWorkOrder ? canonicalWorkOrder.replace(/\n/g, "\r\n") : canonicalWorkOrder;
   const snapshot = { architecture_sync: "architecture_to_aipos", live_trading_mutation: "prohibited" };
   const evidence = {
     version: 1,
@@ -24,7 +25,7 @@ function fixture(options = {}) {
       type: "work_order",
       id: options.subjectId || "WO-0020",
       path: workOrderPath,
-      hash: { algorithm: "git-blob-sha1", value: gitBlobSha1(workOrder) },
+      hash: { algorithm: "git-blob-sha1", value: gitBlobSha1(canonicalWorkOrder) },
     },
     producer: {
       kind: "github-actions",
@@ -66,6 +67,13 @@ test("evidence-backed verified state passes", () => {
     const result = validateRepository(root);
     assert.equal(result.ok, true, result.failures.join("\n"));
     assert.deepEqual(result.failures, []);
+  });
+});
+
+test("Windows CRLF checkout preserves canonical Git blob evidence hash", () => {
+  withFixture({ crlfWorkOrder: true }, (root) => {
+    const result = validateRepository(root);
+    assert.equal(result.ok, true, result.failures.join("\n"));
   });
 });
 
