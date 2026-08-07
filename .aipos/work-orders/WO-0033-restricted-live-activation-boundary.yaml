@@ -1,0 +1,52 @@
+id: WO-0033
+title: "Restricted LIVE Activation Boundary"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
+implementation_branch: agent/restricted-live-activation-boundary
+objective: "Define a fail-closed, human-controlled activation eligibility boundary that can prove a bounded Restricted LIVE request is eligible for explicit human review without connecting execution transport, accessing credentials, submitting orders, or activating real-money trading."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0033 formalizes the constitutional boundary immediately before any future LIVE activation. It can only produce an eligibility decision for human review; it cannot activate trading, connect transport, access credentials, mutate broker state, or grant AI/Meta-AI production authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Default every activation request to DENY and fail closed on missing, stale, ambiguous, replayed, or inconsistent authority/evidence."
+  - "Require exactly two distinct HUMAN approvers for any risk-increasing Restricted LIVE activation eligibility request."
+  - "Bind eligibility to exact deployment bundle, artifact digest, capability contract, strategy identity, symbols, notional/exposure limits, rollback bundle, authorization id, nonce, issue time, expiry, and reason."
+  - "Require SAFE operational state, safety-critical UNKNOWN=false, hard-risk PASS, deployment integrity PASS, kill-switch inactive, no open P0, and verified readiness evidence from WO-0032."
+  - "Require single-use activation nonce and reject replay."
+  - "Require readiness evidence digest and code revision to match the declared activation scope."
+  - "Permit only ELIGIBLE_FOR_HUMAN_REVIEW or DENY as machine decisions; ACTIVE/EXECUTE/CONNECT are prohibited outputs."
+  - "Keep activation executor absent, execution transport disconnected, credential access prohibited, automatic activation prohibited, and real-money mutation prohibited."
+  - "AI, Meta-AI, CI, Shadow, strategy, model, provider, or promotion evidence cannot become HUMAN LIVE activation authority."
+  - "Add deterministic validator, focused regressions, package command, CI enforcement, and machine-readable eligibility evidence."
+acceptance:
+  - "Activation boundary validator PASS in official CI."
+  - "Focused activation-boundary regression tests PASS."
+  - "Machine-readable activation eligibility evidence artifact uploaded by CI."
+  - "Machine decision remains ELIGIBLE_FOR_HUMAN_REVIEW or DENY only; no ACTIVE/EXECUTE output exists."
+  - "Execution transport remains disconnected; credential access and real-money mutation remain prohibited."
+  - "Existing Restricted LIVE readiness/governance, Shadow, Safety, Deployment, Identity, AIPOS, PAPER operational, architecture, and security gates PASS."
+  - "Full required GitHub CI PASS."
+safety:
+  live_trading_mutation: prohibited
+  activation_executor: absent
+  live_execution_transport: disconnected
+  credential_access: prohibited
+  automatic_live_activation: prohibited
+  real_money_execution: prohibited
+  ai_live_authority: prohibited
+  meta_ai_live_authority: prohibited
+completion_rule: "Merge + required test/CI PASS. Completion proves only activation-boundary eligibility verification; actual LIVE activation remains a separate explicit human-authorized constitutional work item."
