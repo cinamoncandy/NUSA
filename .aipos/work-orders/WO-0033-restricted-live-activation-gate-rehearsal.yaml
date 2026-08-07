@@ -1,6 +1,6 @@
 id: WO-0033
 title: "Restricted LIVE Activation Gate Rehearsal"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

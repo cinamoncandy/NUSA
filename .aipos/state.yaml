@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T21:14:00+09:00"
-phase: restricted-live-activation-gate-rehearsal
+updated_at: "2026-08-07T21:52:00+09:00"
+phase: restricted-live-transport-credential-readiness
 status: verifying
-objective: "Rehearse the complete human-authorized Restricted LIVE activation gate under production-like inputs while structurally suppressing all real execution, credentials, broker transport, and state mutation."
+objective: "Prepare disabled, read-only, fail-closed transport and credential integration boundaries without enabling execution transport, secret resolution, LIVE mutation, or real-money execution."
 base_branch: main
-active_branch: agent/restricted-live-activation-gate-rehearsal
-active_pull_request: 148
-base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
+active_branch: agent/restricted-live-transport-credential-readiness
+active_pull_request: 149
+base_commit: b6d104463fcc60da04e0269884f4b20fcbeaf925
 claimed_state:
-  work_order: WO-0033
+  work_order: WO-0034
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0032
+  work_order: WO-0033
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0032-completion.json"
+  evidence: ".aipos/evidence/WO-0033-completion.json"
 latest_verified_slice:
-  id: wo-0032-restricted-live-operational-readiness-complete
-  evidence: ".aipos/evidence/WO-0032-completion.json"
-  summary: "WO-0032 is complete. Pre-activation operational readiness passed with execution transport disconnected, credentials absent, real-money execution prohibited, and all mutation counters zero."
+  id: wo-0033-restricted-live-activation-gate-rehearsal-complete
+  evidence: ".aipos/evidence/WO-0033-completion.json"
+  summary: "WO-0033 is complete. Activation-gate rehearsal passed with WOULD_ALLOW semantics only, execution suppressed, actual activation false, transport disconnected, credentials absent, and zero mutations."
 completed:
+  - id: WO-0033
+    evidence: ".aipos/evidence/WO-0033-completion.json"
+    summary: "Validated the human-authorized Restricted LIVE activation ceremony without activating LIVE execution."
   - id: WO-0032
     evidence: ".aipos/evidence/WO-0032-completion.json"
     summary: "Added deterministic Restricted LIVE operational readiness evidence with zero side effects and CI artifact proof."
@@ -33,29 +36,31 @@ completed:
     evidence: ".aipos/evidence/WO-0029-completion.json"
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
 in_progress:
-  - id: WO-0033
-    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml; PR #148"
-    summary: "Activation gate rehearsal profile, WOULD_ALLOW/BLOCKED fail-closed harness, zero-mutation enforcement, 8 focused regressions, and dedicated evidence workflow implemented; official verification pending."
+  - id: WO-0034
+    evidence: ".aipos/work-orders/WO-0034-restricted-live-transport-credential-readiness.yaml; PR #149"
+    summary: "Disabled read-only transport adapter boundary, metadata-only credential schema, secret redaction, capability-scoped authority, rollback requirements, zero-mutation harness, focused regressions, and dedicated evidence workflow implemented; official verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml
-  reason: "Complete PR #148 official verification and merge. Actual LIVE activation remains prohibited and is not authorized by this work order."
+  work_order: .aipos/work-orders/WO-0034-restricted-live-transport-credential-readiness.yaml
+  reason: "Complete PR #149 official verification and merge. Actual LIVE activation and execution credentials remain prohibited."
 verification:
   required:
-    - "Restricted LIVE activation gate rehearsal regression tests"
-    - "Restricted LIVE activation gate rehearsal evidence artifact"
+    - "Restricted LIVE transport/credential readiness regression tests"
+    - "Restricted LIVE transport/credential readiness evidence artifact"
+    - "Credential redaction and authority separation validation"
+    - "Restricted LIVE activation rehearsal validation"
     - "Restricted LIVE operational readiness validation"
     - "Restricted LIVE governance validation"
-    - "Shadow governance validation"
     - "Safety Architecture validation"
     - "Deployment bundle validation"
     - "Cross-AI conformance validation"
     - "Verified-state/evidence-integrity validation"
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
+    - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0033 implementation committed on PR #148; official required CI pending. Actual LIVE execution remains prohibited."
-  current_commit: "PR #148 verification pending"
+  last_result: "WO-0034 implementation committed on PR #149; official required CI pending. Actual LIVE execution remains prohibited."
+  current_commit: "PR #149 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -70,6 +75,7 @@ restricted_live_authority:
   default_state: DISABLED
   execution_transport_connected: false
   credential_storage_present: false
+  credential_execution_use: prohibited
   real_money_execution: prohibited
   operational_state_required: SAFE
   safety_critical_unknown: fail_closed
@@ -78,12 +84,25 @@ restricted_live_authority:
   expiry_required: true
   cooldown_required: true
   verified_rollback_required: true
-activation_rehearsal:
-  activation_intent: SIMULATED_ONLY
-  valid_result: WOULD_ALLOW
-  invalid_result: BLOCKED
-  execution_suppressed: true
-  actual_activation: false
+transport_credential_readiness:
+  adapter_registered: true
+  adapter_default_state: DISABLED
+  adapter_capability: READ_ONLY_METADATA
+  execution_methods_exposed: false
+  transport_dial_allowed: false
+  credential_schema_registered: true
+  credential_reference_mode: METADATA_ONLY
+  secret_material_present: false
+  credential_storage_enabled: false
+  credential_resolution_enabled: false
+  credential_execution_use_allowed: false
+  evidence_redaction_required: true
+  principal_kind: SERVICE
+  principal_capability_scope: READ_ONLY_METADATA
+  live_authority_granted: false
+  rollback_required: true
+  transport_dials_required: 0
+  credential_resolutions_required: 0
   broker_calls_required: 0
   orders_required: 0
   fills_required: 0
