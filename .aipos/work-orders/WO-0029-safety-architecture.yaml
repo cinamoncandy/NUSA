@@ -1,0 +1,47 @@
+id: WO-0029
+title: "Safety Architecture"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 6e9871566b27cf0db6fce06ab0879eb7f38d51f9
+implementation_branch: agent/safety-architecture
+objective: "Make risk-increasing actions impossible to authorize when hard safety limits, safety-critical evidence, or operational health are unknown or violated, while keeping deterministic Hard Risk Governor authority independent from learned/AI risk components."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0029 operationalizes the approved safety architecture: deterministic hard-risk authority remains independent from learned risk; UNKNOWN is fail-closed for new risk; operational state degrades monotonically to SAFE/DEGRADED/RESTRICTED/HALT based on safety inputs. It does not authorize LIVE trading or autonomous changes to hard safety policy."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Define machine-readable operational safety states SAFE, DEGRADED, RESTRICTED, HALT with deterministic severity ordering."
+  - "Keep Hard Risk Governor decisions structurally separate from learned/AI risk recommendations. Learned risk may tighten but never relax hard limits."
+  - "Treat safety-critical UNKNOWN as fail-closed for any action that can increase exposure, leverage, position size, order count, or production risk."
+  - "Require hard-limit evidence and health evidence provenance for risk-increasing authorization."
+  - "Prevent Meta-AI, strategy, model, provider, or deployment component from overriding Hard Risk Governor authority."
+  - "Allow risk-reducing actions in restricted states only when they cannot increase exposure under the declared action semantics."
+  - "Require HALT to block all new risk and require explicit human-authorized recovery evidence before state improvement from HALT."
+  - "Add deterministic validator, focused regressions, and CI enforcement while preserving all existing gates."
+acceptance:
+  - "Safety Architecture validator PASS."
+  - "Focused safety regressions PASS."
+  - "UNKNOWN safety-critical state blocks risk increase."
+  - "Learned/AI risk cannot relax deterministic hard limits."
+  - "HALT recovery without explicit human-authorized evidence fails closed."
+  - "Existing deployment, identity, Champion/Challenger, capability, architecture, evidence, drift, conformance, PAPER operational and security gates PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before Shadow stage begins."
+safety:
+  live_trading_mutation: prohibited
+  production_promotion_mutation: prohibited
+  hard_risk_override: prohibited
+  unknown_safety_state: fail_closed
+completion_rule: "Merge + required test/CI PASS. Do not begin Shadow before this work order is complete."
