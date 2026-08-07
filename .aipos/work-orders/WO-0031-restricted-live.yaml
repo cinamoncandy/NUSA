@@ -1,0 +1,52 @@
+id: WO-0031
+title: "Restricted LIVE Governance"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d68e6553902f8d6d4f69fe6237c35c1db8649a0e
+implementation_branch: agent/restricted-live
+objective: "Define a fail-closed, human-authorized Restricted LIVE governance boundary without enabling autonomous LIVE execution, so any future production mutation requires exact scope, independent approvals, safety evidence, deployment identity, expiry, cooldown, rollback readiness, and auditable authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0031 operationalizes the approved HUMAN LIVE authority boundary. It defines restricted authorization contracts and CI governance only; it does not connect execution transport, store broker credentials, enable automatic LIVE trading, or grant AI/Meta-AI production mutation authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Default Restricted LIVE state to DISABLED; no authorization exists by implication, Shadow success, promotion recommendation, or model confidence."
+  - "Require two distinct human approvers for any risk-increasing LIVE scope; requester, approver A, and approver B identities must be auditable and approvers must be distinct."
+  - "Bind authorization to exact deployment bundle, capability, strategy, symbols, maximum notional/exposure, start time, expiry, reason, and rollback target."
+  - "Require operational safety state SAFE, hard-risk evidence PASS, deployment integrity PASS, and safety-critical UNKNOWN=false before risk-increasing authorization."
+  - "Require authorization expiry and post-activation cooldown; expired, future-dated, ambiguous, unbounded, or reusable authorization fails closed."
+  - "Require verified rollback target and immutable authorization/audit evidence before activation."
+  - "Permit break-glass only for emergency risk-reducing actions; break-glass cannot open/increase risk or bypass hard-risk/kill-switch/HALT authority."
+  - "Prohibit AI, Meta-AI, strategy, model, provider, deployment automation, CI, or Shadow evidence from becoming HUMAN LIVE authority."
+  - "Keep actual LIVE execution transport disconnected in this work order; add governance contracts, validator, focused regressions, and CI enforcement only."
+acceptance:
+  - "Restricted LIVE governance validator PASS."
+  - "Focused Restricted LIVE regression tests PASS."
+  - "Single-person, duplicate-person, expired, unbounded, UNKNOWN, non-SAFE, or wrong-bundle authorization fails closed."
+  - "Break-glass risk increase fails closed."
+  - "Automation/AI/Shadow cannot grant HUMAN LIVE authority."
+  - "No execution transport, credential storage, or automatic LIVE activation is introduced."
+  - "Existing Shadow, Safety Architecture, Deployment, Identity, Champion/Challenger, AIPOS, PAPER operational, architecture, and security gates PASS."
+  - "Full required GitHub CI PASS."
+safety:
+  live_execution_transport: disconnected
+  automatic_live_activation: prohibited
+  credential_storage: prohibited
+  ai_live_authority: prohibited
+  meta_ai_live_authority: prohibited
+  hard_risk_override: prohibited
+  kill_switch_override: prohibited
+  halt_override: prohibited
+completion_rule: "Merge + required test/CI PASS. Completion proves Restricted LIVE governance readiness only; it does not prove or activate real-money LIVE execution."

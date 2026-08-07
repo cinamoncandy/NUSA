@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0030-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0030",
+    "path": ".aipos/work-orders/WO-0030-shadow.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "c31a841c71066b7b7cd8b78d6803b4b836b55030"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "d68e6553902f8d6d4f69fe6237c35c1db8649a0e"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T20:05:00+09:00",
+  "provenance": ["github:pull/143", "github:actions/run/31171930214", "git:merge/d68e6553902f8d6d4f69fe6237c35c1db8649a0e"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31171930214"},
+    {"name": "focused_shadow_governance_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "shadow_actual_mutation_zero", "status": "PASS"},
+    {"name": "shadow_evidence_grants_no_live_authority", "status": "PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"},
+    {"name": "production_promotion_mutation_prohibited", "status": "PASS"}
+  ]
+}

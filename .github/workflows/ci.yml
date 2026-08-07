@@ -93,6 +93,10 @@ jobs:
         run: pnpm run shadow:check
       - name: Shadow governance regression tests
         run: node --test --test-reporter=spec tests/shadow-governance.test.js
+      - name: Restricted LIVE governance validation
+        run: pnpm run restricted-live:check
+      - name: Restricted LIVE governance regression tests
+        run: node --test --test-reporter=spec tests/restricted-live-governance.test.js
       - name: Operational evidence harness regression tests
         run: node --test --test-reporter=spec tests/operational-evidence-harness.test.js
       - name: PAPER runtime operational verification

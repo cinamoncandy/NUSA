@@ -1,28 +1,31 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T19:54:00+09:00"
-phase: shadow
+updated_at: "2026-08-07T20:30:00+09:00"
+phase: restricted-live
 status: verifying
-objective: "Govern production-equivalent Shadow observation as a strictly non-mutating evidence stage that can observe real/public market inputs without creating broker, order, fill, cash, position, LIVE, or production-promotion authority."
+objective: "Define fail-closed Restricted LIVE governance with exact human authority, bounded scope, safety evidence, expiry, cooldown, rollback readiness, and auditability while keeping actual LIVE execution transport disconnected."
 base_branch: main
-active_branch: agent/shadow
-active_pull_request: 143
-base_commit: 3607a8796a680101175701582a6729db26334778
+active_branch: agent/restricted-live
+active_pull_request: 144
+base_commit: d68e6553902f8d6d4f69fe6237c35c1db8649a0e
 claimed_state:
-  work_order: WO-0030
+  work_order: WO-0031
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0029
+  work_order: WO-0030
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0029-completion.json"
+  evidence: ".aipos/evidence/WO-0030-completion.json"
 latest_verified_slice:
-  id: wo-0029-safety-architecture-complete
-  evidence: ".aipos/evidence/WO-0029-completion.json"
-  summary: "WO-0029 is complete. Hard Risk Governor authority is final, learned risk cannot relax hard limits, safety-critical UNKNOWN fails closed, and operational state is SAFE/DEGRADED/RESTRICTED/HALT."
+  id: wo-0030-shadow-complete
+  evidence: ".aipos/evidence/WO-0030-completion.json"
+  summary: "WO-0030 is complete. Shadow is evidence-producing and production-equivalent for observation while remaining execution-disconnected and unable to grant LIVE or production authority."
 completed:
+  - id: WO-0030
+    evidence: ".aipos/evidence/WO-0030-completion.json"
+    summary: "Added Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, regressions, and CI enforcement."
   - id: WO-0029
     evidence: ".aipos/evidence/WO-0029-completion.json"
-    summary: "Added deterministic Safety Architecture authority separation, UNKNOWN fail-closed semantics, operational states, focused regressions, and CI enforcement."
+    summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
   - id: WO-0028
     evidence: ".aipos/evidence/WO-0028-completion.json"
     summary: "Added Capability Deployment Bundle integrity and atomic verified rollback."
@@ -35,22 +38,19 @@ completed:
   - id: WO-0025
     evidence: ".aipos/evidence/WO-0025-completion.json"
     summary: "Added cross-AI handoff conformance."
-  - id: WO-0024
-    evidence: ".aipos/evidence/WO-0024-completion.json"
-    summary: "Added architecture change lifecycle governance."
 in_progress:
-  - id: WO-0030
-    evidence: ".aipos/work-orders/WO-0030-shadow.yaml; PR #143"
-    summary: "Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, 8 focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0031
+    evidence: ".aipos/work-orders/WO-0031-restricted-live.yaml; PR #144"
+    summary: "Restricted LIVE governance contracts, two-human approval, exact bounded scope, SAFE-only safety evidence, expiry/cooldown/rollback requirements, break-glass risk-reduction limits, 8 focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0030-shadow.yaml
-  reason: "Complete PR #143 official verification and merge before Restricted LIVE begins."
+  work_order: .aipos/work-orders/WO-0031-restricted-live.yaml
+  reason: "Complete PR #144 official verification and merge. Completion does not activate real-money LIVE execution."
 verification:
   required:
+    - "Restricted LIVE governance validation"
+    - "Focused Restricted LIVE governance regression tests"
     - "Shadow governance validation"
-    - "Focused Shadow governance regression tests"
-    - "Existing Shadow pilot no-mutation verification"
     - "Safety Architecture validation"
     - "Deployment bundle validation"
     - "Data & Strategy Identity validation"
@@ -63,26 +63,34 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0030 implementation committed on PR #143; official required CI pending. WO-0029 remains evidence-backed COMPLETE."
-  current_commit: "864c502453abc6ceb9db19fe3812f1d41fc101d8 plus AIPOS PR-state commit"
+  last_result: "Official CI 31173143132 failed only at cross-AI conformance because the legacy constitutional live_trading_mutation prohibition was omitted from state; field restored. Actual LIVE execution remains disconnected."
+  current_commit: "AIPOS live mutation prohibition fix"
 human_authority:
   live_trading_mutation: prohibited
+  live_authority: human_only
+  risk_increase_approvers_required: 2
+  duplicate_approver_identity: prohibited
+  automatic_live_activation: prohibited
+  ai_live_authority: prohibited
+  meta_ai_live_authority: prohibited
   production_promotion_mutation: prohibited
   architecture_override: explicit_only
-shadow_authority:
-  mode: SHADOW_READ_ONLY
+restricted_live_authority:
+  default_state: DISABLED
   execution_transport_connected: false
-  broker_mutation: prohibited
-  order_mutation: prohibited
-  fill_mutation: prohibited
-  cash_mutation: prohibited
-  position_mutation: prohibited
-  evidence_grants_live_authority: false
-  evidence_grants_production_promotion: false
+  credential_storage_present: false
+  operational_state_required: SAFE
+  safety_critical_unknown: fail_closed
+  authorization_single_use: true
+  bounded_scope_required: true
+  expiry_required: true
+  cooldown_required: true
+  verified_rollback_required: true
+  break_glass_risk_increase: prohibited
 safety_authority:
   hard_risk_override: prohibited
-  learned_risk_may_relax_hard_limits: false
-  safety_critical_unknown: fail_closed_for_risk_increase
+  kill_switch_override: prohibited
+  halt_override: prohibited
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
