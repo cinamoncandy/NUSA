@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "mode": "RESTRICTED_LIVE_ACTIVATION_BOUNDARY",
+  "defaultDecision": "DENY",
+  "allowedMachineDecisions": ["DENY", "ELIGIBLE_FOR_HUMAN_REVIEW"],
+  "prohibitedMachineDecisions": ["ACTIVE", "EXECUTE", "CONNECT", "SUBMIT_ORDER"],
+  "activationExecutorPresent": false,
+  "executionTransportConnected": false,
+  "credentialAccessAllowed": false,
+  "automaticActivationAllowed": false,
+  "realMoneyExecutionAllowed": false,
+  "liveTradingMutation": "prohibited",
+  "requiredHumanApprovers": 2,
+  "requireDistinctHumanApprovers": true,
+  "requireExactScope": true,
+  "requireSingleUseNonce": true,
+  "rejectReplay": true,
+  "requireExpiry": true,
+  "requiredOperationalState": "SAFE",
+  "safetyCriticalUnknownAllowed": false,
+  "requiredHardRiskResult": "PASS",
+  "requiredDeploymentIntegrityResult": "PASS",
+  "killSwitchMustBeInactive": true,
+  "openP0Allowed": false,
+  "requireVerifiedRollback": true,
+  "requireReadinessEvidence": true,
+  "requiredReadinessWorkOrder": "WO-0032",
+  "requiredReadinessArtifactDigest": "sha256:11968ccb0c8cbc2b97a80d1a4eff8b7ff91a61829bc7a9f5d15e4b782e5bd5de",
+  "requiredReadinessCodeRevision": "1c03af1bfc3fb93ec9d7a55a6b4d5f11d6825682",
+  "authority": {
+    "humanLiveAuthority": true,
+    "aiLiveAuthority": false,
+    "metaAiLiveAuthority": false,
+    "ciLiveAuthority": false,
+    "shadowLiveAuthority": false,
+    "promotionEvidenceLiveAuthority": false
+  },
+  "representativeRequest": {
+    "decision": "DENY",
+    "authorizationId": "restricted-live-activation-fixture",
+    "nonce": "fixture-single-use-nonce",
+    "requester": {"principalId": "human-requester", "kind": "HUMAN"},
+    "approvers": [
+      {"principalId": "human-approver-a", "kind": "HUMAN"},
+      {"principalId": "human-approver-b", "kind": "HUMAN"}
+    ],
+    "scope": {
+      "deploymentBundleId": "paper-safe-v1",
+      "artifactDigest": "sha256:fixture-artifact",
+      "capabilityContract": "paper-order-execution@1",
+      "strategyIdentity": "fixture-strategy@1",
+      "symbols": ["KRW-BTC"],
+      "maxOrderNotional": 10000,
+      "maxPortfolioExposure": 10000,
+      "rollbackBundleId": "paper-safe-v1"
+    },
+    "issuedAt": "2026-08-07T12:00:00Z",
+    "expiresAt": "2026-08-07T12:15:00Z",
+    "reason": "Representative bounded request; remains DENY because this work order cannot activate LIVE.",
+    "safety": {
+      "operationalState": "SAFE",
+      "safetyCriticalUnknown": false,
+      "hardRiskResult": "PASS",
+      "deploymentIntegrityResult": "PASS",
+      "killSwitchActive": false,
+      "openP0": false,
+      "rollbackVerified": true
+    },
+    "readinessEvidence": {
+      "workOrder": "WO-0032",
+      "artifactDigest": "sha256:11968ccb0c8cbc2b97a80d1a4eff8b7ff91a61829bc7a9f5d15e4b782e5bd5de",
+      "codeRevision": "1c03af1bfc3fb93ec9d7a55a6b4d5f11d6825682"
+    },
+    "noncePreviouslyConsumed": false
+  }
+}
