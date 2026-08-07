@@ -1,7 +1,9 @@
 "use strict";
+const fs = require("node:fs");
 const os = require("node:os");
+const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const root = require("node:path").resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..");
 function run(command) {
   try {
     if (os.platform() === "win32") return execFileSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", command], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -22,8 +24,13 @@ if (start >= 0) {
     }
   } catch { console.log("[audit-diagnostic] audit-json-parse-failed"); }
 }
-for (const spec of ["image-size@2.0.3", "nanoid@3.3.17"]) {
-  console.log(`[registry-diagnostic] ${spec} integrity=${run(`pnpm view ${spec} dist.integrity`)}`);
-  console.log(`[registry-diagnostic] ${spec} dependencies=${run(`pnpm view ${spec} dependencies --json`) || "{}"}`);
-  console.log(`[registry-diagnostic] ${spec} engines=${run(`pnpm view ${spec} engines --json`) || "{}"}`);
+console.log(`[registry-diagnostic] nanoid@3.3.17 integrity=${run("pnpm view nanoid@3.3.17 dist.integrity")}`);
+const packageRoot = path.dirname(require.resolve("image-size/package.json"));
+for (const relative of ["dist/types/icns.js", "dist/types/utils.js", "dist/types/heif.js", "dist/types/jxl.js"]) {
+  const file = path.join(packageRoot, relative);
+  console.log(`[image-size-file] ${relative} exists=${fs.existsSync(file)}`);
+  if (fs.existsSync(file)) {
+    const text = fs.readFileSync(file, "utf8");
+    console.log(`[image-size-file-content:${relative}]\n${text}\n[/image-size-file-content:${relative}]`);
+  }
 }
