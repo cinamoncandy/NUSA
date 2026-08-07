@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T20:30:00+09:00"
-phase: restricted-live
-status: verifying
-objective: "Define fail-closed Restricted LIVE governance with exact human authority, bounded scope, safety evidence, expiry, cooldown, rollback readiness, and auditability while keeping actual LIVE execution transport disconnected."
+updated_at: "2026-08-07T20:45:00+09:00"
+phase: restricted-live-operational-evidence
+status: implementing
+objective: "Prove Restricted LIVE governance at runtime through deterministic dry-run evidence while keeping execution transport, credentials, broker calls, real orders, fills, cash mutation, and position mutation at exactly zero."
 base_branch: main
-active_branch: agent/restricted-live
-active_pull_request: 144
-base_commit: d68e6553902f8d6d4f69fe6237c35c1db8649a0e
+active_branch: agent/restricted-live-operational-evidence
+active_pull_request: null
+base_commit: 924ac50eb9c39d00683606b4097a2da0af59bbab
 claimed_state:
-  work_order: WO-0031
+  work_order: WO-0032
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0030
+  work_order: WO-0031
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0030-completion.json"
+  evidence: ".aipos/evidence/WO-0031-completion.json"
 latest_verified_slice:
-  id: wo-0030-shadow-complete
-  evidence: ".aipos/evidence/WO-0030-completion.json"
-  summary: "WO-0030 is complete. Shadow is evidence-producing and production-equivalent for observation while remaining execution-disconnected and unable to grant LIVE or production authority."
+  id: wo-0031-restricted-live-governance-complete
+  evidence: ".aipos/evidence/WO-0031-completion.json"
+  summary: "WO-0031 is complete. Restricted LIVE governance is fail-closed, human-authorized, bounded, auditable, and does not activate real-money LIVE execution."
 completed:
+  - id: WO-0031
+    evidence: ".aipos/evidence/WO-0031-completion.json"
+    summary: "Added Restricted LIVE governance with two distinct human approvers, exact scope, SAFE-only evidence, single-use/expiry/cooldown/rollback, and break-glass risk-reduction limits."
   - id: WO-0030
     evidence: ".aipos/evidence/WO-0030-completion.json"
     summary: "Added Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, regressions, and CI enforcement."
@@ -35,21 +38,19 @@ completed:
   - id: WO-0026
     evidence: ".aipos/evidence/WO-0026-completion.json"
     summary: "Added Champion/Challenger governance."
-  - id: WO-0025
-    evidence: ".aipos/evidence/WO-0025-completion.json"
-    summary: "Added cross-AI handoff conformance."
 in_progress:
-  - id: WO-0031
-    evidence: ".aipos/work-orders/WO-0031-restricted-live.yaml; PR #144"
-    summary: "Restricted LIVE governance contracts, two-human approval, exact bounded scope, SAFE-only safety evidence, expiry/cooldown/rollback requirements, break-glass risk-reduction limits, 8 focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0032
+    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-evidence.yaml"
+    summary: "Restricted LIVE dry-run operational evidence harness, fail-closed scenarios, zero-mutation counters, regressions, and CI artifact upload are being implemented."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0031-restricted-live.yaml
-  reason: "Complete PR #144 official verification and merge. Completion does not activate real-money LIVE execution."
+  work_order: .aipos/work-orders/WO-0032-restricted-live-operational-evidence.yaml
+  reason: "Complete operational verification and merge. Real-money LIVE execution remains prohibited and disconnected."
 verification:
   required:
+    - "Restricted LIVE operational evidence regression tests"
+    - "Restricted LIVE operational verification artifact"
     - "Restricted LIVE governance validation"
-    - "Focused Restricted LIVE governance regression tests"
     - "Shadow governance validation"
     - "Safety Architecture validation"
     - "Deployment bundle validation"
@@ -63,8 +64,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "Official CI 31173143132 failed only at cross-AI conformance because the legacy constitutional live_trading_mutation prohibition was omitted from state; field restored. Actual LIVE execution remains disconnected."
-  current_commit: "AIPOS live mutation prohibition fix"
+  last_result: "WO-0031 is evidence-backed COMPLETE. WO-0032 implementation is in progress; actual LIVE execution remains disconnected."
+  current_commit: "5428d59aaa9cf4156bfdeeb9685c98967547bc63 plus AIPOS state commit"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -87,6 +88,13 @@ restricted_live_authority:
   cooldown_required: true
   verified_rollback_required: true
   break_glass_risk_increase: prohibited
+operational_evidence:
+  actual_broker_calls_required: 0
+  credential_access_required: 0
+  actual_orders_required: 0
+  actual_fills_required: 0
+  cash_mutations_required: 0
+  position_mutations_required: 0
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
