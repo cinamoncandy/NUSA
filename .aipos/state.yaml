@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T13:09:00+09:00"
+updated_at: "2026-08-07T13:24:00+09:00"
 phase: p0-architecture-aipos-drift-gate
-status: implementing
+status: verifying
 objective: "Enforce architecture-to-AIPOS synchronization in CI and prevent stale or contradictory execution state from being treated as verified."
 base_branch: main
 active_branch: agent/p0-a-architecture-aipos-drift-gate
-active_pull_request: null
-base_commit: 05eb8b426ce54447a0cecd0e1a59bb06478f8330
+active_pull_request: 133
+base_commit: 0fae7656bbd1bcd105f5d41d4ad7c432c25ccf6a
 latest_verified_slice:
   id: wo-0019-oracle-runtime-complete
   evidence: "PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; official GitHub CI PASS; Oracle pnpm test PASS with 370 isolated test files; Oracle security:gate PASS; Oracle cloud runtime/listener, health/dashboard, restart fail-closed verification PASS; approval/audit/runtime-wiring tests 5/5, 2/2, 27/27 PASS."
@@ -39,12 +39,12 @@ completed:
     summary: "Added vulnerability, license, integrity, secret, SBOM, artifact checksum, and CI security controls."
 in_progress:
   - id: WO-0020
-    evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml"
-    summary: "Implement deterministic Architecture/AIPOS drift validation, regression tests, and CI enforcement."
+    evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml; PR #133"
+    summary: "Deterministic Architecture/AIPOS drift validator, regression tests, and CI enforcement implemented; official PR CI verification in progress."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml
-  reason: "Architecture/AIPOS drift is already evidenced by stale state on main; enforce the synchronization contract before P0-B Verified State & Evidence Integrity begins."
+  reason: "Complete PR #133 verification and merge P0-A before P0-B Verified State & Evidence Integrity begins."
 verification:
   required:
     - "Focused Architecture/AIPOS drift-gate tests"
@@ -52,8 +52,8 @@ verification:
     - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "WO-0019 COMPLETE: official GitHub CI PASS; Oracle full suite/security/runtime/dashboard/restart/fail-closed verification PASS; focused approval/audit/runtime-wiring tests PASS. P0-A implementation not yet verified."
-  current_commit: "05eb8b426ce54447a0cecd0e1a59bb06478f8330"
+  last_result: "P0-A implementation committed on PR #133; official required CI pending. WO-0019 remains COMPLETE."
+  current_commit: "f6eacdb7a79c7459053ae4a3ce39d15680a3094c"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
