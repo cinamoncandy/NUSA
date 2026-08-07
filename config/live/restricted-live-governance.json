@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "mode": "RESTRICTED_LIVE_GOVERNANCE_ONLY",
+  "default_state": "DISABLED",
+  "execution_transport_connected": false,
+  "credential_storage_present": false,
+  "automatic_live_activation_allowed": false,
+  "authorities": {
+    "live": "human-live-authority",
+    "hard_risk": "hard-risk-governor",
+    "kill_switch": "independent-kill-switch-authority",
+    "production_promotion": "human-production-promotion-authority"
+  },
+  "requirements": {
+    "risk_increase_requires_two_distinct_humans": true,
+    "operational_state_required": "SAFE",
+    "safety_critical_unknown_must_be_false": true,
+    "hard_risk_result_required": "PASS",
+    "deployment_integrity_required": "PASS",
+    "kill_switch_must_be_inactive": true,
+    "open_p0_must_be_false": true,
+    "authorization_single_use": true,
+    "bounded_scope_required": true,
+    "expiry_required": true,
+    "cooldown_required": true,
+    "verified_rollback_required": true,
+    "reason_required": true,
+    "audit_evidence_required": true
+  },
+  "prohibitions": [
+    "ai_live_authority",
+    "meta_ai_live_authority",
+    "shadow_evidence_live_authority",
+    "promotion_evidence_live_authority",
+    "ci_live_authority",
+    "automation_live_authority",
+    "single_person_risk_increase",
+    "duplicate_approver_identity",
+    "unbounded_live_scope",
+    "expired_live_authorization",
+    "hard_risk_override",
+    "kill_switch_override",
+    "halt_override",
+    "break_glass_risk_increase"
+  ],
+  "break_glass": {
+    "allowed_action": "EMERGENCY_RISK_REDUCTION",
+    "may_increase_risk": false,
+    "may_override_hard_risk": false,
+    "may_override_kill_switch": false,
+    "may_override_halt": false,
+    "audit_required": true
+  },
+  "representative_authorization": {
+    "authorization_id": "restricted-live-governance-example-v1",
+    "state": "DISABLED",
+    "requester": {"principal_id": "human-requester", "kind": "HUMAN"},
+    "approvers": [
+      {"principal_id": "human-approver-a", "kind": "HUMAN"},
+      {"principal_id": "human-approver-b", "kind": "HUMAN"}
+    ],
+    "action": "RISK_INCREASE",
+    "reason": "Governance fixture only; no execution authority is active.",
+    "issued_at": "2026-08-07T20:05:00+09:00",
+    "scope": {
+      "deployment_bundle_id": "regime-detection-bundle-baseline-v1",
+      "capability_contract": "REGIME_DETECTION@1.0.0",
+      "strategy_identity": "strategy-regime-detection-baseline-v1",
+      "symbols": ["KRW-BTC"],
+      "max_order_notional": 100000,
+      "max_portfolio_exposure": 500000,
+      "starts_at": "2026-08-07T20:10:00+09:00",
+      "expires_at": "2026-08-07T20:40:00+09:00",
+      "cooldown_seconds": 900,
+      "rollback_bundle_id": "regime-detection-bundle-baseline-v1"
+    },
+    "safety": {
+      "operational_state": "SAFE",
+      "safety_critical_unknown": false,
+      "hard_risk_result": "PASS",
+      "deployment_integrity_result": "PASS",
+      "kill_switch_active": false,
+      "open_p0": false,
+      "evidence_ids": ["governance-fixture-no-live-activation"]
+    },
+    "single_use": true,
+    "execution_transport_connected": false,
+    "credential_storage_present": false,
+    "automatic_activation_allowed": false,
+    "ai_authority_allowed": false,
+    "meta_ai_authority_allowed": false,
+    "shadow_evidence_grants_authority": false,
+    "production_promotion_evidence_grants_authority": false
+  }
+}
