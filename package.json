@@ -33,6 +33,7 @@
     "shadow:check": "node scripts/validate-shadow-governance.js",
     "restricted-live:check": "node scripts/validate-restricted-live-governance.js",
     "restricted-live:readiness": "node scripts/restricted-live-readiness-harness.js",
+    "restricted-live:activation-boundary": "node scripts/validate-restricted-live-activation-boundary.js",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
