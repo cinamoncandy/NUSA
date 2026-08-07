@@ -1,6 +1,6 @@
 id: WO-0019
 title: "P0 #007 Paper Risk Wiring Regression"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -36,8 +36,15 @@ verification_evidence:
   oracle:
     full_test_suite: "PASS: 370 isolated test files"
     security_gate: "PASS: high 0, critical 0, secrets 0"
-    paper_runtime_end_to_end: PENDING
-completion_rule: "Do not mark VERIFIED/COMPLETED until Oracle real-environment PAPER runtime verification passes all required_runtime_verification checks."
+    cloud_runtime_listener: "PASS: listening on 127.0.0.1:8787"
+    health_endpoint: "PASS: HTTP 200"
+    authenticated_dashboard: "PASS: HTTP 200; mode PAPER; killSwitchActive true; tradingAllowed false; overallHealth DOWN"
+    restart_persistence_fail_closed: "PASS: recovered snapshot remains read-only until fresh market data; NO_MARKET_DATA / WAIT / CRITICAL"
+    paper_approval_service: "PASS: 5/5"
+    kill_switch_audit_persistence: "PASS: 2/2"
+    risk_safety_runtime_wiring: "PASS: 27/27; fail 0"
+    paper_runtime_end_to_end: PASS
+completion_rule: "VERIFIED and COMPLETED only after Oracle real-environment PAPER runtime verification passes all required_runtime_verification checks."
 fail_conditions:
   - "LIVE mutation becomes enabled."
   - "Kill switch auto-releases."
@@ -46,4 +53,5 @@ fail_conditions:
   - "Broker is called after risk/evidence persistence failure."
   - "STRATEGY approval is automatically restored after restart."
   - "Dashboard killSwitchActive diverges from the real persisted kill-switch state."
-next_action: "Run Oracle real-environment PAPER runtime verification. Do not begin the next implementation work order before this passes."
+completion_evidence: "PR #129 merged; official CI PASS; Oracle full suite/security/runtime/dashboard/restart/fail-closed verification PASS; focused approval/audit/runtime-wiring tests 5/5, 2/2, 27/27 PASS."
+next_action: "WO-0019 is complete. Proceed to P0-A Architecture/AIPOS Drift Gate; LIVE activation remains prohibited."
