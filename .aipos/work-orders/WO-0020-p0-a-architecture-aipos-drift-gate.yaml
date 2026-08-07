@@ -4,6 +4,7 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
+base_commit: 0fae7656bbd1bcd105f5d41d4ad7c432c25ccf6a
 implementation_branch: agent/p0-a-architecture-aipos-drift-gate
 objective: "Make architecture-to-AIPOS synchronization enforceable so stale execution state, missing governing architecture references, and unacknowledged architecture impact fail CI before implementation can be treated as verified."
 source_of_truth:
@@ -15,6 +16,13 @@ source_of_truth:
     - .aipos/aipos.yaml
     - .aipos/state.yaml
     - .aipos/work-orders
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-A enforces the existing architecture_to_aipos contract. It adds validation and CI enforcement only; it does not redefine authority, risk, deployment, or LIVE mutation semantics."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
 requirements:
   - "Add a deterministic architecture/AIPOS drift validator suitable for local and CI execution."
   - "Fail when required governing architecture/AIPOS paths are absent or inconsistent."
