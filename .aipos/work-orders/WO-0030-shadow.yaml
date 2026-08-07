@@ -1,0 +1,49 @@
+id: WO-0030
+title: "Shadow"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3607a8796a680101175701582a6729db26334778
+implementation_branch: agent/shadow
+objective: "Govern production-equivalent Shadow observation as a strictly non-mutating, evidence-producing stage that can measure decisions against real/public market inputs without creating broker, cash, position, order, fill, LIVE, or production-promotion authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0030 operationalizes the existing Shadow boundary. Existing ShadowPilotRuntime remains execution-disconnected. This work adds machine-readable governance, evidence semantics, and CI checks so Shadow observation cannot be mistaken for LIVE authority or production mutation proof."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Define SHADOW_READ_ONLY as a first-class execution mode with real/public market observation allowed and broker/order/fill/cash/position mutation prohibited."
+  - "Require Shadow to use production-equivalent decision, safety, identity, and deployment references while keeping execution transport disconnected."
+  - "Require every Shadow session to publish immutable/hash-bound observation evidence and zero actual mutation counters."
+  - "Invalidate any Shadow session containing an actual broker call or actual order/fill/cash/position mutation."
+  - "Keep Shadow observation evidence separate from production promotion authority and HUMAN LIVE authorization."
+  - "Treat missing source revision, deployment bundle identity, strategy identity, safety policy identity, or market-data provenance as UNKNOWN and fail closed for completion."
+  - "Require observed decisions to retain hard-risk/safety outcomes; Shadow may not rewrite rejected or halted decisions into hypothetical allows."
+  - "Add deterministic validator, focused regressions, and CI enforcement while preserving all existing gates."
+acceptance:
+  - "Shadow governance validator PASS."
+  - "Focused Shadow governance regression tests PASS."
+  - "Actual broker/order/fill/cash/position mutation fails closed."
+  - "Missing provenance or identity binding fails closed."
+  - "Shadow evidence cannot grant production promotion or LIVE authority."
+  - "Existing Safety Architecture, Deployment, Identity, Champion/Challenger, AIPOS, PAPER operational, architecture, and security gates PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before Restricted LIVE begins."
+safety:
+  live_trading_mutation: prohibited
+  production_promotion_mutation: prohibited
+  broker_mutation: prohibited
+  order_mutation: prohibited
+  fill_mutation: prohibited
+  cash_mutation: prohibited
+  position_mutation: prohibited
+completion_rule: "Merge + required test/CI PASS. Do not begin Restricted LIVE before this work order is complete."

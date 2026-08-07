@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0029-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0029",
+    "path": ".aipos/work-orders/WO-0029-safety-architecture.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "e9e11ccbdca76b18aaf50dd3969022a6232c4b0e"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "3607a8796a680101175701582a6729db26334778"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T19:47:00+09:00",
+  "provenance": ["github:pull/142", "github:actions/run/31170846583", "git:merge/3607a8796a680101175701582a6729db26334778"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31170846583"},
+    {"name": "focused_safety_architecture_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "hard_risk_override_prohibited", "status": "PASS"},
+    {"name": "safety_critical_unknown_fail_closed", "status": "PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"},
+    {"name": "production_promotion_mutation_prohibited", "status": "PASS"}
+  ]
+}

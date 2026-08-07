@@ -30,6 +30,7 @@
     "identity:check": "node scripts/validate-data-strategy-identity.js",
     "deployment:check": "node scripts/validate-deployment-bundles.js",
     "safety:architecture": "node scripts/validate-safety-architecture.js",
+    "shadow:check": "node scripts/validate-shadow-governance.js",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
