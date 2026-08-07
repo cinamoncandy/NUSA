@@ -1,0 +1,51 @@
+id: WO-0040
+title: "Operations Control Center"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6
+implementation_branch: agent/wo-0040-operations-control-center
+objective: "Provide a secret-free, mutation-free operational control center for health, incidents, alerts, evidence pointers, risk/kill-switch visibility, and safe-reduction requests without adding LIVE execution authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0040 reimplements only safe operational-observability intent from stale A5f branches. The control center is a projection and safe-reduction request boundary, not an execution authority. It cannot release kill switches, authorize ACTIVE, resolve execution credentials, or mutate broker/order/cash/position state."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Expose immutable secret-free operational snapshots covering runtime, market data, reconciliation, hard risk, kill switch, governance state, recovery readiness, and evidence references."
+  - "UNKNOWN or missing safety-critical health must remain visible and fail closed; the projection must never synthesize HEALTHY/SAFE."
+  - "Provide alert acknowledgement and incident timeline records with actor/time/audit evidence."
+  - "Control requests are limited to safe reduction: REQUEST_HALT and REQUEST_RECOVERY_REVIEW; they must not directly mutate LIVE state or release a kill switch."
+  - "AI/Meta-AI/automation/provider adapters receive no risk-increase, ACTIVE authorization, kill-switch release, execution credential, or order authority through this module."
+  - "All operator-facing payloads redact secret-like keys and values."
+  - "Evidence references are pointers/digests only; raw credential or authorization material is prohibited."
+  - "No submit/amend/cancel/withdraw/broker execution/cash/position mutation methods may be added."
+  - "Add focused regression tests and machine-readable source validation under existing Full CI."
+acceptance:
+  - "Operations control center regressions PASS."
+  - "Secret material is redacted and execution methods are absent."
+  - "UNKNOWN remains fail-closed in projected health."
+  - "Only safe-reduction/review control intents are accepted; risk-increase intents fail."
+  - "Capability Surface Guard and existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  cash_position_mutation: prohibited
+  kill_switch_release: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion adds operational visibility and safe-reduction requests only; it cannot activate or execute LIVE trading."
