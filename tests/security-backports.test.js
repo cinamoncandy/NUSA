@@ -6,15 +6,16 @@ const {
   patchExact,
   patchImageSizeIcns,
   patchNanoidSync,
+  patchNanoidAsyncBrowser,
   patchNanoidAsyncNode
 } = require("../scripts/security-backports.js");
 const { evaluateAudit } = require("../scripts/security-gate-backports.js");
 
-test("image-size ICNS patch adds exactly two progress guards and is idempotent", () => {
+test("image-size ICNS patch guards exactly two offset increments and is idempotent", () => {
   const vulnerable = [
-    "const imageHeader = readImageHeader(input, imageOffset);\n        const imageSize = getImageSize(imageHeader[0]);",
+    "imageOffset += imageHeader[1];",
     "middle",
-    "const imageHeader = readImageHeader(input, imageOffset);\n        const imageSize = getImageSize(imageHeader[0]);"
+    "imageOffset += imageHeader[1];"
   ].join("\n");
   const first = patchImageSizeIcns(vulnerable);
   assert.equal(first.changed, true);
@@ -30,7 +31,9 @@ test("backport patchers fail closed when upstream source shape drifts", () => {
 test("nanoid sync and async patches terminate zero-size generators", () => {
   const sync = patchNanoidSync("return (size = defaultSize) => {\n    let id = ''", "sync");
   assert.match(sync.text, /if \(size <= 0\) return ''/);
-  const asyncNode = patchNanoidAsyncNode("return size => tick('', size)", "async");
+  const asyncBrowser = patchNanoidAsyncBrowser("return async (size = defaultSize) => {\n    let id = ''", "async-browser");
+  assert.match(asyncBrowser.text, /if \(size <= 0\) return ''/);
+  const asyncNode = patchNanoidAsyncNode("return size => tick('', size)", "async-node");
   assert.match(asyncNode.text, /if \(size <= 0\) return Promise\.resolve\(''\)/);
 });
 
