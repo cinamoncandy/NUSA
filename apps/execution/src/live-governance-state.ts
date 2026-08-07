@@ -19,13 +19,15 @@ export interface HumanAuthorization {
   readonly consumed: boolean;
 }
 
+const states = <T extends readonly LiveGovernanceState[]>(...values: T): T => values;
+
 const transitions: Readonly<Record<LiveGovernanceState, readonly LiveGovernanceState[]>> = Object.freeze({
-  DISABLED: Object.freeze(["ARMED"]),
-  ARMED: Object.freeze(["AUTHORIZED", "DISABLED", "HALT"]),
-  AUTHORIZED: Object.freeze(["ACTIVE", "COOLDOWN", "DISABLED", "HALT"]),
-  ACTIVE: Object.freeze(["COOLDOWN", "HALT"]),
-  COOLDOWN: Object.freeze(["DISABLED", "HALT"]),
-  HALT: Object.freeze(["DISABLED"]),
+  DISABLED: states("ARMED"),
+  ARMED: states("AUTHORIZED", "DISABLED", "HALT"),
+  AUTHORIZED: states("ACTIVE", "COOLDOWN", "DISABLED", "HALT"),
+  ACTIVE: states("COOLDOWN", "HALT"),
+  COOLDOWN: states("DISABLED", "HALT"),
+  HALT: states("DISABLED"),
 });
 
 export function allowedLiveGovernanceTransitions(): Readonly<Record<LiveGovernanceState, readonly LiveGovernanceState[]>> {
