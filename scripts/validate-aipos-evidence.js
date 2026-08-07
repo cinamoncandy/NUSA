@@ -15,8 +15,12 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function normalizeGitText(content) {
+  return content.replace(/\r\n/g, "\n");
+}
+
 function gitBlobSha1(content) {
-  const bytes = Buffer.from(content, "utf8");
+  const bytes = Buffer.from(normalizeGitText(content), "utf8");
   const header = Buffer.from(`blob ${bytes.length}\0`, "utf8");
   return createHash("sha1").update(Buffer.concat([header, bytes])).digest("hex");
 }
@@ -138,4 +142,4 @@ if (require.main === module) {
   console.log("AIPOS verified-state/evidence integrity validation PASS");
 }
 
-module.exports = { canonical, gitBlobSha1, sha256, validateEvidenceRecord, validateRepository };
+module.exports = { canonical, gitBlobSha1, normalizeGitText, sha256, validateEvidenceRecord, validateRepository };
