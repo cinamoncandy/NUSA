@@ -58,9 +58,11 @@ function buildEvidence(profile, codeRevision = process.env.GITHUB_SHA || 'local'
 }
 
 function main() {
-  const profilePath = path.resolve(process.argv[2] || 'config/live/restricted-live-readiness.json');
-  const outputArg = process.argv.indexOf('--output');
-  const outputPath = outputArg >= 0 ? path.resolve(process.argv[outputArg + 1]) : null;
+  const args = process.argv.slice(2).filter((arg) => arg !== '--');
+  const outputArg = args.indexOf('--output');
+  const outputPath = outputArg >= 0 ? path.resolve(args[outputArg + 1]) : null;
+  const positional = args.filter((arg, index) => arg !== '--output' && (index === 0 || args[index - 1] !== '--output'));
+  const profilePath = path.resolve(positional[0] || 'config/live/restricted-live-readiness.json');
   const profile = loadJson(profilePath);
   const evidence = buildEvidence(profile);
   if (outputPath) {
