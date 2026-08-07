@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "policy": {
+    "self_evaluation": "prohibited",
+    "self_promotion": "prohibited",
+    "meta_ai_final_evaluation_authority": "prohibited",
+    "production_mutation": "prohibited",
+    "sealed_dataset_mutation_after_registration": "prohibited"
+  },
+  "evaluations": [
+    {
+      "id": "cc-regime-detection-baseline-v1",
+      "capability_id": "REGIME_DETECTION",
+      "contract_version": "1.0.0",
+      "champion": {
+        "id": "regime-detection-internal-baseline",
+        "implementation_version": "1.0.0",
+        "lineage": {
+          "model": "deterministic-statistical-baseline",
+          "provider": "internal",
+          "data": ["market-regime-fixture-v1"],
+          "tools": [],
+          "implementation": "packages/core/regime-detection-baseline-v1"
+        }
+      },
+      "challenger": {
+        "id": "regime-detection-challenger-fixture",
+        "implementation_version": "0.1.0",
+        "lineage": {
+          "model": "challenger-fixture-model",
+          "provider": "internal-fixture",
+          "data": ["market-regime-fixture-v1"],
+          "tools": [],
+          "implementation": "research/fixtures/regime-detection-challenger-v1"
+        }
+      },
+      "evaluation": {
+        "benchmark": {
+          "id": "regime-benchmark-v1",
+          "version": "1",
+          "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "registered_at": "2026-08-07T17:12:00+09:00",
+          "mutable_after_registration": false,
+          "accessible_to_candidate_during_evaluation": false
+        },
+        "holdout": {
+          "id": "regime-holdout-v1",
+          "version": "1",
+          "content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "registered_at": "2026-08-07T17:12:00+09:00",
+          "mutable_after_registration": false,
+          "accessible_to_candidate_during_evaluation": false
+        },
+        "authority": {
+          "proposer_id": "meta-ai-research-coordinator",
+          "evaluator_id": "independent-evaluation-authority",
+          "promotion_authority_id": "deployment-gate-authority",
+          "meta_ai_proposer": true
+        },
+        "code_revision": "fixture-only-not-production",
+        "configuration_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "metrics": {
+          "robustness": 0,
+          "calibration": 0,
+          "latency_ms": 0,
+          "cost": 0
+        },
+        "failure_semantics": ["INCONCLUSIVE_ON_MISSING_EVIDENCE", "FAIL_CLOSED_ON_AUTHORITY_CONFLICT"],
+        "recommendation": "INCONCLUSIVE",
+        "observed_at": "2026-08-07T17:12:00+09:00",
+        "provenance": ["fixture:governance-contract-only"]
+      }
+    }
+  ]
+}
