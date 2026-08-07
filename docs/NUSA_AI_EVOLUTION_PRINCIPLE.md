@@ -34,6 +34,28 @@ For each AI domain, NUSA should periodically determine:
 
 This applies not only to foundation models, but also to AI functions and system architecture, including strategy discovery, market intelligence, regime detection, portfolio optimization, AI-CIO decision making, risk intelligence, execution intelligence, continual learning, evaluation, research automation, and Meta-AI control.
 
+## Highest-Capability Learning Standard
+
+NUSA's learning capability must itself be maintained at the highest proven level available for the system's objectives. Learning is not a single feature; it is a governed lifecycle spanning memory, research, strategy improvement, model improvement, agent improvement, system improvement, and evaluation.
+
+NUSA should evolve toward a Continual Learning & Research System with the following capabilities:
+
+- persistent experience and evidence memory from market data, decisions, Paper/Live outcomes, risk blocks, failures, and operator actions;
+- post-decision and post-trade evaluation that separates skill from noise, luck, regime effects, data leakage, and overfitting;
+- strategy learning that can generate, mutate, combine, retire, and re-test investment hypotheses and strategy candidates;
+- model and agent learning that can improve prompts, tools, retrieval, routing, ensembles, fine-tuning, distillation, and agent topology where validated;
+- system learning that can propose improved AI roles, interfaces, workflows, and architectures for evaluation by the Meta-AI Governor;
+- explicit uncertainty, calibration, provenance, reproducibility, and rollback evidence for every promoted learning result;
+- Champion/Challenger evaluation for learned strategies, models, agents, prompts, and learning methods themselves.
+
+Learning results must never be allowed to mutate LIVE behavior directly. The default learning progression is:
+
+`Observe -> Store Evidence -> Evaluate -> Generate Learning Candidate -> Offline Train/Adapt -> Backtest/Historical Replay -> Walk-Forward -> Shadow -> Champion/Challenger -> Paper Canary -> Approved Promotion`
+
+Online self-modification of production trading logic, risk policy, execution policy, or model configuration without this validation chain is prohibited.
+
+The learning system must also learn how to improve itself: new continual-learning methods, memory systems, research agents, training methods, evaluators, and adaptation techniques should be treated as Challenger capabilities and may replace the current learning stack only after demonstrating superior robustness, safety, reproducibility, and economic value.
+
 ## Meta-AI Governance
 
 NUSA should ultimately maintain a Meta-AI Governor / AI Control Plane whose responsibility is to continuously identify and evaluate better AI capabilities for the system.
@@ -42,7 +64,7 @@ The Meta-AI Governor may:
 
 - discover new candidate models and AI architectures;
 - benchmark current Champions against Challengers;
-- recommend model, agent, prompt, tool, or architectural upgrades;
+- recommend model, agent, prompt, tool, learning-method, or architectural upgrades;
 - initiate controlled offline research and evaluation;
 - coordinate historical replay, backtesting, walk-forward testing, Shadow evaluation, and Paper canaries;
 - recommend promotion, demotion, retirement, or rollback of AI components.
@@ -82,4 +104,4 @@ NUSA must be designed so that AI components can be replaced, upgraded, combined,
 
 The system therefore prefers capability contracts and interchangeable AI providers over hard coupling to individual models or vendors.
 
-This principle is permanent: **NUSA continuously searches for the strongest appropriate AI capabilities, validates them rigorously, and adopts them when they are demonstrably superior and safe.**
+This principle is permanent: **NUSA continuously searches for the strongest appropriate AI capabilities, including the strongest learning capabilities, validates them rigorously, and adopts them when they are demonstrably superior and safe.**
