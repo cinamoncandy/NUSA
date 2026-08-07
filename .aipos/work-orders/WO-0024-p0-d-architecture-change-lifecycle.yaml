@@ -1,11 +1,13 @@
 id: WO-0024
 title: "P0-D Architecture Change Lifecycle"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 6a4de464ea0cfa99c45830089ebae9744485e86b
 implementation_branch: agent/p0-d-architecture-change-lifecycle
+merged_pull_request: 137
+merge_commit: ae390bad8efb343ed9dd29abc4e203990615ea0b
 objective: "Make architecture evolution explicit, reviewable, staged, evidence-backed, and rollback-capable so governing architecture cannot be silently mutated by implementation work."
 source_of_truth:
   architecture:
@@ -36,6 +38,13 @@ acceptance:
   - "P0-A/P0-B/P0-F/P0-C gates and architecture validation PASS."
   - "Full required GitHub CI PASS."
   - "PR merged before P0-E begins."
+verification:
+  result: PASS
+  head_commit: a326f28661c95ebe4907d481fe1df649572feefb
+  ci_run: 31158602723
+  focused_regressions: "8 PASS"
+  architecture_lifecycle_validation: PASS
+  full_required_ci: PASS
 safety:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
