@@ -1,0 +1,122 @@
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+const ROOT = path.resolve(__dirname, "..");
+const STORE = path.join(ROOT, "node_modules", ".pnpm");
+
+const EXPECTED = Object.freeze({
+  imageSize: "1.2.1",
+  nanoid: "3.3.16"
+});
+
+function packageRoot(name, version) {
+  if (!fs.existsSync(STORE)) throw new Error("SECURITY_BACKPORT_STORE_MISSING");
+  const prefix = `${name}@${version}`;
+  const matches = fs.readdirSync(STORE).filter((entry) => entry === prefix || entry.startsWith(`${prefix}_`) || entry.startsWith(`${prefix}(`));
+  if (matches.length !== 1) throw new Error(`SECURITY_BACKPORT_PACKAGE_RESOLUTION:${name}@${version}:${matches.length}`);
+  const root = path.join(STORE, matches[0], "node_modules", name);
+  const metadata = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  if (metadata.name !== name || metadata.version !== version) throw new Error(`SECURITY_BACKPORT_VERSION_MISMATCH:${name}@${version}`);
+  return root;
+}
+
+function patchExact(text, before, after, expectedCount, label) {
+  if (text.includes(after)) {
+    const count = text.split(after).length - 1;
+    if (count === expectedCount) return { text, changed: false };
+  }
+  const count = text.split(before).length - 1;
+  if (count !== expectedCount) throw new Error(`SECURITY_BACKPORT_SOURCE_SHAPE:${label}:${count}`);
+  return { text: text.split(before).join(after), changed: true };
+}
+
+function patchImageSizeIcns(text) {
+  const before = "imageOffset += imageHeader[1];";
+  const after = "if (imageHeader[1] < 8) throw new TypeError('Invalid ICNS entry size');\n        imageOffset += imageHeader[1];";
+  return patchExact(text, before, after, 2, "image-size/icns-offset");
+}
+
+function patchNanoidSync(text, label) {
+  const before = "return (size = defaultSize) => {\n    let id = ''";
+  const after = "return (size = defaultSize) => {\n    if (size <= 0) return ''\n    let id = ''";
+  return patchExact(text, before, after, 1, label);
+}
+
+function patchNanoidAsyncBrowser(text, label) {
+  const before = "return async (size = defaultSize) => {\n    let id = ''";
+  const after = "return async (size = defaultSize) => {\n    if (size <= 0) return ''\n    let id = ''";
+  return patchExact(text, before, after, 1, label);
+}
+
+function patchNanoidAsyncNode(text, label) {
+  const before = "return size => tick('', size)";
+  const after = "return (size = defaultSize) => {\n    if (size <= 0) return Promise.resolve('')\n    return tick('', size)\n  }";
+  return patchExact(text, before, after, 1, label);
+}
+
+function writePatched(file, patcher) {
+  const original = fs.readFileSync(file, "utf8");
+  const result = patcher(original);
+  if (result.changed) fs.writeFileSync(file, result.text, "utf8");
+}
+
+function applyBackports() {
+  const imageRoot = packageRoot("image-size", EXPECTED.imageSize);
+  const nanoidRoot = packageRoot("nanoid", EXPECTED.nanoid);
+
+  writePatched(path.join(imageRoot, "dist", "types", "icns.js"), patchImageSizeIcns);
+
+  const sync = ["index.js", "index.cjs", "index.browser.js", "index.browser.cjs"];
+  for (const relative of sync) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
+
+  const asyncBrowser = ["async/index.browser.js", "async/index.browser.cjs"];
+  for (const relative of asyncBrowser) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncBrowser(text, `nanoid/${relative}`));
+
+  const asyncNode = ["async/index.js", "async/index.cjs"];
+  for (const relative of asyncNode) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncNode(text, `nanoid/${relative}`));
+
+  return verifyBackports();
+}
+
+function verifyBackports() {
+  const findings = [];
+  let imageRoot;
+  let nanoidRoot;
+  try { imageRoot = packageRoot("image-size", EXPECTED.imageSize); } catch (error) { findings.push(String(error.message)); }
+  try { nanoidRoot = packageRoot("nanoid", EXPECTED.nanoid); } catch (error) { findings.push(String(error.message)); }
+
+  if (imageRoot) {
+    const icns = fs.readFileSync(path.join(imageRoot, "dist", "types", "icns.js"), "utf8");
+    const guards = (icns.match(/if \(imageHeader\[1\] < 8\) throw new TypeError\('Invalid ICNS entry size'\);/g) || []).length;
+    if (guards !== 2) findings.push(`IMAGE_SIZE_ICNS_GUARD:${guards}`);
+    const utils = fs.readFileSync(path.join(imageRoot, "dist", "types", "utils.js"), "utf8");
+    if (!utils.includes("offset += box.size > 0 ? box.size : 8;")) findings.push("IMAGE_SIZE_BOX_PROGRESS_GUARD_MISSING");
+  }
+
+  if (nanoidRoot) {
+    const syncFiles = ["index.js", "index.cjs", "index.browser.js", "index.browser.cjs", "async/index.browser.js", "async/index.browser.cjs"];
+    for (const relative of syncFiles) {
+      const text = fs.readFileSync(path.join(nanoidRoot, relative), "utf8");
+      if (!text.includes("if (size <= 0) return ''")) findings.push(`NANOID_ZERO_SIZE_GUARD_MISSING:${relative}`);
+    }
+    for (const relative of ["async/index.js", "async/index.cjs"]) {
+      const text = fs.readFileSync(path.join(nanoidRoot, relative), "utf8");
+      if (!text.includes("if (size <= 0) return Promise.resolve('')")) findings.push(`NANOID_ASYNC_ZERO_SIZE_GUARD_MISSING:${relative}`);
+    }
+  }
+
+  return {
+    status: findings.length === 0 ? "PASS" : "FAIL",
+    findings,
+    packages: { "image-size": EXPECTED.imageSize, nanoid: EXPECTED.nanoid },
+    controls: {
+      "GHSA-w3rx-r6r6-pgpr": findings.every((item) => !item.startsWith("IMAGE_SIZE_ICNS")),
+      "GHSA-5p2g-fcmc-qvqq": findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX")),
+      "GHSA-2v37-7h3g-55p8": findings.every((item) => !item.startsWith("NANOID"))
+    }
+  };
+}
+
+module.exports = { EXPECTED, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };

@@ -1,6 +1,6 @@
 id: WO-0039
 title: "Global Hard Risk Gateway & Kill Switch"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

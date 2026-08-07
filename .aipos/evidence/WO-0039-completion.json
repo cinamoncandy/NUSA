@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0039-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0039",
+    "path": ".aipos/work-orders/WO-0039-global-risk-killswitch.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "ff337aa37794bf2c1264a78a5558936efdd64b8e"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6"},
+  "configuration": {
+    "snapshot": {"mode":"GLOBAL_HARD_RISK_KILLSWITCH","provider_independent":true,"unknown_semantics":"fail_closed","decisions":"PASS,REJECT,BLOCK,UNKNOWN","kill_switch":"LATCHED","human_release_approvers_required":2,"ai_release":"prohibited","release_authorizes_live":false,"real_money_execution":"prohibited"},
+    "hash": {"algorithm": "sha256", "value": "b683ccb591607287ec02141bf7b3e7fcfe7e816fffa952c387d55356fcaf12e0"}
+  },
+  "observed_at": "2026-08-08T07:34:00+09:00",
+  "provenance": ["github:pull/154","github:actions/run/31188685572","github:actions/run/31188684373","github:actions/run/31188684520","github:actions/run/31188684540","github:actions/run/31188684770","git:merge/4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6"],
+  "result": "PASS",
+  "assertions": [
+    {"name":"official_full_ci","status":"PASS","detail":"31188685572"},
+    {"name":"activation_rehearsal","status":"PASS","detail":"31188684373"},
+    {"name":"capability_surface_guard","status":"PASS","detail":"31188684520"},
+    {"name":"read_only_broker_credential","status":"PASS","detail":"31188684540"},
+    {"name":"transport_credential_readiness","status":"PASS","detail":"31188684770"},
+    {"name":"real_money_execution_prohibited","status":"PASS"}
+  ]
+}

@@ -1,46 +1,46 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T23:39:00+09:00"
-phase: global-hard-risk-killswitch
+updated_at: "2026-08-08T07:45:00+09:00"
+phase: operations-control-center
 status: verifying
-objective: "Add provider-independent deterministic hard-risk and independently latched kill-switch authority without enabling LIVE mutation."
+objective: "Provide secret-free mutation-free operational visibility, incidents, alerts, evidence pointers, and safe-reduction requests without LIVE execution authority."
 base_branch: main
-active_branch: agent/wo-0039-global-risk-killswitch
-active_pull_request: 154
-base_commit: d4d7c96ec223a025dbbcc9993704d3d185bbffc2
+active_branch: agent/wo-0040-operations-control-center
+active_pull_request: 155
+base_commit: 4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6
 claimed_state:
-  work_order: WO-0039
+  work_order: WO-0040
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0038
+  work_order: WO-0039
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0038-completion.json"
+  evidence: ".aipos/evidence/WO-0039-completion.json"
 latest_verified_slice:
-  id: wo-0038-live-state-machine-governance-complete
-  evidence: ".aipos/evidence/WO-0038-completion.json"
-  summary: "WO-0038 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; ACTIVE remains prohibited."
+  id: wo-0039-global-hard-risk-killswitch-complete
+  evidence: ".aipos/evidence/WO-0039-completion.json"
+  summary: "WO-0039 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; hard risk and kill switch cannot authorize LIVE."
 completed:
+  - id: WO-0039
+    evidence: ".aipos/evidence/WO-0039-completion.json"
+    summary: "Added deterministic hard-risk and independently latched kill switch without execution authority."
   - id: WO-0038
     evidence: ".aipos/evidence/WO-0038-completion.json"
     summary: "Added fail-closed Restricted LIVE governance state semantics without execution authority."
   - id: WO-0037
     evidence: ".aipos/evidence/WO-0037-completion.json"
     summary: "Added secret-free mutation-free operator projection."
-  - id: WO-0036
-    evidence: ".aipos/evidence/WO-0036-completion.json"
-    summary: "Added read-only broker and secure credential integration with no execution authority."
 in_progress:
-  - id: WO-0039
-    evidence: ".aipos/work-orders/WO-0039-global-risk-killswitch.yaml; PR #154"
-    summary: "Deterministic hard-risk and latched kill-switch implementation committed; official exact-head verification pending."
+  - id: WO-0040
+    evidence: ".aipos/work-orders/WO-0040-operations-control-center.yaml; PR #155"
+    summary: "Mutation-free operations control center implemented; official exact-head verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0039-global-risk-killswitch.yaml
-  reason: "Complete PR #154 exact-head verification and merge; real-money execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0040-operations-control-center.yaml
+  reason: "Complete PR #155 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
-    - "Hard risk and kill switch regression tests"
-    - "Hard risk and kill switch source validator"
+    - "Operations control center regression tests"
+    - "Operations control center source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0039 implementation on PR #154; official exact-head verification pending."
-  current_commit: "PR #154 verification pending"
+  last_result: "WO-0040 implementation on PR #155; official exact-head verification pending."
+  current_commit: "PR #155 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -65,21 +65,23 @@ restricted_live_authority:
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
+operations_control_center:
+  mode: READ_ONLY_OPERATIONS
+  execution_authority: false
+  real_money_execution_allowed: false
+  secret_material_allowed: false
+  unknown_semantics: fail_closed
+  safe_control_actions: "REQUEST_HALT,REQUEST_RECOVERY_REVIEW"
+  risk_increase_control: prohibited
+  kill_switch_release: prohibited
+  evidence: pointers_only
 hard_risk_gateway:
   authority: deterministic_hard_risk
-  provider_independent: true
   learned_override: prohibited
   unknown_semantics: fail_closed
-  decisions: "PASS,REJECT,BLOCK,UNKNOWN"
-  active_kill_switch_blocks: true
 kill_switch:
   mode: LATCHED
-  independent_from_learned_systems: true
-  ai_release: prohibited
-  meta_ai_release: prohibited
   automatic_release: prohibited
-  human_release_approvers_required: 2
-  safe_evidence_required: true
   release_authorizes_live: false
 live_governance_state_machine:
   default_state: DISABLED
@@ -91,8 +93,6 @@ capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
   unknown_permission_semantics: fail_closed
-  execution_transport_required: disconnected
-  real_money_execution_required: prohibited
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
