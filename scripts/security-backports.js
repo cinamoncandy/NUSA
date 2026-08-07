@@ -44,6 +44,12 @@ function patchNanoidSync(text, label) {
   return patchExact(text, before, after, 1, label);
 }
 
+function patchNanoidAsyncBrowser(text, label) {
+  const before = "return async (size = defaultSize) => {\n    let id = ''";
+  const after = "return async (size = defaultSize) => {\n    if (size <= 0) return ''\n    let id = ''";
+  return patchExact(text, before, after, 1, label);
+}
+
 function patchNanoidAsyncNode(text, label) {
   const before = "return size => tick('', size)";
   const after = "return (size = defaultSize) => {\n    if (size <= 0) return Promise.resolve('')\n    return tick('', size)\n  }";
@@ -66,7 +72,7 @@ function applyBackports() {
   for (const relative of sync) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
 
   const asyncBrowser = ["async/index.browser.js", "async/index.browser.cjs"];
-  for (const relative of asyncBrowser) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
+  for (const relative of asyncBrowser) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncBrowser(text, `nanoid/${relative}`));
 
   const asyncNode = ["async/index.js", "async/index.cjs"];
   for (const relative of asyncNode) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncNode(text, `nanoid/${relative}`));
@@ -113,4 +119,4 @@ function verifyBackports() {
   };
 }
 
-module.exports = { EXPECTED, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncNode, applyBackports, verifyBackports };
+module.exports = { EXPECTED, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };
