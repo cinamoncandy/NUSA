@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "mode": "RESTRICTED_LIVE_READINESS",
+  "liveTradingMutation": "prohibited",
+  "executionTransportConnected": false,
+  "credentialStoragePresent": false,
+  "automaticActivationAllowed": false,
+  "realMoneyExecutionAllowed": false,
+  "requiredHumanApprovers": 2,
+  "requireDistinctApprovers": true,
+  "requiredOperationalState": "SAFE",
+  "safetyCriticalUnknownAllowed": false,
+  "requiredHardRiskResult": "PASS",
+  "requiredDeploymentIntegrityResult": "PASS",
+  "killSwitchMustBeInactive": true,
+  "openP0Allowed": false,
+  "requireRollbackTarget": true,
+  "requireExpiry": true,
+  "requireCooldown": true,
+  "requireExactScope": true,
+  "mutationCounters": {
+    "brokerCalls": 0,
+    "orders": 0,
+    "fills": 0,
+    "cash": 0,
+    "positions": 0
+  }
+}

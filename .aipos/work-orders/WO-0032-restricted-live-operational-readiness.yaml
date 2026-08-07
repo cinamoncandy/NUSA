@@ -1,0 +1,46 @@
+id: WO-0032
+title: "Restricted LIVE Operational Readiness"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 924ac50eb9c39d00683606b4097a2da0af59bbab
+implementation_branch: agent/restricted-live-operational-readiness
+objective: "Prove the Restricted LIVE pre-activation path fails closed under production-like inputs without connecting execution transport, storing credentials, or permitting real-money mutation."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0032 adds operational readiness evidence for the already-approved Restricted LIVE governance boundary. It does not create LIVE execution authority or transport. The harness proves preflight authorization, safety, rollback, identity, and audit requirements while keeping all side effects suppressed."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Run a deterministic Restricted LIVE readiness harness that never sends broker/exchange requests and never mutates orders, fills, cash, or positions."
+  - "Require exact deployment bundle, capability contract, strategy identity, symbol scope, notional/exposure bounds, expiry, cooldown, and rollback target before readiness can PASS."
+  - "Require two distinct human approver identities for risk-increasing readiness simulation; no AI/Meta-AI/CI/Shadow principal may substitute."
+  - "Require operational state SAFE, safety-critical UNKNOWN=false, hard-risk PASS, deployment-integrity PASS, kill-switch inactive, and no open P0."
+  - "Require execution transport disconnected, credential storage absent, automatic activation prohibited, and live_trading_mutation prohibited throughout this work order."
+  - "Emit immutable machine-readable readiness evidence on PASS or FAIL with code revision, configuration identity, checks, timestamps, and provenance."
+  - "Treat any missing/ambiguous scope, expired authorization, duplicate approver, wrong authority, rollback absence, transport connection, credential presence, or mutation counter >0 as fail-closed."
+  - "Add focused regression tests, package command, CI verification, and uploaded readiness evidence artifact."
+acceptance:
+  - "Restricted LIVE operational readiness harness PASS in official CI."
+  - "Focused readiness regression tests PASS."
+  - "Readiness evidence artifact uploaded by CI."
+  - "Broker/order/fill/cash/position mutation counters remain exactly zero."
+  - "Execution transport remains disconnected and credential storage absent."
+  - "Existing Restricted LIVE Governance, Shadow, Safety, Deployment, Identity, AIPOS, PAPER operational, architecture, and security gates PASS."
+  - "Full required GitHub CI PASS."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_storage: prohibited
+  automatic_live_activation: prohibited
+  real_money_execution: prohibited
+completion_rule: "Merge + required test/CI PASS. Completion proves operational readiness only and cannot activate LIVE execution."
