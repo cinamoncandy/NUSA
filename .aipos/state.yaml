@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T21:52:00+09:00"
-phase: restricted-live-transport-credential-readiness
-status: verifying
-objective: "Prepare disabled, read-only, fail-closed transport and credential integration boundaries without enabling execution transport, secret resolution, LIVE mutation, or real-money execution."
+updated_at: "2026-08-07T22:01:00+09:00"
+phase: restricted-live-capability-surface-guard
+status: implementing
+objective: "Fail closed if prohibited LIVE execution, transport dial, credential resolution, order mutation, cash mutation, or position mutation permissions enter the capability surface while LIVE remains prohibited."
 base_branch: main
-active_branch: agent/restricted-live-transport-credential-readiness
-active_pull_request: 149
-base_commit: b6d104463fcc60da04e0269884f4b20fcbeaf925
+active_branch: agent/restricted-live-capability-surface-guard
+active_pull_request: null
+base_commit: ed16378ad84a2b5fd55d55a7cbe13f17aad33526
 claimed_state:
-  work_order: WO-0034
+  work_order: WO-0035
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0033
+  work_order: WO-0034
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0033-completion.json"
+  evidence: ".aipos/evidence/WO-0034-completion.json"
 latest_verified_slice:
-  id: wo-0033-restricted-live-activation-gate-rehearsal-complete
-  evidence: ".aipos/evidence/WO-0033-completion.json"
-  summary: "WO-0033 is complete. Activation-gate rehearsal passed with WOULD_ALLOW semantics only, execution suppressed, actual activation false, transport disconnected, credentials absent, and zero mutations."
+  id: wo-0034-restricted-live-transport-credential-readiness-complete
+  evidence: ".aipos/evidence/WO-0034-completion.json"
+  summary: "WO-0034 is complete. Disabled read-only transport and metadata-only credential readiness passed with no secret resolution, execution transport, real-money execution, or mutation."
 completed:
+  - id: WO-0034
+    evidence: ".aipos/evidence/WO-0034-completion.json"
+    summary: "Added disabled read-only transport and credential readiness with zero mutation and official CI artifact proof."
   - id: WO-0033
     evidence: ".aipos/evidence/WO-0033-completion.json"
     summary: "Validated the human-authorized Restricted LIVE activation ceremony without activating LIVE execution."
@@ -36,20 +39,20 @@ completed:
     evidence: ".aipos/evidence/WO-0029-completion.json"
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
 in_progress:
-  - id: WO-0034
-    evidence: ".aipos/work-orders/WO-0034-restricted-live-transport-credential-readiness.yaml; PR #149"
-    summary: "Disabled read-only transport adapter boundary, metadata-only credential schema, secret redaction, capability-scoped authority, rollback requirements, zero-mutation harness, focused regressions, and dedicated evidence workflow implemented; official verification pending."
+  - id: WO-0035
+    evidence: ".aipos/work-orders/WO-0035-restricted-live-capability-surface-guard.yaml"
+    summary: "Capability registry and disabled transport/credential readiness are being bound to a fail-closed prohibited-permission surface guard with focused regressions and dedicated evidence."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0034-restricted-live-transport-credential-readiness.yaml
-  reason: "Complete PR #149 official verification and merge. Actual LIVE activation and execution credentials remain prohibited."
+  work_order: .aipos/work-orders/WO-0035-restricted-live-capability-surface-guard.yaml
+  reason: "Complete capability-surface guard verification and merge. Actual LIVE activation remains prohibited."
 verification:
   required:
-    - "Restricted LIVE transport/credential readiness regression tests"
-    - "Restricted LIVE transport/credential readiness evidence artifact"
-    - "Credential redaction and authority separation validation"
+    - "Restricted LIVE capability surface regression tests"
+    - "Restricted LIVE capability surface evidence artifact"
+    - "Capability contract registry validation"
+    - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
-    - "Restricted LIVE operational readiness validation"
     - "Restricted LIVE governance validation"
     - "Safety Architecture validation"
     - "Deployment bundle validation"
@@ -59,8 +62,8 @@ verification:
     - "Existing architecture validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0034 implementation committed on PR #149; official required CI pending. Actual LIVE execution remains prohibited."
-  current_commit: "PR #149 verification pending"
+  last_result: "WO-0034 verified and merged; WO-0035 implementation in progress. Actual LIVE execution remains prohibited."
+  current_commit: "implementation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -108,6 +111,14 @@ transport_credential_readiness:
   fills_required: 0
   cash_mutations_required: 0
   position_mutations_required: 0
+capability_surface_guard:
+  mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
+  prohibited_live_permissions_enforced: true
+  unknown_permission_semantics: fail_closed
+  execution_transport_required: disconnected
+  credential_resolution_required: disabled
+  real_money_execution_required: prohibited
+  mutation_counters_required: 0
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
