@@ -1,0 +1,44 @@
+id: WO-0021
+title: "P0-B Verified State & Evidence Integrity"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
+implementation_branch: agent/p0-b-verified-state-evidence-integrity
+objective: "Separate claimed execution state from evidence-backed verified state and prevent VERIFIED/COMPLETED claims from outrunning durable evidence."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+  execution:
+    - .aipos/aipos.yaml
+    - .aipos/state.yaml
+    - .aipos/work-orders
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-B implements the existing evidence-driven architecture and fail-closed verification semantics. It does not change Risk Governor, Deployment Gate, human LIVE authority, or production mutation boundaries."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Introduce explicit claimed_state and verified_state semantics for AIPOS execution state."
+  - "Define first-class durable evidence records with producer, code revision, configuration hash, artifact hash or subject hash, timestamp, provenance, and result."
+  - "Require verified state to cite evidence records rather than free-form completion text alone."
+  - "Fail closed when a work order claims VERIFIED/COMPLETED without sufficient valid evidence."
+  - "Detect evidence references that are missing, malformed, internally contradictory, or bound to a different subject/work order."
+  - "Preserve P0-A Architecture/AIPOS drift validation and integrate evidence-integrity validation into CI."
+  - "Add focused regression tests for valid verification, claim-without-evidence, missing evidence, subject mismatch, and malformed evidence."
+  - "Keep LIVE trading mutation prohibited."
+acceptance:
+  - "Focused verified-state/evidence-integrity tests PASS."
+  - "P0-A Architecture/AIPOS drift validation PASS."
+  - "Existing architecture validation PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged to main before P0-F begins."
+safety:
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+completion_rule: "Merge + required test/CI PASS. Do not begin P0-F before this work order is complete."
