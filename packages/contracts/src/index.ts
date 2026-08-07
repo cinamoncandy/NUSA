@@ -17,6 +17,7 @@ export * from "./recovery";
 export * from "./recoveryEvidence";
 export * from "./strategyGovernanceLedger";
 export * from "./capabilityRegistry";
+export * from "./championChallenger";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
