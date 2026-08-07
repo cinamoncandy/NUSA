@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "mode": "SHADOW_READ_ONLY",
+  "authority": "OBSERVATION_ONLY",
+  "production_equivalent_decision_path": true,
+  "execution_transport_connected": false,
+  "identities": {
+    "source_revision_required": true,
+    "deployment_bundle_required": true,
+    "strategy_identity_required": true,
+    "safety_policy_identity_required": true,
+    "market_data_provenance_required": true
+  },
+  "mutations": {
+    "broker": "PROHIBITED",
+    "order": "PROHIBITED",
+    "fill": "PROHIBITED",
+    "cash": "PROHIBITED",
+    "position": "PROHIBITED"
+  },
+  "evidence": {
+    "hash_chain_required": true,
+    "zero_actual_mutation_counters_required": true,
+    "decision_provenance_required": true,
+    "immutable_session_result_required": true
+  },
+  "decision_rewrite": {
+    "hard_risk_reject_to_allow": "PROHIBITED",
+    "hard_risk_halt_to_allow": "PROHIBITED",
+    "safety_restricted_to_allow": "PROHIBITED",
+    "safety_halt_to_allow": "PROHIBITED"
+  },
+  "promotion": {
+    "observation_may_recommend": true,
+    "shadow_evidence_sufficient_for_production_promotion": false,
+    "shadow_evidence_sufficient_for_live_authorization": false,
+    "autonomous_production_mutation": false
+  },
+  "runtime_binding": {
+    "implementation": "apps/desktop/src/shadowPilotRuntime.ts",
+    "verification_entrypoint": "scripts/run-shadow-paper-pilot.js"
+  }
+}
