@@ -1,68 +1,61 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T20:52:00+09:00"
-phase: restricted-live-operational-readiness
-status: verifying
-objective: "Prove the Restricted LIVE pre-activation path fails closed under production-like inputs without connecting execution transport, storing credentials, or permitting real-money mutation."
+updated_at: "2026-08-07T21:07:00+09:00"
+phase: restricted-live-activation-gate-rehearsal
+status: implementing
+objective: "Rehearse the complete human-authorized Restricted LIVE activation gate under production-like inputs while structurally suppressing all real execution, credentials, broker transport, and state mutation."
 base_branch: main
-active_branch: agent/restricted-live-operational-readiness
-active_pull_request: 146
-base_commit: 924ac50eb9c39d00683606b4097a2da0af59bbab
+active_branch: agent/restricted-live-activation-gate-rehearsal
+active_pull_request: null
+base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
 claimed_state:
-  work_order: WO-0032
+  work_order: WO-0033
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0031
+  work_order: WO-0032
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0031-completion.json"
+  evidence: ".aipos/evidence/WO-0032-completion.json"
 latest_verified_slice:
-  id: wo-0031-restricted-live-governance-complete
-  evidence: ".aipos/evidence/WO-0031-completion.json"
-  summary: "WO-0031 is complete. Restricted LIVE governance is human-only, fail-closed, bounded, auditable, and still execution-disconnected."
+  id: wo-0032-restricted-live-operational-readiness-complete
+  evidence: ".aipos/evidence/WO-0032-completion.json"
+  summary: "WO-0032 is complete. Pre-activation operational readiness passed with execution transport disconnected, credentials absent, real-money execution prohibited, and all mutation counters zero."
 completed:
+  - id: WO-0032
+    evidence: ".aipos/evidence/WO-0032-completion.json"
+    summary: "Added deterministic Restricted LIVE operational readiness evidence with zero side effects and CI artifact proof."
   - id: WO-0031
     evidence: ".aipos/evidence/WO-0031-completion.json"
-    summary: "Added Restricted LIVE governance, two-human approval, exact bounded scope, SAFE-only safety evidence, expiry/cooldown/rollback requirements, break-glass limits, regressions, and CI enforcement."
+    summary: "Added Restricted LIVE human-only fail-closed governance."
   - id: WO-0030
     evidence: ".aipos/evidence/WO-0030-completion.json"
     summary: "Added Shadow read-only governance and zero-mutation evidence semantics."
   - id: WO-0029
     evidence: ".aipos/evidence/WO-0029-completion.json"
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
-  - id: WO-0028
-    evidence: ".aipos/evidence/WO-0028-completion.json"
-    summary: "Added Capability Deployment Bundle integrity and atomic verified rollback."
-  - id: WO-0027
-    evidence: ".aipos/evidence/WO-0027-completion.json"
-    summary: "Added canonical Data & Strategy Identity contracts and temporal correctness."
 in_progress:
-  - id: WO-0032
-    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml; PR #146"
-    summary: "Operational readiness harness, zero-mutation evidence, transport/credential absence checks, 8 focused regressions, and CI artifact enforcement implemented; official verification pending."
+  - id: WO-0033
+    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml"
+    summary: "Activation gate rehearsal profile, WOULD_ALLOW/BLOCKED fail-closed harness, zero-mutation enforcement, focused regressions, and dedicated evidence workflow are being implemented."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0032-restricted-live-operational-readiness.yaml
-  reason: "Complete PR #146 official verification and merge. Real-money LIVE execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0033-restricted-live-activation-gate-rehearsal.yaml
+  reason: "Complete activation-gate rehearsal verification and merge. Actual LIVE activation remains prohibited and is not authorized by this work order."
 verification:
   required:
-    - "Restricted LIVE operational readiness regression tests"
-    - "Restricted LIVE operational readiness evidence harness"
-    - "Restricted LIVE readiness evidence artifact upload"
+    - "Restricted LIVE activation gate rehearsal regression tests"
+    - "Restricted LIVE activation gate rehearsal evidence artifact"
+    - "Restricted LIVE operational readiness validation"
     - "Restricted LIVE governance validation"
     - "Shadow governance validation"
     - "Safety Architecture validation"
     - "Deployment bundle validation"
-    - "Data & Strategy Identity validation"
     - "Cross-AI conformance validation"
-    - "Architecture change lifecycle validation"
-    - "Capability registry validation"
-    - "PAPER runtime operational verification"
     - "Verified-state/evidence-integrity validation"
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0032 implementation committed on PR #146; official required CI pending. LIVE execution transport remains disconnected."
-  current_commit: "9f4ace0bbb87f7035380f5ee06205256c39f8ba2 plus AIPOS PR-state commit"
+  last_result: "WO-0032 evidence-backed COMPLETE. WO-0033 activation-gate rehearsal implementation in progress."
+  current_commit: "activation-gate rehearsal implementation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -85,9 +78,12 @@ restricted_live_authority:
   expiry_required: true
   cooldown_required: true
   verified_rollback_required: true
-  break_glass_risk_increase: prohibited
-readiness_evidence:
-  zero_mutation_required: true
+activation_rehearsal:
+  activation_intent: SIMULATED_ONLY
+  valid_result: WOULD_ALLOW
+  invalid_result: BLOCKED
+  execution_suppressed: true
+  actual_activation: false
   broker_calls_required: 0
   orders_required: 0
   fills_required: 0
