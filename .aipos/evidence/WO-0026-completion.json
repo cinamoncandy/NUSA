@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0026-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0026",
+    "path": ".aipos/work-orders/WO-0026-ai-research-champion-challenger.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "c70390e21ab0a5fbe5d182dfd220ef91c34c7e77"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "feb3d2953b5ac649d845afa367d85a17ade7a47e"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T17:29:00+09:00",
+  "provenance": ["github:pull/139", "github:actions/run/31161233981", "git:merge/feb3d2953b5ac649d845afa367d85a17ade7a47e"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31161233981"},
+    {"name": "focused_champion_challenger_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"},
+    {"name": "production_promotion_mutation_prohibited", "status": "PASS"}
+  ]
+}
