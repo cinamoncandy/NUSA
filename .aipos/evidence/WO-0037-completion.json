@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0037-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0037",
+    "path": ".aipos/work-orders/WO-0037-read-only-operator-projection.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "73167ad7bdfcb08d16b6cfa92fbec6e1ed8f7468"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "f7b9d0c5af5aaaea035f620c2b6e22dac50f586e"},
+  "configuration": {
+    "snapshot": {"mode":"READ_ONLY_OPERATOR_PROJECTION","live_trading_mutation":"prohibited","execution_transport_connected":false,"credential_execution_use":"prohibited","order_mutation":"prohibited","withdrawals":"prohibited","real_money_execution_allowed":false},
+    "hash": {"algorithm": "sha256", "value": "87dc0ec07520faba0bfccaca7f18818d8a425e4bd2d77352e3ad5f5515e81346"}
+  },
+  "observed_at": "2026-08-07T23:17:00+09:00",
+  "provenance": ["github:pull/152","github:actions/run/31185934623","github:actions/run/31185934869","git:merge/f7b9d0c5af5aaaea035f620c2b6e22dac50f586e"],
+  "result": "PASS",
+  "assertions": [
+    {"name":"official_full_ci","status":"PASS","detail":"31185934623"},
+    {"name":"capability_surface_guard","status":"PASS","detail":"31185934869"},
+    {"name":"read_only_broker_credential","status":"PASS","detail":"31185935315"},
+    {"name":"transport_credential_readiness","status":"PASS","detail":"31185935105"},
+    {"name":"activation_rehearsal","status":"PASS","detail":"31185934779"},
+    {"name":"real_money_execution_prohibited","status":"PASS"}
+  ]
+}

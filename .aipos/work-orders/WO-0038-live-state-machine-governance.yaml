@@ -1,0 +1,48 @@
+id: WO-0038
+title: "Restricted LIVE State Machine Governance"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f7b9d0c5af5aaaea035f620c2b6e22dac50f586e
+implementation_branch: agent/wo-0038-live-state-machine-governance
+objective: "Define a fail-closed Restricted LIVE governance state machine that can represent human authorization lifecycle without connecting execution transport, resolving execution credentials, submitting orders, or enabling real-money execution."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0038 reimplements only safe state-transition concepts from stale A5d. It does not merge or expose its order execution port. The state machine is governance-only and remains subordinate to human authority, hard risk, kill switch, capability guard, and execution-transport prohibition."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Define canonical states DISABLED, ARMED, AUTHORIZED, ACTIVE, COOLDOWN, and HALT with explicit allowed transitions."
+  - "Default state is DISABLED and any unknown state, event, missing evidence, expired authorization, safety UNKNOWN, or invalid transition fails closed to HALT or rejection."
+  - "ARMED and AUTHORIZED are governance states only and must not connect execution transport or resolve execution credentials."
+  - "ACTIVE must remain non-enterable while real-money execution is constitutionally prohibited; tests must prove ACTIVE transition rejection under current policy."
+  - "Authorization metadata must be bounded, single-use, expiring, human-approved, and carry no credential material."
+  - "AI, Meta-AI, automation, strategies, and provider adapters cannot self-authorize or bypass HALT."
+  - "HALT is reachable from every non-DISABLED state and cannot be overridden by learned systems."
+  - "No order submit/amend/cancel, withdrawal, cash/position mutation, or broker execution method may be added."
+  - "Add focused regression tests and machine-readable validation under existing Full CI."
+acceptance:
+  - "State-machine governance regressions PASS."
+  - "ACTIVE transition is rejected while current policy prohibits real-money execution."
+  - "Invalid/unknown/expired authorization fails closed."
+  - "Capability Surface Guard and existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion establishes governance state semantics only and cannot activate LIVE execution."
