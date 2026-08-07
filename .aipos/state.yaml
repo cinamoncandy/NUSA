@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T23:18:00+09:00"
+updated_at: "2026-08-07T23:21:00+09:00"
 phase: restricted-live-state-machine-governance
-status: implementing
+status: verifying
 objective: "Define fail-closed Restricted LIVE state semantics without enabling execution transport, execution credentials, order mutation, or real-money execution."
 base_branch: main
 active_branch: agent/wo-0038-live-state-machine-governance
-active_pull_request: null
+active_pull_request: 153
 base_commit: f7b9d0c5af5aaaea035f620c2b6e22dac50f586e
 claimed_state:
   work_order: WO-0038
@@ -31,12 +31,12 @@ completed:
     summary: "Added fail-closed capability surface guard."
 in_progress:
   - id: WO-0038
-    evidence: ".aipos/work-orders/WO-0038-live-state-machine-governance.yaml"
-    summary: "Fail-closed Restricted LIVE governance state machine implementation and regressions in progress."
+    evidence: ".aipos/work-orders/WO-0038-live-state-machine-governance.yaml; PR #153"
+    summary: "Fail-closed Restricted LIVE governance state machine implemented; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0038-live-state-machine-governance.yaml
-  reason: "Complete governance state machine verification and merge; actual LIVE execution remains prohibited."
+  reason: "Complete PR #153 exact-head verification and merge; actual LIVE execution remains prohibited."
 verification:
   required:
     - "Restricted LIVE state machine governance regression tests"
@@ -48,8 +48,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0038 implementation started; no LIVE execution authorized."
-  current_commit: "implementation pending PR"
+  last_result: "WO-0038 implementation committed on PR #153; official exact-head verification pending."
+  current_commit: "PR #153 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
