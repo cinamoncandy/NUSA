@@ -1,4 +1,4 @@
-version: "1.0-draft"
+version: "1.1-draft"
 project:
   id: nusa
   name: NUSA
@@ -6,8 +6,14 @@ project:
 source_of_truth:
   repository: true
   conversation: false
+  architecture: true
+  aipos_execution_state: true
 paths:
   architecture: .aipos/architecture.md
+  architecture_summary: .aipos/architecture-summary.md
+  core_architecture_principle: docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+  ai_architecture: docs/NUSA_AI_ARCHITECTURE_V1.md
+  handoff_contract: .aipos/AI_HANDOFF_CONTRACT.md
   state: .aipos/state.yaml
   work_orders: .aipos/work-orders
   decisions: .aipos/decisions
@@ -15,15 +21,39 @@ paths:
 recovery:
   protocol:
     - recover
+    - validate_architecture_sync
     - analyze
     - select_work_order
     - implement
     - verify
     - update_state
+    - write_handoff
     - stop
+handoff:
+  provider_agnostic: true
+  prior_chat_required: false
+  hidden_model_state_required: false
+  require_repository_evidence: true
+  contract: .aipos/AI_HANDOFF_CONTRACT.md
+architecture_sync:
+  enabled: true
+  direction: architecture_to_aipos
+  silent_reverse_mutation: prohibited
+  require_impact_analysis: true
+  affected_records:
+    - state
+    - work_orders
+    - dependency_graph
+    - decisions
+    - acceptance_criteria
+    - architecture_references
 rules:
   - "Read .aipos before changing implementation."
   - "Treat repository state as authoritative over conversation history."
+  - "Read and obey the AIPOS AI Handoff Contract before taking over active work."
+  - "Validate architecture-to-AIPOS synchronization before selecting implementation work."
   - "Implement only a ready work order unless a human explicitly overrides it."
   - "Preserve NUSA safety boundaries and fail closed."
-  - "Update .aipos/state.yaml and the active work order before stopping."
+  - "Do not mark work complete without durable verification evidence."
+  - "Do not require vendor-private memory, hidden chain-of-thought, or prior chat history for project continuity."
+  - "Update .aipos/state.yaml, the active work order, and handoff-relevant evidence before stopping."
