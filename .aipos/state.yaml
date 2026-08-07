@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T17:02:00+09:00"
-phase: p0-aipos-cross-ai-conformance
-status: verifying
-objective: "Make cross-AI handoff deterministic and testable so different capable AI systems recover the same authoritative objective, constraints, verified state, and next permitted action from repository state alone."
+updated_at: "2026-08-07T17:12:00+09:00"
+phase: ai-research-champion-challenger
+status: in_progress
+objective: "Create an evidence-driven capability-scoped Champion/Challenger research protocol with sealed evaluation data, explicit lineage independence, and separate proposer/evaluator/promotion authority."
 base_branch: main
-active_branch: agent/p0-e-aipos-cross-ai-conformance
-active_pull_request: 138
-base_commit: ae390bad8efb343ed9dd29abc4e203990615ea0b
+active_branch: agent/ai-research-champion-challenger
+active_pull_request: null
+base_commit: ffda0db82b42c729167d5bd0a787d765dfd43878
 claimed_state:
-  work_order: WO-0025
+  work_order: WO-0026
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0024
+  work_order: WO-0025
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0024-completion.json"
+  evidence: ".aipos/evidence/WO-0025-completion.json"
 latest_verified_slice:
-  id: wo-0024-architecture-change-lifecycle-complete
-  evidence: ".aipos/evidence/WO-0024-completion.json"
-  summary: "WO-0024 / P0-D is complete. Governing architecture changes are lifecycle-controlled, evidence-backed, rollback-capable, and fail closed without required approval."
+  id: wo-0025-cross-ai-conformance-complete
+  evidence: ".aipos/evidence/WO-0025-completion.json"
+  summary: "WO-0025 / P0-E is complete. Cross-AI handoff is deterministic, provider-neutral, evidence-backed, and CI-enforced."
 completed:
+  - id: WO-0025
+    evidence: ".aipos/evidence/WO-0025-completion.json"
+    summary: "Added canonical handoff recovery, three-way adapter fingerprint convergence, regressions, and CI enforcement."
   - id: WO-0024
     evidence: ".aipos/evidence/WO-0024-completion.json"
     summary: "Added machine-readable architecture lifecycle, Git-diff-aware governance validation, focused regressions, and CI enforcement."
@@ -36,17 +39,18 @@ completed:
     evidence: ".aipos/evidence/WO-0020-completion.json"
     summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
-  - id: WO-0025
-    evidence: ".aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml; PR #138"
-    summary: "Canonical provider-neutral handoff recovery, three-way adapter fingerprint convergence, focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0026
+    evidence: ".aipos/work-orders/WO-0026-ai-research-champion-challenger.yaml"
+    summary: "Implement capability-scoped Champion/Challenger governance, sealed evaluation datasets, lineage independence, and authority separation."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml
-  reason: "Complete PR #138 official verification and merge before AI Research / Champion-Challenger begins."
+  work_order: .aipos/work-orders/WO-0026-ai-research-champion-challenger.yaml
+  reason: "Implement and verify Champion/Challenger research governance before Data & Strategy Identity begins."
 verification:
   required:
+    - "Champion/Challenger governance validation"
+    - "Focused Champion/Challenger regression tests"
     - "Cross-AI conformance validation"
-    - "Focused cross-AI conformance regression tests"
     - "Architecture change lifecycle validation"
     - "Capability registry validation"
     - "PAPER runtime operational verification"
@@ -54,11 +58,16 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "P0-E implementation committed on PR #138; official required CI pending. P0-D remains evidence-backed COMPLETE."
-  current_commit: "680d4b17d98aeb404220b7eb11c64b4229109f9e plus AIPOS PR-state commit"
+  last_result: "P0-E merged with official CI PASS. WO-0026 implementation authorized."
+  current_commit: "AI Research / Champion-Challenger implementation branch"
 human_authority:
   live_trading_mutation: prohibited
+  production_promotion_mutation: prohibited
   architecture_override: explicit_only
+research_authority:
+  self_promotion: prohibited
+  meta_ai_final_evaluation_authority: prohibited
+  sealed_holdout_mutation_after_registration: prohibited
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
