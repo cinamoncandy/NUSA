@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T22:07:00+09:00"
-phase: restricted-live-capability-surface-guard
-status: verifying
-objective: "Fail closed if prohibited LIVE execution, transport dial, credential resolution, order mutation, cash mutation, or position mutation permissions enter the capability surface while LIVE remains prohibited."
+updated_at: "2026-08-07T22:22:00+09:00"
+phase: read-only-broker-credential-integration
+status: implementing
+objective: "Integrate OS-encrypted credentials and authenticated broker account observation behind a strictly read-only port while preserving zero execution authority, zero order mutation, and zero real-money execution."
 base_branch: main
-active_branch: agent/restricted-live-capability-surface-guard
-active_pull_request: 150
-base_commit: ed16378ad84a2b5fd55d55a7cbe13f17aad33526
+active_branch: agent/read-only-broker-credential-integration
+active_pull_request: null
+base_commit: 7291cd53391905660e110a864101ed8833a220c9
 claimed_state:
-  work_order: WO-0035
+  work_order: WO-0036
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0034
+  work_order: WO-0035
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0034-completion.json"
+  evidence: ".aipos/evidence/WO-0035-completion.json"
 latest_verified_slice:
-  id: wo-0034-restricted-live-transport-credential-readiness-complete
-  evidence: ".aipos/evidence/WO-0034-completion.json"
-  summary: "WO-0034 is complete. Disabled read-only transport and metadata-only credential readiness passed with no secret resolution, execution transport, real-money execution, or mutation."
+  id: wo-0035-restricted-live-capability-surface-guard-complete
+  evidence: ".aipos/evidence/WO-0035-completion.json"
+  summary: "WO-0035 is complete. Prohibited LIVE execution, order, transport, credential-execution, cash, and position mutation permissions are fail-closed under official CI."
 completed:
+  - id: WO-0035
+    evidence: ".aipos/evidence/WO-0035-completion.json"
+    summary: "Added a fail-closed capability surface guard against unauthorized LIVE execution permissions."
   - id: WO-0034
     evidence: ".aipos/evidence/WO-0034-completion.json"
     summary: "Added disabled read-only transport and credential readiness with zero mutation and official CI artifact proof."
@@ -39,18 +42,21 @@ completed:
     evidence: ".aipos/evidence/WO-0029-completion.json"
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
 in_progress:
-  - id: WO-0035
-    evidence: ".aipos/work-orders/WO-0035-restricted-live-capability-surface-guard.yaml; PR #150"
-    summary: "Capability registry and disabled transport/credential readiness are bound to a fail-closed prohibited-permission surface guard with focused regressions and dedicated evidence; official verification pending."
+  - id: WO-0036
+    evidence: ".aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml"
+    summary: "OS-encrypted read-only broker credentials, read-only broker service port, reconciliation semantics, focused regressions, and dedicated evidence workflow are being integrated on current main."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0035-restricted-live-capability-surface-guard.yaml
-  reason: "Complete PR #150 official verification and merge. Actual LIVE activation remains prohibited."
+  work_order: .aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml
+  reason: "Complete read-only broker/credential integration verification and merge. Execution credentials, execution transport, order mutation, withdrawals, and real-money execution remain prohibited."
 verification:
   required:
-    - "Restricted LIVE capability surface regression tests"
-    - "Restricted LIVE capability surface evidence artifact"
-    - "Capability contract registry validation"
+    - "Read-only broker credential integration regression tests"
+    - "Read-only broker integration evidence artifact"
+    - "OS-encrypted credential persistence and secret-redaction validation"
+    - "Read-only broker service surface validation"
+    - "Read-only reconciliation validation"
+    - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
     - "Restricted LIVE governance validation"
@@ -62,8 +68,8 @@ verification:
     - "Existing architecture validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0035 implementation committed on PR #150; official required CI pending. Actual LIVE execution remains prohibited."
-  current_commit: "PR #150 verification pending"
+  last_result: "WO-0035 verified and merged; WO-0036 implementation in progress. No LIVE execution is authorized."
+  current_commit: "implementation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -78,6 +84,9 @@ restricted_live_authority:
   default_state: DISABLED
   execution_transport_connected: false
   credential_storage_present: false
+  credential_storage_scope: EXECUTION_CREDENTIALS
+  read_only_credential_storage_present: true
+  read_only_broker_transport_allowed: true
   credential_execution_use: prohibited
   real_money_execution: prohibited
   operational_state_required: SAFE
@@ -117,8 +126,27 @@ capability_surface_guard:
   unknown_permission_semantics: fail_closed
   execution_transport_required: disconnected
   credential_resolution_required: disabled
+  credential_resolution_scope: EXECUTION_CREDENTIALS
   real_money_execution_required: prohibited
   mutation_counters_required: 0
+read_only_broker_integration:
+  mode: READ_ONLY_BROKER_CREDENTIAL_INTEGRATION
+  provider: upbit
+  broker_transport_class: OBSERVATION_ONLY
+  read_only_broker_transport_allowed: true
+  execution_transport_connected: false
+  credential_storage: OS_ENCRYPTED
+  credential_purpose: READ_ONLY_BROKER_AUTH
+  read_only_credential_resolution_allowed: true
+  credential_execution_use_allowed: false
+  renderer_secret_exposure_allowed: false
+  ai_secret_exposure_allowed: false
+  evidence_secret_exposure_allowed: false
+  log_secret_exposure_allowed: false
+  order_mutation: prohibited
+  withdrawals: prohibited
+  portfolio_mutation_from_reconciliation: prohibited
+  ci_real_broker_calls_allowed: false
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
