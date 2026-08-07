@@ -1,0 +1,36 @@
+name: Restricted LIVE Activation Rehearsal
+
+on:
+  push:
+    branches: ["agent/restricted-live-activation-gate-rehearsal"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rehearsal:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Activation gate rehearsal regressions
+        run: node --test --test-reporter=spec tests/restricted-live-activation-rehearsal.test.js
+      - name: Activation gate rehearsal evidence
+        run: node scripts/restricted-live-activation-rehearsal.js --output artifacts/operational-evidence/restricted-live-activation-rehearsal.json
+      - name: Upload activation rehearsal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: restricted-live-activation-gate-rehearsal-evidence
+          path: artifacts/operational-evidence/restricted-live-activation-rehearsal.json
+          if-no-files-found: error
+          retention-days: 14
