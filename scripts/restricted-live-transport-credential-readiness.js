@@ -14,7 +14,9 @@ function validate(profile) {
   const failures = [];
   const adapter = profile.adapter || {};
   const credentials = profile.credentials || {};
+  const authority = profile.authority || {};
   const safety = profile.safety || {};
+  const rollback = profile.rollback || {};
   const counters = profile.mutationCounters || {};
 
   if (profile.mode !== 'RESTRICTED_LIVE_TRANSPORT_CREDENTIAL_READINESS') failures.push('MODE_INVALID');
@@ -37,11 +39,25 @@ function validate(profile) {
   if (credentials.storageEnabled !== false) failures.push('CREDENTIAL_STORAGE_ENABLED');
   if (credentials.resolutionEnabled !== false) failures.push('CREDENTIAL_RESOLUTION_ENABLED');
   if (credentials.executionUseAllowed !== false) failures.push('CREDENTIAL_EXECUTION_USE_ALLOWED');
+  if (credentials.evidenceRedactionRequired !== true) failures.push('EVIDENCE_REDACTION_NOT_REQUIRED');
+  if (credentials.logSecretsAllowed !== false) failures.push('LOG_SECRETS_ALLOWED');
+  if (credentials.secretFingerprintsIncluded !== false) failures.push('SECRET_FINGERPRINTS_INCLUDED');
+
+  if (authority.principalKind !== 'SERVICE') failures.push('PRINCIPAL_KIND_INVALID');
+  if (authority.capabilityScope !== 'READ_ONLY_METADATA') failures.push('CAPABILITY_SCOPE_INVALID');
+  if (authority.liveAuthorityGranted !== false) failures.push('LIVE_AUTHORITY_GRANTED');
+  if (authority.aiLiveAuthorityAllowed !== false) failures.push('AI_LIVE_AUTHORITY_ALLOWED');
+  if (authority.metaAiLiveAuthorityAllowed !== false) failures.push('META_AI_LIVE_AUTHORITY_ALLOWED');
+  if (authority.automationLiveAuthorityAllowed !== false) failures.push('AUTOMATION_LIVE_AUTHORITY_ALLOWED');
 
   if (safety.operationalStateRequired !== 'SAFE') failures.push('SAFE_NOT_REQUIRED');
   if (safety.safetyCriticalUnknownAllowed !== false) failures.push('UNKNOWN_NOT_FAIL_CLOSED');
   if (safety.killSwitchMustBeInactive !== true) failures.push('KILL_SWITCH_INACTIVE_NOT_REQUIRED');
   if (safety.hardRiskResultRequired !== 'PASS') failures.push('HARD_RISK_PASS_NOT_REQUIRED');
+
+  if (rollback.required !== true) failures.push('ROLLBACK_NOT_REQUIRED');
+  if (rollback.disconnectOnFailure !== true) failures.push('DISCONNECT_ON_FAILURE_NOT_REQUIRED');
+  if (rollback.credentialResolutionMustRemainDisabled !== true) failures.push('CREDENTIAL_RESOLUTION_ROLLBACK_NOT_REQUIRED');
 
   for (const key of ['transportDials','credentialResolutions','brokerCalls','orders','fills','cash','positions']) {
     if (counters[key] !== 0) failures.push(`MUTATION_COUNTER_NONZERO:${key}`);
@@ -63,9 +79,15 @@ function buildEvidence(profile, codeRevision = process.env.GITHUB_SHA || 'local'
     transportDialAllowed: profile.transportDialAllowed,
     adapterState: profile.adapter?.defaultState,
     adapterCapability: profile.adapter?.capability,
+    credentialReferenceMode: profile.credentials?.referenceMode,
     secretMaterialPresent: profile.credentials?.secretMaterialPresent,
     credentialResolutionEnabled: profile.credentials?.resolutionEnabled,
     credentialExecutionUseAllowed: profile.credentials?.executionUseAllowed,
+    evidenceRedactionRequired: profile.credentials?.evidenceRedactionRequired,
+    principalKind: profile.authority?.principalKind,
+    capabilityScope: profile.authority?.capabilityScope,
+    liveAuthorityGranted: profile.authority?.liveAuthorityGranted,
+    rollbackRequired: profile.rollback?.required,
     realMoneyExecutionAllowed: profile.realMoneyExecutionAllowed,
     mutationCounters: profile.mutationCounters,
     checks: result.failures.length ? result.failures : ['ALL_TRANSPORT_CREDENTIAL_READINESS_CHECKS_PASS']
