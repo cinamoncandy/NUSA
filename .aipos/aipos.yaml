@@ -14,6 +14,7 @@ paths:
   core_architecture_principle: docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
   ai_architecture: docs/NUSA_AI_ARCHITECTURE_V1.md
   investment_knowledge_principle: docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+  user_experience_principle: docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
   handoff_contract: .aipos/AI_HANDOFF_CONTRACT.md
   state: .aipos/state.yaml
   work_orders: .aipos/work-orders
@@ -54,6 +55,7 @@ rules:
   - "Read and obey the AIPOS AI Handoff Contract before taking over active work."
   - "Validate architecture-to-AIPOS synchronization before selecting implementation work."
   - "Read the investment knowledge principle before modifying investment intelligence, research, portfolio, risk-model, or trading-decision capabilities."
+  - "Read the user experience principle before modifying user-facing desktop, mobile, cloud, conversational, approval, trading, risk, or safety surfaces."
   - "Implement only a ready work order unless a human explicitly overrides it."
   - "Preserve NUSA safety boundaries and fail closed."
   - "Do not mark work complete without durable verification evidence."
