@@ -1,54 +1,53 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T15:32:00+09:00"
-phase: p0-operational-evidence-harness
-status: verifying
-objective: "Turn the verified PAPER approval/risk/safety runtime path into a repeatable one-command operational verification that emits durable machine-readable evidence."
+updated_at: "2026-08-07T16:02:00+09:00"
+phase: p0-capability-contract-registry
+status: implementing
+objective: "Create a machine-readable versioned capability contract registry that keeps NUSA provider-agnostic and prevents implementation identity from becoming core architecture."
 base_branch: main
-active_branch: agent/p0-f-operational-evidence-harness
-active_pull_request: 135
-base_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
+active_branch: agent/p0-c-capability-contract-registry
+active_pull_request: null
+base_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
 claimed_state:
-  work_order: WO-0022
+  work_order: WO-0023
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0021
+  work_order: WO-0022
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0021-completion.json"
+  evidence: ".aipos/evidence/WO-0022-completion.json"
 latest_verified_slice:
-  id: wo-0021-verified-state-evidence-integrity-complete
-  evidence: ".aipos/evidence/WO-0021-completion.json"
-  summary: "WO-0021 / P0-B is complete. Claimed and verified state are separated and verified completion is bound to durable evidence with hash/provenance integrity checks."
+  id: wo-0022-operational-evidence-harness-complete
+  evidence: ".aipos/evidence/WO-0022-completion.json"
+  summary: "WO-0022 / P0-F is complete. PAPER runtime verification is repeatable through a single command and emits durable machine-readable operational evidence while LIVE mutation remains prohibited."
 completed:
+  - id: WO-0022
+    evidence: ".aipos/evidence/WO-0022-completion.json"
+    summary: "Added one-command PAPER operational verification and CI evidence artifact generation."
   - id: WO-0021
     evidence: ".aipos/evidence/WO-0021-completion.json"
-    summary: "Added evidence-backed verified state, subject/config integrity validation, regression coverage, and CI enforcement including Windows CRLF normalization."
+    summary: "Added evidence-backed verified state and evidence integrity validation."
   - id: WO-0020
     evidence: ".aipos/evidence/WO-0020-completion.json"
-    summary: "Added deterministic Architecture/AIPOS drift validation, regression tests, and CI enforcement."
-  - id: WO-0019
-    evidence: ".aipos/work-orders/WO-0019-p0-007-paper-risk-wiring-regression.yaml; PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; Oracle real-environment verification PASS."
-    summary: "Restored and verified the real PAPER approval/risk/safety wiring and closed the regression with durable GitHub and Oracle evidence."
+    summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
-  - id: WO-0022
-    evidence: ".aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml; PR #135"
-    summary: "One-command PAPER runtime operational verification, machine-readable evidence emission, focused harness regressions, and CI artifact upload implemented; official PR verification pending."
+  - id: WO-0023
+    evidence: ".aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml"
+    summary: "Implement machine-readable versioned capability contracts, registry validation, provider-independent implementation bindings, focused regressions, and CI enforcement."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml
-  reason: "Complete PR #135 verification and merge P0-F before P0-C Capability Contract Registry begins."
+  work_order: .aipos/work-orders/WO-0023-p0-c-capability-contract-registry.yaml
+  reason: "Capability contracts are the next stable-core abstraction after drift, evidence integrity, and repeatable operational proof."
 verification:
   required:
-    - "Focused operational evidence harness tests"
-    - "One-command PAPER runtime verification and evidence artifact validation"
-    - "Verified-state/evidence-integrity validation"
-    - "Architecture/AIPOS drift validation"
+    - "Focused capability contract registry tests"
+    - "Capability registry validation"
+    - "P0-F PAPER runtime operational verification"
+    - "P0-B evidence-integrity validation"
+    - "P0-A Architecture/AIPOS drift validation"
     - "Existing architecture validation"
-    - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
-    - "git diff --check"
-  last_result: "P0-F implementation committed on PR #135; official required CI pending. P0-B remains evidence-backed COMPLETE."
-  current_commit: "f6242e0e06c915387aa40120c00eaaf7870e6cf9 plus AIPOS PR-state commit"
+  last_result: "P0-F COMPLETE: PR #135 merged at e9c83375e3d2e2d9eb6fc56fc328b320ea41a978 with official CI PASS and operational evidence artifact present. P0-C implementation not yet verified."
+  current_commit: "e9c83375e3d2e2d9eb6fc56fc328b320ea41a978 plus P0-C AIPOS setup commits"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
