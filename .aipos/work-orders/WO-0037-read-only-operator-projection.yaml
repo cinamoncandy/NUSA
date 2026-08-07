@@ -1,0 +1,41 @@
+id: WO-0037
+title: "Read-only Operator Projection"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ff7756bfc9f5a9ecf1dab2a947d87df6a3b483d3
+implementation_branch: agent/wo-0037-read-only-operator-projection
+objective: "Expose a secret-free, mutation-free operator/mobile projection of read-only broker state without expanding LIVE authority or execution capability."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0037 absorbs only the safe projection intent from stale A5c. It does not merge the old localhost bridge and does not add control, credentials, execution transport, or broker mutation."
+requirements:
+  - "Define a provider-agnostic read-only operator projection contract."
+  - "Projection output must contain no raw credentials, auth tokens, secret fingerprints, mutation handles, or execution authority."
+  - "Projection may expose connection state, observed time, asset count, open-order count, reconciliation status, and bounded display balances only."
+  - "Unknown/unavailable source data must remain explicit and fail closed; never fabricate healthy state."
+  - "Desktop/mobile consumers receive data only; no submit/amend/cancel/withdraw/cash/position mutation surface."
+  - "Preserve WO-0035 capability surface guard and WO-0036 credential boundary."
+  - "Emit machine-readable evidence and focused regressions."
+acceptance:
+  - "Operator projection regressions PASS."
+  - "Projection serialization contains zero credential or authorization material."
+  - "No mutation method or permission is exposed by the projection."
+  - "Capability Surface Guard and existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required test/CI PASS. Completion proves observation projection only and cannot authorize LIVE execution."
