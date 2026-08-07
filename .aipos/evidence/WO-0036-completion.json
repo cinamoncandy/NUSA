@@ -5,7 +5,7 @@
     "type": "work_order",
     "id": "WO-0036",
     "path": ".aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml",
-    "hash": {"algorithm": "git-blob-sha1", "value": "991a0adca21b315b14ec0de2730ee740890d188a"}
+    "hash": {"algorithm": "git-blob-sha1", "value": "ae88e8f89fe1565157eaff903cc588f5b9ce726b"}
   },
   "producer": {"kind": "github-actions", "id": "CI", "code_revision": "23a4743e147cc8e9f16f2cecba4b4585b06425c3"},
   "configuration": {
