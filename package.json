@@ -32,6 +32,7 @@
     "safety:architecture": "node scripts/validate-safety-architecture.js",
     "shadow:check": "node scripts/validate-shadow-governance.js",
     "restricted-live:check": "node scripts/validate-restricted-live-governance.js",
+    "verify:restricted-live-runtime": "node scripts/restricted-live-operational-evidence.js --output artifacts/operational-evidence/restricted-live-runtime.json",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
