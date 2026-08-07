@@ -1,28 +1,31 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T17:56:00+09:00"
-phase: deployment-rollback
-status: verifying
-objective: "Make deployment and rollback operate on cryptographically bound Capability Deployment Bundles so promotion evidence, runtime artifacts, and rollback targets cannot silently diverge."
+updated_at: "2026-08-07T19:30:00+09:00"
+phase: safety-architecture
+status: implementing
+objective: "Enforce deterministic safety authority separation so hard-risk limits remain final, safety-critical UNKNOWN blocks new risk, and operational health degrades fail-closed through SAFE/DEGRADED/RESTRICTED/HALT."
 base_branch: main
-active_branch: agent/deployment-rollback
-active_pull_request: 141
-base_commit: 84b502f2e49b3f645f17548ae73144a72b55667a
+active_branch: agent/safety-architecture
+active_pull_request: null
+base_commit: 6e9871566b27cf0db6fce06ab0879eb7f38d51f9
 claimed_state:
-  work_order: WO-0028
+  work_order: WO-0029
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0027
+  work_order: WO-0028
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0027-completion.json"
+  evidence: ".aipos/evidence/WO-0028-completion.json"
 latest_verified_slice:
-  id: wo-0027-data-strategy-identity-complete
-  evidence: ".aipos/evidence/WO-0027-completion.json"
-  summary: "WO-0027 is complete. Dataset, feature-set, and strategy identities are canonical, point-in-time governed, chained, and CI-enforced."
+  id: wo-0028-deployment-rollback-complete
+  evidence: ".aipos/evidence/WO-0028-completion.json"
+  summary: "WO-0028 is complete. Capability Deployment Bundles bind promotion/runtime artifacts and require complete verified rollback targets."
 completed:
+  - id: WO-0028
+    evidence: ".aipos/evidence/WO-0028-completion.json"
+    summary: "Added Capability Deployment Bundle integrity, promotion/runtime hash binding, atomic verified rollback, regressions, and CI enforcement."
   - id: WO-0027
     evidence: ".aipos/evidence/WO-0027-completion.json"
-    summary: "Added canonical Data & Strategy Identity contracts, temporal correctness, chained hashes, focused regressions, and CI enforcement."
+    summary: "Added canonical Data & Strategy Identity contracts and temporal correctness."
   - id: WO-0026
     evidence: ".aipos/evidence/WO-0026-completion.json"
     summary: "Added Champion/Challenger governance."
@@ -33,17 +36,18 @@ completed:
     evidence: ".aipos/evidence/WO-0024-completion.json"
     summary: "Added architecture change lifecycle governance."
 in_progress:
-  - id: WO-0028
-    evidence: ".aipos/work-orders/WO-0028-deployment-rollback.yaml; PR #141"
-    summary: "Capability Deployment Bundle contracts, promotion/runtime artifact binding, atomic rollback governance, 8 focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0029
+    evidence: ".aipos/work-orders/WO-0029-safety-architecture.yaml"
+    summary: "Deterministic Hard Risk Governor authority separation, UNKNOWN fail-closed rules, operational safety states, focused regressions, and CI enforcement are being implemented."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0028-deployment-rollback.yaml
-  reason: "Complete PR #141 official verification and merge before Safety Architecture begins."
+  work_order: .aipos/work-orders/WO-0029-safety-architecture.yaml
+  reason: "Complete Safety Architecture verification and merge before Shadow begins."
 verification:
   required:
+    - "Safety Architecture validation"
+    - "Focused Safety Architecture regression tests"
     - "Deployment bundle validation"
-    - "Focused deployment/rollback regression tests"
     - "Data & Strategy Identity validation"
     - "Champion/Challenger governance validation"
     - "Cross-AI conformance validation"
@@ -54,15 +58,18 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0028 implementation committed on PR #141; official required CI pending. WO-0027 remains evidence-backed COMPLETE."
-  current_commit: "259c82bb0c4b2233aa6e8ade97444d822afae32c plus AIPOS PR-state commit"
+  last_result: "WO-0028 is evidence-backed COMPLETE. WO-0029 implementation is in progress; official CI not yet run."
+  current_commit: "2088e80d89dc85bc7b5ca93e8159aa4c992eb236 plus AIPOS state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
   architecture_override: explicit_only
-deployment_authority:
-  partial_rollback: prohibited
-  artifact_hash_mismatch: fail_closed
+safety_authority:
+  hard_risk_override: prohibited
+  learned_risk_may_relax_hard_limits: false
+  safety_critical_unknown: fail_closed_for_risk_increase
+  operational_states: "SAFE>DEGRADED>RESTRICTED>HALT"
+  halt_recovery: explicit_human_evidence_required
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
