@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "mode": "RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD",
+  "liveTradingMutation": "prohibited",
+  "prohibitedPermissions": [
+    "order:submit",
+    "order:amend",
+    "order:cancel",
+    "broker:execute",
+    "transport:dial",
+    "credential:resolve",
+    "credential:execution-use",
+    "cash:mutate",
+    "position:mutate"
+  ],
+  "requiredReadiness": {
+    "adapterDefaultState": "DISABLED",
+    "executionMethodsExposed": false,
+    "transportDialAllowed": false,
+    "credentialResolutionEnabled": false,
+    "credentialExecutionUseAllowed": false,
+    "realMoneyExecutionAllowed": false,
+    "executionTransportConnected": false
+  },
+  "requiredZeroCounters": [
+    "transportDials",
+    "credentialResolutions",
+    "brokerCalls",
+    "orders",
+    "fills",
+    "cash",
+    "positions"
+  ]
+}
