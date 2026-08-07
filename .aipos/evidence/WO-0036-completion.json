@@ -10,7 +10,7 @@
   "producer": {"kind": "github-actions", "id": "CI", "code_revision": "23a4743e147cc8e9f16f2cecba4b4585b06425c3"},
   "configuration": {
     "snapshot": {"mode":"READ_ONLY_BROKER_CREDENTIAL_INTEGRATION","live_trading_mutation":"prohibited","execution_transport_connected":false,"credential_execution_use":"prohibited","order_mutation":"prohibited","withdrawals":"prohibited","real_money_execution_allowed":false},
-    "hash": {"algorithm": "sha256", "value": "bbf3d85c4daa299a3ef4510c66d2badb714811de72837007a30576c56457a481"}
+    "hash": {"algorithm": "sha256", "value": "c6119d55aeb5f5a7ab8d609d18400e0228d06e94d481cedbb45bd2a71f36420d"}
   },
   "observed_at": "2026-08-07T22:49:00+09:00",
   "provenance": ["github:pull/151","github:actions/run/31183574496","github:actions/run/31183574521","github:actions/artifact/8995807712","git:merge/23a4743e147cc8e9f16f2cecba4b4585b06425c3"],
