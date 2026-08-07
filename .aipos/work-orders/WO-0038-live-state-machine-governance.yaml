@@ -1,11 +1,12 @@
 id: WO-0038
 title: "Restricted LIVE State Machine Governance"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: f7b9d0c5af5aaaea035f620c2b6e22dac50f586e
 implementation_branch: agent/wo-0038-live-state-machine-governance
+merge_commit: d4d7c96ec223a025dbbcc9993704d3d185bbffc2
 objective: "Define a fail-closed Restricted LIVE governance state machine that can represent human authorization lifecycle without connecting execution transport, resolving execution credentials, submitting orders, or enabling real-money execution."
 source_of_truth:
   architecture:
