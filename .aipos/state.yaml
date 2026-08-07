@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T13:57:00+09:00"
+updated_at: "2026-08-07T13:58:00+09:00"
 phase: p0-verified-state-evidence-integrity
-status: implementing
+status: verifying
 objective: "Separate claimed execution state from evidence-backed verified state and prevent completion claims from outrunning durable evidence."
 base_branch: main
 active_branch: agent/p0-b-verified-state-evidence-integrity
-active_pull_request: null
+active_pull_request: 134
 base_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
 claimed_state:
   work_order: WO-0021
@@ -28,12 +28,12 @@ completed:
     summary: "Restored and verified the real PAPER approval/risk/safety wiring and closed the regression with durable GitHub and Oracle evidence."
 in_progress:
   - id: WO-0021
-    evidence: ".aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml"
-    summary: "Implement claimed_state/verified_state separation, first-class evidence records, evidence-backed verification rules, regression tests, and CI enforcement."
+    evidence: ".aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml; PR #134"
+    summary: "claimed_state/verified_state separation, first-class evidence records, evidence-backed verification rules, regression tests, and CI enforcement implemented; official PR verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml
-  reason: "P0-A exposed that repository execution claims can remain stale after external merge events; P0-B makes verification explicitly evidence-backed before P0-F operational evidence automation."
+  reason: "Complete PR #134 verification and merge P0-B before P0-F Operational Evidence Harness begins."
 verification:
   required:
     - "Focused verified-state/evidence-integrity tests"
@@ -42,8 +42,8 @@ verification:
     - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "P0-A COMPLETE: PR #133 merged; official CI PASS. P0-B implementation in progress."
-  current_commit: "99d7ce07d3fd8d19094690b9fd13f1a37312a0e3 plus P0-B implementation commits"
+  last_result: "P0-B implementation committed on PR #134; official required CI pending. P0-A remains evidence-backed COMPLETE."
+  current_commit: "4de9978775d680338e48485b76bf90193e9d2adf plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
