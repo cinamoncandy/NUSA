@@ -1,11 +1,13 @@
 id: WO-0020
 title: "P0-A Architecture / AIPOS Drift Gate"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 0fae7656bbd1bcd105f5d41d4ad7c432c25ccf6a
 implementation_branch: agent/p0-a-architecture-aipos-drift-gate
+merged_pull_request: 133
+merge_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
 objective: "Make architecture-to-AIPOS synchronization enforceable so stale execution state, missing governing architecture references, and unacknowledged architecture impact fail CI before implementation can be treated as verified."
 source_of_truth:
   architecture:
@@ -36,6 +38,14 @@ acceptance:
   - "Existing architecture validation PASS."
   - "Full required CI PASS on the P0-A PR."
   - "PR merged to main before P0-B begins."
+verification_evidence:
+  pull_request: 133
+  head_commit: 5c0b643e67dc9bbefdcd030589dc2bb1247547f0
+  merge_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
+  official_ci_run: 31147330756
+  official_ci: PASS
+  focused_regressions: "PASS: 7 Architecture/AIPOS drift-gate cases"
+  architecture_validation: PASS
 safety:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

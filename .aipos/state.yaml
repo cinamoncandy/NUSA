@@ -1,59 +1,49 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T13:24:00+09:00"
-phase: p0-architecture-aipos-drift-gate
+updated_at: "2026-08-07T13:58:00+09:00"
+phase: p0-verified-state-evidence-integrity
 status: verifying
-objective: "Enforce architecture-to-AIPOS synchronization in CI and prevent stale or contradictory execution state from being treated as verified."
+objective: "Separate claimed execution state from evidence-backed verified state and prevent completion claims from outrunning durable evidence."
 base_branch: main
-active_branch: agent/p0-a-architecture-aipos-drift-gate
-active_pull_request: 133
-base_commit: 0fae7656bbd1bcd105f5d41d4ad7c432c25ccf6a
+active_branch: agent/p0-b-verified-state-evidence-integrity
+active_pull_request: 134
+base_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
+claimed_state:
+  work_order: WO-0021
+  status: IN_PROGRESS
+verified_state:
+  work_order: WO-0020
+  status: COMPLETED
+  evidence: ".aipos/evidence/WO-0020-completion.json"
 latest_verified_slice:
-  id: wo-0019-oracle-runtime-complete
-  evidence: "PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; official GitHub CI PASS; Oracle pnpm test PASS with 370 isolated test files; Oracle security:gate PASS; Oracle cloud runtime/listener, health/dashboard, restart fail-closed verification PASS; approval/audit/runtime-wiring tests 5/5, 2/2, 27/27 PASS."
-  summary: "WO-0019 / P0 #007 is complete. PAPER approval, independent->canonical risk, broker admission, kill-switch projection, persistence/restart, and fail-closed behavior are verified without enabling LIVE mutation."
+  id: wo-0020-architecture-aipos-drift-gate-complete
+  evidence: ".aipos/evidence/WO-0020-completion.json"
+  summary: "WO-0020 / P0-A is complete. Architecture/AIPOS drift validation is enforced in CI without weakening existing architecture or LIVE safety boundaries."
 completed:
+  - id: WO-0020
+    evidence: ".aipos/evidence/WO-0020-completion.json"
+    summary: "Added deterministic Architecture/AIPOS drift validation, regression tests, and CI enforcement."
   - id: WO-0019
     evidence: ".aipos/work-orders/WO-0019-p0-007-paper-risk-wiring-regression.yaml; PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; Oracle real-environment verification PASS."
     summary: "Restored and verified the real PAPER approval/risk/safety wiring and closed the regression with durable GitHub and Oracle evidence."
-  - id: strategy-optimizer-038
-    evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
-    summary: "Added a bounded deterministic Strategy Optimizer over the existing StrategyRegistry and Backtest Engine with walk-forward validation, reserved Holdout gating, Dataset reuse protection, and owner-approved promotion candidates."
-  - id: runtime-foundation
-    evidence: "PR #41 merged in main at commit 34bc1c6a8c7b2c86fb16925eebe5d605c9eebf7d"
-    summary: "Typed event bus, engine registry, plugin lifecycle, runtime composition, and tests."
-  - id: aipos-runtime-v0
-    evidence: "PR #43 merged in main at commit eed7481c2a8361299acc350147986ce8836879"
-    summary: "AIPOS domain types, store, validation, deterministic recovery, plugin integration, and tests."
-  - id: execution-operations-v0
-    evidence: "PR #42 merged in main at commit 10ad991ee9cded7f7784064641dd87dbc79c1c69"
-    summary: "NUSA execution operations, product identity, and the current desktop runtime surface."
-  - id: deterministic-repository-execution
-    evidence: "docs/audits/deterministic-execution-2026-08-02.md; 10 consecutive complete verification runs"
-    summary: "Fixed-environment deterministic harness; identical command outcomes, coverage, build hash, and artifact manifest across ten runs."
-  - id: architecture-compliance
-    evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md"
-    summary: "Removed architecture violations and added CI architecture validation."
-  - id: security-hardening
-    evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md"
-    summary: "Added vulnerability, license, integrity, secret, SBOM, artifact checksum, and CI security controls."
 in_progress:
-  - id: WO-0020
-    evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml; PR #133"
-    summary: "Deterministic Architecture/AIPOS drift validator, regression tests, and CI enforcement implemented; official PR CI verification in progress."
+  - id: WO-0021
+    evidence: ".aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml; PR #134"
+    summary: "claimed_state/verified_state separation, first-class evidence records, evidence-backed verification rules, regression tests, and CI enforcement implemented; official PR verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml
-  reason: "Complete PR #133 verification and merge P0-A before P0-B Verified State & Evidence Integrity begins."
+  work_order: .aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml
+  reason: "Complete PR #134 verification and merge P0-B before P0-F Operational Evidence Harness begins."
 verification:
   required:
-    - "Focused Architecture/AIPOS drift-gate tests"
+    - "Focused verified-state/evidence-integrity tests"
+    - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Typecheck / build / lint as required by CI"
     - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "P0-A implementation committed on PR #133; official required CI pending. WO-0019 remains COMPLETE."
-  current_commit: "f6eacdb7a79c7459053ae4a3ce39d15680a3094c"
+  last_result: "P0-B implementation committed on PR #134; official required CI pending. P0-A remains evidence-backed COMPLETE."
+  current_commit: "4de9978775d680338e48485b76bf90193e9d2adf plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

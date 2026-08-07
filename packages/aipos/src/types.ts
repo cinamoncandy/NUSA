@@ -1,4 +1,6 @@
 export type WorkOrderStatus = "pending" | "in_progress" | "blocked" | "completed" | "cancelled";
+export type VerificationStatus = "UNVERIFIED" | "VERIFYING" | "VERIFIED" | "COMPLETED";
+export type EvidenceResult = "PASS" | "FAIL";
 
 export interface AiposState {
   readonly project: string;
@@ -8,6 +10,45 @@ export interface AiposState {
   readonly activeWorkOrderId?: string;
   readonly blockers?: readonly string[];
   readonly nextActions?: readonly string[];
+}
+
+export interface VerificationState {
+  readonly workOrderId: string;
+  readonly status: VerificationStatus;
+  readonly evidenceId?: string;
+}
+
+export interface EvidenceHash {
+  readonly algorithm: "sha256" | "git-blob-sha1";
+  readonly value: string;
+}
+
+export interface AiposEvidenceRecord {
+  readonly version: 1;
+  readonly id: string;
+  readonly subject: {
+    readonly type: "work_order";
+    readonly id: string;
+    readonly path: string;
+    readonly hash: EvidenceHash;
+  };
+  readonly producer: {
+    readonly kind: string;
+    readonly id: string;
+    readonly code_revision: string;
+  };
+  readonly configuration: {
+    readonly snapshot: Readonly<Record<string, unknown>>;
+    readonly hash: EvidenceHash;
+  };
+  readonly observed_at: string;
+  readonly provenance: readonly string[];
+  readonly result: EvidenceResult;
+  readonly assertions: readonly {
+    readonly name: string;
+    readonly status: EvidenceResult;
+    readonly detail?: string;
+  }[];
 }
 
 export interface WorkOrder {
