@@ -10,6 +10,18 @@ export interface ApprovalScope {
   readonly strategyId: string;
   readonly policyFingerprint: string;
   readonly expiresAtMs: number;
+  /**
+   * WO-0019. Set only on a MANUAL approval: binds it to the exact side that was confirmed,
+   * so a quantity/side change after confirmation cannot ride on the same approval.
+   */
+  readonly side?: "BUY" | "SELL";
+  /**
+   * WO-0019. Set only on a MANUAL approval: binds it to the single commandId it was minted
+   * for. A different commandId can never satisfy scope, which is what makes a MANUAL
+   * approval single-use by construction -- there is no separate "consumed" flag to forget
+   * to check.
+   */
+  readonly commandId?: string;
 }
 
 export interface PaperApproval extends ApprovalScope {
@@ -44,6 +56,8 @@ export interface RiskOrderRecord {
 export interface RiskSafetyPersistence {
   saveApproval(approval: PaperApproval): void;
   loadApproval(approvalId: string): PaperApproval | undefined;
+  /** WO-0019. Invalidates an approval so a later loadApproval can never see it as VALID again. */
+  revokeApproval(approvalId: string, reason: string): void;
   loadDailyLoss(accountId: string): DailyLossState | undefined;
   saveDailyLoss(state: DailyLossState): void;
   getIdempotency(accountId: string, key: string): RiskIdempotencyRecord | undefined;
@@ -60,6 +74,7 @@ export class InMemoryRiskSafetyPersistence implements RiskSafetyPersistence {
 
   public saveApproval(approval: PaperApproval): void { this.approvals.set(approval.approvalId, Object.freeze({ ...approval })); }
   public loadApproval(approvalId: string): PaperApproval | undefined { return this.approvals.get(approvalId); }
+  public revokeApproval(approvalId: string): void { this.approvals.delete(approvalId); }
   public loadDailyLoss(accountId: string): DailyLossState | undefined { return this.dailyLoss.get(accountId); }
   public saveDailyLoss(state: DailyLossState): void { this.dailyLoss.set(state.accountId, Object.freeze({ ...state })); }
   public getIdempotency(accountId: string, key: string): RiskIdempotencyRecord | undefined { return this.idempotency.get(`${accountId}:${key}`); }
@@ -81,6 +96,7 @@ export interface CanonicalRiskRequest {
   readonly boundary: RiskBoundary;
   readonly mode: "PAPER" | "SHADOW" | "LIVE";
   readonly symbol: string;
+  readonly side: "BUY" | "SELL";
   readonly strategyId: string;
   readonly policyFingerprint: string;
   readonly approvalId?: string;
@@ -135,7 +151,16 @@ export class CanonicalRiskSafetyGate {
     requireText(approval.approvalId, "approvalId"); requireText(approval.symbol, "approval.symbol"); requireText(approval.strategyId, "approval.strategyId"); requireText(approval.policyFingerprint, "approval.policyFingerprint"); requireText(approval.approvedBy, "approval.approvedBy");
     if (approval.mode !== "PAPER") throw new Error("approval mode must be PAPER");
     if (!isSafeTime(approval.expiresAtMs) || !isSafeTime(approval.approvedAtMs) || approval.expiresAtMs <= approval.approvedAtMs) throw new Error("approval expiry is invalid");
+    if (approval.side !== undefined && approval.side !== "BUY" && approval.side !== "SELL") throw new Error("approval side is invalid");
+    if (approval.commandId !== undefined) requireText(approval.commandId, "approval.commandId");
     this.persistence.saveApproval(Object.freeze({ ...approval }));
+  }
+
+  /** WO-0019. The only way an approval stops being usable before it naturally expires. */
+  public revokeApproval(approvalId: string, reason: string): void {
+    requireText(approvalId, "approvalId");
+    requireText(reason, "reason");
+    this.persistence.revokeApproval(approvalId, reason);
   }
 
   public evaluate(request: CanonicalRiskRequest): CanonicalRiskDecision {
@@ -164,6 +189,8 @@ export class CanonicalRiskSafetyGate {
         if (approval.expiresAtMs <= request.nowMs) reject("APPROVAL_EXPIRED");
         if (approval.mode !== request.mode || approval.symbol !== request.symbol || approval.strategyId !== request.strategyId) reject("APPROVAL_SCOPE_MISMATCH");
         if (approval.policyFingerprint !== request.policyFingerprint) reject("RISK_POLICY_FINGERPRINT_MISMATCH");
+        if (approval.commandId !== undefined && approval.commandId !== request.idempotency.commandId) reject("APPROVAL_SCOPE_MISMATCH");
+        if (approval.side !== undefined && approval.side !== request.side) reject("APPROVAL_SCOPE_MISMATCH");
       }
       const idempotencyKeys = [request.idempotency.commandId, request.idempotency.signalId, request.idempotency.clientOrderId];
       if (idempotencyKeys.some((key) => this.persistence.getIdempotency(request.accountId, key) != null)) reject("DUPLICATE_COMMAND");

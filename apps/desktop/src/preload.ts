@@ -42,6 +42,8 @@ async function retryWithTimeout<T>(operation: () => Promise<T>, policy: Readonly
   throw lastError instanceof Error ? lastError : new Error("IPC request failed");
 }
 
+export interface KillSwitchResult { readonly killSwitchActive: boolean; }
+
 export interface NUSAApi {
   placeOrder(side: PaperSide, quantity: number): Promise<{ order: PaperOrder; snapshot: PaperAccountSnapshot }>;
   getSnapshot(): Promise<PaperAccountSnapshot | null>;
@@ -52,6 +54,12 @@ export interface NUSAApi {
   stopStrategy(): Promise<ControlSnapshot>;
   setAutoTrade(enabled: boolean): Promise<ControlSnapshot>;
   setStrategyQuantity(quantity: number): Promise<ControlSnapshot>;
+  /**
+   * WO-0019. `confirmationText` must be exactly "PAPER TRADING ENABLE" -- the main process
+   * re-validates this itself and rejects anything else, so this is not merely a UI hint.
+   */
+  releaseKillSwitch(confirmationText: string, reason: string): Promise<KillSwitchResult>;
+  activateKillSwitch(reason: string): Promise<KillSwitchResult>;
   onTicker(handler: (ticker: UpbitTicker) => void): () => void;
   onStatus(handler: (status: string) => void): () => void;
   onSnapshot(handler: (snapshot: PaperAccountSnapshot) => void): () => void;
@@ -84,6 +92,8 @@ const api: NUSAApi = {
   stopStrategy: () => invokeMutation("control:stop"),
   setAutoTrade: (enabled) => invokeMutation("control:auto", enabled),
   setStrategyQuantity: (quantity) => invokeMutation("control:quantity", quantity),
+  releaseKillSwitch: (confirmationText, reason) => invokeMutation("safety:kill-switch-release", { confirmationText, reason }),
+  activateKillSwitch: (reason) => invokeMutation("safety:kill-switch-activate", { reason }),
   onTicker: (handler) => subscribe("market:ticker", handler),
   onStatus: (handler) => subscribe("market:status", handler),
   onSnapshot: (handler) => subscribe("paper:snapshot", handler),

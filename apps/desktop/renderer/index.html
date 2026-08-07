@@ -209,7 +209,17 @@
         <section><h3>Strategy Health</h3><p id="cio-strategy">No data</p></section>
         <section><h3>Investment Committee</h3><p id="cio-committee">No data</p></section>
         <section><h3>Execution</h3><p id="cio-execution">No data</p></section>
-        <section><h3>Risk</h3><p id="cio-risk">No data</p></section>
+        <section><h3>Risk</h3><p id="cio-risk">No data</p><p id="cio-risk-reasons" class="cio-risk-reasons">No data</p>
+          <div class="kill-switch-controls">
+            <label>사유<input id="kill-switch-reason" type="text" maxlength="500" placeholder="해제/재활성화 사유" /></label>
+            <label>확인 문구 (해제 시 정확히 입력: PAPER TRADING ENABLE)<input id="kill-switch-confirm" type="text" placeholder="PAPER TRADING ENABLE" /></label>
+            <div class="actions">
+              <button id="kill-switch-release" class="secondary" type="button">Kill Switch 해제</button>
+              <button id="kill-switch-activate" class="secondary" type="button">Kill Switch 재활성화</button>
+            </div>
+            <p id="kill-switch-message" class="a4-note" role="status" aria-live="polite"></p>
+          </div>
+        </section>
         <section><h3>Research</h3><p id="cio-research">No data</p></section>
       </div>
       <section class="cio-warnings"><h3>Warnings</h3><ul id="cio-warnings"><li>Dashboard data is not available.</li></ul></section>
