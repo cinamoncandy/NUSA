@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T20:45:00+09:00"
+updated_at: "2026-08-07T20:52:00+09:00"
 phase: restricted-live-operational-evidence
-status: implementing
+status: verifying
 objective: "Prove Restricted LIVE governance at runtime through deterministic dry-run evidence while keeping execution transport, credentials, broker calls, real orders, fills, cash mutation, and position mutation at exactly zero."
 base_branch: main
 active_branch: agent/restricted-live-operational-evidence
-active_pull_request: null
+active_pull_request: 145
 base_commit: 924ac50eb9c39d00683606b4097a2da0af59bbab
 claimed_state:
   work_order: WO-0032
@@ -40,12 +40,12 @@ completed:
     summary: "Added Champion/Challenger governance."
 in_progress:
   - id: WO-0032
-    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-evidence.yaml"
-    summary: "Restricted LIVE dry-run operational evidence harness, fail-closed scenarios, zero-mutation counters, regressions, and CI artifact upload are being implemented."
+    evidence: ".aipos/work-orders/WO-0032-restricted-live-operational-evidence.yaml; PR #145"
+    summary: "Restricted LIVE dry-run operational evidence harness, fail-closed scenarios, zero-mutation counters, 8 focused regressions, and CI artifact upload implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0032-restricted-live-operational-evidence.yaml
-  reason: "Complete operational verification and merge. Real-money LIVE execution remains prohibited and disconnected."
+  reason: "Complete PR #145 official verification and merge. Real-money LIVE execution remains prohibited and disconnected."
 verification:
   required:
     - "Restricted LIVE operational evidence regression tests"
@@ -64,8 +64,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0031 is evidence-backed COMPLETE. WO-0032 implementation is in progress; actual LIVE execution remains disconnected."
-  current_commit: "5428d59aaa9cf4156bfdeeb9685c98967547bc63 plus AIPOS state commit"
+  last_result: "WO-0032 implementation committed on PR #145; official required CI pending. Actual LIVE execution remains disconnected."
+  current_commit: "f50ccd52c1c52ebfabe2b6691b71b75e23211107 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
