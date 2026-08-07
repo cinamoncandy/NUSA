@@ -1,58 +1,50 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T17:36:00+09:00"
-phase: data-strategy-identity
-status: verifying
-objective: "Define canonical, reproducible identities for governed datasets, feature sets, and strategies so research/evaluation/execution cannot confuse same-named but materially different inputs or strategies."
+updated_at: "2026-08-07T17:50:00+09:00"
+phase: deployment-rollback
+status: in_progress
+objective: "Make deployment and rollback operate on cryptographically bound Capability Deployment Bundles so promotion evidence, runtime artifacts, and rollback targets cannot silently diverge."
 base_branch: main
-active_branch: agent/data-strategy-identity
-active_pull_request: 140
-base_commit: 2c2319a82f7b3da4be533c2a35934bd85896e415
+active_branch: agent/deployment-rollback
+active_pull_request: null
+base_commit: 84b502f2e49b3f645f17548ae73144a72b55667a
 claimed_state:
-  work_order: WO-0027
+  work_order: WO-0028
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0026
+  work_order: WO-0027
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0026-completion.json"
+  evidence: ".aipos/evidence/WO-0027-completion.json"
 latest_verified_slice:
-  id: wo-0026-champion-challenger-complete
-  evidence: ".aipos/evidence/WO-0026-completion.json"
-  summary: "WO-0026 is complete. Champion/Challenger governance is capability-scoped, sealed-evaluation-aware, lineage-explicit, authority-separated, and CI-enforced."
+  id: wo-0027-data-strategy-identity-complete
+  evidence: ".aipos/evidence/WO-0027-completion.json"
+  summary: "WO-0027 is complete. Dataset, feature-set, and strategy identities are canonical, point-in-time governed, chained, and CI-enforced."
 completed:
+  - id: WO-0027
+    evidence: ".aipos/evidence/WO-0027-completion.json"
+    summary: "Added canonical Data & Strategy Identity contracts, temporal correctness, chained hashes, focused regressions, and CI enforcement."
   - id: WO-0026
     evidence: ".aipos/evidence/WO-0026-completion.json"
-    summary: "Added Champion/Challenger contracts, sealed benchmark/holdout governance, lineage independence, focused regressions, and CI enforcement."
+    summary: "Added Champion/Challenger governance."
   - id: WO-0025
     evidence: ".aipos/evidence/WO-0025-completion.json"
-    summary: "Added canonical cross-AI handoff recovery and CI conformance."
+    summary: "Added cross-AI handoff conformance."
   - id: WO-0024
     evidence: ".aipos/evidence/WO-0024-completion.json"
     summary: "Added architecture change lifecycle governance."
-  - id: WO-0023
-    evidence: ".aipos/evidence/WO-0023-completion.json"
-    summary: "Added provider-independent capability contract registry."
-  - id: WO-0022
-    evidence: ".aipos/evidence/WO-0022-completion.json"
-    summary: "Added PAPER operational evidence harness."
-  - id: WO-0021
-    evidence: ".aipos/evidence/WO-0021-completion.json"
-    summary: "Added verified-state evidence integrity."
-  - id: WO-0020
-    evidence: ".aipos/evidence/WO-0020-completion.json"
-    summary: "Added Architecture/AIPOS drift validation."
 in_progress:
-  - id: WO-0027
-    evidence: ".aipos/work-orders/WO-0027-data-strategy-identity.yaml; PR #140"
-    summary: "Canonical dataset/feature/strategy identities, chained hashes, temporal correctness, focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0028
+    evidence: ".aipos/work-orders/WO-0028-deployment-rollback.yaml"
+    summary: "Implement Capability Deployment Bundle integrity, promotion/runtime artifact binding, and atomic rollback governance."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0027-data-strategy-identity.yaml
-  reason: "Complete PR #140 official verification and merge before Deployment / Rollback begins."
+  work_order: .aipos/work-orders/WO-0028-deployment-rollback.yaml
+  reason: "Implement and verify Deployment / Rollback before Safety Architecture begins."
 verification:
   required:
+    - "Deployment bundle validation"
+    - "Focused deployment/rollback regression tests"
     - "Data & Strategy Identity validation"
-    - "Focused identity regression tests"
     - "Champion/Challenger governance validation"
     - "Cross-AI conformance validation"
     - "Architecture change lifecycle validation"
@@ -62,15 +54,15 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0027 implementation committed on PR #140; official required CI pending. WO-0026 remains evidence-backed COMPLETE."
-  current_commit: "60777a83848ce355a153d66852776f22353014da plus AIPOS PR-state commit"
+  last_result: "WO-0027 merged with official CI PASS. WO-0028 implementation authorized."
+  current_commit: "deployment/rollback implementation branch"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
   architecture_override: explicit_only
-data_authority:
-  unknown_temporal_state: fail_closed
-  point_in_time_violation: prohibited
+deployment_authority:
+  partial_rollback: prohibited
+  artifact_hash_mismatch: fail_closed
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
