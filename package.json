@@ -22,6 +22,7 @@
     "test:coverage": "pnpm run coverage",
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js",
+    "architecture:lifecycle": "node scripts/validate-architecture-change-lifecycle.js",
     "aipos:drift": "node scripts/validate-aipos-drift.js",
     "capability:check": "node scripts/validate-capability-registry.js",
     "nusa": "node scripts/nusa.js",
