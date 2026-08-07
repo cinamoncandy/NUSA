@@ -20,6 +20,7 @@ export * from "./capabilityRegistry";
 export * from "./championChallenger";
 export * from "./dataStrategyIdentity";
 export * from "./deploymentBundle";
+export * from "./safetyArchitecture";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
