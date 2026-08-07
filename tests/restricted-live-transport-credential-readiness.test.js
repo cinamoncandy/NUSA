@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-const { validate } = require('../scripts/restricted-live-transport-credential-readiness.js');
+const { validate, buildEvidence } = require('../scripts/restricted-live-transport-credential-readiness.js');
 
 const base = JSON.parse(fs.readFileSync('config/live/restricted-live-transport-credential-readiness.json', 'utf8'));
 const copy = () => JSON.parse(JSON.stringify(base));
@@ -38,11 +38,26 @@ test('secret material or credential storage/resolution fails closed', () => {
   }
 });
 
-test('credential boundary must be metadata-only with registered schema', () => {
+test('credential boundary must be metadata-only and evidence must be redacted', () => {
   const a = copy(); a.credentials.schemaRegistered = false;
   assert.equal(validate(a).pass, false);
   const b = copy(); b.credentials.referenceMode = 'SECRET_VALUE';
   assert.equal(validate(b).pass, false);
+  const c = copy(); c.credentials.evidenceRedactionRequired = false;
+  assert.equal(validate(c).pass, false);
+  const d = copy(); d.credentials.logSecretsAllowed = true;
+  assert.equal(validate(d).pass, false);
+  const evidenceText = JSON.stringify(buildEvidence(copy(), '0'.repeat(40)));
+  assert.equal(evidenceText.includes('secret-value'), false);
+});
+
+test('principal is capability-scoped and no AI Meta-AI or automation gets LIVE authority', () => {
+  const a = copy(); a.authority.capabilityScope = 'EXECUTION';
+  assert.equal(validate(a).pass, false);
+  for (const key of ['liveAuthorityGranted','aiLiveAuthorityAllowed','metaAiLiveAuthorityAllowed','automationLiveAuthorityAllowed']) {
+    const p = copy(); p.authority[key] = true;
+    assert.equal(validate(p).pass, false);
+  }
 });
 
 test('unsafe or UNKNOWN-tolerant safety configuration fails closed', () => {
@@ -50,6 +65,13 @@ test('unsafe or UNKNOWN-tolerant safety configuration fails closed', () => {
   assert.equal(validate(a).pass, false);
   const b = copy(); b.safety.safetyCriticalUnknownAllowed = true;
   assert.equal(validate(b).pass, false);
+});
+
+test('rollback and failure disconnect remain mandatory', () => {
+  for (const key of ['required','disconnectOnFailure','credentialResolutionMustRemainDisabled']) {
+    const p = copy(); p.rollback[key] = false;
+    assert.equal(validate(p).pass, false);
+  }
 });
 
 test('any transport credential broker or portfolio mutation counter invalidates readiness', () => {
