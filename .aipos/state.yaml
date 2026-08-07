@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T07:34:00+09:00"
+updated_at: "2026-08-08T07:45:00+09:00"
 phase: operations-control-center
-status: implementing
+status: verifying
 objective: "Provide secret-free mutation-free operational visibility, incidents, alerts, evidence pointers, and safe-reduction requests without LIVE execution authority."
 base_branch: main
 active_branch: agent/wo-0040-operations-control-center
-active_pull_request: null
+active_pull_request: 155
 base_commit: 4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6
 claimed_state:
   work_order: WO-0040
@@ -31,12 +31,12 @@ completed:
     summary: "Added secret-free mutation-free operator projection."
 in_progress:
   - id: WO-0040
-    evidence: ".aipos/work-orders/WO-0040-operations-control-center.yaml"
-    summary: "Mutation-free operations control center implementation and regressions in progress."
+    evidence: ".aipos/work-orders/WO-0040-operations-control-center.yaml; PR #155"
+    summary: "Mutation-free operations control center implemented; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0040-operations-control-center.yaml
-  reason: "Complete operational visibility and safe-reduction control verification and merge; real-money execution remains prohibited."
+  reason: "Complete PR #155 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
     - "Operations control center regression tests"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0040 implementation in progress; no execution authority added."
-  current_commit: "implementation pending PR"
+  last_result: "WO-0040 implementation on PR #155; official exact-head verification pending."
+  current_commit: "PR #155 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
