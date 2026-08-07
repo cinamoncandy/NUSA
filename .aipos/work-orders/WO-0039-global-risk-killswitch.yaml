@@ -1,0 +1,49 @@
+id: WO-0039
+title: "Global Hard Risk Gateway & Kill Switch"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d4d7c96ec223a025dbbcc9993704d3d185bbffc2
+implementation_branch: agent/wo-0039-global-risk-killswitch
+objective: "Add a deterministic provider-independent hard-risk authority and latched kill switch that fail closed before any future LIVE mutation path, without enabling execution transport, execution credentials, order submission, or real-money execution."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0039 consolidates the safe intent of stale A5e global-risk and kill-switch branches. Hard risk is deterministic and independent of learned strategy authority. The kill switch is latched, fail-closed, and cannot be released by AI, Meta-AI, automation, or a strategy. No broker execution method is introduced."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Define deterministic hard-risk decisions PASS, REJECT, BLOCK, and UNKNOWN."
+  - "UNKNOWN safety/risk inputs fail closed and can never produce PASS."
+  - "Enforce bounded notional, exposure, concentration, drawdown, open-order, and position-count constraints using provider-independent inputs."
+  - "Reconciliation DIFF/UNKNOWN, stale/disconnected market data, unhealthy runtime, or active kill switch must BLOCK."
+  - "Kill switch must be reachable independently of learned systems and latch until an explicit two-human release review with healthy safety evidence."
+  - "AI, Meta-AI, automation, strategies, and provider adapters cannot release, bypass, or override hard risk or kill switch."
+  - "Kill-switch release cannot authorize ACTIVE or real-money execution; it only clears the latched stop when conditions are safe."
+  - "Risk/kill-switch evidence must be secret-free and deterministic enough for replay."
+  - "No submit/amend/cancel/withdraw/broker execution/cash or position mutation methods may be added."
+  - "Add focused negative regressions and validator coverage under existing Full CI."
+acceptance:
+  - "Hard-risk and kill-switch regressions PASS."
+  - "UNKNOWN, DIFF, stale/disconnected, and kill-switch-active cases fail closed."
+  - "Single-human or AI release attempts fail."
+  - "Capability Surface Guard and existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion establishes hard-risk and stop authority only and cannot activate LIVE execution."
