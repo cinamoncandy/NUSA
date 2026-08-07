@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T19:30:00+09:00"
+updated_at: "2026-08-07T19:37:00+09:00"
 phase: safety-architecture
-status: implementing
+status: verifying
 objective: "Enforce deterministic safety authority separation so hard-risk limits remain final, safety-critical UNKNOWN blocks new risk, and operational health degrades fail-closed through SAFE/DEGRADED/RESTRICTED/HALT."
 base_branch: main
 active_branch: agent/safety-architecture
-active_pull_request: null
+active_pull_request: 142
 base_commit: 6e9871566b27cf0db6fce06ab0879eb7f38d51f9
 claimed_state:
   work_order: WO-0029
@@ -37,12 +37,12 @@ completed:
     summary: "Added architecture change lifecycle governance."
 in_progress:
   - id: WO-0029
-    evidence: ".aipos/work-orders/WO-0029-safety-architecture.yaml"
-    summary: "Deterministic Hard Risk Governor authority separation, UNKNOWN fail-closed rules, operational safety states, focused regressions, and CI enforcement are being implemented."
+    evidence: ".aipos/work-orders/WO-0029-safety-architecture.yaml; PR #142"
+    summary: "Deterministic Hard Risk Governor authority separation, UNKNOWN fail-closed rules, operational safety states, 8 focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0029-safety-architecture.yaml
-  reason: "Complete Safety Architecture verification and merge before Shadow begins."
+  reason: "Complete PR #142 official verification and merge before Shadow begins."
 verification:
   required:
     - "Safety Architecture validation"
@@ -58,8 +58,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0028 is evidence-backed COMPLETE. WO-0029 implementation is in progress; official CI not yet run."
-  current_commit: "2088e80d89dc85bc7b5ca93e8159aa4c992eb236 plus AIPOS state commit"
+  last_result: "WO-0029 implementation committed on PR #142; official required CI pending. WO-0028 remains evidence-backed COMPLETE."
+  current_commit: "f62348ead639fbdd4e41ef4e384d934da5ca0998 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
