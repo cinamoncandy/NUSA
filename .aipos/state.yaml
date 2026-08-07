@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T16:30:00+09:00"
+updated_at: "2026-08-07T16:40:00+09:00"
 phase: p0-architecture-change-lifecycle
-status: implementing
+status: verifying
 objective: "Make architecture evolution explicit, reviewable, staged, evidence-backed, and rollback-capable so governing architecture cannot be silently mutated."
 base_branch: main
 active_branch: agent/p0-d-architecture-change-lifecycle
-active_pull_request: null
+active_pull_request: 137
 base_commit: 6a4de464ea0cfa99c45830089ebae9744485e86b
 claimed_state:
   work_order: WO-0024
@@ -34,12 +34,12 @@ completed:
     summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
   - id: WO-0024
-    evidence: ".aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml"
-    summary: "Implement machine-readable architecture-change lifecycle and CI enforcement for governed architecture mutations."
+    evidence: ".aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml; PR #137"
+    summary: "Machine-readable lifecycle, Git-diff-aware governing architecture gate, human approval requirements, rollback-before-approval rule, focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0024-p0-d-architecture-change-lifecycle.yaml
-  reason: "Complete architecture-change lifecycle enforcement before cross-AI conformance work begins."
+  reason: "Complete PR #137 verification and merge P0-D before cross-AI conformance work begins."
 verification:
   required:
     - "Focused architecture lifecycle regression tests"
@@ -50,8 +50,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "P0-C COMPLETE: PR #136 merged at 6a4de464ea0cfa99c45830089ebae9744485e86b with required CI PASS. P0-D implementation not yet verified."
-  current_commit: "6a4de464ea0cfa99c45830089ebae9744485e86b plus P0-D AIPOS setup commits"
+  last_result: "P0-D implementation committed on PR #137; official required CI pending. P0-C remains evidence-backed COMPLETE."
+  current_commit: "694561b8bfef9472eb020d7ac749d224def22688 plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
