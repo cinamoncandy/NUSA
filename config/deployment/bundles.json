@@ -1,0 +1,63 @@
+{
+  "schema": "nusa.deployment-bundle-registry/v1",
+  "bundles": [
+    {
+      "bundleId": "regime-detection-baseline-bundle-v1",
+      "bundleVersion": "1.0.0",
+      "capabilityId": "REGIME_DETECTION",
+      "contractVersion": "1.0.0",
+      "implementationId": "statistical-regime-baseline",
+      "implementationVersion": "1.0.0",
+      "datasetIdentities": [],
+      "featureSetIdentities": [],
+      "modelRefs": [],
+      "promptRefs": [],
+      "toolRefs": [],
+      "policyRefs": ["risk-policy:paper-v1"],
+      "configHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "artifact": {
+        "artifactId": "regime-detection-baseline-artifact-v1",
+        "sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "compatibility": {
+        "rollbackReady": true,
+        "compatibleWith": ["1.0.0"]
+      },
+      "status": "VERIFIED"
+    },
+    {
+      "bundleId": "regime-detection-candidate-bundle-v2",
+      "bundleVersion": "1.1.0",
+      "capabilityId": "REGIME_DETECTION",
+      "contractVersion": "1.0.0",
+      "implementationId": "statistical-regime-baseline",
+      "implementationVersion": "1.0.0",
+      "datasetIdentities": [],
+      "featureSetIdentities": [],
+      "modelRefs": [],
+      "promptRefs": [],
+      "toolRefs": [],
+      "policyRefs": ["risk-policy:paper-v1"],
+      "configHash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "artifact": {
+        "artifactId": "regime-detection-candidate-artifact-v2",
+        "sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "rollbackBundleId": "regime-detection-baseline-bundle-v1",
+      "compatibility": {
+        "rollbackReady": true,
+        "compatibleWith": ["1.0.0"]
+      },
+      "status": "CANDIDATE"
+    }
+  ],
+  "promotions": [
+    {
+      "bundleId": "regime-detection-candidate-bundle-v2",
+      "promotionArtifactSha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "runtimeArtifactSha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "recommendation": "HOLD",
+      "productionMutationAuthorized": false
+    }
+  ]
+}

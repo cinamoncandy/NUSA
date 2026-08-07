@@ -1,0 +1,41 @@
+id: WO-0028
+title: "Deployment / Rollback"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 84b502f2e49b3f645f17548ae73144a72b55667a
+implementation_branch: agent/deployment-rollback
+objective: "Make deployment and rollback operate on cryptographically bound Capability Deployment Bundles so promotion evidence, runtime artifacts, and rollback targets cannot silently diverge."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0028 operationalizes existing deployment-gate, artifact-integrity, and rollback requirements. It adds deployment contracts and CI validation without authorizing LIVE trading or autonomous production promotion."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Define a Capability Deployment Bundle containing capability contract/implementation, strategy/data/feature identities where applicable, model/prompt/tool/policy/config references, artifact hash, and rollback target."
+  - "Bind promotion-time artifact hash to the exact runtime artifact hash and fail closed on mismatch or missing hash."
+  - "Require rollback to restore a complete previously verified bundle, never a partial component set."
+  - "Require compatibility metadata and explicit rollback readiness before promotion recommendation."
+  - "Keep promotion recommendation separate from production mutation authority."
+  - "Reject unknown, stale, incomplete, or self-referential rollback targets."
+  - "Add deterministic validation, focused regressions, and CI enforcement while preserving all existing gates."
+acceptance:
+  - "Deployment bundle validator PASS."
+  - "Focused deployment/rollback regression tests PASS."
+  - "Promotion/runtime artifact hash mismatch fails closed."
+  - "Partial rollback and missing verified target fail closed."
+  - "Existing architecture, lifecycle, cross-AI, capability, Champion/Challenger, identity, evidence, drift, and PAPER operational gates PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before Safety Architecture begins."
+safety:
+  live_trading_mutation: prohibited
+  production_promotion_mutation: prohibited
+completion_rule: "Merge + required test/CI PASS. Do not begin Safety Architecture before this work order is complete."

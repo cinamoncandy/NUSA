@@ -1,11 +1,14 @@
 id: WO-0027
 title: "Data & Strategy Identity"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 2c2319a82f7b3da4be533c2a35934bd85896e415
 implementation_branch: agent/data-strategy-identity
+merged_pull_request: 140
+merge_commit: 84b502f2e49b3f645f17548ae73144a72b55667a
+implementation_head: f50284b10e696d9d1354db41456a7ee1d4b2c9cb
 objective: "Define canonical, reproducible identities for governed datasets, feature sets, and strategies so research/evaluation/execution cannot confuse same-named but materially different inputs or strategies."
 source_of_truth:
   architecture:
@@ -37,9 +40,13 @@ acceptance:
   - "Point-in-time violations, hash mismatch, duplicate divergent identity, and missing provenance fail closed."
   - "Existing architecture, lifecycle, cross-AI, capability, Champion/Challenger, evidence, drift, and PAPER operational gates PASS."
   - "Full required GitHub CI PASS."
-  - "PR merged before Deployment / Rollback begins."
+  - "PR #140 merged."
+verification:
+  ci_run: 31162425573
+  ci_result: PASS
+  checks: "2/2 reported success; exact-head official CI completed/success before merge."
 safety:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
   unknown_temporal_state: fail_closed
-completion_rule: "Merge + required test/CI PASS. Do not begin Deployment / Rollback before this work order is complete."
+completion_rule: "Merge + required test/CI PASS."

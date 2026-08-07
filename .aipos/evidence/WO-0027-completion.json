@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0027-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0027",
+    "path": ".aipos/work-orders/WO-0027-data-strategy-identity.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "784d059d0de75104555a490b3206a11390c42559"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "84b502f2e49b3f645f17548ae73144a72b55667a"},
+  "configuration": {
+    "snapshot": {"architecture_sync": "architecture_to_aipos", "live_trading_mutation": "prohibited", "production_promotion_mutation": "prohibited"},
+    "hash": {"algorithm": "sha256", "value": "38b8f4c8faeb9262059d27c5c49cc140b600b13b370ca2ef665dcf0750cec976"}
+  },
+  "observed_at": "2026-08-07T17:50:00+09:00",
+  "provenance": ["github:pull/140", "github:actions/run/31162425573", "git:merge/84b502f2e49b3f645f17548ae73144a72b55667a"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31162425573"},
+    {"name": "focused_data_strategy_identity_regressions", "status": "PASS", "detail": "8 PASS"},
+    {"name": "live_mutation_prohibited", "status": "PASS"},
+    {"name": "production_promotion_mutation_prohibited", "status": "PASS"}
+  ]
+}
