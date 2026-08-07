@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "mode": "RESTRICTED_LIVE_ACTIVATION_REHEARSAL",
+  "activationIntent": "SIMULATED_ONLY",
+  "liveTradingMutation": "prohibited",
+  "executionSuppressed": true,
+  "executionTransportConnected": false,
+  "credentialStoragePresent": false,
+  "realMoneyExecutionAllowed": false,
+  "automaticActivationAllowed": false,
+  "requester": {"principalId": "human-requester-rehearsal", "kind": "HUMAN"},
+  "approvers": [
+    {"principalId": "human-approver-a-rehearsal", "kind": "HUMAN"},
+    {"principalId": "human-approver-b-rehearsal", "kind": "HUMAN"}
+  ],
+  "scope": {
+    "deploymentBundleId": "rehearsal-bundle",
+    "capabilityContract": "restricted-live-rehearsal",
+    "strategyIdentity": "rehearsal-strategy-v1",
+    "symbols": ["KRW-BTC"],
+    "maxOrderNotional": 10000,
+    "maxPortfolioExposure": 10000,
+    "startsAt": "2026-08-07T00:00:00Z",
+    "expiresAt": "2099-12-31T23:59:59Z",
+    "cooldownSeconds": 300,
+    "rollbackBundleId": "rehearsal-rollback-bundle"
+  },
+  "safety": {
+    "operationalState": "SAFE",
+    "safetyCriticalUnknown": false,
+    "hardRiskResult": "PASS",
+    "deploymentIntegrityResult": "PASS",
+    "killSwitchActive": false,
+    "openP0": false
+  },
+  "authorization": {
+    "singleUse": true,
+    "reason": "activation gate rehearsal only",
+    "auditReceiptId": "rehearsal-audit-receipt"
+  },
+  "mutationCounters": {
+    "brokerCalls": 0,
+    "orders": 0,
+    "fills": 0,
+    "cash": 0,
+    "positions": 0
+  }
+}
