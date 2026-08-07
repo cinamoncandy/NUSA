@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T20:12:00+09:00"
+updated_at: "2026-08-07T20:30:00+09:00"
 phase: restricted-live
 status: verifying
 objective: "Define fail-closed Restricted LIVE governance with exact human authority, bounded scope, safety evidence, expiry, cooldown, rollback readiness, and auditability while keeping actual LIVE execution transport disconnected."
@@ -63,9 +63,10 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0031 implementation committed on PR #144; official required CI pending. Actual LIVE execution remains disconnected."
-  current_commit: "1a0de762a9d86acf74ccac7187f7f8d2c5d9593b plus AIPOS PR-state commit"
+  last_result: "Official CI 31173143132 failed only at cross-AI conformance because the legacy constitutional live_trading_mutation prohibition was omitted from state; field restored. Actual LIVE execution remains disconnected."
+  current_commit: "AIPOS live mutation prohibition fix"
 human_authority:
+  live_trading_mutation: prohibited
   live_authority: human_only
   risk_increase_approvers_required: 2
   duplicate_approver_identity: prohibited
