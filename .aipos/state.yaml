@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T17:29:00+09:00"
+updated_at: "2026-08-07T17:36:00+09:00"
 phase: data-strategy-identity
-status: in_progress
+status: verifying
 objective: "Define canonical, reproducible identities for governed datasets, feature sets, and strategies so research/evaluation/execution cannot confuse same-named but materially different inputs or strategies."
 base_branch: main
 active_branch: agent/data-strategy-identity
-active_pull_request: null
+active_pull_request: 140
 base_commit: 2c2319a82f7b3da4be533c2a35934bd85896e415
 claimed_state:
   work_order: WO-0027
@@ -43,12 +43,12 @@ completed:
     summary: "Added Architecture/AIPOS drift validation."
 in_progress:
   - id: WO-0027
-    evidence: ".aipos/work-orders/WO-0027-data-strategy-identity.yaml"
-    summary: "Implement canonical dataset, feature-set, and strategy identity with temporal correctness and provenance enforcement."
+    evidence: ".aipos/work-orders/WO-0027-data-strategy-identity.yaml; PR #140"
+    summary: "Canonical dataset/feature/strategy identities, chained hashes, temporal correctness, focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0027-data-strategy-identity.yaml
-  reason: "Implement and verify Data & Strategy Identity before Deployment / Rollback begins."
+  reason: "Complete PR #140 official verification and merge before Deployment / Rollback begins."
 verification:
   required:
     - "Data & Strategy Identity validation"
@@ -62,8 +62,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0026 merged with official CI PASS. WO-0027 implementation authorized."
-  current_commit: "data-strategy-identity implementation branch"
+  last_result: "WO-0027 implementation committed on PR #140; official required CI pending. WO-0026 remains evidence-backed COMPLETE."
+  current_commit: "60777a83848ce355a153d66852776f22353014da plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
