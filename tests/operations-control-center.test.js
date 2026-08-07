@@ -1,7 +1,81 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { OPERATIONS_CAPABILITY_DESCRIPTOR, AuditLog, SessionManager, AlertCenter, IncidentTimeline, EvidenceBrowser, buildOperationsSnapshot, buildHealth } = require("../dist/apps/execution/src/operations-control-center.js");
-test("operations snapshot and health are read-only projections", () => { const health = buildHealth("Database", "HEALTHY"); const snapshot = buildOperationsSnapshot({ applicationVersion: "1", buildVersion: "b1", gitCommit: "abc", exchangeStatus: "HEALTHY", websocketStatus: "HEALTHY", warmupStatus: "HEALTHY", recoveryStatus: "HEALTHY", reconciliationStatus: "HEALTHY", riskStatus: "HEALTHY", killSwitchActive: false, executionSummary: { active: 0 }, resources: { memory: 1 }, lastSync: null, clockDriftMs: 0, health: [health] }); assert.equal(snapshot.mode, "READ_ONLY"); assert.equal(snapshot.health[0].state, "HEALTHY"); });
-test("session transitions and audit are append-only", () => { const audit = new AuditLog(); const manager = new SessionManager(audit); manager.transition("STARTING"); manager.transition("RUNNING"); manager.transition("STOPPING"); manager.transition("STOPPED"); assert.equal(manager.current, "STOPPED"); assert.equal(audit.list().length, 4); assert.throws(() => manager.transition("FILLED"), /INVALID_SESSION_TRANSITION/); });
-test("alerts acknowledge without deletion and incidents preserve order", () => { const audit = new AuditLog(); const alerts = new AlertCenter(audit); const alert = alerts.create({ severity: "CRITICAL", source: "RISK", code: "KILL_SWITCH", message: "blocked", createdAt: "2026-01-01T00:00:00.000Z" }); alerts.acknowledge(alert.alertId, "operator"); assert.equal(alerts.list().length, 1); assert.ok(alerts.list()[0].acknowledgedAt); const timeline = new IncidentTimeline(); timeline.append({ type: "RISK_BLOCK", message: "blocked", createdAt: "2026-01-01T00:00:01.000Z", sessionId: null, alertId: alert.alertId }); assert.equal(timeline.list().length, 1); });
-test("evidence filters and exports are read-only and secrets are not audit material", () => { const browser = new EvidenceBrowser(); browser.append({ evidenceId: "e1", createdAt: "2026-01-01T00:00:00.000Z", severity: "INFO", strategyId: "s1", symbol: "KRW-BTC", executionId: null, sessionId: "session-1", recoveryState: null, payload: { status: "PASS" } }); assert.equal(browser.list({ symbol: "KRW-BTC" }).length, 1); assert.match(browser.exportCsv(), /evidenceId/); assert.match(browser.exportJson(), /session-1/); assert.equal(OPERATIONS_CAPABILITY_DESCRIPTOR.productionMutationAllowed, false); });
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {
+  OPERATIONS_CONTROL_DESCRIPTOR,
+  OperationsAuditLog,
+  OperationsAlertCenter,
+  IncidentTimeline,
+  OperationsControlCenter,
+  buildOperationsProjection,
+  evidenceReferenceDigest,
+} = require('../dist/apps/execution/src/operations-control-center.js');
+
+const now = '2026-08-08T00:00:00.000Z';
+const healthy = () => ({
+  governanceState: 'DISABLED', operationalState: 'SAFE', hardRisk: 'PASS', killSwitchActive: false,
+  reconciliation: 'MATCH', marketData: 'HEALTHY', recoveryReady: true,
+  health: [{ component: 'runtime', state: 'HEALTHY', reasonCode: null, observedAt: now }],
+  evidence: [{ id: 'risk-1', kind: 'hard-risk', digest: 'sha256:1234567890abcdef', observedAt: now }],
+  metadata: { status: 'ok' },
+});
+
+test('operations projection is read-only and preserves healthy evidence', () => {
+  const projection = buildOperationsProjection(healthy(), now);
+  assert.equal(projection.mode, 'READ_ONLY_OPERATIONS');
+  assert.equal(projection.overallHealth, 'HEALTHY');
+  assert.equal(projection.executionAuthority, false);
+  assert.equal(projection.realMoneyExecutionAllowed, false);
+  assert.equal(OPERATIONS_CONTROL_DESCRIPTOR.killSwitchReleaseAuthority, false);
+});
+
+test('safety critical UNKNOWN remains UNKNOWN and never synthesizes healthy', () => {
+  for (const patch of [
+    { operationalState: 'UNKNOWN' }, { hardRisk: 'UNKNOWN' }, { reconciliation: 'UNKNOWN' }, { marketData: 'UNKNOWN' },
+    { health: [{ component: 'runtime', state: 'UNKNOWN', reasonCode: 'NO_EVIDENCE', observedAt: now }] },
+  ]) assert.equal(buildOperationsProjection({ ...healthy(), ...patch }, now).overallHealth, 'UNKNOWN');
+});
+
+test('critical blockers remain visible', () => {
+  assert.equal(buildOperationsProjection({ ...healthy(), killSwitchActive: true }, now).overallHealth, 'CRITICAL');
+  assert.equal(buildOperationsProjection({ ...healthy(), reconciliation: 'DIFF' }, now).overallHealth, 'CRITICAL');
+  assert.equal(buildOperationsProjection({ ...healthy(), marketData: 'DISCONNECTED' }, now).overallHealth, 'CRITICAL');
+});
+
+test('operator payload recursively redacts secret-like material', () => {
+  const projection = buildOperationsProjection({ ...healthy(), metadata: { accessKey: 'abc', nested: { authorization: 'Bearer abc', normal: 'visible' } } }, now);
+  assert.equal(projection.metadata.accessKey, '[REDACTED]');
+  assert.equal(projection.metadata.nested.authorization, '[REDACTED]');
+  assert.equal(projection.metadata.nested.normal, 'visible');
+  const digest = evidenceReferenceDigest({ apiSecret: 'hidden', status: 'PASS' });
+  assert.match(digest, /^sha256:[a-f0-9]{64}$/);
+});
+
+test('alerts incidents and audit are append-only observation records', () => {
+  const audit = new OperationsAuditLog();
+  const alerts = new OperationsAlertCenter(audit);
+  const alert = alerts.raise('CRITICAL', 'KILL_SWITCH_ACTIVE', 'blocked', now);
+  alerts.acknowledge(alert.alertId, 'human-a', 'HUMAN', '2026-08-08T00:01:00.000Z');
+  const incidents = new IncidentTimeline();
+  incidents.append('KILL_SWITCH', 'latched', 'risk-1', '2026-08-08T00:02:00.000Z');
+  assert.equal(alerts.list().length, 1);
+  assert.equal(incidents.list().length, 1);
+  assert.equal(audit.list()[0].action, 'ALERT_ACKNOWLEDGED');
+});
+
+test('control center only emits safe-reduction or review requests and never executes mutation', () => {
+  const audit = new OperationsAuditLog(); const center = new OperationsControlCenter(audit);
+  const halt = center.requestSafeControl('REQUEST_HALT', 'system-risk', 'SYSTEM', 'RISK_UNKNOWN', now);
+  const review = center.requestSafeControl('REQUEST_RECOVERY_REVIEW', 'human-a', 'HUMAN', 'RECOVERY_CHECK', now);
+  assert.equal(halt.executesMutation, false); assert.equal(halt.authorizesLive, false);
+  assert.equal(review.executesMutation, false); assert.equal(review.authorizesLive, false);
+  assert.throws(() => center.requestSafeControl('AUTHORIZE_ACTIVE', 'human-a', 'HUMAN', 'NO', now), /RISK_INCREASE_ACTION_PROHIBITED/);
+});
+
+test('source validator rejects execution authority surface', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'apps/execution/src/operations-control-center.ts'), 'utf8');
+  for (const forbidden of ['submitOrder(', 'cancelOrder(', 'amendOrder(', 'withdraw(', 'releaseKillSwitch(', 'resolveExecutionCredential(', 'authorizeActive(']) assert.equal(source.includes(forbidden), false, forbidden);
+  assert.match(source, /executionAuthority: false/);
+  assert.match(source, /realMoneyExecutionAllowed: false/);
+});
