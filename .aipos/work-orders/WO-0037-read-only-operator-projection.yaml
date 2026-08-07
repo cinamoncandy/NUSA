@@ -16,6 +16,11 @@ source_of_truth:
 architecture_impact:
   acknowledged: true
   analysis: "WO-0037 absorbs only the safe projection intent from stale A5c. It does not merge the old localhost bridge and does not add control, credentials, execution transport, or broker mutation."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
 requirements:
   - "Define a provider-agnostic read-only operator projection contract."
   - "Projection output must contain no raw credentials, auth tokens, secret fingerprints, mutation handles, or execution authority."
