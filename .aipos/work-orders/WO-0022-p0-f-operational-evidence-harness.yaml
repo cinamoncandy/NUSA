@@ -1,0 +1,46 @@
+id: WO-0022
+title: "P0-F Operational Evidence Harness"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
+implementation_branch: agent/p0-f-operational-evidence-harness
+objective: "Turn the verified PAPER approval/risk/safety runtime path into a repeatable one-command operational verification that emits durable machine-readable evidence without enabling LIVE mutation."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+  execution:
+    - .aipos/aipos.yaml
+    - .aipos/state.yaml
+    - .aipos/work-orders
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-F operationalizes existing PAPER safety/runtime verification and evidence contracts. It orchestrates existing verified components and does not relax Risk Governor, Deployment Gate, kill-switch, approval, persistence, or human LIVE authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Provide a single repository command equivalent to `nusa verify paper-runtime`."
+  - "Exercise the existing PAPER approval -> risk -> broker admission wiring, kill-switch fail-closed behavior, approval lifecycle, persistence/audit behavior, dashboard projection, and restart/recovery safety through real repository tests rather than duplicated mocks."
+  - "Emit a deterministic machine-readable operational evidence artifact containing code revision, configuration, invoked checks, results, timestamps, and artifact hash."
+  - "Return non-zero and emit FAIL evidence when any required check fails."
+  - "Keep the harness PAPER-only and prove LIVE mutation remains prohibited."
+  - "Integrate the harness into CI without replacing P0-A architecture drift or P0-B evidence-integrity gates."
+  - "Add focused harness regression tests covering PASS, child-check failure, artifact integrity, and LIVE prohibition."
+acceptance:
+  - "Focused operational evidence harness tests PASS."
+  - "One-command PAPER runtime verification PASS and emits valid machine-readable evidence."
+  - "P0-A Architecture/AIPOS drift validation PASS."
+  - "P0-B verified-state/evidence-integrity validation PASS."
+  - "Existing architecture validation PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged to main before P0-C begins."
+safety:
+  mode: PAPER
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+completion_rule: "Merge + required test/CI PASS. Do not begin P0-C before this work order is complete."

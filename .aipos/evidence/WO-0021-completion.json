@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0021-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0021",
+    "path": ".aipos/work-orders/WO-0021-p0-b-verified-state-evidence-integrity.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "aea6a79746ea0acfed9cc96d56bacb637c100976"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "fba685eabdefab23ff4b325ee56a282500e5cce0"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "evidence_integrity": "required",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "f00878bfd086da7e5c63559c4f3ed1cc8cdcba8008023ce3e6dc2e5529d2826c"
+    }
+  },
+  "observed_at": "2026-08-07T15:24:00+09:00",
+  "provenance": [
+    "github:pull/134",
+    "github:actions/run/31149288743",
+    "git:merge/fba685eabdefab23ff4b325ee56a282500e5cce0"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "verified_state_evidence_integrity", "status": "PASS"},
+    {"name": "architecture_aipos_drift_validation", "status": "PASS"},
+    {"name": "architecture_validation", "status": "PASS"},
+    {"name": "windows_crlf_git_blob_regression", "status": "PASS"},
+    {"name": "official_ci", "status": "PASS", "detail": "31149288743"}
+  ]
+}

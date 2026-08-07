@@ -1,11 +1,13 @@
 id: WO-0021
 title: "P0-B Verified State & Evidence Integrity"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 99d7ce07d3fd8d19094690b9fd13f1a37312a0e3
 implementation_branch: agent/p0-b-verified-state-evidence-integrity
+merged_pull_request: 134
+merge_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
 objective: "Separate claimed execution state from evidence-backed verified state and prevent VERIFIED/COMPLETED claims from outrunning durable evidence."
 source_of_truth:
   architecture:
@@ -38,6 +40,16 @@ acceptance:
   - "Existing architecture validation PASS."
   - "Full required GitHub CI PASS."
   - "PR merged to main before P0-F begins."
+verification_evidence:
+  pull_request: 134
+  head_commit: f290a646e058664a7fd5ffaba35bf4a925f08b35
+  merge_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
+  official_ci_run: 31149288743
+  official_ci: PASS
+  duplicate_required_checks: "PASS: 2/2"
+  evidence_integrity_regressions: "PASS including Windows CRLF Git-blob hash normalization regression"
+  architecture_aipos_drift_validation: PASS
+  architecture_validation: PASS
 safety:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

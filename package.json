@@ -23,6 +23,8 @@
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js",
     "aipos:drift": "node scripts/validate-aipos-drift.js",
+    "nusa": "node scripts/nusa.js",
+    "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
     "security:gate": "node scripts/security-gate.js",
     "security:artifacts": "node scripts/security-gate.js --artifacts release",
