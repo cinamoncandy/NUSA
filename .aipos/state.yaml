@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T23:27:00+09:00"
+updated_at: "2026-08-07T23:39:00+09:00"
 phase: global-hard-risk-killswitch
-status: implementing
+status: verifying
 objective: "Add provider-independent deterministic hard-risk and independently latched kill-switch authority without enabling LIVE mutation."
 base_branch: main
 active_branch: agent/wo-0039-global-risk-killswitch
-active_pull_request: null
+active_pull_request: 154
 base_commit: d4d7c96ec223a025dbbcc9993704d3d185bbffc2
 claimed_state:
   work_order: WO-0039
@@ -31,12 +31,12 @@ completed:
     summary: "Added read-only broker and secure credential integration with no execution authority."
 in_progress:
   - id: WO-0039
-    evidence: ".aipos/work-orders/WO-0039-global-risk-killswitch.yaml"
-    summary: "Deterministic hard-risk and latched kill-switch implementation in progress."
+    evidence: ".aipos/work-orders/WO-0039-global-risk-killswitch.yaml; PR #154"
+    summary: "Deterministic hard-risk and latched kill-switch implementation committed; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0039-global-risk-killswitch.yaml
-  reason: "Complete hard-risk and kill-switch verification and merge; real-money execution remains prohibited."
+  reason: "Complete PR #154 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
     - "Hard risk and kill switch regression tests"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0039 implementation in progress; no execution authority added."
-  current_commit: "implementation pending PR"
+  last_result: "WO-0039 implementation on PR #154; official exact-head verification pending."
+  current_commit: "PR #154 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
