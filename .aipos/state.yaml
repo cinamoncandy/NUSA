@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T16:54:00+09:00"
+updated_at: "2026-08-07T17:02:00+09:00"
 phase: p0-aipos-cross-ai-conformance
-status: in_progress
+status: verifying
 objective: "Make cross-AI handoff deterministic and testable so different capable AI systems recover the same authoritative objective, constraints, verified state, and next permitted action from repository state alone."
 base_branch: main
 active_branch: agent/p0-e-aipos-cross-ai-conformance
-active_pull_request: null
+active_pull_request: 138
 base_commit: ae390bad8efb343ed9dd29abc4e203990615ea0b
 claimed_state:
   work_order: WO-0025
@@ -37,12 +37,12 @@ completed:
     summary: "Added deterministic Architecture/AIPOS drift validation."
 in_progress:
   - id: WO-0025
-    evidence: ".aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml"
-    summary: "Canonical provider-neutral handoff recovery and cross-AI conformance suite implementation in progress."
+    evidence: ".aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml; PR #138"
+    summary: "Canonical provider-neutral handoff recovery, three-way adapter fingerprint convergence, focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0025-p0-e-aipos-cross-ai-conformance.yaml
-  reason: "Implement and verify deterministic cross-AI handoff conformance before AI Research / Champion-Challenger begins."
+  reason: "Complete PR #138 official verification and merge before AI Research / Champion-Challenger begins."
 verification:
   required:
     - "Cross-AI conformance validation"
@@ -54,8 +54,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "P0-D merged with official CI PASS. P0-E implementation authorized."
-  current_commit: "cross-AI conformance implementation branch"
+  last_result: "P0-E implementation committed on PR #138; official required CI pending. P0-D remains evidence-backed COMPLETE."
+  current_commit: "680d4b17d98aeb404220b7eb11c64b4229109f9e plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only
