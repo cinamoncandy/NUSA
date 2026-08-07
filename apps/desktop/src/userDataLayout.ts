@@ -13,15 +13,15 @@ import path from "node:path";
  * directory, and a half-finished experiment would show up as the user's incomplete archive --
  * blocking their next observation for a reason that has nothing to do with them.
  *
- * Nothing here stores credentials, and there is no path for them: the app has no
- * authenticated endpoint and no key to keep.
+ * WO-0036 adds one credential path for encrypted read-only broker authentication. The file may
+ * contain only OS-encrypted ciphertext and metadata. Raw keys, execution credentials, renderer
+ * state, AI-visible state, logs, and evidence remain prohibited locations for secret material.
  */
 
 export type NUSAEnvironment = "PRODUCTION" | "DEVELOPMENT";
 
 export interface UserDataLayout {
   readonly environment: NUSAEnvironment;
-  /** The single root everything below is derived from. */
   readonly root: string;
   readonly settingsFile: string;
   readonly firstRunFile: string;
@@ -30,31 +30,17 @@ export interface UserDataLayout {
   readonly recoveryDirectory: string;
   readonly crashDirectory: string;
   readonly diagnosticsDirectory: string;
-  /**
-   * The existing paper/control/database stores. In a packaged build `root` IS the userData
-   * directory, so these resolve to exactly the paths pre-A4O builds used and no existing
-   * install is migrated or orphaned. Only a development run gets somewhere else, which is
-   * the entire point of separating the two.
-   */
+  readonly readOnlyBrokerCredentialFile: string;
   readonly paperSessionFile: string;
   readonly controlSessionFile: string;
   readonly databaseFile: string;
-  /** Legacy locations kept readable so an existing install is not orphaned. */
   readonly legacy: Readonly<{ evidenceDirectory: string; paperSessionFile: string; controlSessionFile: string; databaseFile: string }>;
 }
 
-/**
- * Suffix appended to the production root when running unpackaged.
- *
- * A suffix rather than a sibling directory: the OS already gave this app one place to write,
- * and inventing a second top-level location makes an uninstall miss it.
- */
 export const DEVELOPMENT_ROOT_SUFFIX = "-dev";
 
 export interface UserDataLayoutInput {
-  /** Whatever `app.getPath("userData")` returned. Never guessed or reconstructed here. */
   readonly userDataPath: string;
-  /** `app.isPackaged`. A packaged build is production; anything else is development. */
   readonly packaged: boolean;
 }
 
@@ -75,11 +61,10 @@ export function resolveUserDataLayout(input: UserDataLayoutInput): UserDataLayou
     recoveryDirectory: path.join(root, "recovery"),
     crashDirectory: path.join(root, "crash"),
     diagnosticsDirectory: path.join(root, "diagnostics"),
+    readOnlyBrokerCredentialFile: path.join(root, "credentials", "upbit-read-only.enc"),
     paperSessionFile: path.join(root, "paper-session.json"),
     controlSessionFile: path.join(root, "control-session.json"),
     databaseFile: path.join(root, "nusa.db"),
-    // Pre-A4O installs wrote these directly under userData. They are still read from there so
-    // an upgrade does not silently abandon a user's existing session and evidence.
     legacy: Object.freeze({
       evidenceDirectory: path.join(base, "shadow-evidence"),
       paperSessionFile: path.join(base, "paper-session.json"),
@@ -89,10 +74,6 @@ export function resolveUserDataLayout(input: UserDataLayoutInput): UserDataLayou
   });
 }
 
-/**
- * Directories that must exist before anything writes. Ordered outermost-first so a partial
- * failure leaves a prefix that exists rather than a scatter of unrelated leaves.
- */
 export function writableDirectories(layout: UserDataLayout): readonly string[] {
   return Object.freeze([
     layout.root,
@@ -101,17 +82,11 @@ export function writableDirectories(layout: UserDataLayout): readonly string[] {
     layout.evidenceDirectory,
     layout.recoveryDirectory,
     layout.crashDirectory,
-    layout.diagnosticsDirectory
+    layout.diagnosticsDirectory,
+    path.dirname(layout.readOnlyBrokerCredentialFile)
   ]);
 }
 
-/**
- * Locations a settings reset may delete, and the ones it may not (WO-0034-A4O req 7).
- *
- * Expressed as data rather than as branches inside the reset routine, so "does a reset touch
- * evidence" is answered by reading a list instead of by tracing control flow. The protected
- * list is what a test asserts against.
- */
 export function resettablePaths(layout: UserDataLayout): readonly string[] {
   return Object.freeze([layout.settingsFile, layout.firstRunFile]);
 }
@@ -121,15 +96,11 @@ export function protectedPaths(layout: UserDataLayout): readonly string[] {
     layout.evidenceDirectory,
     layout.recoveryDirectory,
     layout.crashDirectory,
+    layout.readOnlyBrokerCredentialFile,
     layout.legacy.evidenceDirectory
   ]);
 }
 
-/**
- * True when `candidate` is inside `parent`. Used to prove a delete target is not a protected
- * one, including via `..` -- a check on string prefixes alone would accept
- * `<root>/settings/../shadow-evidence`.
- */
 export function isContainedIn(parent: string, candidate: string): boolean {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
