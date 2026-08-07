@@ -31,6 +31,7 @@
     "deployment:check": "node scripts/validate-deployment-bundles.js",
     "safety:architecture": "node scripts/validate-safety-architecture.js",
     "shadow:check": "node scripts/validate-shadow-governance.js",
+    "restricted-live:check": "node scripts/validate-restricted-live-governance.js",
     "nusa": "node scripts/nusa.js",
     "verify:paper-runtime": "node scripts/nusa.js verify paper-runtime",
     "safety:inputs": "node scripts/check-safety-input-literals.js",
