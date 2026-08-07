@@ -56,12 +56,34 @@ function evaluate(profile) {
   };
 }
 
+function parseArgs(argv) {
+  const args = argv.filter((arg) => arg !== '--');
+  let profilePath = 'config/live/restricted-live-activation-rehearsal.json';
+  let outputPath = null;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === '--output') {
+      if (!args[i + 1]) throw new Error('--output requires a path');
+      outputPath = args[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg === '--profile') {
+      if (!args[i + 1]) throw new Error('--profile requires a path');
+      profilePath = args[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--')) throw new Error(`Unknown option: ${arg}`);
+    profilePath = arg;
+  }
+
+  return { profilePath: path.resolve(profilePath), outputPath: outputPath ? path.resolve(outputPath) : null };
+}
+
 function main() {
-  const args = process.argv.slice(2).filter((arg) => arg !== '--');
-  const profileArg = args.find((arg) => !arg.startsWith('--'));
-  const profilePath = path.resolve(profileArg || 'config/live/restricted-live-activation-rehearsal.json');
-  const outputIndex = args.indexOf('--output');
-  const outputPath = outputIndex >= 0 ? path.resolve(args[outputIndex + 1]) : null;
+  const { profilePath, outputPath } = parseArgs(process.argv.slice(2));
   const profile = loadJson(profilePath);
   const result = evaluate(profile);
   const evidence = {
@@ -85,4 +107,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { evaluate };
+module.exports = { evaluate, parseArgs };
