@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0034-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0034",
+    "path": ".aipos/work-orders/WO-0034-restricted-live-transport-credential-readiness.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "e58d9d900ad064dbbea917a6a9e5bf1f4b984409"}
+  },
+  "producer": {"kind": "github-actions", "id": "CI", "code_revision": "ed16378ad84a2b5fd55d55a7cbe13f17aad33526"},
+  "configuration": {
+    "snapshot": {"mode": "RESTRICTED_LIVE_TRANSPORT_CREDENTIAL_READINESS", "live_trading_mutation": "prohibited", "execution_transport_connected": false, "credential_execution_use": "prohibited", "real_money_execution_allowed": false},
+    "hash": {"algorithm": "sha256", "value": "85acb1479104ac69281377efca081d768b00daa8a2367ca632e91ca967d79a19"}
+  },
+  "observed_at": "2026-08-07T22:01:00+09:00",
+  "provenance": ["github:pull/149", "github:actions/run/31180091104", "github:actions/run/31180091045", "github:actions/artifact/8994414352", "git:merge/ed16378ad84a2b5fd55d55a7cbe13f17aad33526"],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31180091104"},
+    {"name": "transport_credential_readiness_workflow", "status": "PASS", "detail": "31180091045"},
+    {"name": "readiness_artifact", "status": "PASS", "detail": "8994414352 sha256:f05af3ebe6fd3119de0b7087375d49e148686f29e764074cc3428c0fb4810302"},
+    {"name": "execution_transport_disconnected", "status": "PASS"},
+    {"name": "credential_execution_use_prohibited", "status": "PASS"},
+    {"name": "secret_material_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"},
+    {"name": "mutation_counters_zero", "status": "PASS"}
+  ]
+}
