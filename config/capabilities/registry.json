@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "contracts": [
+    {
+      "capabilityId": "REGIME_DETECTION",
+      "contractVersion": "1.0.0",
+      "schemas": {
+        "input": "config/capabilities/schemas/regime-detection-input.schema.json",
+        "output": "config/capabilities/schemas/regime-detection-output.schema.json"
+      },
+      "failure": {
+        "mode": "FAIL_CLOSED",
+        "timeoutMs": 5000,
+        "retryable": true,
+        "unknownIsFailure": true
+      },
+      "permissions": ["market-data:read"],
+      "evidence": {
+        "provenanceRequired": true,
+        "implementationVersionRequired": true,
+        "inputVersionRequired": true,
+        "outputHashRequired": true
+      },
+      "rollbackCompatibleWith": ["1.0.0"]
+    }
+  ],
+  "implementations": [
+    {
+      "implementationId": "statistical-regime-baseline",
+      "capabilityId": "REGIME_DETECTION",
+      "contractVersion": "1.0.0",
+      "provider": "internal",
+      "implementationVersion": "1.0.0",
+      "status": "APPROVED"
+    }
+  ]
+}

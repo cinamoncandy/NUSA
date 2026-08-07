@@ -1,0 +1,39 @@
+id: WO-0023
+title: "P0-C Capability Contract Registry"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
+implementation_branch: agent/p0-c-capability-contract-registry
+objective: "Create a machine-readable capability contract registry so NUSA depends on versioned capability interfaces rather than vendor/model-specific implementations."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-C implements the existing Capability Contracts architecture. It defines registry and validation contracts only; it does not grant runtime authority, promotion authority, LIVE mutation, or safety-policy override."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+requirements:
+  - "Define a versioned machine-readable Capability Contract schema and registry."
+  - "Separate capability identity/contract authority from implementation/provider identity."
+  - "Require input/output schema references, failure/timeout semantics, permissions, evidence/provenance expectations, version identifiers, and rollback compatibility where applicable."
+  - "Reject duplicate capability IDs/versions, malformed contracts, missing schema references, invalid implementation bindings, and provider-specific core contract IDs."
+  - "Provide deterministic local/CI validation and focused regression tests."
+  - "Seed representative contracts without coupling the stable core to one AI vendor."
+  - "Preserve P0-A/P0-B/P0-F gates and LIVE mutation prohibition."
+acceptance:
+  - "Focused capability registry tests PASS."
+  - "Capability registry validator PASS."
+  - "P0-A drift, P0-B evidence-integrity, P0-F operational verification, and architecture validation PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before P0-D begins."
+safety:
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+completion_rule: "Merge + required test/CI PASS. Do not begin P0-D before this work order is complete."

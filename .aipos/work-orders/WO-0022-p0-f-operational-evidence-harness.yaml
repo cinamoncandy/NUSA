@@ -1,11 +1,13 @@
 id: WO-0022
 title: "P0-F Operational Evidence Harness"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: fba685eabdefab23ff4b325ee56a282500e5cce0
 implementation_branch: agent/p0-f-operational-evidence-harness
+merged_pull_request: 135
+merge_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
 objective: "Turn the verified PAPER approval/risk/safety runtime path into a repeatable one-command operational verification that emits durable machine-readable evidence without enabling LIVE mutation."
 source_of_truth:
   architecture:
@@ -39,6 +41,15 @@ acceptance:
   - "Existing architecture validation PASS."
   - "Full required GitHub CI PASS."
   - "PR merged to main before P0-C begins."
+verification_evidence:
+  pull_request: 135
+  head_commit: f1a9007efdef1e4229b7758d0415ae937cec7a4d
+  merge_commit: e9c83375e3d2e2d9eb6fc56fc328b320ea41a978
+  official_ci_run: 31154350366
+  official_ci: PASS
+  operational_artifact: paper-runtime-operational-evidence
+  operational_artifact_digest: sha256:728e9c21abd0a7a46a9173ec46ec2788ea3616f4a5214dc616f95b10aae7d314
+  focused_regressions: "PASS: 4 operational evidence harness cases"
 safety:
   mode: PAPER
   live_trading_mutation: prohibited

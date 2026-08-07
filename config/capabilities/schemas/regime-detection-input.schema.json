@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nusa://capabilities/regime-detection/input/1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["asOf", "features"],
+  "properties": {
+    "asOf": {"type": "string", "format": "date-time"},
+    "features": {"type": "object", "additionalProperties": {"type": "number"}}
+  }
+}

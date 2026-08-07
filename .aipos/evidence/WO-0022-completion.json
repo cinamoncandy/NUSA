@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0022-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0022",
+    "path": ".aipos/work-orders/WO-0022-p0-f-operational-evidence-harness.yaml",
+    "hash": {
+      "algorithm": "git-blob-sha1",
+      "value": "dae81acdc7707881fbf749644ec81a83e8cb6503"
+    }
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "e9c83375e3d2e2d9eb6fc56fc328b320ea41a978"
+  },
+  "configuration": {
+    "snapshot": {
+      "architecture_sync": "architecture_to_aipos",
+      "live_trading_mutation": "prohibited"
+    },
+    "hash": {
+      "algorithm": "sha256",
+      "value": "656e1ddffdbb04943e68969b39b9ba2bf14088d77a0c1acc32397dc1fd6812d7"
+    }
+  },
+  "observed_at": "2026-08-07T15:39:50+09:00",
+  "provenance": [
+    "github:pull/135",
+    "github:actions/run/31154350366",
+    "github:artifact/8984565104",
+    "git:merge/e9c83375e3d2e2d9eb6fc56fc328b320ea41a978"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_ci", "status": "PASS", "detail": "31154350366"},
+    {"name": "paper_runtime_operational_evidence", "status": "PASS", "detail": "sha256:728e9c21abd0a7a46a9173ec46ec2788ea3616f4a5214dc616f95b10aae7d314"},
+    {"name": "live_mutation_prohibited", "status": "PASS"}
+  ]
+}
