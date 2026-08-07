@@ -1,28 +1,31 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T19:37:00+09:00"
-phase: safety-architecture
-status: verifying
-objective: "Enforce deterministic safety authority separation so hard-risk limits remain final, safety-critical UNKNOWN blocks new risk, and operational health degrades fail-closed through SAFE/DEGRADED/RESTRICTED/HALT."
+updated_at: "2026-08-07T19:48:00+09:00"
+phase: shadow
+status: implementing
+objective: "Govern production-equivalent Shadow observation as a strictly non-mutating evidence stage that can observe real/public market inputs without creating broker, order, fill, cash, position, LIVE, or production-promotion authority."
 base_branch: main
-active_branch: agent/safety-architecture
-active_pull_request: 142
-base_commit: 6e9871566b27cf0db6fce06ab0879eb7f38d51f9
+active_branch: agent/shadow
+active_pull_request: null
+base_commit: 3607a8796a680101175701582a6729db26334778
 claimed_state:
-  work_order: WO-0029
+  work_order: WO-0030
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0028
+  work_order: WO-0029
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0028-completion.json"
+  evidence: ".aipos/evidence/WO-0029-completion.json"
 latest_verified_slice:
-  id: wo-0028-deployment-rollback-complete
-  evidence: ".aipos/evidence/WO-0028-completion.json"
-  summary: "WO-0028 is complete. Capability Deployment Bundles bind promotion/runtime artifacts and require complete verified rollback targets."
+  id: wo-0029-safety-architecture-complete
+  evidence: ".aipos/evidence/WO-0029-completion.json"
+  summary: "WO-0029 is complete. Hard Risk Governor authority is final, learned risk cannot relax hard limits, safety-critical UNKNOWN fails closed, and operational state is SAFE/DEGRADED/RESTRICTED/HALT."
 completed:
+  - id: WO-0029
+    evidence: ".aipos/evidence/WO-0029-completion.json"
+    summary: "Added deterministic Safety Architecture authority separation, UNKNOWN fail-closed semantics, operational states, focused regressions, and CI enforcement."
   - id: WO-0028
     evidence: ".aipos/evidence/WO-0028-completion.json"
-    summary: "Added Capability Deployment Bundle integrity, promotion/runtime hash binding, atomic verified rollback, regressions, and CI enforcement."
+    summary: "Added Capability Deployment Bundle integrity and atomic verified rollback."
   - id: WO-0027
     evidence: ".aipos/evidence/WO-0027-completion.json"
     summary: "Added canonical Data & Strategy Identity contracts and temporal correctness."
@@ -36,17 +39,19 @@ completed:
     evidence: ".aipos/evidence/WO-0024-completion.json"
     summary: "Added architecture change lifecycle governance."
 in_progress:
-  - id: WO-0029
-    evidence: ".aipos/work-orders/WO-0029-safety-architecture.yaml; PR #142"
-    summary: "Deterministic Hard Risk Governor authority separation, UNKNOWN fail-closed rules, operational safety states, 8 focused regressions, and CI enforcement implemented; official verification pending."
+  - id: WO-0030
+    evidence: ".aipos/work-orders/WO-0030-shadow.yaml"
+    summary: "Shadow read-only governance, identity/provenance binding, zero-mutation evidence semantics, focused regressions, and CI enforcement are being implemented."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0029-safety-architecture.yaml
-  reason: "Complete PR #142 official verification and merge before Shadow begins."
+  work_order: .aipos/work-orders/WO-0030-shadow.yaml
+  reason: "Complete Shadow verification and merge before Restricted LIVE begins."
 verification:
   required:
+    - "Shadow governance validation"
+    - "Focused Shadow governance regression tests"
+    - "Existing Shadow pilot no-mutation verification"
     - "Safety Architecture validation"
-    - "Focused Safety Architecture regression tests"
     - "Deployment bundle validation"
     - "Data & Strategy Identity validation"
     - "Champion/Challenger governance validation"
@@ -58,18 +63,26 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0029 implementation committed on PR #142; official required CI pending. WO-0028 remains evidence-backed COMPLETE."
-  current_commit: "f62348ead639fbdd4e41ef4e384d934da5ca0998 plus AIPOS PR-state commit"
+  last_result: "WO-0029 is evidence-backed COMPLETE. WO-0030 implementation is in progress; official CI not yet run."
+  current_commit: "124baae18e040777db09299747de9c07d56bda7c plus AIPOS state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
   architecture_override: explicit_only
+shadow_authority:
+  mode: SHADOW_READ_ONLY
+  execution_transport_connected: false
+  broker_mutation: prohibited
+  order_mutation: prohibited
+  fill_mutation: prohibited
+  cash_mutation: prohibited
+  position_mutation: prohibited
+  evidence_grants_live_authority: false
+  evidence_grants_production_promotion: false
 safety_authority:
   hard_risk_override: prohibited
   learned_risk_may_relax_hard_limits: false
   safety_critical_unknown: fail_closed_for_risk_increase
-  operational_states: "SAFE>DEGRADED>RESTRICTED>HALT"
-  halt_recovery: explicit_human_evidence_required
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
