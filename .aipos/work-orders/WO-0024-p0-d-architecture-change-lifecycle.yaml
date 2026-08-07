@@ -1,0 +1,42 @@
+id: WO-0024
+title: "P0-D Architecture Change Lifecycle"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 6a4de464ea0cfa99c45830089ebae9744485e86b
+implementation_branch: agent/p0-d-architecture-change-lifecycle
+objective: "Make architecture evolution explicit, reviewable, staged, evidence-backed, and rollback-capable so governing architecture cannot be silently mutated by implementation work."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "P0-D operationalizes the already-approved architecture-change governance model. It adds lifecycle records and CI enforcement without changing Risk Governor, Deployment Gate, production authority, or LIVE mutation boundaries."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Define a machine-readable architecture-change lifecycle: Proposal -> Impact Analysis -> Architecture Review -> Migration Plan -> Approval -> Staged Adoption -> Verification -> Rollback."
+  - "Require explicit affected paths/capabilities, safety impact, compatibility/migration analysis, approval authority, verification criteria, and rollback plan."
+  - "Detect changes to governing architecture paths in CI and fail closed when no approved lifecycle record covers them."
+  - "Reject skipped lifecycle stages, invalid regressions, missing approvals, missing rollback plans, and contradictory status/evidence."
+  - "Require explicit constitutional/safety-sensitive classification and human approval when protected authority boundaries are affected."
+  - "Keep AIPOS synchronization one-way from approved architecture to execution state."
+  - "Preserve P0-A/P0-B/P0-F/P0-C gates and LIVE mutation prohibition."
+acceptance:
+  - "Focused architecture lifecycle regression tests PASS."
+  - "Architecture change lifecycle validator PASS."
+  - "A governed architecture-path change without an approved lifecycle record fails in CI."
+  - "P0-A/P0-B/P0-F/P0-C gates and architecture validation PASS."
+  - "Full required GitHub CI PASS."
+  - "PR merged before P0-E begins."
+safety:
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+completion_rule: "Merge + required test/CI PASS. Do not begin P0-E before this work order is complete."
