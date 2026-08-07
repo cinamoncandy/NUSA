@@ -1,0 +1,46 @@
+id: WO-0035
+title: "Restricted LIVE Capability Surface Guard"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ed16378ad84a2b5fd55d55a7cbe13f17aad33526
+implementation_branch: agent/restricted-live-capability-surface-guard
+objective: "Prevent any LIVE execution, transport dial, credential resolution, order mutation, cash mutation, or position mutation capability from becoming reachable through capability contracts while Restricted LIVE remains prohibited."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0035 adds a fail-closed constitutional guard around capability registration and the disabled transport/credential readiness boundary. It does not add an execution capability, broker transport, credentials, or LIVE authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Define an explicit prohibited permission set for LIVE execution, order mutation, transport dialing, credential resolution, cash mutation, and position mutation."
+  - "Validate every capability contract permission against that prohibited set while live_trading_mutation remains prohibited."
+  - "Require current transport adapter state DISABLED, execution methods absent, transport dialing false, credential resolution false, credential execution use false, and real-money execution false."
+  - "Require all LIVE readiness mutation counters exactly zero."
+  - "Unknown or malformed capability permissions fail closed."
+  - "No AI, Meta-AI, provider, strategy, or automation may bypass the surface guard."
+  - "Emit machine-readable PASS/FAIL evidence bound to code revision and guard configuration."
+  - "Add focused regressions and a dedicated CI workflow."
+acceptance:
+  - "Capability surface guard regressions PASS."
+  - "Current capability registry PASSes with zero prohibited LIVE permissions."
+  - "Each prohibited permission injection fails closed in regression coverage."
+  - "Disabled transport/credential readiness boundary remains intact."
+  - "Dedicated evidence artifact is uploaded by official CI."
+  - "Full required GitHub CI PASS."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required test/CI PASS. Completion proves capability-surface containment only and cannot activate LIVE execution."
