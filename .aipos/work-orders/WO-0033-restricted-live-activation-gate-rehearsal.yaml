@@ -16,6 +16,11 @@ source_of_truth:
 architecture_impact:
   acknowledged: true
   analysis: "WO-0033 validates the pre-activation ceremony and decision path only. A PASS may emit WOULD_ALLOW, never ACTIVE or an executable order. Human LIVE authority remains final and actual activation remains a separate future constitutional boundary."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
 requirements:
   - "Use SIMULATED_ONLY activation intent; real-money execution and broker/exchange mutation remain prohibited."
   - "Require exactly two distinct HUMAN approvers and an auditable human requester for risk-increasing rehearsal."
