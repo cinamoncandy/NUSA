@@ -1,44 +1,78 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
-export type OperationsMode = "PAPER" | "SHADOW" | "READ_ONLY" | "LIVE_DISABLED";
-export type HealthState = "HEALTHY" | "WARNING" | "CRITICAL" | "UNKNOWN";
-export type AlertSeverity = "INFO" | "WARNING" | "ERROR" | "CRITICAL";
-export type AlertSource = "MARKET" | "EXECUTION" | "RECOVERY" | "RISK" | "EXCHANGE" | "DATABASE" | "RENDERER" | "SYSTEM";
-export type SessionState = "STARTING" | "RUNNING" | "STOPPING" | "STOPPED" | "RECOVERING" | "BLOCKED";
-export type IncidentType = "RECOVERY" | "RECONNECT" | "RISK_BLOCK" | "KILL_SWITCH" | "UNKNOWN_SUBMISSION" | "RECONCILIATION_DIFF" | "RESTART" | "SHUTDOWN" | "CRASH" | "DATABASE_ERROR" | "EXCHANGE_ERROR";
-export const OPERATIONS_CAPABILITY_DESCRIPTOR = Object.freeze({ operationsCenterPresent: true as const, auditLogPresent: true as const, healthMonitorPresent: true as const, productionMutationAllowed: false as const });
+export type OperationsHealth = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+export type ActorKind = "HUMAN" | "SYSTEM" | "AI" | "META_AI" | "AUTOMATION" | "PROVIDER";
+export type SafeControlAction = "REQUEST_HALT" | "REQUEST_RECOVERY_REVIEW";
 
-export interface HealthEntry { readonly component: string; readonly state: HealthState; readonly reasonCode: string | null; readonly observedAt: string; }
-export interface OperationsSnapshot { readonly applicationVersion: string; readonly buildVersion: string; readonly gitCommit: string; readonly mode: OperationsMode; readonly exchangeStatus: HealthState; readonly websocketStatus: HealthState; readonly warmupStatus: HealthState; readonly recoveryStatus: HealthState; readonly reconciliationStatus: HealthState; readonly riskStatus: HealthState; readonly killSwitchActive: boolean; readonly executionSummary: Readonly<Record<string, unknown>>; readonly resources: Readonly<Record<string, string | number>>; readonly lastSync: string | null; readonly clockDriftMs: number | null; readonly health: readonly HealthEntry[]; readonly observedAt: string; }
-export interface OperationsAlert { readonly alertId: string; readonly severity: AlertSeverity; readonly source: AlertSource; readonly code: string; readonly message: string; readonly acknowledgedAt: string | null; readonly acknowledgedBy: string | null; readonly createdAt: string; }
-export interface IncidentEvent { readonly eventId: string; readonly type: IncidentType; readonly message: string; readonly createdAt: string; readonly sessionId: string | null; readonly alertId: string | null; }
-export interface AuditEvent { readonly auditId: string; readonly actor: string; readonly action: string; readonly target: string | null; readonly metadata: Readonly<Record<string, string>>; readonly createdAt: string; }
-export interface EvidenceFilter { readonly from?: string; readonly to?: string; readonly strategy?: string; readonly symbol?: string; readonly severity?: string; readonly executionId?: string; readonly sessionId?: string; readonly recovery?: string; }
-export interface EvidenceItem { readonly evidenceId: string; readonly createdAt: string; readonly severity: string; readonly strategyId: string | null; readonly symbol: string | null; readonly executionId: string | null; readonly sessionId: string | null; readonly recoveryState: string | null; readonly payload: Readonly<Record<string, unknown>>; }
-
-const iso = (value = new Date().toISOString()): string => { if (Number.isNaN(Date.parse(value))) throw new Error("INVALID_TIMESTAMP"); return value; };
-const clean = (value: unknown): string => { const text = String(value ?? ""); if (/secret|jwt|authorization|access.?key|private.?key/i.test(text)) return "[REDACTED]"; return text; };
-const sessionTransitions: Readonly<Record<SessionState, readonly SessionState[]>> = { STARTING: ["RUNNING", "BLOCKED", "STOPPED"], RUNNING: ["STOPPING", "BLOCKED", "RECOVERING"], STOPPING: ["STOPPED", "BLOCKED"], STOPPED: ["STARTING", "RECOVERING"], RECOVERING: ["RUNNING", "BLOCKED", "STOPPED"], BLOCKED: ["RECOVERING", "STOPPED"] };
-
-export class SessionManager {
-  private state: SessionState = "STOPPED";
-  public constructor(private readonly audit: AuditLog) {}
-  get current(): SessionState { return this.state; }
-  transition(next: SessionState, actor = "operator"): SessionState { if (!sessionTransitions[this.state].includes(next)) throw new Error(`INVALID_SESSION_TRANSITION:${this.state}->${next}`); const previous = this.state; this.state = next; this.audit.append(actor, "SESSION_TRANSITION", next, { from: previous, to: next }); return next; }
+export interface HealthSignal { readonly component: string; readonly state: OperationsHealth; readonly reasonCode: string | null; readonly observedAt: string; }
+export interface EvidenceReference { readonly id: string; readonly kind: string; readonly digest: string; readonly observedAt: string; }
+export interface OperationsProjectionInput {
+  readonly governanceState: string;
+  readonly operationalState: "SAFE" | "DEGRADED" | "RESTRICTED" | "HALT" | "UNKNOWN";
+  readonly hardRisk: "PASS" | "REJECT" | "BLOCK" | "UNKNOWN";
+  readonly killSwitchActive: boolean;
+  readonly reconciliation: "MATCH" | "DIFF" | "UNKNOWN";
+  readonly marketData: "HEALTHY" | "STALE" | "DISCONNECTED" | "UNKNOWN";
+  readonly recoveryReady: boolean;
+  readonly health: readonly HealthSignal[];
+  readonly evidence: readonly EvidenceReference[];
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
-export class AuditLog {
-  private readonly events: AuditEvent[] = [];
-  append(actor: string, action: string, target: string | null = null, metadata: Readonly<Record<string, string>> = {}, createdAt = new Date().toISOString()): AuditEvent { const event = Object.freeze({ auditId: randomUUID(), actor: clean(actor), action: clean(action), target: target == null ? null : clean(target), metadata: Object.freeze(Object.fromEntries(Object.entries(metadata).map(([k, v]) => [clean(k), clean(v)]))), createdAt: iso(createdAt) }); this.events.push(event); return event; }
-  list(): readonly AuditEvent[] { return Object.freeze([...this.events]); }
+export interface OperationsProjection extends OperationsProjectionInput {
+  readonly mode: "READ_ONLY_OPERATIONS";
+  readonly overallHealth: OperationsHealth;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly executionAuthority: false;
+  readonly realMoneyExecutionAllowed: false;
+  readonly observedAt: string;
 }
-export class AlertCenter {
+export interface OperationsAuditEvent { readonly auditId: string; readonly actorId: string; readonly actorKind: ActorKind; readonly action: string; readonly target: string | null; readonly observedAt: string; readonly metadata: Readonly<Record<string, unknown>>; }
+export interface OperationsAlert { readonly alertId: string; readonly severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL"; readonly code: string; readonly message: string; readonly createdAt: string; readonly acknowledgedAt: string | null; readonly acknowledgedBy: string | null; }
+export interface IncidentEvent { readonly eventId: string; readonly type: string; readonly message: string; readonly createdAt: string; readonly evidenceId: string | null; }
+export interface SafeControlRequest { readonly requestId: string; readonly action: SafeControlAction; readonly actorId: string; readonly actorKind: ActorKind; readonly reasonCode: string; readonly requestedAt: string; readonly executesMutation: false; readonly authorizesLive: false; }
+
+export const OPERATIONS_CONTROL_DESCRIPTOR = Object.freeze({ readOnlyProjection: true as const, safeReductionRequestsOnly: true as const, executionAuthority: false as const, killSwitchReleaseAuthority: false as const, credentialExecutionUse: false as const, realMoneyExecutionAllowed: false as const });
+const secretKeyPattern = /secret|password|token|authorization|access.?key|private.?key|credential/i;
+const secretValuePattern = /bearer\s+|private[_ -]?key|api[_ -]?secret/i;
+const validIso = (value: string): string => { if (Number.isNaN(Date.parse(value))) throw new Error("OPERATIONS_INVALID_TIMESTAMP"); return value; };
+function sanitize(value: unknown, key = ""): unknown {
+  if (secretKeyPattern.test(key)) return "[REDACTED]";
+  if (typeof value === "string" && secretValuePattern.test(value)) return "[REDACTED]";
+  if (Array.isArray(value)) return Object.freeze(value.map((item) => sanitize(item)));
+  if (value && typeof value === "object") return Object.freeze(Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitize(v, k)])));
+  return value;
+}
+function deriveOverallHealth(input: OperationsProjectionInput): OperationsHealth {
+  if (input.operationalState === "UNKNOWN" || input.hardRisk === "UNKNOWN" || input.reconciliation === "UNKNOWN" || input.marketData === "UNKNOWN" || input.health.some((x) => x.state === "UNKNOWN")) return "UNKNOWN";
+  if (input.killSwitchActive || input.operationalState === "HALT" || input.hardRisk === "BLOCK" || input.reconciliation === "DIFF" || input.marketData === "DISCONNECTED" || input.health.some((x) => x.state === "CRITICAL")) return "CRITICAL";
+  if (input.operationalState !== "SAFE" || input.hardRisk !== "PASS" || input.marketData !== "HEALTHY" || !input.recoveryReady || input.health.some((x) => x.state === "DEGRADED")) return "DEGRADED";
+  return "HEALTHY";
+}
+export function buildOperationsProjection(input: OperationsProjectionInput, observedAt = new Date().toISOString()): OperationsProjection {
+  const at = validIso(observedAt);
+  const health = Object.freeze(input.health.map((entry) => Object.freeze({ ...entry, observedAt: validIso(entry.observedAt) })));
+  const evidence = Object.freeze(input.evidence.map((entry) => { if (!entry.id.trim() || !entry.kind.trim() || !/^[a-z0-9:+._-]{8,}$/i.test(entry.digest)) throw new Error("OPERATIONS_EVIDENCE_REFERENCE_INVALID"); return Object.freeze({ ...entry, observedAt: validIso(entry.observedAt) }); }));
+  return Object.freeze({ ...input, mode: "READ_ONLY_OPERATIONS", overallHealth: deriveOverallHealth({ ...input, health }), governanceState: String(sanitize(input.governanceState)), health, evidence, metadata: sanitize(input.metadata ?? {}) as Readonly<Record<string, unknown>>, executionAuthority: false, realMoneyExecutionAllowed: false, observedAt: at });
+}
+export class OperationsAuditLog {
+  private readonly events: OperationsAuditEvent[] = [];
+  append(actorId: string, actorKind: ActorKind, action: string, target: string | null, metadata: Readonly<Record<string, unknown>> = {}, observedAt = new Date().toISOString()): OperationsAuditEvent { if (!actorId.trim() || !action.trim()) throw new Error("OPERATIONS_AUDIT_REQUIRED_FIELD"); const event = Object.freeze({ auditId: randomUUID(), actorId, actorKind, action, target, observedAt: validIso(observedAt), metadata: sanitize(metadata) as Readonly<Record<string, unknown>> }); this.events.push(event); return event; }
+  list(): readonly OperationsAuditEvent[] { return Object.freeze([...this.events]); }
+}
+export class OperationsAlertCenter {
   private readonly alerts = new Map<string, OperationsAlert>();
-  public constructor(private readonly audit: AuditLog) {}
-  create(input: Omit<OperationsAlert, "alertId" | "acknowledgedAt" | "acknowledgedBy">): OperationsAlert { const alert = Object.freeze({ ...input, alertId: randomUUID(), acknowledgedAt: null, acknowledgedBy: null, createdAt: iso(input.createdAt) }); this.alerts.set(alert.alertId, alert); return alert; }
-  acknowledge(alertId: string, actor: string, at = new Date().toISOString()): OperationsAlert { const existing = this.alerts.get(alertId); if (!existing) throw new Error("ALERT_NOT_FOUND"); const next = Object.freeze({ ...existing, acknowledgedAt: iso(at), acknowledgedBy: clean(actor) }); this.alerts.set(alertId, next); this.audit.append(actor, "ALERT_ACKNOWLEDGE", alertId); return next; }
-  list(): readonly OperationsAlert[] { return Object.freeze([...this.alerts.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))); }
+  constructor(private readonly audit: OperationsAuditLog) {}
+  raise(severity: OperationsAlert["severity"], code: string, message: string, createdAt = new Date().toISOString()): OperationsAlert { if (!code.trim()) throw new Error("OPERATIONS_ALERT_CODE_REQUIRED"); const alert = Object.freeze({ alertId: randomUUID(), severity, code, message: String(sanitize(message)), createdAt: validIso(createdAt), acknowledgedAt: null, acknowledgedBy: null }); this.alerts.set(alert.alertId, alert); return alert; }
+  acknowledge(alertId: string, actorId: string, actorKind: ActorKind, at = new Date().toISOString()): OperationsAlert { const prior = this.alerts.get(alertId); if (!prior) throw new Error("OPERATIONS_ALERT_NOT_FOUND"); const next = Object.freeze({ ...prior, acknowledgedAt: validIso(at), acknowledgedBy: actorId }); this.alerts.set(alertId, next); this.audit.append(actorId, actorKind, "ALERT_ACKNOWLEDGED", alertId, { code: prior.code }, at); return next; }
+  list(): readonly OperationsAlert[] { return Object.freeze([...this.alerts.values()]); }
 }
-export class IncidentTimeline { private readonly events: IncidentEvent[] = []; append(input: Omit<IncidentEvent, "eventId">): IncidentEvent { const event = Object.freeze({ ...input, eventId: randomUUID(), createdAt: iso(input.createdAt) }); this.events.push(event); return event; } list(): readonly IncidentEvent[] { return Object.freeze([...this.events].sort((a, b) => a.createdAt.localeCompare(b.createdAt))); } }
-export class EvidenceBrowser { private readonly items: EvidenceItem[] = []; append(item: EvidenceItem): void { if (this.items.some(x => x.evidenceId === item.evidenceId)) throw new Error("DUPLICATE_EVIDENCE"); this.items.push(Object.freeze({ ...item, payload: Object.freeze({ ...item.payload }) })); } list(filter: EvidenceFilter = {}): readonly EvidenceItem[] { return Object.freeze(this.items.filter(x => (!filter.strategy || x.strategyId === filter.strategy) && (!filter.symbol || x.symbol === filter.symbol) && (!filter.severity || x.severity === filter.severity) && (!filter.executionId || x.executionId === filter.executionId) && (!filter.sessionId || x.sessionId === filter.sessionId) && (!filter.recovery || x.recoveryState === filter.recovery) && (!filter.from || x.createdAt >= filter.from) && (!filter.to || x.createdAt <= filter.to))); } exportJson(filter?: EvidenceFilter): string { return JSON.stringify(this.list(filter)); } exportCsv(filter?: EvidenceFilter): string { const rows = this.list(filter); return ["evidenceId,createdAt,severity,strategyId,symbol,executionId,sessionId,recoveryState", ...rows.map(x => [x.evidenceId, x.createdAt, x.severity, x.strategyId, x.symbol, x.executionId, x.sessionId, x.recoveryState].map(v => JSON.stringify(v ?? "")).join(","))].join("\n"); } }
-export function buildOperationsSnapshot(input: Omit<OperationsSnapshot, "observedAt" | "mode"> & { readonly mode?: OperationsMode; readonly observedAt?: string }): OperationsSnapshot { return Object.freeze({ ...input, mode: input.mode ?? "READ_ONLY", observedAt: iso(input.observedAt) }); }
-export function buildHealth(component: string, state: HealthState, reasonCode: string | null = null, observedAt?: string): HealthEntry { if (!component.trim()) throw new Error("HEALTH_COMPONENT_REQUIRED"); return Object.freeze({ component, state, reasonCode, observedAt: iso(observedAt) }); }
+export class IncidentTimeline {
+  private readonly events: IncidentEvent[] = [];
+  append(type: string, message: string, evidenceId: string | null = null, createdAt = new Date().toISOString()): IncidentEvent { if (!type.trim()) throw new Error("OPERATIONS_INCIDENT_TYPE_REQUIRED"); const event = Object.freeze({ eventId: randomUUID(), type, message: String(sanitize(message)), createdAt: validIso(createdAt), evidenceId }); this.events.push(event); return event; }
+  list(): readonly IncidentEvent[] { return Object.freeze([...this.events]); }
+}
+export class OperationsControlCenter {
+  constructor(private readonly audit: OperationsAuditLog) {}
+  requestSafeControl(action: SafeControlAction, actorId: string, actorKind: ActorKind, reasonCode: string, requestedAt = new Date().toISOString()): SafeControlRequest { if (action !== "REQUEST_HALT" && action !== "REQUEST_RECOVERY_REVIEW") throw new Error("OPERATIONS_RISK_INCREASE_ACTION_PROHIBITED"); if (!actorId.trim() || !reasonCode.trim()) throw new Error("OPERATIONS_CONTROL_REQUIRED_FIELD"); const at = validIso(requestedAt); const request = Object.freeze({ requestId: randomUUID(), action, actorId, actorKind, reasonCode, requestedAt: at, executesMutation: false as const, authorizesLive: false as const }); this.audit.append(actorId, actorKind, action, request.requestId, { reasonCode }, at); return request; }
+}
+export function evidenceReferenceDigest(input: Readonly<Record<string, unknown>>): string { return `sha256:${createHash("sha256").update(JSON.stringify(sanitize(input))).digest("hex")}`; }
