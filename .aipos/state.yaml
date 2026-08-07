@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T21:07:00+09:00"
+updated_at: "2026-08-07T21:14:00+09:00"
 phase: restricted-live-activation-boundary
-status: implementing
+status: verifying
 objective: "Define a fail-closed activation eligibility boundary that can prove a bounded Restricted LIVE request is eligible for explicit human review without connecting execution transport, accessing credentials, submitting orders, or activating real-money trading."
 base_branch: main
 active_branch: agent/restricted-live-activation-boundary
-active_pull_request: null
+active_pull_request: 147
 base_commit: c878e0b7e549428b9b8b1759588afeb25144f8b6
 claimed_state:
   work_order: WO-0033
@@ -37,12 +37,12 @@ completed:
     summary: "Added Capability Deployment Bundle integrity and atomic verified rollback."
 in_progress:
   - id: WO-0033
-    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-boundary.yaml"
-    summary: "Activation eligibility policy, human authority separation, readiness evidence binding, nonce replay protection, focused regressions, and CI evidence are being implemented."
+    evidence: ".aipos/work-orders/WO-0033-restricted-live-activation-boundary.yaml; PR #147"
+    summary: "Activation eligibility policy, human authority separation, readiness evidence binding, nonce replay protection, 8 focused regressions, and dedicated CI evidence implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0033-restricted-live-activation-boundary.yaml
-  reason: "Complete activation-boundary verification and merge. Actual LIVE activation remains prohibited and requires a separate explicit human-authorized constitutional work item."
+  reason: "Complete PR #147 exact-head full CI and activation-boundary workflow verification, confirm evidence artifact, then merge. Actual LIVE activation remains prohibited."
 verification:
   required:
     - "Restricted LIVE activation boundary regression tests"
@@ -62,7 +62,7 @@ verification:
     - "Existing architecture validation"
     - "Full required GitHub CI"
   last_result: "WO-0032 official CI 31176205294 PASS; readiness artifact 8992960586 verified; PR #146 merged at c878e0b7e549428b9b8b1759588afeb25144f8b6."
-  current_commit: "WO-0033 activation boundary implementation in progress"
+  current_commit: "PR #147 activation boundary verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
