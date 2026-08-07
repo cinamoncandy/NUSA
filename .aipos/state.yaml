@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T22:22:00+09:00"
+updated_at: "2026-08-07T22:33:00+09:00"
 phase: read-only-broker-credential-integration
-status: implementing
+status: verifying
 objective: "Integrate OS-encrypted credentials and authenticated broker account observation behind a strictly read-only port while preserving zero execution authority, zero order mutation, and zero real-money execution."
 base_branch: main
 active_branch: agent/read-only-broker-credential-integration
-active_pull_request: null
+active_pull_request: 151
 base_commit: 7291cd53391905660e110a864101ed8833a220c9
 claimed_state:
   work_order: WO-0036
@@ -43,12 +43,12 @@ completed:
     summary: "Added deterministic Safety Architecture authority separation and UNKNOWN fail-closed semantics."
 in_progress:
   - id: WO-0036
-    evidence: ".aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml"
-    summary: "OS-encrypted read-only broker credentials, read-only broker service port, reconciliation semantics, focused regressions, and dedicated evidence workflow are being integrated on current main."
+    evidence: ".aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml; PR #151"
+    summary: "OS-encrypted read-only broker credentials, read-only broker service port, reconciliation semantics, focused regressions, and dedicated evidence workflow implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0036-read-only-broker-credential-integration.yaml
-  reason: "Complete read-only broker/credential integration verification and merge. Execution credentials, execution transport, order mutation, withdrawals, and real-money execution remain prohibited."
+  reason: "Complete PR #151 official verification and merge. Execution credentials, execution transport, order mutation, withdrawals, and real-money execution remain prohibited."
 verification:
   required:
     - "Read-only broker credential integration regression tests"
@@ -68,8 +68,8 @@ verification:
     - "Existing architecture validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0035 verified and merged; WO-0036 implementation in progress. No LIVE execution is authorized."
-  current_commit: "implementation in progress"
+  last_result: "WO-0036 implementation committed on PR #151; official exact-head verification pending. No LIVE execution is authorized."
+  current_commit: "PR #151 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
