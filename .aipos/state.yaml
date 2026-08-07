@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-07T17:50:00+09:00"
+updated_at: "2026-08-07T17:56:00+09:00"
 phase: deployment-rollback
-status: in_progress
+status: verifying
 objective: "Make deployment and rollback operate on cryptographically bound Capability Deployment Bundles so promotion evidence, runtime artifacts, and rollback targets cannot silently diverge."
 base_branch: main
 active_branch: agent/deployment-rollback
-active_pull_request: null
+active_pull_request: 141
 base_commit: 84b502f2e49b3f645f17548ae73144a72b55667a
 claimed_state:
   work_order: WO-0028
@@ -34,12 +34,12 @@ completed:
     summary: "Added architecture change lifecycle governance."
 in_progress:
   - id: WO-0028
-    evidence: ".aipos/work-orders/WO-0028-deployment-rollback.yaml"
-    summary: "Implement Capability Deployment Bundle integrity, promotion/runtime artifact binding, and atomic rollback governance."
+    evidence: ".aipos/work-orders/WO-0028-deployment-rollback.yaml; PR #141"
+    summary: "Capability Deployment Bundle contracts, promotion/runtime artifact binding, atomic rollback governance, 8 focused regressions, and CI enforcement implemented; official verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0028-deployment-rollback.yaml
-  reason: "Implement and verify Deployment / Rollback before Safety Architecture begins."
+  reason: "Complete PR #141 official verification and merge before Safety Architecture begins."
 verification:
   required:
     - "Deployment bundle validation"
@@ -54,8 +54,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Existing architecture validation"
     - "Full required GitHub CI"
-  last_result: "WO-0027 merged with official CI PASS. WO-0028 implementation authorized."
-  current_commit: "deployment/rollback implementation branch"
+  last_result: "WO-0028 implementation committed on PR #141; official required CI pending. WO-0027 remains evidence-backed COMPLETE."
+  current_commit: "259c82bb0c4b2233aa6e8ade97444d822afae32c plus AIPOS PR-state commit"
 human_authority:
   live_trading_mutation: prohibited
   production_promotion_mutation: prohibited
