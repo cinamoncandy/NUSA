@@ -14,6 +14,10 @@ export class SqliteRiskSafetyPersistence implements RiskSafetyPersistence {
     const row = this.db.connection.prepare("SELECT payload_json FROM risk_paper_approvals WHERE approval_id=? AND status='VALID'").get(approvalId) as Row | undefined;
     return row == null ? undefined : Object.freeze(JSON.parse(text(row.payload_json)) as PaperApproval);
   }
+  /** WO-0019. status flips to REVOKED so a subsequent loadApproval (status='VALID' only) can never see it again. Idempotent: revoking an already-revoked or unknown id is a no-op, never an error. */
+  public revokeApproval(approvalId: string, _reason: string): void {
+    this.db.connection.prepare("UPDATE risk_paper_approvals SET status='REVOKED' WHERE approval_id=? AND status='VALID'").run(approvalId);
+  }
   public loadDailyLoss(accountId: string): DailyLossState | undefined {
     const row = this.db.connection.prepare("SELECT * FROM risk_daily_loss_state WHERE account_id=?").get(accountId) as Row | undefined;
     return row == null ? undefined : Object.freeze({ accountId: text(row.account_id), tradingDay: text(row.trading_day), dayStartEquity: Number(row.day_start_equity), updatedAtMs: Number(row.updated_at_ms) });

@@ -186,6 +186,52 @@ test("all non-shadow boundaries use the same canonical gate and broker boundary"
   assert.equal(gate.evaluate(request({ boundary: "SHADOW", approvalId: undefined, idempotency: { ...request().idempotency, commandId: "boundary-shadow-c", signalId: "boundary-shadow-s", clientOrderId: "boundary-shadow-o" } })).status, "BLOCKED");
 });
 
+test("WO-0019: an approval bound to a commandId rejects a different commandId as APPROVAL_SCOPE_MISMATCH", () => {
+  const persistence = new InMemoryRiskSafetyPersistence();
+  const gate = new CanonicalRiskSafetyGate(persistence);
+  gate.saveApproval(approval({ commandId: "command-1" }));
+  const decision = gate.evaluate(request({ idempotency: { ...request().idempotency, commandId: "command-2", signalId: "s-cmd2", clientOrderId: "o-cmd2" } }));
+  assert.equal(decision.status, "BLOCKED");
+  assert.ok(decision.reasonCodes.includes("APPROVAL_SCOPE_MISMATCH"));
+});
+
+test("WO-0019: an approval bound to a side rejects the opposite side as APPROVAL_SCOPE_MISMATCH", () => {
+  const persistence = new InMemoryRiskSafetyPersistence();
+  const gate = new CanonicalRiskSafetyGate(persistence);
+  gate.saveApproval(approval({ side: "BUY" }));
+  const decision = gate.evaluate(request({ side: "SELL" }));
+  assert.equal(decision.status, "BLOCKED");
+  assert.ok(decision.reasonCodes.includes("APPROVAL_SCOPE_MISMATCH"));
+});
+
+test("WO-0019: a commandId-bound approval is usable for exactly the one commandId it names", () => {
+  const persistence = new InMemoryRiskSafetyPersistence();
+  const gate = new CanonicalRiskSafetyGate(persistence);
+  gate.saveApproval(approval({ commandId: "command-1", side: "BUY" }));
+  const decision = gate.evaluate(request({ side: "BUY" }));
+  assert.equal(decision.status, "APPROVED");
+});
+
+test("WO-0019: revokeApproval makes a previously valid approval unusable (APPROVAL_MISSING)", () => {
+  const persistence = new InMemoryRiskSafetyPersistence();
+  const gate = new CanonicalRiskSafetyGate(persistence);
+  gate.saveApproval(approval());
+  assert.equal(gate.evaluate(request()).status, "APPROVED");
+  gate.revokeApproval("approval-1", "test revocation");
+  const decision = gate.evaluate(request({ idempotency: { ...request().idempotency, commandId: "after-revoke", signalId: "after-revoke", clientOrderId: "after-revoke" } }));
+  assert.equal(decision.status, "BLOCKED");
+  assert.ok(decision.reasonCodes.includes("APPROVAL_MISSING"));
+});
+
+test("WO-0019: revoking an unknown or already-revoked approvalId is a no-op, not an error", () => {
+  const persistence = new InMemoryRiskSafetyPersistence();
+  const gate = new CanonicalRiskSafetyGate(persistence);
+  assert.doesNotThrow(() => gate.revokeApproval("never-existed", "test"));
+  gate.saveApproval(approval());
+  gate.revokeApproval("approval-1", "first");
+  assert.doesNotThrow(() => gate.revokeApproval("approval-1", "second"));
+});
+
 test("SQLite persistence restores approvals, daily loss, orders, and idempotency", () => {
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-risk-safety-")), "risk.db");
   const firstDb = new SqliteDatabase(filename);
@@ -202,6 +248,22 @@ test("SQLite persistence restores approvals, daily loss, orders, and idempotency
   assert.equal(secondPersistence.loadDailyLoss("paper-1").dayStartEquity, 1_000);
   assert.equal(secondPersistence.listOrders("paper-1").length, 1);
   assert.equal(secondGate.evaluate(request()).status, "BLOCKED");
+  secondDb.close();
+  rmSync(filename, { force: true });
+});
+
+test("WO-0019: SQLite revocation survives restart", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-risk-safety-revoke-")), "risk.db");
+  const firstDb = new SqliteDatabase(filename);
+  const firstPersistence = new SqliteRiskSafetyPersistence(firstDb);
+  firstPersistence.saveApproval(approval({ approvalId: "revoke-me" }));
+  assert.ok(firstPersistence.loadApproval("revoke-me"));
+  firstPersistence.revokeApproval("revoke-me", "test");
+  assert.equal(firstPersistence.loadApproval("revoke-me"), undefined);
+  firstDb.close();
+  const secondDb = new SqliteDatabase(filename);
+  const secondPersistence = new SqliteRiskSafetyPersistence(secondDb);
+  assert.equal(secondPersistence.loadApproval("revoke-me"), undefined);
   secondDb.close();
   rmSync(filename, { force: true });
 });

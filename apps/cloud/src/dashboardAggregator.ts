@@ -54,10 +54,18 @@ export interface ResearchDashboardSection extends DashboardSection {
 }
 
 export interface RiskDashboardSection extends DashboardSection {
+  /** The real, persisted kill switch state -- never repurposed to mean "any risk gate blocked the last order". */
   readonly killSwitchActive: boolean;
   readonly dailyDrawdownRatio: number;
   readonly liquidationBufferRatio: number;
   readonly portfolioHeatRatio: number;
+  /**
+   * WO-0019. The most recent composite risk gate decision, kept separate from killSwitchActive
+   * so a DAILY_LOSS_LIMIT or APPROVAL_MISSING rejection is never displayed as "Kill Switch
+   * ACTIVE". Optional and additive: existing consumers that only read killSwitchActive/reasons
+   * are unaffected.
+   */
+  readonly lastRiskDecision?: Readonly<{ status: string; gate: string; reasonCodes: readonly string[]; evaluatedAt: number }>;
 }
 
 export interface AiCioDashboardInput {
