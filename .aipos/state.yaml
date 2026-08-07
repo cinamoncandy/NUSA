@@ -1,18 +1,21 @@
 version: 1
 project: nusa
-updated_at: "2026-08-06T21:25:00+09:00"
-phase: p0-risk-safety-integration
-status: verified
-objective: "Prepare the canonical, persistent, fail-closed PAPER risk and safety integration work order without enabling LIVE mutation."
+updated_at: "2026-08-07T13:09:00+09:00"
+phase: p0-architecture-aipos-drift-gate
+status: implementing
+objective: "Enforce architecture-to-AIPOS synchronization in CI and prevent stale or contradictory execution state from being treated as verified."
 base_branch: main
-active_branch: agent/p0-007-risk-safety-integration
+active_branch: agent/p0-a-architecture-aipos-drift-gate
 active_pull_request: null
-base_commit: d6f166fb9b96596ac3c7c28f3fd43c492da23b5f
+base_commit: 05eb8b426ce54447a0cecd0e1a59bb06478f8330
 latest_verified_slice:
-  id: risk-safety-runtime-wiring-009
-  evidence: "Base d6f166fb9b96596ac3c7c28f3fd43c492da23b5f; focused runtime wiring/parity/risk/storage tests 43/43 PASS; full pnpm test 370 isolated test files PASS; Typecheck, Build, Lint, and git diff --check PASS."
-  summary: "Connects Desktop manual, strategy, reconnect replay, Shadow/Canary boundaries, Broker admission, durable risk state, and Dashboard risk projection to the canonical persistent fail-closed gate; keeps LIVE mutation disabled and default kill switch active."
+  id: wo-0019-oracle-runtime-complete
+  evidence: "PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; official GitHub CI PASS; Oracle pnpm test PASS with 370 isolated test files; Oracle security:gate PASS; Oracle cloud runtime/listener, health/dashboard, restart fail-closed verification PASS; approval/audit/runtime-wiring tests 5/5, 2/2, 27/27 PASS."
+  summary: "WO-0019 / P0 #007 is complete. PAPER approval, independent->canonical risk, broker admission, kill-switch projection, persistence/restart, and fail-closed behavior are verified without enabling LIVE mutation."
 completed:
+  - id: WO-0019
+    evidence: ".aipos/work-orders/WO-0019-p0-007-paper-risk-wiring-regression.yaml; PR #129 merged at 05eb8b426ce54447a0cecd0e1a59bb06478f8330; Oracle real-environment verification PASS."
+    summary: "Restored and verified the real PAPER approval/risk/safety wiring and closed the regression with durable GitHub and Oracle evidence."
   - id: strategy-optimizer-038
     evidence: "PR #87 merged at ccc4645124406fac5dffe21354a893eed39eb1a1; feature commit 96df0a0; AIPOS commit fd450ec; focused/regression tests 22/22 PASS; Typecheck, Build, Lint, git diff --check, Full CI, Android Debug/Release, iOS Debug/Release, and Foundation smoke PASS."
     summary: "Added a bounded deterministic Strategy Optimizer over the existing StrategyRegistry and Backtest Engine with walk-forward validation, reserved Holdout gating, Dataset reuse protection, and owner-approved promotion candidates."
@@ -29,47 +32,28 @@ completed:
     evidence: "docs/audits/deterministic-execution-2026-08-02.md; 10 consecutive complete verification runs"
     summary: "Fixed-environment deterministic harness; identical command outcomes, coverage, build hash, and artifact manifest across ten runs."
   - id: architecture-compliance
-    evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md; docs/audits/dependency-graph-2026-08-02.md; docs/audits/layer-violations-2026-08-02.md; docs/audits/circular-dependencies-2026-08-02.md"
-    summary: "Removed storage-to-application runtime dependencies, centralized persistence boundary contracts, removed runtime and type-only cycles, and added CI architecture validation."
+    evidence: "commit 32b0bb52931530b345586efba40078001833e26b; docs/audits/architecture-compliance-2026-08-02.md"
+    summary: "Removed architecture violations and added CI architecture validation."
   - id: security-hardening
-    evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md; docs/audits/dependency-audit-2026-08-02.md; docs/audits/secret-scan-2026-08-02.md; docs/audits/sbom-2026-08-02.json"
-    summary: "Added dependency vulnerability and license checks, lockfile integrity validation, secret scanning, SBOM generation, artifact checksum validation, and CI security reporting."
-  - id: paper-risk-evidence-persistence
-    evidence: "commit fe73371; tests/paper-operational-preflight.test.js; tests/paper-risk-evidence-persistence.test.js"
-    summary: "Every desktop Paper Risk decision is converted to immutable queryable evidence and persisted through the existing SQLite store; order decisions remain unchanged."
-  - id: mobile-notification-queue
-    evidence: "commit 6f255f0; apps/mobile/src/notificationQueue.ts; tests/mobile-notification-queue.test.js"
-    summary: "Added a bounded mobile notification queue with deterministic deduplication, expiration, acknowledgement, and fail-closed validation. Native Push transport remains external."
-  - id: order-engine-support
-    evidence: "commit e4dc043; tests/order-engine.test.js; full isolated suite 296 files"
-    summary: "Added bounded order replay, partial-fill and ghost-fill recovery contracts, cancel/replace safety, retry and dead-letter handling, WebSocket sequence synchronization, execution reservation tracking, hash-chained audit records, and bounded execution metrics."
-  - id: upbit-public-websocket-adapter
-    evidence: "PR #60 merged at d3751e9d0e610c88afd3a6e122294f4066658ac0; CI #1951 and Mobile Native #42 SUCCESS; focused tests 7/7 and reconnect regression 23/23"
-    summary: "Added fail-closed ticker/trade/orderbook parsing, typed public stream callbacks, explicit unsubscribe, ping/pong heartbeat, bounded reconnect reuse, and deterministic Mock transport."
+    evidence: "commit a3df3a9; docs/audits/security-hardening-2026-08-02.md"
+    summary: "Added vulnerability, license, integrity, secret, SBOM, artifact checksum, and CI security controls."
 in_progress:
-  - id: mobile-rc-integration
-    evidence: "PR #45 updated to b4513701; GitHub CI SUCCESS on both jobs; coverage 84.53% statements, 76.26% branches, 92.53% functions; full/UI/E2E/security/release verification PASS"
-    summary: "Published the verified feature branch with mobile, offline, security, accounting, risk evidence, runtime, and Order Engine support; fixed CI license auditing for platform-selected optional packages and its cross-platform regression test."
-blocked:
-  - "P1 external: native mobile artifacts and device evidence are absent; release targets have not been changed."
-  - "P1 external: real read-only Upbit runtime and long-duration runtime/Shadow evidence are unavailable in this environment."
+  - id: WO-0020
+    evidence: ".aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml"
+    summary: "Implement deterministic Architecture/AIPOS drift validation, regression tests, and CI enforcement."
+blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0018-p0-007-risk-safety-integration.yaml
-  reason: "Review the verified P0-007 implementation and authorize commit; no commit created by instruction."
+  work_order: .aipos/work-orders/WO-0020-p0-a-architecture-aipos-drift-gate.yaml
+  reason: "Architecture/AIPOS drift is already evidenced by stale state on main; enforce the synchronization contract before P0-B Verified State & Evidence Integrity begins."
 verification:
   required:
-    - "pnpm run preflight"
-    - "pnpm run typecheck"
-    - "pnpm run build"
-    - "pnpm run lint"
-    - "pnpm test"
-    - "pnpm run test:ui"
-    - "pnpm run test:e2e"
-    - "pnpm run coverage"
-    - "pnpm run determinism"
+    - "Focused Architecture/AIPOS drift-gate tests"
+    - "Existing architecture validation"
+    - "Typecheck / build / lint as required by CI"
+    - "Full required GitHub CI"
     - "git diff --check"
-  last_result: "PASS: focused runtime wiring/parity/risk/storage tests 43/43; full pnpm test 370 isolated test files; typecheck; build; lint; git diff --check. Sandbox dist EPERM was separated from code verification by an elevated rerun."
-  current_commit: "d6f166fb9b96596ac3c7c28f3fd43c492da23b5f plus working-tree changes (uncommitted by instruction)"
+  last_result: "WO-0019 COMPLETE: official GitHub CI PASS; Oracle full suite/security/runtime/dashboard/restart/fail-closed verification PASS; focused approval/audit/runtime-wiring tests PASS. P0-A implementation not yet verified."
+  current_commit: "05eb8b426ce54447a0cecd0e1a59bb06478f8330"
 human_authority:
   live_trading_mutation: prohibited
   architecture_override: explicit_only

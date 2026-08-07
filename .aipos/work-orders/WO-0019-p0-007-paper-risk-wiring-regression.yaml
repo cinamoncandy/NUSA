@@ -1,0 +1,57 @@
+id: WO-0019
+title: "P0 #007 Paper Risk Wiring Regression"
+status: COMPLETED
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 27460d6776a3f2e4bac6bb5a86fc8a2da5149133
+implementation_branch: fix/p0-007-paper-risk-wiring-regression
+implementation_commit: 54111bd484bf0cb1bdb905d25d04f2b53ab05803
+merged_pull_request: 129
+merge_commit: 05eb8b426ce54447a0cecd0e1a59bb06478f8330
+objective: "Restore the real PAPER order path so explicit approvals, independent risk, canonical risk, durable evidence, broker admission, kill-switch projection, and restart behavior are wired consistently without enabling LIVE mutation."
+safety:
+  mode: PAPER
+  live_mutation_enabled: false
+  default_kill_switch_active: true
+  kill_switch_auto_release: false
+  strategy_approval_restart_restore: false
+  risk_or_evidence_failure_calls_broker: false
+required_runtime_verification:
+  - "Real persisted kill-switch state is authoritative and separate from lastRiskDecision."
+  - "MANUAL PAPER order requires an explicit matching approval."
+  - "STRATEGY PAPER order requires explicit strategy approval and is not auto-restored after restart."
+  - "Independent risk runs before canonical risk."
+  - "Independent denial never consumes canonical idempotency state."
+  - "Broker is called only after all required approvals, risk gates, persistence, and evidence succeed."
+  - "Dashboard killSwitchActive and lastRiskDecision match their distinct authoritative sources."
+  - "Persistence/restart preserves required durable risk state and does not restore prohibited approval state."
+  - "Persistence/evidence/risk uncertainty fails closed."
+  - "LIVE activation remains prohibited."
+verification_evidence:
+  github:
+    pull_request_129_merged: true
+    merge_commit: 05eb8b426ce54447a0cecd0e1a59bb06478f8330
+    official_ci: PASS
+  oracle:
+    full_test_suite: "PASS: 370 isolated test files"
+    security_gate: "PASS: high 0, critical 0, secrets 0"
+    cloud_runtime_listener: "PASS: listening on 127.0.0.1:8787"
+    health_endpoint: "PASS: HTTP 200"
+    authenticated_dashboard: "PASS: HTTP 200; mode PAPER; killSwitchActive true; tradingAllowed false; overallHealth DOWN"
+    restart_persistence_fail_closed: "PASS: recovered snapshot remains read-only until fresh market data; NO_MARKET_DATA / WAIT / CRITICAL"
+    paper_approval_service: "PASS: 5/5"
+    kill_switch_audit_persistence: "PASS: 2/2"
+    risk_safety_runtime_wiring: "PASS: 27/27; fail 0"
+    paper_runtime_end_to_end: PASS
+completion_rule: "VERIFIED and COMPLETED only after Oracle real-environment PAPER runtime verification passes all required_runtime_verification checks."
+fail_conditions:
+  - "LIVE mutation becomes enabled."
+  - "Kill switch auto-releases."
+  - "Broker is called without required approval."
+  - "Canonical gate is invoked after an independent risk denial."
+  - "Broker is called after risk/evidence persistence failure."
+  - "STRATEGY approval is automatically restored after restart."
+  - "Dashboard killSwitchActive diverges from the real persisted kill-switch state."
+completion_evidence: "PR #129 merged; official CI PASS; Oracle full suite/security/runtime/dashboard/restart/fail-closed verification PASS; focused approval/audit/runtime-wiring tests 5/5, 2/2, 27/27 PASS."
+next_action: "WO-0019 is complete. Proceed to P0-A Architecture/AIPOS Drift Gate; LIVE activation remains prohibited."

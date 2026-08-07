@@ -1,0 +1,34 @@
+id: WO-0020
+title: "P0-A Architecture / AIPOS Drift Gate"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: agent/p0-a-architecture-aipos-drift-gate
+objective: "Make architecture-to-AIPOS synchronization enforceable so stale execution state, missing governing architecture references, and unacknowledged architecture impact fail CI before implementation can be treated as verified."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+  execution:
+    - .aipos/aipos.yaml
+    - .aipos/state.yaml
+    - .aipos/work-orders
+requirements:
+  - "Add a deterministic architecture/AIPOS drift validator suitable for local and CI execution."
+  - "Fail when required governing architecture/AIPOS paths are absent or inconsistent."
+  - "Fail when active execution state points to a missing work order or contradicts its status/branch identity."
+  - "Require explicit architecture impact acknowledgement for architecture-governed changes rather than silently mutating execution state."
+  - "Integrate the validator into the existing verification/CI path without weakening current architecture checks."
+  - "Add regression tests proving PASS and representative drift failures."
+  - "Keep LIVE trading mutation prohibited."
+acceptance:
+  - "Focused drift-gate tests PASS."
+  - "Existing architecture validation PASS."
+  - "Full required CI PASS on the P0-A PR."
+  - "PR merged to main before P0-B begins."
+safety:
+  live_trading_mutation: prohibited
+  architecture_override: explicit_only
+completion_rule: "Merge + required test/CI PASS. Do not begin P0-B before this work order is complete."
