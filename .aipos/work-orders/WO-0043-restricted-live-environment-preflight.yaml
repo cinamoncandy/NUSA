@@ -1,0 +1,52 @@
+id: WO-0043
+title: "Restricted LIVE Environment Preflight"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 87c557c1a8760333b4feb8c7e1a1b93823797860
+implementation_branch: agent/wo-0043-restricted-live-environment-preflight
+objective: "Aggregate exact-code/config/evidence identity, restore integrity, audit replay, read-only broker observation, reconciliation, market-data health, hard-risk, kill-switch, governance, and capability-surface state into a deterministic fail-closed preflight verdict for human review only, without connecting execution transport or authorizing LIVE mutation."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0043 composes previously verified safety/readiness slices into one machine-readable preflight. READY_FOR_HUMAN_REVIEW is not LIVE authorization; it only means the supplied evidence is complete enough for a later independent human ceremony. Execution transport stays disconnected, execution credential use stays prohibited, and any safety-critical UNKNOWN fails closed."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Verdict is READY_FOR_HUMAN_REVIEW, SAFE_BLOCK, or UNKNOWN; no verdict grants LIVE or mutation authority."
+  - "Require exact 40-hex code revision, exact 64-hex configuration hash, immutable evidence references, and deterministic preflight fingerprint."
+  - "Require restore verification PASS, audit replay VALID, read-only broker status PASS, reconciliation MATCH, market-data health HEALTHY, hard-risk PASS, kill-switch INACTIVE, governance state RESTRICTED, operational state SAFE, and capability-surface PASS."
+  - "Execution transport connected, execution credential use, real-money permission, automatic activation, mutation capability, nonzero mutation counters, reconciliation DIFF, active kill switch, hard-risk reject/block, or unsafe governance must SAFE_BLOCK."
+  - "Safety-critical UNKNOWN/missing/ambiguous evidence returns UNKNOWN and remains fail closed."
+  - "Read-only broker transport may be represented only as operator-initiated observational evidence; preflight itself must perform no network dial."
+  - "Credential/token/signature/private-key/raw authorization material is prohibited from input/evidence/payloads."
+  - "Require existing restricted-live operational-readiness profile semantics including two distinct human approvers for any later activation ceremony, rollback target, expiry, cooldown, exact scope, and zero mutation counters."
+  - "Add focused deterministic regressions and source validation; CI uses only synthetic/disconnected evidence."
+acceptance:
+  - "Restricted LIVE environment preflight regressions PASS."
+  - "Complete safe synthetic evidence yields READY_FOR_HUMAN_REVIEW with executionAuthority=false and authorizesLive=false."
+  - "Any execution/mutation condition SAFE_BLOCKs; safety-critical UNKNOWN returns UNKNOWN."
+  - "No network dial or execution credential resolution is reachable from preflight."
+  - "Identical normalized evidence produces identical fingerprint."
+  - "Capability Surface Guard and all existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  cash_position_mutation: prohibited
+  automatic_activation: prohibited
+  preflight_authority: human_review_only
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. READY_FOR_HUMAN_REVIEW is evidence completeness only and never authorizes LIVE activation or money movement."
