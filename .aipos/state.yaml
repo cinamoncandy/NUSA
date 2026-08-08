@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T12:15:00+09:00"
+updated_at: "2026-08-08T12:26:00+09:00"
 phase: controlled-scale-up-governance
-status: implementing
+status: verifying
 objective: "Validate future human-approved scale-change records without changing limits or granting LIVE authority."
 base_branch: main
 active_branch: agent/wo-0049-controlled-scale-up-governance
-active_pull_request: pending
+active_pull_request: 164
 base_commit: 216dd3426164347ba80b05c01452d19de3554de0
 claimed_state:
   work_order: WO-0049
@@ -31,12 +31,12 @@ completed:
     summary: "Added non-executable tiny bounded Restricted LIVE policy envelope."
 in_progress:
   - id: WO-0049
-    evidence: ".aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml"
-    summary: "Controlled scale-up governance mechanism implementation in progress; no actual risk limit change is performed."
+    evidence: ".aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml; PR #164"
+    summary: "Controlled scale-up governance mechanism implemented; official exact-head verification pending; no actual risk limit change is performed."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml
-  reason: "Implement and verify validation-only two-human scale-change governance."
+  reason: "Complete PR #164 exact-head verification and merge."
 verification:
   required:
     - "Controlled scale-up governance regression tests"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0048 merged as 216dd3426164347ba80b05c01452d19de3554de0; WO-0049 started."
-  current_commit: "WO-0049 implementation pending"
+  last_result: "WO-0049 implementation on PR #164; official exact-head verification pending."
+  current_commit: "PR #164 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
