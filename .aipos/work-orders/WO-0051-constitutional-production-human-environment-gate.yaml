@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
 implementation_branch: main
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State and its fill-boundary runtime enforcement are complete and exact-head tested. Durable verified P0 state now blocks actual Cloud PAPER fill creation when open or unverifiable, without granting LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable Cloud P0 enforcement and P8 private read-only PAPER runtime session are complete and exact-head tested. The authenticated mobile/Cloud projection remains GET-only, memory-only for its bearer credential, fail-closed on P0 state, and grants no LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -152,3 +152,27 @@ cloud_p0_runtime_enforcement_slice:
     broker_credential_access: prohibited
     real_money_mutation: prohibited
     risk_governor_bypass: prohibited
+private_readonly_runtime_session_slice:
+  status: COMPLETE
+  completion_evidence:
+    - "PR #188 merge 585d660b5eb8bcefb443ca34261779aa99f55fd1: private read-only PAPER runtime session on P0-safe main"
+    - "Exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including typecheck, build, architecture/AIPOS, security, safety, E2E, release, Full isolated suite, and coverage"
+    - "Exact-head Mobile Native run 31263191286 PASS: foundation-smoke, Android debug/release, iOS debug/release"
+    - "Exact-head read-only/restricted safety workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS"
+  scope:
+    - "Keep the private dashboard bearer credential in process memory only and separate from local sign-in"
+    - "Require HTTPS before transmitting the bearer credential to any non-loopback endpoint"
+    - "Extend the single authenticated GET-only PAPER operations snapshot with portfolio, filled order/fill history, and verified Upbit public ticker projections"
+    - "Wire mobile Portfolio, Trade, Markets/Watchlist, and Order History to the same authenticated read-only snapshot"
+    - "Clear public ticker projection on disconnect and avoid synthesizing unverified candle data"
+    - "Project open or unverifiable durable P0 state as HALTED / FAIL_CLOSED"
+  safety:
+    mutation_routes: prohibited
+    credential_persistence: prohibited
+    remote_plaintext_bearer_transport: prohibited
+    challenger_authority: ZERO_AUTHORITY
+    champion_authority: PAPER_ONLY
+    live_authority: NONE
+    production_mutation_allowed: false
+    broker_execution_credentials: prohibited
+    real_money_mutation: prohibited
