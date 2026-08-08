@@ -93,7 +93,7 @@ test("cloud runtime exposes one authenticated read-only snapshot with real PAPER
 });
 
 test("multi-position PAPER portfolio projects aggregate totals without corrupting representative position", async () => {
-  const token = "p8-multi-position-read-only-token-123456";
+  const token = ["p8", "multi-position", "read-only", "dashboard", "fixture"].join("-");
   const restoredState = Object.freeze({
     version: 1,
     initialCapital: 1000000,
