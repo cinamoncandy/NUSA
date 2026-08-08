@@ -75,7 +75,11 @@ export interface ResearchEvaluationLedger {
 }
 
 export function canonicalResearchJson(value: unknown): string {
-  if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return JSON.stringify(value);
+  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("canonical research json rejects non-finite numbers");
+    return Object.is(value, -0) ? "0" : JSON.stringify(value);
+  }
   if (typeof value === "bigint") return JSON.stringify(value.toString());
   if (Array.isArray(value)) return `[${value.map(canonicalResearchJson).join(",")}]`;
   if (typeof value === "object") {

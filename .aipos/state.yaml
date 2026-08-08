@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T20:30:00+09:00"
-phase: hardened-research-platform
+updated_at: "2026-08-08T20:55:00+09:00"
+phase: hardened-research-authority-boundary-fix
 status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/wo-0051-p5-hardened-research-platform
-active_pull_request: null
-base_commit: 21c2867a58301668940ec31b45928abadaa65efb
+active_branch: agent/wo-0051-p5-arch-fix-mainline
+active_pull_request: 175
+base_commit: f879e0e4ef61f48c28992a4a596eed6d571c699c
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Harden PAPER research validity, provenance, candidate eligibility, stream bounds, lifecycle integrity, and restart/replay safety. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Close residual PAPER/Research authority and isolation gaps after the hardened Research platform: authenticated owner promotion, privileged lifecycle storage sealing, single Research ingress, Research/PAPER failure isolation, and strict canonical hashing. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
-  current_commit: "21c2867a58301668940ec31b45928abadaa65efb; P5 hardened research platform in progress"
+  current_commit: "808d827b697ebdf16dbeee4e191c083904243106; PR #175 recovery-test drift repaired; exact-head CI retry pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
