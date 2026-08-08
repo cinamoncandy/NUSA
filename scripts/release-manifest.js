@@ -15,6 +15,7 @@ const manifest = {
   schemaVersion: 1,
   version: packageJson.version,
   commit,
+  sourceCommit: commit,
   buildDate: new Date().toISOString(),
   electronVersion: packageJson.devDependencies?.electron ?? "unknown",
   nodeVersion: process.version,

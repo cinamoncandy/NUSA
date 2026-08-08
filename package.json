@@ -46,6 +46,7 @@
     "desktop:dev": "pnpm run build && electron apps/desktop",
     "cloud:runtime": "pnpm run build && node dist/apps/cloud/src/runtime.js",
     "package:win": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --win nsis",
+    "package:win:production": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/validate-package.js && electron-builder --config electron-builder.production.yml --win nsis",
     "package:portable": "pnpm run preflight && pnpm run build && node scripts/validate-package.js && electron-builder --config electron-builder.portable.yml --win portable",
     "package:validate": "node scripts/validate-windows-package.js",
     "release:check": "pnpm run preflight && pnpm run typecheck && pnpm run build && node scripts/release-readiness.js",

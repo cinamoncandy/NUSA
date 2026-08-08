@@ -2,7 +2,12 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
+  packageRoot,
+  resolvePackageRoots,
   patchExact,
   patchImageSizeIcns,
   patchNanoidSync,
@@ -64,4 +69,35 @@ test("audit compensation is exact and unknown high advisories remain blocking", 
 test("audit metadata/advisory disagreement fails closed", () => {
   const result = evaluateAudit({ metadata: { vulnerabilities: { high: 1, critical: 0 } }, advisories: {} }, { controls: {} });
   assert.equal(result.shapeMismatch, true);
+});
+
+function packageFixture(root, packagePath, name, version) {
+  const target = path.join(root, packagePath, "node_modules", name);
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, "package.json"), JSON.stringify({ name, version }));
+  return target;
+}
+
+test("security backport resolver accepts pnpm peer-suffixed store entries", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-backport-"));
+  const store = path.join(root, ".pnpm");
+  const packagePath = packageFixture(store, "image-size@1.2.1_peer@1.0.0", "image-size", "1.2.1");
+  assert.deepEqual(resolvePackageRoots("image-size", "1.2.1", store, path.join(root, "node_modules")), [packagePath]);
+});
+
+test("security backport resolver accepts a hoisted root package", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-backport-"));
+  const packagePath = packageFixture(root, "", "image-size", "1.2.1");
+  assert.deepEqual(resolvePackageRoots("image-size", "1.2.1", path.join(root, ".pnpm"), path.join(root, "node_modules")), [packagePath]);
+});
+
+test("security backport resolver fails closed for missing and duplicate packages", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-backport-"));
+  const store = path.join(root, ".pnpm");
+  const missing = resolvePackageRoots("image-size", "1.2.1", store, path.join(root, "node_modules"));
+  assert.equal(missing.length, 0);
+  packageFixture(store, "image-size@1.2.1_a", "image-size", "1.2.1");
+  packageFixture(store, "image-size@1.2.1_b", "image-size", "1.2.1");
+  const duplicate = resolvePackageRoots("image-size", "1.2.1", store, path.join(root, "node_modules"));
+  assert.equal(duplicate.length, 2);
 });
