@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { matchTrades } = require("../dist/apps/desktop/src/backtestAnalytics.js");
+const { matchTrades, calculateExposure } = require("../dist/apps/desktop/src/backtestAnalytics.js");
 const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
 
 const order = (side, quantity, price, minute, fee = 0) => ({
@@ -69,6 +69,17 @@ test("the analytics agree with the broker on whether the position is closed", ()
   const analytics = matchTrades(broker.exportState().orders);
   assert.equal(brokerQuantity, 0, "the broker closes flat");
   assert.equal(analytics.openPosition.status, "FLAT", "and so must the analytics");
+});
+
+test("exposure ends at a fully closed fill despite floating-point residue", () => {
+  const orders = [
+    order("BUY", 0.1, 100, 1),
+    order("BUY", 0.2, 100, 2),
+    order("SELL", 0.3, 110, 3)
+  ];
+  const start = Date.UTC(2026, 6, 28, 0, 0);
+  const end = Date.UTC(2026, 6, 28, 0, 10);
+  assert.equal(calculateExposure(orders, start, end), 2 / 10);
 });
 
 test("a sell larger than everything held is still rejected", () => {
