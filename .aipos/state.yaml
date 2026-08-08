@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:45:00+09:00"
+updated_at: "2026-08-08T09:58:00+09:00"
 phase: restricted-live-activation-ceremony
-status: implementing
+status: verifying
 objective: "Validate a two-independent-human, exact-scope, time-bounded, anti-replay ceremony record without issuing activation authority."
 base_branch: main
 active_branch: agent/wo-0044-restricted-live-activation-ceremony
-active_pull_request: pending
+active_pull_request: 159
 base_commit: aa77a420ae72c21628bedea9a830926c50aa92c6
 claimed_state:
   work_order: WO-0044
@@ -34,12 +34,12 @@ completed:
     summary: "Added secret-free mutation-free operations control center and safe-reduction requests."
 in_progress:
   - id: WO-0044
-    evidence: ".aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml"
-    summary: "Activation ceremony validation mechanism implementation in progress; real ceremony not conducted."
+    evidence: ".aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml; PR #159"
+    summary: "Activation ceremony validation mechanism implemented; official exact-head verification pending; real ceremony not conducted."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml
-  reason: "Implement and verify ceremony validation machinery only; actual LIVE activation remains human-only."
+  reason: "Complete PR #159 exact-head verification and merge; actual LIVE activation remains human-only."
 verification:
   required:
     - "Restricted LIVE activation ceremony mechanism regressions"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0043 merged as aa77a420ae72c21628bedea9a830926c50aa92c6; WO-0044 started."
-  current_commit: "WO-0044 implementation pending"
+  last_result: "WO-0044 implementation on PR #159; official exact-head verification pending."
+  current_commit: "PR #159 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
