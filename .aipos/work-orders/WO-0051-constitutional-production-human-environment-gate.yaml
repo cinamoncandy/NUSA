@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 5bb12c641a775cdd91d24daa58476a5350501d82
-implementation_branch: agent/p7-cloud-p0-safety-state
+base_commit: dbc4d5abacd0f6f992c61d55a57dd8b090d913b4
+implementation_branch: agent/p7-cloud-p0-runtime-enforcement-pr
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 is a safe automated hardening slice that removes a fabricated Cloud P0 safety input and connects durable incident evidence to the existing independent Risk Governor; it grants no LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 is a safe automated hardening slice that derives durable P0 incident evidence and now enforces that verified state at the actual Cloud PAPER fill boundary; it grants no LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -126,6 +126,8 @@ cloud_p0_safety_state_slice:
     - "Persist P0 incident lifecycle in SQLite and verify the complete hash chain on every safety read"
     - "Fail closed on corrupted, reordered, duplicate, or invalid incident evidence"
     - "Feed derived openP0 into the existing operational Paper preflight and prove OPEN_P0_ALERT produces HALT"
+    - "Verify durable P0 state on every actual Cloud PAPER execution tick before any decision or fill"
+    - "Block actual PAPER order/fill creation on OPEN_P0_ALERT or unverifiable P0 evidence"
   safety:
     live_authority: NONE
     production_mutation_allowed: false
