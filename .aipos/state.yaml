@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:58:00+09:00"
-phase: restricted-live-activation-ceremony
+updated_at: "2026-08-08T10:18:00+09:00"
+phase: production-release-artifact-seal
 status: verifying
-objective: "Validate a two-independent-human, exact-scope, time-bounded, anti-replay ceremony record without issuing activation authority."
+objective: "Seal exact release artifacts to code/config/rollback/safety evidence without deployment or LIVE authority."
 base_branch: main
-active_branch: agent/wo-0044-restricted-live-activation-ceremony
-active_pull_request: 159
-base_commit: aa77a420ae72c21628bedea9a830926c50aa92c6
+active_branch: agent/wo-0045-production-release-artifact-seal
+active_pull_request: 160
+base_commit: 61988441f22d4868a94d95bebc0c382afecd9a77
 claimed_state:
-  work_order: WO-0044
+  work_order: WO-0045
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0043
+  work_order: WO-0044
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0043-completion.json"
+  evidence: ".aipos/evidence/WO-0044-completion.json"
 latest_verified_slice:
-  id: wo-0043-restricted-live-environment-preflight-complete
-  evidence: ".aipos/evidence/WO-0043-completion.json"
-  summary: "WO-0043 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; READY_FOR_HUMAN_REVIEW grants no LIVE authority."
+  id: wo-0044-restricted-live-activation-ceremony-mechanism-complete
+  evidence: ".aipos/evidence/WO-0044-completion.json"
+  summary: "WO-0044 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; validation machinery issues no activation credential and conducts no real ceremony."
 completed:
+  - id: WO-0044
+    evidence: ".aipos/evidence/WO-0044-completion.json"
+    summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
   - id: WO-0043
     evidence: ".aipos/evidence/WO-0043-completion.json"
     summary: "Added fail-closed Restricted LIVE environment preflight for independent human review only."
@@ -29,31 +32,29 @@ completed:
   - id: WO-0041
     evidence: ".aipos/evidence/WO-0041-completion.json"
     summary: "Added deterministic tamper-evident audit/evidence/incident replay without execution authority."
-  - id: WO-0040
-    evidence: ".aipos/evidence/WO-0040-completion.json"
-    summary: "Added secret-free mutation-free operations control center and safe-reduction requests."
 in_progress:
-  - id: WO-0044
-    evidence: ".aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml; PR #159"
-    summary: "Activation ceremony validation mechanism implemented; official exact-head verification pending; real ceremony not conducted."
+  - id: WO-0045
+    evidence: ".aipos/work-orders/WO-0045-production-release-artifact-seal.yaml; PR #160"
+    summary: "Production release candidate artifact seal implemented; official exact-head verification pending; deployment and LIVE activation remain prohibited."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml
-  reason: "Complete PR #159 exact-head verification and merge; actual LIVE activation remains human-only."
+  work_order: .aipos/work-orders/WO-0045-production-release-artifact-seal.yaml
+  reason: "Complete PR #160 exact-head verification and merge; actual human activation remains outside automated authority."
 verification:
   required:
-    - "Restricted LIVE activation ceremony mechanism regressions"
-    - "Restricted LIVE activation ceremony source validation"
+    - "Production release artifact seal regression tests"
+    - "Production release artifact seal source validation"
+    - "Release process validation"
+    - "Security gate"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
     - "Read-only broker credential integration"
     - "AIPOS verified-state evidence integrity"
     - "Architecture/AIPOS drift validation"
-    - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0044 implementation on PR #159; official exact-head verification pending."
-  current_commit: "PR #159 verification pending"
+  last_result: "WO-0045 implementation on PR #160; official exact-head verification pending."
+  current_commit: "PR #160 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -62,31 +63,30 @@ human_authority:
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
   production_promotion_mutation: prohibited
-restricted_live_activation_ceremony:
-  mode: VALIDATION_ONLY
-  actual_ceremony_conducted: false
-  human_requester_required: true
-  distinct_human_approvers_required: 2
-  exact_preflight_binding: true
-  exact_scope_binding: true
-  external_signature_verification_required: true
-  anti_replay_required: true
-  single_use_required: true
-  expiry_required: true
-  cooldown_required: true
-  executable_activation_token: prohibited
+production_release_artifact_seal:
+  mode: EVIDENCE_ONLY_SEAL
+  exact_code_binding: true
+  exact_configuration_binding: true
+  exact_artifact_hash_binding: true
+  rollback_binding: true
+  safety_evidence_binding: true
+  signed_verified_required_for_production_review: true
+  deployment_authority: false
+  activation_authority: false
   execution_authority: false
   authorizes_live: false
   real_money_execution_allowed: false
+restricted_live_activation_ceremony:
+  mode: VALIDATION_ONLY
+  actual_ceremony_conducted: false
+  executable_activation_token: prohibited
+  execution_authority: false
+  authorizes_live: false
 restricted_live_environment_preflight:
-  verdicts: "READY_FOR_HUMAN_REVIEW,SAFE_BLOCK,UNKNOWN"
   authority: human_review_only
   execution_transport_required: disconnected
   credential_execution_use: prohibited
   real_money_execution_allowed: false
-  automatic_activation_allowed: false
-  safety_unknown: fail_closed
-  network_dial: prohibited
   authorizes_live: false
 restricted_live_authority:
   default_state: DISABLED
@@ -103,10 +103,6 @@ audit_incident_replay:
   mode: OBSERVATIONAL_REPLAY
   execution_authority: false
   authorizes_live: false
-operations_control_center:
-  mode: READ_ONLY_OPERATIONS
-  execution_authority: false
-  real_money_execution_allowed: false
 hard_risk_gateway:
   authority: deterministic_hard_risk
   learned_override: prohibited
