@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T10:04:00+09:00"
+updated_at: "2026-08-08T10:18:00+09:00"
 phase: production-release-artifact-seal
-status: implementing
+status: verifying
 objective: "Seal exact release artifacts to code/config/rollback/safety evidence without deployment or LIVE authority."
 base_branch: main
 active_branch: agent/wo-0045-production-release-artifact-seal
-active_pull_request: pending
+active_pull_request: 160
 base_commit: 61988441f22d4868a94d95bebc0c382afecd9a77
 claimed_state:
   work_order: WO-0045
@@ -34,12 +34,12 @@ completed:
     summary: "Added deterministic tamper-evident audit/evidence/incident replay without execution authority."
 in_progress:
   - id: WO-0045
-    evidence: ".aipos/work-orders/WO-0045-production-release-artifact-seal.yaml"
-    summary: "Production release candidate artifact seal implementation in progress; deployment and LIVE activation remain prohibited."
+    evidence: ".aipos/work-orders/WO-0045-production-release-artifact-seal.yaml; PR #160"
+    summary: "Production release candidate artifact seal implemented; official exact-head verification pending; deployment and LIVE activation remain prohibited."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0045-production-release-artifact-seal.yaml
-  reason: "Implement and verify immutable release candidate seal; actual human activation remains outside automated authority."
+  reason: "Complete PR #160 exact-head verification and merge; actual human activation remains outside automated authority."
 verification:
   required:
     - "Production release artifact seal regression tests"
@@ -53,8 +53,8 @@ verification:
     - "AIPOS verified-state evidence integrity"
     - "Architecture/AIPOS drift validation"
     - "Full required GitHub CI"
-  last_result: "WO-0044 merged as 61988441f22d4868a94d95bebc0c382afecd9a77; WO-0045 started."
-  current_commit: "WO-0045 implementation pending"
+  last_result: "WO-0045 implementation on PR #160; official exact-head verification pending."
+  current_commit: "PR #160 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
