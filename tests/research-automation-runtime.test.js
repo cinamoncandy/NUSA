@@ -50,7 +50,7 @@ function setup(filename = ":memory:", candidateGate = permissiveCandidateGate) {
   const promotion = new CandidatePromotionRuntime({ repository: candidates, evaluationLedger: ledger, ownerAuthorization, now: () => NOW });
   const coordinator = new ResearchRuntimeCoordinator({ champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1), challenger: evaluator("challenger-1", "2.0.0", "ZERO_AUTHORITY", 0.2), ledger });
   const recovery = new ResearchRecoveryCoordinator({ repository: candidates, evaluationLedger: ledger, now: () => NOW });
-  const automation = new ResearchAutomationRuntime({ coordinator, sessions, memory, registerCandidate: (identity) => promotion.registerCandidate(identity), listCandidates: () => candidates.listCandidates(), candidateGate, recovery, now: () => NOW, maxEvidenceAgeMs: 10_000 });
+  const automation = new ResearchAutomationRuntime({ coordinator, sessions, memory, registerCandidate: (identity) => promotion.registerCandidate(identity), listCandidates: () => candidates.listCandidates(), ...(candidateGate == null ? {} : { candidateGate }), recovery, now: () => NOW, maxEvidenceAgeMs: 10_000 });
   return { db, ledger, candidates, memory, sessions, promotion, coordinator, recovery, automation };
 }
 
@@ -70,7 +70,7 @@ test("multiple experiments flow through evaluation ledger, memory, metrics, and 
 });
 
 test("CHALLENGER_BETTER alone never creates a candidate without an explicit gate", () => {
-  const state = setup(":memory:", undefined);
+  const state = setup(":memory:", null);
   try { state.automation.startSession(startInput("session-no-gate")); const result = state.automation.runExperiment(input("session-no-gate", "evaluation-no-gate")); assert.equal(result.result, "CHALLENGER_BETTER"); assert.equal(state.candidates.listCandidates().length, 0); assert.equal(state.candidates.getChampion(), null); } finally { state.db.close(); }
 });
 
