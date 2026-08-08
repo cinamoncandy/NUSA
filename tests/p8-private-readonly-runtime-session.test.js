@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
+const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteCloudDashboardSnapshotRepository } = require("../dist/apps/cloud/src/cloudDashboardSnapshotRepository.js");
@@ -37,6 +38,39 @@ test("memory-only dashboard credential session never persists or infers local au
   assert.equal(Object.prototype.hasOwnProperty.call(session, "storage"), false);
   session.clear();
   assert.equal(await session.credentialProvider(), null);
+});
+
+test("dashboard bearer credential is never sent over insecure remote HTTP", async () => {
+  let requestCount = 0;
+  const credentialProvider = async () => "read-only-dashboard-token-123456";
+  const request = async () => {
+    requestCount += 1;
+    return { ok: false, status: 503 };
+  };
+
+  const insecure = await loadPersonalPaperOperations({
+    baseUrl: "http://192.168.1.50:41731",
+    credentialProvider,
+    request
+  });
+  assert.equal(insecure.status, "NOT_CONFIGURED");
+  assert.equal(requestCount, 0);
+
+  const secure = await loadPersonalPaperOperations({
+    baseUrl: "https://nusa.invalid",
+    credentialProvider,
+    request
+  });
+  assert.equal(secure.status, "UNAVAILABLE");
+  assert.equal(requestCount, 1);
+
+  const loopback = await loadPersonalPaperOperations({
+    baseUrl: "http://127.0.0.1:41731",
+    credentialProvider,
+    request
+  });
+  assert.equal(loopback.status, "UNAVAILABLE");
+  assert.equal(requestCount, 2);
 });
 
 test("cloud runtime exposes one authenticated read-only snapshot with real PAPER account projection", async () => {
