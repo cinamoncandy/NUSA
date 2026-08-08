@@ -11,7 +11,7 @@ export class InMemoryDashboardCredentialSession {
 
   public connect(value: string): void {
     const token = value.trim();
-    if (token.length < 16 || token.length > MAX_TOKEN_LENGTH) throw new Error("Dashboard credential is invalid.");
+    if (token.length === 0 || token.length > MAX_TOKEN_LENGTH) throw new Error("Dashboard credential is invalid.");
     this.token = token;
   }
 
