@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T00:10:00+09:00"
-phase: cloud-ai-zero-authority
-status: in_progress
-objective: "Connect bounded model inference to deterministic multi-agent governance without increasing PAPER or LIVE execution authority."
+updated_at: "2026-08-09T00:32:00+09:00"
+phase: cloud-ai-zero-authority-complete
+status: ready
+objective: "Preserve the completed zero-authority AI runtime and continue PAPER correctness audits while WO-0051 remains at its human/environment boundary."
 base_branch: main
-active_branch: agent/ai-001-linear
+active_branch: main
 active_pull_request: null
-base_commit: eb5107d2a1ccaa6bcdc53a0e173647c02a33198f
+base_commit: d251570c5ebf3ad8abf892af2ee4588412e96758
 claimed_state:
-  work_order: WO-AI-001
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0050
+  work_order: WO-AI-001
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0050-completion.json"
+  evidence: ".aipos/evidence/WO-AI-001-completion.json"
 latest_verified_slice:
-  id: wo-0050-constitutional-human-transition-review-complete
-  evidence: ".aipos/evidence/WO-0050-completion.json"
-  summary: "WO-0050 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; synthetic evidence is explicitly prevented from satisfying real-world constitutional gates."
+  id: wo-ai-001-model-backed-zero-authority-agent-runtime-complete
+  evidence: ".aipos/evidence/WO-AI-001-completion.json"
+  summary: "WO-AI-001 merged with exact-head Full CI, isolated suite, coverage, AI zero-authority guards, and all Restricted LIVE/read-only safety workflows PASS."
 completed:
+  - id: WO-AI-001
+    evidence: ".aipos/evidence/WO-AI-001-completion.json"
+    summary: "Provider-agnostic model inference is connected below deterministic governance with zero execution, transfer, production-mutation, or LIVE authority."
   - id: WO-0050
     evidence: ".aipos/evidence/WO-0050-completion.json"
     summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
@@ -30,9 +33,9 @@ completed:
     evidence: ".aipos/evidence/WO-0048-completion.json"
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
-  - id: WO-AI-001
-    evidence: ".aipos/work-orders/WO-AI-001-model-backed-zero-authority-agent-runtime.yaml"
-    summary: "Provider-agnostic model inference is connected below deterministic multi-agent governance with zero execution authority."
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -43,18 +46,19 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-AI-001-model-backed-zero-authority-agent-runtime.yaml
-  reason: "Implement the provider-agnostic AI analysis slice below deterministic governance. Keep AI default-off and preserve the WO-0051 human/environment LIVE gates."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-AI-001 is merged and evidence-verified. The next permitted repository slice is the read-only P8 multi-position portfolio reconciliation fix on PR #194; preserve zero-authority AI and all human-only LIVE gates."
 verification:
   required:
+    - "Exact-head Full CI, isolated suite, coverage, read-only/Restricted LIVE safety workflows, and Mobile Native PASS for PR #194"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #188 merged at 585d660b5eb8bcefb443ca34261779aa99f55fd1 after exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including Full isolated suite and coverage; Mobile Native 31263191286 PASS; read-only/Restricted LIVE workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS."
-  current_commit: "AI-001 linear branch on latest origin/main; local verification pending"
+  last_result: "PR #196 merged at d251570c5ebf3ad8abf892af2ee4588412e96758 after exact-head 5a58036665e9a6c617e7d0ccd940829a71aaea05 CI run 31264207231 PASS including AI zero-authority validation, Full isolated suite, and coverage; read-only/Restricted LIVE workflows 31264207236, 31264207245, 31264207233, 31264207237 PASS."
+  current_commit: "d251570c5ebf3ad8abf892af2ee4588412e96758; WO-AI-001 implementation merged; completion bookkeeping pending merge"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
