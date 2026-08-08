@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-002-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-002",
+    "path": ".aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "48e0bcd4046e3bf5032b1785ca467eb4063691c0"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "1cd7cb29bf14bbe7468ecceef0a3a387a34760f6"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "grounding_trust_core_merged": true,
+      "cloud_readonly_activation_merged": true,
+      "ai_default_off": true,
+      "bounded_async_scheduler": true,
+      "verified_evidence_materialization": true,
+      "exact_prompt_binding": true,
+      "replay_identity_bound": true,
+      "correlated_roles_not_independent": true,
+      "uncalibrated_confidence": 0,
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "grounding_exact_head": "0ada16f0b1d8dc3b129ec76df5ac0d7a2d949279",
+      "grounding_ci_run": 31267462156,
+      "cloud_exact_head": "9a5b2731f924026135ade4dd7d3e9de1cb381f57",
+      "cloud_ci_run": 31268948766,
+      "safety_workflows_passed_per_slice": 4
+    },
+    "hash": {"algorithm": "sha256", "value": "2780fc5facf6e92be1b8719fc02631bdd812437383cebc9ca3bf707c29a8435f"}
+  },
+  "observed_at": "2026-08-09T02:24:00+09:00",
+  "provenance": [
+    "github:pull/203",
+    "github:actions/run/31267462156",
+    "github:actions/run/31267462173",
+    "github:actions/run/31267462168",
+    "github:actions/run/31267462169",
+    "github:actions/run/31267462180",
+    "git:merge/16ac98de3263b78122021acb8a5365d5728ac261",
+    "github:pull/204",
+    "github:actions/run/31268948766",
+    "github:actions/run/31268948740",
+    "github:actions/run/31268948741",
+    "github:actions/run/31268948739",
+    "github:actions/run/31268948754",
+    "git:merge/1cd7cb29bf14bbe7468ecceef0a3a387a34760f6"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "grounding_trust_core_merged", "status": "PASS", "detail": "PR #203 / 16ac98de3263b78122021acb8a5365d5728ac261"},
+    {"name": "cloud_readonly_activation_merged", "status": "PASS", "detail": "PR #204 / 1cd7cb29bf14bbe7468ecceef0a3a387a34760f6"},
+    {"name": "official_full_ci_grounding", "status": "PASS", "detail": "31267462156"},
+    {"name": "official_full_ci_cloud_activation", "status": "PASS", "detail": "31268948766"},
+    {"name": "full_isolated_suite", "status": "PASS"},
+    {"name": "coverage_baseline", "status": "PASS"},
+    {"name": "ai_zero_authority_architecture", "status": "PASS"},
+    {"name": "ai_focused_regressions", "status": "PASS"},
+    {"name": "grounded_evidence_digest_binding", "status": "PASS"},
+    {"name": "exact_prompt_body_digest_binding", "status": "PASS"},
+    {"name": "complete_replay_identity", "status": "PASS"},
+    {"name": "correlated_same_model_not_independent", "status": "PASS"},
+    {"name": "bounded_async_cloud_scheduler", "status": "PASS"},
+    {"name": "latest_validated_readonly_projection", "status": "PASS"},
+    {"name": "provider_failure_isolated_from_paper", "status": "PASS"},
+    {"name": "restricted_live_safety_workflows", "status": "PASS", "detail": "8/8 across PR #203 and PR #204"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"},
+    {"name": "wo_0051_human_environment_gate_unchanged", "status": "PASS"}
+  ]
+}
