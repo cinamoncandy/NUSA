@@ -45,4 +45,9 @@ export class SqliteResearchEvaluationLedger implements ResearchEvaluationLedger 
       return Object.freeze(record);
     }));
   }
+
+  public headHash(): string {
+    const row = this.db.connection.prepare("SELECT hash FROM research_evaluation_ledger ORDER BY sequence DESC LIMIT 1").get() as { hash: string } | undefined;
+    return row?.hash ?? genesis;
+  }
 }
