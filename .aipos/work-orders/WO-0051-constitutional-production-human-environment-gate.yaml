@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
-implementation_branch: main
+base_commit: 11fa5080baecd1e3078db997a68c56daf9d82abf
+implementation_branch: agent/wo-0051-p8-private-readonly-session-current-main
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State and its fill-boundary runtime enforcement are complete and exact-head tested. Durable verified P0 state now blocks actual Cloud PAPER fill creation when open or unverifiable, without granting LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 safety enforcement is complete. P8 is a PAPER-only/read-only operator visibility slice that wires a process-memory dashboard credential session, real PAPER portfolio/order/market projections, and fail-closed P0 status into the existing authenticated GET-only operations endpoint without granting broker, execution, LIVE, or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -152,3 +152,28 @@ cloud_p0_runtime_enforcement_slice:
     broker_credential_access: prohibited
     real_money_mutation: prohibited
     risk_governor_bypass: prohibited
+private_readonly_runtime_session_slice:
+  status: IN_PROGRESS
+  gap_audit:
+    - "Mobile Personal PAPER Operations client was permanently wired to unavailableDashboardCredentialProvider and therefore could never establish the existing authenticated read-only dashboard session."
+    - "Portfolio, Trade, Markets, and Order History screens received null placeholders instead of the authenticated Personal PAPER Operations snapshot."
+    - "Read-only operations projection did not reflect durable OPEN/unverifiable P0 state as HALTED even though the PAPER fill boundary already failed closed."
+    - "Three stale/diverged P8 branches were inspected for concepts only and are not direct merge candidates."
+  scope:
+    - "Process-memory-only private dashboard credential session; never AsyncStorage, secure-store persistence, source code, logs, AIPOS, or local-auth inference."
+    - "HTTPS required for non-loopback dashboard endpoints; loopback HTTP remains available for private local runtime."
+    - "Authenticated GET-only Personal PAPER Operations snapshot projects PAPER portfolio, filled order history, and public ticker market data to mobile views."
+    - "Durable P0 OPEN or unverifiable evidence projects operator state as HALTED/FAIL_CLOSED without changing PAPER state."
+    - "No mutation route, broker credential, order submit/cancel, withdrawal, cash/position mutation, LIVE activation, or real-money authority."
+  acceptance:
+    - "Focused P8 regressions PASS."
+    - "Unauthenticated operations request is rejected and insecure remote HTTP sends no bearer credential."
+    - "P0 OPEN/corruption yields HALTED + FAIL_CLOSED read-only projection."
+    - "Mobile source consumes only authenticated operations projection and exposes no trade mutation path."
+    - "Exact-head Full CI and all Restricted LIVE/read-only safety workflows PASS before merge."
+  safety:
+    dashboard_credential_persistence: prohibited
+    broker_credential_access: prohibited
+    mutation_routes: prohibited
+    live_authority: NONE
+    real_money_mutation: prohibited
