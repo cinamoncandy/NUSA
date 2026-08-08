@@ -15,6 +15,8 @@ import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
+import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
+import { buildPersonalPaperOperationsSnapshot } from "../../../packages/contracts/src/personalPaperOperations";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -37,6 +39,8 @@ export interface CloudRuntimeResearchRecoveryLike {
 export interface CloudRuntimeResearchAutomationLike {
   recover?(): ResearchRecoveryResult;
   onMarketData(tick: ResearchRuntimeMarketDataTick): void;
+  /** Optional read-only status projection; absence is represented conservatively as Research unavailable. */
+  statusProjection?(): ResearchStatusProjection | null;
 }
 
 export type CloudRuntimeMarketDataClientFactory = (
@@ -111,6 +115,7 @@ export function startCloudRuntime(
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
     try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); }
   };
+  let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const marketDataClient = config.upbitPublicDataEnabled
     ? marketDataClientFactory(
       config.upbitMarkets,
@@ -147,6 +152,7 @@ export function startCloudRuntime(
         }
       },
       (state) => {
+        marketConnectionState = state;
         if (state !== "CONNECTED") {
           observations.clear();
           safeHydrate([]);
@@ -166,6 +172,38 @@ export function startCloudRuntime(
       const input = effectiveProvider.read(principal);
       if (input === undefined) throw new Error("dashboard state is not ready");
       return buildMobileDashboardResponse(input);
+    },
+    loadPaperOperations: (principal) => {
+      const input = effectiveProvider.read(principal);
+      if (input === undefined) throw new Error("dashboard state is not ready");
+      const dashboard = buildMobileDashboardResponse(input);
+      const paperSnapshot = effectivePaperLoop?.snapshot();
+      const transport = marketConnectionState === "CONNECTED" ? "ONLINE" as const : "OFFLINE" as const;
+      const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive
+        ? "HALTED" as const
+        : dashboard.mode === "STOPPED"
+          ? "STOPPED" as const
+          : effectivePaperLoop == null
+            ? "STOPPED" as const
+            : transport === "ONLINE"
+              ? "READY" as const
+              : "READY_OFFLINE" as const;
+      return buildPersonalPaperOperationsSnapshot({
+        dashboard,
+        research: researchAutomation?.statusProjection?.() ?? null,
+        operations: {
+          runtimeState,
+          schedulerRunning: false,
+          schedulerMode: "OFF",
+          pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP",
+          transport,
+          killSwitchActive: dashboard.killSwitchActive,
+          accountHalted: dashboard.mode === "FAULTED",
+          pendingWrites: 0,
+          ...(paperSnapshot != null && paperSnapshot.lastMarketTs > 0 ? { lastEventAt: paperSnapshot.lastMarketTs } : {}),
+          updatedAt: dashboard.generatedAt
+        }
+      }, dashboard.generatedAt);
     }
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
