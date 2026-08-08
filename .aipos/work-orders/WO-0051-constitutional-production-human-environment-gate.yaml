@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 0cb85a730ffd4cb43cf57db1402b7f13b5484b21
+base_commit: 5bb12c641a775cdd91d24daa58476a5350501d82
 implementation_branch: agent/p7-cloud-p0-safety-state
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
@@ -100,15 +100,18 @@ hardened_research_slice:
 personal_paper_operations_slice:
   status: COMPLETE
   completion_evidence:
-    - "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
-    - "Exact-head CI, coverage, safety workflows, and Mobile Native PASS"
+    - "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21: Personal PAPER Operations + UI + End-to-End Readiness"
+    - "Exact-head CI run 31259416592 PASS including typecheck, architecture/AIPOS, safety, E2E, full isolated suite, and coverage"
+    - "Exact-head Mobile Native run 31259416582 PASS: foundation-smoke, Android debug/release, iOS debug/release"
+    - "Exact-head read-only/restricted safety workflows 31259416570, 31259416572, 31259416564, 31259416580 PASS"
   scope:
     - "One versioned read-only Personal PAPER Operations snapshot across dashboard, Research, and operations health"
     - "Authenticated GET-only cloud projection using the existing dashboard:read boundary"
+    - "Actual startCloudRuntime wiring for the Personal PAPER Operations loader"
     - "Mobile fail-closed client with no embedded/public bearer token and no inference from local sign-in"
     - "Desktop read-only validated immutable envelope"
     - "Remove mobile dependence on unauthenticated legacy status/account/market endpoints"
-    - "Cross-surface contract and E2E regression coverage"
+    - "Cross-surface contract, localhost socket E2E, and runtime wiring regression coverage"
   safety:
     mutation_routes: prohibited
     credential_embedding: prohibited

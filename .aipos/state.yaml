@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T22:27:00+09:00"
+updated_at: "2026-08-08T22:48:00+09:00"
 phase: cloud-p0-safety-state
 status: ready
 objective: "Close the Cloud P0 safety-input gap while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
 active_branch: agent/p7-cloud-p0-safety-state
-active_pull_request: null
-base_commit: 0cb85a730ffd4cb43cf57db1402b7f13b5484b21
+active_pull_request: 179
+base_commit: 5bb12c641a775cdd91d24daa58476a5350501d82
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -16,13 +16,10 @@ verified_state:
   status: COMPLETED
   evidence: ".aipos/evidence/WO-0050-completion.json"
 latest_verified_slice:
-  id: p6-personal-paper-operations-ui-e2e
-  evidence: "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
-  summary: "Personal PAPER Operations read-only projection merged after exact-head CI, coverage, safety, and Mobile Native PASS."
+  id: wo-0050-constitutional-human-transition-review-complete
+  evidence: ".aipos/evidence/WO-0050-completion.json"
+  summary: "WO-0050 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; synthetic evidence is explicitly prevented from satisfying real-world constitutional gates."
 completed:
-  - id: P6_PERSONAL_PAPER_OPERATIONS_UI_E2E
-    evidence: "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
-    summary: "Authenticated read-only Personal PAPER operations projection across cloud, mobile, and desktop."
   - id: WO-0050
     evidence: ".aipos/evidence/WO-0050-completion.json"
     summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
@@ -50,14 +47,15 @@ next:
   reason: "Implement P7 Cloud P0 Safety State: replace the hard-coded openP0=false safety input with durable hash-chained incident state and prove OPEN_P0_ALERT reaches the independent Risk Governor as HALT."
 verification:
   required:
+    - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "P6 Personal PAPER Operations merged as PR #177 at 0cb85a730ffd4cb43cf57db1402b7f13b5484b21 after exact-head required workflows PASS; P7 implementation is in progress."
-  current_commit: "eaacdd3f7518212048730b7aed3f39d155089c4e; P7 ledger, durable repository, derived control state, and operational HALT regression added; exact-head CI pending"
+  last_result: "P6 Personal PAPER Operations/UI/E2E merged with exact-head CI, full isolated, coverage, Mobile Native, and Restricted LIVE/read-only safety workflows PASS; real-world transition remains intentionally INCOMPLETE. P7 implementation is in progress."
+  current_commit: "846ee1f8388f66db90f5640a65a5566c7eb4e7e4; P7 ledger, durable repository, derived control state, operational HALT regression, and AIPOS slice added; exact-head CI pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
