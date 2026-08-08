@@ -63,35 +63,61 @@ function scanSecrets() {
   return findings;
 }
 
+function baseSelector(selector) {
+  return selector.replace(/(?:\([^)]*\))+$/, "");
+}
+
+function sectionBlocks(lines, header) {
+  const blocks = new Map();
+  let inSection = false;
+  let selector = null;
+  let body = [];
+  const flush = () => {
+    if (selector !== null) blocks.set(selector, body);
+    selector = null;
+    body = [];
+  };
+  for (const line of lines) {
+    if (!inSection) {
+      if (line === header) inSection = true;
+      continue;
+    }
+    if (line && !line.startsWith("  ")) {
+      flush();
+      break;
+    }
+    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
+    if (match) {
+      flush();
+      selector = match[1] ?? match[2];
+      continue;
+    }
+    if (selector !== null) body.push(line);
+  }
+  flush();
+  return blocks;
+}
+
 function parseLockfile() {
   const source = fs.readFileSync(lockPath, "utf8");
-  const packages = [];
   const lines = source.split(/\r?\n/);
-  let inPackages = false;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line === "packages:") { inPackages = true; continue; }
-    if (inPackages && line && !line.startsWith("  ")) break;
-    if (!inPackages) continue;
-    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
-    if (!match) continue;
-    const selector = (match[1] ?? match[2]).replace(/\([^)]*\)$/, "");
+  const packages = [];
+  for (const [rawSelector, body] of sectionBlocks(lines, "packages:")) {
+    const selector = baseSelector(rawSelector);
     const at = selector.lastIndexOf("@");
     if (at <= 0) continue;
-    const name = selector.slice(0, at);
-    const version = selector.slice(at + 1);
-    const block = lines.slice(index + 1, index + 24).join("\n");
-    const integrity = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
-    packages.push({ name, version, integrity, platformSpecific: /\n    (?:cpu|os): \[[^\]]+\]/.test(`\n${block}`) });
+    const block = body.join("\n");
+    packages.push({
+      name: selector.slice(0, at),
+      version: selector.slice(at + 1),
+      integrity: block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null,
+      platformSpecific: /(?:^|\n)    (?:cpu|os): \[[^\]]+\]/.test(block)
+    });
   }
-  // Normalized to \n line endings (matching how `lines`/`block` above are built) so this
-  // regex isn't broken by a CRLF checkout -- the raw source substring below is not.
-  const snapshots = source.slice(source.indexOf("snapshots:")).split(/\r?\n/).join("\n");
   const optional = new Set();
-  // "optional: true" isn't always the line right after the header -- a "dependencies:"
-  // block (or others) can sit between them, as it does for postject. Skip any number of
-  // 4-space-indented lines before it, but stop at the next 2-space-indented package header.
-  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n(?:    .+\n)*?    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
+  for (const [rawSelector, body] of sectionBlocks(lines, "snapshots:")) {
+    if (body.some((line) => /^    optional: true\s*$/.test(line))) optional.add(baseSelector(rawSelector));
+  }
   for (const item of packages) item.optional = optional.has(`${item.name}@${item.version}`);
   return { source, packages };
 }
@@ -176,9 +202,6 @@ function runDependencyAudit() {
 function parseAudit(output) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("audit JSON missing");
-  // pnpm audit exits non-zero whenever it finds any vulnerabilities -- that's normal,
-  // not a failure -- so the caller may hand us stdout with stderr/error.message appended
-  // after the JSON. Extract only the balanced {...} object, ignoring trailing text.
   let depth = 0;
   let end = -1;
   for (let index = start; index < output.length; index += 1) {
@@ -220,7 +243,7 @@ function writeReports(result) {
   const vulnerabilityLines = Object.entries(result.vulnerabilities).map(([key, value]) => `- ${key}: ${value}`).join("\n") || "- None reported";
   const licenseLines = result.licenses.disallowed.map((item) => `- ${item.package}: ${item.licenses.join(", ")}`).join("\n") || "- None";
   const secretLines = result.secrets.map((item) => `- ${item.file}:${item.line} (${item.rule})`).join("\n") || "- None";
-  fs.writeFileSync(path.join(reportDir, `dependency-audit-${date}.md`), `# NUSA Dependency Audit\n\nAudited: ${date}\n\n- Lockfile packages: ${result.integrity.packageCount}\n- Missing integrity records: ${result.integrity.missingIntegrity}\n- pnpm audit unavailable: ${result.audit.unavailable ? "YES" : "NO"}\n- Missing license metadata: ${result.licenses.missing.length}\n\n## Vulnerabilities\n\n${vulnerabilityLines}\n\n## License violations\n\n${licenseLines}\n\n## Missing license metadata\n\n${result.licenses.missing.map((item) => `- ${item}`).join("\\n") || "- None"}\n`);
+  fs.writeFileSync(path.join(reportDir, `dependency-audit-${date}.md`), `# NUSA Dependency Audit\n\nAudited: ${date}\n\n- Lockfile packages: ${result.integrity.packageCount}\n- Missing integrity records: ${result.integrity.missingIntegrity}\n- pnpm audit unavailable: ${result.audit.unavailable ? "YES" : "NO"}\n- Missing license metadata: ${result.licenses.missing.length}\n\n## Vulnerabilities\n\n${vulnerabilityLines}\n\n## License violations\n\n${licenseLines}\n\n## Missing license metadata\n\n${result.licenses.missing.map((item) => `- ${item}`).join("\n") || "- None"}\n`);
   fs.writeFileSync(path.join(reportDir, `secret-scan-${date}.md`), `# NUSA Secret Scan\n\nAudited: ${date}\n\nNo secret values are included in this report.\n\n## Findings\n\n${secretLines}\n`);
   fs.writeFileSync(path.join(reportDir, `security-hardening-${date}.md`), `# NUSA Security Hardening Report\n\nAudited: ${date}\n\n| Gate | Result |\n|---|---|\n| Dependency vulnerability scan | ${result.audit.unavailable ? "UNVERIFIED" : result.highVulnerabilities === 0 ? "PASS" : "FAIL"} |\n| Dependency license verification | ${result.licenses.missing.length === 0 && result.licenses.disallowed.length === 0 ? "PASS" : "FAIL"} |\n| Lockfile integrity | ${result.integrity.findings.length === 0 ? "PASS" : "FAIL"} |\n| Secret scan | ${result.secrets.length === 0 ? "PASS" : "FAIL"} |\n| Artifact checksum verification | ${result.artifacts.checksumStatus} |\n| Release signing verification | ${result.artifacts.signingStatus} (${result.artifacts.signed}) |\n\n## Safety\n\n- productionMutationAllowed=false is required and checked for release manifests.\n- Live trading remains disabled.\n- Credentials are not introduced or printed.\n`);
   fs.writeFileSync(path.join(reportDir, `sbom-${date}.json`), `${JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.5", version: 1, metadata: { component: { type: "application", name: packageJson.name, version: packageJson.version }, timestamp: new Date().toISOString() }, components: result.integrity.packages.map((item) => ({ type: "library", name: item.name, version: item.version, hashes: item.integrity ? [{ alg: "SHA-512", content: item.integrity.replace(/^sha512-/, "") }] : [] })).sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version)) }, null, 2)}\n`, "utf8");
@@ -247,4 +270,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { scanText, parseLockfile, dependencyIntegrity, licenseAudit, verifyArtifacts };
+module.exports = { scanText, baseSelector, parseLockfile, dependencyIntegrity, licenseAudit, verifyArtifacts };
