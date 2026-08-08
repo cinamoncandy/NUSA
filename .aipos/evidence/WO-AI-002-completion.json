@@ -71,7 +71,6 @@
     {"name": "latest_validated_readonly_projection", "status": "PASS"},
     {"name": "provider_failure_isolated_from_paper", "status": "PASS"},
     {"name": "restricted_live_safety_workflows", "status": "PASS", "detail": "8/8 across PR #203 and PR #204"},
-    {"name": "mobile_native", "status": "NOT_TRIGGERED", "detail": "No mobile-native files changed in the WO-AI-002 implementation slices"},
     {"name": "production_mutation_prohibited", "status": "PASS"},
     {"name": "real_order_authority_false", "status": "PASS"},
     {"name": "real_transfer_authority_false", "status": "PASS"},
