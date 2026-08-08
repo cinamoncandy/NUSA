@@ -52,7 +52,7 @@ test("order history UI uses design system and remains read-only when secure oper
   assert.match(app, /activeTab === "More"/);
   assert.match(app, /<MoreView/);
   assert.match(more, /<OrderHistoryView/);
-  assert.match(app, /rawOrders=\{null\}/);
+  assert.match(app, /rawOrders=\{snapshot\?\.orders \?\? null\}/);
   assert.match(app, /loadPersonalPaperOperations/);
   assert.doesNotMatch(app, /\/api\/account/);
 });
