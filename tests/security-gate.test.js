@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { scanText } = require("../scripts/security-gate.js");
+const { scanText, baseSelector } = require("../scripts/security-gate.js");
 const { dependencyIntegrity, licenseAudit, parseLockfile, verifyArtifacts } = require("../scripts/security-gate.js");
 
 test("secret scanner reports credential material without returning its value", () => {
@@ -31,13 +31,77 @@ test("lockfile pins the patched versions for audited high advisories", () => {
   assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
 });
 
+test("peer suffix normalization removes every trailing peer group", () => {
+  assert.equal(baseSelector("foo@1.0.0(react@18)(react-dom@18)"), "foo@1.0.0");
+  assert.equal(baseSelector("@scope/foo@1.0.0(peer@1)(@scope/other@2)"), "@scope/foo@1.0.0");
+  assert.equal(baseSelector("plain@1.0.0"), "plain@1.0.0");
+});
+
 test("optional detection finds optional: true even when other snapshot keys sit between it and the header", () => {
-  // postject's snapshot entry has a "dependencies:" block before "optional: true" --
-  // a package whose optional flag isn't the line immediately after its header must
-  // still be recognized as optional, or license/audit checks wrongly flag it as missing.
   const postject = parseLockfile().packages.find((item) => item.name === "postject");
   assert.ok(postject, "postject must still be present in the lockfile for this regression test to mean anything");
   assert.equal(postject.optional, true);
+});
+
+test("optional package detection matches an independent full snapshot-block scan", () => {
+  const lock = parseLockfile();
+  const actual = new Set(lock.packages.filter((item) => item.optional).map((item) => `${item.name}@${item.version}`));
+  const lines = fs.readFileSync(path.join(__dirname, "..", "pnpm-lock.yaml"), "utf8").split(/\r?\n/);
+  const expected = new Set();
+  let inSnapshots = false;
+  let selector = null;
+  for (const line of lines) {
+    if (!inSnapshots) {
+      if (line === "snapshots:") inSnapshots = true;
+      continue;
+    }
+    if (line && !line.startsWith("  ")) break;
+    const match = line.match(/^ {2}(?! )(?:'([^']+)'|([^:]+)):\s*$/);
+    if (match) {
+      selector = baseSelector(match[1] ?? match[2]);
+      continue;
+    }
+    if (selector !== null && /^ {4}optional: true\s*$/.test(line)) expected.add(selector);
+  }
+  assert.ok(expected.size > 0, "the lockfile must contain optional snapshots for this test to mean anything");
+  const missed = [...expected].filter((item) => !actual.has(item));
+  assert.deepEqual(missed, [], `optional packages missed by parseLockfile: ${missed.join(", ")}`);
+});
+
+test("each package integrity value comes only from its own block", () => {
+  const lock = parseLockfile();
+  const lines = fs.readFileSync(path.join(__dirname, "..", "pnpm-lock.yaml"), "utf8").split(/\r?\n/);
+  const start = lines.indexOf("packages:");
+  assert.ok(start >= 0);
+  let selector = null;
+  let body = [];
+  const own = new Map();
+  const flush = () => {
+    if (selector !== null) own.set(selector, body.join("\n"));
+    selector = null;
+    body = [];
+  };
+  for (const line of lines.slice(start + 1)) {
+    if (line && !line.startsWith("  ")) {
+      flush();
+      break;
+    }
+    const match = line.match(/^ {2}(?! )(?:'([^']+)'|([^:]+)):\s*$/);
+    if (match) {
+      flush();
+      selector = baseSelector(match[1] ?? match[2]);
+      continue;
+    }
+    if (selector !== null) body.push(line);
+  }
+  flush();
+
+  for (const item of lock.packages) {
+    const block = own.get(`${item.name}@${item.version}`);
+    if (block === undefined) continue;
+    const expected = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
+    assert.equal(item.integrity, expected, `${item.name}@${item.version} integrity must come from its own block`);
+  }
 });
 
 test("license audit ignores platform-selected optional packages without skipping ordinary dependencies", () => {

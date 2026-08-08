@@ -63,35 +63,61 @@ function scanSecrets() {
   return findings;
 }
 
+function baseSelector(selector) {
+  return selector.replace(/(?:\([^)]*\))+$/, "");
+}
+
+function sectionBlocks(lines, header) {
+  const blocks = new Map();
+  let inSection = false;
+  let selector = null;
+  let body = [];
+  const flush = () => {
+    if (selector !== null) blocks.set(selector, body);
+    selector = null;
+    body = [];
+  };
+  for (const line of lines) {
+    if (!inSection) {
+      if (line === header) inSection = true;
+      continue;
+    }
+    if (line && !line.startsWith("  ")) {
+      flush();
+      break;
+    }
+    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
+    if (match) {
+      flush();
+      selector = match[1] ?? match[2];
+      continue;
+    }
+    if (selector !== null) body.push(line);
+  }
+  flush();
+  return blocks;
+}
+
 function parseLockfile() {
   const source = fs.readFileSync(lockPath, "utf8");
-  const packages = [];
   const lines = source.split(/\r?\n/);
-  let inPackages = false;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line === "packages:") { inPackages = true; continue; }
-    if (inPackages && line && !line.startsWith("  ")) break;
-    if (!inPackages) continue;
-    const match = line.match(/^  (?! )(?:'([^']+)'|([^:]+)):\s*$/);
-    if (!match) continue;
-    const selector = (match[1] ?? match[2]).replace(/\([^)]*\)$/, "");
+  const packages = [];
+  for (const [rawSelector, body] of sectionBlocks(lines, "packages:")) {
+    const selector = baseSelector(rawSelector);
     const at = selector.lastIndexOf("@");
     if (at <= 0) continue;
-    const name = selector.slice(0, at);
-    const version = selector.slice(at + 1);
-    const block = lines.slice(index + 1, index + 24).join("\n");
-    const integrity = block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null;
-    packages.push({ name, version, integrity, platformSpecific: /\n    (?:cpu|os): \[[^\]]+\]/.test(`\n${block}`) });
+    const block = body.join("\n");
+    packages.push({
+      name: selector.slice(0, at),
+      version: selector.slice(at + 1),
+      integrity: block.match(/integrity:\s*([^\s}]+)/)?.[1] ?? null,
+      platformSpecific: /(?:^|\n)    (?:cpu|os): \[[^\]]+\]/.test(block)
+    });
   }
-  // Normalized to \n line endings (matching how `lines`/`block` above are built) so this
-  // regex isn't broken by a CRLF checkout -- the raw source substring below is not.
-  const snapshots = source.slice(source.indexOf("snapshots:")).split(/\r?\n/).join("\n");
   const optional = new Set();
-  // "optional: true" isn't always the line right after the header -- a "dependencies:"
-  // block (or others) can sit between them, as it does for postject. Skip any number of
-  // 4-space-indented lines before it, but stop at the next 2-space-indented package header.
-  for (const match of snapshots.matchAll(/^  (?:'([^']+)'|([^:]+)):\n(?:    .+\n)*?    optional: true/mg)) optional.add((match[1] ?? match[2]).replace(/\([^)]*\)$/, ""));
+  for (const [rawSelector, body] of sectionBlocks(lines, "snapshots:")) {
+    if (body.some((line) => /^    optional: true\s*$/.test(line))) optional.add(baseSelector(rawSelector));
+  }
   for (const item of packages) item.optional = optional.has(`${item.name}@${item.version}`);
   return { source, packages };
 }
@@ -247,4 +273,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { scanText, parseLockfile, dependencyIntegrity, licenseAudit, verifyArtifacts };
+module.exports = { scanText, baseSelector, parseLockfile, dependencyIntegrity, licenseAudit, verifyArtifacts };
