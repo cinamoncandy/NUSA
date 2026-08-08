@@ -1,4 +1,5 @@
 "use strict";
+const fs = require("node:fs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
@@ -9,6 +10,7 @@ const {
 const { validateConstitutionalHumanTransitionReview } = require("../scripts/validate-constitutional-human-transition-review.js");
 
 const REV = "1".repeat(40);
+const CFG = "a".repeat(64);
 const HASH = (char) => char.repeat(64);
 const DIGESTS = "23456789";
 
@@ -19,6 +21,8 @@ function evidence(provenance = "SYNTHETIC_CI") {
     provenance,
     evidenceRef: `evidence:${slot.toLowerCase()}`,
     evidenceDigest: HASH(DIGESTS[index]),
+    boundCodeRevision: REV,
+    boundConfigurationHash: CFG,
   }));
 }
 
@@ -26,7 +30,7 @@ function valid(overrides = {}) {
   return {
     reviewId: "constitutional-review-1",
     codeRevision: REV,
-    configurationHash: HASH("a"),
+    configurationHash: CFG,
     releaseCandidateId: "release-candidate-1",
     deploymentBundleId: "deployment-bundle-1",
     rollbackBundleId: "rollback-bundle-1",
@@ -63,6 +67,20 @@ test("structurally complete external/human verified evidence is review eligible 
   assert.equal(result.authorizesLive, false);
 });
 
+test("evidence from different code or configuration cannot be mixed into READY", () => {
+  const codeMismatch = evidence("EXTERNAL_HUMAN_VERIFIED");
+  codeMismatch[0] = { ...codeMismatch[0], boundCodeRevision: "f".repeat(40) };
+  const codeResult = evaluateConstitutionalTransitionReview(valid({ evidence: codeMismatch }));
+  assert.equal(codeResult.verdict, "SAFE_BLOCK");
+  assert.ok(codeResult.blockers.includes("SIGNED_PRODUCTION_ARTIFACT_CODE_REVISION_MISMATCH"));
+
+  const configMismatch = evidence("EXTERNAL_HUMAN_VERIFIED");
+  configMismatch[1] = { ...configMismatch[1], boundConfigurationHash: "f".repeat(64) };
+  const configResult = evaluateConstitutionalTransitionReview(valid({ evidence: configMismatch }));
+  assert.equal(configResult.verdict, "SAFE_BLOCK");
+  assert.ok(configResult.blockers.includes("EXTERNAL_READONLY_PREFLIGHT_CONFIGURATION_HASH_MISMATCH"));
+});
+
 test("missing evidence remains explicit and incomplete", () => {
   const partial = evidence("EXTERNAL_HUMAN_VERIFIED").slice(0, 3);
   const result = evaluateConstitutionalTransitionReview(valid({ evidence: partial }));
@@ -95,19 +113,35 @@ test("packet fingerprint is deterministic across evidence input order", () => {
   assert.notEqual(first.packetFingerprint, changed.packetFingerprint);
 });
 
-test("duplicate evidence and secret-like references fail closed", () => {
+test("duplicate invalid-state and secret-like evidence fail closed", () => {
   const duplicate = evidence();
   duplicate.push({ ...duplicate[0] });
   assert.throws(() => evaluateConstitutionalTransitionReview(valid({ evidence: duplicate })), /SLOT_DUPLICATE/);
   const secret = evidence();
   secret[0] = { ...secret[0], evidenceRef: "Bearer do-not-store-this" };
   assert.throws(() => evaluateConstitutionalTransitionReview(valid({ evidence: secret })), /SECRET_MATERIAL/);
+  const invalid = evidence();
+  invalid[0] = { ...invalid[0], status: "MAYBE" };
+  assert.throws(() => evaluateConstitutionalTransitionReview(valid({ evidence: invalid })), /STATUS_INVALID/);
+});
+
+test("repository state explicitly records current real-world transition as incomplete", () => {
+  const state = fs.readFileSync(".aipos/state.yaml", "utf8");
+  assert.match(state, /current_real_world_status:\s*INCOMPLETE/);
+  assert.match(state, /signed_production_artifact_verified:\s*false/);
+  assert.match(state, /actual_external_readonly_preflight_completed:\s*false/);
+  assert.match(state, /actual_human_activation_ceremony_completed:\s*false/);
+  assert.match(state, /actual_tiny_live_session_completed:\s*false/);
+  assert.match(state, /constitutional_decision_authority:\s*false/);
+  assert.match(state, /real_money_execution_allowed:\s*false/);
 });
 
 test("source guard proves final packet cannot deploy activate trade or scale", () => {
   const validation = validateConstitutionalHumanTransitionReview();
   assert.equal(validation.ok, true, validation.failures.join(","));
   assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.syntheticEvidenceCannotSatisfyRealWorldGate, true);
+  assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.evidenceExactCodeBindingRequired, true);
+  assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.evidenceExactConfigurationBindingRequired, true);
   assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.actualExternalBrokerValidationInCi, false);
   assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.actualHumanCeremonyInCi, false);
   assert.equal(CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR.actualTinyLiveSessionInCi, false);
