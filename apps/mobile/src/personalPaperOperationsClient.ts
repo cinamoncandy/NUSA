@@ -20,6 +20,8 @@ function isSnapshot(value: unknown): value is PersonalPaperOperationsSnapshot {
   if (snapshot.schemaVersion !== 1) return false;
   if (snapshot.liveAuthority !== "NONE" || snapshot.productionMutationAllowed !== false) return false;
   if (snapshot.dashboard == null || snapshot.operations == null) return false;
+  if (!Array.isArray(snapshot.orders) || !Array.isArray(snapshot.markets)) return false;
+  if (snapshot.portfolio !== null && snapshot.portfolio !== undefined && snapshot.portfolio.mode !== "PAPER") return false;
   if (snapshot.research != null) {
     if (snapshot.research.liveAuthority !== "NONE" || snapshot.research.productionMutationAllowed !== false) return false;
     if (snapshot.research.champion.authority !== "PAPER_ONLY" || snapshot.research.challenger.authority !== "ZERO_AUTHORITY") return false;

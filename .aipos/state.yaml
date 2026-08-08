@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:18:00+09:00"
-phase: cloud-p0-runtime-enforcement
+updated_at: "2026-08-08T23:34:00+09:00"
+phase: private-readonly-runtime-session
 status: ready
-objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
+objective: "Connect the private mobile client to the existing authenticated read-only Personal PAPER snapshot and expose verified portfolio, order-history, and public ticker projections without adding mutation or LIVE authority."
 base_branch: main
-active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
-active_pull_request: 182
-base_commit: e5cef3fc138467bffde1f1628809b2a948588675
+active_branch: agent/p8-private-readonly-runtime-session
+active_pull_request: 184
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 runtime enforcement is the current safe automated hardening slice."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P8 is a bounded private-use read-only slice and cannot complete the gate."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,18 +44,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Close P7 runtime composition: the default Cloud PAPER execution loop must verify durable P0 evidence before every fill and fail closed when that evidence is open or unverifiable. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Complete P8 Private Read-only Runtime Session on PR #184 using the existing GET-only Personal PAPER endpoint. Require exact-head CI and Mobile Native PASS; do not add mutation routes or infer LIVE authorization."
 verification:
   required:
+    - "Exact-head Full CI, coverage, architecture/AIPOS, security, E2E, safety, and release PASS for P8"
+    - "Exact-head Mobile Native foundation, Android debug/release, and iOS debug/release PASS for P8"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7 runtime enforcement"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
-  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
+  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head CI 31261654980 PASS, full isolated suite and coverage PASS, plus safety workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS. Actual Cloud PAPER fill boundary now verifies durable P0 evidence fail-closed."
+  current_commit: "P8 PR #184 rebased onto a8cc673bb47f9856140485aa6d159140626272e5; exact-head verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: e5cef3fc138467bffde1f1628809b2a948588675
-implementation_branch: agent/p7-cloud-p0-runtime-enforcement-pr
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+implementation_branch: agent/p8-private-readonly-runtime-session
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged; the current safe automated hardening slice enforces that durable verified P0 state at the actual Cloud PAPER fill boundary. It grants no LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable P0 state and actual PAPER fill-boundary enforcement are complete and merged. P8 is a bounded private-use read-only slice that connects a memory-only dashboard credential session and verified PAPER portfolio/order/public-ticker projections to the existing authenticated Personal PAPER GET endpoint. It adds no mutation or LIVE authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -136,7 +136,11 @@ cloud_p0_safety_state_slice:
     risk_governor_bypass: prohibited
     automatic_incident_resolution: prohibited
 cloud_p0_runtime_enforcement_slice:
-  status: IN_PROGRESS
+  status: COMPLETE
+  completion_evidence:
+    - "PR #182 merge a8cc673bb47f9856140485aa6d159140626272e5: durable P0 enforcement at actual Cloud PAPER fill boundary"
+    - "Exact-head 4a40d0cde35748d73efb14f6ca9974f162db2d2d CI run 31261654980 PASS including full isolated suite and coverage"
+    - "Exact-head safety workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS"
   scope:
     - "Wire the default Cloud PAPER execution loop to the durable SQLite P0 incident repository"
     - "Verify durable P0 state on every actual Cloud PAPER execution tick before any strategy decision or fill"
@@ -148,3 +152,20 @@ cloud_p0_runtime_enforcement_slice:
     broker_credential_access: prohibited
     real_money_mutation: prohibited
     risk_governor_bypass: prohibited
+private_readonly_runtime_session_slice:
+  status: IN_PROGRESS
+  pull_request: 184
+  scope:
+    - "Use a process-memory-only dashboard credential session; never persist or infer it from local foundation sign-in"
+    - "Keep one authenticated GET-only /api/paper-operations read surface"
+    - "Project actual PAPER account state into Portfolio and Trade"
+    - "Project actual filled PAPER orders and fills into read-only Order History"
+    - "Project verified Upbit public ticker data into Markets/Watchlist and clear it on disconnect"
+    - "Leave chart candles unavailable until a separately verified candle source exists; never synthesize them from insufficient evidence"
+    - "Project OPEN or unverifiable durable P0 evidence as HALTED in Personal PAPER Operations"
+  safety:
+    mutation_routes: prohibited
+    credential_persistence: prohibited
+    live_authority: NONE
+    production_mutation_allowed: false
+    automatic_promotion: prohibited

@@ -17,7 +17,12 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
-import { buildPersonalPaperOperationsSnapshot } from "../../../packages/contracts/src/personalPaperOperations";
+import {
+  buildPersonalPaperOperationsSnapshot,
+  type PersonalPaperMarketProjection,
+  type PersonalPaperOrderProjection,
+  type PersonalPaperPortfolioProjection
+} from "../../../packages/contracts/src/personalPaperOperations";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -58,6 +63,49 @@ function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepos
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
   }
   return new SqliteCloudDashboardSnapshotRepository(new SqliteDatabase(pathname));
+}
+
+function buildReadOnlyPortfolio(
+  paperSnapshot: ReturnType<PaperTradingExecutionLoop["snapshot"]> | undefined,
+  fallbackMarket: PersonalPaperMarketProjection | undefined
+): PersonalPaperPortfolioProjection | null {
+  if (paperSnapshot == null) return null;
+  const position = [...paperSnapshot.positions].sort((left, right) => left.market.localeCompare(right.market))[0];
+  const market = position?.market ?? fallbackMarket?.market ?? "";
+  const markPrice = position?.markPrice ?? fallbackMarket?.price ?? 0;
+  if (position != null && (!market || !Number.isFinite(markPrice) || markPrice <= 0)) return null;
+  return {
+    observedAt: new Date(paperSnapshot.updatedAt).toISOString(),
+    mode: "PAPER",
+    account: {
+      available: true,
+      cash: paperSnapshot.cash,
+      equity: paperSnapshot.equity,
+      unrealizedPnl: paperSnapshot.unrealizedPnL,
+      markPrice,
+      position: position == null
+        ? { market, quantity: 0, averagePrice: 0, realizedPnl: paperSnapshot.realizedPnL }
+        : { market: position.market, quantity: position.quantity, averagePrice: position.averageEntryPrice, realizedPnl: position.realizedPnL }
+    },
+    openOrderCount: 0
+  };
+}
+
+function buildReadOnlyOrders(paperSnapshot: ReturnType<PaperTradingExecutionLoop["snapshot"]> | undefined): readonly PersonalPaperOrderProjection[] {
+  if (paperSnapshot == null) return [];
+  return paperSnapshot.orders.map((order) => ({
+    id: order.id,
+    market: order.market,
+    side: order.side,
+    quantity: order.quantity,
+    price: order.price,
+    fee: order.fee,
+    filledAt: new Date(order.filledAt).toISOString(),
+    status: "FILLED" as const,
+    fills: paperSnapshot.fills
+      .filter((fill) => fill.orderId === order.id)
+      .map((fill) => ({ id: fill.id, quantity: fill.quantity, price: fill.price, filledAt: new Date(fill.filledAt).toISOString() }))
+  }));
 }
 
 export function startCloudRuntime(
@@ -123,6 +171,7 @@ export function startCloudRuntime(
     clearPaperProjection();
   }
   const observations = new Map<string, IntelligenceObservation>();
+  const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
     try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); }
   };
@@ -131,6 +180,14 @@ export function startCloudRuntime(
     ? marketDataClientFactory(
       config.upbitMarkets,
       (ticker) => {
+        latestTickers.set(ticker.code, {
+          market: ticker.code,
+          price: ticker.trade_price,
+          changeRate: ticker.signed_change_rate ?? null,
+          volume: ticker.acc_trade_price_24h ?? null,
+          observedAt: new Date(ticker.trade_timestamp).toISOString(),
+          source: "UPBIT_PUBLIC_TICKER"
+        });
         const observation = upbitTickerToIntelligenceObservation(ticker, { now: Date.now() });
         if (!observation) { safeHydrate([]); return; }
         observations.set(observation.id, observation);
@@ -166,6 +223,7 @@ export function startCloudRuntime(
         marketConnectionState = state;
         if (state !== "CONNECTED") {
           observations.clear();
+          latestTickers.clear();
           safeHydrate([]);
         }
       }
@@ -190,7 +248,13 @@ export function startCloudRuntime(
       const dashboard = buildMobileDashboardResponse(input);
       const paperSnapshot = effectivePaperLoop?.snapshot();
       const transport = marketConnectionState === "CONNECTED" ? "ONLINE" as const : "OFFLINE" as const;
-      const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive
+      let p0Halted = false;
+      try {
+        p0Halted = effectiveP0Repository?.readState().openP0 ?? false;
+      } catch {
+        p0Halted = true;
+      }
+      const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted
         ? "HALTED" as const
         : dashboard.mode === "STOPPED"
           ? "STOPPED" as const
@@ -199,6 +263,7 @@ export function startCloudRuntime(
             : transport === "ONLINE"
               ? "READY" as const
               : "READY_OFFLINE" as const;
+      const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
       return buildPersonalPaperOperationsSnapshot({
         dashboard,
         research: researchAutomation?.statusProjection?.() ?? null,
@@ -209,11 +274,14 @@ export function startCloudRuntime(
           pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP",
           transport,
           killSwitchActive: dashboard.killSwitchActive,
-          accountHalted: dashboard.mode === "FAULTED",
+          accountHalted: dashboard.mode === "FAULTED" || p0Halted,
           pendingWrites: 0,
           ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}),
           updatedAt: dashboard.generatedAt
-        }
+        },
+        portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket),
+        orders: buildReadOnlyOrders(paperSnapshot),
+        markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market))
       }, dashboard.generatedAt);
     }
   });
