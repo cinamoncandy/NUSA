@@ -48,3 +48,14 @@ test("read-only PAPER path removes fake order controls while retaining explicit 
   assert.match(source, /현재 App wiring에는 주문 제출 callback이 없습니다/);
   assert.doesNotMatch(source, /매수 미리보기|매도 미리보기/);
 });
+
+test("market discovery uses compact rows with accessible 44pt favorite and sort controls", () => {
+  const source = read("src/watchlistView.tsx");
+  assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
+  assert.match(source, /accessibilityRole="button"/);
+  assert.match(source, /favorite: \{ width: 44, height: 44/);
+  assert.match(source, /sortChip: \{ minHeight: 44/);
+  assert.match(source, /PUBLIC · READ ONLY/);
+  assert.match(source, /active \? "★" : "☆"/);
+  assert.doesNotMatch(source, /label=\{active \? "삭제" : "추가"\}/);
+});
