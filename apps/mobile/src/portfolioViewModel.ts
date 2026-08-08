@@ -54,19 +54,21 @@ export function buildPortfolioViewModel(response: PortfolioAccountResponse): Por
   nonNegative(response.account.cash, "cash");
   nonNegative(response.account.equity, "equity");
   finite(response.account.unrealizedPnl, "unrealizedPnl");
-  if (!Number.isFinite(response.account.markPrice) || response.account.markPrice <= 0) throw new Error("markPrice must be positive");
-  if (!response.account.position.market.trim()) throw new Error("position market is required");
   nonNegative(response.account.position.quantity, "position.quantity");
   nonNegative(response.account.position.averagePrice, "position.averagePrice");
   finite(response.account.position.realizedPnl, "position.realizedPnl");
   nonNegative(response.openOrderCount, "openOrderCount");
 
-  const assetValue = response.account.position.quantity * response.account.markPrice;
+  const hasPosition = response.account.position.quantity > 0;
+  if (hasPosition && (!response.account.position.market.trim() || !Number.isFinite(response.account.markPrice) || response.account.markPrice <= 0)) throw new Error("open position market and markPrice are required");
+  if (!hasPosition && (!Number.isFinite(response.account.markPrice) || response.account.markPrice < 0)) throw new Error("markPrice must be non-negative");
+
+  const assetValue = hasPosition ? response.account.position.quantity * response.account.markPrice : 0;
   finite(assetValue, "assetValue");
   const tolerance = Math.max(1e-6, response.account.equity * 1e-9);
   if (Math.abs(response.account.cash + assetValue - response.account.equity) > tolerance) throw new Error("portfolio totals do not reconcile");
 
-  const position = response.account.position.quantity > 0
+  const position = hasPosition
     ? Object.freeze({
       market: response.account.position.market,
       quantity: response.account.position.quantity,
