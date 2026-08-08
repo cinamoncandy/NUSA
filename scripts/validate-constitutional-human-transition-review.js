@@ -8,6 +8,8 @@ function validateConstitutionalHumanTransitionReview(source = fs.readFileSync(TA
   const required = [
     'mode: "EVIDENCE_AGGREGATION_ONLY"',
     "syntheticEvidenceCannotSatisfyRealWorldGate: true",
+    "evidenceExactCodeBindingRequired: true",
+    "evidenceExactConfigurationBindingRequired: true",
     "actualExternalBrokerValidationInCi: false",
     "actualHumanCeremonyInCi: false",
     "actualTinyLiveSessionInCi: false",
@@ -30,7 +32,11 @@ function validateConstitutionalHumanTransitionReview(source = fs.readFileSync(TA
     '"SIGNED_PRODUCTION_ARTIFACT"',
     '"EXTERNAL_READONLY_PREFLIGHT"',
     '"HUMAN_ACTIVATION_CEREMONY"',
-    '"TINY_BOUNDED_LIVE_SESSION"'
+    '"TINY_BOUNDED_LIVE_SESSION"',
+    "boundCodeRevision",
+    "boundConfigurationHash",
+    "_CODE_REVISION_MISMATCH",
+    "_CONFIGURATION_HASH_MISMATCH"
   ];
   for (const marker of required) if (!source.includes(marker)) failures.push(`CONSTITUTIONAL_REVIEW_REQUIRED_MARKER_MISSING:${marker}`);
   const forbidden = /\b(deploy|promoteProduction|applyScale|changeLimit|setLimit|submitOrder|amendOrder|cancelOrder|executeOrder|withdraw|transferFunds|mutateCash|mutatePosition|resolveExecutionCredential|connectExecutionTransport|dialBroker|activateLive|issueActivationToken|issueAuthorizationToken)\s*\(/g;
