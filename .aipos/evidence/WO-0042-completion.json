@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0042-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0042",
+    "path": ".aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "8e8b19bf83b54a50a432f55afcba86db2d968929"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "87c557c1a8760333b4feb8c7e1a1b93823797860"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "VERIFY_ONLY",
+      "artifact_integrity_required": true,
+      "exact_artifact_set_required": true,
+      "audit_replay_anchor_required": true,
+      "recovery_consistency_required": true,
+      "automatic_restart_allowed": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "real_money_execution": "prohibited"
+    },
+    "hash": {"algorithm": "sha256", "value": "fd201d7f3824f50a3339616747e5185e14c2042090cdebc35503dfd8c30bb2bb"}
+  },
+  "observed_at": "2026-08-08T09:24:00+09:00",
+  "provenance": [
+    "github:pull/157",
+    "github:actions/run/31229864075",
+    "github:actions/run/31229864057",
+    "github:actions/run/31229864077",
+    "github:actions/run/31229864126",
+    "github:actions/run/31229864073",
+    "git:merge/87c557c1a8760333b4feb8c7e1a1b93823797860"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31229864075"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31229864057"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31229864077"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31229864126"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31229864073"},
+    {"name": "restore_integrity_fail_closed", "status": "PASS"},
+    {"name": "automatic_restart_prohibited", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}

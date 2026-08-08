@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:20:52+09:00"
-phase: disaster-recovery-restore-verification
+updated_at: "2026-08-08T09:40:00+09:00"
+phase: restricted-live-environment-preflight
 status: verifying
-objective: "Verify backup/restore integrity and recovery consistency without startup, execution, or LIVE authority."
+objective: "Aggregate verified safety/readiness evidence into a deterministic fail-closed verdict for independent human review only."
 base_branch: main
-active_branch: agent/wo-0042-disaster-recovery-restore-verification
-active_pull_request: 157
-base_commit: f1026da040f1a42f8084f04c139a2f7c408a4323
+active_branch: agent/wo-0043-restricted-live-environment-preflight
+active_pull_request: 158
+base_commit: 87c557c1a8760333b4feb8c7e1a1b93823797860
 claimed_state:
-  work_order: WO-0042
+  work_order: WO-0043
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0041
+  work_order: WO-0042
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0041-completion.json"
+  evidence: ".aipos/evidence/WO-0042-completion.json"
 latest_verified_slice:
-  id: wo-0041-audit-incident-replay-complete
-  evidence: ".aipos/evidence/WO-0041-completion.json"
-  summary: "WO-0041 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; replay remains observational only."
+  id: wo-0042-disaster-recovery-restore-complete
+  evidence: ".aipos/evidence/WO-0042-completion.json"
+  summary: "WO-0042 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; restore PASS grants no restart or LIVE authority."
 completed:
+  - id: WO-0042
+    evidence: ".aipos/evidence/WO-0042-completion.json"
+    summary: "Added deterministic fail-closed disaster-recovery restore integrity verification without execution authority."
   - id: WO-0041
     evidence: ".aipos/evidence/WO-0041-completion.json"
     summary: "Added deterministic tamper-evident audit/evidence/incident replay without execution authority."
@@ -29,21 +32,18 @@ completed:
   - id: WO-0039
     evidence: ".aipos/evidence/WO-0039-completion.json"
     summary: "Added deterministic hard-risk and independently latched kill switch without execution authority."
-  - id: WO-0038
-    evidence: ".aipos/evidence/WO-0038-completion.json"
-    summary: "Added fail-closed Restricted LIVE governance state semantics without execution authority."
 in_progress:
-  - id: WO-0042
-    evidence: ".aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml; PR #157"
-    summary: "Fail-closed deterministic restore verification implemented; official exact-head verification pending."
+  - id: WO-0043
+    evidence: ".aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml; PR #158"
+    summary: "Restricted LIVE environment preflight implemented; official exact-head verification pending."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml
-  reason: "Complete PR #157 exact-head verification and merge; real-money execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml
+  reason: "Complete PR #158 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
-    - "Disaster recovery restore regression tests"
-    - "Disaster recovery restore source validation"
+    - "Restricted LIVE environment preflight regression tests"
+    - "Restricted LIVE environment preflight source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0042 implementation on PR #157; official exact-head verification pending."
-  current_commit: "PR #157 verification pending"
+  last_result: "WO-0043 implementation on PR #158; official exact-head verification pending."
+  current_commit: "PR #158 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -68,6 +68,17 @@ restricted_live_authority:
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
+restricted_live_environment_preflight:
+  verdicts: "READY_FOR_HUMAN_REVIEW,SAFE_BLOCK,UNKNOWN"
+  authority: human_review_only
+  execution_transport_required: disconnected
+  credential_execution_use: prohibited
+  real_money_execution_allowed: false
+  automatic_activation_allowed: false
+  mutation_counters_required: zero
+  safety_unknown: fail_closed
+  network_dial: prohibited
+  authorizes_live: false
 disaster_recovery_restore:
   mode: VERIFY_ONLY
   artifact_integrity_required: true
@@ -93,10 +104,6 @@ operations_control_center:
   real_money_execution_allowed: false
   secret_material_allowed: false
   unknown_semantics: fail_closed
-  safe_control_actions: "REQUEST_HALT,REQUEST_RECOVERY_REVIEW"
-  risk_increase_control: prohibited
-  kill_switch_release: prohibited
-  evidence: pointers_only
 hard_risk_gateway:
   authority: deterministic_hard_risk
   learned_override: prohibited
