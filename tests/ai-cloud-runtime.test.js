@@ -106,7 +106,7 @@ test("Cloud ticker schedules bounded AI evidence without awaiting it and AI faul
   try {
     onConnectionState("CONNECTED");
     const observedAt = Date.now();
-    onTicker({ code: "KRW-BTC", trade_price: 100000000, trade_timestamp: observedAt, signed_change_rate: 0.02, acc_trade_volume: 10 });
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100000000, trade_timestamp: observedAt, signed_change_rate: 0.02, acc_trade_volume: 10 });
     assert.ok(scheduled);
     assert.equal(scheduled.evidence.length, 2);
     assert.equal(scheduled.evidenceMaterializations.length, 2);
