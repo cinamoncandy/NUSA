@@ -29,6 +29,19 @@ function isSnapshot(value: unknown): value is PersonalPaperOperationsSnapshot {
   return true;
 }
 
+function isSecureDashboardEndpoint(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl);
+    if (url.username || url.password) return false;
+    if (url.protocol === "https:") return true;
+    if (url.protocol !== "http:") return false;
+    const host = url.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Reads the authenticated, read-only personal PAPER operations snapshot. Local foundation sign-in
  * is intentionally not treated as server authentication. If no secure credential provider is
@@ -43,8 +56,8 @@ export async function loadPersonalPaperOperations(
   }
 
   const baseUrl = options.baseUrl.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(baseUrl)) {
-    return Object.freeze({ status: "NOT_CONFIGURED", reason: "Dashboard endpoint is not configured." });
+  if (!isSecureDashboardEndpoint(baseUrl)) {
+    return Object.freeze({ status: "NOT_CONFIGURED", reason: "Dashboard endpoint must use HTTPS unless it is loopback-only." });
   }
 
   try {
