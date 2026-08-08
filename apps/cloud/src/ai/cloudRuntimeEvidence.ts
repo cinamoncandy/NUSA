@@ -1,4 +1,4 @@
-import type { AgentEvidence } from "../../../../packages/contracts/src/multiAgentGovernance";
+import { EvidenceQuality, type AgentEvidence } from "../../../../packages/contracts/src/multiAgentGovernance";
 import { aiSha256, type AiEvidenceMaterialization } from "../../../../packages/contracts/src/aiInference";
 import type { UpbitTicker } from "../upbitWebSocket";
 
@@ -62,8 +62,8 @@ export function buildCloudRuntimeAiEvidence(ticker: UpbitTicker, safety: CloudRu
   const marketEvidenceId = `market:${ticker.code}:${marketObservedAt}:${marketDigest.slice(0, 16)}`;
   const safetyEvidenceId = `safety:${safetyObservedAt}:${safetyDigest.slice(0, 16)}`;
   const evidence = Object.freeze([
-    Object.freeze({ evidenceId: marketEvidenceId, evidenceType: "market-data" as const, sourceReference: "upbit-public-ticker", observedAt: marketObservedAt, validUntil: marketObservedAt + TTL_MS, quality: "verified" as const, contentDigest: marketDigest, lineageReferences: Object.freeze([]) }),
-    Object.freeze({ evidenceId: safetyEvidenceId, evidenceType: "risk-state" as const, sourceReference: "nusa-deterministic-safety-state", observedAt: safetyObservedAt, validUntil: safetyObservedAt + TTL_MS, quality: "verified" as const, contentDigest: safetyDigest, lineageReferences: Object.freeze([]) })
+    Object.freeze({ evidenceId: marketEvidenceId, evidenceType: "market-data" as const, sourceReference: "upbit-public-ticker", observedAt: marketObservedAt, validUntil: marketObservedAt + TTL_MS, quality: EvidenceQuality.VERIFIED, contentDigest: marketDigest, lineageReferences: Object.freeze([]) }),
+    Object.freeze({ evidenceId: safetyEvidenceId, evidenceType: "risk-state" as const, sourceReference: "nusa-deterministic-safety-state", observedAt: safetyObservedAt, validUntil: safetyObservedAt + TTL_MS, quality: EvidenceQuality.VERIFIED, contentDigest: safetyDigest, lineageReferences: Object.freeze([]) })
   ] satisfies readonly AgentEvidence[]);
   const evidenceMaterializations = Object.freeze([
     Object.freeze({ evidenceId: marketEvidenceId, contentDigest: marketDigest, payload: marketPayload }),
