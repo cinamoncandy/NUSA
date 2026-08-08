@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:18:00+09:00"
-phase: cloud-p0-runtime-enforcement
+updated_at: "2026-08-08T23:38:40+09:00"
+phase: private-readonly-runtime-session
 status: ready
-objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
+objective: "Connect the private mobile client to the authenticated read-only Personal PAPER snapshot while preserving merged durable P0 fill-boundary enforcement and exposing verified portfolio, order-history, and public ticker projections without mutation or LIVE authority."
 base_branch: main
-active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
-active_pull_request: 182
-base_commit: e5cef3fc138467bffde1f1628809b2a948588675
+active_branch: agent/p8-private-readonly-runtime-session-rebased
+active_pull_request: 188
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 runtime enforcement is the current safe automated hardening slice."
+    summary: "Terminal human/environment gate. P8 is a bounded private-use read-only runtime slice; automated completion of WO-0051 remains prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,18 +44,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Close P7 runtime composition: the default Cloud PAPER execution loop must verify durable P0 evidence before every fill and fail closed when that evidence is open or unverifiable. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Complete P8 Private Read-only Runtime Session on PR #188: memory-only dashboard credential plus portfolio/order/public-ticker projections through the existing GET-only Personal PAPER endpoint while preserving durable P0 OPEN/unverifiable fail-closed behavior. Require exact-head CI and Mobile Native PASS; do not add mutation routes or infer LIVE authorization."
 verification:
   required:
+    - "Exact-head Full CI, coverage, architecture/AIPOS, security, E2E, safety, and release PASS for P8"
+    - "Exact-head Mobile Native foundation, Android debug/release, and iOS debug/release PASS for P8"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7 runtime enforcement"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
-  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
+  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head Full CI 31261654980 PASS; Restricted LIVE/read-only safety workflows 31261654986, 31261654989, 31261654984, and 31261655002 PASS. Durable P0 enforcement is preserved as the P8 base."
+  current_commit: "P8 PR #188 rebased from main a8cc673bb47f9856140485aa6d159140626272e5; exact-head verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
