@@ -55,11 +55,14 @@ test("watchlist view model supports search, sort and fail-closed states", () => 
 
 test("watchlist UI remains read-only and is wired into the markets workspace", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
-  assert.match(source, /Search markets/);
+  assert.match(source, /시장 검색/);
+  assert.match(source, /저장한 시장/);
+  assert.match(source, /검색 결과/);
   assert.match(source, /watchlist-toggle-/);
   assert.match(source, /watchlist-loading/);
   assert.match(source, /watchlist-error/);
   assert.match(source, /READ ONLY/);
+  assert.match(source, /Upbit 공개 시세 · 읽기 전용/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
   const marketsView = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   assert.match(marketsView, /WatchlistView/);
