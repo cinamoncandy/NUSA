@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 21c2867a58301668940ec31b45928abadaa65efb
-implementation_branch: agent/wo-0051-p5-hardened-research-platform
+base_commit: f879e0e4ef61f48c28992a4a596eed6d571c699c
+implementation_branch: agent/wo-0051-p5-arch-fix-mainline
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -79,10 +79,12 @@ completion_rule: "Human/environment evidence + explicit constitutional human dec
 hardened_research_slice:
   status: IN_PROGRESS
   scope:
-    - "Single owner-only Champion mutation authority"
+    - "Single authenticated owner-only Champion mutation authority"
+    - "Privileged CHAMPION/CHALLENGER lifecycle writes sealed behind atomic promotion"
     - "Multi-metric candidate eligibility with holdout and provenance gates"
     - "Typed experiment evidence and append-only hypothesis lifecycle"
-    - "Causal input validation and deterministic research stream bounds"
+    - "Causal input validation, strict canonical hashing, and deterministic research stream bounds"
+    - "Single Research market-data ingress with Research failures isolated from PAPER/dashboard state"
     - "Continuous PAPER research orchestration without automatic promotion"
   safety:
     challenger_authority: ZERO_AUTHORITY
