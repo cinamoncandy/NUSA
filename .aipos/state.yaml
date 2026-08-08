@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T07:56:00+09:00"
+updated_at: "2026-08-09T08:10:00+09:00"
 phase: grounded-trustworthy-ai-runtime-complete
 status: ready
 objective: "Preserve the completed grounded, replayable, bounded zero-authority AI runtime and run a fresh evidence-based AI capability gap audit before opening any next AI implementation slice."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: c756347f2393c257c9dd055dde7ae1d74ba9ca28
+base_commit: c5b3f506162c321906359ad56b1875d7a034828f
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -60,8 +60,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #204 merged at 1cd7cb29bf14bbe7468ecceef0a3a387a34760f6 from exact-head 9a5b2731f924026135ade4dd7d3e9de1cb381f57 after CI 31268948766 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS, E2E/release, Full isolated suite, and coverage; read-only/Restricted LIVE workflows 31268948740, 31268948741, 31268948739, 31268948754 PASS. PR #203 merge 16ac98de3263b78122021acb8a5365d5728ac261 is the verified Grounding Trust Core baseline. PR #202 later merged at 73320e381113971a2a76ceabddcdbf25ec8a59d3 with mobile UI/UX-only changes and no AIPOS file changes. PR #206 later merged at c756347f2393c257c9dd055dde7ae1d74ba9ca28 with backtest dust normalization only and no AIPOS file changes; AI-002 completion evidence remains unchanged."
-  current_commit: "c756347f2393c257c9dd055dde7ae1d74ba9ca28; latest main includes PR #206 backtest dust normalization; WO-AI-002 completion bookkeeping rebased for exact-head verification"
+  last_result: "PR #204 merged at 1cd7cb29bf14bbe7468ecceef0a3a387a34760f6 from exact-head 9a5b2731f924026135ade4dd7d3e9de1cb381f57 after CI 31268948766 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS, E2E/release, Full isolated suite, and coverage; read-only/Restricted LIVE workflows 31268948740, 31268948741, 31268948739, 31268948754 PASS. PR #203 merge 16ac98de3263b78122021acb8a5365d5728ac261 is the verified Grounding Trust Core baseline. PR #202 later merged at 73320e381113971a2a76ceabddcdbf25ec8a59d3 with mobile UI/UX-only changes and no AIPOS file changes. PR #206 later merged at c756347f2393c257c9dd055dde7ae1d74ba9ca28 with backtest dust normalization only and no AIPOS file changes. PR #207 later merged at c5b3f506162c321906359ad56b1875d7a034828f with security-gate lockfile parser changes only and no AIPOS file changes; AI-002 completion evidence remains unchanged."
+  current_commit: "c5b3f506162c321906359ad56b1875d7a034828f; latest main includes PR #207 security-gate lockfile parser fix; WO-AI-002 completion bookkeeping rebased for exact-head verification"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
