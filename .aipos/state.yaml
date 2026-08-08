@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T08:47:00+09:00"
+updated_at: "2026-08-08T09:05:30+09:00"
 phase: audit-incident-replay
-status: implementing
+status: verifying
 objective: "Create deterministic tamper-evident replay of safety-relevant operational history without LIVE execution authority."
 base_branch: main
 active_branch: agent/wo-0041-audit-incident-replay
-active_pull_request: pending
+active_pull_request: 156
 base_commit: 54a2b4728d71b3fc24a23571d22636cf8e696036
 claimed_state:
   work_order: WO-0041
@@ -34,12 +34,12 @@ completed:
     summary: "Added secret-free mutation-free operator projection."
 in_progress:
   - id: WO-0041
-    evidence: ".aipos/work-orders/WO-0041-audit-incident-replay.yaml"
-    summary: "Tamper-evident deterministic audit/evidence/incident replay implementation in progress."
+    evidence: ".aipos/work-orders/WO-0041-audit-incident-replay.yaml; PR #156"
+    summary: "Tamper-evident deterministic audit/evidence/incident replay implemented; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0041-audit-incident-replay.yaml
-  reason: "Implement and verify deterministic observational replay; real-money execution remains prohibited."
+  reason: "Complete PR #156 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
     - "Audit/incident replay regression tests"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0040 merged as 54a2b4728d71b3fc24a23571d22636cf8e696036; WO-0041 started."
-  current_commit: "WO-0041 implementation pending"
+  last_result: "WO-0041 implementation on PR #156; official exact-head verification pending."
+  current_commit: "PR #156 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
