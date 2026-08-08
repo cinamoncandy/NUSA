@@ -1,5 +1,6 @@
 import type { DashboardHealth, DashboardMode, MobileDashboardResponse } from "./mobileDashboard";
 import type { ResearchStatusProjection } from "./researchAutomation";
+import type { AiReadOnlyProjection } from "./aiInference";
 
 export type PersonalPaperOperationsHealth = "HEALTHY" | "DEGRADED" | "FAIL_CLOSED";
 export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "STOPPING" | "STOPPED";
@@ -74,6 +75,7 @@ export interface PersonalPaperOperationsSnapshot {
   readonly readyForPaperOperations: boolean;
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
+  readonly ai: AiReadOnlyProjection | null;
   readonly operations: PersonalPaperRuntimeProjection;
   readonly portfolio: PersonalPaperPortfolioProjection | null;
   readonly orders: readonly PersonalPaperOrderProjection[];
@@ -85,6 +87,7 @@ export interface PersonalPaperOperationsSnapshot {
 export interface PersonalPaperOperationsInput {
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
+  readonly ai?: AiReadOnlyProjection | null;
   readonly operations: PersonalPaperRuntimeProjection;
   readonly portfolio?: PersonalPaperPortfolioProjection | null;
   readonly orders?: readonly PersonalPaperOrderProjection[];
@@ -112,6 +115,12 @@ function validateResearch(research: ResearchStatusProjection | null): void {
   if (research == null) return;
   if (research.liveAuthority !== "NONE" || research.productionMutationAllowed !== false) throw new Error("research authority invariant violated");
   if (research.champion.authority !== "PAPER_ONLY" || research.challenger.authority !== "ZERO_AUTHORITY") throw new Error("research strategy authority invariant violated");
+}
+
+function validateAi(ai: AiReadOnlyProjection | null): void {
+  if (ai == null) return;
+  if (ai.liveAuthority !== "NONE" || ai.productionMutationAllowed !== false) throw new Error("AI authority invariant violated");
+  if (ai.confidence < 0 || ai.confidence > 1 || !Number.isFinite(ai.confidence)) throw new Error("AI confidence must be between zero and one");
 }
 
 function validateOperations(operations: PersonalPaperRuntimeProjection): void {
@@ -174,6 +183,7 @@ const deepFreeze = <T>(value: T): T => {
 export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperationsInput, generatedAt = Date.now()): PersonalPaperOperationsSnapshot {
   validateDashboard(input.dashboard);
   validateResearch(input.research);
+  validateAi(input.ai ?? null);
   validateOperations(input.operations);
   finite(generatedAt, "generatedAt");
   const health = deriveHealth(input);
@@ -186,6 +196,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     readyForPaperOperations,
     dashboard: input.dashboard,
     research: input.research,
+    ai: input.ai ?? null,
     operations: input.operations,
     portfolio: input.portfolio ?? null,
     orders: input.orders ?? [],
@@ -207,6 +218,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   if (now - snapshot.generatedAt > maximumAgeMs) throw new Error("personal PAPER operations snapshot is stale");
   validateDashboard(snapshot.dashboard);
   validateResearch(snapshot.research);
+  validateAi(snapshot.ai);
   validateOperations(snapshot.operations);
   validateReadOnlyProjections(snapshot);
   const expectedHealth = deriveHealth(snapshot);
