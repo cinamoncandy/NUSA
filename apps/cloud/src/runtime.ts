@@ -184,7 +184,7 @@ export function startCloudRuntime(
           market: ticker.code,
           price: ticker.trade_price,
           changeRate: ticker.signed_change_rate ?? null,
-          volume: ticker.acc_trade_price_24h ?? null,
+          volume: ticker.acc_trade_volume ?? null,
           observedAt: new Date(ticker.trade_timestamp).toISOString(),
           source: "UPBIT_PUBLIC_TICKER"
         });
