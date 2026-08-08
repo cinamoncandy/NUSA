@@ -1,0 +1,48 @@
+id: WO-0048
+title: "Post-LIVE Validation & Session Evidence Contract"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
+implementation_branch: agent/wo-0048-post-live-validation-contract
+objective: "Add a deterministic fail-closed validation contract for a future tiny Restricted LIVE session evidence bundle, without creating a LIVE session, executing orders, or granting scale-up/activation authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0048 prepares the evidence validator used only after a separately human-authorized tiny LIVE session exists. CI uses synthetic session evidence and performs zero broker/network/money-moving operations. A PASS means the session evidence is ready for independent human review, never that scale-up is approved."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Verdict is READY_FOR_HUMAN_REVIEW, SAFE_BLOCK, or UNKNOWN; no verdict grants scale-up or LIVE authority."
+  - "Bind exact code revision, configuration hash, release seal, external read-only preflight receipt, ceremony record, bounded envelope, session ID, start/end timestamps, and audit anchor."
+  - "Validate observed session limits against the approved tiny envelope: order count, max order bps, gross exposure bps, daily loss bps, open orders, and position count."
+  - "Require order/fill/position/cash reconciliation MATCH, hard-risk PASS, HALT path PASS, audit-chain PASS, post-trade observation PASS, and session transport closed at validation time."
+  - "Any exceeded bound, reconciliation DIFF, failed safety evidence, open execution transport, or mutation after session close SAFE_BLOCKs."
+  - "Safety-critical UNKNOWN remains UNKNOWN/fail-closed."
+  - "Output scaleUpAuthority=false, activationAuthority=false, orderAuthorization=false, executionAuthority=false, authorizesLive=false, mutationPerformed=false."
+  - "CI uses synthetic evidence only; it never creates or runs a real LIVE session."
+acceptance:
+  - "Post-LIVE validation regressions PASS."
+  - "Synthetic clean bounded session yields READY_FOR_HUMAN_REVIEW with zero scale-up/execution authority."
+  - "Limit excess, reconciliation DIFF, failed risk/HALT/audit evidence, or still-open transport SAFE_BLOCKs."
+  - "Unknown safety/reconciliation state yields UNKNOWN."
+  - "Identical normalized session evidence yields identical validation fingerprint."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_session_creation: prohibited
+  live_trading_mutation: prohibited
+  credential_execution_use: prohibited
+  actual_orders_in_ci: prohibited
+  automatic_scale_up: prohibited
+  activation_authority: prohibited
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion installs a synthetic-tested post-LIVE evidence validator only; no LIVE session or scale-up is performed."
