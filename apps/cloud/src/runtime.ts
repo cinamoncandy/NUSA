@@ -73,7 +73,8 @@ function buildReadOnlyPortfolio(
   fallbackMarket: PersonalPaperMarketProjection | undefined
 ): PersonalPaperPortfolioProjection | null {
   if (paperSnapshot == null) return null;
-  const position = [...paperSnapshot.positions].sort((left, right) => left.market.localeCompare(right.market))[0];
+  const positions = [...paperSnapshot.positions].sort((left, right) => left.market.localeCompare(right.market));
+  const position = positions.find((item) => item.quantity > 0) ?? positions[0];
   const market = position?.market ?? fallbackMarket?.market ?? "";
   const markPrice = position?.markPrice ?? fallbackMarket?.price ?? 0;
   const assetValue = paperSnapshot.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
