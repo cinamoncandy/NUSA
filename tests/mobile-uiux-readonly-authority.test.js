@@ -16,13 +16,16 @@ test("UIUX-001 keeps the five-tab foundation while presenting Korean primary nav
   assert.match(app, /More: "더보기"/);
 });
 
-test("mobile intelligence shell displays real AI projection and explicit zero authority", () => {
+test("mobile intelligence shell displays real AI projection and truthful authority state", () => {
   const app = read("App.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(app, /ai\?\.thesis \?\? "현재 표시할 AI 분석이 없습니다\."/);
   assert.match(components, /ZERO AUTHORITY/);
-  assert.match(components, /LIVE 권한 없음/);
+  assert.match(components, /UI 주문 경로 없음/);
+  assert.doesNotMatch(components, /LIVE 권한 없음/);
+  assert.match(app, /<DataRow label="LIVE 권한" value=\{snapshot\.liveAuthority\} emphasis \/>/);
+  assert.match(app, /<DataRow label="Production mutation" value=\{snapshot\.productionMutationAllowed \? "허용" : "금지"\}/);
   assert.match(components, /실제 주문 권한은 없습니다/);
   assert.doesNotMatch(app, /94%/);
 });
