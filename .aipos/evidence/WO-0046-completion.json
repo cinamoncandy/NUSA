@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0046-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0046",
+    "path": ".aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "b5dc004ecd2206cbddb95fc82c38d1bba1d3233f"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "POLICY_VALIDATION_ONLY",
+      "max_order_notional_bps": 10,
+      "max_gross_exposure_bps": 50,
+      "max_daily_loss_bps": 10,
+      "max_open_orders": 1,
+      "max_position_count": 1,
+      "max_session_orders": 5,
+      "max_session_seconds": 3600,
+      "automatic_scale_up": false,
+      "order_authorization": false,
+      "activation_authority": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "real_money_execution_allowed": false
+    },
+    "hash": {"algorithm": "sha256", "value": "1fae4b572fb6a20ae9fc661c10ad691554848d4316504790a17f34ce54ced11b"}
+  },
+  "observed_at": "2026-08-08T11:44:00+09:00",
+  "provenance": [
+    "github:pull/161",
+    "github:actions/run/31234205625",
+    "github:actions/run/31234205618",
+    "github:actions/run/31234205653",
+    "github:actions/run/31234205629",
+    "github:actions/run/31234205656",
+    "git:merge/3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31234205625"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31234205618"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31234205653"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31234205629"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31234205656"},
+    {"name": "bounded_policy_only", "status": "PASS"},
+    {"name": "order_authority_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}

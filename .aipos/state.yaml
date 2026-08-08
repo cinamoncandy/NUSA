@@ -1,46 +1,46 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T11:05:00+09:00"
-phase: tiny-bounded-restricted-live-envelope
+updated_at: "2026-08-08T11:50:00+09:00"
+phase: external-readonly-environment-preflight
 status: verifying
-objective: "Validate a non-executable tiny Restricted LIVE policy envelope against hard ceilings and exact evidence bindings."
+objective: "Install an operator-gated external read-only environment preflight harness without conducting a real external probe in CI or granting execution authority."
 base_branch: main
-active_branch: agent/wo-0046-tiny-bounded-live-envelope
-active_pull_request: 161
-base_commit: 623db33d5b0fc2e96f4573155bd958a19e3320d9
+active_branch: agent/wo-0047-external-readonly-environment-preflight
+active_pull_request: 162
+base_commit: 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb
 claimed_state:
-  work_order: WO-0046
+  work_order: WO-0047
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0045
+  work_order: WO-0046
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0045-completion.json"
+  evidence: ".aipos/evidence/WO-0046-completion.json"
 latest_verified_slice:
-  id: wo-0045-production-release-artifact-seal-complete
-  evidence: ".aipos/evidence/WO-0045-completion.json"
-  summary: "WO-0045 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; release seal remains evidence-only and grants no deployment or LIVE authority."
+  id: wo-0046-tiny-bounded-live-envelope-complete
+  evidence: ".aipos/evidence/WO-0046-completion.json"
+  summary: "WO-0046 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; bounded envelope grants no activation/order authority."
 completed:
+  - id: WO-0046
+    evidence: ".aipos/evidence/WO-0046-completion.json"
+    summary: "Added non-executable tiny bounded Restricted LIVE policy envelope."
   - id: WO-0045
     evidence: ".aipos/evidence/WO-0045-completion.json"
     summary: "Added immutable production release artifact seal for independent human review only."
   - id: WO-0044
     evidence: ".aipos/evidence/WO-0044-completion.json"
     summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
-  - id: WO-0043
-    evidence: ".aipos/evidence/WO-0043-completion.json"
-    summary: "Added fail-closed Restricted LIVE environment preflight for independent human review only."
 in_progress:
-  - id: WO-0046
-    evidence: ".aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml; PR #161"
-    summary: "Tiny bounded Restricted LIVE envelope implemented; official exact-head verification pending; no activation or order authority."
+  - id: WO-0047
+    evidence: ".aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml; PR #162"
+    summary: "Operator-gated external read-only preflight harness implemented; official exact-head verification pending; CI remains synthetic and network-free."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml
-  reason: "Complete PR #161 exact-head verification and merge; actual human activation and trading remain prohibited."
+  work_order: .aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml
+  reason: "Complete PR #162 exact-head verification and merge. Actual external broker probing remains a separate explicit operator action."
 verification:
   required:
-    - "Tiny bounded Restricted LIVE envelope regression tests"
-    - "Tiny bounded Restricted LIVE envelope source validation"
+    - "External read-only environment preflight regression tests"
+    - "External read-only environment preflight source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0046 implementation on PR #161; official exact-head verification pending."
-  current_commit: "PR #161 verification pending"
+  last_result: "WO-0047 implementation on PR #162; official exact-head verification pending."
+  current_commit: "PR #162 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -59,6 +59,18 @@ human_authority:
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
   production_promotion_mutation: prohibited
+external_readonly_environment_preflight:
+  mode: OPERATOR_GATED_READ_ONLY
+  actual_external_probe_in_ci: false
+  explicit_operator_authorization_required: true
+  credential_source: os_encrypted_read_only_only
+  execution_transport_connected: false
+  credential_execution_use: prohibited
+  activation_authority: false
+  order_authorization: false
+  execution_authority: false
+  authorizes_live: false
+  real_money_execution_allowed: false
 tiny_bounded_live_envelope:
   mode: POLICY_VALIDATION_ONLY
   max_order_notional_bps: 10
@@ -70,7 +82,6 @@ tiny_bounded_live_envelope:
   max_session_duration_seconds: 3600
   automatic_renewal: prohibited
   automatic_scale_up: prohibited
-  symbol_addition: prohibited
   order_authorization: false
   activation_authority: false
   execution_authority: false
