@@ -4,12 +4,15 @@ export interface PortfolioAccountSnapshot {
   readonly cash: number;
   readonly equity: number;
   readonly unrealizedPnl: number;
+  readonly assetValue?: number;
+  readonly realizedPnl?: number;
   readonly markPrice: number;
   readonly position: Readonly<{
     readonly market: string;
     readonly quantity: number;
     readonly averagePrice: number;
     readonly realizedPnl: number;
+    readonly unrealizedPnl?: number;
   }>;
   readonly orders?: readonly unknown[];
 }
@@ -54,19 +57,24 @@ export function buildPortfolioViewModel(response: PortfolioAccountResponse): Por
   nonNegative(response.account.cash, "cash");
   nonNegative(response.account.equity, "equity");
   finite(response.account.unrealizedPnl, "unrealizedPnl");
+  if (response.account.assetValue != null) nonNegative(response.account.assetValue, "assetValue");
+  if (response.account.realizedPnl != null) finite(response.account.realizedPnl, "realizedPnl");
   nonNegative(response.account.position.quantity, "position.quantity");
   nonNegative(response.account.position.averagePrice, "position.averagePrice");
   finite(response.account.position.realizedPnl, "position.realizedPnl");
+  if (response.account.position.unrealizedPnl != null) finite(response.account.position.unrealizedPnl, "position.unrealizedPnl");
   nonNegative(response.openOrderCount, "openOrderCount");
 
   const hasPosition = response.account.position.quantity > 0;
   if (hasPosition && (!response.account.position.market.trim() || !Number.isFinite(response.account.markPrice) || response.account.markPrice <= 0)) throw new Error("open position market and markPrice are required");
   if (!hasPosition && (!Number.isFinite(response.account.markPrice) || response.account.markPrice < 0)) throw new Error("markPrice must be non-negative");
 
-  const assetValue = hasPosition ? response.account.position.quantity * response.account.markPrice : 0;
+  const assetValue = response.account.assetValue ?? (hasPosition ? response.account.position.quantity * response.account.markPrice : 0);
   finite(assetValue, "assetValue");
   const tolerance = Math.max(1e-6, response.account.equity * 1e-9);
   if (Math.abs(response.account.cash + assetValue - response.account.equity) > tolerance) throw new Error("portfolio totals do not reconcile");
+  const realizedPnl = response.account.realizedPnl ?? response.account.position.realizedPnl;
+  const positionUnrealizedPnl = response.account.position.unrealizedPnl ?? response.account.unrealizedPnl;
 
   const position = hasPosition
     ? Object.freeze({
@@ -74,7 +82,7 @@ export function buildPortfolioViewModel(response: PortfolioAccountResponse): Por
       quantity: response.account.position.quantity,
       averagePrice: response.account.position.averagePrice,
       currentPrice: response.account.markPrice,
-      unrealizedPnl: response.account.unrealizedPnl,
+      unrealizedPnl: positionUnrealizedPnl,
       realizedPnl: response.account.position.realizedPnl,
     })
     : null;
@@ -82,8 +90,8 @@ export function buildPortfolioViewModel(response: PortfolioAccountResponse): Por
     totalEquity: response.account.equity,
     cash: response.account.cash,
     assetValue,
-    totalPnl: response.account.unrealizedPnl + response.account.position.realizedPnl,
-    realizedPnl: response.account.position.realizedPnl,
+    totalPnl: response.account.unrealizedPnl + realizedPnl,
+    realizedPnl,
     unrealizedPnl: response.account.unrealizedPnl,
     returnRate: null,
     position,

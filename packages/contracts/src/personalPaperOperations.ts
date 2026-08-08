@@ -26,12 +26,15 @@ export interface PersonalPaperPortfolioProjection {
     readonly cash: number;
     readonly equity: number;
     readonly unrealizedPnl: number;
+    readonly assetValue?: number;
+    readonly realizedPnl?: number;
     readonly markPrice: number;
     readonly position: Readonly<{
       readonly market: string;
       readonly quantity: number;
       readonly averagePrice: number;
       readonly realizedPnl: number;
+      readonly unrealizedPnl?: number;
     }>;
   }>;
   readonly openOrderCount: 0;
@@ -125,8 +128,15 @@ function validateReadOnlyProjections(input: Pick<PersonalPaperOperationsSnapshot
     const account = input.portfolio.account;
     if (input.portfolio.mode !== "PAPER" || account.available !== true || input.portfolio.openOrderCount !== 0 || !Number.isFinite(Date.parse(input.portfolio.observedAt))) throw new Error("invalid PAPER portfolio projection");
     for (const [name, value] of [["cash", account.cash], ["equity", account.equity], ["unrealizedPnl", account.unrealizedPnl], ["markPrice", account.markPrice], ["quantity", account.position.quantity], ["averagePrice", account.position.averagePrice], ["realizedPnl", account.position.realizedPnl]] as const) finite(value, `portfolio.${name}`);
-    if (account.cash < 0 || account.equity < 0 || account.markPrice < 0 || account.position.quantity < 0 || account.position.averagePrice < 0) throw new Error("invalid PAPER portfolio balance");
+    if (account.assetValue != null) finite(account.assetValue, "portfolio.assetValue");
+    if (account.realizedPnl != null) finite(account.realizedPnl, "portfolio.realizedPnl");
+    if (account.position.unrealizedPnl != null) finite(account.position.unrealizedPnl, "portfolio.position.unrealizedPnl");
+    if (account.cash < 0 || account.equity < 0 || account.markPrice < 0 || account.position.quantity < 0 || account.position.averagePrice < 0 || (account.assetValue != null && account.assetValue < 0)) throw new Error("invalid PAPER portfolio balance");
     if (account.position.quantity > 0 && (!account.position.market.trim() || account.markPrice <= 0)) throw new Error("open PAPER position requires market and mark price");
+    if (account.assetValue != null) {
+      const tolerance = Math.max(1e-6, account.equity * 1e-9);
+      if (Math.abs(account.cash + account.assetValue - account.equity) > tolerance) throw new Error("invalid PAPER portfolio totals");
+    }
   }
   for (const order of input.orders) {
     if (!order.id.trim() || !order.market.trim() || !["BUY", "SELL"].includes(order.side) || order.status !== "FILLED" || !Number.isFinite(Date.parse(order.filledAt))) throw new Error("invalid PAPER order projection");

@@ -73,6 +73,7 @@ function buildReadOnlyPortfolio(
   const position = [...paperSnapshot.positions].sort((left, right) => left.market.localeCompare(right.market))[0];
   const market = position?.market ?? fallbackMarket?.market ?? "";
   const markPrice = position?.markPrice ?? fallbackMarket?.price ?? 0;
+  const assetValue = paperSnapshot.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
   if (position != null && (!market || !Number.isFinite(markPrice) || markPrice <= 0)) return null;
   return {
     observedAt: new Date(paperSnapshot.updatedAt).toISOString(),
@@ -82,10 +83,12 @@ function buildReadOnlyPortfolio(
       cash: paperSnapshot.cash,
       equity: paperSnapshot.equity,
       unrealizedPnl: paperSnapshot.unrealizedPnL,
+      assetValue,
+      realizedPnl: paperSnapshot.realizedPnL,
       markPrice,
       position: position == null
-        ? { market, quantity: 0, averagePrice: 0, realizedPnl: paperSnapshot.realizedPnL }
-        : { market: position.market, quantity: position.quantity, averagePrice: position.averageEntryPrice, realizedPnl: position.realizedPnL }
+        ? { market, quantity: 0, averagePrice: 0, realizedPnl: paperSnapshot.realizedPnL, unrealizedPnl: 0 }
+        : { market: position.market, quantity: position.quantity, averagePrice: position.averageEntryPrice, realizedPnl: position.realizedPnL, unrealizedPnl: position.unrealizedPnL }
     },
     openOrderCount: 0
   };
