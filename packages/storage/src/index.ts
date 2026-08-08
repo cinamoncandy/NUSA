@@ -22,6 +22,8 @@ export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
 export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
+export { SqliteResearchSessionRepository } from "./researchAutomation";
+export type { ResearchAutomationDatabase } from "./researchAutomation";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -362,4 +364,13 @@ CREATE TABLE IF NOT EXISTS research_candidates (
 CREATE TABLE IF NOT EXISTS research_champion_pointer (id INTEGER PRIMARY KEY CHECK(id = 1), candidate_id TEXT, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS research_promotion_commands (command_id TEXT PRIMARY KEY, payload_fingerprint TEXT NOT NULL, result_json TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS research_promotion_audit (sequence INTEGER PRIMARY KEY, command_id TEXT NOT NULL, previous_hash TEXT NOT NULL, record_json TEXT NOT NULL, current_hash TEXT NOT NULL UNIQUE);
+` }, { id: "013_research_automation_sessions", sql: `
+CREATE TABLE IF NOT EXISTS research_sessions (
+  session_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL CHECK(state IN ('IDLE','RUNNING','PAUSED','HALTED','COMPLETED','FAILED')),
+  payload_json TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_state ON research_sessions (state, updated_at, session_id);
 ` }];

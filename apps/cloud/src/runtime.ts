@@ -34,6 +34,11 @@ export interface CloudRuntimeResearchRecoveryLike {
   recover(): ResearchRecoveryResult;
 }
 
+export interface CloudRuntimeResearchAutomationLike {
+  recover?(): ResearchRecoveryResult;
+  onMarketData(tick: ResearchRuntimeMarketDataTick): void;
+}
+
 export type CloudRuntimeMarketDataClientFactory = (
   markets: readonly string[],
   onTicker: (ticker: UpbitTicker) => void,
@@ -60,7 +65,8 @@ export function startCloudRuntime(
   paperAccountRepository?: PaperAccountRepository,
   paperExecutionLoop?: PaperTradingExecutionLoop,
   researchRuntime?: CloudRuntimeResearchRuntimeLike,
-  researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike
+  researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike,
+  researchAutomation?: CloudRuntimeResearchAutomationLike
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -79,7 +85,7 @@ export function startCloudRuntime(
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
   };
-  const researchRecoveryResult = researchRecoveryCoordinator?.recover();
+  const researchRecoveryResult = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
   const researchReady = researchRecoveryResult == null || researchRecoveryResult.status === "READY";
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
@@ -112,7 +118,9 @@ export function startCloudRuntime(
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
         try {
-          researchRuntime?.onMarketData({ market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() });
+          const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() };
+          researchRuntime?.onMarketData(researchTick);
+          researchAutomation?.onMarketData(researchTick);
         } catch {
           clearPaperProjection();
           return;
