@@ -24,6 +24,7 @@ export * from "./production-release-artifact-seal";
 export * from "./tiny-bounded-live-envelope";
 export * from "./post-live-session-validation";
 export * from "./controlled-scale-up-governance";
+export * from "./constitutional-human-transition-review";
 export * from "./startup-consistency-gate";
 export * from "./production-readiness";
 export * from "./recovery-evidence";
