@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:18:00+09:00"
-phase: cloud-p0-runtime-enforcement
-status: ready
-objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
+updated_at: "2026-08-08T23:34:28+09:00"
+phase: constitutional-production-human-environment-gate
+status: blocked
+objective: "Hold the production transition at the human/environment boundary after completing the safe Cloud P0 runtime-enforcement slice; preserve PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
-active_pull_request: 182
-base_commit: e5cef3fc138467bffde1f1628809b2a948588675
+active_branch: agent/wo-0051-p7-runtime-enforcement-closure
+active_pull_request: 187
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -31,8 +31,8 @@ completed:
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
   - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 runtime enforcement is the current safe automated hardening slice."
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml; PR #187"
+    summary: "Terminal human/environment gate remains IN_PROGRESS. Cloud P0 runtime enforcement is merged and complete; PR #187 only synchronizes AIPOS closure evidence for that safe internal slice."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,18 +44,18 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Close P7 runtime composition: the default Cloud PAPER execution loop must verify durable P0 evidence before every fill and fail closed when that evidence is open or unverifiable. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Merge PR #187 after exact-head CI. After that, no remaining human/environment gate may be auto-completed or inferred from chat/CI; LIVE remains prohibited until genuine external and independent human evidence plus a separate constitutional human decision exist."
 verification:
   required:
+    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for PR #187 state synchronization"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7 runtime enforcement"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
-  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
+  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head 4a40d0cde35748d73efb14f6ca9974f162db2d2d Full CI 31261654980 PASS and Restricted LIVE/read-only safety workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS."
+  current_commit: "PR #187 AIPOS closure synchronization pending exact-head verification"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -129,6 +129,20 @@ capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
   unknown_permission_semantics: fail_closed
+cloud_p0_runtime_enforcement:
+  status: COMPLETE
+  merge_commit: a8cc673bb47f9856140485aa6d159140626272e5
+  exact_head: 4a40d0cde35748d73efb14f6ca9974f162db2d2d
+  full_ci_run: 31261654980
+  safety_workflows:
+    - 31261654986
+    - 31261654989
+    - 31261654984
+    - 31261655002
+  live_authority: NONE
+  production_mutation_allowed: false
+  broker_credential_access: prohibited
+  real_money_mutation: prohibited
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
