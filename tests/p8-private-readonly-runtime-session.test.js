@@ -127,6 +127,8 @@ test("mobile source consumes only the single authenticated operations snapshot a
   assert.match(runtime, /orders:\s*buildReadOnlyOrders/);
   assert.match(runtime, /markets:\s*\[\.\.\.latestTickers\.values\(\)\]/);
   assert.match(runtime, /latestTickers\.clear\(\)/);
+  assert.match(runtime, /volume:\s*ticker\.acc_trade_volume\s*\?\?\s*null/);
+  assert.doesNotMatch(runtime, /volume:\s*ticker\.acc_trade_price_24h/);
   assert.match(runtime, /SqliteP0AlertRepository/);
   assert.match(runtime, /readP0State:/);
   assert.match(runtime, /effectiveP0Repository\.readState\(\)\.openP0/);
