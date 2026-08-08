@@ -1,56 +1,57 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T12:46:00+09:00"
-phase: constitutional-human-transition-review
-status: verifying
-objective: "Aggregate final production-transition evidence and expose missing real-world human/external evidence without granting any production or LIVE authority."
+updated_at: "2026-08-08T12:52:00+09:00"
+phase: constitutional-production-human-environment-gate
+status: blocked_on_human_environment
+objective: "Hold production transition until genuine external/human evidence and an explicit constitutional human decision exist; no automated work may cross this boundary."
 base_branch: main
-active_branch: agent/wo-0050-constitutional-human-transition-review
-active_pull_request: 166
-base_commit: 8920525072ea29ac4928f6b0fe360faeb89567ca
+active_branch: main
+active_pull_request: null
+base_commit: 99adc4178906aaa6f131ff4774d3ae4c697b8b2d
 claimed_state:
-  work_order: WO-0050
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0049
+  work_order: WO-0050
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0049-completion.json"
+  evidence: ".aipos/evidence/WO-0050-completion.json"
 latest_verified_slice:
-  id: wo-0049-controlled-scale-up-governance-complete
-  evidence: ".aipos/evidence/WO-0049-completion.json"
-  summary: "WO-0049 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; no scale change or LIVE authority was created."
+  id: wo-0050-constitutional-human-transition-review-complete
+  evidence: ".aipos/evidence/WO-0050-completion.json"
+  summary: "WO-0050 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; synthetic evidence is explicitly prevented from satisfying real-world constitutional gates."
 completed:
+  - id: WO-0050
+    evidence: ".aipos/evidence/WO-0050-completion.json"
+    summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
   - id: WO-0049
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
   - id: WO-0048
     evidence: ".aipos/evidence/WO-0048-completion.json"
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
-  - id: WO-0047
-    evidence: ".aipos/evidence/WO-0047-completion.json"
-    summary: "Added operator-gated external read-only preflight harness without execution authority."
 in_progress:
-  - id: WO-0050
-    evidence: ".aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml; PR #166"
-    summary: "Terminal automated safe review packet implemented; official exact-head verification pending; current real-world transition remains incomplete until external/human evidence exists."
-blocked: []
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate. Automated completion is prohibited."
+blocked:
+  - "SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED"
+  - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
+  - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
+  - "SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE"
+  - "ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS"
 next:
-  work_order: .aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml
-  reason: "Complete PR #166 exact-head verification and merge; after that all remaining actions are real-world human/environment gates."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "Follow docs/release/constitutional-human-transition-runbook.md under human authority. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
-    - "Constitutional human transition review packet regressions"
-    - "Constitutional human transition source validation"
-    - "Restricted LIVE capability surface guard"
-    - "Restricted LIVE transport/credential readiness validation"
-    - "Restricted LIVE activation rehearsal validation"
-    - "Read-only broker credential integration"
-    - "AIPOS verified-state evidence integrity"
-    - "Architecture/AIPOS drift validation"
-    - "Security gate"
-    - "Full required GitHub CI"
-  last_result: "WO-0050 implementation on PR #166; official exact-head verification pending."
-  current_commit: "PR #166 verification pending"
+    - "Independent production artifact signing verification"
+    - "Operator-authorized external read-only broker preflight"
+    - "Actual independent human activation ceremony evidence"
+    - "Separate constitutional human production/LIVE decision"
+    - "Post-LIVE validation only after any separately authorized tiny LIVE session"
+    - "Separate two-human governance for any later risk increase"
+  last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
+  current_commit: "WO-0050 merge 99adc4178906aaa6f131ff4774d3ae4c697b8b2d; terminal closure pending merge"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -64,6 +65,7 @@ human_authority:
 constitutional_transition_review:
   mode: EVIDENCE_AGGREGATION_ONLY
   current_real_world_status: INCOMPLETE
+  synthetic_evidence_cannot_satisfy_real_world_gate: true
   signed_production_artifact_verified: false
   actual_external_readonly_preflight_completed: false
   actual_human_activation_ceremony_completed: false
@@ -78,6 +80,14 @@ constitutional_transition_review:
   execution_authority: false
   authorizes_live: false
   mutation_performed: false
+  real_money_execution_allowed: false
+terminal_human_environment_gate:
+  mode: HUMAN_ENVIRONMENT_ONLY
+  automated_completion: prohibited
+  synthetic_ci_completion: prohibited
+  chat_consent_as_live_authority: prohibited
+  execution_transport_connected: false
+  credential_execution_use: prohibited
   real_money_execution_allowed: false
 controlled_scale_up_governance:
   mode: VALIDATION_ONLY
