@@ -1,0 +1,54 @@
+id: WO-0050
+title: "Constitutional Human Transition Review Packet"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8920525072ea29ac4928f6b0fe360faeb89567ca
+implementation_branch: agent/wo-0050-constitutional-human-transition-review
+objective: "Aggregate the exact technical, external-environment, signed-artifact, human-approval, tiny-session, post-LIVE, rollback, audit, and scale-governance evidence required for a final constitutional human production-transition review, while granting no deployment, activation, order, scale, credential, broker, cash, position, or real-money authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0050 is the terminal automated safe review layer. It makes missing real-world evidence explicit and prevents synthetic CI proof from being confused with actual external/human evidence. READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW remains review eligibility only; the constitutional production/LIVE decision itself cannot be automated or inferred."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Packet verdict is READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW, INCOMPLETE, SAFE_BLOCK, or UNKNOWN."
+  - "Bind exact code revision, configuration hash, release candidate ID, deployment bundle ID, rollback bundle ID, and immutable evidence digests."
+  - "Require distinct evidence slots for signed production artifact, external read-only broker preflight, actual human activation ceremony, tiny bounded LIVE session, post-LIVE validation, controlled scale-governance review, disaster-recovery/rollback, and audit/evidence chain."
+  - "Every evidence slot declares status PASS, FAIL, MISSING, or UNKNOWN plus provenance class SYNTHETIC_CI or EXTERNAL_HUMAN_VERIFIED."
+  - "READY requires every slot PASS and EXTERNAL_HUMAN_VERIFIED. A PASS from SYNTHETIC_CI remains INCOMPLETE for constitutional transition."
+  - "Any FAIL SAFE_BLOCKs; any UNKNOWN yields UNKNOWN unless a FAIL is also present; any missing or synthetic-only required evidence yields INCOMPLETE."
+  - "Packet must list blockers/unknowns/missing/synthetic-only evidence explicitly and produce a deterministic fingerprint."
+  - "Packet contains digests/references only; raw credentials, private keys, signatures, account balances, order payloads, or executable authorization tokens are prohibited."
+  - "Output constitutionalDecisionAuthority=false, deploymentAuthority=false, activationAuthority=false, scaleUpAuthority=false, orderAuthorization=false, executionAuthority=false, authorizesLive=false, mutationPerformed=false."
+  - "CI must prove the current real-world transition remains INCOMPLETE and must never fabricate persisted actual external/human evidence."
+  - "Include a concise ordered human transition runbook identifying the external actions that remain outside automated authority."
+acceptance:
+  - "Constitutional transition review packet regressions PASS."
+  - "Synthetic-CI PASS evidence in every slot still yields INCOMPLETE."
+  - "Structurally complete externally/human-verified fixture yields READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW but all authority fields remain false."
+  - "FAIL/UNKNOWN/MISSING precedence is deterministic and fail-closed."
+  - "Identical normalized evidence yields identical packet fingerprint."
+  - "Source guard proves no deployment/activation/order/scale/credential/broker mutation method exists."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  actual_external_broker_validation: not_performed_by_ci
+  actual_human_ceremony: not_performed_by_ci
+  actual_tiny_live_session: not_performed_by_ci
+  actual_scale_change: prohibited
+  live_trading_mutation: prohibited
+  credential_execution_use: prohibited
+  constitutional_decision_authority: human_only
+  automatic_production_transition: prohibited
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion closes the automated safe preparation layer only; all real-world external/human/LIVE actions and the constitutional production decision remain outside automated authority."
