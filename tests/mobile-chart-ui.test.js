@@ -48,10 +48,12 @@ test("chart remains fail-closed for loading, stale, missing-price, and incomplet
   assert.equal(buildChartViewModel({ ...base, rawCandles: candles(3), interval: "5m" }).state, "EMPTY");
 });
 
-test("chart UI is read-only and exposes required states and timeframe controls", () => {
+test("chart UI stays read-only while the app shell uses only the authenticated PAPER operations projection", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
+  const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
+
   assert.match(source, /PUBLIC \/ READ ONLY/);
   assert.match(source, /chart-loading/);
   assert.match(source, /chart-empty/);
@@ -59,7 +61,13 @@ test("chart UI is read-only and exposes required states and timeframe controls",
   assert.match(source, /chart-price-line/);
   assert.match(source, /chart-intervals/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
-  assert.match(app, /\/api\/candles/);
+
+  assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /<MarketsView/);
   assert.match(workspace, /<ChartView/);
+  assert.doesNotMatch(app, /\/api\/(?:candles|markets|account|status)/);
+  assert.match(client, /\/api\/paper-operations/);
+  assert.match(client, /authorization:\s*`Bearer/);
+  assert.match(client, /unavailableDashboardCredentialProvider/);
+  assert.doesNotMatch(client, /EXPO_PUBLIC_.*TOKEN|hardcoded.*token|Bearer\s+[A-Za-z0-9._-]{16,}/i);
 });
