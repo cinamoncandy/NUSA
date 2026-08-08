@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T00:05:00+09:00"
-phase: private-readonly-runtime-session-complete
-status: ready
-objective: "Preserve the merged private read-only PAPER runtime session and durable P0 safety boundaries while keeping WO-0051 at its human/environment boundary."
+updated_at: "2026-08-09T00:17:00+09:00"
+phase: p8-multi-position-reconciliation-fix
+status: verifying
+objective: "Correct read-only multi-position PAPER portfolio reconciliation without regressing the completed P8 session or the WO-0051 human/environment boundary."
 base_branch: main
-active_branch: main
-active_pull_request: null
-base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
+active_branch: agent/p8-multi-position-portfolio-fix
+active_pull_request: 194
+base_commit: eb5107d2a1ccaa6bcdc53a0e173647c02a33198f
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -31,8 +31,8 @@ completed:
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
   - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml; PR #194"
+    summary: "Terminal human/environment gate remains IN_PROGRESS. PR #194 is a read-only P8 accounting-projection fix only and cannot satisfy any human/LIVE gate."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,17 +44,20 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "P8 Private Read-only Runtime Session is merged and exact-head tested. Perform a fresh repository gap audit before selecting any next safe PAPER/Research implementation slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
+  reason: "Complete PR #194 exact-head verification and merge only if Full CI, Mobile Native, and all existing Restricted LIVE/read-only safety workflows PASS. Then return to a fresh repository gap audit."
 verification:
   required:
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
-    - "Separate constitutional human production/LIVE decision"
-    - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate two-human governance for any later risk increase"
-  last_result: "PR #188 merged at 585d660b5eb8bcefb443ca34261779aa99f55fd1 after exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including Full isolated suite and coverage; Mobile Native 31263191286 PASS; read-only/Restricted LIVE workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS."
-  current_commit: "585d660b5eb8bcefb443ca34261779aa99f55fd1; PR #188 merged; P8 Private Read-only Runtime Session repository slice complete"
+    - "P8 multi-position portfolio reconciliation regression"
+    - "Security gate"
+    - "Typecheck, build, lint, UI, E2E, release, full isolated suite, coverage"
+    - "Architecture/AIPOS drift and verified-state evidence integrity"
+    - "Mobile Native"
+    - "Restricted LIVE capability surface guard"
+    - "Restricted LIVE transport/credential readiness"
+    - "Restricted LIVE activation rehearsal"
+    - "Read-only broker credential integration"
+  last_result: "P8 core session completed via PR #188 merge 585d660b5eb8bcefb443ca34261779aa99f55fd1 and bookkeeping merge eb5107d2a1ccaa6bcdc53a0e173647c02a33198f. Fresh audit found a multi-position read-only reconciliation defect; PR #194 is the active fix."
+  current_commit: "PR #194 exact-head verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -128,6 +131,18 @@ capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
   unknown_permission_semantics: fail_closed
+p8_multi_position_reconciliation_fix:
+  status: IN_PROGRESS
+  pull_request: 194
+  scope: READ_ONLY_PAPER_PROJECTION
+  aggregate_asset_value: required
+  aggregate_realized_pnl: required
+  representative_trade_position_preserved: true
+  mutation_routes: prohibited
+  broker_credential_access: prohibited
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_money_mutation: prohibited
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
