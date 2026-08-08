@@ -1,10 +1,10 @@
 id: WO-AI-002
 title: Grounded Trustworthy AI Runtime Activation
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
-branch: agent/ai-002-cloud-activation
+branch: main
 base_branch: main
-implementation_branch: agent/ai-002-cloud-activation
+implementation_branch: main
 architecture_impact:
   acknowledged: true
   analysis: "Makes the merged zero-authority AI runtime actually groundable, replayable, and observable from Cloud while preserving deterministic safety and zero execution authority."
@@ -52,7 +52,7 @@ acceptance_criteria:
   - uncalibrated projection never reports confidence 1.0
   - bounded Cloud scheduling prevents overlapping/unbounded model calls
   - provider or AI failure leaves PAPER account, orders, fills, risk state, P0 state, and dashboard operation unchanged
-  - exact-head focused AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native, and Restricted LIVE/read-only workflows pass
+  - exact-head focused AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native when triggered, and Restricted LIVE/read-only workflows pass
   - productionMutationAllowed=false, realOrderAuthority=false, realTransferAuthority=false, and liveAuthority=NONE remain proven
   - PR is merged only after all required checks pass
 verification:
@@ -74,7 +74,29 @@ verification:
     - broker credential
     - real order, cancel, transfer, or withdrawal
     - synthetic evidence presented as LIVE authorization
+completion:
+  evidence: .aipos/evidence/WO-AI-002-completion.json
+  completed_at: "2026-08-09T02:24:00+09:00"
+  implementation_prs:
+    - 203
+    - 204
+  merge_shas:
+    - 16ac98de3263b78122021acb8a5365d5728ac261
+    - 1cd7cb29bf14bbe7468ecceef0a3a387a34760f6
+  exact_heads:
+    - 0ada16f0b1d8dc3b129ec76df5ac0d7a2d949279
+    - 9a5b2731f924026135ade4dd7d3e9de1cb381f57
+  ci_runs:
+    - 31267462156
+    - 31268948766
+  safety_workflows_passed: 8
+  mobile_native: NOT_TRIGGERED_NO_MOBILE_CHANGES
+  authority:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    realOrderAuthority: false
+    realTransferAuthority: false
 next: >-
-  After merge, score grounded runtime quality on evidence integrity, replayability,
-  calibration, robustness, latency/cost, and explanation quality; select the lowest
-  scoring dimension as the next AI improvement slice.
+  Run a fresh repository/AI capability gap audit and score evidence integrity,
+  replayability, calibration, robustness, latency/cost, explanation quality, and
+  provider diversity before opening the next AI implementation slice.
