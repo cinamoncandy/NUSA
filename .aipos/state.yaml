@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T12:33:00+09:00"
+updated_at: "2026-08-08T12:46:00+09:00"
 phase: constitutional-human-transition-review
-status: implementing
+status: verifying
 objective: "Aggregate final production-transition evidence and expose missing real-world human/external evidence without granting any production or LIVE authority."
 base_branch: main
 active_branch: agent/wo-0050-constitutional-human-transition-review
-active_pull_request: pending
+active_pull_request: 166
 base_commit: 8920525072ea29ac4928f6b0fe360faeb89567ca
 claimed_state:
   work_order: WO-0050
@@ -31,12 +31,12 @@ completed:
     summary: "Added operator-gated external read-only preflight harness without execution authority."
 in_progress:
   - id: WO-0050
-    evidence: ".aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml"
-    summary: "Terminal automated safe review packet implementation in progress; current real-world transition remains incomplete until external/human evidence exists."
+    evidence: ".aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml; PR #166"
+    summary: "Terminal automated safe review packet implemented; official exact-head verification pending; current real-world transition remains incomplete until external/human evidence exists."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml
-  reason: "Implement final non-executable review packet and human transition runbook; after merge, remaining actions are real-world human/environment gates."
+  reason: "Complete PR #166 exact-head verification and merge; after that all remaining actions are real-world human/environment gates."
 verification:
   required:
     - "Constitutional human transition review packet regressions"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0049 merged as 8920525072ea29ac4928f6b0fe360faeb89567ca; WO-0050 started."
-  current_commit: "WO-0050 implementation pending"
+  last_result: "WO-0050 implementation on PR #166; official exact-head verification pending."
+  current_commit: "PR #166 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
