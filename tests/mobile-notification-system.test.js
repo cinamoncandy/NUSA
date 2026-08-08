@@ -20,7 +20,8 @@ test("notification UI is Paper-only and wired into More", () => {
   const view = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "notificationView.tsx"), "utf8");
   const more = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8");
   assert.match(view, /notifications-paper/);
-  assert.match(view, /Paper \/ Read Only/);
+  assert.match(view, /<DataRow label="운영 모드" value="PAPER" emphasis \/>/);
+  assert.match(view, /<DataRow label="권한" value="읽기 전용" \/>/);
   assert.doesNotMatch(view, /placeOrder|cancelOrder|withdraw/);
   assert.match(more, /NotificationView/);
   assert.match(more, /more-notifications-tab/);
