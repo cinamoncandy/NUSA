@@ -151,15 +151,26 @@ export function evaluateRestrictedLiveActivationCeremony(input: RestrictedLiveCe
   if (input.approvers.length !== 2) blockers.push("EXACTLY_TWO_APPROVERS_REQUIRED");
 
   const approverIds: string[] = [];
+  const normalizedApprovals: Array<Readonly<Record<string, string>>> = [];
   for (const approval of input.approvers) {
     const principalId = required(approval.principalId, "CEREMONY_APPROVER_ID_REQUIRED");
     approverIds.push(principalId);
+    const approvedAtMs = instant(approval.approvedAt, `CEREMONY_APPROVAL_TIME_INVALID:${principalId}`);
+    const attestationDigest = exactHash(approval.attestationDigest, 64, `APPROVER_ATTESTATION_DIGEST_INVALID:${principalId}`);
+    normalizedApprovals.push(Object.freeze({
+      principalId,
+      principalKind: approval.principalKind,
+      ceremonyId: approval.ceremonyId,
+      preflightFingerprint: approval.preflightFingerprint,
+      scopeFingerprint: approval.scopeFingerprint,
+      approvedAt: approval.approvedAt,
+      signatureVerification: approval.signatureVerification,
+      attestationDigest
+    }));
     if (approval.principalKind !== "HUMAN") blockers.push(`APPROVER_NOT_HUMAN:${principalId}`);
     if (approval.ceremonyId !== ceremonyId) blockers.push(`APPROVER_CEREMONY_MISMATCH:${principalId}`);
     if (approval.preflightFingerprint !== preflightFingerprint) blockers.push(`APPROVER_PREFLIGHT_MISMATCH:${principalId}`);
     if (approval.scopeFingerprint !== scopeFingerprint) blockers.push(`APPROVER_SCOPE_MISMATCH:${principalId}`);
-    if (!/^[0-9a-f]{64}$/.test(approval.attestationDigest)) blockers.push(`APPROVER_ATTESTATION_DIGEST_INVALID:${principalId}`);
-    const approvedAtMs = instant(approval.approvedAt, `CEREMONY_APPROVAL_TIME_INVALID:${principalId}`);
     if (approvedAtMs < Date.parse(scope.startsAt) || approvedAtMs > Date.parse(scope.expiresAt) || approvedAtMs > evaluatedAtMs) blockers.push(`APPROVAL_OUTSIDE_WINDOW:${principalId}`);
     if (approval.signatureVerification === "FAIL") blockers.push(`SIGNATURE_VERIFICATION_FAILED:${principalId}`);
     if (approval.signatureVerification === "UNKNOWN") unknowns.push(`SIGNATURE_VERIFICATION_UNKNOWN:${principalId}`);
@@ -187,6 +198,7 @@ export function evaluateRestrictedLiveActivationCeremony(input: RestrictedLiveCe
   }
 
   const normalizedApproverIds = Object.freeze([...approverIds].sort());
+  const approvalEvidence = Object.freeze([...normalizedApprovals].sort((left, right) => left.principalId.localeCompare(right.principalId)));
   const normalizedBlockers = Object.freeze([...new Set(blockers)].sort());
   const normalizedUnknowns = Object.freeze([...new Set(unknowns)].sort());
   const verdict: CeremonyVerdict = normalizedBlockers.length > 0
@@ -200,6 +212,7 @@ export function evaluateRestrictedLiveActivationCeremony(input: RestrictedLiveCe
     evaluatedAt: input.evaluatedAt,
     requesterId,
     approverIds: normalizedApproverIds,
+    approvalEvidence,
     preflightFingerprint,
     codeRevision,
     configurationHash,
