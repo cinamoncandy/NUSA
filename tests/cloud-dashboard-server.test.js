@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { startCloudDashboardServer } = require("../dist/apps/cloud/src/server.js");
 const { buildMobileDashboardResponse } = require("../dist/apps/cloud/src/mobileDashboardApi.js");
+const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 
 function request(port, path, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -32,11 +33,28 @@ const dashboardPayload = () => buildMobileDashboardResponse({
   intelligence: { signals: [], staleSources: [], generatedAt: 1000 }
 });
 
+const paperOperationsPayload = () => buildPersonalPaperOperationsSnapshot({
+  dashboard: dashboardPayload(),
+  research: null,
+  operations: {
+    runtimeState: "READY_OFFLINE",
+    schedulerRunning: false,
+    schedulerMode: "OFF",
+    pipelineStage: "READ_ONLY",
+    transport: "OFFLINE",
+    killSwitchActive: false,
+    accountHalted: false,
+    pendingWrites: 0,
+    updatedAt: 1000
+  }
+}, 1000);
+
 async function withServer(run, port = 41799) {
   const handle = startCloudDashboardServer({
     port,
     tokenVerifier: verifier,
-    loadDashboard: () => dashboardPayload()
+    loadDashboard: () => dashboardPayload(),
+    loadPaperOperations: () => paperOperationsPayload()
   });
   try {
     await run(handle);
@@ -90,6 +108,23 @@ test("a valid bearer token receives the dashboard payload with no-store caching"
   });
 });
 
+test("the personal PAPER operations endpoint shares auth and exposes only the read-only authority contract", async () => {
+  await withServer(async (handle) => {
+    const denied = await request(handle.port, "/api/paper-operations");
+    assert.equal(denied.status, 401);
+
+    const res = await request(handle.port, "/api/paper-operations", { authorization: `Bearer ${VALID_TOKEN}` });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers["cache-control"], "no-store, max-age=0");
+    const body = JSON.parse(res.body);
+    assert.equal(body.schemaVersion, 1);
+    assert.equal(body.mode, "PAPER");
+    assert.equal(body.liveAuthority, "NONE");
+    assert.equal(body.productionMutationAllowed, false);
+    assert.equal(body.operations.runtimeState, "READY_OFFLINE");
+  }, 41803);
+});
+
 test("a wrong-scope or invalid token is rejected, and a non-GET method is rejected", async () => {
   await withServer(async (handle) => {
     const bad = await request(handle.port, "/", { authorization: "Bearer not-a-real-token" });
@@ -107,11 +142,11 @@ test("a wrong-scope or invalid token is rejected, and a non-GET method is reject
 });
 
 test("the server can be stopped and the port released", async () => {
-  const handle = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload() });
+  const handle = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload(), loadPaperOperations: () => paperOperationsPayload() });
   await handle.stop();
   // stopping twice must not throw or hang
   await handle.stop();
-  const second = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload() });
+  const second = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload(), loadPaperOperations: () => paperOperationsPayload() });
   await second.stop();
 });
 

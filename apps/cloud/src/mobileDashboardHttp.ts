@@ -25,7 +25,7 @@ export interface MobileDashboardHttpDependencies {
   readonly loadDashboard: (principal: DashboardPrincipal) => MobileDashboardResponse;
 }
 
-const json = (status: number, payload: unknown): DashboardHttpResponse => Object.freeze({
+export const dashboardJsonResponse = (status: number, payload: unknown): DashboardHttpResponse => Object.freeze({
   status,
   headers: Object.freeze({
     "content-type": "application/json; charset=utf-8",
@@ -41,36 +41,60 @@ const bearer = (value: string | undefined): string | undefined => {
   return match?.[1];
 };
 
-export function handleMobileDashboardHttp(
+export type DashboardReadAuthorization =
+  | { readonly ok: true; readonly principal: DashboardPrincipal }
+  | { readonly ok: false; readonly response: DashboardHttpResponse };
+
+/** Shared fail-closed authorization boundary for every read-only dashboard projection. */
+export function authorizeDashboardReadRequest(
   request: DashboardHttpRequest,
-  dependencies: MobileDashboardHttpDependencies
-): DashboardHttpResponse {
+  tokenVerifier: DashboardTokenVerifier
+): DashboardReadAuthorization {
   if (request.method.toUpperCase() !== "GET") {
     return Object.freeze({
-      ...json(405, { error: "METHOD_NOT_ALLOWED" }),
-      headers: Object.freeze({ ...json(405, {}).headers, allow: "GET" })
+      ok: false,
+      response: Object.freeze({
+        ...dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" }),
+        headers: Object.freeze({ ...dashboardJsonResponse(405, {}).headers, allow: "GET" })
+      })
     });
   }
 
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
-  if (token == null) return json(401, { error: "UNAUTHORIZED" });
+  if (token == null) return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
 
   let principal: DashboardPrincipal | undefined;
   try {
-    principal = dependencies.tokenVerifier.verify(token);
+    principal = tokenVerifier.verify(token);
   } catch {
-    return json(401, { error: "UNAUTHORIZED" });
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
   }
-  if (principal == null || !principal.userId.trim()) return json(401, { error: "UNAUTHORIZED" });
-  if (!principal.scopes.includes("dashboard:read")) return json(403, { error: "FORBIDDEN" });
+  if (principal == null || !principal.userId.trim()) {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
+  }
+  if (!principal.scopes.includes("dashboard:read")) {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
+  }
 
-  try {
-    const dashboard = dependencies.loadDashboard(Object.freeze({
+  return Object.freeze({
+    ok: true,
+    principal: Object.freeze({
       userId: principal.userId.trim(),
       scopes: Object.freeze([...principal.scopes])
-    }));
-    return json(200, dashboard);
+    })
+  });
+}
+
+export function handleMobileDashboardHttp(
+  request: DashboardHttpRequest,
+  dependencies: MobileDashboardHttpDependencies
+): DashboardHttpResponse {
+  const authorization = authorizeDashboardReadRequest(request, dependencies.tokenVerifier);
+  if (!authorization.ok) return authorization.response;
+
+  try {
+    return dashboardJsonResponse(200, dependencies.loadDashboard(authorization.principal));
   } catch {
-    return json(503, { error: "DASHBOARD_UNAVAILABLE" });
+    return dashboardJsonResponse(503, { error: "DASHBOARD_UNAVAILABLE" });
   }
 }

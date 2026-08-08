@@ -65,7 +65,11 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.match(marketsView, /WatchlistView/);
   assert.match(marketsView, /ChartView/);
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
+  const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   assert.match(app, /AsyncStorage/);
-  assert.match(app, /\/api\/markets/);
+  assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /<MarketsView/);
+  assert.match(app, /rawMarkets=\{null\}/);
+  assert.doesNotMatch(app, /\/api\/(?:markets|candles|account|status)/);
+  assert.match(client, /\/api\/paper-operations/);
 });

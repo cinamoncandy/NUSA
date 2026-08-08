@@ -5,14 +5,18 @@ import {
   type DashboardTokenVerifier,
   type MobileDashboardHttpDependencies
 } from "./mobileDashboardHttp";
+import {
+  handlePersonalPaperOperationsHttp,
+  type PersonalPaperOperationsHttpDependencies
+} from "./personalPaperOperationsHttp";
 
 export interface CloudDashboardServerOptions {
   readonly port: number;
-  /** Defaults to "127.0.0.1". Binding beyond localhost is a deliberate, separate decision --
-   * see the module doc comment below before changing this. */
+  /** Defaults to "127.0.0.1". Binding beyond localhost is a deliberate, separate decision. */
   readonly host?: string;
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
+  readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
 }
 
 export interface CloudDashboardServerHandle {
@@ -22,27 +26,9 @@ export interface CloudDashboardServerHandle {
 }
 
 /**
- * Binds `handleMobileDashboardHttp` -- an existing, already-tested pure request handler -- to an
- * actual port. That handler enforces GET-only, Bearer auth, and a `dashboard:read` scope; this
- * file's job is only transport, not policy.
- *
- * Deliberately out of scope here, because each is a separate decision with its own security
- * review, not something to fold into a transport shim:
- *
- * - **A real token issuer.** No `DashboardTokenVerifier` implementation exists anywhere in the
- *   repository yet -- only the interface. The caller must supply one. There is no default that
- *   accepts anything; the only safe default is to accept nothing.
- * - **Non-localhost binding.** `host` defaults to `127.0.0.1`. Serving mobile clients that are
- *   not on the same machine needs TLS, a real network boundary, and a decision about where this
- *   process runs -- none of which this file can decide.
- * - **CORS.** Not set. A browser-based client would need an explicit, non-wildcard origin list;
- *   none is configured because none is known to be needed yet.
- *
- * `/health` is the one exception to "everything goes through handleMobileDashboardHttp": it is
- * unauthenticated on purpose (a process supervisor checking liveness has no bearer token to
- * offer) and reports only that the HTTP listener itself is accepting connections -- not that the
- * dashboard data path behind it is configured or healthy. Every other path, including a typo of
- * `/health`, still goes through the real handler and its GET-only/Bearer-auth/scope checks.
+ * Localhost-by-default read-only dashboard transport. `/api/paper-operations` and the legacy
+ * dashboard projection share the same GET-only Bearer + `dashboard:read` authorization boundary.
+ * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
  */
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) {
@@ -57,14 +43,22 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         res.end(JSON.stringify({ ok: true, observedAt: new Date().toISOString() }));
         return;
       }
+
       const dashboardRequest: DashboardHttpRequest = Object.freeze({
         method: req.method ?? "GET",
         headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>)
       });
-      const result = handleMobileDashboardHttp(dashboardRequest, {
-        tokenVerifier: options.tokenVerifier,
-        loadDashboard: options.loadDashboard
-      });
+
+      const result = req.url === "/api/paper-operations"
+        ? handlePersonalPaperOperationsHttp(dashboardRequest, {
+            tokenVerifier: options.tokenVerifier,
+            loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); })
+          })
+        : handleMobileDashboardHttp(dashboardRequest, {
+            tokenVerifier: options.tokenVerifier,
+            loadDashboard: options.loadDashboard
+          });
+
       res.writeHead(result.status, result.headers as Record<string, string>);
       res.end(result.body);
     } catch {
