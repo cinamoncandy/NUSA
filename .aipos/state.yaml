@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T10:59:00+09:00"
+updated_at: "2026-08-08T11:05:00+09:00"
 phase: tiny-bounded-restricted-live-envelope
-status: implementing
+status: verifying
 objective: "Validate a non-executable tiny Restricted LIVE policy envelope against hard ceilings and exact evidence bindings."
 base_branch: main
 active_branch: agent/wo-0046-tiny-bounded-live-envelope
-active_pull_request: pending
+active_pull_request: 161
 base_commit: 623db33d5b0fc2e96f4573155bd958a19e3320d9
 claimed_state:
   work_order: WO-0046
@@ -29,17 +29,14 @@ completed:
   - id: WO-0043
     evidence: ".aipos/evidence/WO-0043-completion.json"
     summary: "Added fail-closed Restricted LIVE environment preflight for independent human review only."
-  - id: WO-0042
-    evidence: ".aipos/evidence/WO-0042-completion.json"
-    summary: "Added deterministic fail-closed disaster-recovery restore integrity verification without execution authority."
 in_progress:
   - id: WO-0046
-    evidence: ".aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml"
-    summary: "Tiny bounded Restricted LIVE envelope policy validation implementation in progress; no activation or order authority."
+    evidence: ".aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml; PR #161"
+    summary: "Tiny bounded Restricted LIVE envelope implemented; official exact-head verification pending; no activation or order authority."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml
-  reason: "Implement and verify hard non-expandable tiny envelope; actual human activation and trading remain prohibited."
+  reason: "Complete PR #161 exact-head verification and merge; actual human activation and trading remain prohibited."
 verification:
   required:
     - "Tiny bounded Restricted LIVE envelope regression tests"
@@ -52,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0045 merged as 623db33d5b0fc2e96f4573155bd958a19e3320d9; WO-0046 started."
-  current_commit: "WO-0046 implementation pending"
+  last_result: "WO-0046 implementation on PR #161; official exact-head verification pending."
+  current_commit: "PR #161 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
