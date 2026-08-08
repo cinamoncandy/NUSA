@@ -11,12 +11,28 @@ const EXPECTED = Object.freeze({
   nanoid: "3.3.16"
 });
 
+function resolvePackageRoots(name, version, store = STORE, rootNodeModules = path.join(ROOT, "node_modules")) {
+  const candidates = [];
+  if (fs.existsSync(store)) {
+    const prefix = `${name}@${version}`;
+    for (const entry of fs.readdirSync(store)) {
+      if (!(entry === prefix || entry.startsWith(`${prefix}_`) || entry.startsWith(`${prefix}(`))) continue;
+      const candidate = path.join(store, entry, "node_modules", name);
+      if (fs.existsSync(path.join(candidate, "package.json"))) candidates.push(candidate);
+    }
+  }
+  const unique = new Map();
+  for (const candidate of candidates) unique.set(fs.realpathSync(candidate), candidate);
+  if (unique.size > 0) return [...unique.values()];
+  const hoisted = path.join(rootNodeModules, name);
+  if (fs.existsSync(path.join(hoisted, "package.json"))) return [hoisted];
+  return [];
+}
+
 function packageRoot(name, version) {
-  if (!fs.existsSync(STORE)) throw new Error("SECURITY_BACKPORT_STORE_MISSING");
-  const prefix = `${name}@${version}`;
-  const matches = fs.readdirSync(STORE).filter((entry) => entry === prefix || entry.startsWith(`${prefix}_`) || entry.startsWith(`${prefix}(`));
-  if (matches.length !== 1) throw new Error(`SECURITY_BACKPORT_PACKAGE_RESOLUTION:${name}@${version}:${matches.length}`);
-  const root = path.join(STORE, matches[0], "node_modules", name);
+  const roots = resolvePackageRoots(name, version);
+  if (roots.length !== 1) throw new Error(`SECURITY_BACKPORT_PACKAGE_RESOLUTION:${name}@${version}:${roots.length}`);
+  const root = roots[0];
   const metadata = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   if (metadata.name !== name || metadata.version !== version) throw new Error(`SECURITY_BACKPORT_VERSION_MISMATCH:${name}@${version}`);
   return root;
@@ -119,4 +135,4 @@ function verifyBackports() {
   };
 }
 
-module.exports = { EXPECTED, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };
+module.exports = { EXPECTED, resolvePackageRoots, packageRoot, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };

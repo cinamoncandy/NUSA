@@ -8,6 +8,8 @@ on:
       - "apps/desktop/src/upbitWebSocket*"
       - "apps/desktop/src/liveTradingAdapter*"
       - "tests/mobile-native-structure.test.js"
+      - "scripts/security-backports.js"
+      - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
       - "pnpm-lock.yaml"
   push:
