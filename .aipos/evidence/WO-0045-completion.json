@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0045-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0045",
+    "path": ".aipos/work-orders/WO-0045-production-release-artifact-seal.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "24f4876e8fcd5e9cc6359dc2b21482a709a873cf"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "623db33d5b0fc2e96f4573155bd958a19e3320d9"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "EVIDENCE_ONLY_SEAL",
+      "exact_code_binding": true,
+      "exact_configuration_binding": true,
+      "exact_artifact_hash_binding": true,
+      "rollback_binding": true,
+      "safety_evidence_binding": true,
+      "signed_verified_required_for_production_review": true,
+      "deployment_authority": false,
+      "activation_authority": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "real_money_execution_allowed": false
+    },
+    "hash": {"algorithm": "sha256", "value": "b7e9a41743659d7b10225ad159a46f4b014582247510092a8b05ffacce625025"}
+  },
+  "observed_at": "2026-08-08T10:25:00+09:00",
+  "provenance": [
+    "github:pull/160",
+    "github:actions/run/31232324677",
+    "github:actions/run/31232324682",
+    "github:actions/run/31232324707",
+    "github:actions/run/31232324675",
+    "github:actions/run/31232324673",
+    "git:merge/623db33d5b0fc2e96f4573155bd958a19e3320d9"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31232324677"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31232324682"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31232324707"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31232324675"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31232324673"},
+    {"name": "release_seal_evidence_only", "status": "PASS"},
+    {"name": "deployment_authority_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
