@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: f879e0e4ef61f48c28992a4a596eed6d571c699c
-implementation_branch: agent/wo-0051-p5-arch-fix-mainline
+base_commit: 892df05af38070103a606ad33df7c9aedd003a6c
+implementation_branch: main
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -77,7 +77,11 @@ safety:
   real_money_execution: prohibited_until_separate_constitutional_human_decision
 completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
 hardened_research_slice:
-  status: IN_PROGRESS
+  status: COMPLETE
+  completion_evidence:
+    - "PR #174 merge f879e0e4ef61f48c28992a4a596eed6d571c699c: hardened Research validity platform"
+    - "PR #175 merge 892df05af38070103a606ad33df7c9aedd003a6c: authority/runtime architecture closure"
+    - "Exact-head CI run 31256135084 PASS including Full isolated suite and coverage"
   scope:
     - "Single authenticated owner-only Champion mutation authority"
     - "Privileged CHAMPION/CHALLENGER lifecycle writes sealed behind atomic promotion"
