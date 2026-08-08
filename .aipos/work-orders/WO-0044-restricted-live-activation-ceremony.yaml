@@ -1,0 +1,51 @@
+id: WO-0044
+title: "Restricted LIVE Activation Ceremony Mechanism"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: aa77a420ae72c21628bedea9a830926c50aa92c6
+implementation_branch: agent/wo-0044-restricted-live-activation-ceremony
+objective: "Validate a tightly scoped, time-bounded, anti-replay activation ceremony record with two independent human approvals bound to the exact Restricted LIVE preflight/code/config/scope/rollback evidence, while producing no activation token and performing no LIVE activation or money movement."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0044 adds validation machinery for the future human activation ceremony. It does not conduct the real ceremony, verify private keys itself, create an executable activation credential, connect transport, or enable mutation. A valid record only becomes COMPLETE_FOR_SEPARATE_MANUAL_ACTIVATION_REVIEW and still requires an external human-controlled constitutional activation step."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Ceremony verdict is COMPLETE_FOR_SEPARATE_MANUAL_ACTIVATION_REVIEW, SAFE_BLOCK, or UNKNOWN; no verdict authorizes LIVE."
+  - "Bind ceremony to exact 64-hex preflight fingerprint, exact code revision, configuration hash, deployment bundle, rollback bundle, capability contract, strategy identity, symbols, hard notional/exposure limits, startsAt/expiresAt, cooldown, reason, and audit receipt."
+  - "Require requester plus exactly two distinct HUMAN approvers; requester and both approvers must all be distinct. AI, Meta-AI, automation, provider, or duplicate principals cannot approve."
+  - "Each human approval must reference the exact ceremony ID, preflight fingerprint, and scope fingerprint and must carry external signature-verification PASS evidence and a non-secret attestation digest."
+  - "Approvals must occur within the ceremony review window and before expiry; expired/not-yet-valid/ambiguous time fails closed."
+  - "Ceremony IDs are single-use; supplied anti-replay evidence indicating prior use SAFE_BLOCKs, while UNKNOWN anti-replay state returns UNKNOWN."
+  - "Require latest preflight verdict READY_FOR_HUMAN_REVIEW and all mutation counters zero with execution transport disconnected, execution credential use disabled, real-money execution false, and kill switch inactive."
+  - "Ceremony output contains no executable activation credential, broker secret, raw signature, private key, or authorization token."
+  - "No submit/amend/cancel/withdraw/broker execute/network dial/cash/position mutation method may be reachable."
+  - "CI uses synthetic human identities and attestations only; it must never conduct a real activation ceremony."
+acceptance:
+  - "Activation ceremony mechanism regressions PASS."
+  - "Exact synthetic two-human record yields COMPLETE_FOR_SEPARATE_MANUAL_ACTIVATION_REVIEW with authorizesLive=false."
+  - "Duplicate/non-human/self approval, scope/preflight mismatch, expiry, prior use, unsafe mutation state, or active kill switch SAFE_BLOCKs."
+  - "Signature/anti-replay UNKNOWN remains UNKNOWN/fail-closed."
+  - "Identical normalized ceremony evidence produces identical fingerprint."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  executable_activation_token: prohibited
+  actual_human_ceremony: not_conducted_by_ci
+  automatic_activation: prohibited
+  ceremony_authority: validation_only
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion installs ceremony validation machinery only. The real human approval ceremony and any money-moving activation remain outside automated authority."
