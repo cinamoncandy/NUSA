@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T12:52:00+09:00"
-phase: constitutional-production-human-environment-gate
-status: blocked_on_human_environment
-objective: "Hold production transition until genuine external/human evidence and an explicit constitutional human decision exist; no automated work may cross this boundary."
+updated_at: "2026-08-08T13:10:00+09:00"
+phase: personal-use-transition
+status: ready
+objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: main
+active_branch: agent/nusa-personal-use-transition
 active_pull_request: null
-base_commit: 99adc4178906aaa6f131ff4774d3ae4c697b8b2d
+base_commit: de530d273b51aa5551fe6900bdb36baf80c47aea
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -34,17 +34,20 @@ in_progress:
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate. Automated completion is prohibited."
 blocked:
-  - "SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED"
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
   - "SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE"
   - "ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS"
+scope_reclassified:
+  - id: SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED
+    status: NOT_APPLICABLE_PERSONAL_USE
+    reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Follow docs/release/constitutional-human-transition-runbook.md under human authority. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Continue PAPER/Research runtime gap work. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
-    - "Independent production artifact signing verification"
+    - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
