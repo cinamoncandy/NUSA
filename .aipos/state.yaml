@@ -1,46 +1,46 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T12:08:00+09:00"
-phase: post-live-validation-contract
-status: verifying
-objective: "Validate future tiny LIVE session evidence without creating a LIVE session or granting scale-up authority."
+updated_at: "2026-08-08T12:15:00+09:00"
+phase: controlled-scale-up-governance
+status: implementing
+objective: "Validate future human-approved scale-change records without changing limits or granting LIVE authority."
 base_branch: main
-active_branch: agent/wo-0048-post-live-validation-contract
-active_pull_request: 163
-base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
+active_branch: agent/wo-0049-controlled-scale-up-governance
+active_pull_request: pending
+base_commit: 216dd3426164347ba80b05c01452d19de3554de0
 claimed_state:
-  work_order: WO-0048
+  work_order: WO-0049
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0047
+  work_order: WO-0048
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0047-completion.json"
+  evidence: ".aipos/evidence/WO-0048-completion.json"
 latest_verified_slice:
-  id: wo-0047-external-readonly-environment-preflight-complete
-  evidence: ".aipos/evidence/WO-0047-completion.json"
-  summary: "WO-0047 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; CI performed no external broker probe."
+  id: wo-0048-post-live-validation-contract-complete
+  evidence: ".aipos/evidence/WO-0048-completion.json"
+  summary: "WO-0048 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; validation grants no scale-up or execution authority."
 completed:
+  - id: WO-0048
+    evidence: ".aipos/evidence/WO-0048-completion.json"
+    summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
   - id: WO-0047
     evidence: ".aipos/evidence/WO-0047-completion.json"
     summary: "Added operator-gated external read-only preflight harness without execution authority."
   - id: WO-0046
     evidence: ".aipos/evidence/WO-0046-completion.json"
     summary: "Added non-executable tiny bounded Restricted LIVE policy envelope."
-  - id: WO-0045
-    evidence: ".aipos/evidence/WO-0045-completion.json"
-    summary: "Added immutable production release artifact seal for independent human review only."
 in_progress:
-  - id: WO-0048
-    evidence: ".aipos/work-orders/WO-0048-post-live-validation-contract.yaml; PR #163"
-    summary: "Post-LIVE session evidence validator implemented; official exact-head verification pending; no LIVE session is created."
+  - id: WO-0049
+    evidence: ".aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml"
+    summary: "Controlled scale-up governance mechanism implementation in progress; no actual risk limit change is performed."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0048-post-live-validation-contract.yaml
-  reason: "Complete PR #163 exact-head verification and merge."
+  work_order: .aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml
+  reason: "Implement and verify validation-only two-human scale-change governance."
 verification:
   required:
-    - "Post-LIVE validation regression tests"
-    - "Post-LIVE validation source validation"
+    - "Controlled scale-up governance regression tests"
+    - "Controlled scale-up governance source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0048 implementation on PR #163; official exact-head verification pending."
-  current_commit: "PR #163 verification pending"
+  last_result: "WO-0048 merged as 216dd3426164347ba80b05c01452d19de3554de0; WO-0049 started."
+  current_commit: "WO-0049 implementation pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -59,6 +59,19 @@ human_authority:
   automatic_scale_up: prohibited
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
+controlled_scale_up_governance:
+  mode: VALIDATION_ONLY
+  actual_human_approval_in_ci: false
+  exact_proposal_binding: true
+  distinct_human_approvers_required: 2
+  anti_replay_required: true
+  scale_up_authority: false
+  activation_authority: false
+  order_authorization: false
+  execution_authority: false
+  authorizes_live: false
+  mutation_performed: false
+  real_money_execution_allowed: false
 post_live_validation:
   mode: EVIDENCE_VALIDATION_ONLY
   actual_live_session_in_ci: false
@@ -67,25 +80,12 @@ post_live_validation:
   order_authorization: false
   execution_authority: false
   authorizes_live: false
-  mutation_performed: false
-  real_money_execution_allowed: false
 external_readonly_environment_preflight:
   mode: OPERATOR_GATED_READ_ONLY
   actual_external_probe_in_ci: false
-  explicit_operator_authorization_required: true
-  activation_authority: false
-  order_authorization: false
-  execution_authority: false
   authorizes_live: false
 tiny_bounded_live_envelope:
   mode: POLICY_VALIDATION_ONLY
-  max_order_notional_bps: 10
-  max_gross_exposure_bps: 50
-  max_daily_loss_bps: 10
-  max_open_orders: 1
-  max_position_count: 1
-  max_session_orders: 5
-  max_session_duration_seconds: 3600
   automatic_scale_up: prohibited
   authorizes_live: false
 restricted_live_authority:
