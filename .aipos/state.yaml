@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:33:00+09:00"
-phase: cloud-p0-runtime-enforcement-complete
-status: ready
-objective: "Preserve durable Cloud P0 safety enforcement at the actual PAPER fill boundary while keeping WO-0051 at its human/environment boundary."
+updated_at: "2026-08-08T23:45:00+09:00"
+phase: private-readonly-runtime-session
+status: implementing
+objective: "Close the private Personal PAPER operator visibility gap with an ephemeral authenticated read-only session and P0-consistent projections while keeping WO-0051 human/environment gated."
 base_branch: main
-active_branch: main
+active_branch: agent/wo-0051-p8-private-readonly-session-current-main
 active_pull_request: null
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 11fa5080baecd1e3078db997a68c56daf9d82abf
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P8 private read-only runtime-session safe slice is being implemented and does not satisfy any human/LIVE gate."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,17 +44,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "P7 Cloud P0 runtime enforcement is merged and exact-head tested. Perform a fresh repository gap audit before the next safe PAPER/Research slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
+  reason: "Finish the P8 private read-only runtime-session safe slice, open one PR, bind its number into AIPOS, then require exact-head Full CI plus all existing Restricted LIVE/read-only workflows before merge."
 verification:
   required:
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
-    - "Separate constitutional human production/LIVE decision"
-    - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate two-human governance for any later risk increase"
-  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head CI 31261654980 PASS including Full isolated suite and coverage; read-only/Restricted LIVE workflows 31261655002, 31261654986, 31261654989, 31261654984 PASS."
-  current_commit: "a8cc673bb47f9856140485aa6d159140626272e5; PR #182 merged; P7 Cloud P0 runtime enforcement repository slice complete"
+    - "P8 private read-only runtime session regressions"
+    - "Security gate"
+    - "Typecheck/build/lint/UI/E2E/full isolated suite/coverage"
+    - "Architecture/AIPOS drift and verified-state evidence integrity"
+    - "Restricted LIVE capability surface guard"
+    - "Restricted LIVE transport/credential readiness"
+    - "Restricted LIVE activation rehearsal"
+    - "Read-only broker credential integration"
+  last_result: "Fresh gap audit found mobile dashboard credential permanently unavailable, null PAPER projections in operational tabs, and read-only P0 status drift. Stale P8 branches are concept sources only and are not direct merge candidates."
+  current_commit: "P8 implementation branch in progress; PR not yet created"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -128,6 +130,26 @@ capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
   unknown_permission_semantics: fail_closed
+cloud_p0_runtime_enforcement:
+  status: COMPLETE
+  merge_commit: a8cc673bb47f9856140485aa6d159140626272e5
+  exact_head: 4a40d0cde35748d73efb14f6ca9974f162db2d2d
+  full_ci_run: 31261654980
+  live_authority: NONE
+  production_mutation_allowed: false
+  broker_credential_access: prohibited
+  real_money_mutation: prohibited
+private_readonly_runtime_session:
+  status: IN_PROGRESS
+  dashboard_credential_storage: PROCESS_MEMORY_ONLY
+  remote_http_bearer_transport: prohibited
+  endpoint_authority: GET_ONLY_DASHBOARD_READ
+  p0_projection_semantics: FAIL_CLOSED
+  broker_credential_access: prohibited
+  mutation_routes: prohibited
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_money_mutation: prohibited
 safety_authority:
   hard_risk_override: prohibited
   kill_switch_override: prohibited
