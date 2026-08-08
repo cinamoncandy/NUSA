@@ -1,0 +1,50 @@
+id: WO-0045
+title: "Production Release Engineering & Artifact Seal"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 61988441f22d4868a94d95bebc0c382afecd9a77
+implementation_branch: agent/wo-0045-production-release-artifact-seal
+objective: "Seal an exact release candidate to immutable artifact hashes, code/config identity, rollback bundle, safety/evidence roots, and release-process verification without granting deployment, activation, execution, or real-money authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0045 extracts only useful release-engineering intent from stale A5g branches. Existing packaging/manifest/checksum/SBOM machinery is retained; this WO adds a current-main immutable release-candidate seal that binds artifacts to exact code/config, rollback and safety evidence. A valid seal is review evidence only and cannot deploy or activate LIVE."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Seal exact 40-hex code revision, 64-hex configuration hash, deployment bundle ID, rollback bundle ID, artifact manifest, security report digest, SBOM digest, audit replay anchor, restore-verification fingerprint, preflight fingerprint, and ceremony-mechanism evidence reference."
+  - "Artifact manifest must contain unique normalized relative paths with exact size and SHA-256; stored manifest hash must be recomputed before sealing."
+  - "Release seal fingerprint must be deterministic and bind every normalized field and evidence reference."
+  - "Release signing state is SIGNED_VERIFIED, UNSIGNED, or UNKNOWN; only SIGNED_VERIFIED is eligible for production human review, while UNSIGNED SAFE_BLOCKs and UNKNOWN remains UNKNOWN."
+  - "Signing evidence is digest/reference only; certificates, private keys, passwords, tokens, raw signatures, and credentials are prohibited."
+  - "Require release-process validation PASS, security gate PASS, artifact allowlist PASS, rollback verification PASS, restore verification PASS, and all Restricted LIVE safety evidence PASS."
+  - "Any code/config/artifact/evidence/rollback mismatch SAFE_BLOCKs; missing or ambiguous safety/signing state remains UNKNOWN/fail-closed."
+  - "Seal output exposes deploymentAuthority=false, activationAuthority=false, executionAuthority=false, authorizesLive=false and performs no file/network/broker mutation."
+  - "No deploy/activate/order/broker/cash/position/credential execution method may be added."
+  - "Add deterministic tamper/mismatch/signing/UNKNOWN regressions and source validation."
+acceptance:
+  - "Production release artifact seal regressions PASS."
+  - "Identical normalized release candidate inputs yield identical seal fingerprint."
+  - "Artifact tamper, code/config mismatch, unsigned release, rollback mismatch, or failed safety evidence SAFE_BLOCKs."
+  - "Unknown signing/safety state returns UNKNOWN."
+  - "No secret material or executable deployment/activation authority is present."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  automatic_deployment: prohibited
+  automatic_activation: prohibited
+  release_seal_authority: evidence_only
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion seals a release candidate for later independent human review only; it does not deploy, activate LIVE, or move money."
