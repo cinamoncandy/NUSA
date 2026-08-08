@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T21:34:00+09:00"
-phase: personal-paper-operations-ui-e2e
+updated_at: "2026-08-08T22:27:00+09:00"
+phase: cloud-p0-safety-state
 status: ready
-objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
+objective: "Close the Cloud P0 safety-input gap while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/wo-0051-p6-personal-paper-operations-ui-e2e
-active_pull_request: 177
-base_commit: 03c78e9a350dca31ba1f54e9b0707eedc8b72148
+active_branch: agent/p7-cloud-p0-safety-state
+active_pull_request: null
+base_commit: 0cb85a730ffd4cb43cf57db1402b7f13b5484b21
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -16,10 +16,13 @@ verified_state:
   status: COMPLETED
   evidence: ".aipos/evidence/WO-0050-completion.json"
 latest_verified_slice:
-  id: wo-0050-constitutional-human-transition-review-complete
-  evidence: ".aipos/evidence/WO-0050-completion.json"
-  summary: "WO-0050 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; synthetic evidence is explicitly prevented from satisfying real-world constitutional gates."
+  id: p6-personal-paper-operations-ui-e2e
+  evidence: "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
+  summary: "Personal PAPER Operations read-only projection merged after exact-head CI, coverage, safety, and Mobile Native PASS."
 completed:
+  - id: P6_PERSONAL_PAPER_OPERATIONS_UI_E2E
+    evidence: "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
+    summary: "Authenticated read-only Personal PAPER operations projection across cloud, mobile, and desktop."
   - id: WO-0050
     evidence: ".aipos/evidence/WO-0050-completion.json"
     summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
@@ -32,7 +35,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate. Automated completion is prohibited."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 safety-state closure is the current safe automated slice."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,17 +47,17 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Implement the P6 Personal PAPER Operations + UI + End-to-End Readiness slice as a read-only authenticated projection across cloud, mobile, and desktop. Do not add mutation routes, credential fallbacks, or LIVE authority."
+  reason: "Implement P7 Cloud P0 Safety State: replace the hard-coded openP0=false safety input with durable hash-chained incident state and prove OPEN_P0_ALERT reaches the independent Risk Governor as HALT."
 verification:
   required:
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
+    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "P5 Research hardening and authority/runtime architecture closure merged with exact-head CI PASS; P6 CI repair is in progress."
-  current_commit: "b08f2e831da60496b4aef43413435b051029d7c5; P6 stale mobile chart source assertion updated to the authenticated PAPER operations architecture; exact-head CI retry pending"
+  last_result: "P6 Personal PAPER Operations merged as PR #177 at 0cb85a730ffd4cb43cf57db1402b7f13b5484b21 after exact-head required workflows PASS; P7 implementation is in progress."
+  current_commit: "eaacdd3f7518212048730b7aed3f39d155089c4e; P7 ledger, durable repository, derived control state, and operational HALT regression added; exact-head CI pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
