@@ -26,6 +26,12 @@ export interface PromotionAtomicInput {
   readonly audit: PromotionAuditRecord;
 }
 
+export interface PromotionCommandState {
+  readonly commandId: string;
+  readonly payloadFingerprint: string;
+  readonly result: PromotionResult;
+}
+
 export class SqliteCandidatePromotionRepository {
   public constructor(private readonly db: CandidatePromotionDatabase) {}
 
@@ -42,11 +48,12 @@ export class SqliteCandidatePromotionRepository {
   }
 
   public getCandidate(candidateId: string): CandidateLifecycleRecord | null {
-    const row = this.db.connection.prepare("SELECT payload_json, checksum FROM research_candidates WHERE candidate_id = ?").get(candidateId) as { payload_json: string; checksum: string } | undefined;
+    const row = this.db.connection.prepare("SELECT payload_json, lifecycle, checksum FROM research_candidates WHERE candidate_id = ?").get(candidateId) as { payload_json: string; lifecycle: string; checksum: string } | undefined;
     if (row == null) return null;
     if (hash(row.payload_json) !== row.checksum) throw new Error("candidate lifecycle integrity violation");
     const record = JSON.parse(row.payload_json) as CandidateLifecycleRecord;
     validateIdentity(record.identity);
+    if (record.lifecycle !== row.lifecycle) throw new Error("candidate lifecycle integrity violation");
     return Object.freeze(record);
   }
 
@@ -62,6 +69,15 @@ export class SqliteCandidatePromotionRepository {
   public getCommand(commandId: string): { fingerprint: string; result: PromotionResult } | null {
     const row = this.db.connection.prepare("SELECT payload_fingerprint, result_json FROM research_promotion_commands WHERE command_id = ?").get(commandId) as { payload_fingerprint: string; result_json: string } | undefined;
     return row == null ? null : { fingerprint: row.payload_fingerprint, result: Object.freeze(JSON.parse(row.result_json) as PromotionResult) };
+  }
+
+  public listCommands(): readonly PromotionCommandState[] {
+    return Object.freeze((this.db.connection.prepare("SELECT command_id, payload_fingerprint, result_json FROM research_promotion_commands ORDER BY command_id ASC").all() as Array<{ command_id: string; payload_fingerprint: string; result_json: string }>).map((row) => {
+      if (!/^[a-f0-9]{64}$/.test(row.payload_fingerprint)) throw new Error("promotion command fingerprint is invalid");
+      const result = JSON.parse(row.result_json) as PromotionResult;
+      if (!row.command_id.trim() || !["PROMOTED", "REJECTED", "CONFLICT", "DUPLICATE"].includes(result.status) || result.promotionCommandId !== row.command_id || result.productionMutationAllowed !== false || result.liveAuthority !== "NONE") throw new Error("promotion command state is invalid");
+      return Object.freeze({ commandId: row.command_id, payloadFingerprint: row.payload_fingerprint, result: Object.freeze(result) });
+    }));
   }
 
   public recordRejected(command: PromotionCommand, result: PromotionResult, audit: PromotionAuditRecord): void {

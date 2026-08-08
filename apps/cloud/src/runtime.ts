@@ -14,6 +14,7 @@ import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } fr
 import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
+import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -27,6 +28,10 @@ export interface CloudRuntimeMarketDataClientLike {
 
 export interface CloudRuntimeResearchRuntimeLike {
   onMarketData(tick: ResearchRuntimeMarketDataTick): void;
+}
+
+export interface CloudRuntimeResearchRecoveryLike {
+  recover(): ResearchRecoveryResult;
 }
 
 export type CloudRuntimeMarketDataClientFactory = (
@@ -54,7 +59,8 @@ export function startCloudRuntime(
   snapshotRepository?: CloudDashboardSnapshotRepository,
   paperAccountRepository?: PaperAccountRepository,
   paperExecutionLoop?: PaperTradingExecutionLoop,
-  researchRuntime?: CloudRuntimeResearchRuntimeLike
+  researchRuntime?: CloudRuntimeResearchRuntimeLike,
+  researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -73,6 +79,8 @@ export function startCloudRuntime(
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
   };
+  const researchRecoveryResult = researchRecoveryCoordinator?.recover();
+  const researchReady = researchRecoveryResult == null || researchRecoveryResult.status === "READY";
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -84,7 +92,8 @@ export function startCloudRuntime(
     }
   };
   try {
-    if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
+    if (!researchReady) clearPaperProjection();
+    else if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
     projectPaperAccount();
   } catch {
     clearPaperProjection();

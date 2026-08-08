@@ -25,6 +25,7 @@ export * from "./shadowGovernance";
 export * from "./restrictedLiveGovernance";
 export * from "./researchRuntime";
 export * from "./candidatePromotion";
+export * from "./researchRecovery";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }

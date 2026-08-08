@@ -69,6 +69,7 @@ export interface ResearchComparisonEvidence {
 export interface ResearchEvaluationLedger {
   append(record: ResearchComparisonEvidence): void;
   list(): readonly ResearchComparisonEvidence[];
+  readonly headHash?: () => string;
 }
 
 export function canonicalResearchJson(value: unknown): string {
