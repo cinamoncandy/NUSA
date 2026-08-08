@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T11:45:00+09:00"
+updated_at: "2026-08-08T11:50:00+09:00"
 phase: external-readonly-environment-preflight
-status: implementing
+status: verifying
 objective: "Install an operator-gated external read-only environment preflight harness without conducting a real external probe in CI or granting execution authority."
 base_branch: main
 active_branch: agent/wo-0047-external-readonly-environment-preflight
-active_pull_request: pending
+active_pull_request: 162
 base_commit: 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb
 claimed_state:
   work_order: WO-0047
@@ -31,12 +31,12 @@ completed:
     summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
 in_progress:
   - id: WO-0047
-    evidence: ".aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml"
-    summary: "Operator-gated external read-only preflight harness implementation in progress; CI remains synthetic and network-free."
+    evidence: ".aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml; PR #162"
+    summary: "Operator-gated external read-only preflight harness implemented; official exact-head verification pending; CI remains synthetic and network-free."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml
-  reason: "Implement and verify the operator-gated read-only external preflight harness. Actual external broker probing remains a separate explicit operator action."
+  reason: "Complete PR #162 exact-head verification and merge. Actual external broker probing remains a separate explicit operator action."
 verification:
   required:
     - "External read-only environment preflight regression tests"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0046 merged as 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb; WO-0047 started."
-  current_commit: "WO-0047 implementation pending"
+  last_result: "WO-0047 implementation on PR #162; official exact-head verification pending."
+  current_commit: "PR #162 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
