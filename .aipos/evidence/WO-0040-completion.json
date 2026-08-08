@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0040-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0040",
+    "path": ".aipos/work-orders/WO-0040-operations-control-center.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "ad083a07fdc3af2f1cc3eefe8ef3a694ef2430ed"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "54a2b4728d71b3fc24a23571d22636cf8e696036"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "READ_ONLY_OPERATIONS_CONTROL_CENTER",
+      "execution_authority": false,
+      "real_money_execution_allowed": false,
+      "secret_material_allowed": false,
+      "unknown_semantics": "fail_closed",
+      "safe_control_actions": "REQUEST_HALT,REQUEST_RECOVERY_REVIEW",
+      "risk_increase_control": "prohibited",
+      "kill_switch_release": "prohibited"
+    },
+    "hash": {"algorithm": "sha256", "value": "e1a43620056844d2493f7a0c64df20b5dff55e8e4bdf9afd6409b72d8cfa1631"}
+  },
+  "observed_at": "2026-08-08T08:47:00+09:00",
+  "provenance": [
+    "github:pull/155",
+    "github:actions/run/31228347600",
+    "github:actions/run/31228347615",
+    "github:actions/run/31228347604",
+    "github:actions/run/31228347610",
+    "github:actions/run/31228347639",
+    "git:merge/54a2b4728d71b3fc24a23571d22636cf8e696036"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31228347600"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31228347615"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31228347604"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31228347610"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31228347639"},
+    {"name": "security_backports_verified", "status": "PASS"},
+    {"name": "operations_control_no_execution_authority", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
