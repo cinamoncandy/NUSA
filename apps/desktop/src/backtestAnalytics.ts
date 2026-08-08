@@ -57,6 +57,22 @@ interface OpenLot { readonly timestamp: number; readonly price: number; remainin
 const immutable = <T>(value: T): Readonly<T> => Object.freeze(value);
 const numeric = (value: number, name: string): void => { if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be finite and non-negative`); };
 
+/**
+ * Quantities at or below this are arithmetic residue, not a position.
+ *
+ * Adding 0.1 and 0.2 in binary floating point gives 0.30000000000000004, so selling 0.3
+ * leaves about 2.8e-17 behind. Comparing to exactly 0 then reports a fully closed position
+ * as still open. `PaperBroker` already normalises this away with its own dust threshold; the
+ * analytics did not, so one codebase gave two different answers about the same trades.
+ *
+ * 1e-12 sits four orders of magnitude below one satoshi (1e-8), the smallest quantity any
+ * market here can trade, and five above the residue this exists to absorb. A position a
+ * market could actually hold is never rounded away, and a residue never survives.
+ */
+const QUANTITY_DUST = 1e-12;
+
+const isDust = (quantity: number): boolean => Math.abs(quantity) <= QUANTITY_DUST;
+
 export function matchTrades(orders: readonly PaperOrder[]): TradeMatchResult {
   const lots: OpenLot[] = [];
   const trades: MatchedTrade[] = [];
@@ -65,11 +81,11 @@ export function matchTrades(orders: readonly PaperOrder[]): TradeMatchResult {
     const timestamp = Date.parse(order.filledAt);
     if (!Number.isFinite(timestamp)) throw new Error("trade order filledAt must be a valid timestamp");
     numeric(order.quantity, "trade order quantity"); numeric(order.price, "trade order price"); numeric(order.fee, "trade order fee");
-    if (order.quantity === 0) throw new Error("trade order quantity must be positive");
+    if (isDust(order.quantity)) throw new Error("trade order quantity must be positive");
     if (order.side === "BUY") { lots.push({ timestamp, price: order.price, remaining: order.quantity, remainingFee: order.fee }); continue; }
     let quantity = order.quantity;
     let remainingExitFee = order.fee;
-    while (quantity > 0) {
+    while (!isDust(quantity)) {
       const lot = lots[0];
       if (!lot) throw new Error("trade matcher received an unmatched sell");
       const matchedQuantity = Math.min(quantity, lot.remaining);
@@ -78,12 +94,13 @@ export function matchTrades(orders: readonly PaperOrder[]): TradeMatchResult {
       const grossPnL = (order.price - lot.price) * matchedQuantity;
       trades.push(immutable({ entryTime: lot.timestamp, exitTime: timestamp, entryPrice: lot.price, exitPrice: order.price, quantity: matchedQuantity, fees: entryFee + exitFee, grossPnL, netPnL: grossPnL - entryFee - exitFee, holdingDuration: timestamp - lot.timestamp }));
       lot.remaining -= matchedQuantity; lot.remainingFee -= entryFee; quantity -= matchedQuantity; remainingExitFee -= exitFee;
-      if (lot.remaining === 0) lots.shift();
+      if (isDust(lot.remaining)) lots.shift();
     }
   }
-  const quantity = lots.reduce((sum, lot) => sum + lot.remaining, 0);
-  const totalCost = lots.reduce((sum, lot) => sum + lot.price * lot.remaining, 0);
-  return immutable({ trades: Object.freeze(trades), openPosition: immutable(quantity === 0 ? { status: "FLAT", quantity } : { status: "OPEN_POSITION", quantity, averageEntryPrice: totalCost / quantity, openedAt: lots[0]?.timestamp }) });
+  const remaining = lots.filter((lot) => !isDust(lot.remaining));
+  const quantity = remaining.reduce((sum, lot) => sum + lot.remaining, 0);
+  const totalCost = remaining.reduce((sum, lot) => sum + lot.price * lot.remaining, 0);
+  return immutable({ trades: Object.freeze(trades), openPosition: immutable(isDust(quantity) ? { status: "FLAT", quantity: 0 } : { status: "OPEN_POSITION", quantity, averageEntryPrice: totalCost / quantity, openedAt: remaining[0]?.timestamp }) });
 }
 
 export function calculateExposure(orders: readonly PaperOrder[], startTime: number, endTime: number): number {
@@ -95,6 +112,7 @@ export function calculateExposure(orders: readonly PaperOrder[], startTime: numb
     if (timestamp < startTime || timestamp > endTime) continue;
     if (quantity > 0) exposed += timestamp - previous;
     quantity += order.side === "BUY" ? order.quantity : -order.quantity;
+    if (isDust(quantity)) quantity = 0;
     previous = timestamp;
   }
   if (quantity > 0) exposed += endTime - previous;
