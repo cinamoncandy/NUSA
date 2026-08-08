@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:13:00+09:00"
+updated_at: "2026-08-08T23:18:00+09:00"
 phase: cloud-p0-runtime-enforcement
 status: ready
 objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
 active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
 active_pull_request: 182
-base_commit: dbc4d5abacd0f6f992c61d55a57dd8b090d913b4
+base_commit: e5cef3fc138467bffde1f1628809b2a948588675
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -54,8 +54,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #179 merged at dbc4d5abacd0f6f992c61d55a57dd8b090d913b4 after exact-head CI and all Restricted LIVE/read-only safety workflows PASS. Durable P0 ledger/state exists; post-merge audit found and is closing the actual PAPER fill-boundary composition gap in PR #182."
-  current_commit: "PR #182 runtime P0 enforcement; exact-head CI pending"
+  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
+  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
