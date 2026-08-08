@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0050-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0050",
+    "path": ".aipos/work-orders/WO-0050-constitutional-human-transition-review.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "5451557bbcce82bfd1bbfd4a0e0f391e19a4cca1"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "99adc4178906aaa6f131ff4774d3ae4c697b8b2d"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "EVIDENCE_AGGREGATION_ONLY",
+      "current_real_world_status": "INCOMPLETE",
+      "synthetic_evidence_cannot_satisfy_real_world_gate": true,
+      "exact_code_binding": true,
+      "exact_configuration_binding": true,
+      "constitutional_decision_authority": false,
+      "deployment_authority": false,
+      "activation_authority": false,
+      "scale_up_authority": false,
+      "order_authorization": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "mutation_performed": false,
+      "real_money_execution_allowed": false
+    },
+    "hash": {"algorithm": "sha256", "value": "5e8678d454f064c883ab2c61247e3a75a6f8c9f70a946459e621f7a707472f2e"}
+  },
+  "observed_at": "2026-08-08T12:50:00+09:00",
+  "provenance": [
+    "github:pull/166",
+    "github:actions/run/31238015769",
+    "github:actions/run/31238015791",
+    "github:actions/run/31238015768",
+    "github:actions/run/31238015773",
+    "github:actions/run/31238015772",
+    "git:merge/99adc4178906aaa6f131ff4774d3ae4c697b8b2d"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31238015769"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31238015791"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31238015768"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31238015773"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31238015772"},
+    {"name": "synthetic_evidence_cannot_satisfy_real_world_gate", "status": "PASS"},
+    {"name": "current_real_world_transition_incomplete", "status": "PASS"},
+    {"name": "constitutional_decision_remains_human_only", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}

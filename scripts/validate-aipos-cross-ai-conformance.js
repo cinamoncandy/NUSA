@@ -77,9 +77,15 @@ function extractAnchoredSection(source, key) {
 
 function anchoredList(source, sectionName, key) {
   const section = extractAnchoredSection(source, sectionName);
-  const keyIndex = section.indexOf(`${key}:\n`);
-  if (keyIndex < 0) return [];
-  const tail = section.slice(keyIndex + key.length + 2);
+  if (!section) return [];
+
+  let tail = section;
+  if (sectionName !== key) {
+    const keyIndex = section.indexOf(`${key}:\n`);
+    if (keyIndex < 0) return [];
+    tail = section.slice(keyIndex + key.length + 2);
+  }
+
   const out = [];
   for (const entry of lines(tail)) {
     const match = entry.match(/^\s*-\s+(.+)$/);

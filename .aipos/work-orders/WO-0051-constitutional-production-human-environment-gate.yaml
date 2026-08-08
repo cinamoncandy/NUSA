@@ -1,0 +1,55 @@
+id: WO-0051
+title: "Constitutional Production Transition Human/Environment Gate"
+status: IN_PROGRESS
+owner: nusa-human-authority
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 99adc4178906aaa6f131ff4774d3ae4c697b8b2d
+implementation_branch: main
+objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+  runbook:
+    - docs/release/constitutional-human-transition-runbook.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0051 is a terminal human/environment gate, not an automated implementation slice. It preserves the constitutional boundary after all safe automated preparation is complete. No AI or CI result may mark the real-world transition complete."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+    - docs/release/constitutional-human-transition-runbook.md
+requirements:
+  - "Obtain an exact production artifact with independently verified signing evidence bound to the sealed release candidate."
+  - "Configure operator-controlled read-only broker credentials with no execution/withdraw permissions and run the external read-only preflight only after explicit operator authorization."
+  - "Conduct the real activation ceremony with the required distinct human requester and two distinct human approvers bound to exact code/config/scope/rollback evidence."
+  - "Any actual tiny Restricted LIVE session requires a separate explicit constitutional human decision and remains bounded by the approved tiny envelope."
+  - "After any separately authorized tiny session, require closed execution transport plus clean order/fill/position/cash reconciliation, hard-risk, HALT, audit, and post-trade evidence."
+  - "Any risk increase requires a new exact proposal plus separate two-human scale-governance approval."
+  - "Assemble only EXTERNAL_HUMAN_VERIFIED evidence into the constitutional transition packet; SYNTHETIC_CI evidence cannot satisfy the gate."
+  - "The final production/LIVE decision remains human-only even when the packet becomes READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW."
+  - "Never store raw credentials, private keys, bearer tokens, raw signatures, account balances, executable authorization tokens, or full order payloads in AIPOS evidence."
+acceptance:
+  - "Signed production artifact evidence is genuine and independently verified."
+  - "Actual external read-only preflight receipt exists and is bound to exact code/config/release/envelope identity."
+  - "Actual human ceremony evidence exists with required independent human approvals."
+  - "If a separately authorized tiny LIVE session occurs, its post-LIVE evidence validates cleanly before any progression."
+  - "Any scale change has its own exact two-human governance evidence."
+  - "Constitutional transition packet uses EXTERNAL_HUMAN_VERIFIED provenance for every required slot and becomes eligible for human review."
+  - "A separate constitutional human decision explicitly authorizes any production/LIVE transition; automation never infers it."
+safety:
+  automated_completion: prohibited
+  synthetic_ci_completion: prohibited
+  chat_consent_as_live_authority: prohibited
+  ai_live_authority: prohibited
+  meta_ai_live_authority: prohibited
+  automatic_live_activation: prohibited
+  automatic_scale_up: prohibited
+  credential_execution_use: prohibited_until_separate_human_authority
+  real_money_execution: prohibited_until_separate_constitutional_human_decision
+completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
