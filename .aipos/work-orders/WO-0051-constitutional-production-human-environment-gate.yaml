@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: dbc4d5abacd0f6f992c61d55a57dd8b090d913b4
-implementation_branch: main
+base_commit: e5cef3fc138467bffde1f1628809b2a948588675
+implementation_branch: agent/p7-cloud-p0-runtime-enforcement-pr
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged; it removed the fabricated Cloud P0 safety input and connected durable incident evidence to the existing independent Risk Governor without granting LIVE or production authority. Any further automated slice requires a fresh repository gap audit."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged; the current safe automated hardening slice enforces that durable verified P0 state at the actual Cloud PAPER fill boundary. It grants no LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -135,3 +135,16 @@ cloud_p0_safety_state_slice:
     production_mutation_allowed: false
     risk_governor_bypass: prohibited
     automatic_incident_resolution: prohibited
+cloud_p0_runtime_enforcement_slice:
+  status: IN_PROGRESS
+  scope:
+    - "Wire the default Cloud PAPER execution loop to the durable SQLite P0 incident repository"
+    - "Verify durable P0 state on every actual Cloud PAPER execution tick before any strategy decision or fill"
+    - "Block actual PAPER order/fill creation with OPEN_P0_ALERT while any P0 incident is open"
+    - "Fail closed with P0_STATE_UNVERIFIABLE when P0 evidence is unreadable or its hash chain is corrupted"
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    broker_credential_access: prohibited
+    real_money_mutation: prohibited
+    risk_governor_bypass: prohibited

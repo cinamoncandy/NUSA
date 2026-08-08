@@ -5,6 +5,7 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
@@ -79,12 +80,22 @@ export function startCloudRuntime(
     ? stateProvider
     : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
+  const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteP0AlertRepository(durableRepository.database())
+    : undefined;
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteCloudPaperAccountRepository(durableRepository.database())
     : undefined);
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
-    : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+    : new PaperTradingExecutionLoop({
+      initialCapital: config.paperInitialCapitalKrw,
+      repository: effectivePaperRepository,
+      readP0State: () => {
+        if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
+        return effectiveP0Repository.readState();
+      }
+    }));
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try {
     researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();

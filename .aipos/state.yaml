@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:05:00+09:00"
-phase: cloud-p0-safety-state-complete
+updated_at: "2026-08-08T23:18:00+09:00"
+phase: cloud-p0-runtime-enforcement
 status: ready
-objective: "Preserve the completed Cloud P0 safety-state closure while keeping WO-0051 at its human/environment boundary and selecting any further safe PAPER/Research work only from a fresh repository gap audit."
+objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: main
-active_pull_request: null
-base_commit: dbc4d5abacd0f6f992c61d55a57dd8b090d913b4
+active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
+active_pull_request: 182
+base_commit: e5cef3fc138467bffde1f1628809b2a948588675
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate. Automated completion remains prohibited after the completed P7 safe hardening slice."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 runtime enforcement is the current safe automated hardening slice."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,17 +44,18 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "P7 Cloud P0 Safety State is merged and exact-head tested. Perform a fresh repository gap audit before selecting any next safe PAPER/Research implementation slice. Do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
+  reason: "Close P7 runtime composition: the default Cloud PAPER execution loop must verify durable P0 evidence before every fill and fail closed when that evidence is open or unverifiable. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
+    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7 runtime enforcement"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "P7 Cloud P0 Safety State merged after exact-head CI PASS including full isolated suite, coverage, architecture/AIPOS, safety, E2E, and release; all read-only/Restricted LIVE safety workflows PASS. Real-world transition remains intentionally INCOMPLETE."
-  current_commit: "dbc4d5abacd0f6f992c61d55a57dd8b090d913b4; PR #179 merged; exact-head CI run 31260740941 PASS; safety workflows 31260740922, 31260740920, 31260740942, 31260740914 PASS; P7 repository slice complete"
+  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
+  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

@@ -143,12 +143,18 @@ export interface PaperExecutionResult {
   readonly state: PaperAccountState;
 }
 
+export interface PaperExecutionSafetyState {
+  readonly openP0: boolean;
+}
+
 export interface PaperTradingExecutionLoopOptions {
   readonly initialCapital: number;
   readonly feeRate?: number;
   readonly staleWindowMs?: number;
   readonly repository?: PaperAccountRepository;
   readonly restoredState?: PaperAccountState;
+  /** Durable, independently verified P0 safety state. Read on every PAPER tick before any decision or fill. */
+  readonly readP0State?: () => PaperExecutionSafetyState;
 }
 
 export class PaperTradingExecutionLoop {
@@ -156,6 +162,7 @@ export class PaperTradingExecutionLoop {
   private readonly feeRate: number;
   private readonly staleWindowMs: number;
   private readonly repository?: PaperAccountRepository;
+  private readonly readP0State?: () => PaperExecutionSafetyState;
 
   public constructor(options: PaperTradingExecutionLoopOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("paper initial capital must be positive");
@@ -164,6 +171,7 @@ export class PaperTradingExecutionLoop {
     if (!Number.isFinite(this.feeRate) || this.feeRate < 0) throw new Error("paper fee rate must be non-negative");
     if (!Number.isSafeInteger(this.staleWindowMs) || this.staleWindowMs < 1_000) throw new Error("paper stale window is invalid");
     this.repository = options.repository;
+    this.readP0State = options.readP0State;
     const restored = options.restoredState ?? this.repository?.loadLatest();
     this.state = restored == null ? initialState(options.initialCapital) : restored;
     if (Math.abs(this.state.initialCapital - options.initialCapital) > Number.EPSILON) throw new Error("paper initial capital mismatch");
@@ -174,6 +182,13 @@ export class PaperTradingExecutionLoop {
 
   public processTick(tick: PaperExecutionTick): PaperExecutionResult {
     if (!Number.isSafeInteger(tick.now) || tick.now < 0 || !Number.isFinite(tick.price) || tick.price <= 0) return this.result("FAILED", "invalid tick");
+    if (tick.mode === "PAPER" && this.readP0State != null) {
+      try {
+        if (this.readP0State().openP0) return this.result("BLOCKED", "OPEN_P0_ALERT");
+      } catch {
+        return this.result("BLOCKED", "P0_STATE_UNVERIFIABLE");
+      }
+    }
     if (tick.mode !== "PAPER" || tick.killSwitchActive || !tick.tradingAllowed || tick.overallHealth !== "HEALTHY") return this.result("BLOCKED", "paper execution gate is closed");
     if (!Number.isSafeInteger(tick.observedAt) || tick.observedAt < 0 || tick.observedAt > tick.now || tick.now - tick.observedAt >= this.staleWindowMs) return this.result("BLOCKED", "market data is stale");
 
