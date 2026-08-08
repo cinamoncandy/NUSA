@@ -81,12 +81,12 @@ export function startCloudRuntime(
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+  const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
+  researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
   const clearPaperProjection = (): void => {
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
   };
-  const researchRecoveryResult = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
-  const researchReady = researchRecoveryResult == null || researchRecoveryResult.status === "READY";
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -98,8 +98,7 @@ export function startCloudRuntime(
     }
   };
   try {
-    if (!researchReady) clearPaperProjection();
-    else if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
+    if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
     projectPaperAccount();
   } catch {
     clearPaperProjection();
@@ -117,13 +116,11 @@ export function startCloudRuntime(
         observations.set(observation.id, observation);
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
+        const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() };
         try {
-          const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() };
-          researchRuntime?.onMarketData(researchTick);
-          researchAutomation?.onMarketData(researchTick);
+          effectiveResearchRuntime?.onMarketData(researchTick);
         } catch {
-          clearPaperProjection();
-          return;
+          // Research is a separate fail-closed bounded context. Its failure must not erase or mutate PAPER state.
         }
         const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
         if (effectivePaperLoop != null && state != null) {
@@ -181,21 +178,6 @@ export function startCloudRuntime(
   };
 }
 
-/**
- * Registers SIGTERM/SIGINT handlers that stop the server and exit. The actual shutdown state
- * machine lives in cloudRuntimeShutdown.ts, as a function of injected `stop`/`exit` -- this
- * function's only job is wiring real OS signals to it.
- *
- * On Windows, sending a signal to a child process (`child.kill("SIGTERM")`) does not invoke this
- * handler at all -- Node documents that Windows has no real POSIX signal delivery, and
- * `child.kill()` there terminates the process directly. That is a real, correct platform
- * difference, not something this function can paper over: forcing POSIX signal semantics onto
- * Windows would mean faking behavior the OS doesn't provide. The handlers below are registered
- * unconditionally (they are harmless no-ops if nothing ever calls them), and the *integration*
- * test that verifies "SIGTERM actually reaches this handler and exits cleanly" is POSIX-only for
- * the same reason -- see tests/cloud-runtime-bootstrap.test.js. The shutdown state machine itself
- * (createShutdownController) is tested directly, without any OS signal, on every platform.
- */
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM"));
