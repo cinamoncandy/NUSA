@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:26:00+09:00"
+updated_at: "2026-08-08T09:40:00+09:00"
 phase: restricted-live-environment-preflight
-status: implementing
+status: verifying
 objective: "Aggregate verified safety/readiness evidence into a deterministic fail-closed verdict for independent human review only."
 base_branch: main
 active_branch: agent/wo-0043-restricted-live-environment-preflight
-active_pull_request: pending
+active_pull_request: 158
 base_commit: 87c557c1a8760333b4feb8c7e1a1b93823797860
 claimed_state:
   work_order: WO-0043
@@ -34,12 +34,12 @@ completed:
     summary: "Added deterministic hard-risk and independently latched kill switch without execution authority."
 in_progress:
   - id: WO-0043
-    evidence: ".aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml"
-    summary: "Restricted LIVE environment preflight aggregation implementation in progress."
+    evidence: ".aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml; PR #158"
+    summary: "Restricted LIVE environment preflight implemented; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml
-  reason: "Implement and verify human-review-only preflight; real-money execution remains prohibited."
+  reason: "Complete PR #158 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
     - "Restricted LIVE environment preflight regression tests"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0042 merged as 87c557c1a8760333b4feb8c7e1a1b93823797860; WO-0043 started."
-  current_commit: "WO-0043 implementation pending"
+  last_result: "WO-0043 implementation on PR #158; official exact-head verification pending."
+  current_commit: "PR #158 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
