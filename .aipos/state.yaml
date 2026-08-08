@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T01:30:00+09:00"
+updated_at: "2026-08-09T01:48:00+09:00"
 phase: grounded-trustworthy-ai-runtime
 status: in_progress
 objective: "Upgrade the merged zero-authority AI runtime into a grounded, replayable, bounded read-only Cloud analysis path while preserving all deterministic safety and human-only LIVE gates."
 base_branch: main
-active_branch: agent/ai-002-grounded-runtime
+active_branch: agent/ai-002-cloud-activation
 active_pull_request: null
-base_commit: ce3d5103d000c3849b4ede08be89f6486dd551f9
+base_commit: 16ac98de3263b78122021acb8a5365d5728ac261
 claimed_state:
   work_order: WO-AI-002
   status: IN_PROGRESS
@@ -16,9 +16,9 @@ verified_state:
   status: COMPLETED
   evidence: ".aipos/evidence/WO-AI-001-completion.json"
 latest_verified_slice:
-  id: wo-ai-001-model-backed-zero-authority-agent-runtime-complete
-  evidence: ".aipos/evidence/WO-AI-001-completion.json"
-  summary: "WO-AI-001 merged with exact-head Full CI, isolated suite, coverage, AI zero-authority guards, and all Restricted LIVE/read-only safety workflows PASS."
+  id: wo-ai-001-grounding-trust-core-merged
+  evidence: ".aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml"
+  summary: "PR #203 merged the Grounding Trust Core after exact-head Full CI, isolated suite, coverage, AI zero-authority guards, and all Restricted LIVE/read-only safety workflows PASS."
 completed:
   - id: WO-AI-001
     evidence: ".aipos/evidence/WO-AI-001-completion.json"
@@ -35,7 +35,7 @@ completed:
 in_progress:
   - id: WO-AI-002
     evidence: ".aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml"
-    summary: "Bind actual sanitized evidence and prompt bodies to model runs, make replay/correlation semantics truthful, and project only bounded validated read-only AI results."
+    summary: "Grounding Trust Core is merged; finish bounded asynchronous Cloud scheduling, safe market/safety evidence materialization, and latest validated read-only AI projection without touching PAPER authority."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -47,7 +47,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml
-  reason: "PR #198 completed the read-only multi-position correctness gate, PR #199 synchronized completion evidence, and PR #200 opened the grounded trustworthy AI architecture. Implement the Grounding Trust Core on the dedicated runtime branch without changing execution authority."
+  reason: "PR #203 merged verified evidence/prompt/replay/correlation grounding. Finish the final WO-AI-002 Cloud read-only activation slice with non-blocking cadence control and verified public-market/deterministic-safety evidence."
 verification:
   required:
     - "WO-AI-002 exact-head focused AI tests, Full CI, full isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
@@ -57,8 +57,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #200 merged at ce3d5103d000c3849b4ede08be89f6486dd551f9 from exact-head 133c083ccf78f9fbd0828bea7b9653970507a0e6 after CI 31266682054 PASS including AIPOS, Full isolated suite and coverage; all four Restricted LIVE/read-only safety workflows PASS."
-  current_commit: "ce3d5103d000c3849b4ede08be89f6486dd551f9; WO-AI-002 architecture accepted; Grounding Trust Core implementation in progress"
+  last_result: "PR #203 merged at 16ac98de3263b78122021acb8a5365d5728ac261 from exact-head 0ada16f0b1d8dc3b129ec76df5ac0d7a2d949279 after CI 31267462156 PASS including Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only safety workflows PASS."
+  current_commit: "16ac98de3263b78122021acb8a5365d5728ac261; Grounding Trust Core merged; Cloud read-only activation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

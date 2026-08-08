@@ -2,9 +2,9 @@ id: WO-AI-002
 title: Grounded Trustworthy AI Runtime Activation
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-002-grounded-runtime
+branch: agent/ai-002-cloud-activation
 base_branch: main
-implementation_branch: agent/ai-002-grounded-runtime
+implementation_branch: agent/ai-002-cloud-activation
 architecture_impact:
   acknowledged: true
   analysis: "Makes the merged zero-authority AI runtime actually groundable, replayable, and observable from Cloud while preserving deterministic safety and zero execution authority."

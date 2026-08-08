@@ -26,6 +26,7 @@ import {
 import type { CloudAiRuntime } from "./ai/runtime";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
+import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cloudRuntimeEvidence";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -139,6 +140,11 @@ export function startCloudRuntime(
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteP0AlertRepository(durableRepository.database())
     : undefined;
+  const readAiP0State = (): CloudRuntimeAiP0State => {
+    if (effectiveP0Repository == null) return "UNAVAILABLE";
+    try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; }
+    catch { return "UNVERIFIABLE"; }
+  };
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteCloudPaperAccountRepository(durableRepository.database())
     : undefined);
@@ -196,33 +202,44 @@ export function startCloudRuntime(
           observedAt: new Date(ticker.trade_timestamp).toISOString(),
           source: "UPBIT_PUBLIC_TICKER"
         });
-        const observation = upbitTickerToIntelligenceObservation(ticker, { now: Date.now() });
+        const now = Date.now();
+        const observation = upbitTickerToIntelligenceObservation(ticker, { now });
         if (!observation) { safeHydrate([]); return; }
         observations.set(observation.id, observation);
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
-        const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() };
+        const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
         try {
           effectiveResearchRuntime?.onMarketData(researchTick);
         } catch {
           // Research is a separate fail-closed bounded context. Its failure must not erase or mutate PAPER state.
         }
         const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
-        if (effectivePaperLoop != null && state != null) {
+        if (state != null) {
           const dashboard = buildMobileDashboardResponse(state);
-          const result = effectivePaperLoop.processTick({
-            now: Date.now(),
-            market: ticker.code,
-            price: ticker.trade_price,
-            observedAt: ticker.trade_timestamp,
-            mode: state.mode,
-            killSwitchActive: state.killSwitchActive,
-            tradingAllowed: dashboard.tradingAllowed,
-            overallHealth: state.overallHealth,
-            decisions: state.decisions
-          });
-          if (result.status === "FAILED") clearPaperProjection();
-          else projectPaperAccount();
+          try {
+            const p0State = readAiP0State();
+            const grounded = buildCloudRuntimeAiEvidence(ticker, { mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth, p0State, observedAt: now });
+            const orchestrationRunId = `cloud-ai:${ticker.code}:${ticker.trade_timestamp}:${grounded.identityHash.slice(0, 20)}`;
+            aiRuntime?.schedule({ orchestrationRunId, decisionId: `${orchestrationRunId}:decision`, evaluatedAt: now, evidence: grounded.evidence, evidenceMaterializations: grounded.evidenceMaterializations, policyVersionIds: ["AI_ZERO_AUTHORITY_POLICY_V1", "NUSA_DETERMINISTIC_SAFETY_V1"], certificationIds: [], controlPlaneStateId: `cloud:${dashboard.mode}:${dashboard.killSwitchActive ? "KILL" : "ACTIVE"}:${p0State}`, contextValidForMs: 120_000 });
+          } catch {
+            // AI analysis is isolated and advisory. Evidence/provider faults must never alter PAPER execution state.
+          }
+          if (effectivePaperLoop != null) {
+            const result = effectivePaperLoop.processTick({
+              now,
+              market: ticker.code,
+              price: ticker.trade_price,
+              observedAt: ticker.trade_timestamp,
+              mode: state.mode,
+              killSwitchActive: state.killSwitchActive,
+              tradingAllowed: dashboard.tradingAllowed,
+              overallHealth: state.overallHealth,
+              decisions: state.decisions
+            });
+            if (result.status === "FAILED") clearPaperProjection();
+            else projectPaperAccount();
+          }
         } else if (effectivePaperLoop != null) {
           clearPaperProjection();
         }
@@ -256,11 +273,8 @@ export function startCloudRuntime(
       const dashboard = buildMobileDashboardResponse(input);
       const paperSnapshot = effectivePaperLoop?.snapshot();
       const transport = marketConnectionState === "CONNECTED" ? "ONLINE" as const : "OFFLINE" as const;
-      let p0Halted = false;
-      if (effectiveP0Repository != null) {
-        try { p0Halted = effectiveP0Repository.readState().openP0; }
-        catch { p0Halted = true; }
-      }
+      const p0State = readAiP0State();
+      const p0Halted = p0State === "OPEN" || p0State === "UNVERIFIABLE";
       const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted
         ? "HALTED" as const
         : dashboard.mode === "STOPPED"
@@ -274,7 +288,7 @@ export function startCloudRuntime(
       return buildPersonalPaperOperationsSnapshot({
         dashboard,
         research: researchAutomation?.statusProjection?.() ?? null,
-        ai: aiRuntime == null ? null : projectAiReadOnly(null),
+        ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())),
         operations: {
           runtimeState,
           schedulerRunning: false,
