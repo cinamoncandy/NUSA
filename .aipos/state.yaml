@@ -7,7 +7,7 @@ objective: "Connect bounded model inference to deterministic multi-agent governa
 base_branch: main
 active_branch: agent/ai-001-linear
 active_pull_request: null
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
 claimed_state:
   work_order: WO-AI-001
   status: IN_PROGRESS
