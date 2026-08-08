@@ -1,0 +1,81 @@
+id: WO-AI-003
+title: Real Provider Challenger Runtime
+status: IN_PROGRESS
+priority: P1
+branch: agent/ai-003-real-provider-challenger-plan
+base_branch: main
+implementation_branch: agent/ai-003-real-provider-challenger-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds an explicitly opt-in real model provider below the existing grounded zero-authority runtime without changing deterministic PAPER/safety authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0005-grounded-trustworthy-ai-runtime.md
+    - .aipos/decisions/ADR-0006-real-provider-challenger-runtime.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Make the grounded AI runtime capable of explicitly configured real model inference
+  through a provider-neutral challenger boundary, starting with an OpenAI Responses API
+  adapter using strict structured output, secret-safe environment configuration, bounded
+  usage telemetry, and unchanged zero-authority governance.
+constraints:
+  - Default provider remains unavailable and network-free unless a supported provider is explicitly selected.
+  - NUSA_AI_ENABLED alone must not activate a provider or infer a credential.
+  - Provider API keys are environment-only, process-memory inputs and must never be committed, persisted, logged, returned, hashed into public evidence, or sent as model content.
+  - Model input remains limited to existing digest-bound sanitized evidence and exact prompt artifacts.
+  - No tool calling, browsing, file access, code execution, broker access, order access, cancel, transfer, withdrawal, credential discovery, LIVE execution, production mutation, risk increase, or safety-control release capability.
+  - Real provider results remain advisory Challenger outputs below deterministic governance.
+  - Same provider/model role runs remain correlated and never count as independent consensus.
+  - Provider/model identity remains replay-bound.
+  - Provider refusal, incomplete response, HTTP/network error, timeout, malformed structured output, usage parse fault, or model mismatch fails closed without altering PAPER state.
+  - WO-0051 remains IN_PROGRESS and human/environment gated.
+implementation:
+  - add explicit provider environment selection with fail-closed validation
+  - add OpenAI Responses API transport behind the existing ModelProvider contract
+  - use strict JSON Schema Structured Outputs for each existing agent role
+  - map provider output into ModelResponse without exposing hidden reasoning
+  - capture input/output/total token usage only as non-secret runtime metadata
+  - preserve exact request identity fields required by AgentExecutor and replay validation
+  - add provider configuration/status projection that never exposes credential material
+  - test unavailable/default, missing-key, invalid config, refusal, incomplete, malformed JSON, schema mismatch, HTTP failure, timeout, usage parsing, model mismatch, oversized output, and successful zero-authority challenger inference
+  - prove provider failure or success cannot change PAPER orders, fills, risk state, P0 state, kill switch, HALT, or LIVE authority
+acceptance_criteria:
+  - default `createModelProviderFromEnvironment()` remains UnavailableModelProvider
+  - explicit unsupported provider fails closed
+  - explicit OpenAI selection without a key or model fails closed without network activity
+  - configured OpenAI adapter calls only the Responses endpoint and requests strict JSON Schema output
+  - raw provider credential is absent from request model input, structured output, logs, evidence, replay identity, dashboard response, and persistence
+  - successful provider response preserves requestId, providerId, modelVersionId, prompt digest, context hash, input hash, structured output hash, timestamps, and usage
+  - same provider/model agents are reported correlated and cannot produce fake independent consensus
+  - real provider response cannot grant execution authority and only produces existing read-only projection semantics
+  - provider errors never block or mutate PAPER execution
+  - exact-head focused AI/provider tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native when triggered, and all Restricted LIVE/read-only workflows pass
+  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - provider API key or secret
+    - raw authorization header
+    - model chain of thought or hidden reasoning
+    - broker credential
+    - real order, cancel, transfer, or withdrawal
+    - synthetic evidence presented as LIVE authorization
+next: >-
+  After verified real challenger observations exist, run a fresh audit and prioritize
+  calibration/outcome linkage before increasing explanation confidence or adding any
+  provider-derived decision weight.
