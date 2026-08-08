@@ -19,6 +19,7 @@ export * from "./websocket-recovery";
 export * from "./disaster-recovery";
 export * from "./disaster-recovery-restore-verification";
 export * from "./restricted-live-environment-preflight";
+export * from "./restricted-live-activation-ceremony";
 export * from "./startup-consistency-gate";
 export * from "./production-readiness";
 export * from "./recovery-evidence";

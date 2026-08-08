@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0043-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0043",
+    "path": ".aipos/work-orders/WO-0043-restricted-live-environment-preflight.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "4447b1d49f2491a628c22362a724a75ca74a9255"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "aa77a420ae72c21628bedea9a830926c50aa92c6"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "EVIDENCE_ONLY_PREFLIGHT",
+      "verdicts": "READY_FOR_HUMAN_REVIEW,SAFE_BLOCK,UNKNOWN",
+      "authority": "human_review_only",
+      "network_dial_allowed": false,
+      "execution_transport_required": "disconnected",
+      "credential_execution_use": "prohibited",
+      "automatic_activation_allowed": false,
+      "real_money_execution_allowed": false,
+      "authorizes_live": false
+    },
+    "hash": {"algorithm": "sha256", "value": "c49115931a41f00b6f4ca2ce8b2505efaea10a0bf220198bf6535cac8a80ce48"}
+  },
+  "observed_at": "2026-08-08T09:44:00+09:00",
+  "provenance": [
+    "github:pull/158",
+    "github:actions/run/31230730167",
+    "github:actions/run/31230730197",
+    "github:actions/run/31230730182",
+    "github:actions/run/31230730162",
+    "github:actions/run/31230730163",
+    "git:merge/aa77a420ae72c21628bedea9a830926c50aa92c6"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31230730167"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31230730197"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31230730182"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31230730162"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31230730163"},
+    {"name": "preflight_human_review_only", "status": "PASS"},
+    {"name": "execution_authority_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
