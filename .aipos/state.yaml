@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T20:50:00+09:00"
+updated_at: "2026-08-08T20:55:00+09:00"
 phase: hardened-research-authority-boundary-fix
 status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
-  current_commit: "81f7345422bff96c8a688efd65b4fe3d9c38e4ae; PR #175 P5 authority/runtime boundary fix awaiting CI"
+  current_commit: "808d827b697ebdf16dbeee4e191c083904243106; PR #175 recovery-test drift repaired; exact-head CI retry pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
