@@ -5,8 +5,31 @@ owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 99adc4178906aaa6f131ff4774d3ae4c697b8b2d
-implementation_branch: main
+implementation_branch: agent/nusa-personal-use-transition
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
+product_scope:
+  classification: PRIVATE_PERSONAL_USE
+  evidence: "Product scope explicitly changed to private/personal use; no public Windows binary distribution."
+  live_authority: NONE
+public_distribution:
+  status: OUT_OF_SCOPE
+  items:
+    windows_distribution: OUT_OF_SCOPE
+    public_installer_trust: OUT_OF_SCOPE
+    public_authenticode_trust: OUT_OF_SCOPE
+    ev_ov_public_code_signing_certificate: OUT_OF_SCOPE
+    public_app_store_distribution: OUT_OF_SCOPE
+    external_customer_installer_verification: OUT_OF_SCOPE
+    public_release_ceremony: OUT_OF_SCOPE
+signing_infrastructure:
+  status: RETAINED_NOT_REQUIRED
+  workflow: .github/workflows/windows-production-signing.yml
+  reason: "Retained for optional public distribution; not required for private execution."
+reclassification:
+  signed_production_artifact_external_verification:
+    status: NOT_APPLICABLE_PERSONAL_USE
+    reason: "Product scope explicitly changed to private/personal use; no public Windows binary distribution."
+  safety_note: "This reclassification does not authorize LIVE trading or waive human/environment gates for live transition."
 source_of_truth:
   architecture:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
@@ -25,7 +48,7 @@ architecture_impact:
     - .aipos/architecture.md
     - docs/release/constitutional-human-transition-runbook.md
 requirements:
-  - "Obtain an exact production artifact with independently verified signing evidence bound to the sealed release candidate."
+  - "If public Windows distribution is enabled, obtain an exact production artifact with independently verified signing evidence bound to the sealed release candidate."
   - "Configure operator-controlled read-only broker credentials with no execution/withdraw permissions and run the external read-only preflight only after explicit operator authorization."
   - "Conduct the real activation ceremony with the required distinct human requester and two distinct human approvers bound to exact code/config/scope/rollback evidence."
   - "Any actual tiny Restricted LIVE session requires a separate explicit constitutional human decision and remains bounded by the approved tiny envelope."
@@ -35,7 +58,7 @@ requirements:
   - "The final production/LIVE decision remains human-only even when the packet becomes READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW."
   - "Never store raw credentials, private keys, bearer tokens, raw signatures, account balances, executable authorization tokens, or full order payloads in AIPOS evidence."
 acceptance:
-  - "Signed production artifact evidence is genuine and independently verified."
+  - "If public Windows distribution is enabled, signed production artifact evidence is genuine and independently verified."
   - "Actual external read-only preflight receipt exists and is bound to exact code/config/release/envelope identity."
   - "Actual human ceremony evidence exists with required independent human approvals."
   - "If a separately authorized tiny LIVE session occurs, its post-LIVE evidence validates cleanly before any progression."
