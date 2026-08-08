@@ -33,7 +33,7 @@ test("order history supports deterministic periods and fill detail data", () => 
   assert.equal(buildOrderHistoryViewModel({ rawOrders: detailed, query: "", filter: "ALL", sort: "TIME_DESC", page: 1, period: "TODAY", referenceAt: "2026-08-03T00:00:00.000Z" }).state, "EMPTY");
 });
 
-test("order history UI uses design system and remains read-only when secure operations data is not configured", () => {
+test("order history UI consumes the authenticated PAPER snapshot and remains read-only", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "orderHistoryView.tsx"), "utf8");
   assert.match(source, /Order History/);
   assert.match(source, /order-history-filters/);
@@ -52,7 +52,7 @@ test("order history UI uses design system and remains read-only when secure oper
   assert.match(app, /activeTab === "More"/);
   assert.match(app, /<MoreView/);
   assert.match(more, /<OrderHistoryView/);
-  assert.match(app, /rawOrders=\{null\}/);
+  assert.match(app, /rawOrders=\{snapshot\?\.orders\s*\?\?\s*null\}/);
   assert.match(app, /loadPersonalPaperOperations/);
   assert.doesNotMatch(app, /\/api\/account/);
 });
