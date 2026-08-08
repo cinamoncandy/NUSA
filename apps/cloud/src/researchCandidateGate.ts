@@ -1,0 +1,97 @@
+import { canonicalResearchJson, type ResearchComparisonEvidence } from "../../../packages/contracts/src/researchRuntime";
+import { researchHardeningHash, validateResearchProvenance, validateResearchTemporalIntegrity, type ResearchCandidateGateDecision, type ResearchProvenance } from "../../../packages/contracts/src/researchHardening";
+
+export interface ResearchCandidateGateOptions {
+  readonly minimumObservationDays?: number;
+  readonly minimumTradeCount?: number;
+  readonly minimumIndependentWindows?: number;
+  readonly maximumInconclusiveRate?: number;
+  readonly minimumStatisticalConfidence?: number;
+  readonly minimumSuperiorityMargin?: number;
+  readonly nowMs?: number;
+  readonly maxEvidenceAgeMs?: number;
+}
+
+export interface ResearchCandidateGateInput {
+  readonly candidateId: string;
+  readonly evidence: readonly ResearchComparisonEvidence[];
+  readonly ledgerIntegrity?: boolean;
+  readonly provenance?: readonly ResearchProvenance[];
+}
+
+const metrics = ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "unresolvedFaultCount", "dataQualityFailures", "tradeCount"] as const;
+const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+function reject(reasons: readonly string[], evidence: unknown): ResearchCandidateGateDecision {
+  return Object.freeze({ status: "NOT_ELIGIBLE", reasons: Object.freeze([...new Set(reasons)].sort()), candidateAuthority: "PAPER_ONLY", automaticPromotion: false, evidenceHash: researchHardeningHash(evidence) });
+}
+
+export class ResearchCandidateGate {
+  private readonly options: Required<ResearchCandidateGateOptions>;
+  public constructor(options: ResearchCandidateGateOptions = {}) {
+    this.options = {
+      minimumObservationDays: options.minimumObservationDays ?? 30,
+      minimumTradeCount: options.minimumTradeCount ?? 50,
+      minimumIndependentWindows: options.minimumIndependentWindows ?? 2,
+      maximumInconclusiveRate: options.maximumInconclusiveRate ?? 0.2,
+      minimumStatisticalConfidence: options.minimumStatisticalConfidence ?? 0.95,
+      minimumSuperiorityMargin: options.minimumSuperiorityMargin ?? 0,
+      nowMs: options.nowMs ?? Date.now(),
+      maxEvidenceAgeMs: options.maxEvidenceAgeMs ?? 86_400_000
+    };
+  }
+
+  public evaluate(input: ResearchCandidateGateInput): ResearchCandidateGateDecision {
+    const reasons: string[] = [];
+    if (typeof input.candidateId !== "string" || input.candidateId.trim() === "") reasons.push("MISSING_CANDIDATE_ID");
+    if (input.ledgerIntegrity === false) reasons.push("LEDGER_INTEGRITY_FAILED");
+    if (!Array.isArray(input.evidence) || input.evidence.length === 0) reasons.push("MISSING_EVIDENCE");
+    const evidence = [...(input.evidence ?? [])].sort((a, b) => a.evaluationId.localeCompare(b.evaluationId));
+    const provenance = input.provenance ?? evidence.map((item) => item.provenance).filter((item): item is ResearchProvenance => item != null);
+    const provenanceErrors = provenance.flatMap((item) => validateResearchProvenance(item));
+    if (provenance.length !== evidence.length) reasons.push("INCOMPLETE_PROVENANCE");
+    reasons.push(...provenanceErrors);
+    reasons.push(...validateResearchTemporalIntegrity(provenance));
+    const windows = new Set(provenance.map((item) => item.windowId));
+    if (windows.size < this.options.minimumIndependentWindows) reasons.push("INSUFFICIENT_INDEPENDENT_WINDOWS");
+    const holdouts = provenance.filter((item) => item.windowRole === "HOLDOUT");
+    if (holdouts.length === 0) reasons.push("HOLDOUT_REQUIRED");
+    if (holdouts.some((item) => item.finalHoldoutUntouched !== true)) reasons.push("HOLDOUT_CONTAMINATED");
+    const holdoutHashes = new Set(holdouts.map((item) => item.splitHash));
+    if (holdoutHashes.size !== holdouts.length) reasons.push("HOLDOUT_REUSED");
+    const splitHashes = provenance.map((item) => item.splitHash);
+    if (new Set(splitHashes).size !== splitHashes.length && holdouts.length > 0) reasons.push("HOLDOUT_REUSED");
+    const finalHoldoutHashes = new Set(provenance.map((item) => item.finalHoldoutWindowHash));
+    if (provenance.some((item) => item.attempt > 1) && finalHoldoutHashes.size < provenance.length) reasons.push("CONTAMINATED_FINAL_HOLDOUT");
+    if (new Set(provenance.map((item) => item.experimentFamilyId)).size !== 1) reasons.push("EXPERIMENT_FAMILY_MISMATCH");
+    if (evidence.some((item) => item.result === "INCONCLUSIVE")) reasons.push("INCONCLUSIVE_EVIDENCE");
+    const inconclusiveRate = evidence.length === 0 ? 1 : evidence.filter((item) => item.result === "INCONCLUSIVE").length / evidence.length;
+    if (inconclusiveRate > this.options.maximumInconclusiveRate) reasons.push("INCONCLUSIVE_RATE_TOO_HIGH");
+    for (const item of evidence) {
+      if (item.productionMutationAllowed !== false || item.promotionAllowed !== false) reasons.push("AUTHORITY_VIOLATION");
+      if (item.champion == null || item.challenger == null) { reasons.push("MISSING_EVALUATION_SIDE"); continue; }
+      if (item.champion.authority !== "PAPER_ONLY" || item.challenger.authority !== "ZERO_AUTHORITY") reasons.push("UNKNOWN_AUTHORITY_STATE");
+      if (item.provenance != null && !provenance.some((value) => value.evaluationId === item.evaluationId && value.canonicalInputHash === item.canonicalInputHash)) reasons.push("PROVENANCE_EVIDENCE_MISMATCH");
+      for (const metric of metrics) if (!finite(item.champion.metrics[metric]) || !finite(item.challenger.metrics[metric])) reasons.push(`MISSING_METRIC_${metric.toUpperCase()}`);
+      if (item.challenger.metrics.unresolvedFaultCount > 0) reasons.push("UNRESOLVED_FAULT");
+      if (item.challenger.metrics.dataQualityFailures > 0) reasons.push("DATA_QUALITY_FAILURE");
+      if (item.challenger.metrics.tradeCount < this.options.minimumTradeCount) reasons.push("INSUFFICIENT_TRADES");
+      const observationDays = item.challenger.metrics.observationDays;
+      if (!finite(observationDays) || observationDays < this.options.minimumObservationDays) reasons.push("INSUFFICIENT_OBSERVATION_DAYS");
+      if (item.challenger.metrics.maximumDrawdown > item.champion.metrics.maximumDrawdown) reasons.push("DRAWDOWN_NON_REGRESSION_FAILED");
+      if (item.challenger.metrics.sharpeRatio < item.champion.metrics.sharpeRatio) reasons.push("RISK_ADJUSTED_NON_SUPERIOR");
+      if (item.challenger.metrics.costAdjustedReturn - item.champion.metrics.costAdjustedReturn < this.options.minimumSuperiorityMargin) reasons.push("COST_ADJUSTED_MARGIN_NOT_MET");
+      if (!finite(item.challenger.metrics.statisticalConfidence) || item.challenger.metrics.statisticalConfidence < 0.95) reasons.push("STATISTICAL_CONFIDENCE_NOT_MET");
+      if (!finite(item.challenger.metrics.superiorityMargin) || item.challenger.metrics.superiorityMargin < this.options.minimumSuperiorityMargin) reasons.push("SUPERIORITY_MARGIN_NOT_MET");
+      if (item.result !== "CHALLENGER_BETTER") reasons.push("CHALLENGER_NOT_SUPERIOR");
+      if (this.options.nowMs - item.evaluationTimestamp > this.options.maxEvidenceAgeMs) reasons.push("STALE_EVIDENCE");
+    }
+    if (holdouts.some((item) => item.finalHoldoutUntouched !== true)) reasons.push("FINAL_HOLDOUT_NOT_UNTOUCHED");
+    const distinctInputs = new Set(evidence.map((item) => item.canonicalInputHash));
+    if (distinctInputs.size !== evidence.length) reasons.push("DUPLICATE_EVALUATION_INPUT");
+    const eligible = reasons.length === 0;
+    return eligible
+      ? Object.freeze({ status: "ELIGIBLE", reasons: Object.freeze([]), candidateAuthority: "PAPER_ONLY", automaticPromotion: false, evidenceHash: researchHardeningHash(evidence.map((item) => JSON.parse(canonicalResearchJson(item)))) })
+      : reject(reasons, evidence);
+  }
+}

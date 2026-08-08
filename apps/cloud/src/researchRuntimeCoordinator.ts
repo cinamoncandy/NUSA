@@ -10,6 +10,7 @@ import {
   type ResearchInputSnapshot,
   type ResearchEvaluatorAuthority
 } from "../../../packages/contracts/src/researchRuntime";
+import { validateResearchProvenance } from "../../../packages/contracts/src/researchHardening";
 
 export interface ChampionResearchEvaluator {
   readonly strategyId: string;
@@ -89,6 +90,7 @@ function invalidReasons(input: ResearchInputSnapshot): readonly string[] {
     if (ids.has(key)) reasons.push("DUPLICATE_MARKET_DATA");
     ids.add(key);
   }
+  if (input.provenance != null) reasons.push(...validateResearchProvenance(input.provenance));
   return Object.freeze([...new Set(reasons)].sort());
 }
 
@@ -115,6 +117,7 @@ function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchCo
     fillModelVersion: input.fillModelVersion,
     feeModelVersion: input.feeModelVersion,
     slippageModelVersion: input.slippageModelVersion,
+    ...(input.provenance == null ? {} : { provenance: input.provenance }),
     champion,
     challenger,
     result,
@@ -165,10 +168,23 @@ export class ResearchRuntimeCoordinator {
       this.persist(record);
       return record;
     }
+    const requiredMetrics = ["costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality"];
+    const hardenedMetrics = input.provenance != null;
+    if (hardenedMetrics && requiredMetrics.some((key) => typeof champion.metrics[key] !== "number" || typeof challenger.metrics[key] !== "number")) {
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "INCOMPLETE_COMPARISON_METRICS", champion, challenger);
+      this.persist(record);
+      return record;
+    }
     const championReturn = champion.metrics.netReturn;
     const challengerReturn = challenger.metrics.netReturn;
-    const result: ResearchComparisonResult = challengerReturn > championReturn ? "CHALLENGER_BETTER" : championReturn > challengerReturn ? "CHAMPION_BETTER" : "EQUIVALENT";
-    const record = evidence(input, canonicalInputHash, result, "NET_RETURN_COMPARISON", champion, challenger);
+    const challengerBetter = hardenedMetrics
+      ? challengerReturn > championReturn && challenger.metrics.costAdjustedReturn >= champion.metrics.costAdjustedReturn && challenger.metrics.maximumDrawdown <= champion.metrics.maximumDrawdown && challenger.metrics.sharpeRatio >= champion.metrics.sharpeRatio && challenger.metrics.executionQuality >= champion.metrics.executionQuality
+      : challengerReturn > championReturn;
+    const championBetter = hardenedMetrics
+      ? championReturn > challengerReturn && champion.metrics.costAdjustedReturn >= challenger.metrics.costAdjustedReturn && champion.metrics.maximumDrawdown <= challenger.metrics.maximumDrawdown && champion.metrics.sharpeRatio >= challenger.metrics.sharpeRatio && champion.metrics.executionQuality >= challenger.metrics.executionQuality
+      : championReturn > challengerReturn;
+    const result: ResearchComparisonResult = challengerBetter ? "CHALLENGER_BETTER" : championBetter ? "CHAMPION_BETTER" : "INCONCLUSIVE";
+    const record = evidence(input, canonicalInputHash, result, hardenedMetrics ? "MULTI_METRIC_COMPARISON" : "NET_RETURN_COMPARISON", champion, challenger);
     this.persist(record);
     return record;
   }

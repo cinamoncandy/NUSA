@@ -16,6 +16,12 @@ export interface ResearchSessionMetrics {
   readonly equivalentCount: number;
   readonly inconclusiveCount: number;
   readonly costAdjustedPerformance: number;
+  readonly unresolvedFaultCount?: number;
+  readonly dataQualityFailureCount?: number;
+  readonly tradeCount?: number;
+  readonly observationDays?: number;
+  readonly executionQuality?: number;
+  readonly riskAdjustedPerformance?: number;
   readonly lastEvaluationTimestamp?: number;
 }
 

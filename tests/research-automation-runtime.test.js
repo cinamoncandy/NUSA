@@ -62,14 +62,14 @@ test("hypothesis memory is linked to the persisted experiment chain", () => {
   try { state.automation.startSession({ ...startInput("session-memory"), hypothesis: { id: "hypothesis-1", title: "Test hypothesis", statement: "A deterministic test hypothesis", status: "ACTIVE", createdAt: new Date(NOW).toISOString() } }); state.automation.runExperiment(input("session-memory", "evaluation-memory")); const experiment = state.memory.listExperiments()[0]; assert.equal(experiment.hypothesisId, "hypothesis-1"); assert.equal(state.memory.getHypothesis("hypothesis-1").status, "ACTIVE"); } finally { state.db.close(); }
 });
 
-test("multiple experiments flow through evaluation ledger, memory, metrics, and candidate registration", () => {
+test("multiple experiments flow through evaluation ledger and memory while strict candidate evidence remains gated", () => {
   const state = setup();
-  try { state.automation.startSession(startInput("session-1")); const first = state.automation.runExperiment(input("session-1", "evaluation-1")); const second = state.automation.runExperiment(input("session-1", "evaluation-2", { marketDataTimestamp: 1_860 })); assert.equal(first.result, "CHALLENGER_BETTER"); assert.equal(second.result, "CHALLENGER_BETTER"); assert.equal(state.ledger.list().length, 2); assert.equal(state.memory.listExperiments().length, 2); assert.equal(state.candidates.listCandidates().length, 2); const status = state.automation.status("session-1"); assert.equal(status.experimentCount, 2); assert.equal(status.metrics.challengerBetterCount, 2); assert.equal(status.metrics.positiveEvaluationCount, 2); assert.equal(status.health, "HEALTHY"); } finally { state.db.close(); }
+  try { state.automation.startSession(startInput("session-1")); const first = state.automation.runExperiment(input("session-1", "evaluation-1")); const second = state.automation.runExperiment(input("session-1", "evaluation-2", { marketDataTimestamp: 1_860 })); assert.equal(first.result, "CHALLENGER_BETTER"); assert.equal(second.result, "CHALLENGER_BETTER"); assert.equal(state.ledger.list().length, 2); assert.equal(state.memory.listExperiments().length, 2); assert.equal(state.candidates.listCandidates().length, 0); const status = state.automation.status("session-1"); assert.equal(status.experimentCount, 2); assert.equal(status.metrics.challengerBetterCount, 2); assert.equal(status.metrics.positiveEvaluationCount, 2); assert.equal(status.health, "HEALTHY"); } finally { state.db.close(); }
 });
 
-test("candidate registration is deterministic and idempotent, without promotion", () => {
+test("candidate registration requires the hardened evidence gate and never promotes", () => {
   const state = setup();
-  try { state.automation.startSession(startInput("session-1")); state.automation.runExperiment(input("session-1", "evaluation-1")); assert.equal(state.automation.runExperiment(input("session-1", "evaluation-1")).evaluationId, "evaluation-1"); assert.equal(state.candidates.listCandidates().length, 1); assert.equal(state.candidates.getChampion(), null); assert.equal(state.candidates.listAudit().length, 0); } finally { state.db.close(); }
+  try { state.automation.startSession(startInput("session-1")); state.automation.runExperiment(input("session-1", "evaluation-1")); assert.equal(state.automation.runExperiment(input("session-1", "evaluation-1")).evaluationId, "evaluation-1"); assert.equal(state.candidates.listCandidates().length, 0); assert.equal(state.candidates.getChampion(), null); assert.equal(state.candidates.listAudit().length, 0); } finally { state.db.close(); }
 });
 
 test("inconclusive evaluations aggregate safely and stale evidence is observable", () => {

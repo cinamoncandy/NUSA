@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ResearchComparisonEvidence, ResearchEvaluationLedger } from "../../contracts/src/researchRuntime";
+import { validateResearchProvenance } from "../../contracts/src/researchHardening";
 
 export interface ResearchEvaluationDatabase {
   readonly connection: { prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[]; run(...params: unknown[]): unknown }; };
@@ -13,6 +14,7 @@ const recordHash = (sequence: number, previousHash: string, record: string): str
 function validateRecord(record: ResearchComparisonEvidence): void {
   if (record.schemaVersion !== 1 || !record.researchRunId.trim() || !record.evaluationId.trim() || !record.canonicalInputHash.match(/^[a-f0-9]{64}$/)) throw new Error("research comparison record is invalid");
   if (record.productionMutationAllowed !== false || record.promotionAllowed !== false) throw new Error("research comparison authority invariant failed");
+  if (record.provenance != null && validateResearchProvenance(record.provenance).length > 0) throw new Error("research comparison provenance is invalid");
 }
 
 export class SqliteResearchEvaluationLedger implements ResearchEvaluationLedger {

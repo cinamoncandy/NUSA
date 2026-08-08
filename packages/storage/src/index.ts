@@ -20,6 +20,8 @@ export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
 export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
+export { SqliteResearchHypothesisLifecycleRepository } from "./researchHypothesisLifecycle";
+export type { ResearchHypothesisLifecycleDatabase } from "./researchHypothesisLifecycle";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
 export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
 export { SqliteResearchSessionRepository } from "./researchAutomation";
@@ -373,4 +375,16 @@ CREATE TABLE IF NOT EXISTS research_sessions (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_research_sessions_state ON research_sessions (state, updated_at, session_id);
+` }, { id: "014_research_hypothesis_events", sql: `
+CREATE TABLE IF NOT EXISTS research_hypothesis_events (
+  sequence INTEGER PRIMARY KEY,
+  hypothesis_id TEXT NOT NULL,
+  event_type TEXT NOT NULL CHECK(event_type IN ('CREATED','ACTIVATED','SUPPORTED','REJECTED','RETIRED')),
+  title TEXT NOT NULL,
+  statement TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  previous_hash TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_research_hypothesis_events_id ON research_hypothesis_events (hypothesis_id, sequence);
 ` }];
