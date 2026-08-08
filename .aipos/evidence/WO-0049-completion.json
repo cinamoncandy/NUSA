@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0049-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0049",
+    "path": ".aipos/work-orders/WO-0049-controlled-scale-up-governance.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "eaff9e974f806f927a717afed5c678cf939ea5cc"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "8920525072ea29ac4928f6b0fe360faeb89567ca"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "VALIDATION_ONLY",
+      "actual_human_approval_in_ci": false,
+      "exact_proposal_binding": true,
+      "distinct_human_approvers_required": 2,
+      "anti_replay_required": true,
+      "automatic_scale_up": false,
+      "scale_up_authority": false,
+      "activation_authority": false,
+      "order_authorization": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "mutation_performed": false,
+      "real_money_execution_allowed": false
+    },
+    "hash": {"algorithm": "sha256", "value": "9eda010bf747cce6b588c12fe34479ba7bcc798fbae0d2b4781eab13480267ab"}
+  },
+  "observed_at": "2026-08-08T12:31:00+09:00",
+  "provenance": [
+    "github:pull/164",
+    "github:actions/run/31237301914",
+    "github:actions/run/31237301920",
+    "github:actions/run/31237301917",
+    "github:actions/run/31237301915",
+    "github:actions/run/31237301918",
+    "git:merge/8920525072ea29ac4928f6b0fe360faeb89567ca"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31237301914"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31237301920"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31237301917"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31237301915"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31237301918"},
+    {"name": "scale_change_validation_only", "status": "PASS"},
+    {"name": "scale_up_authority_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
