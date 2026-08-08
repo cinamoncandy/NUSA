@@ -4,6 +4,7 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import fs from "node:fs";
 import path from "node:path";
@@ -85,6 +86,9 @@ export function startCloudRuntime(
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+  const effectiveP0AlertRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteP0AlertRepository(durableRepository.database())
+    : undefined;
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try {
     researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
@@ -133,6 +137,15 @@ export function startCloudRuntime(
         }
         const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
         if (effectivePaperLoop != null && state != null) {
+          let openP0 = false;
+          try {
+            openP0 = effectiveP0AlertRepository?.readState().openP0 ?? false;
+          } catch {
+            // Corrupt or unreadable P0 evidence is safety-critical UNKNOWN. Never evaluate a Paper order.
+            effectiveProvider.clear();
+            return;
+          }
+          if (openP0) return;
           const dashboard = buildMobileDashboardResponse(state);
           const result = effectivePaperLoop.processTick({
             now: Date.now(),
@@ -179,7 +192,13 @@ export function startCloudRuntime(
       const dashboard = buildMobileDashboardResponse(input);
       const paperSnapshot = effectivePaperLoop?.snapshot();
       const transport = marketConnectionState === "CONNECTED" ? "ONLINE" as const : "OFFLINE" as const;
-      const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive
+      let openP0 = false;
+      try {
+        openP0 = effectiveP0AlertRepository?.readState().openP0 ?? false;
+      } catch {
+        openP0 = true;
+      }
+      const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || openP0
         ? "HALTED" as const
         : dashboard.mode === "STOPPED"
           ? "STOPPED" as const
