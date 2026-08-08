@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
 implementation_branch: main
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State and its fill-boundary runtime enforcement are complete and exact-head tested. Durable verified P0 state now blocks actual Cloud PAPER fill creation when open or unverifiable, without granting LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable Cloud P0 fill-boundary enforcement and P8 Private Read-only Runtime Session are complete and exact-head tested. Private mobile read-only operations use memory-only credentials, require HTTPS for non-loopback bearer transport, expose verified PAPER portfolio/order/public-ticker projections, and preserve durable P0 HALTED/FAIL_CLOSED behavior without granting LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -141,6 +141,7 @@ cloud_p0_runtime_enforcement_slice:
     - "PR #182 merge a8cc673bb47f9856140485aa6d159140626272e5: durable P0 enforcement at Cloud PAPER fill boundary"
     - "Exact-head 4a40d0cde35748d73efb14f6ca9974f162db2d2d CI run 31261654980 PASS including typecheck, build, architecture/AIPOS, safety, E2E, release, full isolated suite, and coverage"
     - "Exact-head read-only/restricted safety workflows 31261655002, 31261654986, 31261654989, 31261654984 PASS"
+    - "PR #186 merge 11fa5080baecd1e3078db997a68c56daf9d82abf: P7 runtime-enforcement bookkeeping synchronized on main"
   scope:
     - "Wire the default Cloud PAPER execution loop to the durable SQLite P0 incident repository"
     - "Verify durable P0 state on every actual Cloud PAPER execution tick before any strategy decision or fill"
@@ -152,3 +153,26 @@ cloud_p0_runtime_enforcement_slice:
     broker_credential_access: prohibited
     real_money_mutation: prohibited
     risk_governor_bypass: prohibited
+private_readonly_runtime_session_slice:
+  status: COMPLETE
+  completion_evidence:
+    - "PR #188 merge 585d660b5eb8bcefb443ca34261779aa99f55fd1: Private Read-only Runtime Session"
+    - "Exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including typecheck, build, architecture/AIPOS, security, E2E, release, full isolated suite, and coverage"
+    - "Exact-head Mobile Native run 31263191286 PASS: foundation smoke, Android debug/release, iOS debug/release"
+    - "Exact-head read-only/restricted safety workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS"
+  scope:
+    - "Use a process-memory-only dashboard credential session; never persist or infer it from local foundation sign-in"
+    - "Keep one authenticated GET-only /api/paper-operations read surface"
+    - "Require HTTPS for any non-loopback dashboard endpoint before attaching a bearer credential"
+    - "Project actual PAPER account state into Portfolio and Trade"
+    - "Project actual filled PAPER orders and fills into read-only Order History"
+    - "Project verified Upbit public ticker data into Markets/Watchlist using base-asset accumulated volume and clear it on disconnect"
+    - "Project open or unverifiable durable P0 state as HALTED / FAIL_CLOSED in Personal PAPER Operations"
+    - "Leave chart candles unavailable until a separately verified candle source exists; never synthesize them from insufficient evidence"
+  safety:
+    mutation_routes: prohibited
+    credential_persistence: prohibited
+    remote_http_bearer_transport: prohibited
+    live_authority: NONE
+    production_mutation_allowed: false
+    automatic_promotion: prohibited
