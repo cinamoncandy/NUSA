@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T13:40:00+09:00"
-phase: shared-input-champion-challenger-research-runtime
+updated_at: "2026-08-08T14:30:00+09:00"
+phase: candidate-lifecycle-owner-only-promotion
 status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/wo-0051-p2-research-runtime
+active_branch: agent/wo-0051-p3-candidate-promotion-runtime
 active_pull_request: null
-base_commit: b46b80ae5d478e139a0c5300ffaa9406bf20671e
+base_commit: 6d9906dc0ed08fc3e7f3fc608ada9c8a4e7b3b1a
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Implement the shared-input Champion/Challenger PAPER/Research runtime. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Implement persistent candidate lifecycle and owner-only PAPER Champion promotion on verified P2 research evidence. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
-  current_commit: "b46b80ae5d478e139a0c5300ffaa9406bf20671e; P2 research runtime slice in progress"
+  current_commit: "6d9906dc0ed08fc3e7f3fc608ada9c8a4e7b3b1a; P3 candidate lifecycle and owner-only promotion runtime in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

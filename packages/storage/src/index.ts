@@ -20,6 +20,8 @@ export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
 export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
+export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
+export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -349,4 +351,15 @@ CREATE TABLE IF NOT EXISTS research_evaluation_ledger (
   record_json TEXT NOT NULL,
   hash TEXT NOT NULL UNIQUE
 );
+` }, { id: "012_candidate_promotion_runtime", sql: `
+CREATE TABLE IF NOT EXISTS research_candidates (
+  candidate_id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  lifecycle TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  checksum TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS research_champion_pointer (id INTEGER PRIMARY KEY CHECK(id = 1), candidate_id TEXT, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS research_promotion_commands (command_id TEXT PRIMARY KEY, payload_fingerprint TEXT NOT NULL, result_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS research_promotion_audit (sequence INTEGER PRIMARY KEY, command_id TEXT NOT NULL, previous_hash TEXT NOT NULL, record_json TEXT NOT NULL, current_hash TEXT NOT NULL UNIQUE);
 ` }];
