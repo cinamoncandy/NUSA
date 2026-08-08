@@ -1,0 +1,50 @@
+id: WO-0048
+title: "Real External Read-only Verification"
+status: BLOCKED
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
+implementation_branch: agent/wo-0048-real-external-readonly-verification
+objective: "Run one explicit operator-authorized authenticated external read-only broker probe using locally stored OS-encrypted read-only credentials, capture a secret-free receipt bound to exact code/config/release/envelope identity, and prove observation readiness without execution or real-money authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0048 is the first real external-environment observation verification. It uses only the operator-gated read-only harness completed in WO-0047. It must never run from generic CI, never expose secrets, and never connect execution transport or authorize orders. The work order cannot be completed without evidence produced on an operator-controlled runtime that has local OS-encrypted read-only credentials."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Explicit operator authorization must be supplied in the local runtime for the single read-only probe."
+  - "Credentials must already exist in OS-encrypted read-only storage; raw credentials must never enter chat, Git, CI, logs, evidence, or AI context."
+  - "Use only the narrow status/capture read-only port installed by WO-0047."
+  - "Receipt must bind exact code revision, configuration hash, release seal fingerprint, bounded-envelope fingerprint, operator request ID, result code, and observation timestamp."
+  - "Connected authenticated observation may yield READY_FOR_HUMAN_REVIEW only; it grants no activation or order authority."
+  - "Invalid credentials/IP policy SAFE_BLOCKs; timeout/network/provider ambiguity remains UNKNOWN/fail-closed."
+  - "Execution transport stays disconnected; credential execution use, submit/amend/cancel/withdraw, cash mutation, position mutation, activation, and real-money execution remain prohibited."
+acceptance:
+  - "A real operator-controlled external read-only probe receipt exists and is secret-free."
+  - "Receipt verdict is READY_FOR_HUMAN_REVIEW and is bound to the exact current code/config/release/envelope fingerprints."
+  - "No raw broker payload containing balances/orders is persisted into completion evidence; only derived secret-free metadata/digests are retained."
+  - "All mutation counters remain zero and all execution authority flags remain false."
+  - "Completion evidence records the real external observation provenance separately from CI evidence."
+blocked_by:
+  - "No operator-controlled local runtime is available to this assistant."
+  - "No locally configured OS-encrypted read-only broker credentials are accessible to this assistant."
+  - "Generic GitHub CI is intentionally prohibited from performing the real external broker probe."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  raw_credential_transfer: prohibited
+  actual_order_authorization: prohibited
+  automatic_activation: prohibited
+  real_money_execution: prohibited
+completion_rule: "A real operator-controlled external read-only receipt + secret-free verification evidence + required CI checks. Synthetic or CI-only evidence cannot complete WO-0048."
