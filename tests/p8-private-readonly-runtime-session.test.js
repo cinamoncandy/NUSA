@@ -89,13 +89,13 @@ test("cloud runtime exposes one authenticated read-only snapshot with real PAPER
 });
 
 test("open durable P0 projects Personal PAPER Operations as HALTED", async () => {
-  const token = "p8-open-p0-read-only-token-123456";
+  const p0OpenCredential = "p8-open-p0-read-only-token-123456";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-p8-open-p0-"));
   const dbPath = path.join(dir, "state.sqlite");
   seedP0(dbPath);
-  const handle = startCloudRuntime(testEnv(token, 41942, dbPath));
+  const handle = startCloudRuntime(testEnv(p0OpenCredential, 41942, dbPath));
   try {
-    const body = await loadOperations(handle, token);
+    const body = await loadOperations(handle, p0OpenCredential);
     assert.equal(body.operations.runtimeState, "HALTED");
     assert.equal(body.operations.accountHalted, true);
     assert.equal(body.health, "FAIL_CLOSED");
@@ -109,13 +109,13 @@ test("open durable P0 projects Personal PAPER Operations as HALTED", async () =>
 });
 
 test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", async () => {
-  const token = "p8-corrupt-p0-read-only-token-123456";
+  const p0CorruptCredential = "p8-corrupt-p0-read-only-token-123456";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-p8-corrupt-p0-"));
   const dbPath = path.join(dir, "state.sqlite");
   seedP0(dbPath, true);
-  const handle = startCloudRuntime(testEnv(token, 41943, dbPath));
+  const handle = startCloudRuntime(testEnv(p0CorruptCredential, 41943, dbPath));
   try {
-    const body = await loadOperations(handle, token);
+    const body = await loadOperations(handle, p0CorruptCredential);
     assert.equal(body.operations.runtimeState, "HALTED");
     assert.equal(body.operations.accountHalted, true);
     assert.equal(body.health, "FAIL_CLOSED");
