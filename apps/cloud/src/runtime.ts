@@ -23,6 +23,9 @@ import {
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection
 } from "../../../packages/contracts/src/personalPaperOperations";
+import type { CloudAiRuntime } from "./ai/runtime";
+import { createCloudAiRuntime } from "./ai/runtime";
+import { projectAiReadOnly } from "./ai/projection";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -119,7 +122,8 @@ export function startCloudRuntime(
   paperExecutionLoop?: PaperTradingExecutionLoop,
   researchRuntime?: CloudRuntimeResearchRuntimeLike,
   researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike,
-  researchAutomation?: CloudRuntimeResearchAutomationLike
+  researchAutomation?: CloudRuntimeResearchAutomationLike,
+  aiRuntime?: CloudAiRuntime
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -266,6 +270,7 @@ export function startCloudRuntime(
       return buildPersonalPaperOperationsSnapshot({
         dashboard,
         research: researchAutomation?.statusProjection?.() ?? null,
+        ai: aiRuntime == null ? null : projectAiReadOnly(null),
         operations: {
           runtimeState,
           schedulerRunning: false,
@@ -307,7 +312,7 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 
 function main(): void {
   const config = readCloudRuntimeConfig(process.env);
-  const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath));
+  const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env));
   registerGracefulShutdown(handle);
 }
 
