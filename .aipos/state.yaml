@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T08:23:00+09:00"
+updated_at: "2026-08-09T08:36:00+09:00"
 phase: real-provider-challenger-runtime
 status: in_progress
 objective: "Activate an explicitly configured real model challenger below the grounded zero-authority AI runtime, then verify provider availability, secret isolation, usage observability, and unchanged PAPER/safety authority."
 base_branch: main
 active_branch: agent/ai-003-real-provider-challenger-plan
 active_pull_request: 213
-base_commit: 3580de8dcc8e0b16a7314b456a873672f6bb8503
+base_commit: 235a92ff5b2d887f6b008e80c698d9ea1f860ba6
 claimed_state:
   work_order: WO-AI-003
   status: IN_PROGRESS
@@ -62,8 +62,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #208 merged at 3580de8dcc8e0b16a7314b456a873672f6bb8503 from exact-head 3f84d544721d74b7653cc0ef4667a5cafb6bfb74 after CI 31283420227 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. Fresh post-AI-002 capability audit selected provider diversity / real inference availability as the lowest-scoring safe AI dimension."
-  current_commit: "3580de8dcc8e0b16a7314b456a873672f6bb8503; WO-AI-002 completion bookkeeping merged; WO-AI-003 provider challenger planning in progress"
+  last_result: "PR #208 merged at 3580de8dcc8e0b16a7314b456a873672f6bb8503 from exact-head 3f84d544721d74b7653cc0ef4667a5cafb6bfb74 after CI 31283420227 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. Fresh post-AI-002 capability audit selected provider diversity / real inference availability as the lowest-scoring safe AI dimension. PR #209 later merged at 235a92ff5b2d887f6b008e80c698d9ea1f860ba6 with desktop loading-timeout changes and no AIPOS files; WO-AI-003 plan is rebased for new exact-head verification."
+  current_commit: "235a92ff5b2d887f6b008e80c698d9ea1f860ba6; latest main includes PR #209 desktop loading-timeout fix; WO-AI-003 planning rebased for exact-head verification"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
