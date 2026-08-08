@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:18:00+09:00"
+updated_at: "2026-08-08T09:20:52+09:00"
 phase: disaster-recovery-restore-verification
-status: implementing
+status: verifying
 objective: "Verify backup/restore integrity and recovery consistency without startup, execution, or LIVE authority."
 base_branch: main
 active_branch: agent/wo-0042-disaster-recovery-restore-verification
-active_pull_request: pending
+active_pull_request: 157
 base_commit: f1026da040f1a42f8084f04c139a2f7c408a4323
 claimed_state:
   work_order: WO-0042
@@ -34,12 +34,12 @@ completed:
     summary: "Added fail-closed Restricted LIVE governance state semantics without execution authority."
 in_progress:
   - id: WO-0042
-    evidence: ".aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml"
-    summary: "Deterministic fail-closed backup/restore verification implementation in progress."
+    evidence: ".aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml; PR #157"
+    summary: "Fail-closed deterministic restore verification implemented; official exact-head verification pending."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml
-  reason: "Implement and verify restore integrity evidence; real-money execution remains prohibited."
+  reason: "Complete PR #157 exact-head verification and merge; real-money execution remains prohibited."
 verification:
   required:
     - "Disaster recovery restore regression tests"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0041 merged as f1026da040f1a42f8084f04c139a2f7c408a4323; WO-0042 started."
-  current_commit: "WO-0042 implementation pending"
+  last_result: "WO-0042 implementation on PR #157; official exact-head verification pending."
+  current_commit: "PR #157 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
