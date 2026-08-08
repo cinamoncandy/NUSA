@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T01:06:00+09:00"
+updated_at: "2026-08-09T01:30:00+09:00"
 phase: grounded-trustworthy-ai-runtime
 status: in_progress
 objective: "Upgrade the merged zero-authority AI runtime into a grounded, replayable, bounded read-only Cloud analysis path while preserving all deterministic safety and human-only LIVE gates."
 base_branch: main
-active_branch: agent/ai-002-grounded-runtime-plan
-active_pull_request: 200
-base_commit: 381143ada0f2d2db36967ed50b4788bf8ba47d97
+active_branch: agent/ai-002-grounded-runtime
+active_pull_request: null
+base_commit: ce3d5103d000c3849b4ede08be89f6486dd551f9
 claimed_state:
   work_order: WO-AI-002
   status: IN_PROGRESS
@@ -47,18 +47,18 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml
-  reason: "PR #198 completed the read-only multi-position correctness gate and PR #199 synchronized completion evidence on current main. Implement the highest-priority AI trust gap next: grounded evidence + exact prompt/replay binding + bounded Cloud read-only projection, without changing execution authority."
+  reason: "PR #198 completed the read-only multi-position correctness gate, PR #199 synchronized completion evidence, and PR #200 opened the grounded trustworthy AI architecture. Implement the Grounding Trust Core on the dedicated runtime branch without changing execution authority."
 verification:
   required:
-    - "WO-AI-002 exact-head focused AI tests, Full CI, full isolated suite, coverage, Mobile Native, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
+    - "WO-AI-002 exact-head focused AI tests, Full CI, full isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #199 merged at 381143ada0f2d2db36967ed50b4788bf8ba47d97 after exact-head 469df7477a1543777a4f4d294efe38cd2623c61f PR CI 31266175761 PASS and push CI 31266165872 PASS, with all four Restricted LIVE/read-only safety workflows PASS. PR #198 remains the underlying P8 correctness baseline."
-  current_commit: "381143ada0f2d2db36967ed50b4788bf8ba47d97; P8 bookkeeping synchronized; WO-AI-002 architecture/work-order activation in progress"
+  last_result: "PR #200 merged at ce3d5103d000c3849b4ede08be89f6486dd551f9 from exact-head 133c083ccf78f9fbd0828bea7b9653970507a0e6 after CI 31266682054 PASS including AIPOS, Full isolated suite and coverage; all four Restricted LIVE/read-only safety workflows PASS."
+  current_commit: "ce3d5103d000c3849b4ede08be89f6486dd551f9; WO-AI-002 architecture accepted; Grounding Trust Core implementation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
