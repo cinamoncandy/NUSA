@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged; the current safe automated hardening slice enforces that durable verified P0 state at the actual Cloud PAPER fill boundary. It grants no LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State and its actual Cloud PAPER fill-boundary runtime enforcement are complete and merged. Neither slice grants LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -136,7 +136,11 @@ cloud_p0_safety_state_slice:
     risk_governor_bypass: prohibited
     automatic_incident_resolution: prohibited
 cloud_p0_runtime_enforcement_slice:
-  status: IN_PROGRESS
+  status: COMPLETE
+  completion_evidence:
+    - "PR #182 merge a8cc673bb47f9856140485aa6d159140626272e5: enforce durable P0 state at Cloud PAPER fill boundary"
+    - "Exact-head 4a40d0cde35748d73efb14f6ca9974f162db2d2d Full CI run 31261654980 PASS including full isolated suite and coverage"
+    - "Exact-head Restricted LIVE/read-only safety workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS"
   scope:
     - "Wire the default Cloud PAPER execution loop to the durable SQLite P0 incident repository"
     - "Verify durable P0 state on every actual Cloud PAPER execution tick before any strategy decision or fill"
