@@ -94,8 +94,6 @@ export const CONTROLLED_SCALE_UP_GOVERNANCE_DESCRIPTOR = Object.freeze({
   realMoneyExecutionAllowed: false as const,
 });
 
-const HEX40 = /^[0-9a-f]{40}$/;
-const HEX64 = /^[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SAFE_SYMBOL = /^[A-Z0-9][A-Z0-9._:-]{0,31}$/;
 const prohibitedMaterial = /(?:bearer\s+|private[_ -]?key|api[_ -]?secret|access[_ -]?token|authorization\s*:)/i;
