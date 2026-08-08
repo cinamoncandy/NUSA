@@ -5,7 +5,7 @@ owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: e5cef3fc138467bffde1f1628809b2a948588675
-implementation_branch: agent/p7-cloud-p0-runtime-enforcement-pr
+implementation_branch: agent/wo-0051-p7-runtime-enforcement-closure
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
