@@ -82,7 +82,11 @@ export function startCloudRuntime(
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
-  researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+  try {
+    researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+  } catch {
+    // Research recovery owns its own fail-closed state. It must not abort or mutate PAPER/dashboard startup.
+  }
   const clearPaperProjection = (): void => {
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
