@@ -1,6 +1,6 @@
 id: WO-0045
 title: "Production Release Engineering & Artifact Seal"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
