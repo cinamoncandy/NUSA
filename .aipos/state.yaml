@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T13:10:00+09:00"
-phase: personal-use-transition
+updated_at: "2026-08-08T13:40:00+09:00"
+phase: shared-input-champion-challenger-research-runtime
 status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/nusa-personal-use-transition
+active_branch: agent/wo-0051-p2-research-runtime
 active_pull_request: null
-base_commit: de530d273b51aa5551fe6900bdb36baf80c47aea
+base_commit: b46b80ae5d478e139a0c5300ffaa9406bf20671e
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Continue PAPER/Research runtime gap work. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Implement the shared-input Champion/Challenger PAPER/Research runtime. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
-  current_commit: "WO-0050 merge 99adc4178906aaa6f131ff4774d3ae4c697b8b2d; terminal closure pending merge"
+  current_commit: "b46b80ae5d478e139a0c5300ffaa9406bf20671e; P2 research runtime slice in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

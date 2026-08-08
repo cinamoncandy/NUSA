@@ -23,6 +23,7 @@ export * from "./deploymentBundle";
 export * from "./safetyArchitecture";
 export * from "./shadowGovernance";
 export * from "./restrictedLiveGovernance";
+export * from "./researchRuntime";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
