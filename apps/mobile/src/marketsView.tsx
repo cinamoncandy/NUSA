@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
@@ -22,6 +22,18 @@ interface MarketsViewProps {
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, error, refreshing, onRefresh }: MarketsViewProps) {
   const { theme } = useTheme();
   const [panel, setPanel] = useState<"WATCHLIST" | "CHART">("WATCHLIST");
+  const chartAvailable = Array.isArray(rawCandles) && rawCandles.length > 0;
+
+  useEffect(() => {
+    if (!chartAvailable && panel === "CHART") setPanel("WATCHLIST");
+  }, [chartAvailable, panel]);
+
+  if (!chartAvailable) {
+    return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
+      <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} />
+    </View>;
+  }
+
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     <View style={[styles.panels, { borderBottomColor: theme.colors.border }]} testID="markets-panels">
       <NusaButton label="관심시장" onPress={() => setPanel("WATCHLIST")} tone={panel === "WATCHLIST" ? "primary" : "neutral"} testID="markets-watchlist-tab" />
