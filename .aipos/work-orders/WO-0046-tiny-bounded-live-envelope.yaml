@@ -1,0 +1,51 @@
+id: WO-0046
+title: "Tiny Bounded Restricted LIVE Envelope Policy"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 623db33d5b0fc2e96f4573155bd958a19e3320d9
+implementation_branch: agent/wo-0046-tiny-bounded-live-envelope
+objective: "Define a deterministic fail-closed tiny Restricted LIVE policy envelope with hard percentage/order/session ceilings and exact evidence bindings, without issuing activation/order authority, connecting execution transport, or moving money."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0046 prepares the bounded-risk policy contract that a future separately authorized human activation would have to bind. The validator cannot activate LIVE or authorize an order. It only proves a proposed scope is within non-expandable tiny hard ceilings and bound to exact release/preflight/ceremony/config identity. Any future scale increase requires a separate human/governance decision."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Envelope verdict is BOUNDED_ENVELOPE_VALID, SAFE_BLOCK, or UNKNOWN; no verdict grants activation or order authority."
+  - "Bind exact code/config, release seal fingerprint, preflight fingerprint, ceremony-record fingerprint, capability contract, strategy identity, symbol allowlist, and rollback bundle."
+  - "Hard tiny ceilings: max order notional <= 10 bps of approved reference equity, gross exposure <= 50 bps, daily loss <= 10 bps, max open orders <= 1, max position count <= 1, max session orders <= 5, session duration <= 3600 seconds."
+  - "All requested limits must be positive and at or below hard ceilings; equality is allowed, expansion beyond any ceiling SAFE_BLOCKs."
+  - "Require kill-switch readiness PASS, HALT path PASS, rollback PASS, reconciliation MATCH, hard-risk PASS, market data HEALTHY, and post-trade observation readiness PASS."
+  - "Safety-critical UNKNOWN remains UNKNOWN/fail-closed; FAIL/unsafe runtime evidence SAFE_BLOCKs."
+  - "Envelope is non-expandable and single-session; no automatic renewal, scale-up, symbol addition, or limit increase."
+  - "Output orderAuthorization=false, activationAuthority=false, executionAuthority=false, authorizesLive=false, mutationPerformed=false."
+  - "No broker/order/network/credential/cash/position mutation method may be added."
+  - "CI uses synthetic evidence only and never conducts a real activation or trade."
+acceptance:
+  - "Tiny bounded envelope regressions PASS."
+  - "At-ceiling synthetic envelope validates but grants no execution/order authority."
+  - "Any ceiling excess, extra symbol ambiguity, unsafe runtime evidence, or failed rollback/HALT/kill-switch readiness SAFE_BLOCKs."
+  - "Unknown safety evidence returns UNKNOWN."
+  - "Identical normalized envelope input produces identical fingerprint."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  actual_activation: prohibited
+  actual_order_authorization: prohibited
+  automatic_scale_up: prohibited
+  envelope_authority: policy_validation_only
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion installs a non-executable tiny policy envelope only; actual human activation and any money-moving order remain outside automated authority."
