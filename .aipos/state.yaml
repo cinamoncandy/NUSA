@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:45:00+09:00"
+updated_at: "2026-08-09T00:00:30+09:00"
 phase: private-readonly-runtime-session
-status: implementing
+status: verifying
 objective: "Close the private Personal PAPER operator visibility gap with an ephemeral authenticated read-only session and P0-consistent projections while keeping WO-0051 human/environment gated."
 base_branch: main
 active_branch: agent/wo-0051-p8-private-readonly-session-current-main
-active_pull_request: null
+active_pull_request: 190
 base_commit: 11fa5080baecd1e3078db997a68c56daf9d82abf
 claimed_state:
   work_order: WO-0051
@@ -31,8 +31,8 @@ completed:
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
   - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; P8 private read-only runtime-session safe slice is being implemented and does not satisfy any human/LIVE gate."
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml; PR #190"
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P8 private read-only runtime-session safe slice is on PR #190 and does not satisfy any human/LIVE gate."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Finish the P8 private read-only runtime-session safe slice, open one PR, bind its number into AIPOS, then require exact-head Full CI plus all existing Restricted LIVE/read-only workflows before merge."
+  reason: "Verify PR #190 exact head with Full CI and all existing Restricted LIVE/read-only workflows; merge only if every required gate passes."
 verification:
   required:
     - "P8 private read-only runtime session regressions"
@@ -55,8 +55,8 @@ verification:
     - "Restricted LIVE transport/credential readiness"
     - "Restricted LIVE activation rehearsal"
     - "Read-only broker credential integration"
-  last_result: "Fresh gap audit found mobile dashboard credential permanently unavailable, null PAPER projections in operational tabs, and read-only P0 status drift. Stale P8 branches are concept sources only and are not direct merge candidates."
-  current_commit: "P8 implementation branch in progress; PR not yet created"
+  last_result: "Fresh gap audit found mobile dashboard credential permanently unavailable, null PAPER projections in operational tabs, and read-only P0 status drift. P8 was reimplemented on current main; PR #190 opened."
+  current_commit: "PR #190 exact-head verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -141,6 +141,7 @@ cloud_p0_runtime_enforcement:
   real_money_mutation: prohibited
 private_readonly_runtime_session:
   status: IN_PROGRESS
+  pull_request: 190
   dashboard_credential_storage: PROCESS_MEMORY_ONLY
   remote_http_bearer_transport: prohibited
   endpoint_authority: GET_ONLY_DASHBOARD_READ
