@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:45:00+09:00"
-phase: private-readonly-runtime-session
+updated_at: "2026-08-08T23:33:00+09:00"
+phase: cloud-p0-runtime-enforcement-complete
 status: ready
-objective: "Connect the private mobile client to the authenticated read-only Personal PAPER snapshot while preserving merged durable P0 fill-boundary enforcement and exposing verified portfolio, order-history, and public ticker projections without mutation or LIVE authority."
+objective: "Preserve durable Cloud P0 safety enforcement at the actual PAPER fill boundary while keeping WO-0051 at its human/environment boundary."
 base_branch: main
-active_branch: agent/p8-private-readonly-runtime-session-rebased
-active_pull_request: 188
-base_commit: 11fa5080baecd1e3078db997a68c56daf9d82abf
+active_branch: main
+active_pull_request: null
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate. P8 is a bounded private-use read-only runtime slice; automated completion of WO-0051 remains prohibited."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,19 +44,17 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Complete P8 Private Read-only Runtime Session on PR #188: memory-only dashboard credential plus portfolio/order/public-ticker projections through the existing GET-only Personal PAPER endpoint while preserving durable P0 OPEN/unverifiable fail-closed behavior. Require exact-head CI and Mobile Native PASS; do not add mutation routes or infer LIVE authorization."
+  reason: "P7 Cloud P0 runtime enforcement is merged and exact-head tested. Perform a fresh repository gap audit before the next safe PAPER/Research slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
 verification:
   required:
-    - "Exact-head Full CI, coverage, architecture/AIPOS, security, E2E, safety, and release PASS for P8"
-    - "Exact-head Mobile Native foundation, Android debug/release, and iOS debug/release PASS for P8"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #186 merged at 11fa5080baecd1e3078db997a68c56daf9d82abf after exact-head c62f5ce88d04e2bf68e9588a2df61de1883d49a9 CI run 31262275177 PASS and Restricted LIVE/read-only safety workflows 31262275235, 31262275189, 31262275172, 31262275179 PASS. P7 runtime-enforcement bookkeeping is synchronized on main."
-  current_commit: "P8 PR #188 rebased onto 11fa5080baecd1e3078db997a68c56daf9d82abf with remote HTTP bearer transport prohibited and Upbit base-asset volume semantics corrected; exact-head verification pending"
+  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head CI 31261654980 PASS including Full isolated suite and coverage; read-only/Restricted LIVE workflows 31261655002, 31261654986, 31261654989, 31261654984 PASS."
+  current_commit: "a8cc673bb47f9856140485aa6d159140626272e5; PR #182 merged; P7 Cloud P0 runtime enforcement repository slice complete"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
