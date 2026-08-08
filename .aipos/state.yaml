@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T09:05:30+09:00"
-phase: audit-incident-replay
-status: verifying
-objective: "Create deterministic tamper-evident replay of safety-relevant operational history without LIVE execution authority."
+updated_at: "2026-08-08T09:18:00+09:00"
+phase: disaster-recovery-restore-verification
+status: implementing
+objective: "Verify backup/restore integrity and recovery consistency without startup, execution, or LIVE authority."
 base_branch: main
-active_branch: agent/wo-0041-audit-incident-replay
-active_pull_request: 156
-base_commit: 54a2b4728d71b3fc24a23571d22636cf8e696036
+active_branch: agent/wo-0042-disaster-recovery-restore-verification
+active_pull_request: pending
+base_commit: f1026da040f1a42f8084f04c139a2f7c408a4323
 claimed_state:
-  work_order: WO-0041
+  work_order: WO-0042
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0040
+  work_order: WO-0041
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0040-completion.json"
+  evidence: ".aipos/evidence/WO-0041-completion.json"
 latest_verified_slice:
-  id: wo-0040-operations-control-center-complete
-  evidence: ".aipos/evidence/WO-0040-completion.json"
-  summary: "WO-0040 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; operations control remains mutation-free."
+  id: wo-0041-audit-incident-replay-complete
+  evidence: ".aipos/evidence/WO-0041-completion.json"
+  summary: "WO-0041 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; replay remains observational only."
 completed:
+  - id: WO-0041
+    evidence: ".aipos/evidence/WO-0041-completion.json"
+    summary: "Added deterministic tamper-evident audit/evidence/incident replay without execution authority."
   - id: WO-0040
     evidence: ".aipos/evidence/WO-0040-completion.json"
     summary: "Added secret-free mutation-free operations control center and safe-reduction requests."
@@ -29,21 +32,18 @@ completed:
   - id: WO-0038
     evidence: ".aipos/evidence/WO-0038-completion.json"
     summary: "Added fail-closed Restricted LIVE governance state semantics without execution authority."
-  - id: WO-0037
-    evidence: ".aipos/evidence/WO-0037-completion.json"
-    summary: "Added secret-free mutation-free operator projection."
 in_progress:
-  - id: WO-0041
-    evidence: ".aipos/work-orders/WO-0041-audit-incident-replay.yaml; PR #156"
-    summary: "Tamper-evident deterministic audit/evidence/incident replay implemented; official exact-head verification pending."
+  - id: WO-0042
+    evidence: ".aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml"
+    summary: "Deterministic fail-closed backup/restore verification implementation in progress."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0041-audit-incident-replay.yaml
-  reason: "Complete PR #156 exact-head verification and merge; real-money execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0042-disaster-recovery-restore-verification.yaml
+  reason: "Implement and verify restore integrity evidence; real-money execution remains prohibited."
 verification:
   required:
-    - "Audit/incident replay regression tests"
-    - "Audit/incident replay source validation"
+    - "Disaster recovery restore regression tests"
+    - "Disaster recovery restore source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -52,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0041 implementation on PR #156; official exact-head verification pending."
-  current_commit: "PR #156 verification pending"
+  last_result: "WO-0041 merged as f1026da040f1a42f8084f04c139a2f7c408a4323; WO-0042 started."
+  current_commit: "WO-0042 implementation pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -68,6 +68,16 @@ restricted_live_authority:
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
+disaster_recovery_restore:
+  mode: VERIFY_ONLY
+  artifact_integrity_required: true
+  exact_artifact_set_required: true
+  audit_replay_anchor_required: true
+  recovery_consistency_required: true
+  automatic_restart_allowed: false
+  execution_authority: false
+  authorizes_live: false
+  secret_material_allowed: false
 audit_incident_replay:
   mode: OBSERVATIONAL_REPLAY
   append_only: true
