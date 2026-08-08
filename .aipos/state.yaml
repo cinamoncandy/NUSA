@@ -1,13 +1,13 @@
 version: 1
 project: nusa
 updated_at: "2026-08-08T15:00:00+09:00"
-phase: research-restart-replay-integration
+phase: integrated-research-automation
 status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
-active_branch: agent/wo-0051-p4-research-restart-replay
+active_branch: agent/wo-0051-p5-integrated-research-automation
 active_pull_request: null
-base_commit: 3808b8ad2080e04403aacff0e07591ecc9a54e80
+base_commit: 13d0ed90ebe4599fde148227b9ca2f35fb0364d0
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Implement fail-closed deterministic restart/replay reconciliation across P2 evaluation evidence and P3 candidate, Champion, command, and audit state. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Integrate bounded PAPER research sessions, experiment orchestration, memory, candidate registration, metrics, health, and P4 restart/replay recovery. Public signing is optional for personal use; do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "Automated safe preparation complete through WO-0050. Real-world transition intentionally INCOMPLETE."
-  current_commit: "3808b8ad2080e04403aacff0e07591ecc9a54e80; P4 research restart/replay integration in progress"
+  current_commit: "13d0ed90ebe4599fde148227b9ca2f35fb0364d0; P5 integrated research automation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
