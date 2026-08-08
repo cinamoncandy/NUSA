@@ -1,0 +1,53 @@
+id: WO-0041
+title: "Audit, Evidence & Incident Replay"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 54a2b4728d71b3fc24a23571d22636cf8e696036
+implementation_branch: agent/wo-0041-audit-incident-replay
+objective: "Create a provider-independent tamper-evident incident/audit/evidence replay layer that deterministically reconstructs safety-relevant operational history without granting execution or LIVE authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0041 composes existing audit/evidence and operations projection concepts into an append-only replay boundary. Replay is observational and explanatory only; it cannot mutate runtime/broker state, release kill switches, authorize ACTIVE, or grant production/LIVE authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Use append-only tamper-evident event records with stable event identity, actor/principal, event type, occurred/observed times, source references, code revision, configuration hash, previous hash, and current hash."
+  - "Replay must deterministically reconstruct safety-relevant operations, hard-risk, kill-switch, reconciliation, governance-transition, incident, and safe-control-request history."
+  - "Replay output is observational only and must expose executionAuthority=false and authorizesLive=false."
+  - "Hash-chain discontinuity, deletion/reorder, duplicate/conflicting event identity, malformed provenance, invalid timestamps, or unknown safety-critical semantics fail closed."
+  - "Credential/token/signature/private-key/raw authorization material is prohibited from replay payloads and evidence."
+  - "AI, Meta-AI, automation, and provider principals cannot alter history or convert replay evidence into LIVE authorization."
+  - "Source references are immutable pointers/digests only; replay never fetches or mutates external broker state."
+  - "No submit/amend/cancel/withdraw/broker-execute/cash-mutate/position-mutate/credential-execution-use method may be added."
+  - "Add focused deterministic replay/tamper/reorder/deletion/duplicate/secret/UNKNOWN regression tests and source validation."
+acceptance:
+  - "Audit/incident replay regressions PASS."
+  - "Identical normalized event history produces identical chain and replay fingerprint."
+  - "Tampering, reordering, deletion, duplicate/conflicting IDs, invalid provenance, and secret material fail closed."
+  - "UNKNOWN safety semantics remain visible and cannot become SAFE/HEALTHY by replay."
+  - "Replay exposes no execution or LIVE authorization authority."
+  - "Capability Surface Guard and all existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  cash_position_mutation: prohibited
+  kill_switch_release: prohibited
+  replay_authority: observational_only
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion proves deterministic tamper-evident operational replay only and grants no LIVE or mutation authority."
