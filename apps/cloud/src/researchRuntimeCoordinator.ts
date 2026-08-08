@@ -51,10 +51,11 @@ const supportedStates = new Set(["RESEARCHING", "VALIDATED", "PAPER_CANDIDATE", 
 const freeze = <T>(value: T): T => Object.freeze(value);
 const clonePoint = (point: ResearchInputSnapshot["marketData"][number]): ResearchInputSnapshot["marketData"][number] => freeze({ ...point });
 const reason = (reasons: readonly string[]): string => [...new Set(reasons)].sort().join(",");
+const invalidCanonicalHash = createHash("sha256").update("INVALID_CANONICAL_RESEARCH_INPUT", "utf8").digest("hex");
 
 function safeHash(value: unknown): string {
   try { return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex"); }
-  catch { return createHash("sha256").update(String(value), "utf8").digest("hex"); }
+  catch { return invalidCanonicalHash; }
 }
 
 function snapshot(input: ResearchInputSnapshot): ResearchInputSnapshot {
@@ -168,7 +169,7 @@ export class ResearchRuntimeCoordinator {
     const championReturn = champion.metrics.netReturn;
     const challengerReturn = challenger.metrics.netReturn;
     const result: ResearchComparisonResult = challengerReturn > championReturn ? "CHALLENGER_BETTER" : championReturn > challengerReturn ? "CHAMPION_BETTER" : "EQUIVALENT";
-    const record = evidence(input, canonicalInputHash, result, "NET_RETURN_COMPARISON", champion, challenger);
+    const record = evidence(input, canonicalInputHash, result, "NET_RETURN_COMPARISON_OBSERVATION_ONLY", champion, challenger);
     this.persist(record);
     return record;
   }
