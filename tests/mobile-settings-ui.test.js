@@ -14,7 +14,8 @@ test("settings UI exposes persisted configuration, Paper safety, reset, and requ
   assert.match(source, /settings-loading/);
   assert.match(source, /settings-error/);
   assert.match(source, /PAPER/);
-  assert.match(source, /Live trading is disabled/);
+  assert.match(source, /LIVE trading은 정책상 비활성입니다/);
+  assert.match(source, /이 설정 화면에서 권한을 승격할 수 없습니다/);
   assert.match(source, /SettingsRepository/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
   const more = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8");
