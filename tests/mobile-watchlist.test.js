@@ -7,11 +7,7 @@ const { WatchlistRepository, buildWatchlistViewModel, parseWatchlistMarkets } = 
 
 function memoryStorage(initial = null) {
   let value = initial;
-  return {
-    getItem: async () => value,
-    setItem: async (_key, next) => { value = next; },
-    read: () => value,
-  };
+  return { getItem: async () => value, setItem: async (_key, next) => { value = next; }, read: () => value };
 }
 
 const markets = [
@@ -53,7 +49,7 @@ test("watchlist view model supports search, sort and fail-closed states", () => 
   assert.equal(buildWatchlistViewModel({ rawMarkets: [{ ...markets[0], source: "ESTIMATED" }], watchlist: [], query: "", sort: "MARKET" }).state, "ERROR");
 });
 
-test("watchlist UI remains read-only and is wired into the markets workspace", () => {
+test("watchlist UI remains read-only and consumes the authenticated PAPER market projection", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
   assert.match(source, /Search markets/);
   assert.match(source, /watchlist-toggle-/);
@@ -69,7 +65,7 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.match(app, /AsyncStorage/);
   assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /<MarketsView/);
-  assert.match(app, /rawMarkets=\{null\}/);
+  assert.match(app, /snapshot\.markets/);
   assert.doesNotMatch(app, /\/api\/(?:markets|candles|account|status)/);
   assert.match(client, /\/api\/paper-operations/);
 });
