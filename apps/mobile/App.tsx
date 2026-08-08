@@ -19,9 +19,9 @@ import { WatchlistRepository } from "./src/watchlist";
 import { MoreView } from "./src/moreView";
 import type { SettingsRepository } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
+import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import {
   loadPersonalPaperOperations,
-  unavailableDashboardCredentialProvider,
   type PersonalPaperOperationsLoadResult,
 } from "./src/personalPaperOperationsClient";
 
@@ -52,21 +52,40 @@ function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dashboardTokenDraft, setDashboardTokenDraft] = useState("");
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({
     status: "NOT_CONFIGURED",
     reason: "Secure dashboard credential is not configured."
   });
   const [refreshing, setRefreshing] = useState(false);
+  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const settingsRepository = useMemo<SettingsRepository>(() => new VersionedSettingsRepository(AsyncStorage), []);
 
   const refresh = useCallback(async () => {
     const next = await loadPersonalPaperOperations({
       baseUrl: BASE_URL,
-      credentialProvider: unavailableDashboardCredentialProvider
+      credentialProvider: credentialSession.credentialProvider
     });
     setOperations(next);
-  }, []);
+  }, [credentialSession]);
+
+  const connectReadOnly = useCallback(async () => {
+    try {
+      credentialSession.connect(dashboardTokenDraft);
+      setDashboardTokenDraft("");
+      await refresh();
+    } catch (error) {
+      credentialSession.clear();
+      setOperations({ status: "NOT_CONFIGURED", reason: error instanceof Error ? error.message : "Dashboard credential is invalid." });
+    }
+  }, [credentialSession, dashboardTokenDraft, refresh]);
+
+  const disconnectReadOnly = useCallback(() => {
+    credentialSession.clear();
+    setDashboardTokenDraft("");
+    setOperations({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  }, [credentialSession]);
 
   useEffect(() => {
     void refresh();
@@ -105,6 +124,7 @@ function AuthenticatedApp() {
   const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
+  const selectedMarket = snapshot?.markets?.find((market) => market.market === CHART_MARKET) ?? null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -112,14 +132,20 @@ function AuthenticatedApp() {
         <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.mode, { color: theme.colors.textMuted }]}>Personal PAPER · Read Only</Text>
       </View>
-      {activeTab === "Portfolio" ? <PortfolioView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} refreshing={refreshing} snapshot={null} /> : activeTab === "Trade" ? <TradingView error={readOnlyError ?? notConfigured} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={null} stale={stale} /> : activeTab === "Markets" ? <MarketsView error={readOnlyError ?? notConfigured} currentPrice={null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={null} refreshing={refreshing} repository={watchlistRepository} stale={stale} /> : activeTab === "More" ? <MoreView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} rawOrders={null} refreshing={refreshing} settingsRepository={settingsRepository} /> : <ScrollView
+      {activeTab === "Portfolio" ? <PortfolioView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} /> : activeTab === "Trade" ? <TradingView error={readOnlyError ?? notConfigured} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={null} stale={stale} /> : activeTab === "Markets" ? <MarketsView error={readOnlyError ?? notConfigured} currentPrice={selectedMarket?.trade_price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot?.markets ?? null} refreshing={refreshing} repository={watchlistRepository} stale={stale} /> : activeTab === "More" ? <MoreView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} settingsRepository={settingsRepository} /> : <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={[styles.heading, { color: theme.colors.text }]}>Home</Text>
         <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Authenticated PAPER operations snapshot</Text>
         {readOnlyError ? <Text style={[styles.error, { color: theme.colors.danger }]}>{readOnlyError}</Text> : null}
-        {notConfigured ? <Text style={[styles.notice, { color: theme.colors.textMuted }]}>{notConfigured}</Text> : null}
+        {notConfigured ? <NusaCard testID="dashboard-session-card">
+          <Text style={[styles.label, { color: theme.colors.textMuted }]}>Read-only session</Text>
+          <Text style={[styles.notice, { color: theme.colors.textMuted }]}>{notConfigured}</Text>
+          <NusaTextField accessibilityLabel="Dashboard credential" label="Dashboard credential" onChangeText={setDashboardTokenDraft} placeholder="Enter local dashboard token" secureTextEntry testID="dashboard-credential" value={dashboardTokenDraft} />
+          <NusaButton accessibilityLabel="Connect read only" label="Connect read only" onPress={() => { void connectReadOnly(); }} testID="dashboard-connect" />
+          <Text style={styles.meta}>Credential stays in process memory only and is cleared on disconnect or app restart.</Text>
+        </NusaCard> : <NusaButton accessibilityLabel="Disconnect read only" label="Disconnect read only" onPress={disconnectReadOnly} testID="dashboard-disconnect" />}
         <NusaCard testID="operations-card">
           <Text style={[styles.label, { color: theme.colors.textMuted }]}>Operations</Text>
           <Text style={[styles.value, { color: theme.colors.primary }]}>{snapshot?.operations.runtimeState ?? "Not configured"}</Text>
