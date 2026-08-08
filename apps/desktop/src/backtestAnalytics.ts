@@ -81,8 +81,6 @@ export function matchTrades(orders: readonly PaperOrder[]): TradeMatchResult {
     const timestamp = Date.parse(order.filledAt);
     if (!Number.isFinite(timestamp)) throw new Error("trade order filledAt must be a valid timestamp");
     numeric(order.quantity, "trade order quantity"); numeric(order.price, "trade order price"); numeric(order.fee, "trade order fee");
-    // Same threshold as the position check below: a quantity indistinguishable from zero
-    // is not a tradable order, and letting one through would seed a residue-only lot.
     if (isDust(order.quantity)) throw new Error("trade order quantity must be positive");
     if (order.side === "BUY") { lots.push({ timestamp, price: order.price, remaining: order.quantity, remainingFee: order.fee }); continue; }
     let quantity = order.quantity;
@@ -99,8 +97,6 @@ export function matchTrades(orders: readonly PaperOrder[]): TradeMatchResult {
       if (isDust(lot.remaining)) lots.shift();
     }
   }
-  // Residue-only lots are dropped before summing, so a hundred of them cannot add up to
-  // something that looks like a position.
   const remaining = lots.filter((lot) => !isDust(lot.remaining));
   const quantity = remaining.reduce((sum, lot) => sum + lot.remaining, 0);
   const totalCost = remaining.reduce((sum, lot) => sum + lot.price * lot.remaining, 0);
@@ -116,6 +112,7 @@ export function calculateExposure(orders: readonly PaperOrder[], startTime: numb
     if (timestamp < startTime || timestamp > endTime) continue;
     if (quantity > 0) exposed += timestamp - previous;
     quantity += order.side === "BUY" ? order.quantity : -order.quantity;
+    if (isDust(quantity)) quantity = 0;
     previous = timestamp;
   }
   if (quantity > 0) exposed += endTime - previous;
