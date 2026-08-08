@@ -15,8 +15,10 @@ import { ThemeProvider, useTheme } from "./src/ThemeProvider";
 import { PortfolioView } from "./src/portfolioView";
 import { TradingView } from "./src/tradingView";
 import { MarketsView } from "./src/marketsView";
+import { AiView } from "./src/aiView";
+import { NotificationView } from "./src/notificationView";
+import { SettingsView } from "./src/settingsView";
 import { WatchlistRepository } from "./src/watchlist";
-import { MoreView } from "./src/moreView";
 import type { SettingsRepository } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
@@ -26,8 +28,9 @@ const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:4
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
-const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장", Trade: "거래", Portfolio: "자산", More: "더보기" };
-const tabGlyphs: Readonly<Record<Tab, string>> = { Home: "⌁", Markets: "◫", Trade: "⇄", Portfolio: "◒", More: "•••" };
+type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
+const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장", Trade: "PAPER", Portfolio: "자산", More: "AI" };
+const tabGlyphs: Readonly<Record<Tab, string>> = { Home: "⌁", Markets: "◫", Trade: "⇄", Portfolio: "◒", More: "✦" };
 const theme = { container: { flex: 1 } } as const;
 const CHART_MARKET = "KRW-BTC";
 
@@ -54,6 +57,7 @@ function AuthenticatedApp() {
   const { status: authStatus, signIn } = useAuth();
   const { theme: appTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
+  const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [dashboardTokenDraft, setDashboardTokenDraft] = useState("");
@@ -116,12 +120,18 @@ function AuthenticatedApp() {
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
       <View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>INTELLIGENCE</Text></View></View>
-      <View style={styles.headerStatus}><StatusChip label="PAPER" tone="primary" /><StatusChip label="읽기 전용" tone="info" /></View>
+      <View style={styles.headerTools}>
+        <Pressable accessibilityLabel="알림" accessibilityRole="button" accessibilityState={{ selected: utilityView === "NOTIFICATIONS" }} onPress={() => setUtilityView((current) => current === "NOTIFICATIONS" ? null : "NOTIFICATIONS")} style={[styles.utilityButton, { borderColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-notifications"><Text style={[styles.utilityText, { color: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>알림</Text></Pressable>
+        <Pressable accessibilityLabel="설정" accessibilityRole="button" accessibilityState={{ selected: utilityView === "SETTINGS" }} onPress={() => setUtilityView((current) => current === "SETTINGS" ? null : "SETTINGS")} style={[styles.utilityButton, { borderColor: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "SETTINGS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-settings"><Text style={[styles.utilityText, { color: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>설정</Text></Pressable>
+      </View>
     </View>
-    {activeTab === "Portfolio" ? <PortfolioView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
+    <View style={[styles.authorityStrip, { borderBottomColor: appTheme.colors.border }]}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><Text style={[styles.authorityCopy, { color: appTheme.colors.textMuted }]}>실행 권한 없음</Text></View>
+    {utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
+      : utilityView === "SETTINGS" ? <SettingsView repository={settingsRepository} />
+      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError ?? notConfigured} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView error={readOnlyError ?? notConfigured} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
-      : activeTab === "More" ? <MoreView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} settingsRepository={settingsRepository} />
+      : activeTab === "More" ? <AiView ai={ai} error={readOnlyError ?? notConfigured} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={appTheme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
         <SectionHeading eyebrow="PERSONAL PAPER" title="오늘의 운영 상태" description="실제 PAPER 런타임과 읽기 전용 스냅샷만 표시합니다." />
         {readOnlyError ? <View style={[styles.error, { backgroundColor: appTheme.colors.surfaceSunken, borderColor: appTheme.colors.danger }]}><Text style={[styles.errorTitle, { color: appTheme.colors.danger }]}>대시보드 연결 오류</Text><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>{readOnlyError}</Text></View> : null}
@@ -155,8 +165,8 @@ function AuthenticatedApp() {
         </> : null}
       </ScrollView>}
     <View style={[styles.navigation, { backgroundColor: appTheme.colors.surfaceSunken, borderTopColor: appTheme.colors.border }]}>{tabs.map((tab) => {
-      const active = activeTab === tab;
-      return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setActiveTab(tab)} style={styles.navItem}><View style={[styles.navGlyphWrap, active && { backgroundColor: appTheme.colors.primarySoft }]}><Text style={[styles.navGlyph, { color: active ? appTheme.colors.primary : appTheme.colors.textMuted }]}>{tabGlyphs[tab]}</Text></View><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>;
+      const active = utilityView === null && activeTab === tab;
+      return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setUtilityView(null); setActiveTab(tab); }} style={styles.navItem}><View style={[styles.navGlyphWrap, active && { backgroundColor: appTheme.colors.primarySoft }]}><Text style={[styles.navGlyph, { color: active ? appTheme.colors.primary : appTheme.colors.textMuted }]}>{tabGlyphs[tab]}</Text></View><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>;
     })}</View>
   </SafeAreaView>;
 }
@@ -165,9 +175,13 @@ const styles = StyleSheet.create({
   container: theme.container,
   authContent: { flex: 1, justifyContent: "center", padding: 24, gap: 16 },
   authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  header: { minHeight: 68, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1 },
+  header: { minHeight: 64, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1 },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerStatus: { flexDirection: "row", gap: 6, alignItems: "center" },
+  headerTools: { flexDirection: "row", gap: 8, alignItems: "center" },
+  utilityButton: { minWidth: 48, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  utilityText: { fontSize: 12, fontWeight: "700" },
+  authorityStrip: { minHeight: 38, paddingHorizontal: 20, flexDirection: "row", gap: 7, alignItems: "center", borderBottomWidth: 1 },
+  authorityCopy: { fontSize: 11, fontWeight: "600", marginLeft: 2 },
   brand: { fontSize: 23, fontWeight: "800", letterSpacing: 1.6 },
   eyebrow: { fontSize: 9, fontWeight: "800", letterSpacing: 1.7, marginTop: -1 },
   content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
