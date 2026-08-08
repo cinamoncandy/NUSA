@@ -36,6 +36,11 @@ export class SqliteCandidatePromotionRepository {
   public constructor(private readonly db: CandidatePromotionDatabase) {}
 
   public saveCandidate(record: CandidateLifecycleRecord): void {
+    if (record.lifecycle === "CHAMPION" || record.lifecycle === "CHALLENGER") throw new Error("privileged candidate lifecycle requires atomic promotion boundary");
+    this.upsertCandidate(record);
+  }
+
+  private upsertCandidate(record: CandidateLifecycleRecord): void {
     validateIdentity(record.identity);
     const stored = this.getCandidate(record.identity.candidateId);
     const payload = json(record);
@@ -94,6 +99,8 @@ export class SqliteCandidatePromotionRepository {
 
   public promoteAtomic(input: PromotionAtomicInput): void {
     validateIdentity(input.candidate.identity);
+    if (input.candidate.lifecycle !== "CHAMPION") throw new Error("atomic promotion requires CHAMPION lifecycle");
+    if (input.previousCandidate != null && input.previousCandidate.lifecycle !== "CHALLENGER") throw new Error("atomic promotion previous lifecycle must be CHALLENGER");
     this.db.transaction(() => {
       const current = this.getChampion();
       if (current !== input.command.expectedCurrentChampionCandidateId) throw new Error("champion compare-and-set conflict");
@@ -105,8 +112,8 @@ export class SqliteCandidatePromotionRepository {
       const candidate = this.getCandidate(input.candidate.identity.candidateId);
       if (candidate == null) throw new Error("candidate not found");
       if (fingerprint(candidate.identity) !== fingerprint(input.candidate.identity)) throw new Error("candidate identity conflict");
-      if (input.previousCandidate != null) this.saveCandidate(input.previousCandidate);
-      this.saveCandidate(input.candidate);
+      if (input.previousCandidate != null) this.upsertCandidate(input.previousCandidate);
+      this.upsertCandidate(input.candidate);
       this.db.connection.prepare("INSERT INTO research_champion_pointer (id, candidate_id, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET candidate_id = excluded.candidate_id, updated_at = excluded.updated_at").run(input.result.resultingChampionCandidateId, input.command.requestedAt);
       this.db.connection.prepare("INSERT INTO research_promotion_commands (command_id, payload_fingerprint, result_json, created_at) VALUES (?, ?, ?, ?)").run(input.command.promotionCommandId, fingerprint(input.command), json(input.result), input.command.requestedAt);
       this.appendAuditInTransaction(input.audit);
