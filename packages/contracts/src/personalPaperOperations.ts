@@ -18,6 +18,45 @@ export interface PersonalPaperRuntimeProjection {
   readonly updatedAt: number;
 }
 
+export interface PersonalPaperPortfolioProjection {
+  readonly observedAt: string;
+  readonly mode: "PAPER";
+  readonly account: Readonly<{
+    readonly available: true;
+    readonly cash: number;
+    readonly equity: number;
+    readonly unrealizedPnl: number;
+    readonly markPrice: number;
+    readonly position: Readonly<{
+      readonly market: string;
+      readonly quantity: number;
+      readonly averagePrice: number;
+      readonly realizedPnl: number;
+    }>;
+  }>;
+  readonly openOrderCount: 0;
+}
+
+export interface PersonalPaperOrderProjection {
+  readonly id: string;
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly quantity: number;
+  readonly price: number;
+  readonly fee: number;
+  readonly filledAt: string;
+  readonly status: "FILLED";
+  readonly fills: readonly Readonly<{ readonly id: string; readonly quantity: number; readonly price: number; readonly filledAt: string }>[];
+}
+
+export interface PersonalPaperMarketProjection {
+  readonly market: string;
+  readonly trade_price: number;
+  readonly trade_timestamp: number;
+  readonly signed_change_rate?: number;
+  readonly acc_trade_price_24h?: number;
+}
+
 export interface PersonalPaperOperationsSnapshot {
   readonly schemaVersion: 1;
   readonly generatedAt: number;
@@ -27,6 +66,9 @@ export interface PersonalPaperOperationsSnapshot {
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
   readonly operations: PersonalPaperRuntimeProjection;
+  readonly portfolio: PersonalPaperPortfolioProjection | null;
+  readonly orders: readonly PersonalPaperOrderProjection[];
+  readonly markets: readonly PersonalPaperMarketProjection[];
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
@@ -35,6 +77,9 @@ export interface PersonalPaperOperationsInput {
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
   readonly operations: PersonalPaperRuntimeProjection;
+  readonly portfolio?: PersonalPaperPortfolioProjection | null;
+  readonly orders?: readonly PersonalPaperOrderProjection[];
+  readonly markets?: readonly PersonalPaperMarketProjection[];
 }
 
 const finite = (value: number, name: string): number => {
@@ -50,28 +95,18 @@ const nonNegativeInteger = (value: number, name: string): number => {
 function validateDashboard(dashboard: MobileDashboardResponse): void {
   if (dashboard.apiVersion !== "1") throw new Error("unsupported dashboard apiVersion");
   finite(dashboard.generatedAt, "dashboard.generatedAt");
-  if (dashboard.mode !== "PAPER" && dashboard.mode !== "STOPPED" && dashboard.mode !== "FAULTED") {
-    throw new Error("invalid dashboard mode");
-  }
-  if (dashboard.overallHealth !== "HEALTHY" && dashboard.overallHealth !== "DEGRADED" && dashboard.overallHealth !== "DOWN") {
-    throw new Error("invalid dashboard health");
-  }
+  if (dashboard.mode !== "PAPER" && dashboard.mode !== "STOPPED" && dashboard.mode !== "FAULTED") throw new Error("invalid dashboard mode");
+  if (dashboard.overallHealth !== "HEALTHY" && dashboard.overallHealth !== "DEGRADED" && dashboard.overallHealth !== "DOWN") throw new Error("invalid dashboard health");
 }
 
 function validateResearch(research: ResearchStatusProjection | null): void {
   if (research == null) return;
-  if (research.liveAuthority !== "NONE" || research.productionMutationAllowed !== false) {
-    throw new Error("research authority invariant violated");
-  }
-  if (research.champion.authority !== "PAPER_ONLY" || research.challenger.authority !== "ZERO_AUTHORITY") {
-    throw new Error("research strategy authority invariant violated");
-  }
+  if (research.liveAuthority !== "NONE" || research.productionMutationAllowed !== false) throw new Error("research authority invariant violated");
+  if (research.champion.authority !== "PAPER_ONLY" || research.challenger.authority !== "ZERO_AUTHORITY") throw new Error("research strategy authority invariant violated");
 }
 
 function validateOperations(operations: PersonalPaperRuntimeProjection): void {
-  if (!["HALTED", "READY_OFFLINE", "READY", "STOPPING", "STOPPED"].includes(operations.runtimeState)) {
-    throw new Error("invalid PAPER runtime state");
-  }
+  if (!["HALTED", "READY_OFFLINE", "READY", "STOPPING", "STOPPED"].includes(operations.runtimeState)) throw new Error("invalid PAPER runtime state");
   if (!["OFF", "OBSERVE", "ACTIVE"].includes(operations.schedulerMode)) throw new Error("invalid PAPER scheduler mode");
   if (operations.transport !== "ONLINE" && operations.transport !== "OFFLINE") throw new Error("invalid PAPER transport state");
   nonNegativeInteger(operations.pendingWrites, "operations.pendingWrites");
@@ -79,28 +114,28 @@ function validateOperations(operations: PersonalPaperRuntimeProjection): void {
   if (operations.lastEventAt != null) finite(operations.lastEventAt, "operations.lastEventAt");
 }
 
+function validateReadOnlyProjections(input: Pick<PersonalPaperOperationsSnapshot, "portfolio" | "orders" | "markets">): void {
+  if (input.portfolio != null) {
+    const account = input.portfolio.account;
+    if (input.portfolio.mode !== "PAPER" || account.available !== true || input.portfolio.openOrderCount !== 0 || !Number.isFinite(Date.parse(input.portfolio.observedAt))) throw new Error("invalid PAPER portfolio projection");
+    for (const [name, value] of [["cash", account.cash], ["equity", account.equity], ["unrealizedPnl", account.unrealizedPnl], ["markPrice", account.markPrice], ["quantity", account.position.quantity], ["averagePrice", account.position.averagePrice], ["realizedPnl", account.position.realizedPnl]] as const) finite(value, `portfolio.${name}`);
+    if (account.cash < 0 || account.equity < 0 || account.markPrice < 0 || account.position.quantity < 0 || account.position.averagePrice < 0) throw new Error("invalid PAPER portfolio balance");
+  }
+  for (const order of input.orders) {
+    if (!order.id.trim() || !order.market.trim() || !["BUY", "SELL"].includes(order.side) || order.status !== "FILLED" || !Number.isFinite(Date.parse(order.filledAt))) throw new Error("invalid PAPER order projection");
+    for (const value of [order.quantity, order.price, order.fee]) if (!Number.isFinite(value) || value < 0) throw new Error("invalid PAPER order value");
+    for (const fill of order.fills) if (!fill.id.trim() || !Number.isFinite(fill.quantity) || fill.quantity <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(Date.parse(fill.filledAt))) throw new Error("invalid PAPER fill projection");
+  }
+  for (const market of input.markets) {
+    if (!market.market.trim() || !Number.isFinite(market.trade_price) || market.trade_price <= 0 || !Number.isSafeInteger(market.trade_timestamp) || market.trade_timestamp < 0) throw new Error("invalid PAPER market projection");
+    if (market.signed_change_rate != null) finite(market.signed_change_rate, "market.signed_change_rate");
+    if (market.acc_trade_price_24h != null && (!Number.isFinite(market.acc_trade_price_24h) || market.acc_trade_price_24h < 0)) throw new Error("invalid PAPER market turnover");
+  }
+}
+
 function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperationsHealth {
-  if (
-    input.dashboard.mode === "FAULTED" ||
-    input.dashboard.overallHealth === "DOWN" ||
-    input.dashboard.killSwitchActive ||
-    input.operations.killSwitchActive ||
-    input.operations.accountHalted ||
-    input.operations.runtimeState === "HALTED" ||
-    input.research?.health === "FAIL_CLOSED" ||
-    input.research?.recoveryStatus === "FAIL_CLOSED"
-  ) return "FAIL_CLOSED";
-
-  if (
-    input.dashboard.overallHealth === "DEGRADED" ||
-    input.operations.runtimeState !== "READY" ||
-    input.operations.transport !== "ONLINE" ||
-    input.operations.pendingWrites > 0 ||
-    input.research == null ||
-    input.research.health !== "HEALTHY" ||
-    input.research.recoveryStatus !== "READY"
-  ) return "DEGRADED";
-
+  if (input.dashboard.mode === "FAULTED" || input.dashboard.overallHealth === "DOWN" || input.dashboard.killSwitchActive || input.operations.killSwitchActive || input.operations.accountHalted || input.operations.runtimeState === "HALTED" || input.research?.health === "FAIL_CLOSED" || input.research?.recoveryStatus === "FAIL_CLOSED") return "FAIL_CLOSED";
+  if (input.dashboard.overallHealth === "DEGRADED" || input.operations.runtimeState !== "READY" || input.operations.transport !== "ONLINE" || input.operations.pendingWrites > 0 || input.research == null || input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY") return "DEGRADED";
   return "HEALTHY";
 }
 
@@ -112,26 +147,14 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
-export function buildPersonalPaperOperationsSnapshot(
-  input: PersonalPaperOperationsInput,
-  generatedAt = Date.now()
-): PersonalPaperOperationsSnapshot {
+export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperationsInput, generatedAt = Date.now()): PersonalPaperOperationsSnapshot {
   validateDashboard(input.dashboard);
   validateResearch(input.research);
   validateOperations(input.operations);
   finite(generatedAt, "generatedAt");
-
   const health = deriveHealth(input);
-  const readyForPaperOperations =
-    health !== "FAIL_CLOSED" &&
-    input.dashboard.mode === "PAPER" &&
-    input.dashboard.tradingAllowed &&
-    !input.dashboard.killSwitchActive &&
-    !input.operations.killSwitchActive &&
-    !input.operations.accountHalted &&
-    (input.operations.runtimeState === "READY" || input.operations.runtimeState === "READY_OFFLINE");
-
-  return deepFreeze(structuredClone({
+  const readyForPaperOperations = health !== "FAIL_CLOSED" && input.dashboard.mode === "PAPER" && input.dashboard.tradingAllowed && !input.dashboard.killSwitchActive && !input.operations.killSwitchActive && !input.operations.accountHalted && (input.operations.runtimeState === "READY" || input.operations.runtimeState === "READY_OFFLINE");
+  const snapshot = {
     schemaVersion: 1 as const,
     generatedAt,
     mode: input.dashboard.mode,
@@ -140,20 +163,19 @@ export function buildPersonalPaperOperationsSnapshot(
     dashboard: input.dashboard,
     research: input.research,
     operations: input.operations,
+    portfolio: input.portfolio ?? null,
+    orders: input.orders ?? [],
+    markets: input.markets ?? [],
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
-  }));
+  };
+  validateReadOnlyProjections(snapshot);
+  return deepFreeze(structuredClone(snapshot));
 }
 
-export function validatePersonalPaperOperationsSnapshot(
-  snapshot: PersonalPaperOperationsSnapshot,
-  now = Date.now(),
-  maximumAgeMs = 15_000
-): PersonalPaperOperationsSnapshot {
+export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {
   if (snapshot.schemaVersion !== 1) throw new Error("unsupported personal PAPER operations schemaVersion");
-  if (snapshot.liveAuthority !== "NONE" || snapshot.productionMutationAllowed !== false) {
-    throw new Error("personal PAPER operations authority invariant violated");
-  }
+  if (snapshot.liveAuthority !== "NONE" || snapshot.productionMutationAllowed !== false) throw new Error("personal PAPER operations authority invariant violated");
   finite(snapshot.generatedAt, "generatedAt");
   finite(now, "now");
   if (!Number.isFinite(maximumAgeMs) || maximumAgeMs < 0) throw new Error("maximumAgeMs must be non-negative");
@@ -162,6 +184,7 @@ export function validatePersonalPaperOperationsSnapshot(
   validateDashboard(snapshot.dashboard);
   validateResearch(snapshot.research);
   validateOperations(snapshot.operations);
+  validateReadOnlyProjections(snapshot);
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
   if (snapshot.mode !== snapshot.dashboard.mode) throw new Error("personal PAPER operations mode mismatch");
