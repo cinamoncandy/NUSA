@@ -77,7 +77,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <NusaCard testID="ai-authority-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>권한 경계</Text><StatusChip label={health ?? "UNKNOWN"} tone={health === "HEALTHY" ? "success" : "warning"} /></View>
       <DataRow label="AI LIVE 권한" value={liveAuthority ?? "-"} emphasis />
-      <DataRow label="Production mutation" value={productionMutationAllowed == null ? "-" : productionMutationAllowed ? "허용" : "금지"} tone={productionMutationAllowed === true ? "danger" : productionMutationAllowed === false ? "success" : "default"} />
+      <DataRow label="Production mutation" value={productionMutationAllowed == null ? "-" : "금지"} tone={productionMutationAllowed === false ? "success" : "default"} />
       <DataRow label="킬 스위치" value={killSwitchActive == null ? "-" : killSwitchActive ? "활성" : "비활성"} tone={killSwitchActive === true ? "danger" : killSwitchActive === false ? "success" : "default"} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>ZERO AUTHORITY는 제품 정책이며, 서버 snapshot이 연결되면 실제 권한 불변식도 함께 표시됩니다.</Text>
     </NusaCard>
