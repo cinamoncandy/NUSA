@@ -1,0 +1,50 @@
+id: WO-0047
+title: "External Read-only Environment Preflight Harness"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb
+implementation_branch: agent/wo-0047-external-readonly-environment-preflight
+objective: "Add an operator-triggered, fail-closed external read-only broker environment preflight harness that can later validate authenticated observation without granting execution, activation, credential-execution, order, cash, position, or real-money authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0047 adds only a narrow read-only probe orchestration port around the existing read-only broker service. CI uses synthetic ports and performs zero external broker calls. A real external probe requires separate explicit operator authorization plus locally configured read-only credentials and remains observational only."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "No external probe occurs unless operatorAuthorizedExternalProbe=true is supplied at runtime."
+  - "Bind every probe receipt to exact code revision, configuration hash, release seal fingerprint, bounded-envelope fingerprint, operator request ID, and observed read-only result."
+  - "Use only a narrow status/capture read-only port; do not expose credential save/load, broker mutation, order, cancel, withdraw, cash, position, or execution methods."
+  - "CI must use synthetic read-only ports only and must never call a real broker or require credentials."
+  - "Credential not configured or rejected is SAFE_BLOCK; transport timeout/network/provider ambiguity is UNKNOWN/fail-closed."
+  - "Successful authenticated observation yields READY_FOR_HUMAN_REVIEW only; it does not authorize activation or an order."
+  - "Receipts contain no raw credentials, bearer tokens, balances, order payloads, private keys, signatures, or executable authorization tokens."
+  - "Output activationAuthority=false, orderAuthorization=false, executionAuthority=false, authorizesLive=false, mutationPerformed=false, realMoneyExecutionAllowed=false."
+  - "Actual external validation is not performed by CI or by this automated work order."
+acceptance:
+  - "External read-only environment preflight regressions PASS."
+  - "Operator authorization false performs zero capture calls and returns NOT_RUN."
+  - "Synthetic connected read-only port yields READY_FOR_HUMAN_REVIEW with secret-free receipt and zero authority."
+  - "Invalid credentials/IP policy returns SAFE_BLOCK; network/timeout/provider ambiguity returns UNKNOWN."
+  - "Identical normalized synthetic observations produce identical receipt fingerprint."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  actual_external_probe_in_ci: prohibited
+  actual_activation: prohibited
+  actual_order_authorization: prohibited
+  automatic_activation: prohibited
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion installs the operator-gated read-only preflight harness only; no real broker validation or money-moving authority is created."
