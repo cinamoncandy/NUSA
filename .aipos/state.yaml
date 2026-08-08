@@ -1,56 +1,57 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T11:50:00+09:00"
-phase: external-readonly-environment-preflight
-status: verifying
-objective: "Install an operator-gated external read-only environment preflight harness without conducting a real external probe in CI or granting execution authority."
+updated_at: "2026-08-08T12:26:00+09:00"
+phase: real-external-readonly-verification
+status: blocked
+objective: "Run one operator-controlled authenticated external read-only broker probe and preserve only secret-free verification evidence."
 base_branch: main
-active_branch: agent/wo-0047-external-readonly-environment-preflight
-active_pull_request: 162
-base_commit: 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb
+active_branch: agent/wo-0048-real-external-readonly-verification
+active_pull_request: pending
+base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
 claimed_state:
-  work_order: WO-0047
-  status: IN_PROGRESS
+  work_order: WO-0048
+  status: BLOCKED
 verified_state:
-  work_order: WO-0046
+  work_order: WO-0047
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0046-completion.json"
+  evidence: ".aipos/evidence/WO-0047-completion.json"
 latest_verified_slice:
-  id: wo-0046-tiny-bounded-live-envelope-complete
-  evidence: ".aipos/evidence/WO-0046-completion.json"
-  summary: "WO-0046 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; bounded envelope grants no activation/order authority."
+  id: wo-0047-external-readonly-environment-preflight-complete
+  evidence: ".aipos/evidence/WO-0047-completion.json"
+  summary: "WO-0047 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; external probe harness remains operator-gated and no real external probe was performed by CI."
 completed:
+  - id: WO-0047
+    evidence: ".aipos/evidence/WO-0047-completion.json"
+    summary: "Added operator-gated external read-only environment preflight harness without execution authority."
   - id: WO-0046
     evidence: ".aipos/evidence/WO-0046-completion.json"
     summary: "Added non-executable tiny bounded Restricted LIVE policy envelope."
   - id: WO-0045
     evidence: ".aipos/evidence/WO-0045-completion.json"
     summary: "Added immutable production release artifact seal for independent human review only."
-  - id: WO-0044
-    evidence: ".aipos/evidence/WO-0044-completion.json"
-    summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
-in_progress:
-  - id: WO-0047
-    evidence: ".aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml; PR #162"
-    summary: "Operator-gated external read-only preflight harness implemented; official exact-head verification pending; CI remains synthetic and network-free."
-blocked: []
+in_progress: []
+blocked:
+  - id: WO-0048
+    evidence: ".aipos/work-orders/WO-0048-real-external-readonly-verification.yaml"
+    summary: "Blocked pending an operator-controlled local runtime with existing OS-encrypted read-only broker credentials; generic CI may not perform the external probe."
 next:
-  work_order: .aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml
-  reason: "Complete PR #162 exact-head verification and merge. Actual external broker probing remains a separate explicit operator action."
+  work_order: .aipos/work-orders/WO-0048-real-external-readonly-verification.yaml
+  reason: "Run the operator-gated read-only probe locally without exposing credentials, then import only secret-free verification evidence."
 verification:
   required:
-    - "External read-only environment preflight regression tests"
-    - "External read-only environment preflight source validation"
+    - "Real operator-controlled external read-only probe receipt"
+    - "Exact code/config/release/envelope binding"
+    - "Secret-free evidence verification"
+    - "Zero mutation counters"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
-    - "Restricted LIVE activation rehearsal validation"
     - "Read-only broker credential integration"
     - "AIPOS verified-state evidence integrity"
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0047 implementation on PR #162; official exact-head verification pending."
-  current_commit: "PR #162 verification pending"
+  last_result: "WO-0047 merged as 5c185fa8560ceddc7a12e2204e77591a768c93d2. WO-0048 cannot complete without a real operator-controlled external read-only receipt."
+  current_commit: "WO-0048 blocked registration pending merge"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -59,6 +60,21 @@ human_authority:
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
   production_promotion_mutation: prohibited
+real_external_readonly_verification:
+  mode: OPERATOR_CONTROLLED_READ_ONLY
+  status: BLOCKED
+  actual_external_probe_completed: false
+  explicit_operator_authorization_required: true
+  credential_source: os_encrypted_read_only_only
+  raw_credential_transfer: prohibited
+  generic_ci_external_probe: prohibited
+  execution_transport_connected: false
+  credential_execution_use: prohibited
+  activation_authority: false
+  order_authorization: false
+  execution_authority: false
+  authorizes_live: false
+  real_money_execution_allowed: false
 external_readonly_environment_preflight:
   mode: OPERATOR_GATED_READ_ONLY
   actual_external_probe_in_ci: false
@@ -98,12 +114,6 @@ restricted_live_activation_ceremony:
   actual_ceremony_conducted: false
   executable_activation_token: prohibited
   execution_authority: false
-  authorizes_live: false
-restricted_live_environment_preflight:
-  authority: human_review_only
-  execution_transport_required: disconnected
-  credential_execution_use: prohibited
-  real_money_execution_allowed: false
   authorizes_live: false
 restricted_live_authority:
   default_state: DISABLED
