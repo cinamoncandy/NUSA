@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:38:40+09:00"
+updated_at: "2026-08-08T23:45:00+09:00"
 phase: private-readonly-runtime-session
 status: ready
 objective: "Connect the private mobile client to the authenticated read-only Personal PAPER snapshot while preserving merged durable P0 fill-boundary enforcement and exposing verified portfolio, order-history, and public ticker projections without mutation or LIVE authority."
 base_branch: main
 active_branch: agent/p8-private-readonly-runtime-session-rebased
 active_pull_request: 188
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 11fa5080baecd1e3078db997a68c56daf9d82abf
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -55,8 +55,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head Full CI 31261654980 PASS; Restricted LIVE/read-only safety workflows 31261654986, 31261654989, 31261654984, and 31261655002 PASS. Durable P0 enforcement is preserved as the P8 base."
-  current_commit: "P8 PR #188 rebased from main a8cc673bb47f9856140485aa6d159140626272e5; exact-head verification pending"
+  last_result: "PR #186 merged at 11fa5080baecd1e3078db997a68c56daf9d82abf after exact-head c62f5ce88d04e2bf68e9588a2df61de1883d49a9 CI run 31262275177 PASS and Restricted LIVE/read-only safety workflows 31262275235, 31262275189, 31262275172, 31262275179 PASS. P7 runtime-enforcement bookkeeping is synchronized on main."
+  current_commit: "P8 PR #188 rebased onto 11fa5080baecd1e3078db997a68c56daf9d82abf with remote HTTP bearer transport prohibited and Upbit base-asset volume semantics corrected; exact-head verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
