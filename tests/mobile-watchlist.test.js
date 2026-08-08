@@ -69,7 +69,7 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.match(app, /AsyncStorage/);
   assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /<MarketsView/);
-  assert.match(app, /rawMarkets=\{null\}/);
+  assert.match(app, /rawMarkets=\{snapshot == null \? null : \[\.\.\.snapshot\.markets\]\}/);
   assert.doesNotMatch(app, /\/api\/(?:markets|candles|account|status)/);
   assert.match(client, /\/api\/paper-operations/);
 });
