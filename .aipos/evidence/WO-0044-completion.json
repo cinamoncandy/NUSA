@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0044-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0044",
+    "path": ".aipos/work-orders/WO-0044-restricted-live-activation-ceremony.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "dd6f8e38fa5c7e8e86f1c5204f40eeb0d853b0ca"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "61988441f22d4868a94d95bebc0c382afecd9a77"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "VALIDATION_ONLY",
+      "actual_ceremony_conducted": false,
+      "human_requester_required": true,
+      "distinct_human_approvers_required": 2,
+      "exact_preflight_binding": true,
+      "exact_scope_binding": true,
+      "external_signature_verification_required": true,
+      "anti_replay_required": true,
+      "single_use_required": true,
+      "expiry_required": true,
+      "cooldown_required": true,
+      "executable_activation_token": "prohibited",
+      "execution_authority": false,
+      "authorizes_live": false,
+      "real_money_execution_allowed": false
+    },
+    "hash": {"algorithm": "sha256", "value": "0cc2e4179f31e218a9b3f35f2dc063d3703c4d1af6ae14aae523113a2eeafdbb"}
+  },
+  "observed_at": "2026-08-08T10:02:00+09:00",
+  "provenance": [
+    "github:pull/159",
+    "github:actions/run/31231492364",
+    "github:actions/run/31231492373",
+    "github:actions/run/31231492375",
+    "github:actions/run/31231492363",
+    "github:actions/run/31231492370",
+    "git:merge/61988441f22d4868a94d95bebc0c382afecd9a77"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31231492364"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31231492373"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31231492375"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31231492363"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31231492370"},
+    {"name": "ceremony_validation_only", "status": "PASS"},
+    {"name": "activation_credential_not_issued", "status": "PASS"},
+    {"name": "actual_human_ceremony_not_conducted", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
