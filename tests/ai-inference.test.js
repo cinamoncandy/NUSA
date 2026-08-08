@@ -10,7 +10,7 @@ const { createAiHypothesisDraft } = require("../dist/apps/cloud/src/ai/researchH
 const { createAiResearchReview } = require("../dist/apps/cloud/src/ai/researchReviewAgent.js");
 
 const digest = "a".repeat(64);
-const request = (overrides = {}) => ({ requestId: "request-1", role: "EVIDENCE_PRODUCER", providerId: "test", modelVersionId: "model-1", promptArtifactId: "prompt-1", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, contextHash: digest, inputHash: digest, input: Object.freeze({ evidenceIds: ["e-1"] }), maxOutputBytes: 1000, maxTokens: 100, timeoutMs: 50, attempt: 0, ...overrides });
+const request = (overrides = {}) => ({ requestId: "request-1", role: "EVIDENCE_PRODUCER", providerId: "test", modelVersionId: "model-1", promptArtifactId: "prompt-1", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, instructions: "Evidence only; zero authority.", contextHash: digest, inputHash: digest, input: Object.freeze({ evidenceIds: ["e-1"] }), maxOutputBytes: 1000, maxTokens: 100, timeoutMs: 50, attempt: 0, ...overrides });
 const response = (req, output, overrides = {}) => ({ requestId: req.requestId, providerId: req.providerId, modelVersionId: req.modelVersionId, promptArtifactDigest: req.promptArtifactDigest, contextHash: req.contextHash, inputHash: req.inputHash, structuredOutput: output, outputHash: aiSha256(output), startedAt: 1, completedAt: 2, ...overrides });
 
 test("model executor enforces output hash, size, and bounded failure behavior", async () => {
@@ -30,21 +30,34 @@ test("model executor enforces output hash, size, and bounded failure behavior", 
   assert.equal(timeout.failure.code, "TIMEOUT");
 });
 
-test("prompt registry rejects digest mismatch and registers immutable versions", () => {
+test("prompt registry binds exact instructions and capability policy into immutable digest", () => {
   const registry = createDefaultPromptArtifactRegistry();
   const artifact = registry.get("nusa.ai.evidence_producer", "1.0.0");
   assert.ok(artifact);
+  assert.match(artifact.instructions, /supplied verified evidence payloads/i);
   assert.equal(registry.assertDefinition(artifact.promptArtifactId, artifact.version, artifact.digest).digest, artifact.digest);
   assert.throws(() => registry.assertDefinition(artifact.promptArtifactId, artifact.version, digest), /PROMPT_DIGEST_MISMATCH/);
   const empty = new PromptArtifactRegistry();
   assert.throws(() => empty.register({ ...artifact, digest: digest, prohibitedCapabilities: [] }), /capability policy/);
+  assert.throws(() => empty.register({ ...artifact, instructions: `${artifact.instructions} changed` }), /digest/);
 });
 
-test("evidence bundle exposes only verified evidence and rejects credential references", () => {
-  const bundle = buildEvidenceBundle({ contextSnapshotId: "context-1", agentId: "agent-1", evidence: [{ evidenceId: "e-1", evidenceType: "market-data", sourceReference: "market-feed:1", observedAt: 1, validUntil: 100, quality: "verified", contentDigest: digest, lineageReferences: [] }], allowedEvidenceClasses: ["market-data"], evaluatedAt: 2, validUntil: 50, policyVersionIds: ["policy-1"], certificationIds: [], controlPlaneStateId: "control-1" });
+test("evidence bundle materializes only verified digest-bound non-sensitive payloads", () => {
+  const payload = Object.freeze({ market: "KRW-BTC", price: 100, source: "UPBIT_PUBLIC_TICKER" });
+  const payloadDigest = aiSha256(payload);
+  const evidence = [{ evidenceId: "e-1", evidenceType: "market-data", sourceReference: "market-feed:1", observedAt: 1, validUntil: 100, quality: "verified", contentDigest: payloadDigest, lineageReferences: [] }];
+  const base = { contextSnapshotId: "context-1", agentId: "agent-1", evidence, evidenceMaterializations: [{ evidenceId: "e-1", contentDigest: payloadDigest, payload }], allowedEvidenceClasses: ["market-data"], evaluatedAt: 2, validUntil: 50, policyVersionIds: ["policy-1"], certificationIds: [], controlPlaneStateId: "control-1" };
+  const bundle = buildEvidenceBundle(base);
   assert.equal(bundle.context.evidenceIds[0], "e-1");
   assert.equal(bundle.context.contextHash.length, 64);
-  assert.throws(() => buildEvidenceBundle({ contextSnapshotId: "context-2", agentId: "agent-1", evidence: [{ evidenceId: "e-2", evidenceType: "market-data", sourceReference: "api-key:secret", observedAt: 1, validUntil: 100, quality: "verified", contentDigest: digest, lineageReferences: [] }], allowedEvidenceClasses: ["market-data"], evaluatedAt: 2, validUntil: 50, policyVersionIds: [], certificationIds: [], controlPlaneStateId: "control-1" }), /credential/);
+  assert.equal(bundle.materializedEvidence[0].payload.price, 100);
+  assert.equal(bundle.evidenceBundleHash.length, 64);
+  assert.throws(() => buildEvidenceBundle({ ...base, evidenceMaterializations: [] }), /materialization is missing/);
+  assert.throws(() => buildEvidenceBundle({ ...base, evidenceMaterializations: [{ evidenceId: "e-1", contentDigest: payloadDigest, payload: { ...payload, price: 101 } }] }), /payload digest mismatch/);
+  const sensitivePayload = { market: "KRW-BTC", authorization: "Bearer top-secret-token" };
+  const sensitiveDigest = aiSha256(sensitivePayload);
+  assert.throws(() => buildEvidenceBundle({ ...base, evidence: [{ ...evidence[0], contentDigest: sensitiveDigest }], evidenceMaterializations: [{ evidenceId: "e-1", contentDigest: sensitiveDigest, payload: sensitivePayload }] }), /credential material/);
+  assert.throws(() => buildEvidenceBundle({ ...base, contextSnapshotId: "context-2", evidence: [{ ...evidence[0], evidenceId: "e-2", sourceReference: "api-key:secret" }], evidenceMaterializations: [{ evidenceId: "e-2", contentDigest: payloadDigest, payload }] }), /credential material/);
 });
 
 test("default cloud AI runtime is disabled and cannot grant authority", () => {

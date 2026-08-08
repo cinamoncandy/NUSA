@@ -2,12 +2,18 @@ import { createHash } from "node:crypto";
 
 export type AiAgentRole = "EVIDENCE_PRODUCER" | "STRATEGY_PROPOSER" | "ADVERSARIAL_CRITIC" | "RISK_VERIFIER";
 export type AiOrchestrationStatus = "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE" | "INVALID";
-export type ModelFailureCode = "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "OUTPUT_TOO_LARGE" | "MALFORMED_OUTPUT" | "SCHEMA_VIOLATION" | "PROMPT_DIGEST_MISMATCH" | "CONTEXT_INVALID" | "REPLAY_CONFLICT" | "UNKNOWN";
+export type ModelFailureCode = "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "OUTPUT_TOO_LARGE" | "MALFORMED_OUTPUT" | "SCHEMA_VIOLATION" | "PROMPT_DIGEST_MISMATCH" | "CONTEXT_INVALID" | "EVIDENCE_MISSING" | "EVIDENCE_DIGEST_MISMATCH" | "SENSITIVE_EVIDENCE" | "REPLAY_CONFLICT" | "UNKNOWN";
 
 export interface ModelUsage {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
   readonly totalTokens?: number;
+}
+
+export interface AiEvidenceMaterialization {
+  readonly evidenceId: string;
+  readonly contentDigest: string;
+  readonly payload: Readonly<Record<string, unknown>>;
 }
 
 export interface ModelRequest {
@@ -18,6 +24,8 @@ export interface ModelRequest {
   readonly promptArtifactId: string;
   readonly promptArtifactVersion: string;
   readonly promptArtifactDigest: string;
+  /** Exact immutable instructions covered by promptArtifactDigest. */
+  readonly instructions: string;
   readonly contextHash: string;
   readonly inputHash: string;
   /** Evidence-only input. Raw application state and credentials are prohibited. */

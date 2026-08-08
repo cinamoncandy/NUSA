@@ -5,6 +5,7 @@ import {
   type AgentContextSnapshot,
   type AgentDefinition,
   type AgentEvidence,
+  type AgentIndependenceAssessment,
   type AgentRoleContract,
   type AgentRun,
   type EvidenceAssessment,
@@ -16,8 +17,8 @@ import {
   type MultiAgentGovernanceEvent,
   MultiAgentGovernanceEventType
 } from "../../../../packages/contracts/src/multiAgentGovernance";
-import { aiSha256, type AiAgentRole, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
-import { createAgentDefinition, evaluateMultiAgentDecision } from "../multiAgentGovernance";
+import { aiSha256, type AiAgentRole, type AiEvidenceMaterialization, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
+import { assessAgentIndependence, createAgentDefinition, evaluateMultiAgentDecision } from "../multiAgentGovernance";
 import { AgentExecutor } from "./agentExecutor";
 import { buildEvidenceBundle } from "./evidenceBundleBuilder";
 import { createDefaultPromptArtifactRegistry, type PromptArtifactRegistry } from "./promptArtifactRegistry";
@@ -29,6 +30,7 @@ export interface AiOrchestrationInput {
   readonly decisionId: string;
   readonly evaluatedAt: number;
   readonly evidence: readonly AgentEvidence[];
+  readonly evidenceMaterializations?: readonly AiEvidenceMaterialization[];
   readonly policyVersionIds?: readonly string[];
   readonly certificationIds?: readonly string[];
   readonly controlPlaneStateId?: string;
@@ -39,6 +41,7 @@ export interface AiOrchestrationResult {
   readonly status: "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE";
   readonly orchestrationRunId: string;
   readonly governanceDecision: MultiAgentDecisionResult | null;
+  readonly independence: AgentIndependenceAssessment | null;
   readonly agents: readonly AgentDefinition[];
   readonly contexts: readonly AgentContextSnapshot[];
   readonly runs: readonly AgentRun[];
@@ -97,7 +100,15 @@ const validateRoleOutput = (role: AiAgentRole, value: unknown): StructuredAgentO
 
 const contract = (role: AgentRole, output: string, id: string): AgentRoleContract => Object.freeze({ contractId: `ai-contract-${id}`, role, requiredInputs: ["evidence_context"], permittedOutputs: [output], prohibitedOutputs: ["order", "cancel", "transfer", "withdraw", "credential", "secret", "production_mutation", "live_execution"], evidenceRequirements: ["verified"], timeoutBehavior: "incomplete", fallbackPolicyId: "AI_ZERO_AUTHORITY_FAIL_CLOSED_V1", status: "active" });
 
-const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = []): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, governanceDecision: null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
+const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = []): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
+
+const evidenceFailureCode = (error: unknown): ModelFailure["code"] => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/materialization is missing/i.test(message)) return "EVIDENCE_MISSING";
+  if (/digest mismatch/i.test(message)) return "EVIDENCE_DIGEST_MISMATCH";
+  if (/credential material/i.test(message)) return "SENSITIVE_EVIDENCE";
+  return "CONTEXT_INVALID";
+};
 
 export class MultiAgentOrchestrator {
   private readonly cache = new Map<string, { inputHash: string; result: AiOrchestrationResult }>();
@@ -114,7 +125,26 @@ export class MultiAgentOrchestrator {
   private readonly enabled: boolean;
 
   public async run(input: AiOrchestrationInput): Promise<AiOrchestrationResult> {
-    const inputHash = aiSha256({ evidence: input.evidence, evaluatedAt: input.evaluatedAt, policyVersionIds: input.policyVersionIds ?? [], controlPlaneStateId: input.controlPlaneStateId ?? "" });
+    let inputHash: string;
+    try {
+      const promptIdentity = roles.map((role) => {
+        const artifact = this.registry.get(`nusa.ai.${role.toLowerCase()}`, "1.0.0");
+        return artifact == null ? { role, missing: true } : { role, promptArtifactId: artifact.promptArtifactId, version: artifact.version, digest: artifact.digest };
+      });
+      inputHash = aiSha256({
+        decisionId: input.decisionId,
+        evidence: [...input.evidence].sort((left, right) => left.evidenceId.localeCompare(right.evidenceId)),
+        evidenceMaterializations: [...(input.evidenceMaterializations ?? [])].sort((left, right) => left.evidenceId.localeCompare(right.evidenceId)),
+        evaluatedAt: input.evaluatedAt,
+        policyVersionIds: [...(input.policyVersionIds ?? [])].sort(),
+        certificationIds: [...(input.certificationIds ?? [])].sort(),
+        controlPlaneStateId: input.controlPlaneStateId ?? "",
+        contextValidForMs: input.contextValidForMs ?? 60_000,
+        providerId: this.provider.providerId,
+        modelVersionId: this.provider.modelVersionId,
+        promptIdentity
+      });
+    } catch { return failureResult(input, "INCOMPLETE", [], [], [], ["CONTEXT_INVALID"]); }
     const prior = this.cache.get(input.orchestrationRunId);
     if (prior != null) return prior.inputHash === inputHash ? prior.result : failureResult(input, "INCOMPLETE", [], [], [], ["REPLAY_CONFLICT"]);
     if (!this.enabled) return failureResult(input, "UNAVAILABLE", [], [], [], ["PROVIDER_UNAVAILABLE"]);
@@ -129,19 +159,20 @@ export class MultiAgentOrchestrator {
       const definition = agents.find((agent) => agent.role === roleMap[role])!;
       let bundle;
       try {
-        bundle = buildEvidenceBundle({ contextSnapshotId: `${input.orchestrationRunId}:context:${role}`, agentId: definition.agentId, evidence: input.evidence, allowedEvidenceClasses: definition.allowedEvidenceClasses, evaluatedAt: input.evaluatedAt, validUntil: input.evaluatedAt + contextValidForMs, policyVersionIds: input.policyVersionIds ?? ["AI_ZERO_AUTHORITY_POLICY_V1"], certificationIds: input.certificationIds ?? [], controlPlaneStateId: input.controlPlaneStateId ?? "AI_CONTROL_PLANE_UNAVAILABLE" });
-      } catch { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, ["CONTEXT_INVALID"])); }
+        bundle = buildEvidenceBundle({ contextSnapshotId: `${input.orchestrationRunId}:context:${role}`, agentId: definition.agentId, evidence: input.evidence, evidenceMaterializations: input.evidenceMaterializations ?? [], allowedEvidenceClasses: definition.allowedEvidenceClasses, evaluatedAt: input.evaluatedAt, validUntil: input.evaluatedAt + contextValidForMs, policyVersionIds: input.policyVersionIds ?? ["AI_ZERO_AUTHORITY_POLICY_V1"], certificationIds: input.certificationIds ?? [], controlPlaneStateId: input.controlPlaneStateId ?? "AI_CONTROL_PLANE_UNAVAILABLE" });
+      } catch (error) { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, [evidenceFailureCode(error)])); }
       contexts.push(bundle.context);
       let artifact;
       try { artifact = this.registry.assertDefinition(definition.promptArtifactId, definition.definitionVersion, definition.promptArtifactDigest); } catch { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, ["PROMPT_DIGEST_MISMATCH"])); }
-      const modelVersionId = `${this.provider.modelVersionId}:${role}`;
+      const modelVersionId = this.provider.modelVersionId;
       const proposalOutput = outputs.get("STRATEGY_PROPOSER");
       const proposalPayload = proposalOutput?.payload;
       const proposalPreviewHash = proposalPayload == null || proposalOutput == null ? undefined : aiSha256({ strategyVersionId: text(proposalPayload.strategyVersionId ?? "ai-preview", "strategyVersionId"), decision: proposalPayload.decision, rationaleClaims: strings(proposalPayload.rationaleClaims, "rationaleClaims"), evidenceReferences: proposalOutput.evidenceReferences, assumptions: strings(proposalPayload.assumptions ?? [], "assumptions"), uncertainty: text(proposalPayload.uncertainty, "uncertainty"), expectedEffect: proposalPayload.expectedEffect, costSensitivity: proposalPayload.costSensitivity, capacitySensitivity: proposalPayload.capacitySensitivity });
-      const modelInput = Object.freeze({ role, contextHash: bundle.context.contextHash, evidence: bundle.evidence.map((item) => Object.freeze({ evidenceId: item.evidenceId, evidenceType: item.evidenceType, observedAt: item.observedAt, validUntil: item.validUntil, quality: item.quality, contentDigest: item.contentDigest })), ...(proposalPreviewHash == null ? {} : { proposalHash: proposalPreviewHash }) });
-      const request: ModelRequest = Object.freeze({ requestId: `${input.orchestrationRunId}:request:${role}`, role, providerId: this.provider.providerId, modelVersionId, promptArtifactId: artifact.promptArtifactId, promptArtifactVersion: artifact.version, promptArtifactDigest: artifact.digest, contextHash: bundle.context.contextHash, inputHash: aiSha256(modelInput), input: modelInput, maxOutputBytes: 32_768, maxTokens: 2_048, timeoutMs: 10_000, attempt: 0 });
+      const modelInput = Object.freeze({ role, contextHash: bundle.context.contextHash, evidenceBundleHash: bundle.evidenceBundleHash, evidence: bundle.materializedEvidence.map((item) => Object.freeze({ evidenceId: item.evidence.evidenceId, evidenceType: item.evidence.evidenceType, observedAt: item.evidence.observedAt, validUntil: item.evidence.validUntil, quality: item.evidence.quality, contentDigest: item.evidence.contentDigest, payload: item.payload })), ...(proposalPreviewHash == null ? {} : { proposalHash: proposalPreviewHash }) });
+      const request: ModelRequest = Object.freeze({ requestId: `${input.orchestrationRunId}:request:${role}`, role, providerId: this.provider.providerId, modelVersionId, promptArtifactId: artifact.promptArtifactId, promptArtifactVersion: artifact.version, promptArtifactDigest: artifact.digest, instructions: artifact.instructions, contextHash: bundle.context.contextHash, inputHash: aiSha256(modelInput), input: modelInput, maxOutputBytes: 32_768, maxTokens: 2_048, timeoutMs: 10_000, attempt: 0 });
       const execution = await this.executor.execute(request, (value) => validateRoleOutput(role, value));
       if (!execution.ok) { failures.push(execution.failure.code); runs.push(this.failedRun(input, definition, bundle.context, request, execution.failure)); return this.cacheAndReturn(input, inputHash, failureResult(input, execution.failure.code === "PROVIDER_UNAVAILABLE" ? "UNAVAILABLE" : "INCOMPLETE", agents, contexts, runs, failures)); }
+      if (role === "EVIDENCE_PRODUCER" && execution.output.payload.evidenceBundleHash !== bundle.evidenceBundleHash) { failures.push("EVIDENCE_DIGEST_MISMATCH"); return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, failures)); }
       outputs.set(role, execution.output); outputHashes.push(execution.outputHash); runs.push(this.completedRun(input, definition, bundle.context, request, execution.outputHash, execution.response.startedAt, execution.response.completedAt));
       this.appendRunEvents(input, definition, bundle.evidence, bundle.context, runs.at(-1)!);
     }
@@ -149,9 +180,10 @@ export class MultiAgentOrchestrator {
     const proposal = this.toProposal(outputs.get("STRATEGY_PROPOSER")!, runs.find((run) => run.agentId === "ai-strategy-proposer")!);
     const review = this.toReview(outputs.get("ADVERSARIAL_CRITIC")!, runs.find((run) => run.agentId === "ai-adversarial-critic")!, proposal.proposalHash);
     const risk = this.toRisk(outputs.get("RISK_VERIFIER")!, runs.find((run) => run.agentId === "ai-risk-verifier")!);
+    const independence = assessAgentIndependence(agents);
     const decision = evaluateMultiAgentDecision({ decisionId: input.decisionId, evaluatedAt: input.evaluatedAt, agents, roleContracts: roles.map((role) => contract(roleMap[role], outputName[role], role.toLowerCase())), evidence: input.evidence, contexts, runs, evidenceAssessment: assessment, proposal, adversarialReview: review, riskVerification: risk, disagreements: [], controlVetoReasons: [] });
-    this.eventSink?.append({ eventId: `${input.orchestrationRunId}:decision`, type: decision.result === "deny" ? MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_DENIED : MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, occurredAt: input.evaluatedAt, payload: { decision }, evidenceHash: aiSha256(decision) });
-    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, governanceDecision: decision, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
+    this.eventSink?.append({ eventId: `${input.orchestrationRunId}:decision`, type: decision.result === "deny" ? MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_DENIED : MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, occurredAt: input.evaluatedAt, payload: { decision, independence }, evidenceHash: aiSha256({ decision, independence }) });
+    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
   }
 
   private readonly eventSink?: GovernanceEventSink;
@@ -159,7 +191,7 @@ export class MultiAgentOrchestrator {
   private definition(role: AiAgentRole): AgentDefinition {
     const artifact = this.registry.get(`nusa.ai.${role.toLowerCase()}`, "1.0.0")!;
     const enumRole = roleMap[role];
-    return createAgentDefinition({ agentId: `ai-${role.toLowerCase().replaceAll("_", "-")}`, name: `NUSA ${role}`, role: enumRole, definitionVersion: artifact.version, modelVersionId: `${this.provider.modelVersionId}:${role}`, modelCertificationId: `model-cert:${this.provider.providerId}:${role}`, promptArtifactId: artifact.promptArtifactId, promptArtifactDigest: artifact.digest, inputSchemaId: artifact.inputSchemaId, outputSchemaId: artifact.outputSchemaId, allowedEvidenceClasses: artifact.allowedEvidenceClasses, allowedToolCapabilities: ["READ_EVIDENCE"], contextIsolationPolicyId: "AI_EVIDENCE_CONTEXT_ISOLATION_V1", timeoutPolicyId: "AI_BOUNDED_TIMEOUT_V1", correlatedGroupId: `ai-role:${role}`, status: AgentStatus.ACTIVE });
+    return createAgentDefinition({ agentId: `ai-${role.toLowerCase().replaceAll("_", "-")}`, name: `NUSA ${role}`, role: enumRole, definitionVersion: artifact.version, modelVersionId: this.provider.modelVersionId, modelCertificationId: `model-cert:${this.provider.providerId}:${this.provider.modelVersionId}`, promptArtifactId: artifact.promptArtifactId, promptArtifactDigest: artifact.digest, inputSchemaId: artifact.inputSchemaId, outputSchemaId: artifact.outputSchemaId, allowedEvidenceClasses: artifact.allowedEvidenceClasses, allowedToolCapabilities: ["READ_EVIDENCE"], contextIsolationPolicyId: "AI_EVIDENCE_CONTEXT_ISOLATION_V1", timeoutPolicyId: "AI_BOUNDED_TIMEOUT_V1", correlatedGroupId: `model:${this.provider.providerId}:${this.provider.modelVersionId}`, status: AgentStatus.ACTIVE });
   }
 
   private completedRun(input: AiOrchestrationInput, definition: AgentDefinition, context: AgentContextSnapshot, request: ModelRequest, outputHash: string, startedAt: number, completedAt: number): AgentRun { return Object.freeze({ agentRunId: `${input.orchestrationRunId}:run:${definition.agentId}`, agentId: definition.agentId, orchestrationRunId: input.orchestrationRunId, agentDefinitionVersion: definition.definitionVersion, modelVersionId: definition.modelVersionId, promptArtifactDigest: definition.promptArtifactDigest, contextSnapshotId: context.contextSnapshotId, inputHash: request.inputHash, outputHash, status: AgentRunStatus.COMPLETED, schemaValidationPassed: true, evidenceValidationPassed: true, startedAt, completedAt }); }
