@@ -4,7 +4,7 @@
 //
 // Before this wiring, cloud had a ledger that could RECORD "EMERGENCY_STOP" and a risk gate
 // that had never heard of it: nothing downstream ever read killSwitchActive, so the record was
-// inert. This test builds the real call chain (readPaperEngineControlState(records) ->
+// inert. This test builds the real call chain (readPaperEngineControlState(records, p0Records) ->
 // getControl() -> createOperationalPaperRiskGate -> evaluatePreTradeRisk) against a live
 // PaperBroker, and shows appending exactly one EMERGENCY_STOP event flips the gate from ALLOW
 // to HALT/KILL_SWITCH_ACTIVE -- synchronously, in the same process, not "eventually".
@@ -44,6 +44,7 @@ const LIMITS = Object.freeze({
 
 function buildEngine() {
   let auditRecords = [];
+  const p0Records = [];
   const broker = new PaperBroker(10_000_000, "KRW-BTC", 0);
   const control = new ControlPlane("sma-crossover");
   const strategy = { start() {}, stop() {}, isRunning: () => false, getStrategyId: () => "sma-crossover", restoreRunning() {} };
@@ -51,9 +52,9 @@ function buildEngine() {
     getState: () => preflightState,
     getBroker: () => broker,
     getMarket: () => ({ symbol: "KRW-BTC", price: 50_000_000, status: "HEALTHY" }),
-    // This is the wiring under test: the risk gate's kill-switch input is read from the ledger,
-    // not from ControlPlane and not from a literal.
-    getControl: () => readPaperEngineControlState(auditRecords),
+    // Both safety inputs are explicit: this legacy kill-switch test has no P0 incidents,
+    // so it passes a real empty P0 ledger rather than relying on an implicit default.
+    getControl: () => readPaperEngineControlState(auditRecords, p0Records),
     identity: IDENTITY,
     limits: LIMITS,
     fingerprints: { strategy: "s", config: "c", runtime: "r", riskPolicy: "p" },
@@ -117,10 +118,11 @@ test("RuntimeCommandService is wired to the same ledger-backed gate: manual orde
 
 test("without the ledger-backed wiring, an EMERGENCY_STOP in the ledger alone would not block anything -- readPaperEngineControlState is what closes that gap", () => {
   const records = [];
-  assert.equal(readPaperEngineControlState(records).killSwitchActive, false);
+  const p0Records = [];
+  assert.equal(readPaperEngineControlState(records, p0Records).killSwitchActive, false);
   const withStop = appendControlAuditEvent(records, {
     commandId: "stop-1", userId: "u", deviceId: "d", type: "EMERGENCY_STOP", status: "ACCEPTED",
     decidedAt: 1, reason: "r", resultingMode: "STOPPED", cancelOpenOrders: true
   });
-  assert.equal(readPaperEngineControlState(withStop).killSwitchActive, true);
+  assert.equal(readPaperEngineControlState(withStop, p0Records).killSwitchActive, true);
 });
