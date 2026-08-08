@@ -91,11 +91,12 @@ export interface ModelProvider {
 
 export const canonicalAiJson = (value: unknown): string => {
   const normalize = (item: unknown): unknown => {
-    if (item == null || typeof item === "string" || typeof item === "number" || typeof item === "boolean") return item;
+    if (item === undefined) throw new Error("unsupported AI value");
+    if (item === null || typeof item === "string" || typeof item === "number" || typeof item === "boolean") return item;
     if (Array.isArray(item)) return item.map(normalize);
     if (typeof item === "object") {
       const record = item as Record<string, unknown>;
-      return Object.fromEntries(Object.keys(record).sort().map((key) => [key, normalize(record[key])]));
+      return Object.fromEntries(Object.keys(record).sort().filter((key) => record[key] !== undefined).map((key) => [key, normalize(record[key])]));
     }
     throw new Error("unsupported AI value");
   };
