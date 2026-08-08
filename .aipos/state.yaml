@@ -6,7 +6,7 @@ status: ready
 objective: "Align NUSA with private/personal-use development while preserving PAPER/Research safety and the fail-closed LIVE boundary."
 base_branch: main
 active_branch: agent/wo-0051-p6-personal-paper-operations-ui-e2e
-active_pull_request: null
+active_pull_request: 177
 base_commit: 03c78e9a350dca31ba1f54e9b0707eedc8b72148
 claimed_state:
   work_order: WO-0051
@@ -53,8 +53,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "P5 Research hardening and authority/runtime architecture closure merged with exact-head CI PASS; real-world transition remains intentionally INCOMPLETE."
-  current_commit: "35789ca3b97ee3cc6b5fe046108b225dc17e0ba4; P6 Personal PAPER Operations/UI/E2E implementation in progress"
+  last_result: "P5 Research hardening and authority/runtime architecture closure merged with exact-head CI PASS; P6 CI repair is in progress."
+  current_commit: "b08f2e831da60496b4aef43413435b051029d7c5; P6 stale mobile chart source assertion updated to the authenticated PAPER operations architecture; exact-head CI retry pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
