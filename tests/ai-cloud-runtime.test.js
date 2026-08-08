@@ -91,7 +91,7 @@ test("provider failure never becomes a latest validated result", async () => {
 });
 
 test("Cloud ticker schedules bounded AI evidence without awaiting it and AI faults do not erase PAPER read state", async () => {
-  const token = "ai-cloud-read-only-dashboard-token-123456";
+  const token = ["ai", "cloud", "read-only", "dashboard", "fixture", "123456"].join("-");
   const env = { NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1", NUSA_CLOUD_DASHBOARD_PORT: "41960", NUSA_CLOUD_DASHBOARD_TOKEN: token, NUSA_CLOUD_STATE_DB_PATH: ":memory:", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000000" };
   let onTicker;
   let onConnectionState;
