@@ -1,0 +1,64 @@
+id: WO-AI-001
+title: Model-Backed Zero-Authority Agent Runtime
+status: IN_PROGRESS
+priority: P1
+branch: agent/ai-001-model-backed-zero-authority
+base_branch: main
+implementation_branch: agent/ai-001-model-backed-zero-authority
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds a bounded model analysis boundary below existing deterministic governance; AI remains default-off and cannot reach execution, credentials, risk, kill-switch, HALT, or LIVE authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0004-ai-zero-authority-runtime.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Connect a provider-agnostic inference boundary to deterministic multi-agent
+  governance while preserving zero execution authority for every AI result.
+constraints:
+  - AI output is evidence, hypothesis, critique, or explanation only.
+  - No ORDER, CANCEL, TRANSFER, WITHDRAW, CREDENTIAL, SECRET, LIVE_EXECUTION, or production mutation capability.
+  - AI cannot release the kill switch, bypass Risk Governor, or change HALT state.
+  - Model failure, unavailable provider, invalid output, stale evidence, and persistence failure fail closed.
+  - Default cloud runtime is disabled with NUSA_AI_ENABLED=false.
+  - No real provider credential or network transport is added by this work order.
+implementation:
+  - provider-agnostic bounded model request/response contract with hashes and usage metadata
+  - strict structured output validation and prompt artifact digest binding
+  - evidence-only isolated agent context construction
+  - Evidence Producer, Strategy Proposer, Adversarial Critic, and Risk Verifier orchestration
+  - existing evaluateMultiAgentDecision integration
+  - read-only AI projection and research hypothesis/review records
+  - architecture guard proving no AI execution surface or positive authority
+acceptance_criteria:
+  - exact-head typecheck, build, and lint pass
+  - focused AI inference/orchestration/attack tests pass
+  - multi-agent governance and PAPER safety regressions pass
+  - full isolated test suite and coverage pass
+  - architecture, AIPOS, security, release, and restricted-live checks pass
+  - productionMutationAllowed=false, realOrderAuthority=false, realTransferAuthority=false, and liveAuthority=NONE are proven
+  - PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - model chain of thought
+    - provider credential or secret
+    - broker credential
+    - real order, cancel, transfer, or withdrawal
+    - synthetic evidence presented as live authorization
+next: >-
+  After merge, re-audit remaining PAPER/Research correctness gaps; do not infer
+  LIVE authority from AI, CI, or chat consent.

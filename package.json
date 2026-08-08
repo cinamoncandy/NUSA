@@ -23,6 +23,7 @@
     "test:coverage": "pnpm run coverage",
     "determinism": "node scripts/run-determinism-check.js",
     "architecture:check": "node scripts/validate-architecture.js && node scripts/validate-research-architecture.js",
+    "ai:architecture": "node scripts/validate-ai-zero-authority.js",
     "architecture:lifecycle": "node scripts/validate-architecture-change-lifecycle.js",
     "aipos:drift": "node scripts/validate-aipos-drift.js",
     "aipos:conformance": "node scripts/validate-aipos-cross-ai-conformance.js",
