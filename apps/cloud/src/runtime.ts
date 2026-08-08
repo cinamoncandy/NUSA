@@ -200,7 +200,7 @@ export function startCloudRuntime(
           killSwitchActive: dashboard.killSwitchActive,
           accountHalted: dashboard.mode === "FAULTED",
           pendingWrites: 0,
-          ...(paperSnapshot != null && paperSnapshot.lastMarketTs > 0 ? { lastEventAt: paperSnapshot.lastMarketTs } : {}),
+          ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}),
           updatedAt: dashboard.generatedAt
         }
       }, dashboard.generatedAt);
