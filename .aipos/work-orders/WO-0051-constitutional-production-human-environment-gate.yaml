@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 892df05af38070103a606ad33df7c9aedd003a6c
-implementation_branch: main
+base_commit: 03c78e9a350dca31ba1f54e9b0707eedc8b72148
+implementation_branch: agent/wo-0051-p6-personal-paper-operations-ui-e2e
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -96,4 +96,20 @@ hardened_research_slice:
     candidate_authority: PAPER_ONLY
     live_authority: NONE
     automatic_promotion: prohibited
+    production_mutation_allowed: false
+personal_paper_operations_slice:
+  status: IN_PROGRESS
+  scope:
+    - "One versioned read-only Personal PAPER Operations snapshot across dashboard, Research, and operations health"
+    - "Authenticated GET-only cloud projection using the existing dashboard:read boundary"
+    - "Mobile fail-closed client with no embedded/public bearer token and no inference from local sign-in"
+    - "Desktop read-only validated immutable envelope"
+    - "Remove mobile dependence on unauthenticated legacy status/account/market endpoints"
+    - "Cross-surface contract and E2E regression coverage"
+  safety:
+    mutation_routes: prohibited
+    credential_embedding: prohibited
+    challenger_authority: ZERO_AUTHORITY
+    champion_authority: PAPER_ONLY
+    live_authority: NONE
     production_mutation_allowed: false
