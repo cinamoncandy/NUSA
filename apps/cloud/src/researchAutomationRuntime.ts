@@ -2,22 +2,27 @@ import { createHash } from "node:crypto";
 import type { CandidateLifecycleRecord, ResearchCandidateIdentity } from "../../../packages/contracts/src/candidatePromotion";
 import type { ResearchComparisonEvidence, ResearchInputSnapshot } from "../../../packages/contracts/src/researchRuntime";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
-import type { ResearchHealth, ResearchSessionMetrics, ResearchSessionRecord, ResearchSessionRepository, ResearchSessionState, ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
+import type {
+  ResearchCandidateGate,
+  ResearchHealth,
+  ResearchHypothesisRecord,
+  ResearchMemoryPort,
+  ResearchSessionMetrics,
+  ResearchSessionRecord,
+  ResearchSessionRepository,
+  ResearchSessionState,
+  ResearchStatusProjection
+} from "../../../packages/contracts/src/researchAutomation";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
-import type { ResearchExperimentRecord, ResearchHypothesis, SqliteResearchMemoryRepository } from "../../../packages/storage/src/researchMemory";
 import type { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
-
-export interface ResearchMemoryWriter {
-  appendExperiment(record: ResearchExperimentRecord): ResearchExperimentRecord;
-  appendHypothesis?(record: ResearchHypothesis): ResearchHypothesis;
-}
 
 export interface ResearchAutomationOptions {
   readonly coordinator: ResearchRuntimeCoordinator;
   readonly sessions: ResearchSessionRepository;
-  readonly memory: ResearchMemoryWriter;
+  readonly memory: ResearchMemoryPort;
   readonly registerCandidate: (identity: ResearchCandidateIdentity) => CandidateLifecycleRecord;
   readonly listCandidates: () => readonly CandidateLifecycleRecord[];
+  readonly candidateGate?: ResearchCandidateGate;
   readonly recovery?: { recover(): ResearchRecoveryResult };
   readonly now?: () => number;
   readonly maxEvidenceAgeMs?: number;
@@ -34,7 +39,7 @@ export interface ResearchSessionStartInput {
   readonly challengerStrategyVersion: string;
   readonly deterministicConfig: Readonly<Record<string, unknown>>;
   readonly maxExperiments: number;
-  readonly hypothesis?: ResearchHypothesis;
+  readonly hypothesis?: ResearchHypothesisRecord;
 }
 
 export interface ResearchRuntimeMarketDataInput {
@@ -147,7 +152,9 @@ export class ResearchAutomationRuntime {
         createdAt: new Date(this.now()).toISOString(),
         ...(session.hypothesisId == null ? {} : { hypothesisId: session.hypothesisId })
       });
-      if (evidence.result === "CHALLENGER_BETTER" && evidence.challenger != null) this.registerCandidate(session, evidence);
+      const priorEvidence = this.options.coordinator.ledgerRecords().filter((item) => item.researchRunId === session.sessionId && item.evaluationId !== evidence.evaluationId);
+      const gate = this.options.candidateGate?.evaluate({ session, evidence, priorEvidence }) ?? freeze({ eligible: false, reason: "CANDIDATE_GATE_NOT_CONFIGURED" });
+      if (gate.eligible && evidence.result === "CHALLENGER_BETTER" && evidence.challenger != null) this.registerCandidate(session, evidence);
       const next: ResearchSessionRecord = freeze({ ...session, experimentCount: session.experimentCount + 1, evaluationIds: freeze([...session.evaluationIds, evidence.evaluationId]), lastEvaluationId: evidence.evaluationId, lastEvidenceAt: evidence.evaluationTimestamp, updatedAt: this.now(), metrics: metric(evidence, session.metrics), state: session.experimentCount + 1 >= session.maxExperiments ? "COMPLETED" : session.state });
       this.options.sessions.save(next);
       return evidence;
@@ -212,5 +219,3 @@ export class ResearchAutomationRuntime {
   private transition(sessionId: string, state: ResearchSessionState, allowed: readonly ResearchSessionState[]): ResearchSessionRecord { const session = this.requireSession(sessionId); if (!allowed.includes(session.state)) throw new Error(`research session transition ${session.state} -> ${state} rejected`); return this.options.sessions.save(freeze({ ...session, state, updatedAt: this.now() })); }
   private failSession(session: ResearchSessionRecord): void { try { this.options.sessions.save(freeze({ ...session, state: "FAILED", updatedAt: this.now() })); } catch { /* preserve the original failure; runtime remains fail-closed */ } }
 }
-
-export type { SqliteResearchMemoryRepository };
