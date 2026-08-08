@@ -5,8 +5,10 @@ const os = require("node:os");
 const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteP0AlertRepository } = require("../dist/apps/cloud/src/p0AlertRepository.js");
+const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
+const { buildPortfolioViewModel } = require("../dist/apps/mobile/src/portfolioViewModel.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
 function testEnv(token, port, dbPath = ":memory:") {
@@ -83,8 +85,81 @@ test("cloud runtime exposes one authenticated read-only snapshot with real PAPER
     assert.equal(body.portfolio.mode, "PAPER");
     assert.equal(body.portfolio.account.cash, 1000000);
     assert.equal(body.portfolio.account.equity, 1000000);
+    assert.equal(body.portfolio.account.assetValue, 0);
+    assert.equal(body.portfolio.account.realizedPnl, 0);
     assert.deepEqual(body.orders, []);
     assert.deepEqual(body.markets, []);
+  } finally { await handle.stop(); }
+});
+
+test("multi-position PAPER portfolio projects aggregate totals without corrupting representative position", async () => {
+  const token = ["p8", "multi-position", "read-only", "dashboard", "fixture"].join("-");
+  const restoredState = Object.freeze({
+    version: 1,
+    initialCapital: 1000000,
+    cash: 603000,
+    equity: 1043000,
+    realizedPnL: 3000,
+    unrealizedPnL: 40000,
+    positions: Object.freeze([
+      Object.freeze({ market: "KRW-BTC", quantity: 1, averageEntryPrice: 200000, realizedPnL: 1000, unrealizedPnL: 20000, markPrice: 220000 }),
+      Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 2000, unrealizedPnL: 20000, markPrice: 110000 })
+    ]),
+    orders: Object.freeze([]),
+    fills: Object.freeze([]),
+    processedIdempotencyKeys: Object.freeze([]),
+    updatedAt: 1000
+  });
+  const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
+  const handle = startCloudRuntime(testEnv(token, 41944), undefined, undefined, undefined, undefined, undefined, paperLoop);
+  try {
+    const body = await loadOperations(handle, token);
+    assert.equal(body.portfolio.account.assetValue, 440000);
+    assert.equal(body.portfolio.account.realizedPnl, 3000);
+    assert.equal(body.portfolio.account.unrealizedPnl, 40000);
+    assert.equal(body.portfolio.account.position.market, "KRW-BTC");
+    assert.equal(body.portfolio.account.position.realizedPnl, 1000);
+    assert.equal(body.portfolio.account.position.unrealizedPnl, 20000);
+    const view = buildPortfolioViewModel(body.portfolio);
+    assert.equal(view.assetValue, 440000);
+    assert.equal(view.realizedPnl, 3000);
+    assert.equal(view.unrealizedPnl, 40000);
+    assert.equal(view.totalPnl, 43000);
+    assert.equal(view.position.market, "KRW-BTC");
+    assert.equal(view.position.realizedPnl, 1000);
+    assert.equal(view.position.unrealizedPnl, 20000);
+  } finally { await handle.stop(); }
+});
+
+test("closed lexicographic PAPER position cannot hide another open position", async () => {
+  const token = ["p8", "closed-first", "representative", "position", "fixture"].join("-");
+  const restoredState = Object.freeze({
+    version: 1,
+    initialCapital: 1000000,
+    cash: 800000,
+    equity: 1020000,
+    realizedPnL: 0,
+    unrealizedPnL: 20000,
+    positions: Object.freeze([
+      Object.freeze({ market: "KRW-BTC", quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: 220000 }),
+      Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 0, unrealizedPnL: 20000, markPrice: 110000 })
+    ]),
+    orders: Object.freeze([]),
+    fills: Object.freeze([]),
+    processedIdempotencyKeys: Object.freeze([]),
+    updatedAt: 1000
+  });
+  const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
+  const handle = startCloudRuntime(testEnv(token, 41945), undefined, undefined, undefined, undefined, undefined, paperLoop);
+  try {
+    const body = await loadOperations(handle, token);
+    assert.equal(body.portfolio.account.assetValue, 220000);
+    assert.equal(body.portfolio.account.position.market, "KRW-ETH");
+    assert.equal(body.portfolio.account.position.quantity, 2);
+    const view = buildPortfolioViewModel(body.portfolio);
+    assert.equal(view.assetValue, 220000);
+    assert.equal(view.position.market, "KRW-ETH");
+    assert.equal(view.position.quantity, 2);
   } finally { await handle.stop(); }
 });
 
