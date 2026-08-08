@@ -6,7 +6,7 @@ status: in_progress
 objective: "Activate an explicitly configured real model challenger below the grounded zero-authority AI runtime, then verify provider availability, secret isolation, usage observability, and unchanged PAPER/safety authority."
 base_branch: main
 active_branch: agent/ai-003-real-provider-challenger-plan
-active_pull_request: null
+active_pull_request: 213
 base_commit: 3580de8dcc8e0b16a7314b456a873672f6bb8503
 claimed_state:
   work_order: WO-AI-003
@@ -39,9 +39,6 @@ in_progress:
   - id: WO-AI-003
     evidence: ".aipos/work-orders/WO-AI-003-real-provider-challenger-runtime.yaml"
     summary: "Fresh AI gap audit selected provider diversity / real inference availability as the lowest safe dimension; plan explicit opt-in real provider challenger activation under unchanged zero-authority governance."
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
