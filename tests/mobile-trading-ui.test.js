@@ -60,7 +60,9 @@ test("Market order uses the verified current price and UI preserves the safety c
 
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /Live Mutation Disabled/);
+  assert.match(source, /주문 권한 없음/);
+  assert.match(source, /READ ONLY/);
+  assert.match(source, /매수\/매도 요청을 서버로 전송할 수 없습니다/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /trading-loading/);
   assert.match(source, /trading-empty/);

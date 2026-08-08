@@ -35,7 +35,7 @@ test("order history supports deterministic periods and fill detail data", () => 
 
 test("order history UI uses design system and remains read-only when secure operations data is not configured", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "orderHistoryView.tsx"), "utf8");
-  assert.match(source, /Order History/);
+  assert.match(source, /주문 이력/);
   assert.match(source, /order-history-filters/);
   assert.match(source, /order-history-sorts/);
   assert.match(source, /order-history-pagination/);

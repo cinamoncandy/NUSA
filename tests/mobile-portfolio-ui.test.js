@@ -54,12 +54,12 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
 test("Portfolio screen exposes design-system states and refresh interaction", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /Portfolio unavailable/);
-  assert.match(source, /No open positions/);
-  assert.match(source, /Loading portfolio/);
+  assert.match(source, /자산 정보를 표시할 수 없습니다/);
+  assert.match(source, /열린 포지션 없음/);
+  assert.match(source, /자산 정보를 불러오는 중/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /NusaCard/);
-  assert.match(source, /NusaButton label="Retry"/);
+  assert.match(source, /NusaButton label="다시 불러오기"/);
   assert.match(app, /activeTab === "Portfolio"/);
   assert.match(app, /<PortfolioView/);
 });
