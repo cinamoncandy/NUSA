@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T00:05:00+09:00"
-phase: private-readonly-runtime-session-complete
-status: ready
-objective: "Preserve the merged private read-only PAPER runtime session and durable P0 safety boundaries while keeping WO-0051 at its human/environment boundary."
+updated_at: "2026-08-09T00:10:00+09:00"
+phase: cloud-ai-zero-authority
+status: in_progress
+objective: "Connect bounded model inference to deterministic multi-agent governance without increasing PAPER or LIVE execution authority."
 base_branch: main
-active_branch: main
+active_branch: agent/ai-001-linear
 active_pull_request: null
-base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
+base_commit: eb5107d2a1ccaa6bcdc53a0e173647c02a33198f
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-AI-001
   status: IN_PROGRESS
 verified_state:
   work_order: WO-0050
@@ -30,9 +30,9 @@ completed:
     evidence: ".aipos/evidence/WO-0048-completion.json"
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+  - id: WO-AI-001
+    evidence: ".aipos/work-orders/WO-AI-001-model-backed-zero-authority-agent-runtime.yaml"
+    summary: "Provider-agnostic model inference is connected below deterministic multi-agent governance with zero execution authority."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -43,8 +43,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "P8 Private Read-only Runtime Session is merged and exact-head tested. Perform a fresh repository gap audit before selecting any next safe PAPER/Research implementation slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
+  work_order: .aipos/work-orders/WO-AI-001-model-backed-zero-authority-agent-runtime.yaml
+  reason: "Implement the provider-agnostic AI analysis slice below deterministic governance. Keep AI default-off and preserve the WO-0051 human/environment LIVE gates."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -54,7 +54,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "PR #188 merged at 585d660b5eb8bcefb443ca34261779aa99f55fd1 after exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including Full isolated suite and coverage; Mobile Native 31263191286 PASS; read-only/Restricted LIVE workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS."
-  current_commit: "585d660b5eb8bcefb443ca34261779aa99f55fd1; PR #188 merged; P8 Private Read-only Runtime Session repository slice complete"
+  current_commit: "AI-001 linear branch on latest origin/main; local verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

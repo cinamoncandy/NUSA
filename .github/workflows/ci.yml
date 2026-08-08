@@ -55,6 +55,10 @@ jobs:
         run: pnpm run build
       - name: Architecture validation
         run: pnpm run architecture:check
+      - name: AI zero-authority architecture validation
+        run: pnpm run ai:architecture
+      - name: AI zero-authority focused regression tests
+        run: node --test --test-reporter=spec tests/ai-inference.test.js tests/ai-orchestrator.test.js tests/ai-zero-authority-guard.test.js
       - name: Architecture change lifecycle validation
         run: pnpm run architecture:lifecycle
       - name: Architecture change lifecycle regression tests
