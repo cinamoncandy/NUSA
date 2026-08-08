@@ -13,6 +13,7 @@ import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -22,6 +23,10 @@ export interface CloudRuntimeMarketDataClientLike {
   subscribe(markets: readonly string[]): void;
   start(): void;
   stop(): void;
+}
+
+export interface CloudRuntimeResearchRuntimeLike {
+  onMarketData(tick: ResearchRuntimeMarketDataTick): void;
 }
 
 export type CloudRuntimeMarketDataClientFactory = (
@@ -48,7 +53,8 @@ export function startCloudRuntime(
     new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions),
   snapshotRepository?: CloudDashboardSnapshotRepository,
   paperAccountRepository?: PaperAccountRepository,
-  paperExecutionLoop?: PaperTradingExecutionLoop
+  paperExecutionLoop?: PaperTradingExecutionLoop,
+  researchRuntime?: CloudRuntimeResearchRuntimeLike
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
@@ -96,6 +102,12 @@ export function startCloudRuntime(
         observations.set(observation.id, observation);
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
+        try {
+          researchRuntime?.onMarketData({ market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() });
+        } catch {
+          clearPaperProjection();
+          return;
+        }
         const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
         if (effectivePaperLoop != null && state != null) {
           const dashboard = buildMobileDashboardResponse(state);

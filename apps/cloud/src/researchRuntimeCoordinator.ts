@@ -1,0 +1,188 @@
+import { createHash } from "node:crypto";
+import {
+  canonicalResearchJson,
+  hashResearchInput,
+  type ResearchComparisonEvidence,
+  type ResearchComparisonResult,
+  type ResearchEvaluation,
+  type ResearchEvaluationContext,
+  type ResearchEvaluationLedger,
+  type ResearchInputSnapshot,
+  type ResearchEvaluatorAuthority
+} from "../../../packages/contracts/src/researchRuntime";
+
+export interface ChampionResearchEvaluator {
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly authority: "PAPER_ONLY";
+  readonly evaluatorVersion: string;
+  evaluate(context: ResearchEvaluationContext): ResearchEvaluation;
+}
+
+export interface ChallengerResearchEvaluator {
+  readonly strategyId: string;
+  readonly strategyVersion: string;
+  readonly authority: "ZERO_AUTHORITY";
+  readonly evaluatorVersion: string;
+  evaluate(context: ResearchEvaluationContext): ResearchEvaluation;
+}
+
+export interface ResearchRuntimeMarketDataTick {
+  readonly market: string;
+  readonly price: number;
+  readonly observedAt: number;
+  readonly now: number;
+}
+
+export interface ResearchRuntimeCoordinatorOptions {
+  readonly champion: ChampionResearchEvaluator;
+  readonly challenger: ChallengerResearchEvaluator;
+  readonly ledger?: ResearchEvaluationLedger;
+}
+
+export class ResearchRuntimeError extends Error {
+  public constructor(readonly code: "INVALID_INPUT" | "LEDGER_PERSISTENCE_FAILED", message: string) {
+    super(message);
+    this.name = "ResearchRuntimeError";
+  }
+}
+
+const supportedStates = new Set(["RESEARCHING", "VALIDATED", "PAPER_CANDIDATE", "PAPER_ACTIVE", "CHAMPION", "CHALLENGER"]);
+const freeze = <T>(value: T): T => Object.freeze(value);
+const clonePoint = (point: ResearchInputSnapshot["marketData"][number]): ResearchInputSnapshot["marketData"][number] => freeze({ ...point });
+const reason = (reasons: readonly string[]): string => [...new Set(reasons)].sort().join(",");
+
+function safeHash(value: unknown): string {
+  try { return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex"); }
+  catch { return createHash("sha256").update(String(value), "utf8").digest("hex"); }
+}
+
+function snapshot(input: ResearchInputSnapshot): ResearchInputSnapshot {
+  return freeze({
+    ...input,
+    marketData: freeze([...input.marketData].map(clonePoint))
+  });
+}
+
+function invalidReasons(input: ResearchInputSnapshot): readonly string[] {
+  const reasons: string[] = [];
+  for (const [field, value] of Object.entries({
+    researchRunId: input.researchRunId,
+    evaluationId: input.evaluationId,
+    strategyId: input.strategyId,
+    strategyVersion: input.strategyVersion,
+    modelVersion: input.modelVersion,
+    fillModelVersion: input.fillModelVersion,
+    feeModelVersion: input.feeModelVersion,
+    slippageModelVersion: input.slippageModelVersion
+  })) if (typeof value !== "string" || value.trim() === "") reasons.push(`MISSING_${field.toUpperCase()}`);
+  if (!Number.isSafeInteger(input.marketDataTimestamp) || !Number.isSafeInteger(input.evaluationTimestamp) || input.marketDataTimestamp > input.evaluationTimestamp) reasons.push("INVALID_TIMESTAMP");
+  if (!Number.isSafeInteger(input.staleWindowMs) || input.staleWindowMs <= 0) reasons.push("INVALID_STALE_WINDOW");
+  if (!Number.isFinite(input.startingCash) || input.startingCash < 0 || !Number.isFinite(input.startingPositionQuantity) || input.startingPositionQuantity < 0) reasons.push("INVALID_STARTING_STATE");
+  if (!supportedStates.has(input.strategyState)) reasons.push("UNSUPPORTED_STRATEGY_STATE");
+  if (input.marketData.length === 0) reasons.push("MISSING_DATA");
+  const ids = new Set<string>();
+  for (const point of input.marketData) {
+    if (!point.market.trim() || !Number.isFinite(point.price) || point.price <= 0 || !Number.isSafeInteger(point.observedAt) || point.observedAt > input.evaluationTimestamp) reasons.push("INVALID_MARKET_DATA");
+    if (input.evaluationTimestamp - point.observedAt >= input.staleWindowMs) reasons.push("STALE_MARKET_DATA");
+    const key = `${point.market}|${point.observedAt}`;
+    if (ids.has(key)) reasons.push("DUPLICATE_MARKET_DATA");
+    ids.add(key);
+  }
+  return Object.freeze([...new Set(reasons)].sort());
+}
+
+function validateEvaluation(value: ResearchEvaluation, evaluator: { strategyId: string; strategyVersion: string; authority: ResearchEvaluatorAuthority; evaluatorVersion: string }, context: ResearchEvaluationContext): string | undefined {
+  if (value.strategyId !== evaluator.strategyId || value.strategyVersion !== evaluator.strategyVersion) return "EVALUATOR_IDENTITY_MISMATCH";
+  if (value.authority !== evaluator.authority || value.evaluatorVersion !== evaluator.evaluatorVersion) return "EVALUATOR_AUTHORITY_MISMATCH";
+  if (value.canonicalInputHash !== context.canonicalInputHash) return "EVALUATOR_CONTEXT_MISMATCH";
+  if (value.signal !== "BUY" && value.signal !== "SELL" && value.signal !== "HOLD") return "INVALID_SIGNAL";
+  if (typeof value.metrics.netReturn !== "number" || !Number.isFinite(value.metrics.netReturn) || Object.values(value.metrics).some((metric) => !Number.isFinite(metric))) return "INVALID_METRICS";
+  return undefined;
+}
+
+function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchComparisonResult, reasonText: string, champion: ResearchEvaluation | null, challenger: ResearchEvaluation | null): ResearchComparisonEvidence {
+  return freeze({
+    schemaVersion: 1,
+    researchRunId: input.researchRunId,
+    evaluationId: input.evaluationId,
+    strategyId: input.strategyId,
+    strategyVersion: input.strategyVersion,
+    marketDataTimestamp: input.marketDataTimestamp,
+    evaluationTimestamp: input.evaluationTimestamp,
+    canonicalInputHash: hash,
+    modelVersion: input.modelVersion,
+    fillModelVersion: input.fillModelVersion,
+    feeModelVersion: input.feeModelVersion,
+    slippageModelVersion: input.slippageModelVersion,
+    champion,
+    challenger,
+    result,
+    reason: reasonText,
+    productionMutationAllowed: false,
+    promotionAllowed: false
+  });
+}
+
+export class InMemoryResearchEvaluationLedger implements ResearchEvaluationLedger {
+  private readonly records: ResearchComparisonEvidence[] = [];
+  public append(record: ResearchComparisonEvidence): void {
+    const existing = this.records.find((item) => item.evaluationId === record.evaluationId);
+    if (existing) { if (canonicalResearchJson(existing) !== canonicalResearchJson(record)) throw new Error("research evaluation id conflict"); return; }
+    this.records.push(record);
+  }
+  public list(): readonly ResearchComparisonEvidence[] { return freeze([...this.records]); }
+}
+
+export class ResearchRuntimeCoordinator {
+  private readonly ledger: ResearchEvaluationLedger;
+  public constructor(private readonly options: ResearchRuntimeCoordinatorOptions) { this.ledger = options.ledger ?? new InMemoryResearchEvaluationLedger(); }
+
+  public evaluate(rawInput: ResearchInputSnapshot): ResearchComparisonEvidence {
+    const input = snapshot(rawInput);
+    const inputHash = safeHash(input);
+    const invalid = invalidReasons(input);
+    if (invalid.length > 0) {
+      const record = evidence(input, inputHash, "INCONCLUSIVE", reason(invalid), null, null);
+      this.persist(record);
+      return record;
+    }
+    const canonicalInputHash = hashResearchInput(input);
+    const context = freeze({ input, canonicalInputHash, fillModelVersion: input.fillModelVersion, feeModelVersion: input.feeModelVersion, slippageModelVersion: input.slippageModelVersion });
+    let champion: ResearchEvaluation;
+    let challenger: ResearchEvaluation;
+    try {
+      champion = freeze(this.options.champion.evaluate(context));
+      challenger = freeze(this.options.challenger.evaluate(context));
+    } catch {
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "EVALUATOR_EXCEPTION", null, null);
+      this.persist(record);
+      return record;
+    }
+    const validationReason = validateEvaluation(champion, this.options.champion, context) ?? validateEvaluation(challenger, this.options.challenger, context);
+    if (validationReason) {
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", validationReason, champion, challenger);
+      this.persist(record);
+      return record;
+    }
+    const championReturn = champion.metrics.netReturn;
+    const challengerReturn = challenger.metrics.netReturn;
+    const result: ResearchComparisonResult = challengerReturn > championReturn ? "CHALLENGER_BETTER" : championReturn > challengerReturn ? "CHAMPION_BETTER" : "EQUIVALENT";
+    const record = evidence(input, canonicalInputHash, result, "NET_RETURN_COMPARISON", champion, challenger);
+    this.persist(record);
+    return record;
+  }
+
+  public ledgerRecords(): readonly ResearchComparisonEvidence[] { return this.ledger.list(); }
+  private persist(record: ResearchComparisonEvidence): void { try { this.ledger.append(record); } catch (error) { throw new ResearchRuntimeError("LEDGER_PERSISTENCE_FAILED", error instanceof Error ? error.message : "research ledger persistence failed"); } }
+}
+
+export interface CloudResearchRuntimeOptions {
+  readonly coordinator: ResearchRuntimeCoordinator;
+  readonly buildInput: (tick: ResearchRuntimeMarketDataTick) => ResearchInputSnapshot;
+}
+
+export class CloudResearchRuntime {
+  public constructor(private readonly options: CloudResearchRuntimeOptions) {}
+  public onMarketData(tick: ResearchRuntimeMarketDataTick): ResearchComparisonEvidence { return this.options.coordinator.evaluate(this.options.buildInput(tick)); }
+}

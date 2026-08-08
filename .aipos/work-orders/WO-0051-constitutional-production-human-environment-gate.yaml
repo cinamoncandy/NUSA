@@ -5,7 +5,7 @@ owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 99adc4178906aaa6f131ff4774d3ae4c697b8b2d
-implementation_branch: agent/nusa-personal-use-transition
+implementation_branch: agent/wo-0051-p2-research-runtime
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE

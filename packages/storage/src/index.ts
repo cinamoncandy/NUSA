@@ -18,6 +18,8 @@ export type { RulesDatabase } from "./rulesControlPlaneStore";
 export { SqliteMultiAgentGovernanceStore } from "./multiAgentGovernanceStore";
 export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
+export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
+export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -338,5 +340,13 @@ CREATE TABLE IF NOT EXISTS risk_order_state (
   status TEXT NOT NULL CHECK(status IN ('OPEN','PENDING','FILLED','CANCELLED','REJECTED')),
   updated_at_ms INTEGER NOT NULL,
   PRIMARY KEY (account_id, order_id)
+);
+` }, { id: "011_research_evaluation_ledger", sql: `
+CREATE TABLE IF NOT EXISTS research_evaluation_ledger (
+  sequence INTEGER PRIMARY KEY,
+  evaluation_id TEXT NOT NULL UNIQUE,
+  previous_hash TEXT NOT NULL,
+  record_json TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE
 );
 ` }];
