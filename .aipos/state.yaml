@@ -1,46 +1,46 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T11:50:00+09:00"
-phase: external-readonly-environment-preflight
+updated_at: "2026-08-08T12:08:00+09:00"
+phase: post-live-validation-contract
 status: verifying
-objective: "Install an operator-gated external read-only environment preflight harness without conducting a real external probe in CI or granting execution authority."
+objective: "Validate future tiny LIVE session evidence without creating a LIVE session or granting scale-up authority."
 base_branch: main
-active_branch: agent/wo-0047-external-readonly-environment-preflight
-active_pull_request: 162
-base_commit: 3c2f36b6dd6729eb9049b7461b1d2fe0a87d17bb
+active_branch: agent/wo-0048-post-live-validation-contract
+active_pull_request: 163
+base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
 claimed_state:
-  work_order: WO-0047
+  work_order: WO-0048
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0046
+  work_order: WO-0047
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0046-completion.json"
+  evidence: ".aipos/evidence/WO-0047-completion.json"
 latest_verified_slice:
-  id: wo-0046-tiny-bounded-live-envelope-complete
-  evidence: ".aipos/evidence/WO-0046-completion.json"
-  summary: "WO-0046 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; bounded envelope grants no activation/order authority."
+  id: wo-0047-external-readonly-environment-preflight-complete
+  evidence: ".aipos/evidence/WO-0047-completion.json"
+  summary: "WO-0047 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; CI performed no external broker probe."
 completed:
+  - id: WO-0047
+    evidence: ".aipos/evidence/WO-0047-completion.json"
+    summary: "Added operator-gated external read-only preflight harness without execution authority."
   - id: WO-0046
     evidence: ".aipos/evidence/WO-0046-completion.json"
     summary: "Added non-executable tiny bounded Restricted LIVE policy envelope."
   - id: WO-0045
     evidence: ".aipos/evidence/WO-0045-completion.json"
     summary: "Added immutable production release artifact seal for independent human review only."
-  - id: WO-0044
-    evidence: ".aipos/evidence/WO-0044-completion.json"
-    summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
 in_progress:
-  - id: WO-0047
-    evidence: ".aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml; PR #162"
-    summary: "Operator-gated external read-only preflight harness implemented; official exact-head verification pending; CI remains synthetic and network-free."
+  - id: WO-0048
+    evidence: ".aipos/work-orders/WO-0048-post-live-validation-contract.yaml; PR #163"
+    summary: "Post-LIVE session evidence validator implemented; official exact-head verification pending; no LIVE session is created."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0047-external-readonly-environment-preflight.yaml
-  reason: "Complete PR #162 exact-head verification and merge. Actual external broker probing remains a separate explicit operator action."
+  work_order: .aipos/work-orders/WO-0048-post-live-validation-contract.yaml
+  reason: "Complete PR #163 exact-head verification and merge."
 verification:
   required:
-    - "External read-only environment preflight regression tests"
-    - "External read-only environment preflight source validation"
+    - "Post-LIVE validation regression tests"
+    - "Post-LIVE validation source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -49,28 +49,34 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0047 implementation on PR #162; official exact-head verification pending."
-  current_commit: "PR #162 verification pending"
+  last_result: "WO-0048 implementation on PR #163; official exact-head verification pending."
+  current_commit: "PR #163 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
   risk_increase_approvers_required: 2
   automatic_live_activation: prohibited
+  automatic_scale_up: prohibited
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
-  production_promotion_mutation: prohibited
-external_readonly_environment_preflight:
-  mode: OPERATOR_GATED_READ_ONLY
-  actual_external_probe_in_ci: false
-  explicit_operator_authorization_required: true
-  credential_source: os_encrypted_read_only_only
-  execution_transport_connected: false
-  credential_execution_use: prohibited
+post_live_validation:
+  mode: EVIDENCE_VALIDATION_ONLY
+  actual_live_session_in_ci: false
+  scale_up_authority: false
   activation_authority: false
   order_authorization: false
   execution_authority: false
   authorizes_live: false
+  mutation_performed: false
   real_money_execution_allowed: false
+external_readonly_environment_preflight:
+  mode: OPERATOR_GATED_READ_ONLY
+  actual_external_probe_in_ci: false
+  explicit_operator_authorization_required: true
+  activation_authority: false
+  order_authorization: false
+  execution_authority: false
+  authorizes_live: false
 tiny_bounded_live_envelope:
   mode: POLICY_VALIDATION_ONLY
   max_order_notional_bps: 10
@@ -80,30 +86,7 @@ tiny_bounded_live_envelope:
   max_position_count: 1
   max_session_orders: 5
   max_session_duration_seconds: 3600
-  automatic_renewal: prohibited
   automatic_scale_up: prohibited
-  order_authorization: false
-  activation_authority: false
-  execution_authority: false
-  authorizes_live: false
-  real_money_execution_allowed: false
-production_release_artifact_seal:
-  mode: EVIDENCE_ONLY_SEAL
-  deployment_authority: false
-  activation_authority: false
-  execution_authority: false
-  authorizes_live: false
-restricted_live_activation_ceremony:
-  mode: VALIDATION_ONLY
-  actual_ceremony_conducted: false
-  executable_activation_token: prohibited
-  execution_authority: false
-  authorizes_live: false
-restricted_live_environment_preflight:
-  authority: human_review_only
-  execution_transport_required: disconnected
-  credential_execution_use: prohibited
-  real_money_execution_allowed: false
   authorizes_live: false
 restricted_live_authority:
   default_state: DISABLED
