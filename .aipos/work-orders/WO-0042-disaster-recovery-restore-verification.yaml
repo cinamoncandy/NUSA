@@ -1,0 +1,52 @@
+id: WO-0042
+title: "Disaster Recovery & Restore Verification"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f1026da040f1a42f8084f04c139a2f7c408a4323
+implementation_branch: agent/wo-0042-disaster-recovery-restore-verification
+objective: "Bind backup manifests, restored artifacts, audit replay anchors, and existing disaster-recovery results into a deterministic fail-closed restore verification boundary without granting restart, execution, or LIVE authority."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0042 extends existing deployment rollback and disaster-recovery primitives with restore integrity proof. It verifies exact restored bytes and replay anchors, then delegates operational consistency to the existing disaster-recovery result. PASS is evidence only and does not authorize startup, ACTIVE state, broker execution, or real-money mutation."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Create deterministic backup manifests containing backup identity, code/config hashes, audit replay anchor, artifact role/path/size/digest, and manifest digest without embedding artifact bytes."
+  - "Credential/execution-secret paths or secret material must never be included in a recovery manifest."
+  - "Restore verification requires exact artifact set, exact size/digest, exact audit replay anchor, and valid manifest digest. Missing, extra, tampered, ambiguous, or malformed data fails closed."
+  - "Existing DisasterRecoveryResult must be CONSISTENT with zero blocking domains; FAIL/UNKNOWN domains or malformed recovery evidence fail closed."
+  - "Restore PASS is observational evidence only: automatic restart, ACTIVE authorization, execution transport, credential execution use, and real-money execution remain prohibited."
+  - "Restore verification output must be immutable and deterministic with explicit SAFE_BLOCK blockers."
+  - "Add focused regressions for deterministic manifest, tamper, missing/extra files, replay-anchor mismatch, secret-path rejection, recovery UNKNOWN, and no-authority semantics."
+  - "Add source validation forbidding broker/order/cash/position/credential execution methods."
+acceptance:
+  - "Disaster recovery restore regressions PASS."
+  - "Identical backup inputs produce identical manifest digest."
+  - "Tamper/missing/extra/anchor mismatch/UNKNOWN recovery all SAFE_BLOCK."
+  - "No credential or execution secret path can enter the manifest."
+  - "PASS does not authorize restart, execution, or LIVE mutation."
+  - "Capability Surface Guard and all existing Restricted LIVE gates PASS."
+  - "Full required GitHub CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  live_execution_transport: disconnected
+  credential_execution_use: prohibited
+  order_mutation: prohibited
+  withdrawals: prohibited
+  cash_position_mutation: prohibited
+  automatic_restart: prohibited
+  restore_authority: evidence_only
+  real_money_execution: prohibited
+  automatic_live_activation: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion proves restore integrity only and cannot authorize startup, execution, or LIVE trading."
