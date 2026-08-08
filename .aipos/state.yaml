@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T10:18:00+09:00"
-phase: production-release-artifact-seal
-status: verifying
-objective: "Seal exact release artifacts to code/config/rollback/safety evidence without deployment or LIVE authority."
+updated_at: "2026-08-08T10:59:00+09:00"
+phase: tiny-bounded-restricted-live-envelope
+status: implementing
+objective: "Validate a non-executable tiny Restricted LIVE policy envelope against hard ceilings and exact evidence bindings."
 base_branch: main
-active_branch: agent/wo-0045-production-release-artifact-seal
-active_pull_request: 160
-base_commit: 61988441f22d4868a94d95bebc0c382afecd9a77
+active_branch: agent/wo-0046-tiny-bounded-live-envelope
+active_pull_request: pending
+base_commit: 623db33d5b0fc2e96f4573155bd958a19e3320d9
 claimed_state:
-  work_order: WO-0045
+  work_order: WO-0046
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0044
+  work_order: WO-0045
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0044-completion.json"
+  evidence: ".aipos/evidence/WO-0045-completion.json"
 latest_verified_slice:
-  id: wo-0044-restricted-live-activation-ceremony-mechanism-complete
-  evidence: ".aipos/evidence/WO-0044-completion.json"
-  summary: "WO-0044 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; validation machinery issues no activation credential and conducts no real ceremony."
+  id: wo-0045-production-release-artifact-seal-complete
+  evidence: ".aipos/evidence/WO-0045-completion.json"
+  summary: "WO-0045 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; release seal remains evidence-only and grants no deployment or LIVE authority."
 completed:
+  - id: WO-0045
+    evidence: ".aipos/evidence/WO-0045-completion.json"
+    summary: "Added immutable production release artifact seal for independent human review only."
   - id: WO-0044
     evidence: ".aipos/evidence/WO-0044-completion.json"
     summary: "Added validation-only two-independent-human activation ceremony mechanism without LIVE authority."
@@ -29,32 +32,28 @@ completed:
   - id: WO-0042
     evidence: ".aipos/evidence/WO-0042-completion.json"
     summary: "Added deterministic fail-closed disaster-recovery restore integrity verification without execution authority."
-  - id: WO-0041
-    evidence: ".aipos/evidence/WO-0041-completion.json"
-    summary: "Added deterministic tamper-evident audit/evidence/incident replay without execution authority."
 in_progress:
-  - id: WO-0045
-    evidence: ".aipos/work-orders/WO-0045-production-release-artifact-seal.yaml; PR #160"
-    summary: "Production release candidate artifact seal implemented; official exact-head verification pending; deployment and LIVE activation remain prohibited."
+  - id: WO-0046
+    evidence: ".aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml"
+    summary: "Tiny bounded Restricted LIVE envelope policy validation implementation in progress; no activation or order authority."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0045-production-release-artifact-seal.yaml
-  reason: "Complete PR #160 exact-head verification and merge; actual human activation remains outside automated authority."
+  work_order: .aipos/work-orders/WO-0046-tiny-bounded-live-envelope.yaml
+  reason: "Implement and verify hard non-expandable tiny envelope; actual human activation and trading remain prohibited."
 verification:
   required:
-    - "Production release artifact seal regression tests"
-    - "Production release artifact seal source validation"
-    - "Release process validation"
-    - "Security gate"
+    - "Tiny bounded Restricted LIVE envelope regression tests"
+    - "Tiny bounded Restricted LIVE envelope source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
     - "Read-only broker credential integration"
     - "AIPOS verified-state evidence integrity"
     - "Architecture/AIPOS drift validation"
+    - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0045 implementation on PR #160; official exact-head verification pending."
-  current_commit: "PR #160 verification pending"
+  last_result: "WO-0045 merged as 623db33d5b0fc2e96f4573155bd958a19e3320d9; WO-0046 started."
+  current_commit: "WO-0046 implementation pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -63,19 +62,29 @@ human_authority:
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
   production_promotion_mutation: prohibited
-production_release_artifact_seal:
-  mode: EVIDENCE_ONLY_SEAL
-  exact_code_binding: true
-  exact_configuration_binding: true
-  exact_artifact_hash_binding: true
-  rollback_binding: true
-  safety_evidence_binding: true
-  signed_verified_required_for_production_review: true
-  deployment_authority: false
+tiny_bounded_live_envelope:
+  mode: POLICY_VALIDATION_ONLY
+  max_order_notional_bps: 10
+  max_gross_exposure_bps: 50
+  max_daily_loss_bps: 10
+  max_open_orders: 1
+  max_position_count: 1
+  max_session_orders: 5
+  max_session_duration_seconds: 3600
+  automatic_renewal: prohibited
+  automatic_scale_up: prohibited
+  symbol_addition: prohibited
+  order_authorization: false
   activation_authority: false
   execution_authority: false
   authorizes_live: false
   real_money_execution_allowed: false
+production_release_artifact_seal:
+  mode: EVIDENCE_ONLY_SEAL
+  deployment_authority: false
+  activation_authority: false
+  execution_authority: false
+  authorizes_live: false
 restricted_live_activation_ceremony:
   mode: VALIDATION_ONLY
   actual_ceremony_conducted: false
@@ -94,15 +103,6 @@ restricted_live_authority:
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
-disaster_recovery_restore:
-  mode: VERIFY_ONLY
-  automatic_restart_allowed: false
-  execution_authority: false
-  authorizes_live: false
-audit_incident_replay:
-  mode: OBSERVATIONAL_REPLAY
-  execution_authority: false
-  authorizes_live: false
 hard_risk_gateway:
   authority: deterministic_hard_risk
   learned_override: prohibited
@@ -111,12 +111,6 @@ kill_switch:
   mode: LATCHED
   automatic_release: prohibited
   release_authorizes_live: false
-live_governance_state_machine:
-  default_state: DISABLED
-  active_entry_currently_allowed: false
-  execution_transport_connected: false
-  execution_credential_use: prohibited
-  real_money_execution: prohibited
 capability_surface_guard:
   mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
   prohibited_live_permissions_enforced: true
