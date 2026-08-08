@@ -1,0 +1,80 @@
+id: WO-AI-002
+title: Grounded Trustworthy AI Runtime Activation
+status: IN_PROGRESS
+priority: P1
+branch: agent/ai-002-grounded-runtime-plan
+base_branch: main
+implementation_branch: agent/ai-002-grounded-runtime-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Makes the merged zero-authority AI runtime actually groundable, replayable, and observable from Cloud while preserving deterministic safety and zero execution authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0005-grounded-trustworthy-ai-runtime.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Activate a trustworthy read-only AI analysis path using content-addressed sanitized
+  evidence, exact prompt binding, complete replay identity, truthful correlation
+  semantics, conservative confidence, and bounded asynchronous Cloud projection.
+constraints:
+  - AI output is analysis, evidence assessment, hypothesis, critique, uncertainty, or explanation only.
+  - No ORDER, CANCEL, TRANSFER, WITHDRAW, CREDENTIAL, SECRET, LIVE_EXECUTION, production mutation, risk increase, or safety-control release capability.
+  - Deterministic governance, Risk Governor, kill switch, HALT, P0 state, and PAPER execution remain authoritative.
+  - AI inference must not run inline on the PAPER fill boundary and must never block or mutate PAPER state.
+  - Evidence payloads must be sanitized before model exposure and content-addressed by SHA-256.
+  - Raw broker credentials, bearer tokens, secrets, private keys, executable authorization tokens, and unrestricted account state are prohibited model inputs.
+  - Prompt instructions are immutable/versioned artifacts and their complete body is covered by the prompt digest.
+  - Agents sharing an underlying provider/model/correlated group are not counted as independent consensus.
+  - Uncalibrated output must not project synthetic 1.0 confidence.
+  - Default/unconfigured provider remains fail-closed; no provider credential is committed or persisted.
+implementation:
+  - add sanitized evidence materialization contract bound to AgentEvidence.contentDigest
+  - reject missing, tampered, stale, unsupported, or credential-like evidence materializations
+  - bind complete role instructions and schemas/capability policy into prompt artifact digest
+  - include exact instructions in bounded ModelRequest so providers do not rely on hidden prompt state
+  - expand orchestration replay identity across materialized evidence, provider/model, prompt, role, policy, certification, control-plane state, and context window
+  - preserve and surface correlated-model semantics instead of treating role count as independent agreement
+  - remove hard-coded confidence=1.0 from read-only AI projection and remain conservative until calibration evidence exists
+  - add bounded asynchronous Cloud AI scheduler with in-flight suppression and minimum cadence
+  - materialize verified public market and deterministic safety/risk evidence for AI analysis without exposing credentials or mutation surfaces
+  - retain the latest validated non-stale orchestration result in memory and project it through Personal PAPER Operations read-only AI state
+  - fail closed to UNAVAILABLE/INCOMPLETE on provider, evidence, prompt, replay, schema, freshness, or governance faults
+acceptance_criteria:
+  - tampered evidence payload digest fails closed before model inference
+  - missing materialized payload for model-consumed evidence fails closed
+  - prompt body change without version/digest change is rejected
+  - replay with any bound identity component changed returns REPLAY_CONFLICT/INCOMPLETE
+  - same-model role set is explicitly correlated and never amplified as independent consensus
+  - no AVAILABLE projection is emitted without a completed validated governance result
+  - uncalibrated projection never reports confidence 1.0
+  - bounded Cloud scheduling prevents overlapping/unbounded model calls
+  - provider or AI failure leaves PAPER account, orders, fills, risk state, P0 state, and dashboard operation unchanged
+  - exact-head focused AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native, and Restricted LIVE/read-only workflows pass
+  - productionMutationAllowed=false, realOrderAuthority=false, realTransferAuthority=false, and liveAuthority=NONE remain proven
+  - PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - model chain of thought
+    - provider credential or secret
+    - broker credential
+    - real order, cancel, transfer, or withdrawal
+    - synthetic evidence presented as LIVE authorization
+next: >-
+  After merge, score grounded runtime quality on evidence integrity, replayability,
+  calibration, robustness, latency/cost, and explanation quality; select the lowest
+  scoring dimension as the next AI improvement slice.

@@ -1,15 +1,15 @@
 version: 1
 project: nusa
 updated_at: "2026-08-09T01:06:00+09:00"
-phase: p8-multi-position-reconciliation-complete
-status: ready
-objective: "Preserve the completed zero-authority AI runtime and corrected read-only multi-position PAPER portfolio projection while WO-0051 remains at its human/environment boundary."
+phase: grounded-trustworthy-ai-runtime
+status: in_progress
+objective: "Upgrade the merged zero-authority AI runtime into a grounded, replayable, bounded read-only Cloud analysis path while preserving all deterministic safety and human-only LIVE gates."
 base_branch: main
-active_branch: main
-active_pull_request: null
-base_commit: 9ceeaaf6b50131675a6dbaa7673aec3e07b19f27
+active_branch: agent/ai-002-grounded-runtime-plan
+active_pull_request: 200
+base_commit: 381143ada0f2d2db36967ed50b4788bf8ba47d97
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-AI-002
   status: IN_PROGRESS
 verified_state:
   work_order: WO-AI-001
@@ -33,9 +33,9 @@ completed:
     evidence: ".aipos/evidence/WO-0048-completion.json"
     summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+  - id: WO-AI-002
+    evidence: ".aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml"
+    summary: "Bind actual sanitized evidence and prompt bodies to model runs, make replay/correlation semantics truthful, and project only bounded validated read-only AI results."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -46,19 +46,19 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "PR #198 corrected multi-position read-only PAPER portfolio reconciliation and merged after exact-head Full CI, coverage, Mobile Native, and all read-only/Restricted LIVE safety workflows PASS. Perform a fresh repository gap audit before selecting another safe PAPER/Research slice; do not auto-complete WO-0051 or infer LIVE authorization from CI, AI, or chat."
+  work_order: .aipos/work-orders/WO-AI-002-grounded-trustworthy-runtime-activation.yaml
+  reason: "PR #198 completed the read-only multi-position correctness gate and PR #199 synchronized completion evidence on current main. Implement the highest-priority AI trust gap next: grounded evidence + exact prompt/replay binding + bounded Cloud read-only projection, without changing execution authority."
 verification:
   required:
-    - "Fresh repository gap audit before another automated PAPER/Research implementation slice"
+    - "WO-AI-002 exact-head focused AI tests, Full CI, full isolated suite, coverage, Mobile Native, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #198 merged at 9ceeaaf6b50131675a6dbaa7673aec3e07b19f27 after exact-head cf62d0ceec29b4d83c1a65193b8c65cd99ab23c4 CI run 31265716609 PASS including Full isolated suite and coverage; Mobile Native 31265716576 PASS; read-only/Restricted LIVE workflows 31265716578, 31265716605, 31265716571, 31265716584 PASS. Duplicate push-triggered CI test context 31265715177 also completed successfully before merge."
-  current_commit: "9ceeaaf6b50131675a6dbaa7673aec3e07b19f27; PR #198 merged; P8 multi-position read-only portfolio reconciliation complete"
+  last_result: "PR #199 merged at 381143ada0f2d2db36967ed50b4788bf8ba47d97 after exact-head 469df7477a1543777a4f4d294efe38cd2623c61f PR CI 31266175761 PASS and push CI 31266165872 PASS, with all four Restricted LIVE/read-only safety workflows PASS. PR #198 remains the underlying P8 correctness baseline."
+  current_commit: "381143ada0f2d2db36967ed50b4788bf8ba47d97; P8 bookkeeping synchronized; WO-AI-002 architecture/work-order activation in progress"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
