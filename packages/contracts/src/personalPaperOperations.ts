@@ -51,10 +51,11 @@ export interface PersonalPaperOrderProjection {
 
 export interface PersonalPaperMarketProjection {
   readonly market: string;
-  readonly trade_price: number;
-  readonly trade_timestamp: number;
-  readonly signed_change_rate?: number;
-  readonly acc_trade_price_24h?: number;
+  readonly price: number;
+  readonly changeRate: number | null;
+  readonly volume: number | null;
+  readonly observedAt: string;
+  readonly source: "UPBIT_PUBLIC_TICKER";
 }
 
 export interface PersonalPaperOperationsSnapshot {
@@ -123,13 +124,13 @@ function validateReadOnlyProjections(input: Pick<PersonalPaperOperationsSnapshot
   }
   for (const order of input.orders) {
     if (!order.id.trim() || !order.market.trim() || !["BUY", "SELL"].includes(order.side) || order.status !== "FILLED" || !Number.isFinite(Date.parse(order.filledAt))) throw new Error("invalid PAPER order projection");
-    for (const value of [order.quantity, order.price, order.fee]) if (!Number.isFinite(value) || value < 0) throw new Error("invalid PAPER order value");
+    if (!Number.isFinite(order.quantity) || order.quantity <= 0 || !Number.isFinite(order.price) || order.price <= 0 || !Number.isFinite(order.fee) || order.fee < 0) throw new Error("invalid PAPER order value");
     for (const fill of order.fills) if (!fill.id.trim() || !Number.isFinite(fill.quantity) || fill.quantity <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(Date.parse(fill.filledAt))) throw new Error("invalid PAPER fill projection");
   }
   for (const market of input.markets) {
-    if (!market.market.trim() || !Number.isFinite(market.trade_price) || market.trade_price <= 0 || !Number.isSafeInteger(market.trade_timestamp) || market.trade_timestamp < 0) throw new Error("invalid PAPER market projection");
-    if (market.signed_change_rate != null) finite(market.signed_change_rate, "market.signed_change_rate");
-    if (market.acc_trade_price_24h != null && (!Number.isFinite(market.acc_trade_price_24h) || market.acc_trade_price_24h < 0)) throw new Error("invalid PAPER market turnover");
+    if (!market.market.trim() || !Number.isFinite(market.price) || market.price <= 0 || !Number.isFinite(Date.parse(market.observedAt)) || market.source !== "UPBIT_PUBLIC_TICKER") throw new Error("invalid PAPER market projection");
+    if (market.changeRate != null) finite(market.changeRate, "market.changeRate");
+    if (market.volume != null && (!Number.isFinite(market.volume) || market.volume < 0)) throw new Error("invalid PAPER market volume");
   }
 }
 
