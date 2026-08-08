@@ -111,6 +111,8 @@ test("mobile source consumes only the single authenticated operations snapshot a
   assert.match(runtime, /orders:\s*buildReadOnlyOrders/);
   assert.match(runtime, /markets:\s*\[\.\.\.latestTickers\.values\(\)\]/);
   assert.match(runtime, /latestTickers\.clear\(\)/);
+  assert.match(runtime, /volume:\s*ticker\.acc_trade_volume\s*\?\?\s*null/);
+  assert.doesNotMatch(runtime, /volume:\s*ticker\.acc_trade_price_24h/);
   assert.match(runtime, /p0Halted\s*=\s*effectiveP0Repository\?\.readState\(\)\.openP0/);
   assert.match(runtime, /dashboard\.mode === "FAULTED" \|\| dashboard\.killSwitchActive \|\| p0Halted/);
 });
