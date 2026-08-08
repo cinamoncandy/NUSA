@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T11:58:00+09:00"
+updated_at: "2026-08-08T12:08:00+09:00"
 phase: post-live-validation-contract
-status: implementing
+status: verifying
 objective: "Validate future tiny LIVE session evidence without creating a LIVE session or granting scale-up authority."
 base_branch: main
 active_branch: agent/wo-0048-post-live-validation-contract
-active_pull_request: pending
+active_pull_request: 163
 base_commit: 5c185fa8560ceddc7a12e2204e77591a768c93d2
 claimed_state:
   work_order: WO-0048
@@ -31,12 +31,12 @@ completed:
     summary: "Added immutable production release artifact seal for independent human review only."
 in_progress:
   - id: WO-0048
-    evidence: ".aipos/work-orders/WO-0048-post-live-validation-contract.yaml"
-    summary: "Synthetic-tested post-LIVE session evidence validator implementation in progress; no LIVE session is created."
+    evidence: ".aipos/work-orders/WO-0048-post-live-validation-contract.yaml; PR #163"
+    summary: "Post-LIVE session evidence validator implemented; official exact-head verification pending; no LIVE session is created."
 blocked: []
 next:
   work_order: .aipos/work-orders/WO-0048-post-live-validation-contract.yaml
-  reason: "Implement and verify fail-closed post-LIVE session evidence validation."
+  reason: "Complete PR #163 exact-head verification and merge."
 verification:
   required:
     - "Post-LIVE validation regression tests"
@@ -49,8 +49,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0047 merged as 5c185fa8560ceddc7a12e2204e77591a768c93d2; WO-0048 started."
-  current_commit: "WO-0048 implementation pending"
+  last_result: "WO-0048 implementation on PR #163; official exact-head verification pending."
+  current_commit: "PR #163 verification pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
