@@ -18,10 +18,21 @@ export interface CandidatePromotionRepository {
   verifyAudit(): void;
 }
 
+export interface OwnerAuthorizationContext {
+  readonly actorRef: string;
+  readonly authenticated: true;
+}
+
+export interface OwnerAuthorizationPort {
+  authorize(command: PromotionCommand): OwnerAuthorizationContext | null;
+}
+
 export interface CandidatePromotionRuntimeOptions {
   readonly repository: CandidatePromotionRepository;
   readonly evaluationLedger: ResearchEvaluationLedger;
-  readonly ownerActorRefs: readonly string[];
+  readonly ownerAuthorization?: OwnerAuthorizationPort;
+  /** @deprecated A string allow-list is not an authentication boundary and cannot authorize promotion. */
+  readonly ownerActorRefs?: readonly string[];
   readonly now?: () => number;
   readonly maxEvidenceAgeMs?: number;
 }
@@ -111,21 +122,23 @@ export class CandidatePromotionRuntime {
     const candidate = this.options.repository.getCandidate(command.candidateId);
     const currentChampion = this.options.repository.getChampion();
     if (candidate == null) return this.rejected(command, "UNKNOWN_CANDIDATE", "REJECTED");
-    if (!this.options.ownerActorRefs.includes(command.ownerActorRef)) return this.rejected(command, "OWNER_AUTHORIZATION_REQUIRED", "REJECTED", candidate);
-    if (!command.reason.trim() || !Number.isSafeInteger(command.requestedAt)) return this.rejected(command, "INVALID_OWNER_COMMAND", "REJECTED", candidate);
-    if (currentChampion !== command.expectedCurrentChampionCandidateId) return this.rejected(command, "CHAMPION_COMPARE_AND_SET_CONFLICT", "CONFLICT", candidate);
+    const authorization = this.options.ownerAuthorization?.authorize(command) ?? null;
+    if (authorization == null || authorization.authenticated !== true) return this.rejected(command, "OWNER_AUTHORIZATION_REQUIRED", "REJECTED", candidate, "UNAUTHENTICATED");
+    if (!authorization.actorRef.trim() || authorization.actorRef !== command.ownerActorRef) return this.rejected(command, "OWNER_IDENTITY_MISMATCH", "REJECTED", candidate, authorization.actorRef || "UNAUTHENTICATED");
+    if (!command.reason.trim() || !Number.isSafeInteger(command.requestedAt)) return this.rejected(command, "INVALID_OWNER_COMMAND", "REJECTED", candidate, authorization.actorRef);
+    if (currentChampion !== command.expectedCurrentChampionCandidateId) return this.rejected(command, "CHAMPION_COMPARE_AND_SET_CONFLICT", "CONFLICT", candidate, authorization.actorRef);
     const eligibility = this.evaluatePromotionEligibility(command.candidateId, command.evidenceEvaluationId);
-    if (!eligibility.eligible || eligibility.evidence == null || hash(eligibility.evidence) !== command.evidenceHash) return this.rejected(command, eligibility.reason === "ELIGIBLE_WITH_OWNER_COMMAND" ? "EVIDENCE_HASH_MISMATCH" : eligibility.reason, "REJECTED", candidate);
+    if (!eligibility.eligible || eligibility.evidence == null || hash(eligibility.evidence) !== command.evidenceHash) return this.rejected(command, eligibility.reason === "ELIGIBLE_WITH_OWNER_COMMAND" ? "EVIDENCE_HASH_MISMATCH" : eligibility.reason, "REJECTED", candidate, authorization.actorRef);
     const previous = currentChampion == null ? null : this.options.repository.getCandidate(currentChampion);
-    if (previous != null && previous.lifecycle !== "CHAMPION") return this.rejected(command, "CHAMPION_STATE_INVALID", "REJECTED", candidate);
+    if (previous != null && previous.lifecycle !== "CHAMPION") return this.rejected(command, "CHAMPION_STATE_INVALID", "REJECTED", candidate, authorization.actorRef);
     const promoted = freeze({ identity: candidate.identity, lifecycle: "CHAMPION" as const });
     const result = freeze({ status: "PROMOTED" as const, promotionCommandId: command.promotionCommandId, reason: "OWNER_PROMOTION_COMMITTED", previousChampionCandidateId: currentChampion, resultingChampionCandidateId: candidate.identity.candidateId, productionMutationAllowed: false as const, liveAuthority: "NONE" as const });
-    const audit = this.audit(command, candidate.identity, currentChampion, candidate.identity.candidateId, result.status, null);
+    const audit = this.audit(command, candidate.identity, currentChampion, candidate.identity.candidateId, result.status, null, authorization.actorRef);
     try {
       this.options.repository.promoteAtomic({ command, candidate: promoted, previousCandidate: previous == null ? null : freeze({ identity: previous.identity, lifecycle: "CHALLENGER" as const }), result, audit });
       return result;
     } catch (error) {
-      if (error instanceof Error && error.message.includes("compare-and-set")) return this.rejected(command, "CHAMPION_COMPARE_AND_SET_CONFLICT", "CONFLICT", candidate);
+      if (error instanceof Error && error.message.includes("compare-and-set")) return this.rejected(command, "CHAMPION_COMPARE_AND_SET_CONFLICT", "CONFLICT", candidate, authorization.actorRef);
       throw error;
     }
   }
@@ -135,14 +148,14 @@ export class CandidatePromotionRuntime {
   public verifyAudit(): void { this.options.repository.verifyAudit(); }
 
   private requireCandidate(candidateId: string): CandidateLifecycleRecord { const candidate = this.options.repository.getCandidate(candidateId); if (candidate == null) throw new Error("candidate not found"); return candidate; }
-  private audit(command: PromotionCommand, candidate: ResearchCandidateIdentity | null, previous: string | null, resulting: string | null, result: PromotionAuditRecord["result"], rejectionReason: string | null): PromotionAuditRecord {
+  private audit(command: PromotionCommand, candidate: ResearchCandidateIdentity | null, previous: string | null, resulting: string | null, result: PromotionAuditRecord["result"], rejectionReason: string | null, actorRef: string): PromotionAuditRecord {
     const prior = this.options.repository.listAudit().at(-1);
-    return freeze({ promotionCommandId: command.promotionCommandId, candidate, previousChampionCandidateId: previous, resultingChampionCandidateId: resulting, evidenceEvaluationId: command.evidenceEvaluationId, evidenceHash: command.evidenceHash, actorRef: command.ownerActorRef, requestedAt: command.requestedAt, committedAt: this.now(), result, rejectionReason, previousAuditHash: prior?.currentAuditHash ?? genesis, currentAuditHash: "" });
+    return freeze({ promotionCommandId: command.promotionCommandId, candidate, previousChampionCandidateId: previous, resultingChampionCandidateId: resulting, evidenceEvaluationId: command.evidenceEvaluationId, evidenceHash: command.evidenceHash, actorRef, requestedAt: command.requestedAt, committedAt: this.now(), result, rejectionReason, previousAuditHash: prior?.currentAuditHash ?? genesis, currentAuditHash: "" });
   }
-  private rejected(command: PromotionCommand, reason: string, status: "REJECTED" | "CONFLICT", candidate?: CandidateLifecycleRecord): PromotionResult {
+  private rejected(command: PromotionCommand, reason: string, status: "REJECTED" | "CONFLICT", candidate?: CandidateLifecycleRecord, actorRef = "UNAUTHENTICATED"): PromotionResult {
     const current = this.options.repository.getChampion();
     const result = freeze({ status, promotionCommandId: command.promotionCommandId, reason, previousChampionCandidateId: current, resultingChampionCandidateId: current, productionMutationAllowed: false as const, liveAuthority: "NONE" as const });
-    this.options.repository.recordRejected(command, result, this.audit(command, candidate?.identity ?? null, current, current, status, reason));
+    this.options.repository.recordRejected(command, result, this.audit(command, candidate?.identity ?? null, current, current, status, reason, actorRef));
     return result;
   }
 }
