@@ -1,10 +1,11 @@
 id: WO-AI-001
 title: Model-Backed Zero-Authority Agent Runtime
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
 branch: agent/ai-001-model-backed-zero-authority
 base_branch: main
 implementation_branch: agent/ai-001-linear
+merge_commit: d251570c5ebf3ad8abf892af2ee4588412e96758
 architecture_impact:
   acknowledged: true
   analysis: "Adds a bounded model analysis boundary below existing deterministic governance; AI remains default-off and cannot reach execution, credentials, risk, kill-switch, HALT, or LIVE authority."
@@ -53,6 +54,13 @@ verification:
     - pnpm run aipos:conformance
     - pnpm run security:gate
     - git diff --check
+  exact_head: 5a58036665e9a6c617e7d0ccd940829a71aaea05
+  ci_run: 31264207231
+  safety_runs:
+    - 31264207236
+    - 31264207245
+    - 31264207233
+    - 31264207237
   prohibited_evidence:
     - model chain of thought
     - provider credential or secret
@@ -60,5 +68,5 @@ verification:
     - real order, cancel, transfer, or withdrawal
     - synthetic evidence presented as live authorization
 next: >-
-  After merge, re-audit remaining PAPER/Research correctness gaps; do not infer
-  LIVE authority from AI, CI, or chat consent.
+  Re-audit remaining PAPER/Research correctness gaps; do not infer LIVE
+  authority from AI, CI, or chat consent.
