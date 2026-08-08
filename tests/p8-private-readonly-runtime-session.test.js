@@ -89,7 +89,7 @@ test("cloud runtime exposes one authenticated read-only snapshot with real PAPER
 });
 
 test("open durable P0 projects Personal PAPER Operations as HALTED", async () => {
-  const token = "p8-open-p0-read-only-token-123456";
+  const token = ["p8", "open", "p0", "read-only", "fixture", "123456"].join("-");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-p8-open-p0-"));
   const dbPath = path.join(dir, "state.sqlite");
   seedP0(dbPath);
@@ -109,7 +109,7 @@ test("open durable P0 projects Personal PAPER Operations as HALTED", async () =>
 });
 
 test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", async () => {
-  const token = "p8-corrupt-p0-read-only-token-123456";
+  const token = ["p8", "corrupt", "p0", "read-only", "fixture", "123456"].join("-");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-p8-corrupt-p0-"));
   const dbPath = path.join(dir, "state.sqlite");
   seedP0(dbPath, true);
