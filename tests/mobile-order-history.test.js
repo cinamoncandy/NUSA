@@ -33,7 +33,7 @@ test("order history supports deterministic periods and fill detail data", () => 
   assert.equal(buildOrderHistoryViewModel({ rawOrders: detailed, query: "", filter: "ALL", sort: "TIME_DESC", page: 1, period: "TODAY", referenceAt: "2026-08-03T00:00:00.000Z" }).state, "EMPTY");
 });
 
-test("order history UI uses design system, read-only data, and all required states", () => {
+test("order history UI uses design system and remains read-only when secure operations data is not configured", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "orderHistoryView.tsx"), "utf8");
   assert.match(source, /Order History/);
   assert.match(source, /order-history-filters/);
@@ -46,9 +46,13 @@ test("order history UI uses design system, read-only data, and all required stat
   assert.match(source, /order-history-empty/);
   assert.match(source, /NusaCard/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
+
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
+  const more = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8");
   assert.match(app, /activeTab === "More"/);
   assert.match(app, /<MoreView/);
-  assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8"), /<OrderHistoryView/);
-  assert.match(app, /account\?\.account\.orders/);
+  assert.match(more, /<OrderHistoryView/);
+  assert.match(app, /rawOrders=\{null\}/);
+  assert.match(app, /loadPersonalPaperOperations/);
+  assert.doesNotMatch(app, /\/api\/account/);
 });
