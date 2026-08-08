@@ -97,8 +97,8 @@ test("multi-position PAPER portfolio projects aggregate totals without corruptin
   const restoredState = Object.freeze({
     version: 1,
     initialCapital: 1000000,
-    cash: 560000,
-    equity: 1000000,
+    cash: 603000,
+    equity: 1043000,
     realizedPnL: 3000,
     unrealizedPnL: 40000,
     positions: Object.freeze([
@@ -128,6 +128,38 @@ test("multi-position PAPER portfolio projects aggregate totals without corruptin
     assert.equal(view.position.market, "KRW-BTC");
     assert.equal(view.position.realizedPnl, 1000);
     assert.equal(view.position.unrealizedPnl, 20000);
+  } finally { await handle.stop(); }
+});
+
+test("closed lexicographic PAPER position cannot hide another open position", async () => {
+  const token = ["p8", "closed-first", "representative", "position", "fixture"].join("-");
+  const restoredState = Object.freeze({
+    version: 1,
+    initialCapital: 1000000,
+    cash: 800000,
+    equity: 1020000,
+    realizedPnL: 0,
+    unrealizedPnL: 20000,
+    positions: Object.freeze([
+      Object.freeze({ market: "KRW-BTC", quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: 220000 }),
+      Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 0, unrealizedPnL: 20000, markPrice: 110000 })
+    ]),
+    orders: Object.freeze([]),
+    fills: Object.freeze([]),
+    processedIdempotencyKeys: Object.freeze([]),
+    updatedAt: 1000
+  });
+  const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
+  const handle = startCloudRuntime(testEnv(token, 41945), undefined, undefined, undefined, undefined, undefined, paperLoop);
+  try {
+    const body = await loadOperations(handle, token);
+    assert.equal(body.portfolio.account.assetValue, 220000);
+    assert.equal(body.portfolio.account.position.market, "KRW-ETH");
+    assert.equal(body.portfolio.account.position.quantity, 2);
+    const view = buildPortfolioViewModel(body.portfolio);
+    assert.equal(view.assetValue, 220000);
+    assert.equal(view.position.market, "KRW-ETH");
+    assert.equal(view.position.quantity, 2);
   } finally { await handle.stop(); }
 });
 
