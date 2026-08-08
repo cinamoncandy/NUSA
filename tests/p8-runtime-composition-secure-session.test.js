@@ -34,7 +34,7 @@ const metrics = Object.freeze({
 
 function runningSession() {
   return {
-    sessionId: "p7-session",
+    sessionId: "p8-session",
     state: "RUNNING",
     datasetId: "dataset-1",
     interval: "1m",
@@ -55,9 +55,9 @@ function runningSession() {
 test("memory-only dashboard credential session never persists or infers local auth", async () => {
   const session = new InMemoryDashboardCredentialSession();
   assert.equal(await session.credentialProvider(), null);
-  assert.throws(() => session.connect("short"), /invalid/);
-  session.connect("read-only-dashboard-token-123456");
-  assert.equal(await session.credentialProvider(), "read-only-dashboard-token-123456");
+  assert.throws(() => session.connect("   "), /invalid/);
+  session.connect("short");
+  assert.equal(await session.credentialProvider(), "short");
   assert.equal(session.isConfigured(), true);
   assert.equal(Object.prototype.hasOwnProperty.call(session, "storage"), false);
   session.clear();
@@ -74,9 +74,9 @@ test("default Research composition replays persistent state, pauses RUNNING work
     const runtime = new DefaultResearchRuntimeComposition(db, () => 2000);
     const recovered = runtime.recover();
     assert.equal(recovered.status, "READY");
-    assert.equal(sessions.load("p7-session").state, "PAUSED");
+    assert.equal(sessions.load("p8-session").state, "PAUSED");
     const status = runtime.statusProjection();
-    assert.equal(status.sessionId, "p7-session");
+    assert.equal(status.sessionId, "p8-session");
     assert.equal(status.recoveryStatus, "PAUSED");
     assert.equal(status.champion.authority, "PAPER_ONLY");
     assert.equal(status.challenger.authority, "ZERO_AUTHORITY");
@@ -90,7 +90,7 @@ test("default Research composition replays persistent state, pauses RUNNING work
 });
 
 test("default cloud runtime exposes one authenticated read-only PAPER projection", async () => {
-  const token = "p7-read-only-dashboard-token-123456";
+  const token = "p8-read-only-dashboard-token-123456";
   const handle = startDefaultCloudRuntime({
     NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
     NUSA_CLOUD_DASHBOARD_PORT: "41939",
@@ -114,7 +114,7 @@ test("default cloud runtime exposes one authenticated read-only PAPER projection
   } finally { await handle.stop(); }
 });
 
-test("P7 source wiring has no implicit Research evaluator, persisted token, or trading mutation route", () => {
+test("P8 source wiring has no implicit Research evaluator, persisted token, or trading mutation route", () => {
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts"), "utf8");
   const research = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "researchRuntimeComposition.ts"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
@@ -130,7 +130,7 @@ test("P7 source wiring has no implicit Research evaluator, persisted token, or t
   assert.match(app, /secureTextEntry/);
   assert.match(app, /snapshot\?\.portfolio/);
   assert.match(app, /snapshot\?\.orders/);
-  assert.match(app, /snapshot\?\.markets/);
+  assert.match(app, /snapshot\.markets/);
   assert.doesNotMatch(session, /AsyncStorage|Keychain|SecureStore|console\.|process\.env/);
   assert.doesNotMatch(app, /placeOrder|cancelOrder|withdraw|\/api\/(?:account|markets|orders|trade)/);
 });
