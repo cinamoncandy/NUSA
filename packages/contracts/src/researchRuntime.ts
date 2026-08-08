@@ -25,6 +25,7 @@ export interface ResearchInputSnapshot {
   readonly marketData: readonly ResearchMarketPoint[];
   readonly startingCash: number;
   readonly startingPositionQuantity: number;
+  readonly provenance?: import("./researchHardening").ResearchProvenance;
 }
 
 export interface ResearchEvaluationContext {
@@ -64,6 +65,7 @@ export interface ResearchComparisonEvidence {
   readonly reason: string;
   readonly productionMutationAllowed: false;
   readonly promotionAllowed: false;
+  readonly provenance?: import("./researchHardening").ResearchProvenance;
 }
 
 export interface ResearchEvaluationLedger {
