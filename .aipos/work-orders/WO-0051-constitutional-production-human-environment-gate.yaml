@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 03c78e9a350dca31ba1f54e9b0707eedc8b72148
-implementation_branch: agent/wo-0051-p6-personal-paper-operations-ui-e2e
+base_commit: 0cb85a730ffd4cb43cf57db1402b7f13b5484b21
+implementation_branch: agent/p7-cloud-p0-safety-state
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 is a terminal human/environment gate, not an automated implementation slice. It preserves the constitutional boundary after all safe automated preparation is complete. No AI or CI result may mark the real-world transition complete."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 is a safe automated hardening slice that removes a fabricated Cloud P0 safety input and connects durable incident evidence to the existing independent Risk Governor; it grants no LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -98,7 +98,10 @@ hardened_research_slice:
     automatic_promotion: prohibited
     production_mutation_allowed: false
 personal_paper_operations_slice:
-  status: IN_PROGRESS
+  status: COMPLETE
+  completion_evidence:
+    - "PR #177 merge 0cb85a730ffd4cb43cf57db1402b7f13b5484b21"
+    - "Exact-head CI, coverage, safety workflows, and Mobile Native PASS"
   scope:
     - "One versioned read-only Personal PAPER Operations snapshot across dashboard, Research, and operations health"
     - "Authenticated GET-only cloud projection using the existing dashboard:read boundary"
@@ -113,3 +116,15 @@ personal_paper_operations_slice:
     champion_authority: PAPER_ONLY
     live_authority: NONE
     production_mutation_allowed: false
+cloud_p0_safety_state_slice:
+  status: IN_PROGRESS
+  scope:
+    - "Replace hard-coded Cloud openP0=false with deterministic append-only P0 incident state"
+    - "Persist P0 incident lifecycle in SQLite and verify the complete hash chain on every safety read"
+    - "Fail closed on corrupted, reordered, duplicate, or invalid incident evidence"
+    - "Feed derived openP0 into the existing operational Paper preflight and prove OPEN_P0_ALERT produces HALT"
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    risk_governor_bypass: prohibited
+    automatic_incident_resolution: prohibited
