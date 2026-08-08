@@ -1,8 +1,37 @@
 import type { CandidateLifecycleRecord } from "./candidatePromotion";
-import type { ResearchComparisonResult } from "./researchRuntime";
+import type { ResearchComparisonEvidence, ResearchComparisonResult } from "./researchRuntime";
 
 export type ResearchSessionState = "IDLE" | "RUNNING" | "PAUSED" | "HALTED" | "COMPLETED" | "FAILED";
 export type ResearchHealth = "HEALTHY" | "STALE" | "DEGRADED" | "FAIL_CLOSED";
+export type ResearchHypothesisStatus = "DRAFT" | "ACTIVE" | "REJECTED" | "SUPPORTED";
+
+export interface ResearchHypothesisRecord {
+  readonly id: string;
+  readonly title: string;
+  readonly statement: string;
+  readonly status: ResearchHypothesisStatus;
+  readonly createdAt: string;
+}
+
+export interface ResearchExperimentMemoryRecord {
+  readonly id: string;
+  readonly datasetId: string;
+  readonly contentSha256: string;
+  readonly manifestSchemaVersion: number;
+  readonly market: string;
+  readonly interval: string;
+  readonly startOpenTime: number;
+  readonly endCloseTime: number;
+  readonly walkForwardConfigJson: string;
+  readonly resultJson: string;
+  readonly createdAt: string;
+  readonly hypothesisId?: string;
+}
+
+export interface ResearchMemoryPort {
+  appendExperiment(record: ResearchExperimentMemoryRecord): ResearchExperimentMemoryRecord;
+  appendHypothesis?(record: ResearchHypothesisRecord): ResearchHypothesisRecord;
+}
 
 export interface ResearchSessionMetrics {
   readonly experimentCount: number;
@@ -67,6 +96,21 @@ export interface ResearchSessionRepository {
   save(record: ResearchSessionRecord): ResearchSessionRecord;
   load(sessionId: string): ResearchSessionRecord | undefined;
   list(): readonly ResearchSessionRecord[];
+}
+
+export interface ResearchCandidateGateInput {
+  readonly session: ResearchSessionRecord;
+  readonly evidence: ResearchComparisonEvidence;
+  readonly priorEvidence: readonly ResearchComparisonEvidence[];
+}
+
+export interface ResearchCandidateGateDecision {
+  readonly eligible: boolean;
+  readonly reason: string;
+}
+
+export interface ResearchCandidateGate {
+  evaluate(input: ResearchCandidateGateInput): ResearchCandidateGateDecision;
 }
 
 export type ResearchCandidateRegistrar = (identity: {
