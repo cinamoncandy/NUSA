@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mkdtempSync, mkdirSync, writeFileSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { runConformance } = require("../scripts/validate-aipos-cross-ai-conformance.js");
@@ -88,6 +88,27 @@ test("three independent adapters converge on one canonical handoff fingerprint",
   assert.equal(report.adapters.length, 3);
   assert.equal(new Set(report.adapters.map((entry) => entry.fingerprint)).size, 1);
   assert.equal(report.canonicalFingerprint?.length, 64);
+});
+
+test("non-empty top-level blockers converge across all adapters", () => {
+  const root = fixture();
+  const statePath = join(root, ".aipos", "state.yaml");
+  const state = readFileSync(statePath, "utf8").replace(
+    "blocked: []",
+    'blocked:\n  - "SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED"\n  - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"',
+  );
+  writeFileSync(statePath, state);
+
+  const report = runConformance(root);
+  assert.equal(report.result, "PASS");
+  assert.deepEqual(
+    report.adapters.map((entry) => entry.snapshot.blockers),
+    [
+      ["SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED", "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"],
+      ["SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED", "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"],
+      ["SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED", "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"],
+    ],
+  );
 });
 
 test("contradictory claimed and active work-order identity fails closed", () => {
