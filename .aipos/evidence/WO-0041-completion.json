@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0041-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-0041",
+    "path": ".aipos/work-orders/WO-0041-audit-incident-replay.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "ece2072e286391681aff8cccbdada2a062300e9d"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "f1026da040f1a42f8084f04c139a2f7c408a4323"
+  },
+  "configuration": {
+    "snapshot": {
+      "mode": "OBSERVATIONAL_REPLAY",
+      "append_only": true,
+      "tamper_evident": true,
+      "deterministic": true,
+      "expected_anchor_validation": true,
+      "secret_material_allowed": false,
+      "execution_authority": false,
+      "authorizes_live": false,
+      "real_money_execution": "prohibited"
+    },
+    "hash": {"algorithm": "sha256", "value": "ff1394cf71fd375f20c197936dc37c4a03a42b0ee646165e85ea63c15ea5e061"}
+  },
+  "observed_at": "2026-08-08T09:18:00+09:00",
+  "provenance": [
+    "github:pull/156",
+    "github:actions/run/31229149704",
+    "github:actions/run/31229149698",
+    "github:actions/run/31229149706",
+    "github:actions/run/31229149695",
+    "github:actions/run/31229149690",
+    "git:merge/f1026da040f1a42f8084f04c139a2f7c408a4323"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31229149704"},
+    {"name": "activation_rehearsal", "status": "PASS", "detail": "31229149698"},
+    {"name": "capability_surface_guard", "status": "PASS", "detail": "31229149706"},
+    {"name": "read_only_broker_credential", "status": "PASS", "detail": "31229149695"},
+    {"name": "transport_credential_readiness", "status": "PASS", "detail": "31229149690"},
+    {"name": "tamper_evident_replay", "status": "PASS"},
+    {"name": "execution_authority_absent", "status": "PASS"},
+    {"name": "real_money_execution_prohibited", "status": "PASS"}
+  ]
+}
