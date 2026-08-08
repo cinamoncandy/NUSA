@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T07:45:00+09:00"
-phase: operations-control-center
-status: verifying
-objective: "Provide secret-free mutation-free operational visibility, incidents, alerts, evidence pointers, and safe-reduction requests without LIVE execution authority."
+updated_at: "2026-08-08T08:47:00+09:00"
+phase: audit-incident-replay
+status: implementing
+objective: "Create deterministic tamper-evident replay of safety-relevant operational history without LIVE execution authority."
 base_branch: main
-active_branch: agent/wo-0040-operations-control-center
-active_pull_request: 155
-base_commit: 4c71286ec24a1403a23e8dc64de6bcaf4c7a12e6
+active_branch: agent/wo-0041-audit-incident-replay
+active_pull_request: pending
+base_commit: 54a2b4728d71b3fc24a23571d22636cf8e696036
 claimed_state:
-  work_order: WO-0040
+  work_order: WO-0041
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-0039
+  work_order: WO-0040
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-0039-completion.json"
+  evidence: ".aipos/evidence/WO-0040-completion.json"
 latest_verified_slice:
-  id: wo-0039-global-hard-risk-killswitch-complete
-  evidence: ".aipos/evidence/WO-0039-completion.json"
-  summary: "WO-0039 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; hard risk and kill switch cannot authorize LIVE."
+  id: wo-0040-operations-control-center-complete
+  evidence: ".aipos/evidence/WO-0040-completion.json"
+  summary: "WO-0040 completed with exact-head Full CI and all Restricted LIVE safety gates PASS; operations control remains mutation-free."
 completed:
+  - id: WO-0040
+    evidence: ".aipos/evidence/WO-0040-completion.json"
+    summary: "Added secret-free mutation-free operations control center and safe-reduction requests."
   - id: WO-0039
     evidence: ".aipos/evidence/WO-0039-completion.json"
     summary: "Added deterministic hard-risk and independently latched kill switch without execution authority."
@@ -30,17 +33,17 @@ completed:
     evidence: ".aipos/evidence/WO-0037-completion.json"
     summary: "Added secret-free mutation-free operator projection."
 in_progress:
-  - id: WO-0040
-    evidence: ".aipos/work-orders/WO-0040-operations-control-center.yaml; PR #155"
-    summary: "Mutation-free operations control center implemented; official exact-head verification pending."
+  - id: WO-0041
+    evidence: ".aipos/work-orders/WO-0041-audit-incident-replay.yaml"
+    summary: "Tamper-evident deterministic audit/evidence/incident replay implementation in progress."
 blocked: []
 next:
-  work_order: .aipos/work-orders/WO-0040-operations-control-center.yaml
-  reason: "Complete PR #155 exact-head verification and merge; real-money execution remains prohibited."
+  work_order: .aipos/work-orders/WO-0041-audit-incident-replay.yaml
+  reason: "Implement and verify deterministic observational replay; real-money execution remains prohibited."
 verification:
   required:
-    - "Operations control center regression tests"
-    - "Operations control center source validation"
+    - "Audit/incident replay regression tests"
+    - "Audit/incident replay source validation"
     - "Restricted LIVE capability surface guard"
     - "Restricted LIVE transport/credential readiness validation"
     - "Restricted LIVE activation rehearsal validation"
@@ -49,8 +52,8 @@ verification:
     - "Architecture/AIPOS drift validation"
     - "Security gate"
     - "Full required GitHub CI"
-  last_result: "WO-0040 implementation on PR #155; official exact-head verification pending."
-  current_commit: "PR #155 verification pending"
+  last_result: "WO-0040 merged as 54a2b4728d71b3fc24a23571d22636cf8e696036; WO-0041 started."
+  current_commit: "WO-0041 implementation pending"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -65,6 +68,15 @@ restricted_live_authority:
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
+audit_incident_replay:
+  mode: OBSERVATIONAL_REPLAY
+  append_only: true
+  tamper_evident: true
+  deterministic: true
+  execution_authority: false
+  authorizes_live: false
+  secret_material_allowed: false
+  unknown_semantics: fail_closed
 operations_control_center:
   mode: READ_ONLY_OPERATIONS
   execution_authority: false
