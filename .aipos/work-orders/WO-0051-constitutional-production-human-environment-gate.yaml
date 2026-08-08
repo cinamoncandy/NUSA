@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
-implementation_branch: main
+base_commit: eb5107d2a1ccaa6bcdc53a0e173647c02a33198f
+implementation_branch: agent/p8-multi-position-portfolio-fix
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable Cloud P0 fill-boundary enforcement and P8 Private Read-only Runtime Session are complete and exact-head tested. Private mobile read-only operations use memory-only credentials, require HTTPS for non-loopback bearer transport, expose verified PAPER portfolio/order/public-ticker projections, and preserve durable P0 HALTED/FAIL_CLOSED behavior without granting LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable Cloud P0 fill-boundary enforcement and P8 Private Read-only Runtime Session are complete and exact-head tested. PR #194 is a read-only accounting-projection correction for multiple PAPER positions; it preserves the completed P8 credential, transport, P0, and zero-authority boundaries and cannot satisfy or alter any LIVE/human gate."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -160,6 +160,7 @@ private_readonly_runtime_session_slice:
     - "Exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 CI run 31263191282 PASS including typecheck, build, architecture/AIPOS, security, E2E, release, full isolated suite, and coverage"
     - "Exact-head Mobile Native run 31263191286 PASS: foundation smoke, Android debug/release, iOS debug/release"
     - "Exact-head read-only/restricted safety workflows 31263191268, 31263191278, 31263191275, 31263191290 PASS"
+    - "PR #191/#192 merge eb5107d2a1ccaa6bcdc53a0e173647c02a33198f: P8 bookkeeping synchronized on main"
   scope:
     - "Use a process-memory-only dashboard credential session; never persist or infer it from local foundation sign-in"
     - "Keep one authenticated GET-only /api/paper-operations read surface"
@@ -176,3 +177,21 @@ private_readonly_runtime_session_slice:
     live_authority: NONE
     production_mutation_allowed: false
     automatic_promotion: prohibited
+p8_multi_position_reconciliation_fix:
+  status: IN_PROGRESS
+  pull_request: 194
+  root_cause: "The representative first PAPER position was used to reconcile account-wide cash/equity, which fails when multiple markets are open and can misstate aggregate realized PnL."
+  scope:
+    - "Add account-wide read-only assetValue and realizedPnl while preserving the representative position for Trade compatibility."
+    - "Keep representative position unrealized/realized PnL separate from account-wide PnL."
+    - "Validate cash + aggregate assetValue against equity."
+    - "Cover restored two-market PAPER state through cloud snapshot and mobile Portfolio view model."
+  acceptance:
+    - "Focused multi-position regression PASS."
+    - "Exact-head Full CI, Mobile Native, and all Restricted LIVE/read-only workflows PASS."
+  safety:
+    mutation_routes: prohibited
+    broker_credential_access: prohibited
+    live_authority: NONE
+    production_mutation_allowed: false
+    real_money_mutation: prohibited
