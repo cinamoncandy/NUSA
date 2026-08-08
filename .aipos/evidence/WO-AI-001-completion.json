@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-001-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-001",
+    "path": ".aipos/work-orders/WO-AI-001-model-backed-zero-authority-agent-runtime.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "8ddf7ba171f8dee001006f2145bec3f13bd754b6"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "d251570c5ebf3ad8abf892af2ee4588412e96758"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "ai_default_off": true,
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "exact_head": "5a58036665e9a6c617e7d0ccd940829a71aaea05",
+      "ci_run": 31264207231,
+      "safety_workflows_passed": 4
+    },
+    "hash": {"algorithm": "sha256", "value": "b7da4266c9d64a2acdd4190438063eb3d0f3139e3c868eade89e22d8eb2788d2"}
+  },
+  "observed_at": "2026-08-09T00:31:00+09:00",
+  "provenance": [
+    "github:pull/196",
+    "github:actions/run/31264207231",
+    "github:actions/run/31264207236",
+    "github:actions/run/31264207245",
+    "github:actions/run/31264207233",
+    "github:actions/run/31264207237",
+    "git:merge/d251570c5ebf3ad8abf892af2ee4588412e96758"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "official_full_ci", "status": "PASS", "detail": "31264207231"},
+    {"name": "full_isolated_suite", "status": "PASS"},
+    {"name": "coverage_baseline", "status": "PASS"},
+    {"name": "ai_zero_authority_architecture", "status": "PASS"},
+    {"name": "ai_focused_regressions", "status": "PASS"},
+    {"name": "restricted_live_safety_workflows", "status": "PASS", "detail": "4/4"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"}
+  ]
+}
