@@ -1,0 +1,49 @@
+id: WO-0049
+title: "Controlled Scale-Up Governance Mechanism"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 216dd3426164347ba80b05c01452d19de3554de0
+implementation_branch: agent/wo-0049-controlled-scale-up-governance
+objective: "Validate a future human-approved Restricted LIVE scale-change record bound to clean post-LIVE evidence and an exact proposed envelope, while performing no scale change, activation, order, credential, broker, cash, position, or real-money mutation."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0049 adds validation-only governance for future risk-increasing scale changes. The mechanism cannot choose risk limits or infer approval. Every proposed limit must be explicitly bound into a separate two-human approval record and prior post-LIVE evidence must be clean. A complete record remains eligible only for a separate manual scale-change review."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+requirements:
+  - "Verdict is COMPLETE_FOR_SEPARATE_MANUAL_SCALE_CHANGE_REVIEW, SAFE_BLOCK, or UNKNOWN; no verdict grants scale-up or LIVE authority."
+  - "Bind exact code revision, configuration hash, prior post-LIVE validation fingerprint, current envelope fingerprint, proposed envelope fingerprint, policy-change ID, requester, reason, review window, cooldown, and audit receipt."
+  - "Every proposed risk limit and symbol set must be explicitly included in the approval record; no implied or wildcard expansion is allowed."
+  - "Require requester plus exactly two distinct HUMAN approvers; requester and approvers are mutually distinct. AI, Meta-AI, automation, duplicate, or provider principals cannot approve."
+  - "Each approval must bind exact policy-change ID and proposed-envelope fingerprint and carry external signature-verification PASS evidence plus a non-secret attestation digest."
+  - "Require prior post-LIVE validation READY_FOR_HUMAN_REVIEW, safety state SAFE, kill switch ready, rollback PASS, reconciliation MATCH, audit chain PASS, and no unresolved incident."
+  - "Approvals must be within the review window and before expiry; anti-replay must prove the policy-change ID unused. UNKNOWN evidence remains UNKNOWN/fail-closed."
+  - "Output scaleUpAuthority=false, activationAuthority=false, orderAuthorization=false, executionAuthority=false, authorizesLive=false, mutationPerformed=false."
+  - "CI uses synthetic identities/evidence only and never changes limits or runs a LIVE session."
+acceptance:
+  - "Controlled scale-up governance regressions PASS."
+  - "Synthetic exact two-human record yields COMPLETE_FOR_SEPARATE_MANUAL_SCALE_CHANGE_REVIEW with zero authority."
+  - "Duplicate/non-human/self approval, proposal/approval mismatch, expired window, prior use, unsafe state, reconciliation DIFF, rollback FAIL, or unresolved incident SAFE_BLOCKs."
+  - "Unknown signature/anti-replay/safety evidence remains UNKNOWN."
+  - "Identical normalized governance evidence yields identical review fingerprint."
+  - "Existing Restricted LIVE safety gates and Full CI PASS on exact PR head."
+safety:
+  live_trading_mutation: prohibited
+  credential_execution_use: prohibited
+  actual_scale_change: prohibited
+  automatic_scale_up: prohibited
+  actual_human_approval_in_ci: prohibited
+  activation_authority: prohibited
+  real_money_execution: prohibited
+completion_rule: "Merge + required exact-head test/CI PASS. Completion installs scale-change governance validation only; actual approvals, limit changes, LIVE activation, and money movement remain outside automated authority."
