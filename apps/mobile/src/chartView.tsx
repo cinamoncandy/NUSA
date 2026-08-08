@@ -48,7 +48,7 @@ export function ChartView({ market, rawCandles, currentPrice, marketConnectionSt
   if (model.state === "ERROR") return <StateCard color={theme.colors.warning} message={model.error ?? "Market data is unavailable."} onRetry={onRefresh} testID="chart-error" title="차트 데이터 오류" />;
   if (model.state === "EMPTY") return <StateCard color={theme.colors.text} message="아직 완성된 공개 캔들 데이터가 없습니다." onRetry={onRefresh} testID="chart-empty" title="차트 데이터 없음" />;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="chart-screen">
-    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장 차트" description={model.market} /><StatusChip label="PUBLIC · READ ONLY" tone="info" /></View>
+    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장 차트" description={model.market} /><StatusChip label="PUBLIC / READ ONLY" tone="info" /></View>
     <View style={styles.statusRow}><StatusChip label={marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"} tone={marketConnectionState === "CONNECTED" ? "success" : "warning"} /><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
     <View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View>
     <ChartSummary model={model} />
