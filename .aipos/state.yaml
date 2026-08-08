@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:33:00+09:00"
-phase: cloud-p0-runtime-enforcement-complete
+updated_at: "2026-08-09T00:05:00+09:00"
+phase: private-readonly-runtime-session-complete
 status: ready
-objective: "Preserve durable Cloud P0 safety enforcement at the actual PAPER fill boundary while keeping WO-0051 at its human/environment boundary."
+objective: "Record the merged and exact-head verified P8 private read-only runtime session while keeping WO-0051 at its human/environment boundary."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -44,7 +44,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "P7 Cloud P0 runtime enforcement is merged and exact-head tested. Perform a fresh repository gap audit before the next safe PAPER/Research slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
+  reason: "P8 Private Read-only Runtime Session is merged and exact-head tested. Perform a fresh repository gap audit before the next safe PAPER/Research slice; do not auto-complete WO-0051 or infer LIVE authorization from chat or CI."
 verification:
   required:
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
@@ -53,8 +53,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head CI 31261654980 PASS including Full isolated suite and coverage; read-only/Restricted LIVE workflows 31261655002, 31261654986, 31261654989, 31261654984 PASS."
-  current_commit: "a8cc673bb47f9856140485aa6d159140626272e5; PR #182 merged; P7 Cloud P0 runtime enforcement repository slice complete"
+  last_result: "PR #188 merged at 585d660b5eb8bcefb443ca34261779aa99f55fd1 after exact-head dd3092378e917d3b9ffc0da0e0ca4413fb66c542 Full CI run 31263191282 PASS including security, typecheck, build, architecture/AIPOS, E2E, release, full isolated suite and coverage; Mobile Native run 31263191286 PASS; read-only/Restricted LIVE safety workflows 31263191268, 31263191275, 31263191278, 31263191290 PASS."
+  current_commit: "585d660b5eb8bcefb443ca34261779aa99f55fd1; PR #188 merged; P8 Private Read-only Runtime Session repository slice complete"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
