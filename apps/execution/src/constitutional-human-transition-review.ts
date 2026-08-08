@@ -23,6 +23,8 @@ export interface TransitionEvidenceSlot {
   readonly provenance: TransitionEvidenceProvenance;
   readonly evidenceRef?: string | null;
   readonly evidenceDigest?: string | null;
+  readonly boundCodeRevision?: string | null;
+  readonly boundConfigurationHash?: string | null;
 }
 
 export interface ConstitutionalTransitionReviewInput {
@@ -58,6 +60,8 @@ export interface ConstitutionalTransitionReviewResult {
 export const CONSTITUTIONAL_TRANSITION_REVIEW_DESCRIPTOR = Object.freeze({
   mode: "EVIDENCE_AGGREGATION_ONLY" as const,
   syntheticEvidenceCannotSatisfyRealWorldGate: true as const,
+  evidenceExactCodeBindingRequired: true as const,
+  evidenceExactConfigurationBindingRequired: true as const,
   actualExternalBrokerValidationInCi: false as const,
   actualHumanCeremonyInCi: false as const,
   actualTinyLiveSessionInCi: false as const,
@@ -80,6 +84,8 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$/;
 const PROHIBITED_MATERIAL = /(?:bearer\s+|private[_ -]?key|api[_ -]?secret|access[_ -]?token|secret[_ -]?key|authorization\s*:|BEGIN [A-Z ]*PRIVATE KEY)/i;
 const REQUIRED_SLOT_SET = new Set<string>(REQUIRED_TRANSITION_EVIDENCE_SLOTS);
+const EVIDENCE_STATUS_SET = new Set<string>(["PASS", "FAIL", "MISSING", "UNKNOWN"]);
+const EVIDENCE_PROVENANCE_SET = new Set<string>(["SYNTHETIC_CI", "EXTERNAL_HUMAN_VERIFIED"]);
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -102,16 +108,24 @@ function requiredId(value: string, code: string): string {
 
 function normalizeEvidenceSlot(slot: TransitionEvidenceSlot): Readonly<TransitionEvidenceSlot> {
   if (!REQUIRED_SLOT_SET.has(slot.slot)) throw new Error("TRANSITION_EVIDENCE_SLOT_INVALID");
+  if (!EVIDENCE_STATUS_SET.has(slot.status)) throw new Error(`TRANSITION_EVIDENCE_STATUS_INVALID:${slot.slot}`);
+  if (!EVIDENCE_PROVENANCE_SET.has(slot.provenance)) throw new Error(`TRANSITION_EVIDENCE_PROVENANCE_INVALID:${slot.slot}`);
   const evidenceRef = slot.evidenceRef?.trim() || null;
   const evidenceDigest = slot.evidenceDigest?.trim() || null;
+  const boundCodeRevision = slot.boundCodeRevision?.trim() || null;
+  const boundConfigurationHash = slot.boundConfigurationHash?.trim() || null;
   if (evidenceRef && PROHIBITED_MATERIAL.test(evidenceRef)) throw new Error(`TRANSITION_EVIDENCE_SECRET_MATERIAL:${slot.slot}`);
   if (slot.status === "MISSING") {
-    if (evidenceRef || evidenceDigest) throw new Error(`TRANSITION_MISSING_EVIDENCE_MUST_HAVE_NO_ARTIFACT:${slot.slot}`);
+    if (evidenceRef || evidenceDigest || boundCodeRevision || boundConfigurationHash) {
+      throw new Error(`TRANSITION_MISSING_EVIDENCE_MUST_HAVE_NO_ARTIFACT:${slot.slot}`);
+    }
   } else {
     if (!evidenceRef || !SAFE_ID.test(evidenceRef)) throw new Error(`TRANSITION_EVIDENCE_REF_INVALID:${slot.slot}`);
     if (!evidenceDigest || !HEX64.test(evidenceDigest)) throw new Error(`TRANSITION_EVIDENCE_DIGEST_INVALID:${slot.slot}`);
+    if (!boundCodeRevision || !HEX40.test(boundCodeRevision)) throw new Error(`TRANSITION_EVIDENCE_CODE_BINDING_INVALID:${slot.slot}`);
+    if (!boundConfigurationHash || !HEX64.test(boundConfigurationHash)) throw new Error(`TRANSITION_EVIDENCE_CONFIG_BINDING_INVALID:${slot.slot}`);
   }
-  return Object.freeze({ slot: slot.slot, status: slot.status, provenance: slot.provenance, evidenceRef, evidenceDigest });
+  return Object.freeze({ slot: slot.slot, status: slot.status, provenance: slot.provenance, evidenceRef, evidenceDigest, boundCodeRevision, boundConfigurationHash });
 }
 
 export function evaluateConstitutionalTransitionReview(
@@ -141,21 +155,37 @@ export function evaluateConstitutionalTransitionReview(
     const evidence = bySlot.get(slotName);
     if (!evidence) {
       missing.push(slotName);
-      normalizedEvidence.push(Object.freeze({ slot: slotName, status: "MISSING", provenance: "SYNTHETIC_CI", evidenceRef: null, evidenceDigest: null }));
+      normalizedEvidence.push(Object.freeze({
+        slot: slotName,
+        status: "MISSING",
+        provenance: "SYNTHETIC_CI",
+        evidenceRef: null,
+        evidenceDigest: null,
+        boundCodeRevision: null,
+        boundConfigurationHash: null,
+      }));
       continue;
     }
     normalizedEvidence.push(evidence);
+    if (evidence.status !== "MISSING") {
+      if (evidence.boundCodeRevision !== input.codeRevision) blockers.push(`${slotName}_CODE_REVISION_MISMATCH`);
+      if (evidence.boundConfigurationHash !== input.configurationHash) blockers.push(`${slotName}_CONFIGURATION_HASH_MISMATCH`);
+    }
     if (evidence.status === "FAIL") blockers.push(`${slotName}_FAIL`);
     else if (evidence.status === "UNKNOWN") unknowns.push(`${slotName}_UNKNOWN`);
     else if (evidence.status === "MISSING") missing.push(slotName);
     else if (evidence.provenance !== "EXTERNAL_HUMAN_VERIFIED") syntheticOnly.push(slotName);
   }
 
-  const verdict: ConstitutionalTransitionVerdict = blockers.length > 0
+  const normalizedBlockers = [...new Set(blockers)].sort();
+  const normalizedUnknowns = [...new Set(unknowns)].sort();
+  const normalizedMissing = [...new Set(missing)].sort() as TransitionEvidenceSlotName[];
+  const normalizedSyntheticOnly = [...new Set(syntheticOnly)].sort() as TransitionEvidenceSlotName[];
+  const verdict: ConstitutionalTransitionVerdict = normalizedBlockers.length > 0
     ? "SAFE_BLOCK"
-    : unknowns.length > 0
+    : normalizedUnknowns.length > 0
       ? "UNKNOWN"
-      : missing.length > 0 || syntheticOnly.length > 0
+      : normalizedMissing.length > 0 || normalizedSyntheticOnly.length > 0
         ? "INCOMPLETE"
         : "READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW";
 
@@ -167,10 +197,10 @@ export function evaluateConstitutionalTransitionReview(
     deploymentBundleId,
     rollbackBundleId,
     evidence: normalizedEvidence,
-    blockers: [...blockers].sort(),
-    unknowns: [...unknowns].sort(),
-    missing: [...missing].sort(),
-    syntheticOnly: [...syntheticOnly].sort(),
+    blockers: normalizedBlockers,
+    unknowns: normalizedUnknowns,
+    missing: normalizedMissing,
+    syntheticOnly: normalizedSyntheticOnly,
     verdict,
     constitutionalDecisionAuthority: false,
     deploymentAuthority: false,
@@ -183,10 +213,10 @@ export function evaluateConstitutionalTransitionReview(
 
   return Object.freeze({
     verdict,
-    blockers: Object.freeze([...blockers].sort()),
-    unknowns: Object.freeze([...unknowns].sort()),
-    missing: Object.freeze([...missing].sort()),
-    syntheticOnly: Object.freeze([...syntheticOnly].sort()),
+    blockers: Object.freeze(normalizedBlockers),
+    unknowns: Object.freeze(normalizedUnknowns),
+    missing: Object.freeze(normalizedMissing),
+    syntheticOnly: Object.freeze(normalizedSyntheticOnly),
     packetFingerprint,
     constitutionalDecisionAuthority: false,
     deploymentAuthority: false,
