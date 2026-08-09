@@ -4,6 +4,7 @@ import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInf
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import { AuthorityBanner, DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
+import { aiStatusLabel, calibrationStatusLabel, criticSeverityLabel, liveAuthorityLabel, operationsHealthLabel, researchHealthLabel, strategyAuthorityLabel } from "./userFacingStatus";
 
 interface AiViewProps {
   readonly ai: AiReadOnlyProjection | null;
@@ -53,19 +54,19 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <View style={styles.statusRow}>
       <StatusChip label="ZERO AUTHORITY" tone="info" />
       <StatusChip label="READ ONLY" tone="primary" />
-      <StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} />
+      <StatusChip label={aiStatusLabel(ai?.status)} tone={statusTone(ai?.status)} />
     </View>
     <AuthorityBanner detail="AI는 분석·비판·불확실성 설명만 제공합니다. Risk Governor, P0, kill switch, HALT를 우회하거나 주문을 승인할 수 없습니다." />
 
     <NusaCard raised testID="ai-thesis-card">
-      <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
+      <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={aiStatusLabel(ai?.status)} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
       <DataRow label="모델 점수 (미보정)" value={confidence} />
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
-      <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
+      <DataRow label="비판 위험도" value={criticSeverityLabel(ai?.criticSeverity ?? null)} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="최근 분석" value={lastRun} />
-      <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>보정 상태가 UNKNOWN인 동안 모델 점수는 검증된 확률이나 성과 보장을 의미하지 않습니다.</Text>
+      <DataRow label="보정 상태" value={calibrationStatusLabel(ai?.calibrationStatus)} />
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>미보정 상태의 모델 점수는 검증된 확률이나 성과 보장을 의미하지 않습니다.</Text>
     </NusaCard>
 
     <NusaCard testID="ai-evidence-card">
@@ -80,18 +81,18 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     </NusaCard>
 
     <NusaCard testID="ai-research-card">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>리서치 상태</Text><StatusChip label={research?.health ?? "UNAVAILABLE"} tone={research?.health === "HEALTHY" ? "success" : research?.health === "FAIL_CLOSED" ? "danger" : "warning"} /></View>
+      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>리서치 상태</Text><StatusChip label={researchHealthLabel(research?.health)} tone={research?.health === "HEALTHY" ? "success" : research?.health === "FAIL_CLOSED" ? "danger" : "warning"} /></View>
       <DataRow label="현재 PAPER 전략" value={research?.champion.strategyId ?? "-"} />
-      <DataRow label="현재 전략 권한" value={research?.champion.authority ?? "-"} emphasis />
+      <DataRow label="현재 전략 권한" value={strategyAuthorityLabel(research?.champion.authority)} emphasis />
       <DataRow label="검증 후보 전략" value={research?.challenger.strategyId ?? "-"} />
-      <DataRow label="후보 전략 권한" value={research?.challenger.authority ?? "-"} emphasis />
+      <DataRow label="후보 전략 권한" value={strategyAuthorityLabel(research?.challenger.authority)} emphasis />
       <DataRow label="연구 후보" value={research == null ? "-" : String(research.candidateCount)} />
       <DataRow label="실험" value={research == null ? "-" : String(research.experimentCount)} />
     </NusaCard>
 
     <NusaCard testID="ai-authority-card">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>시스템 권한</Text><StatusChip label={health ?? "UNKNOWN"} tone={health === "HEALTHY" ? "success" : "warning"} /></View>
-      <DataRow label="AI LIVE 권한" value={liveAuthority ?? "-"} emphasis />
+      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>시스템 권한</Text><StatusChip label={operationsHealthLabel(health)} tone={health === "HEALTHY" ? "success" : "warning"} /></View>
+      <DataRow label="AI LIVE 권한" value={liveAuthorityLabel(liveAuthority)} emphasis />
       <DataRow label="Production mutation" value={productionMutationAllowed == null ? "-" : "금지"} tone={productionMutationAllowed === false ? "success" : "default"} />
       <DataRow label="킬 스위치" value={killSwitchActive == null ? "-" : killSwitchActive ? "활성" : "비활성"} tone={killSwitchActive === true ? "danger" : killSwitchActive === false ? "success" : "default"} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>ZERO AUTHORITY는 제품 정책이며, 서버 snapshot이 연결되면 실제 권한 불변식도 함께 표시됩니다.</Text>
