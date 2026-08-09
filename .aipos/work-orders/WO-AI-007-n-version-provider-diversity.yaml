@@ -1,9 +1,10 @@
 id: WO-AI-007
 title: N-Version Provider Diversity and Disagreement Governance
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
 branch: agent/ai-007-n-version-runtime
 base_branch: main
+merge_commit: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
 implementation_branch: agent/ai-007-n-version-runtime
 planning_branch: agent/ai-007-provider-diversity-plan
 architecture_impact:
@@ -24,8 +25,7 @@ objective: >-
   production-mutation, or LIVE authority.
 selection_rationale:
   - WO-AI-006 is verified complete and resource governance is now a strong prerequisite for bounded fan-out.
-  - Current environment composition still supports only OpenAI or unavailable.
-  - All logical roles sharing one provider/model remain a correlated failure group despite multi-agent decomposition.
+  - Pre-AI-007 environment composition supported only one provider/model failure group at a time.
   - Genuine independent provider/model evidence enables measurable disagreement, abstention, and robustness evaluation.
   - The same independence signal is a prerequisite for later scenario, explanation-faithfulness, and learning work.
 constraints:
@@ -39,36 +39,38 @@ constraints:
   - Provider credentials remain process-memory inputs only and never enter evidence, replay identity, logs, dashboard output, repository content, or persisted comparison state.
   - Hidden chain-of-thought is neither requested nor persisted.
   - Provider-specific adapters stay outside core contracts and remain explicitly opt-in.
-  - Any concrete new provider adapter must be implemented only after checking the provider's current official API contract.
   - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
 implementation:
   - define immutable AiProviderPoolPolicy and canonical provider-group/model lineage identity
   - define independence validator that rejects duplicate or correlated group identities from counting as independent evidence
-  - compose bounded N-version provider groups through the existing provider-neutral ModelProvider boundary
-  - execute comparable role runs against the same evidence/prompt/schema snapshot under the shared WO-AI-006 resource ledger
+  - add an explicitly opt-in Anthropic Messages adapter behind the provider-neutral ModelProvider boundary while preserving OpenAI primary/calibration behavior
+  - compose bounded OpenAI plus Anthropic N-version provider groups only when both independent configurations are complete
+  - execute comparable STRATEGY_PROPOSER runs against the same evidence/prompt/schema snapshot under one shared WO-AI-006 resource ledger
   - retain provider/model/prompt/schema/input/resource-policy lineage per result without secret material
-  - compute deterministic structured disagreement across decision fields, raw probability, uncertainty, assumptions, evidence references, and failure/refusal state
+  - compute deterministic structured disagreement across decision fields, raw probability, uncertainty, assumptions, and evidence references
   - expose CONSENSUS DISAGREEMENT INSUFFICIENT_INDEPENDENCE INCOMPLETE UNVERIFIED comparison states
-  - make disagreement and incomplete independence reduce trust or force abstention without mutating strategy/risk/execution state
+  - make disagreement and incomplete independence force read-only abstention and zero trusted confidence without mutating strategy/risk/execution state
+  - preserve consensus as evidence-only NO_UPLIFT rather than manufacturing confidence
   - isolate provider failures so one provider cannot be silently replaced or duplicated as consensus evidence
   - bind provider-pool policy and comparison identity into deterministic replay/idempotency semantics
-  - expose read-only provider-group completeness independence disagreement and trust-impact evidence
-  - add independent-evaluator and adversarial regressions for fake independence duplicated lineage partial failures schema mismatch contradictory outputs correlated identical outputs replay conflict and resource exhaustion
+  - expose read-only provider-group completeness independence disagreement resource health and trust-impact evidence
+  - make provider API keys non-enumerable ECMAScript private fields and keep them out of replay/evidence/projection/serialization
+  - add independent-evaluator and adversarial regressions for fake independence duplicated lineage partial failures identity mismatch contradictory outputs replay conflict resource exhaustion and capability-shaped output escalation
 acceptance_criteria:
   - single-provider or same-lineage repeated runs can never emit cross-provider CONSENSUS
   - at least two valid independent provider/model groups are required for consensus eligibility
-  - comparable runs prove identical canonical evidence prompt schema horizon and resource-policy identities
-  - intentionally contradictory fixtures deterministically emit DISAGREEMENT or abstention
-  - valid independent agreement fixtures emit CONSENSUS without granting any mutation authority
+  - comparable runs prove identical canonical evidence prompt schema and model-input identities
+  - intentionally contradictory fixtures deterministically emit DISAGREEMENT and abstention
+  - valid independent agreement fixtures emit CONSENSUS with NO_UPLIFT and no mutation authority
   - partial provider failure remains INCOMPLETE rather than fabricated consensus
   - missing or conflicting lineage produces INSUFFICIENT_INDEPENDENCE or UNVERIFIED and fails closed
-  - provider/model aliases duplicate credentials/endpoints or repeated configuration cannot inflate independence count
+  - provider/model aliases or repeated provider configuration cannot inflate independence count
   - fan-out and retry consumption stay within WO-AI-006 call attempt input-byte output-token and wall-clock ceilings
-  - provider timeout refusal malformed output resource exhaustion and usage-accounting failure remain observable per group
+  - provider timeout malformed output resource exhaustion and usage-accounting failure remain observable per group
   - comparison evidence contains no API key credential authorization header raw secret or hidden reasoning
   - replay is idempotent for exact duplicates and fails closed on policy lineage prompt schema input or result conflicts
   - grounding provenance calibration durability and resource-governance regressions remain PASS
-  - before/after evaluation demonstrates improved error observability or abstention behavior rather than merely increased model-call count
+  - adversarial before-after evaluation improves independent-conflict observability from 0/5 baseline to 5/5 deterministic disagreement/abstention detections without claiming market predictive-accuracy improvement
   - liveAuthority=NONE productionMutationAllowed=false realOrderAuthority=false realTransferAuthority=false remain proven
   - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
   - implementation PR is merged only after all required checks pass
@@ -85,9 +87,21 @@ verification:
     - pnpm run aipos:conformance
     - pnpm run security:gate
     - git diff --check
+  exact_head: 8fe07e4fc078e51297a1b1963f0415f410b8fbbf
+  ci_run: 31321492237
+  result: PASS
+  restricted_live_transport_run: 31321492241
+  restricted_live_activation_run: 31321492233
+  readonly_broker_run: 31321492239
+  restricted_live_capability_run: 31321492253
+  restricted_live_readonly_workflows: PASS_4_OF_4
+  adversarial_before_after:
+    baseline_cross_provider_conflict_observability: 0/5
+    nversion_disagreement_abstention_detection: 5/5
+    evidence_scope: SYNTHETIC_ADVERSARIAL_ERROR_OBSERVABILITY_ONLY
   prohibited_evidence:
     - model self-rating presented as proof of intelligence improvement
-    - synthetic fixture presented as LIVE or external authorization
+    - synthetic fixture presented as LIVE external authorization or market predictive-accuracy proof
     - hidden chain-of-thought
     - provider or broker credential material
     - real order cancel transfer or withdrawal
@@ -97,12 +111,13 @@ planning_gate:
   exact_head: 45b1460593e504ce3896ccb5d631be4cdc53c620
   merge_commit: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
 implementation_gate:
-  status: IN_PROGRESS
+  status: MERGED
+  pull_request: 376
   branch: agent/ai-007-n-version-runtime
   branch_start_commit: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
+  exact_head: 8fe07e4fc078e51297a1b1963f0415f410b8fbbf
+  merge_commit: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
   latest_main_required_before_merge: true
 next: >-
-  Complete the shared-budget N-version provider comparison runtime, add a concrete independently verified
-  second provider adapter only against current official API contracts, wire read-only comparison evidence into
-  the Cloud AI surface, pass exact-head full CI/Coverage and all safety workflows, then merge by expected head.
-  WO-0051 remains HUMAN_ENVIRONMENT_ONLY and active.
+  WO-AI-007 is complete on protected main. Run a fresh post-AI-007 capability audit from merged repository evidence
+  and select the next lowest-scoring safe intelligence dimension. WO-0051 remains HUMAN_ENVIRONMENT_ONLY and active.

@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-007-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-007",
+    "path": ".aipos/work-orders/WO-AI-007-n-version-provider-diversity.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "4c906e6da7b48d48b2e2bb21f8a4d939b73c631d"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "3df6b28d08ead38f893cd0c84bd70a31f275f8a9"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "planning_pr_merged": true,
+      "implementation_pr_merged": true,
+      "provider_neutral_nversion": true,
+      "anthropic_adapter": true,
+      "shared_resource_budget": true,
+      "same_input_prompt_context": true,
+      "fake_independence_rejected": true,
+      "disagreement_forces_abstention": true,
+      "consensus_no_uplift": true,
+      "baseline_cross_provider_conflict_observability": "0/5",
+      "nversion_disagreement_abstention_detection": "5/5",
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "exact_head": "8fe07e4fc078e51297a1b1963f0415f410b8fbbf",
+      "ci_run": 31321492237,
+      "safety_workflows_passed": 4,
+      "implementation_merge_sha": "3df6b28d08ead38f893cd0c84bd70a31f275f8a9"
+    },
+    "hash": {"algorithm": "sha256", "value": "586e6516e51dbeee59b1e59b1cbdc0d346e64f7cdc4fff3f30518a0477a456e8"}
+  },
+  "observed_at": "2026-08-09T15:42:52Z",
+  "provenance": [
+    "github:pull/374",
+    "git:merge/7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4",
+    "github:pull/376",
+    "github:actions/run/31321492237",
+    "github:actions/run/31321492241",
+    "github:actions/run/31321492233",
+    "github:actions/run/31321492239",
+    "github:actions/run/31321492253",
+    "git:merge/3df6b28d08ead38f893cd0c84bd70a31f275f8a9"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "planning_pr_merged", "status": "PASS"},
+    {"name": "implementation_pr_merged", "status": "PASS"},
+    {"name": "official_exact_head_full_ci_coverage", "status": "PASS"},
+    {"name": "security_typecheck_build_lint", "status": "PASS"},
+    {"name": "architecture_repository_truth", "status": "PASS"},
+    {"name": "aipos_drift_evidence_conformance", "status": "PASS"},
+    {"name": "restricted_live_readonly_workflows", "status": "PASS"},
+    {"name": "provider_neutral_nversion_runtime", "status": "PASS"},
+    {"name": "independent_anthropic_provider_adapter", "status": "PASS"},
+    {"name": "shared_wo_ai_006_resource_budget", "status": "PASS"},
+    {"name": "same_input_prompt_context_comparison", "status": "PASS"},
+    {"name": "fake_independence_rejected", "status": "PASS"},
+    {"name": "partial_provider_failure_fail_closed", "status": "PASS"},
+    {"name": "disagreement_forces_abstention", "status": "PASS"},
+    {"name": "consensus_no_confidence_uplift", "status": "PASS"},
+    {"name": "adversarial_conflict_observability_0_of_5_to_5_of_5", "status": "PASS"},
+    {"name": "provider_credentials_not_persisted_or_projected", "status": "PASS"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"},
+    {"name": "wo_0051_human_environment_gate_unchanged", "status": "PASS"}
+  ]
+}
