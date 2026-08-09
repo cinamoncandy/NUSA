@@ -1,6 +1,6 @@
 id: WO-AI-004
 title: Outcome-Linked Calibration Engine
-branch: main
+branch: agent/ai-004-outcome-calibration-plan-v4
 pull_request: null
 base_branch: main
 phase: implementation
@@ -34,4 +34,4 @@ blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Implement WO-AI-004 only from a fresh current-main branch while preserving zero-authority and deterministic safety boundaries.
+next_recommended_task: Implement WO-AI-004 only from its recorded implementation branch rebased on current main while preserving zero-authority and deterministic safety boundaries.
