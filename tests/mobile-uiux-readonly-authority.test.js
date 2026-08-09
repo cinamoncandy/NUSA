@@ -32,7 +32,7 @@ test("mobile intelligence shell displays real AI projection and truthful authori
   assert.doesNotMatch(app, /94%/);
 });
 
-test("read-only PAPER surface exposes authority state without fake order controls", () => {
+test("read-only PAPER surface exposes one truthful zero-mutation state without fake controls", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
@@ -41,9 +41,9 @@ test("read-only PAPER surface exposes authority state without fake order control
   assert.match(trading, /PAPER 관찰 모드/);
   assert.match(trading, /ZERO MUTATION/);
   assert.match(trading, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
-  assert.match(trading, /<DataRow label="주문 생성" value="연결 안 됨"/);
-  assert.match(trading, /<DataRow label="서버 전송" value="불가"/);
-  assert.match(trading, /<DataRow label="현재 권한" value="읽기 전용"/);
+  assert.match(trading, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
+  assert.doesNotMatch(trading, /<AuthorityBanner/);
+  assert.doesNotMatch(trading, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
   assert.doesNotMatch(trading, /disabled label="매수 미리보기"/);
   assert.doesNotMatch(trading, /disabled label="매도 미리보기"/);
   assert.doesNotMatch(trading, /읽기 전용 — 주문 권한 없음/);
