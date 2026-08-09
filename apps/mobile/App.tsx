@@ -101,19 +101,18 @@ function AuthenticatedApp() {
       return Promise.resolve();
     }
 
-    let request: Promise<void>;
-    request = (async () => {
-      try {
-        const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-        if (generation !== refreshGenerationRef.current) return;
-        const currentEndpoint = getConfiguredPaperEndpoint();
-        if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
-        setOperations(result);
-      } finally {
-        if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
-      }
+    const request = (async () => {
+      const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      if (generation !== refreshGenerationRef.current) return;
+      const currentEndpoint = getConfiguredPaperEndpoint();
+      if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+      setOperations(result);
     })();
     refreshInFlightRef.current = request;
+    const clearIfCurrent = () => {
+      if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
+    };
+    void request.then(clearIfCurrent, clearIfCurrent);
     return request;
   }, [credentialSession]);
 
