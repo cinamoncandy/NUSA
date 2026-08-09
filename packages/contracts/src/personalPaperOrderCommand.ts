@@ -1,4 +1,8 @@
-import type { PersonalPaperOrderProjection, PersonalPaperOperationsSnapshot } from "./personalPaperOperations";
+import {
+  validatePersonalPaperOperationsSnapshot,
+  type PersonalPaperOrderProjection,
+  type PersonalPaperOperationsSnapshot
+} from "./personalPaperOperations";
 
 export type PersonalPaperOrderSide = "BUY" | "SELL";
 export type PersonalPaperOrderType = "MARKET" | "LIMIT";
@@ -30,6 +34,25 @@ const finitePositive = (value: number, name: string): number => {
   return value;
 };
 
+const sameOrder = (left: PersonalPaperOrderProjection, right: PersonalPaperOrderProjection): boolean =>
+  left.id === right.id &&
+  left.market === right.market &&
+  left.side === right.side &&
+  left.quantity === right.quantity &&
+  left.price === right.price &&
+  left.fee === right.fee &&
+  left.filledAt === right.filledAt &&
+  left.status === right.status &&
+  left.fills.length === right.fills.length &&
+  left.fills.every((fill, index) => {
+    const other = right.fills[index];
+    return other != null &&
+      fill.id === other.id &&
+      fill.quantity === other.quantity &&
+      fill.price === other.price &&
+      fill.filledAt === other.filledAt;
+  });
+
 export function validatePersonalPaperOrderCommand(command: PersonalPaperOrderCommand): PersonalPaperOrderCommand {
   if (command.schemaVersion !== 1) throw new Error("unsupported PAPER order command schemaVersion");
   if (command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false) throw new Error("PAPER order authority invariant violated");
@@ -54,11 +77,43 @@ export function validatePersonalPaperOrderCommand(command: PersonalPaperOrderCom
   });
 }
 
-export function validatePersonalPaperOrderCommandResult(result: PersonalPaperOrderCommandResult): PersonalPaperOrderCommandResult {
+export function validatePersonalPaperOrderCommandResult(
+  result: PersonalPaperOrderCommandResult,
+  now = Date.now(),
+  maximumSnapshotAgeMs = 15_000
+): PersonalPaperOrderCommandResult {
   if (result.schemaVersion !== 1) throw new Error("unsupported PAPER order result schemaVersion");
   if (result.liveAuthority !== "NONE" || result.productionMutationAllowed !== false) throw new Error("PAPER order result authority invariant violated");
   if (!["FILLED", "REJECTED", "BLOCKED", "DUPLICATE"].includes(result.status)) throw new Error("PAPER order result status is invalid");
-  if (result.status === "FILLED" && (result.order == null || result.snapshot == null)) throw new Error("FILLED PAPER order result requires order and snapshot");
-  if (result.snapshot != null && (result.snapshot.liveAuthority !== "NONE" || result.snapshot.productionMutationAllowed !== false)) throw new Error("PAPER order snapshot authority invariant violated");
-  return Object.freeze({ ...result });
+
+  const reason = result.reason;
+  if (reason != null && (typeof reason !== "string" || !reason.trim())) throw new Error("PAPER order result reason is invalid");
+
+  const snapshot = result.snapshot == null
+    ? undefined
+    : validatePersonalPaperOperationsSnapshot(result.snapshot, now, maximumSnapshotAgeMs);
+
+  let order: PersonalPaperOrderProjection | undefined;
+  if (result.order != null) {
+    if (snapshot == null) throw new Error("PAPER order result order requires snapshot");
+    const corresponding = snapshot.orders.find((candidate) => candidate.id === result.order?.id);
+    if (corresponding == null || !sameOrder(result.order, corresponding)) {
+      throw new Error("PAPER order result does not match snapshot order");
+    }
+    order = corresponding;
+  }
+
+  if (result.status === "FILLED" && (order == null || snapshot == null)) {
+    throw new Error("FILLED PAPER order result requires order and snapshot");
+  }
+
+  return Object.freeze({
+    schemaVersion: 1,
+    status: result.status,
+    ...(reason == null ? {} : { reason: reason.trim() }),
+    ...(order == null ? {} : { order }),
+    ...(snapshot == null ? {} : { snapshot }),
+    liveAuthority: "NONE",
+    productionMutationAllowed: false
+  });
 }
