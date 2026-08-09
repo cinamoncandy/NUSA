@@ -150,3 +150,21 @@ test("after an explicit shutdown, the port is actually released (not left bound 
     await waitForExit(second, SHUTDOWN_TIMEOUT_MS);
   }
 });
+
+test("a second runtime on an occupied dashboard port fails closed instead of running without its control surface", async () => {
+  const port = 41835;
+  const authToken = "runtime-bootstrap-port-conflict-token";
+  const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
+  await waitForListening(first, port, STARTUP_TIMEOUT_MS);
+  const second = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
+  try {
+    const { code } = await waitForExit(second, STARTUP_TIMEOUT_MS);
+    assert.notEqual(code, 0, "bind failure must terminate the duplicate runtime");
+    const health = await get(port, "/health");
+    assert.equal(health.status, 200, "the original runtime must remain the process serving the occupied port");
+  } finally {
+    if (second.exitCode === null && second.signalCode === null) second.kill("SIGTERM");
+    first.kill("SIGTERM");
+    await waitForExit(first, SHUTDOWN_TIMEOUT_MS);
+  }
+});
