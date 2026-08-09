@@ -1,0 +1,47 @@
+import {
+  validatePersonalPaperOrderCommand,
+  validatePersonalPaperOrderCommandResult,
+  type PersonalPaperOrderCommand,
+  type PersonalPaperOrderCommandResult
+} from "../../../packages/contracts/src/personalPaperOrderCommand";
+import {
+  authorizePaperTradeRequest,
+  dashboardJsonResponse,
+  type DashboardHttpRequest,
+  type DashboardHttpResponse,
+  type DashboardPrincipal,
+  type DashboardTokenVerifier
+} from "./mobileDashboardHttp";
+
+export interface PersonalPaperOrderHttpDependencies {
+  readonly tokenVerifier: DashboardTokenVerifier;
+  readonly submitOrder: (principal: DashboardPrincipal, command: PersonalPaperOrderCommand) => PersonalPaperOrderCommandResult;
+}
+
+export function handlePersonalPaperOrderHttp(
+  request: DashboardHttpRequest,
+  body: unknown,
+  dependencies: PersonalPaperOrderHttpDependencies
+): DashboardHttpResponse {
+  const authorization = authorizePaperTradeRequest(request, dependencies.tokenVerifier);
+  if (!authorization.ok) return authorization.response;
+
+  let command: PersonalPaperOrderCommand;
+  try { command = validatePersonalPaperOrderCommand(body as PersonalPaperOrderCommand); }
+  catch { return dashboardJsonResponse(400, { error: "INVALID_PAPER_ORDER" }); }
+
+  const idempotencyHeader = request.headers["idempotency-key"] ?? request.headers["Idempotency-Key"];
+  if (typeof idempotencyHeader !== "string" || idempotencyHeader.trim() !== command.idempotencyKey) {
+    return dashboardJsonResponse(400, { error: "IDEMPOTENCY_KEY_MISMATCH" });
+  }
+
+  try {
+    const result = validatePersonalPaperOrderCommandResult(dependencies.submitOrder(authorization.principal, command));
+    if (result.liveAuthority !== "NONE" || result.productionMutationAllowed !== false) {
+      return dashboardJsonResponse(503, { error: "PAPER_ORDER_AUTHORITY_VIOLATION" });
+    }
+    return dashboardJsonResponse(200, result);
+  } catch {
+    return dashboardJsonResponse(503, { error: "PAPER_ORDER_UNAVAILABLE" });
+  }
+}
