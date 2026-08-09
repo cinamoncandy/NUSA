@@ -9,6 +9,8 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "apps/cloud/src/cloudRuntimeConfig.ts"
 ]);
 
+const WO_AI_009_PATH = ".aipos/work-orders/WO-AI-009-governed-outcome-attribution-learning.yaml";
+
 const STALE_README_CLAIMS = Object.freeze([
   "Not currently deployed or wired into a running process",
   "a real token issuer, a persistence backend, and a hosting decision"
@@ -57,6 +59,7 @@ function validateRepositoryTruth(root = process.cwd(), options = {}) {
   const packageSource = read(root, "package.json", failures);
   const state = read(root, ".aipos/state.yaml", failures);
   const currentMission = read(root, ".aipos/current-mission.yaml", failures);
+  const woAi009 = read(root, WO_AI_009_PATH, failures);
 
   let packageJson;
   try {
@@ -100,6 +103,20 @@ function validateRepositoryTruth(root = process.cwd(), options = {}) {
     if (normalizedNextTask.includes(normalizeWhitespace(staleClaim))) {
       failures.push(`NEXT_TASK_STALE_WO0031_CLAIM:${staleClaim}`);
     }
+  }
+
+  const ai009PlanningGate = block(woAi009, "planning_gate");
+  const ai009ImplementationGate = block(woAi009, "implementation_gate");
+  const ai009Verification = block(woAi009, "verification");
+  const ai009PlanningStatus = scalar(ai009PlanningGate, "status");
+  const ai009PlanningHead = scalar(ai009PlanningGate, "exact_head");
+  const ai009PlanningMerge = scalar(ai009PlanningGate, "merge_commit");
+  if (ai009PlanningStatus !== "MERGED") failures.push(`WO_AI_009_PLANNING_GATE_NOT_MERGED:${ai009PlanningStatus || "missing"}`);
+  if (!/^[0-9a-f]{40}$/.test(ai009PlanningHead || "")) failures.push("WO_AI_009_PLANNING_HEAD_INVALID");
+  if (!/^[0-9a-f]{40}$/.test(ai009PlanningMerge || "")) failures.push("WO_AI_009_PLANNING_MERGE_INVALID");
+  if (scalar(ai009Verification, "result") !== "PASS") failures.push("WO_AI_009_PLANNING_VERIFICATION_NOT_PASS");
+  if (scalar(ai009ImplementationGate, "status") === "BLOCKED_UNTIL_PLANNING_MERGED") {
+    failures.push("WO_AI_009_IMPLEMENTATION_GATE_STALE_BLOCK");
   }
 
   const inProgress = block(state, "in_progress");
@@ -148,6 +165,7 @@ if (require.main === module) {
 
 module.exports = {
   REQUIRED_RUNTIME_FILES,
+  WO_AI_009_PATH,
   STALE_README_CLAIMS,
   STALE_NEXT_TASK_CLAIMS,
   validateRepositoryTruth

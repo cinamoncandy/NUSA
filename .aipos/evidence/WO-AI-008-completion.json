@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-008-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-008",
+    "path": ".aipos/work-orders/WO-AI-008-governed-scenario-counterfactual-reasoning.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "ab2795a57df7c4effe25b192523a86edc4a33a6c"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "a1cdb9d025e54fc929b82fe5f64c5548eeefc424"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "planning_pr_merged": true,
+      "implementation_pr_merged": true,
+      "scenario_counterfactual_runtime": true,
+      "baseline_hypothetical_separation": true,
+      "observed_evidence_immutable": true,
+      "shared_resource_budget": true,
+      "provider_disagreement_abstention": true,
+      "synthetic_realized_learning_credit": false,
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "exact_head": "93b2369456679664e205c198bbe2ee1bff2db2e2",
+      "ci_run": 31325820228,
+      "safety_workflows_passed": 4,
+      "implementation_merge_sha": "a1cdb9d025e54fc929b82fe5f64c5548eeefc424"
+    },
+    "hash": {"algorithm": "sha256", "value": "977d94112ace4caad4741f34aafd21e9822d8671c334229234d7b8c32fe0a7da"}
+  },
+  "observed_at": "2026-08-09T19:03:12Z",
+  "provenance": [
+    "github:pull/378",
+    "git:merge/91ffb97ce6d6b50355af19d61fae0f0ee522436f",
+    "github:pull/380",
+    "github:actions/run/31325820228",
+    "github:actions/run/31325820241",
+    "github:actions/run/31325820216",
+    "github:actions/run/31325820211",
+    "github:actions/run/31325820204",
+    "git:merge/a1cdb9d025e54fc929b82fe5f64c5548eeefc424",
+    "github:pull/381",
+    "git:merge/9a71352dfc407cc1cd4f7fb9cc99896f81ea9cbf"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "planning_pr_merged", "status": "PASS"},
+    {"name": "implementation_pr_merged", "status": "PASS"},
+    {"name": "official_exact_head_full_ci_coverage", "status": "PASS"},
+    {"name": "restricted_live_readonly_workflows", "status": "PASS"},
+    {"name": "baseline_hypothetical_provenance_separation", "status": "PASS"},
+    {"name": "observed_evidence_immutable", "status": "PASS"},
+    {"name": "duplicate_scenarios_suppressed_before_side_effects", "status": "PASS"},
+    {"name": "provider_disagreement_forces_abstention", "status": "PASS"},
+    {"name": "shared_wo_ai_006_resource_budget", "status": "PASS"},
+    {"name": "synthetic_hypothetical_not_realized_learning_credit", "status": "PASS"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"},
+    {"name": "wo_0051_human_environment_gate_unchanged", "status": "PASS"}
+  ]
+}

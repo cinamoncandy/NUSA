@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T15:42:52Z"
+updated_at: "2026-08-09T21:22:18Z"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-007 N-version provider diversity and disagreement governance while keeping WO-0051 at the constitutional human/environment boundary; require a fresh capability audit before selecting any next safe AI slice."
+objective: "Preserve verified WO-AI-008 governed scenario/counterfactual reasoning and merged WO-AI-009 planning while keeping WO-0051 at the constitutional human/environment boundary; allow only a fresh latest-main zero-authority WO-AI-009 implementation slice."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
+base_commit: ed948a7e451ff0691ddd381df7580b0500d56849
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-007
+  work_order: WO-AI-008
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-007-completion.json"
+  evidence: ".aipos/evidence/WO-AI-008-completion.json"
 latest_verified_slice:
-  id: wo-ai-007-n-version-provider-diversity-complete
-  evidence: ".aipos/evidence/WO-AI-007-completion.json"
-  summary: "WO-AI-007 adds explicit independent-provider N-version comparison, shared resource governance, deterministic disagreement/abstention, fake-independence rejection, and consensus-without-confidence-uplift under unchanged zero authority."
+  id: wo-ai-008-governed-scenario-counterfactual-reasoning-complete
+  evidence: ".aipos/evidence/WO-AI-008-completion.json"
+  summary: "WO-AI-008 adds exact-baseline-bound hypothetical scenario reasoning, deterministic sensitivity/contradiction states, shared resource governance, provider-disagreement abstention, and no realized-learning or execution authority uplift."
 completed:
+  - id: WO-AI-008
+    evidence: ".aipos/evidence/WO-AI-008-completion.json"
+    summary: "Governed scenario/counterfactual reasoning is merged and verified with immutable observed evidence, explicit BASELINE/HYPOTHETICAL provenance, one enclosing resource budget, disagreement abstention, deterministic replay, and unchanged zero authority."
   - id: WO-AI-007
     evidence: ".aipos/evidence/WO-AI-007-completion.json"
     summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
@@ -62,19 +65,20 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-007 is evidence-verified complete. Preserve the human-only terminal gate and run a fresh post-AI-007 repository/AI capability audit before opening any successor AI implementation work order."
+  reason: "WO-AI-008 is evidence-verified complete and the fresh post-AI-008 audit selected WO-AI-009; planning PR #382 is merged. Preserve WO-0051 as the terminal human-only mission while allowing an independent zero-authority WO-AI-009 implementation only from the latest protected main."
 verification:
   required:
-    - "Fresh post-WO-AI-007 capability audit before selecting the next AI implementation work order"
-    - "Re-rank scenario/counterfactual reasoning, explanation faithfulness/completeness, post-decision learning/attribution, provider-pool lifecycle/cancellation, cost-quality optimization, calibration, grounding, and resource governance from merged evidence"
+    - "Start WO-AI-009 implementation only from the latest protected main after its merged planning gate is reconciled"
+    - "Preserve exact WO-AI-008 observed-versus-hypothetical provenance, resource governance, disagreement abstention, replay, and zero-authority contracts"
+    - "Require exact-head full CI/Coverage, AIPOS/architecture/security, and all Restricted LIVE/read-only workflows before any WO-AI-009 implementation merge"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-007 planning PR #374 merged at 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4. Canonical implementation PR #376 exact head 8fe07e4fc078e51297a1b1963f0415f410b8fbbf passed Full CI/Coverage 31321492237 and all four Restricted LIVE/read-only workflows, then merged at 3df6b28d08ead38f893cd0c84bd70a31f275f8a9. Adversarial evaluation improved cross-provider conflict observability from 0/5 baseline to 5/5 disagreement/abstention detections without claiming market predictive-accuracy improvement."
-  current_commit: "3df6b28d08ead38f893cd0c84bd70a31f275f8a9 contains verified WO-AI-007 implementation with explicit independent-provider comparison and zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
+  last_result: "WO-AI-008 planning PR #378 merged at 91ffb97ce6d6b50355af19d61fae0f0ee522436f. Canonical implementation PR #380 exact head 93b2369456679664e205c198bbe2ee1bff2db2e2 passed Full CI/Coverage run 31325820228 and all four Restricted LIVE/read-only workflows, then merged at a1cdb9d025e54fc929b82fe5f64c5548eeefc424. Completion bookkeeping PR #381 merged at 9a71352dfc407cc1cd4f7fb9cc99896f81ea9cbf. Fresh post-AI-008 audit/planning PR #382 exact head 20f7c18a09cdaf24c79130dcf6a137cdab636fd0 passed Full CI and all four safety workflows and merged at 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1, selecting WO-AI-009 without granting authority."
+  current_commit: "429fc611e3324ad4ce37457eaed4dcf0ca3b50e1 contains verified WO-AI-008 completion lineage plus merged WO-AI-009 planning; ed948a7e451ff0691ddd381df7580b0500d56849 additionally canonicalizes WO-0031 repository truth. WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
