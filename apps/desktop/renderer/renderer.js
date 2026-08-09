@@ -1,6 +1,18 @@
 const won = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
 const byId = (id) => document.getElementById(id);
+/**
+ * Canvas's strokeStyle and SVG's stroke attribute cannot consume `var(--token)` directly the way
+ * CSS properties can, so a chart drawn with either API needs a resolved value. Reading it here
+ * at draw time (rather than hardcoding a literal) keeps the chart following tokens.css --
+ * DESIGN_SYSTEM.md's rule against literal colors applies to these draw calls too, and a literal
+ * here was previously invisible to design-tokens.test.js because that test only checks that
+ * tokens.css defines the expected tokens, not that renderer code avoids bypassing them.
+ */
+const resolveColorToken = (name, fallback) => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return raw ? `hsl(${raw})` : fallback;
+};
 const textNode = (tag, value, className) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -87,7 +99,7 @@ function drawChart() {
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   });
   context.lineWidth = 2;
-  context.strokeStyle = "#8f7cff";
+  context.strokeStyle = resolveColorToken("--color-primary", "#8f7cff");
   context.stroke();
 }
 

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
+const { readFileSync, readdirSync } = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
@@ -45,4 +45,29 @@ test("renderer styles use semantic variables rather than literal colors", () => 
   assert.doesNotMatch(styles, /\brgba?\(/i);
   assert.match(styles, /var\(--color-bg\)/);
   assert.match(styles, /var\(--color-primary\)/);
+});
+
+test("renderer JS avoids literal colors outside the documented resolveColorToken fallback", () => {
+  // Regression: renderer.js and simple-ui.js each hardcoded a hex color directly into
+  // context.strokeStyle / an SVG stroke attribute -- neither can consume var(--token) the way a
+  // CSS property can, so DESIGN_SYSTEM.md's "no literal colors" rule had nothing to check them
+  // against; this test previously only scanned styles.css. Neither literal matched any current
+  // token value (tokens are HSL triples like "220 100% 62%", not hex), so a token change would
+  // silently leave these two chart lines behind.
+  //
+  // The fix reads the resolved token at draw time via resolveColorToken(name, fallback). Its
+  // second argument is a legitimate hex literal -- a documented degrade-gracefully value used
+  // only if the CSS variable lookup itself returns nothing -- so this test allows a hex literal
+  // only when it appears inside a resolveColorToken(...) call, not anywhere else in renderer JS.
+  const rendererDir = path.join(root, "apps/desktop/renderer");
+  const jsFiles = readdirSync(rendererDir).filter((name) => name.endsWith(".js"));
+  const hexPattern = /#[0-9a-f]{3,8}\b/gi;
+  for (const file of jsFiles) {
+    const source = read(`apps/desktop/renderer/${file}`);
+    for (const line of source.split("\n")) {
+      if (!hexPattern.test(line)) continue;
+      hexPattern.lastIndex = 0;
+      assert.match(line, /resolveColorToken\(/, `${file}: literal color outside resolveColorToken(): ${line.trim()}`);
+    }
+  }
 });
