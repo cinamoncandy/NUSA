@@ -54,7 +54,31 @@ test("stable Core rejects dynamic imports of AIPOS implementation", () => {
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(coreToAiposFindings(result).length, 1);
-    assert.equal(coreToAiposFindings(result)[0].kind, "runtime");
+    assert.equal(coreToAiposFindings(result)[0].kind, "inline-import");
+    assert.deepEqual(result.runtimeCycles, []);
+  });
+});
+
+test("stable Core rejects TypeScript import type expressions referencing AIPOS", () => {
+  withFixture({
+    "packages/core/src/runtime.ts": 'export type RuntimeState = import("../../aipos/src/types").AiposState;\n',
+    "packages/aipos/src/types.ts": "export interface AiposState { readonly id: string; }\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(coreToAiposFindings(result).length, 1);
+    assert.equal(coreToAiposFindings(result)[0].kind, "inline-import");
+    assert.deepEqual(result.runtimeCycles, []);
+  });
+});
+
+test("TypeScript import type expressions do not create eager runtime cycles", () => {
+  withFixture({
+    "packages/contracts/src/a.ts": 'import { value } from "./b"; export const other = value;\n',
+    "packages/contracts/src/b.ts": 'export interface B { readonly peer?: import("./a").A; } export const value = 1;\n',
+    "packages/contracts/src/a-types.ts": "export interface A { readonly id: string; }\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.deepEqual(result.runtimeCycles, []);
   });
 });
 
@@ -72,4 +96,5 @@ test("AIPOS may consume stable Core plugin contracts", () => {
 test("current repository has no Core to AIPOS reverse dependency", () => {
   const result = analyzeRepository(process.cwd());
   assert.deepEqual(coreToAiposFindings(result), []);
+  assert.deepEqual(result.runtimeCycles, []);
 });
