@@ -178,8 +178,6 @@ export class PaperTradingExecutionLoop {
   public snapshot(): PaperAccountState { return this.state; }
 
   public submitManualOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
-    const gate = this.executionGate(context);
-    if (gate != null) return this.result("BLOCKED", gate);
     if (!command.idempotencyKey.trim() || command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false) return this.result("FAILED", "invalid PAPER order authority");
     if (!command.market.trim() || !Number.isFinite(command.quantity) || command.quantity <= 0) return this.result("FAILED", "invalid PAPER order command");
     const requestFingerprint = manualCommandFingerprint(command);
@@ -190,6 +188,8 @@ export class PaperTradingExecutionLoop {
       return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze([prior]), fills: Object.freeze(fills), state: this.state });
     }
     if (this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) return this.result("REJECTED", "PAPER_IDEMPOTENCY_CONFLICT");
+    const gate = this.executionGate(context);
+    if (gate != null) return this.result("BLOCKED", gate);
     const market = command.market.trim().toUpperCase();
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
