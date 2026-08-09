@@ -31,15 +31,21 @@ export function handlePersonalPaperOrderHttp(
   catch { return dashboardJsonResponse(400, { error: "INVALID_PAPER_ORDER" }); }
 
   const idempotencyHeader = request.headers["idempotency-key"] ?? request.headers["Idempotency-Key"];
-  if (typeof idempotencyHeader !== "string" || idempotencyHeader !== command.idempotencyKey) {
-    return dashboardJsonResponse(400, { error: "IDEMPOTENCY_KEY_MISMATCH" });
-  }
+  if (typeof idempotencyHeader !== "string" || idempotencyHeader !== command.idempotencyKey) return dashboardJsonResponse(400, { error: "IDEMPOTENCY_KEY_MISMATCH" });
 
   try {
-    const result = validatePersonalPaperOrderCommandResult(dependencies.submitOrder(authorization.principal, command), command);
-    if (result.liveAuthority !== "NONE" || result.productionMutationAllowed !== false) {
-      return dashboardJsonResponse(503, { error: "PAPER_ORDER_AUTHORITY_VIOLATION" });
-    }
+    const executionResult = dependencies.submitOrder(authorization.principal, command);
+    const boundResult: PersonalPaperOrderCommandResult = Object.freeze({
+      ...executionResult,
+      idempotencyKey: command.idempotencyKey,
+      market: command.market,
+      side: command.side,
+      orderType: command.orderType,
+      quantity: command.quantity,
+      ...(command.limitPrice === undefined ? {} : { limitPrice: command.limitPrice })
+    });
+    const result = validatePersonalPaperOrderCommandResult(boundResult, command);
+    if (result.liveAuthority !== "NONE" || result.productionMutationAllowed !== false) return dashboardJsonResponse(503, { error: "PAPER_ORDER_AUTHORITY_VIOLATION" });
     return dashboardJsonResponse(200, result);
   } catch {
     return dashboardJsonResponse(503, { error: "PAPER_ORDER_UNAVAILABLE" });
