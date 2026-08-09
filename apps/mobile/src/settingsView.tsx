@@ -5,6 +5,7 @@ import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
+import { clearPaperConnectionVerification, isPaperConnectionVerified, markPaperConnectionVerified } from "./paperConnectionSession";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; }
 const themes: readonly ThemeSetting[] = ["SYSTEM", "LIGHT", "DARK"];
@@ -23,9 +24,20 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
 
   useEffect(() => {
     let active = true;
-    void repository.load().then((loaded) => { if (!active) return; const next = loaded ?? DEFAULT_SETTINGS; setSettings(next); setEndpointDraft(next.paperEndpoint); setMode(themePreference(next.theme)); }).catch((loadError) => { if (active) setError(loadError instanceof Error ? loadError.message : "Settings are unavailable."); });
+    void repository.load().then(async (loaded) => {
+      if (!active) return;
+      const next = loaded ?? DEFAULT_SETTINGS;
+      setSettings(next);
+      setEndpointDraft(next.paperEndpoint);
+      setMode(themePreference(next.theme));
+      if (!next.paperEndpoint || !credentialSession.isConfigured() || !isPaperConnectionVerified(next.paperEndpoint)) return;
+      const result = await loadPersonalPaperOperations({ baseUrl: next.paperEndpoint, credentialProvider: credentialSession.credentialProvider });
+      if (!active) return;
+      if (result.status !== "READY") { credentialSession.clear(); clearPaperConnectionVerification(); }
+      setConnection(result);
+    }).catch((loadError) => { if (active) setError(loadError instanceof Error ? loadError.message : "Settings are unavailable."); });
     return () => { active = false; };
-  }, [repository, setMode]);
+  }, [credentialSession, repository, setMode]);
 
   const persist = async (next: AppSettings): Promise<boolean> => { setSaving(true); try { const normalized = normalizeSettings(next); await repository.save(normalized); setSettings(normalized); setEndpointDraft(normalized.paperEndpoint); setError(null); return true; } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; } finally { setSaving(false); } };
   const updateTheme = (next: ThemeSetting) => { if (!settings) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
@@ -33,11 +45,19 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
   const saveEndpoint = async (): Promise<boolean> => settings == null ? false : persist({ ...settings, paperEndpoint: endpointDraft });
   const testConnection = async () => {
     if (!await saveEndpoint()) return;
-    try { credentialSession.connect(tokenDraft); setTokenDraft(""); setConnection(await loadPersonalPaperOperations({ baseUrl: endpointDraft, credentialProvider: credentialSession.credentialProvider })); }
-    catch (connectionError) { credentialSession.clear(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "PAPER credential is invalid." }); }
+    try {
+      credentialSession.connect(tokenDraft);
+      const result = await loadPersonalPaperOperations({ baseUrl: endpointDraft, credentialProvider: credentialSession.credentialProvider });
+      if (result.status === "READY") { markPaperConnectionVerified(endpointDraft); setTokenDraft(""); }
+      else { credentialSession.clear(); clearPaperConnectionVerification(); }
+      setConnection(result);
+    } catch (connectionError) {
+      credentialSession.clear(); clearPaperConnectionVerification();
+      setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "PAPER credential is invalid." });
+    }
   };
-  const disconnect = () => { credentialSession.clear(); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER credential cleared from memory." }); };
-  const resetSettings = () => { if (!settings) return; const previousTheme = settings.theme; setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
+  const disconnect = () => { credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER credential cleared from memory." }); };
+  const resetSettings = () => { if (!settings) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><NusaCard><Text style={[styles.title, { color: theme.colors.danger }]}>설정을 불러올 수 없습니다</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{error}</Text></NusaCard></View>;
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
@@ -59,8 +79,8 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     <NusaCard raised><View style={styles.modeHeader}><Text style={[styles.section, { color: theme.colors.text, marginBottom: 0 }]}>거래 권한</Text><StatusChip label="PAPER ONLY" tone="info" /></View><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체·production mutation 권한은 없습니다.</Text></NusaCard>
     <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>앱 정보</Text><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="PAPER / Personal" /></NusaCard>
     <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 설정 초기화</Text><NusaButton label={saving ? "저장 중..." : "설정 초기화"} disabled={saving} onPress={resetSettings} tone="danger" /></NusaCard>
-    {onSignOut ? <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 세션</Text><NusaButton label="로그아웃" onPress={onSignOut} tone="neutral" /></NusaCard> : null}
+    {onSignOut ? <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 세션</Text><NusaButton label="개인 모드 종료" onPress={onSignOut} tone="neutral" /></NusaCard> : null}
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 920, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, title: { fontSize: 18, fontWeight: "700" }, section: { fontSize: 18, fontWeight: "700", marginBottom: 12, letterSpacing: -0.4 }, message: { lineHeight: 21 }, hint: { lineHeight: 20, fontSize: 13, marginTop: 10 }, row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 12 }, modeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }, error: { padding: 12, borderRadius: 10, borderWidth: 1 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1080, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, title: { fontSize: 18, fontWeight: "700" }, section: { fontSize: 18, fontWeight: "700", marginBottom: 12, letterSpacing: -0.4 }, message: { lineHeight: 21 }, hint: { lineHeight: 20, fontSize: 13, marginTop: 10 }, row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 12 }, modeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }, error: { padding: 12, borderRadius: 10, borderWidth: 1 } });
