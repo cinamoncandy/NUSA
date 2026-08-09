@@ -1,0 +1,98 @@
+id: WO-AI-006
+title: Inference Resource Budget and Latency Governance
+status: PLANNED
+priority: P1
+branch: agent/ai-006-inference-resource-governance
+base_branch: main
+implementation_branch: agent/ai-006-inference-resource-governance
+planning_branch: agent/ai-006-inference-resource-governance-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds a provider-neutral resource budget/accounting boundary around the existing zero-authority multi-agent inference runtime before any broader provider/model/agent expansion."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - docs/NUSA_AI_CAPABILITY_AUDIT_2026-08-09.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0009-ai-inference-resource-governance.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Make AI inference resource use bounded, measurable, replayable, and fail-closed at the orchestration-run
+  level by governing calls, attempts, bytes, tokens, and elapsed time without adding provider credentials,
+  execution authority, promotion authority, risk authority, production mutation, or LIVE capability.
+selection_rationale:
+  - Post-WO-AI-005 audit scores inference cost/latency/resource governance at 1/4.
+  - Current requests have per-call maxTokens/timeout and bounded retries, but no shared orchestration-run resource policy.
+  - OpenAI response usage is parsed but not retained in AgentRun/orchestration evidence.
+  - All four roles currently share one provider/model; adding provider diversity before common resource governance would expand credential/network/cost surface prematurely.
+  - Resource governance is deterministic and provider-neutral, making it a safe prerequisite for future N-version, scenario, and learning capabilities.
+constraints:
+  - No new model provider, provider credential, broker credential, network endpoint, tool permission, or execution adapter.
+  - No vendor currency price table in core contracts; monetary cost requires a separately versioned future rate-card capability.
+  - Budget policy is immutable/versioned per orchestration run and included in replay identity.
+  - A provider call may not start unless its declared worst-case reservation fits the remaining run budget.
+  - Maximum model calls and maximum total attempts include retry behavior; retries cannot escape the run budget.
+  - Maximum cumulative output-token reservation, model-input/evidence bytes, and orchestration wall-clock time are bounded.
+  - Actual provider usage is evidence only and cannot grant authority. Missing/invalid required usage must be explicit and fail closed for additional calls where policy requires verified accounting.
+  - Resource exhaustion or unverified accounting yields INCOMPLETE/unavailable AI analysis, never fallback success.
+  - Replay conflict, duplicate accounting, negative/overflow values, clock regression, or impossible usage fails closed.
+  - Resource accounting must not include credentials, raw authorization headers, hidden reasoning, or secret material.
+  - PAPER orders/fills, deterministic Risk Governor, strategy promotion, P0/HALT/kill switch, production mutation, and LIVE authority remain unchanged.
+  - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
+implementation:
+  - define provider-neutral AiInferenceBudgetPolicy, AiInferenceResourceUsage, AiInferenceResourceSnapshot, and explicit resource failure semantics
+  - introduce deterministic per-orchestration resource ledger with reserve/start/complete/fail transitions
+  - include immutable budget policy identity in orchestration replay/input hash
+  - calculate and bound canonical model-input bytes before provider invocation
+  - reserve model call, attempt, and declared maximum output tokens before each attempt starts
+  - make AgentExecutor retry attempts consume the shared ledger rather than a private unaccounted retry loop
+  - record measured per-attempt latency and provider-reported token usage without exposing secrets
+  - prevent all later provider calls after EXHAUSTED or required-accounting UNVERIFIED state
+  - surface read-only resource health/budget/usage in AiOrchestrationResult and AiReadOnlyProjection
+  - preserve zero-authority failure results and existing calibration behavior
+  - add adversarial tests for retry exhaustion, token reservation exhaustion, input-byte exhaustion, wall-clock exhaustion, malformed/missing usage, replay conflicts, clock regression, and integer overflow
+acceptance_criteria:
+  - every configured AI orchestration has a versioned immutable resource budget or fails closed before inference
+  - each provider invocation is preceded by an auditable reservation that fits the remaining budget
+  - four-role orchestration cannot exceed configured maximum model-call count or total attempt count
+  - retries consume the same shared budget and cannot start after exhaustion
+  - cumulative declared output-token reservation cannot exceed policy ceiling
+  - canonical model-input/evidence bytes cannot exceed policy ceiling
+  - orchestration cannot start a later call after the wall-clock budget is exhausted
+  - valid provider input/output/total token usage is retained as read-only evidence when available
+  - malformed negative non-integer overflow or internally inconsistent token usage fails closed
+  - required usage missing under verified-accounting policy makes resource health UNVERIFIED and prevents further calls
+  - duplicate deterministic replay is idempotent and conflicting replay fails closed
+  - result/projection clearly separates model probability/calibration from resource health and usage
+  - no provider/broker credential authorization header raw prompt hidden reasoning or secret material is stored in resource evidence
+  - existing grounded evidence prompt identity calibration durability and zero-authority tests remain PASS
+  - resource exhaustion cannot alter PAPER orders/fills strategy promotion risk limits P0 HALT kill switch or LIVE authority
+  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
+  - implementation PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - synthetic resource evidence presented as external/LIVE authorization
+    - hidden chain-of-thought
+    - provider or broker credential material
+    - real order cancel transfer or withdrawal
+planning_gate:
+  status: IN_PROGRESS
+  pull_request: 360
+  base_commit: 66ca62fed422bd7186cbb5d589a8810dc2b83260
+next: >-
+  Review and merge planning PR #360 containing the read-only audit, ADR-0009, and WO-AI-006 definition.
+  Only after that planning gate is merged should a fresh implementation branch be created from then-current protected main.
