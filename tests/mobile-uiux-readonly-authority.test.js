@@ -6,14 +6,16 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-001 keeps the five-tab foundation while presenting Korean primary navigation", () => {
+test("UIUX-002 preserves stable five-tab keys while presenting the product navigation", () => {
   const app = read("App.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\] as const/);
   assert.match(app, /Home: "홈"/);
   assert.match(app, /Markets: "시장"/);
-  assert.match(app, /Trade: "거래"/);
+  assert.match(app, /Trade: "PAPER"/);
   assert.match(app, /Portfolio: "자산"/);
-  assert.match(app, /More: "더보기"/);
+  assert.match(app, /More: "AI"/);
+  assert.match(app, /activeTab === "More" \? <AiView/);
+  assert.doesNotMatch(app, /<MoreView/);
 });
 
 test("mobile intelligence shell displays real AI projection and truthful authority state", () => {
@@ -30,16 +32,19 @@ test("mobile intelligence shell displays real AI projection and truthful authori
   assert.doesNotMatch(app, /94%/);
 });
 
-test("read-only Trade surface does not present an executable order call to action", () => {
+test("read-only PAPER surface hides executable order controls when App has no submit wiring", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /const readOnly = onSubmit === undefined/);
-  assert.match(trading, /disabled label="매수 미리보기"/);
-  assert.match(trading, /disabled label="매도 미리보기"/);
-  assert.match(trading, /읽기 전용 — 주문 권한 없음/);
-  assert.match(trading, /주문을 생성하거나 수정하지 않습니다|주문을 생성하지 않습니다|주문은 생성되지 않습니다/);
+  assert.match(trading, /StatusChip label=\{readOnly \? "주문 권한 없음" : "PAPER 입력"\}/);
+  assert.match(trading, /testID="trading-readonly-state"/);
+  assert.match(trading, /현재 App wiring에는 주문 제출 callback이 없습니다/);
+  assert.match(trading, /<DataRow label="주문 제출" value="연결 안 됨" tone="success" \/>/);
+  assert.match(trading, /<DataRow label="서버 mutation" value="불가" tone="success" \/>/);
+  assert.match(trading, /\{readOnly \? <>[\s\S]*testID="trading-readonly-state"[\s\S]*<\/\> : <>[\s\S]*testID="trading-buy"/);
+  assert.doesNotMatch(trading, /disabled label="매수 미리보기"|disabled label="매도 미리보기"/);
 });
 
 test("dashboard credential flow remains memory-only and independently connected", () => {
