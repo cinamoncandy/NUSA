@@ -25,7 +25,7 @@ function analyzeRepository(root = process.cwd()) {
       }
       edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
     }
-    if (source.startsWith("packages/core/")) {
+    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/")) {
       for (const specifier of parseImportExpressions(sourceText)) {
         if (!specifier.startsWith(".")) continue;
         const target = resolveLocal(file, specifier, nodes, root);
@@ -63,11 +63,17 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
       findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
     }
+    if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
+      findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
+    }
   }
 
   for (const edge of boundaryReferences) {
-    if (edge.target.startsWith("packages/aipos/")) {
+    if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
       findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
+    }
+    if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
+      findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
   }
 
