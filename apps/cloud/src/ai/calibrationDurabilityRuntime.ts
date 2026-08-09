@@ -114,6 +114,15 @@ export class CalibrationDurabilityRuntime {
     try {
       if (!Number.isSafeInteger(recoveryNow) || recoveryNow <= 0) throw new Error("calibration recovery time is invalid");
       let replay = this.store.replay();
+      const predictionsById = new Map(replay.predictions.map((prediction) => [prediction.predictionId, prediction] as const));
+      for (const expiry of replay.expiredPending) {
+        const prediction = predictionsById.get(expiry.predictionId);
+        if (prediction == null) throw new Error("durable calibration expiry prediction is missing");
+        if (expiry.predictionContentHash.toLowerCase() !== prediction.contentHash.toLowerCase()) throw new Error("durable calibration expiry linkage mismatch");
+        if (!Number.isSafeInteger(expiry.expiredAt) || expiry.expiredAt <= safeLatestAllowed(prediction, this.graceMs)) {
+          throw new Error("durable calibration expiry chronology is invalid");
+        }
+      }
       for (const prediction of replay.predictions) this.ledger.appendPrediction(prediction);
       for (const outcome of replay.outcomes) this.ledger.appendOutcome(outcome);
 
