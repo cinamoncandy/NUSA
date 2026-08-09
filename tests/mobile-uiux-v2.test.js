@@ -33,19 +33,24 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
 
 test("Markets does not expose an interactive chart path without candle data", () => {
   const source = read("src/marketsView.tsx");
+  const app = read("App.tsx");
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
+  assert.match(source, /if \(!chartAvailable && panel === "CHART"\) setPanel\("WATCHLIST"\)/);
   assert.match(source, /if \(!chartAvailable\)/);
   assert.match(source, /<WatchlistView/);
   assert.match(source, /panel === "CHART"/);
+  assert.match(app, /rawCandles=\{null\}/);
 });
 
 test("read-only PAPER path removes fake order controls while retaining explicit authority copy", () => {
   const source = read("src/tradingView.tsx");
   assert.match(source, /const readOnly = onSubmit === undefined/);
   assert.match(source, /trading-readonly-state/);
-  assert.match(source, /주문 입력 비활성/);
-  assert.match(source, /매수\/매도 요청을 서버로 전송할 수 없습니다/);
-  assert.match(source, /현재 App wiring에는 주문 제출 callback이 없습니다/);
+  assert.match(source, /PAPER 관찰 모드/);
+  assert.match(source, /ZERO MUTATION/);
+  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
+  assert.match(source, /주문 생성/);
+  assert.match(source, /현재 권한/);
   assert.doesNotMatch(source, /매수 미리보기|매도 미리보기/);
 });
 
