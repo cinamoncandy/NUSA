@@ -1,4 +1,4 @@
-import { aiSha256, type AiCalibrationOutcome, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
+import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
 import { createModelProviderFromEnvironment } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
 import { createVerifiedRuntimeCalibrationPrediction } from "./calibrationBridge";
@@ -17,7 +17,6 @@ export interface CloudAiRuntime {
   latestProjection(now?: number): AiReadOnlyProjection | null;
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
-  recordCalibrationOutcome(outcome: AiCalibrationOutcome): AiCalibrationOutcome;
   isInFlight(): boolean;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -204,12 +203,6 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return result == null ? null : projectAiReadOnly(result, currentProfile());
   };
 
-  const recordCalibrationOutcome = (outcome: AiCalibrationOutcome): AiCalibrationOutcome => {
-    const stored = calibrationLedger.appendOutcome(outcome);
-    pendingPredictions.delete(stored.predictionId);
-    return stored;
-  };
-
   return Object.freeze({
     enabled,
     orchestrator,
@@ -218,7 +211,6 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     latestProjection,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
-    recordCalibrationOutcome,
     isInFlight: () => inFlight,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
