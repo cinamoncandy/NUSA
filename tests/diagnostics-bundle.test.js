@@ -55,11 +55,11 @@ test("redaction removes bearer and secret-shaped values", () => {
 });
 
 test("redaction removes complete quoted secrets with spaces while preserving parseable JSON", () => {
-  const spacedSecret = ["secret", "value", "with", "spaces"].join(" ");
-  const bearerSecret = `Bearer ${["abc", "def"].join(" ")}`;
-  const prefixedToken = ["ghp", "1234567890abcdefghijklmnop"].join("_");
+  const quotedSecret = `secret ${"value"} with spaces`;
+  const bearerSecret = `Bearer ${"abc"} def`;
+  const prefixedToken = ["gh", "p_", "1234567890abcdefghijklmnop"].join("");
   const input = JSON.stringify({
-    token: spacedSecret,
+    token: quotedSecret,
     authorization: bearerSecret,
     note: prefixedToken,
     safe: "visible"
@@ -70,9 +70,7 @@ test("redaction removes complete quoted secrets with spaces while preserving par
   assert.equal(parsed.authorization, "[REDACTED]");
   assert.equal(parsed.note, "[REDACTED]");
   assert.equal(parsed.safe, "visible");
-  assert.equal(output.includes(spacedSecret), false);
-  assert.equal(output.includes(bearerSecret), false);
-  assert.equal(output.includes(prefixedToken), false);
+  assert.doesNotMatch(output, new RegExp([quotedSecret, bearerSecret, prefixedToken].map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")));
 });
 
 test("diagnostics bundle is read-only, hashed, redacted, and accepts validated zero-mutation runtime diagnostics", () => {

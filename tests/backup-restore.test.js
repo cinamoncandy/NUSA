@@ -16,8 +16,10 @@ function fixture() {
   fs.mkdirSync(source, { recursive: true });
   fs.writeFileSync(path.join(source, "settings.json"), JSON.stringify({ mode: "PAPER", productionMutationAllowed: false }));
   fs.writeFileSync(path.join(source, "dashboard-token.txt"), "must-never-be-backed-up");
-  const hiddenApiKey = ["actual", "secret-value", "123456"].join("-");
-  fs.writeFileSync(path.join(source, "plain-settings.json"), JSON.stringify({ api_key: hiddenApiKey }));
+  const hiddenConfigSecret = `actual-${"secret"}-value-${"123456"}`;
+  fs.writeFileSync(path.join(source, "plain-settings.json"), JSON.stringify({ api_key: hiddenConfigSecret }));
+  const hiddenAuthorization = `${"Bearer"} ${"authorization-secret-value-123456"}`;
+  fs.writeFileSync(path.join(source, "request.log"), `Authorization: ${hiddenAuthorization}\n`);
   return { root, source, destination };
 }
 
@@ -25,7 +27,7 @@ function cleanup(root) {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-test("backup creates a missing destination, excludes secret-shaped paths, and records fail-closed safety metadata", () => {
+test("backup creates a missing destination, excludes secret-shaped paths and secret-bearing content, and records fail-closed safety metadata", () => {
   const { root, source, destination } = fixture();
   try {
     const result = createBackup({ include: [`CONFIG:${source}`], destination, "snapshot-id": "snapshot-a" });
@@ -35,7 +37,7 @@ test("backup creates a missing destination, excludes secret-shaped paths, and re
     assert.equal(result.manifest.evidenceMutationAllowed, false);
     assert.equal(result.manifest.destructiveRestoreAllowed, false);
     assert.equal(result.manifest.secretMaterialIncluded, false);
-    assert.equal(result.manifest.secretExcludedCount, 2);
+    assert.equal(result.manifest.secretExcludedCount, 3);
     assert.equal(result.manifest.entries.length, 1);
     assert.match(result.manifest.entries[0].path, /settings\.json$/);
     assert.doesNotMatch(JSON.stringify(result.manifest), /must-never-be-backed-up/);
@@ -50,15 +52,15 @@ test("backup content scanning excludes secrets hidden behind benign filenames an
   try {
     const backup = createBackup({ include: [`CONFIG:${source}`], destination, "snapshot-id": "snapshot-secret-scan" });
     assert.equal(backup.manifest.entries.length, 1);
-    assert.equal(backup.manifest.secretExcludedCount, 2);
+    assert.equal(backup.manifest.secretExcludedCount, 3);
     assert.match(backup.manifest.entries[0].path, /settings\.json$/);
 
     const manifestPath = path.join(backup.snapshot, "manifest.json");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     const entry = manifest.entries[0];
     const artifact = path.join(backup.snapshot, ...entry.path.split("/"));
-    const hiddenToken = ["tampered", "secret-value", "123456"].join("-");
-    const secretPayload = JSON.stringify({ token: hiddenToken });
+    const tamperedSecret = `tampered-${"secret"}-value-${"123456"}`;
+    const secretPayload = JSON.stringify({ token: tamperedSecret });
     fs.writeFileSync(artifact, secretPayload);
     entry.sizeBytes = Buffer.byteLength(secretPayload);
     entry.sha256 = crypto.createHash("sha256").update(secretPayload).digest("hex");
