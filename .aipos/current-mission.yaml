@@ -1,38 +1,40 @@
-id: WO-AI-004
-title: Outcome-Linked Calibration Engine
+id: WO-0051
+title: Constitutional Production Transition Human/Environment Gate
 branch: main
-pull_request: 256
+pull_request: null
 base_branch: main
-phase: completion
-status: COMPLETE
-source_work_order: .aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml
-objective: "Preserve evidence-verified outcome-linked calibration that separates raw model probability from trusted confidence without granting AI execution, promotion, risk, or LIVE authority."
+phase: human-environment-gate
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-004 outcome calibration as verified zero-authority capability."
 scope:
-  - immutable hash-bound prediction and outcome identity
-  - deterministic append-only calibration observations
-  - weighted expected calibration error and Brier score
-  - provider/model/prompt/outcome cohort isolation
-  - global and reliability-bucket sample sufficiency
-  - verified-runtime automatic market outcome resolution
-  - wrong-market and late-window fail-closed semantics
-  - read-only calibration projection with raw probability separated from calibrated/effective confidence
-  - truthful mobile presentation of raw probability, calibration evidence, and trusted confidence
+  - operator-authorized external read-only preflight only
+  - actual independent human activation ceremony evidence
+  - separate constitutional human decision before any real-money LIVE transition
+  - post-LIVE validation only after a separately authorized tiny session
+  - fresh read-only repository/AI capability audit may select a future safe AI work order, but cannot satisfy or bypass this gate
+latest_verified_slice:
+  id: WO-AI-004
+  status: COMPLETED
+  evidence: .aipos/evidence/WO-AI-004-completion.json
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  aiExecutionAuthority: ZERO_AUTHORITY
-  human_environment_gate: required_for_any_future_real_money_transition
+  automatedCompletion: prohibited
+  syntheticCiCompletion: prohibited
+  chatConsentAsLiveAuthority: prohibited
+  aiLiveAuthority: prohibited
 verification:
   implementation_merge: 799a1c0ea8c5aeecc236b5a84b2096a7251e1351
-  exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
-  ci_run: 31295456484
-  mobile_native_run: 31295456482
-  restricted_live_readonly_workflows: PASS_4_OF_4
-  final_grill: P0_0_P1_0
+  ai004_exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
+  ai004_ci_run: 31295456484
+  ai004_mobile_native_run: 31295456482
+  ai004_restricted_live_readonly_workflows: PASS_4_OF_4
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Run a fresh read-only repository/AI capability audit and select the lowest evidence-based safe dimension before opening any next AI implementation work order; preserve WO-0051 human-only authority gates.
+  - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
+next_recommended_task: Run a fresh read-only repository/AI capability audit before opening any next AI implementation work order; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
