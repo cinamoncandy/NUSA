@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { validateArchitectureSurfaces } = require("../scripts/validate-architecture-surfaces.js");
+const { discoverSurfaceOwners, validateArchitectureSurfaces } = require("../scripts/validate-architecture-surfaces.js");
 
 function write(root, path, content) {
   const absolute = join(root, path);
@@ -62,6 +62,16 @@ test("architecture surface governance rejects authority expansion", () => {
     const result = validateArchitectureSurfaces(root);
     assert.equal(result.ok, false);
     assert.equal(result.failures.includes("ARCH_SURFACE_PRODUCTION_MUTATION_DRIFT:apps/desktop/src/main.ts"), true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("CLI discovery is scoped to the official operator entrypoint", () => {
+  const root = mkdtempSync(join(tmpdir(), "nusa-arch-cli-"));
+  try {
+    write(root, "scripts/nusa.js", "const args = process.argv.slice(2);\n");
+    write(root, "scripts/internal-validator.js", "const args = process.argv.slice(2);\n");
+    const discovered = [...discoverSurfaceOwners(root).keys()].sort();
+    assert.deepEqual(discovered, ["scripts/nusa.js"]);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
