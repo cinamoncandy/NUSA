@@ -35,6 +35,12 @@ test("native bootstrap pins the approved React Native and platform configuration
   assert.match(fs.readFileSync(path.join(mobile, "ios", "NusaMobile.xcodeproj", "project.pbxproj"), "utf8"), /IPHONEOS_DEPLOYMENT_TARGET = 15\.0/);
 });
 
+test("Android release networking fails closed without an unresolved manifest placeholder", () => {
+  const manifest = fs.readFileSync(path.join(mobile, "android", "app", "src", "main", "AndroidManifest.xml"), "utf8");
+  assert.match(manifest, /android:usesCleartextTraffic="false"/);
+  assert.doesNotMatch(manifest, /\$\{usesCleartextTraffic\}/);
+});
+
 test("mobile foundation exposes a Home screen, theme, and five-tab navigation", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /useState<Tab>\("Home"\)/);

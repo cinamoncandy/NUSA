@@ -126,7 +126,9 @@ test("backup refuses symlink sources and release metadata missing checksums or S
   const { root, source, destination } = fixture();
   try {
     const linked = path.join(root, "linked");
-    fs.symlinkSync(source, linked, "dir");
+    // Windows permits directory junctions without requiring Developer Mode; the backup guard
+    // still observes the source as a link and rejects it before copying.
+    fs.symlinkSync(source, linked, "junction");
     assert.throws(() => createBackup({ include: [`CONFIG:${linked}`], destination, "snapshot-id": "snapshot-e" }), /symlink is prohibited/);
 
     const release = path.join(root, "release");

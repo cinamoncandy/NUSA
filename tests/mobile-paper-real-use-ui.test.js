@@ -32,6 +32,26 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
+test("cold start restores the saved endpoint before the first dashboard refresh", () => {
+  const app = read("apps/mobile/App.tsx");
+  const settings = read("apps/mobile/src/settingsView.tsx");
+  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
+  assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
+  assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
+  assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
+  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
+});
+
+test("AI-only authority copy does not override the global PAPER authority banner", () => {
+  const app = read("apps/mobile/App.tsx");
+  const ai = read("apps/mobile/src/aiView.tsx");
+  assert.match(app, /StatusChip label="PAPER ONLY"/);
+  assert.match(app, /StatusChip label="LIVE NONE"/);
+  assert.doesNotMatch(app, /<AuthorityBanner/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /READ ONLY/);
+});
+
 test("verified PAPER connection is shared and invalidated when endpoint or session changes", () => {
   const connection = read("apps/mobile/src/paperConnectionSession.ts");
   const trading = read("apps/mobile/src/tradingView.tsx");

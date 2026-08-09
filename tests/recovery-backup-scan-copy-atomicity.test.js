@@ -45,7 +45,7 @@ test("backup persists the exact bytes that passed the content secret scan", () =
   }
 });
 
-test("backup rejects a regular source swapped to a symlink between lstat and open", () => {
+test("backup rejects a regular source swapped to a symlink between lstat and open", (t) => {
   const root = temporaryRoot("nusa-recovery-symlink-race-");
   const source = path.join(root, "source");
   const destination = path.join(root, "backups");
@@ -61,7 +61,15 @@ test("backup rejects a regular source swapped to a symlink between lstat and ope
     if (!swapped && path.resolve(target) === path.resolve(sourceFile)) {
       swapped = true;
       fs.rmSync(sourceFile);
+    try {
       fs.symlinkSync(outsideFile, sourceFile, "file");
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "EPERM") {
+        t.skip("Windows symlink creation requires Developer Mode or elevated privileges");
+        return;
+      }
+      throw error;
+    }
     }
     return originalOpenSync(target, flags, mode);
   };

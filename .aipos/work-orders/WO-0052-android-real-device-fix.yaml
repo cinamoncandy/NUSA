@@ -1,0 +1,48 @@
+id: WO-0052
+title: "Android Real-device Runtime Recovery"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 189cabe20778a2599c56fc5bf483d36803782a80
+implementation_branch: agent/issue-349-mobile-real-use-freeze
+objective: "Restore and verify the NUSA Android PAPER core flow on a real device without changing LIVE or AI authority boundaries."
+source_of_truth:
+  architecture:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+  issue: https://github.com/cinamoncandy/NUSA/issues/349
+  pull_request: https://github.com/cinamoncandy/NUSA/pull/371
+architecture_impact:
+  acknowledged: true
+  analysis: "The slice restores the persisted non-secret PAPER endpoint before dashboard refresh, scopes AI authority messaging to AI, removes an unresolved Android cleartext manifest placeholder, and preserves explicit PAPER order confirmation with no LIVE authority."
+  references:
+    - apps/mobile/App.tsx
+    - apps/mobile/src/settingsView.tsx
+    - apps/mobile/src/paperConnectionSession.ts
+    - apps/mobile/src/personalPaperOrderClient.ts
+    - apps/mobile/android/app/src/main/AndroidManifest.xml
+requirements:
+  - "Cold start and relaunch must not lose the persisted non-secret endpoint binding."
+  - "Credential and endpoint verification remain process-local and are never restored from storage."
+  - "PAPER order preview, confirmation, submit, result, and retry remain explicit and fail closed."
+  - "Home, Markets, Portfolio, and AI remain reachable without fake data or fabricated prices."
+  - "Android release networking must use an explicit cleartext-disabled manifest value."
+  - "Real-device debug and release APK smoke evidence is required before completion."
+acceptance:
+  - "Focused mobile lifecycle regressions PASS."
+  - "Full isolated suite, typecheck, lint, build, coverage, security, and architecture gates PASS."
+  - "Mobile Native Android debug/release and foundation smoke PASS."
+  - "Physical Android device cold-start, relaunch, navigation, PAPER flow, Portfolio, AI, and release reinstall PASS."
+  - "P0/P1 runtime errors are zero and no LIVE mutation authority is introduced."
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  paper_mode_only: true
+  credential_persistence: prohibited
+  fake_operational_data: prohibited
+  automatic_live_activation: prohibited
+  real_order_execution: prohibited
+completion_rule: "Merge is prohibited until physical Android evidence and required exact-head CI are both present."

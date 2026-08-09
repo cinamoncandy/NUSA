@@ -5,7 +5,7 @@ import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
-import { clearPaperConnectionVerification, isPaperConnectionVerified, markPaperConnectionVerified } from "./paperConnectionSession";
+import { clearPaperConnectionVerification, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; }
 const themes: readonly ThemeSetting[] = ["SYSTEM", "LIGHT", "DARK"];
@@ -27,6 +27,7 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     void repository.load().then(async (loaded) => {
       if (!active) return;
       const next = loaded ?? DEFAULT_SETTINGS;
+      setConfiguredPaperEndpoint(next.paperEndpoint);
       setSettings(next);
       setEndpointDraft(next.paperEndpoint);
       setMode(themePreference(next.theme));
@@ -39,7 +40,7 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     return () => { active = false; };
   }, [credentialSession, repository, setMode]);
 
-  const persist = async (next: AppSettings): Promise<boolean> => { setSaving(true); try { const normalized = normalizeSettings(next); await repository.save(normalized); setSettings(normalized); setEndpointDraft(normalized.paperEndpoint); setError(null); return true; } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; } finally { setSaving(false); } };
+  const persist = async (next: AppSettings): Promise<boolean> => { setSaving(true); try { const normalized = normalizeSettings(next); await repository.save(normalized); setConfiguredPaperEndpoint(normalized.paperEndpoint); setSettings(normalized); setEndpointDraft(normalized.paperEndpoint); setError(null); return true; } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; } finally { setSaving(false); } };
   const updateTheme = (next: ThemeSetting) => { if (!settings) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
   const saveEndpoint = async (): Promise<boolean> => settings == null ? false : persist({ ...settings, paperEndpoint: endpointDraft });
   const testConnection = async () => {

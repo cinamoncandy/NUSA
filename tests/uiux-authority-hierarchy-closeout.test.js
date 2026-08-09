@@ -28,15 +28,18 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.match(ai, /DataRow label="킬 스위치"/);
 });
 
-test("read-only PAPER uses one zero-mutation card without repeated lock diagnostics", () => {
+test("PAPER order UI stays explicit and bounded without an AI authority banner", () => {
   const trading = read("tradingView.tsx");
 
-  assert.equal(occurrences(trading, "ZERO MUTATION"), 1);
+  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label="LIVE 금지"/);
   assert.doesNotMatch(trading, /<AuthorityBanner/);
-  assert.match(trading, /testID="trading-readonly-state"/);
-  assert.match(trading, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
-  assert.match(trading, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
-  assert.doesNotMatch(trading, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
+  assert.match(trading, /PAPER 주문 미리보기/);
+  assert.match(trading, /PAPER 주문 확인/);
+  assert.match(trading, /PAPER 주문 확정/);
+  assert.match(trading, /PersonalPaperOrderRetryIdentity/);
+  assert.match(trading, /productionMutationAllowed: false/);
+  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
 });
 
 test("authority hierarchy closeout does not add mutation authority", () => {
@@ -44,6 +47,8 @@ test("authority hierarchy closeout does not add mutation authority", () => {
   const trading = read("tradingView.tsx");
 
   assert.doesNotMatch(ai, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
-  assert.match(trading, /const readOnly = onSubmit === undefined/);
-  assert.match(trading, /submitAvailable: onSubmit !== undefined/);
+  assert.match(trading, /const builtInSubmitAvailable = Boolean\(/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(trading, /authority: "PAPER_ONLY"/);
+  assert.match(trading, /productionMutationAllowed: false/);
 });

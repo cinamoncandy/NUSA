@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T18:36:16+09:00"
-phase: human-environment-gate
+updated_at: "2026-08-09T19:20:00+09:00"
+phase: mobile-real-device-fix
 status: ready
-objective: "Preserve verified WO-AI-005 durable calibration while keeping WO-0051 at the constitutional human/environment boundary; run fresh read-only audits before any future safe AI slice."
+objective: "Restore and verify the Android PAPER core flow on a real device while preserving the constitutional human/environment and LIVE safety boundaries."
 base_branch: main
-active_branch: main
-active_pull_request: null
-base_commit: b4303b928e8d64417f3c07334ed3900ea3075046
+active_branch: agent/issue-349-mobile-real-use-freeze
+active_pull_request: 371
+base_commit: 189cabe20778a2599c56fc5bf483d36803782a80
 claimed_state:
-  work_order: WO-0051
-  status: IN_PROGRESS
+  work_order: WO-0052
+  status: VERIFYING
 verified_state:
   work_order: WO-AI-005
   status: COMPLETED
@@ -42,10 +42,12 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+  - id: WO-0052
+    evidence: ".aipos/work-orders/WO-0052-android-real-device-fix.yaml"
+    summary: "Android PAPER runtime fixes are locally and CI verified; physical device and release reinstall evidence remain required."
 blocked:
+  - "PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED"
+  - "PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION"
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
   - "SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE"
@@ -55,8 +57,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-005 is evidence-verified complete. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
+  work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
+  reason: "Install the release APK on a physical Android device, collect logcat/runtime evidence, and execute the full Issue #349 core flow before merge."
 verification:
   required:
     - "Fresh repository/AI capability audit before opening the next AI implementation work order"
@@ -68,7 +70,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-005 planning PR #345 merged at fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2; canonical implementation PR #354 merged at b4303b928e8d64417f3c07334ed3900ea3075046 after exact-head b03dd50c01dd789a3023217c018c53fc53a42ea8 CI 31306050500 PASS, Full isolated/Coverage PASS, and all four Restricted LIVE/read-only workflows PASS."
-  current_commit: "b4303b928e8d64417f3c07334ed3900ea3075046 contains the verified WO-AI-005 implementation with zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
+  current_commit: "e94d21a0d6052beb37228703bdbb3e97bc53a6f9 is the exact PR #371 head before the Android runtime fix commit; physical-device evidence is still pending."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
