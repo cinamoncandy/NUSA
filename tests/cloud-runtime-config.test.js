@@ -2,15 +2,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { readCloudRuntimeConfig, createSharedSecretTokenVerifier } = require("../dist/apps/cloud/src/cloudRuntimeConfig.js");
 
+const SECRET = "x".repeat(32);
 const VALID_ENV = Object.freeze({
   NUSA_CLOUD_DASHBOARD_PORT: "41799",
-  NUSA_CLOUD_DASHBOARD_TOKEN: "a-real-secret"
+  NUSA_CLOUD_DASHBOARD_TOKEN: SECRET
 });
 
 test("a complete, valid environment produces a config", () => {
   const config = readCloudRuntimeConfig(VALID_ENV);
   assert.equal(config.port, 41799);
-  assert.equal(config.dashboardToken, "a-real-secret");
+  assert.equal(config.dashboardToken, SECRET);
   assert.equal("host" in config, false, "host must be omitted, not defaulted here -- server.ts owns that default");
   assert.deepEqual([...config.upbitMarkets], ["KRW-BTC", "KRW-ETH"]);
   assert.equal(config.upbitPublicDataEnabled, false);
@@ -32,9 +33,10 @@ test("paper initial capital is opt-in and validated", () => {
   }
 });
 
-test("an explicit host is passed through", () => {
-  const config = readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_HOST: "0.0.0.0" });
-  assert.equal(config.host, "0.0.0.0");
+test("an explicit host is localhost-only", () => {
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1" }).host, "127.0.0.1");
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_HOST: "localhost" }).host, "localhost");
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_HOST: "0.0.0.0" }), /must be 127\.0\.0\.1 or localhost/);
 });
 
 test("a missing port fails closed", () => {
@@ -57,33 +59,36 @@ test("a missing token fails closed -- no default accepts any token", () => {
   assert.throws(() => readCloudRuntimeConfig(rest), /NUSA_CLOUD_DASHBOARD_TOKEN is required/);
 });
 
-test("an empty-string token fails closed", () => {
-  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "   " }), /NUSA_CLOUD_DASHBOARD_TOKEN is required/);
+test("a short or empty token fails closed", () => {
+  for (const bad of ["   ", "short-secret", "한글짧음"]) {
+    assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: bad }), /at least 32 UTF-8 bytes/);
+  }
 });
 
 test("the shared-secret verifier accepts only the exact configured token", () => {
-  const verifier = createSharedSecretTokenVerifier("correct-secret");
-  const principal = verifier.verify("correct-secret");
+  const verifier = createSharedSecretTokenVerifier(SECRET);
+  const principal = verifier.verify(SECRET);
   assert.ok(principal);
   assert.equal(principal.userId, "operator");
   assert.deepEqual([...principal.scopes], ["dashboard:read"]);
 });
 
 test("the shared-secret verifier rejects a wrong token, a prefix, and a suffix", () => {
-  const verifier = createSharedSecretTokenVerifier("correct-secret");
-  assert.equal(verifier.verify("wrong-secret"), undefined);
-  assert.equal(verifier.verify("correct-secre"), undefined);
-  assert.equal(verifier.verify("correct-secretX"), undefined);
+  const verifier = createSharedSecretTokenVerifier(SECRET);
+  assert.equal(verifier.verify("y".repeat(32)), undefined);
+  assert.equal(verifier.verify(SECRET.slice(0, -1)), undefined);
+  assert.equal(verifier.verify(`${SECRET}X`), undefined);
 });
 
 test("the shared-secret verifier rejects an empty or non-string token without throwing", () => {
-  const verifier = createSharedSecretTokenVerifier("correct-secret");
+  const verifier = createSharedSecretTokenVerifier(SECRET);
   assert.equal(verifier.verify(""), undefined);
   assert.doesNotThrow(() => verifier.verify(undefined));
   assert.equal(verifier.verify(undefined), undefined);
 });
 
-test("constructing a verifier with an empty shared secret is refused, not silently permissive", () => {
-  assert.throws(() => createSharedSecretTokenVerifier(""), /shared secret must not be empty/);
-  assert.throws(() => createSharedSecretTokenVerifier("   "), /shared secret must not be empty/);
+test("constructing a verifier with a short shared secret is refused", () => {
+  for (const bad of ["", "   ", "correct-secret"]) {
+    assert.throws(() => createSharedSecretTokenVerifier(bad), /at least 32 UTF-8 bytes/);
+  }
 });
