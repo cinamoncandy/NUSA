@@ -25,7 +25,7 @@ function analyzeRepository(root = process.cwd()) {
       }
       edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
     }
-    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/")) {
+    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/") || isMobilePresentationSource(source)) {
       for (const specifier of parseImportExpressions(sourceText)) {
         if (!specifier.startsWith(".")) continue;
         const target = resolveLocal(file, specifier, nodes, root);
@@ -66,6 +66,9 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
+    if (isMobilePresentationSource(edge.source) && /^(apps|packages)\//.test(edge.target) && !edge.target.startsWith("apps/mobile/")) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation must consume mobile-local application/view-model modules instead of package or cross-app implementations."));
+    }
   }
 
   for (const edge of boundaryReferences) {
@@ -74,6 +77,9 @@ function analyzeRepository(root = process.cwd()) {
     }
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
+    }
+    if (isMobilePresentationSource(edge.source) && /^(apps|packages)\//.test(edge.target) && !edge.target.startsWith("apps/mobile/")) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation must consume mobile-local application/view-model modules instead of package or cross-app implementations."));
     }
   }
 
@@ -136,6 +142,10 @@ function resolveLocal(file, specifier, nodes, root) {
   const base = resolve(dirname(file), specifier);
   const candidates = [base, ...[".ts", ".tsx", ".js", ".mjs", ".json"].map((extension) => `${base}${extension}`), ...[".ts", ".tsx", ".js", ".mjs", ".json"].map((extension) => join(base, `index${extension}`))];
   return candidates.map((candidate) => relative(root, candidate).replaceAll("\\", "/")).find((candidate) => nodes.has(candidate));
+}
+
+function isMobilePresentationSource(file) {
+  return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
 }
 
 function layerOf(file) {
@@ -221,4 +231,4 @@ if (require.main === module) {
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions };
+module.exports = { analyzeRepository, isMobilePresentationSource, layerOf, parseImports, parseImportExpressions };
