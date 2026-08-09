@@ -11,6 +11,7 @@ const {
 
 const ENDPOINT = "https://paper-read-guard.example.test";
 const SESSION_FIXTURE = ["paper", "read", "guard", "dashboard", "fixture", "123456"].join("-");
+const ROTATED_SESSION_FIXTURE = ["paper", "read", "guard", "rotated", "fixture", "654321"].join("-");
 
 function setup() {
   clearConfiguredPaperEndpoint();
@@ -69,6 +70,31 @@ test("credential-bearing PAPER read rejects a changed final endpoint", async () 
     });
     assert.equal(result.status, "UNAVAILABLE");
     assert.match(result.reason, /final endpoint changed/i);
+  } finally { cleanup(session); }
+});
+
+test("PAPER read discards a response if the credential rotates while the request is in flight", async () => {
+  const session = setup();
+  try {
+    const result = await loadPersonalPaperOperations({
+      baseUrl: ENDPOINT,
+      credentialProvider: session.credentialProvider,
+      request: async (_url, init) => {
+        assert.equal(init?.headers?.authorization, `Bearer ${SESSION_FIXTURE}`);
+        return {
+          ok: true,
+          status: 200,
+          redirected: false,
+          url: `${ENDPOINT}/api/paper-operations`,
+          json: async () => {
+            session.connect(ROTATED_SESSION_FIXTURE);
+            return {};
+          }
+        };
+      }
+    });
+    assert.equal(result.status, "UNAVAILABLE");
+    assert.match(result.reason, /connection changed while the request was in flight/i);
   } finally { cleanup(session); }
 });
 
