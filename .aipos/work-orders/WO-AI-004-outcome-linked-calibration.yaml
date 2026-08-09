@@ -1,0 +1,86 @@
+id: WO-AI-004
+title: Outcome-Linked Calibration Engine
+status: IN_PROGRESS
+priority: P1
+branch: agent/ai-004-outcome-calibration-plan-v2
+base_branch: main
+implementation_branch: agent/ai-004-outcome-calibration-plan-v2
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds deterministic outcome-linked confidence calibration below the existing grounded real-provider challenger while preserving zero-authority PAPER/safety boundaries."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0005-grounded-trustworthy-ai-runtime.md
+    - .aipos/decisions/ADR-0006-real-provider-challenger-runtime.md
+    - .aipos/decisions/ADR-0007-outcome-linked-ai-calibration.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Bind probabilistic AI predictions to verified resolved outcomes and compute deterministic,
+  cohort-specific calibration metrics so NUSA can distinguish raw model self-confidence from
+  empirically supported confidence without granting AI any execution, promotion, or risk authority.
+constraints:
+  - Raw model probability is untrusted metadata until minimum verified outcome samples exist for the exact provider/model/prompt/outcome cohort.
+  - Prediction identity must bind provider, model, prompt artifact digest, orchestration/proposal identity, outcome definition, horizon, timestamp, and probability.
+  - Outcome identity must bind the exact prediction and outcome definition and must resolve only after valid temporal/horizon rules.
+  - Synthetic fixtures may test calibration behavior but must never be represented as real runtime calibration evidence.
+  - Missing, stale, mismatched, tampered, duplicate-conflicting, prematurely resolved, or unverified outcomes fail closed.
+  - Calibration cohorts may not mix provider/model/prompt/outcome-definition versions.
+  - Before sufficient samples, trusted confidence remains unavailable or zero and status must explicitly indicate insufficient data.
+  - Degraded calibration may never increase confidence.
+  - No automatic provider/model weighting, Champion promotion, strategy mutation/deployment, risk-limit change, LIVE execution, production mutation, or safety-control release.
+  - WO-0051 remains human/environment gated and cannot be satisfied by this work.
+implementation:
+  - define hash-bound prediction, outcome, cohort, reliability-bucket, and calibration-profile contracts
+  - add deterministic append-only calibration observation/ledger semantics with idempotent replay and conflicting-duplicate rejection
+  - add bounded raw proposer probability to strict structured output and validate it in role schema/governance
+  - compute weighted expected calibration error and Brier score from verified resolved outcomes
+  - stratify profiles by provider/model/prompt/outcome definition and expose sample sufficiency explicitly
+  - project raw probability separately from calibrated/effective confidence
+  - keep calibrated/effective confidence unavailable or zero until minimum sample and health gates pass
+  - expose read-only sample count, ECE, Brier score, calibration status, and cohort/version metadata
+  - add adversarial calibration tests and prove no PAPER/LIVE authority change
+acceptance_criteria:
+  - invalid, NaN, infinite, or out-of-range probabilities are rejected
+  - prediction hash binds all required identity fields and detects tampering
+  - outcome hash binds exact prediction/outcome identity and detects tampering
+  - outcome timestamp cannot precede the prediction or violate configured resolution horizon
+  - exact duplicate prediction/outcome replay is idempotent while conflicting duplicate data is rejected
+  - cohort mixing across provider, model, prompt digest, or outcome definition is rejected or separately partitioned
+  - reliability bucket boundaries are deterministic and include probabilities at 0 and 1 correctly
+  - weighted ECE is computed from bucket frequency and Brier score is computed as mean squared probability error
+  - minimum verified sample threshold yields `INSUFFICIENT_DATA` below threshold
+  - insufficient or degraded calibration cannot increase trusted/effective confidence
+  - raw model probability remains clearly distinct from calibrated/effective confidence
+  - read-only projection exposes calibration metadata without mutation capability
+  - synthetic tests cannot satisfy real-runtime observation provenance rules
+  - calibration cannot change PAPER orders, fills, risk state, P0 state, HALT, kill switch, strategy promotion, or LIVE authority
+  - exact-head focused calibration/AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native when triggered, and all Restricted LIVE/read-only workflows pass
+  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - synthetic outcome presented as actual calibration observation
+    - hidden chain-of-thought
+    - broker credential
+    - real order, cancel, transfer, or withdrawal
+    - synthetic evidence presented as LIVE authorization
+next: >-
+  After outcome-linked calibration is evidence-verified and sufficient real challenger observations
+  exist, run a fresh AI capability audit. Prefer explanation quality, cost/latency optimization,
+  independent provider diversity, world-model/scenario reasoning, or memory attribution according
+  to the lowest evidence-based safe score; do not increase authority.
