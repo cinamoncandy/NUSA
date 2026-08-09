@@ -1,4 +1,8 @@
-import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
+import fs from "node:fs";
+import path from "node:path";
+import { aiSha256, type AiCalibrationOutcome, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
+import { SqliteDatabase } from "../../../../packages/storage/src/index";
+import { SqliteAiCalibrationStore, type AiCalibrationDurableSnapshot } from "../../../../packages/storage/src/aiCalibrationStore";
 import { createModelProviderFromEnvironment } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
 import { createVerifiedRuntimeCalibrationPrediction } from "./calibrationBridge";
@@ -31,11 +35,19 @@ export interface CloudAiCalibrationOptions {
   readonly policy?: CalibrationPolicy;
 }
 
+export interface CloudAiCalibrationPersistence {
+  recover(): AiCalibrationDurableSnapshot;
+  recordPrediction(prediction: AiCalibrationPrediction): void;
+  recordOutcome(outcome: AiCalibrationOutcome): void;
+  expirePrediction(prediction: AiCalibrationPrediction): void;
+}
+
 export interface CloudAiRuntimeOptions {
   readonly now?: () => number;
   readonly minimumCadenceMs?: number;
   readonly maximumResultAgeMs?: number;
   readonly calibration?: CloudAiCalibrationOptions;
+  readonly calibrationPersistence?: CloudAiCalibrationPersistence;
 }
 
 interface VerifiedMarketAnchor {
@@ -47,6 +59,11 @@ interface VerifiedMarketAnchor {
 
 interface PendingPrediction {
   readonly prediction: AiCalibrationPrediction;
+}
+
+interface PersistenceResolution {
+  readonly persistence?: CloudAiCalibrationPersistence;
+  readonly healthy: boolean;
 }
 
 const DEFAULT_CALIBRATION: CloudAiCalibrationOptions = Object.freeze({
@@ -104,35 +121,97 @@ function supportsAutomaticResolution(calibration: CloudAiCalibrationOptions): bo
     && calibration.horizonMs === AI_CALIBRATION_HORIZON_MS;
 }
 
+function environmentPersistence(env: NodeJS.ProcessEnv, enabled: boolean): PersistenceResolution {
+  if (!enabled) return Object.freeze({ healthy: true });
+  const configured = env.NUSA_CLOUD_STATE_DB_PATH?.trim();
+  if (!configured || configured === ":memory:") return Object.freeze({ healthy: true });
+  try {
+    const absolute = path.resolve(configured);
+    const sourceRoot = path.resolve(process.cwd());
+    const sourceTree = sourceRoot + path.sep;
+    if (absolute === sourceRoot || absolute.startsWith(sourceTree)) throw new Error("AI calibration database must not be inside the source tree");
+    fs.mkdirSync(path.dirname(absolute), { recursive: true });
+    const database = new SqliteDatabase(absolute);
+    return Object.freeze({ persistence: new SqliteAiCalibrationStore(database), healthy: true });
+  } catch {
+    return Object.freeze({ healthy: false });
+  }
+}
+
+function newestPrediction(predictions: readonly AiCalibrationPrediction[]): AiCalibrationPrediction | null {
+  let newest: AiCalibrationPrediction | null = null;
+  for (const prediction of predictions) {
+    if (newest == null || prediction.predictedAt > newest.predictedAt || (prediction.predictedAt === newest.predictedAt && prediction.predictionId > newest.predictionId)) newest = prediction;
+  }
+  return newest;
+}
+
 export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provider: ModelProvider = createModelProviderFromEnvironment(env), options: CloudAiRuntimeOptions = {}): CloudAiRuntime {
   const enabled = env.NUSA_AI_ENABLED?.trim().toLowerCase() === "true";
   const now = options.now ?? Date.now;
   const minimumCadenceMs = duration(options.minimumCadenceMs, 30_000, "AI minimum cadence");
   const maximumResultAgeMs = duration(options.maximumResultAgeMs, 120_000, "AI maximum result age");
   const calibration = calibrationOptions(options.calibration);
+  const resolvedPersistence = options.calibrationPersistence == null ? environmentPersistence(env, enabled) : Object.freeze({ persistence: options.calibrationPersistence, healthy: true });
+  const calibrationPersistence = resolvedPersistence.persistence;
   const calibrationLedger = new OutcomeCalibrationLedger();
   const orchestrator = new MultiAgentOrchestrator(provider, { enabled });
   const pendingPredictions = new Map<string, PendingPrediction>();
+  let calibrationHealthy = resolvedPersistence.healthy;
   let inFlight = false;
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
   let latestPrediction: AiCalibrationPrediction | null = null;
 
+  const failCalibration = (): void => {
+    calibrationHealthy = false;
+    pendingPredictions.clear();
+  };
+
+  const recoverCalibration = (): void => {
+    if (calibrationPersistence == null || !calibrationHealthy) return;
+    try {
+      const snapshot = calibrationPersistence.recover();
+      for (const prediction of snapshot.predictions) calibrationLedger.appendPrediction(prediction);
+      for (const outcome of snapshot.outcomes) calibrationLedger.appendOutcome(outcome);
+      latestPrediction = newestPrediction(snapshot.predictions);
+      const recoveryNow = now();
+      if (!Number.isSafeInteger(recoveryNow) || recoveryNow <= 0) throw new Error("AI calibration recovery clock is invalid");
+      const predictions = new Map(snapshot.predictions.map((prediction) => [prediction.predictionId, prediction] as const));
+      const outcomes = new Set(snapshot.outcomes.map((outcome) => outcome.predictionId));
+      for (const pending of snapshot.pending) {
+        const prediction = predictions.get(pending.predictionId);
+        if (prediction == null || prediction.contentHash !== pending.predictionContentHash || outcomes.has(pending.predictionId)) throw new Error("AI calibration durable pending linkage is invalid");
+        if (supportsAutomaticResolution(calibration) && recoveryNow > prediction.predictedAt + prediction.horizonMs + AI_CALIBRATION_RESOLUTION_GRACE_MS) {
+          calibrationPersistence.expirePrediction(prediction);
+          continue;
+        }
+        pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction }));
+      }
+    } catch {
+      latestPrediction = null;
+      failCalibration();
+    }
+  };
+
+  recoverCalibration();
+
   const resolvePending = (anchor: VerifiedMarketAnchor | null): void => {
-    if (anchor == null || !supportsAutomaticResolution(calibration)) return;
+    if (anchor == null || !supportsAutomaticResolution(calibration) || !calibrationHealthy) return;
     for (const [predictionId, pending] of pendingPredictions) {
       const prediction = pending.prediction;
       if (prediction.targetId !== anchor.targetId) continue;
       const dueAt = prediction.predictedAt + prediction.horizonMs;
-      // Only a verified ticker for the prediction's own market can resolve or expire its audited window.
       if (anchor.observedAt > dueAt + AI_CALIBRATION_RESOLUTION_GRACE_MS) {
+        try { calibrationPersistence?.expirePrediction(prediction); }
+        catch { failCalibration(); return; }
         pendingPredictions.delete(predictionId);
         continue;
       }
       if (anchor.observedAt < dueAt) continue;
       try {
-        calibrationLedger.appendOutcome(createCalibrationOutcome({
+        const outcome = calibrationLedger.appendOutcome(createCalibrationOutcome({
           predictionId: prediction.predictionId,
           predictionContentHash: prediction.contentHash,
           outcomeDefinitionId: prediction.outcomeDefinitionId,
@@ -143,9 +222,11 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
           evidenceReferences: [anchor.evidenceReference],
           provenance: "VERIFIED_RUNTIME"
         }));
+        calibrationPersistence?.recordOutcome(outcome);
         pendingPredictions.delete(predictionId);
       } catch {
-        // Calibration is advisory-only. A malformed or conflicting outcome stays unresolved and cannot gain confidence.
+        if (calibrationPersistence != null) failCalibration();
+        // Calibration is advisory-only. A malformed/conflicting durable outcome can never gain confidence.
       }
     }
   };
@@ -175,7 +256,11 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
               anchorObservedAt: anchor.observedAt,
               anchorEvidenceReference: anchor.evidenceReference
             }));
-            pendingPredictions.set(latestPrediction.predictionId, Object.freeze({ prediction: latestPrediction }));
+            if (calibrationHealthy) {
+              try { calibrationPersistence?.recordPrediction(latestPrediction); }
+              catch { failCalibration(); }
+            }
+            if (calibrationHealthy) pendingPredictions.set(latestPrediction.predictionId, Object.freeze({ prediction: latestPrediction }));
           } catch {
             // A valid zero-authority AI result may remain readable, but no verified anchor means no calibration credit.
             latestPrediction = null;
@@ -193,7 +278,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   };
 
   const currentProfile = (): AiCalibrationProfile | null => {
-    if (latestPrediction == null) return null;
+    if (latestPrediction == null || !calibrationHealthy) return null;
     try {
       return calibrationLedger.profile(latestPrediction, latestPrediction.rawProbability, calibration.policy);
     } catch {
