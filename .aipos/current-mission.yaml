@@ -1,22 +1,17 @@
-id: WO-0051
-title: Constitutional Production Transition Human/Environment Gate
-branch: main
-pull_request: null
+id: WO-0052
+title: Android Real-device Runtime Recovery
+branch: agent/issue-349-mobile-real-use-freeze
+pull_request: 371
 base_branch: main
-phase: human-environment-gate
-status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-005 durable calibration as verified zero-authority capability."
+phase: mobile-real-device-fix
+status: VERIFYING
+source_work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
+objective: "Restore and verify the Android PAPER core flow on a real device while preserving the constitutional human/environment and LIVE safety boundaries."
 scope:
-  - operator-authorized external read-only preflight only
-  - actual independent human activation ceremony evidence
-  - separate constitutional human decision before any real-money LIVE transition
-  - post-LIVE validation only after a separately authorized tiny session
-  - fresh read-only repository/AI capability audit may select a future safe AI work order, but cannot satisfy or bypass this gate
-latest_verified_slice:
-  id: WO-AI-005
-  status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-005-completion.json
+  - Android cold-start and relaunch verification on a real device
+  - Android PAPER navigation and order-flow verification on a real device
+  - release APK reinstall and runtime verification
+  - physical-device logcat and runtime evidence before PR merge
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -26,15 +21,11 @@ safety:
   syntheticCiCompletion: prohibited
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
-verification:
-  ai_005_planning_merge: fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2
-  ai_005_implementation_merge: b4303b928e8d64417f3c07334ed3900ea3075046
-  ai_005_exact_head: b03dd50c01dd789a3023217c018c53fc53a42ea8
-  ai_005_ci_run: 31306050500
-  restricted_live_readonly_workflows: PASS_4_OF_4
 blockers:
+  - PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED
+  - PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
   - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Run a fresh read-only repository/AI capability audit before opening any next AI implementation work order; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
+next_recommended_task: Install the exact release APK on a physical Android device, capture logcat, and execute the full Issue #349 core flow before merge; keep all human-only LIVE authority gates intact.
