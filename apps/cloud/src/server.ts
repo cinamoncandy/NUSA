@@ -151,7 +151,9 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
   });
-  server.on("error", () => { /* a request-handling fault must not crash the process */ });
+  // Intentionally do not swallow the Server 'error' event. Bind/listen failures such as
+  // EADDRINUSE are startup failures and must terminate the runtime instead of leaving PAPER
+  // services running behind a falsely healthy dashboard handle.
   server.listen(options.port, host);
 
   let stopping: Promise<void> | undefined;
