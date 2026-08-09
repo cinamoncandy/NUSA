@@ -18,6 +18,7 @@ const cases = [
   ["numeric-leading-scheme", `Authorization: 9Auth ${longCredential}\n`],
   ["quoted-json", `${JSON.stringify({ Authorization: `Basic ${basicCredential}` })}\n`],
   ["bracket-property", `headers["Authorization"] = "Basic ${basicCredential}"\n`],
+  ["dot-property", `headers.authorization = "Basic ${basicCredential}"\n`],
   ["escaped-json", `${JSON.stringify(JSON.stringify({ Authorization: `Basic ${basicCredential}` }))}\n`],
   ["header-tuple", `${JSON.stringify([["Authorization", `Basic ${basicCredential}`]])}\n`],
   ["headers-setter", `headers.set("Authorization", "Basic ${basicCredential}")\n`],
