@@ -84,6 +84,8 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
         setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." });
         return;
       }
+      credentialSession.clear();
+      clearPaperConnectionVerification();
       setConnection({ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress." });
       credentialSession.connect(tokenDraft);
       const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
