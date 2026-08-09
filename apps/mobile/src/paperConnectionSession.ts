@@ -37,6 +37,16 @@ export function setConfiguredPaperEndpoint(value: string): void {
   });
 }
 
+/** Backward-compatible explicit reset used by runtime/session regression tests and legacy callers. */
+export function clearConfiguredPaperEndpoint(): void {
+  state = Object.freeze({
+    status: "NOT_CONFIGURED",
+    endpoint: null,
+    reason: "PAPER endpoint and credential are not configured.",
+    verifiedAt: null
+  });
+}
+
 export function markPaperConnectionReady(endpointValue: string, verifiedAt = Date.now()): void {
   const endpoint = normalizeEndpoint(endpointValue);
   if (endpoint == null) throw new Error("PAPER endpoint is not configured.");
