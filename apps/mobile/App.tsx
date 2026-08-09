@@ -143,7 +143,7 @@ function AuthenticatedApp() {
       <Text style={[styles.authHeading, { color: appTheme.colors.text }]}>다시 오신 것을 환영합니다</Text>
       <Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>로컬 인증은 개인 화면 진입용이며, 서버 대시보드 자격 증명과 분리됩니다.</Text>
       <NusaTextField accessibilityLabel="Email" label="이메일" onChangeText={setEmail} placeholder="Email" testID="auth-email" value={email} />
-      <NusaTextField accessibilityLabel="Password" label="비밀번호" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" value={password} />
+      <NusaTextField accessibilityLabel="Password" label="비밀번호" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" />
       <NusaButton accessibilityLabel="Sign in" label="로그인" onPress={signIn} testID="auth-submit" />
       <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>인증 모드: {AUTH_MODE} · 서버 읽기 자격 증명은 로그인 정보에서 추론하거나 저장하지 않습니다.</Text>
     </View></SafeAreaView>;
@@ -257,8 +257,8 @@ const styles = StyleSheet.create({
   cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
   cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  heroValue: { fontSize: 34, fontWeight: "800", letterSpacing: -1.4, marginTop: 5 },
-  heroPnl: { marginTop: 7, fontSize: 15, fontWeight: "700" },
+  heroValue: { fontSize: 34, fontWeight: "800", letterSpacing: -1.4, marginTop: 5, fontVariant: ["tabular-nums"] },
+  heroPnl: { marginTop: 7, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
   divider: { height: 1, marginVertical: 14 },
   aiThesis: { fontSize: 16, fontWeight: "600", lineHeight: 24, marginBottom: 10 },
   navigation: { flexDirection: "row", borderTopWidth: 1, paddingTop: 7, paddingBottom: 7 },
