@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "agent/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "agent/**"]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +57,8 @@ jobs:
         run: pnpm run build
       - name: Architecture validation
         run: pnpm run architecture:check
+      - name: Repository architecture truth validation
+        run: pnpm run architecture:truth
       - name: AI zero-authority architecture validation
         run: pnpm run ai:architecture
       - name: AI zero-authority focused regression tests
