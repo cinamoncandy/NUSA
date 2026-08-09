@@ -18,9 +18,11 @@ import {
   MultiAgentGovernanceEventType
 } from "../../../../packages/contracts/src/multiAgentGovernance";
 import { aiSha256, type AiAgentRole, type AiEvidenceMaterialization, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
+import type { AiInferenceBudgetPolicy, AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
 import { assessAgentIndependence, createAgentDefinition, evaluateMultiAgentDecision } from "../multiAgentGovernance";
 import { AgentExecutor } from "./agentExecutor";
 import { buildEvidenceBundle } from "./evidenceBundleBuilder";
+import { aiInferenceBudgetIdentity, InferenceResourceLedger, normalizeAiInferenceBudgetPolicy } from "./inferenceResourceLedger";
 import { createDefaultPromptArtifactRegistry, type PromptArtifactRegistry } from "./promptArtifactRegistry";
 
 export interface GovernanceEventSink { append(event: MultiAgentGovernanceEvent): unknown; }
@@ -49,10 +51,21 @@ export interface AiOrchestrationResult {
   readonly failureCodes: readonly ModelFailure["code"][];
   readonly outputHashes: readonly string[];
   readonly structuredOutputs: readonly StructuredAgentOutput[];
+  /** Provider-neutral read-only run resource evidence. Older synthetic fixtures may omit it. */
+  readonly inferenceResources?: AiInferenceResourceSnapshot;
   readonly liveAuthority: "NONE";
   readonly realOrderAuthority: false;
   readonly realTransferAuthority: false;
   readonly productionMutationAllowed: false;
+}
+
+export interface MultiAgentOrchestratorOptions {
+  readonly enabled?: boolean;
+  readonly promptRegistry?: PromptArtifactRegistry;
+  readonly maxRetries?: number;
+  readonly eventSink?: GovernanceEventSink;
+  readonly resourcePolicy?: AiInferenceBudgetPolicy;
+  readonly now?: () => number;
 }
 
 const roles: readonly AiAgentRole[] = ["EVIDENCE_PRODUCER", "STRATEGY_PROPOSER", "ADVERSARIAL_CRITIC", "RISK_VERIFIER"];
@@ -102,7 +115,7 @@ const validateRoleOutput = (role: AiAgentRole, value: unknown): StructuredAgentO
 
 const contract = (role: AgentRole, output: string, id: string): AgentRoleContract => Object.freeze({ contractId: `ai-contract-${id}`, role, requiredInputs: ["evidence_context"], permittedOutputs: [output], prohibitedOutputs: ["order", "cancel", "transfer", "withdraw", "credential", "secret", "production_mutation", "live_execution"], evidenceRequirements: ["verified"], timeoutBehavior: "incomplete", fallbackPolicyId: "AI_ZERO_AUTHORITY_FAIL_CLOSED_V1", status: "active" });
 
-const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = []): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
+const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = [], inferenceResources?: AiInferenceResourceSnapshot): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), ...(inferenceResources == null ? {} : { inferenceResources }), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
 
 const evidenceFailureCode = (error: unknown): ModelFailure["code"] => {
   const message = error instanceof Error ? error.message : String(error);
@@ -115,18 +128,28 @@ const evidenceFailureCode = (error: unknown): ModelFailure["code"] => {
 export class MultiAgentOrchestrator {
   private readonly cache = new Map<string, { inputHash: string; result: AiOrchestrationResult }>();
   private readonly registry: PromptArtifactRegistry;
-  private readonly executor: AgentExecutor;
+  private readonly enabled: boolean;
+  private readonly eventSink?: GovernanceEventSink;
+  private readonly maxRetries: number;
+  private readonly resourcePolicy: AiInferenceBudgetPolicy;
+  private readonly now: () => number;
 
-  public constructor(private readonly provider: ModelProvider, options: { readonly enabled?: boolean; readonly promptRegistry?: PromptArtifactRegistry; readonly maxRetries?: number; readonly eventSink?: GovernanceEventSink } = {}) {
+  public constructor(private readonly provider: ModelProvider, options: MultiAgentOrchestratorOptions = {}) {
     this.enabled = options.enabled === true;
     this.eventSink = options.eventSink;
     this.registry = options.promptRegistry ?? createDefaultPromptArtifactRegistry();
-    this.executor = new AgentExecutor(provider, options.maxRetries ?? 1);
+    this.maxRetries = options.maxRetries ?? 1;
+    if (!Number.isInteger(this.maxRetries) || this.maxRetries < 0 || this.maxRetries > 2) throw new Error("AI retry policy is invalid");
+    this.resourcePolicy = normalizeAiInferenceBudgetPolicy(options.resourcePolicy);
+    this.now = options.now ?? Date.now;
   }
 
-  private readonly enabled: boolean;
-
   public async run(input: AiOrchestrationInput): Promise<AiOrchestrationResult> {
+    const resourceStartedAt = this.now();
+    let resourceLedger: InferenceResourceLedger;
+    try { resourceLedger = new InferenceResourceLedger(this.resourcePolicy, resourceStartedAt); }
+    catch { return failureResult(input, "INCOMPLETE", [], [], [], ["CONTEXT_INVALID"]); }
+    const resourceSnapshot = (): AiInferenceResourceSnapshot => resourceLedger.snapshot(this.now());
     let inputHash: string;
     try {
       const promptIdentity = roles.map((role) => {
@@ -144,12 +167,14 @@ export class MultiAgentOrchestrator {
         contextValidForMs: input.contextValidForMs ?? 60_000,
         providerId: this.provider.providerId,
         modelVersionId: this.provider.modelVersionId,
-        promptIdentity
+        promptIdentity,
+        inferenceResourceBudget: aiInferenceBudgetIdentity(this.resourcePolicy)
       });
-    } catch { return failureResult(input, "INCOMPLETE", [], [], [], ["CONTEXT_INVALID"]); }
+    } catch { return failureResult(input, "INCOMPLETE", [], [], [], ["CONTEXT_INVALID"], resourceSnapshot()); }
     const prior = this.cache.get(input.orchestrationRunId);
-    if (prior != null) return prior.inputHash === inputHash ? prior.result : failureResult(input, "INCOMPLETE", [], [], [], ["REPLAY_CONFLICT"]);
-    if (!this.enabled) return failureResult(input, "UNAVAILABLE", [], [], [], ["PROVIDER_UNAVAILABLE"]);
+    if (prior != null) return prior.inputHash === inputHash ? prior.result : failureResult(input, "INCOMPLETE", [], [], [], ["REPLAY_CONFLICT"], resourceSnapshot());
+    if (!this.enabled) return failureResult(input, "UNAVAILABLE", [], [], [], ["PROVIDER_UNAVAILABLE"], resourceSnapshot());
+    const executor = new AgentExecutor(this.provider, this.maxRetries, resourceLedger, this.now);
     const agents = roles.map((role) => this.definition(role));
     const contexts: AgentContextSnapshot[] = [];
     const runs: AgentRun[] = [];
@@ -159,22 +184,27 @@ export class MultiAgentOrchestrator {
     const contextValidForMs = input.contextValidForMs ?? 60_000;
     for (const role of roles) {
       const definition = agents.find((agent) => agent.role === roleMap[role])!;
+      const callId = `${input.orchestrationRunId}:call:${role}`;
+      if (!resourceLedger.reserveCall(callId, this.now())) {
+        failures.push("CONTEXT_INVALID");
+        return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, failures, resourceSnapshot()));
+      }
       let bundle;
       try {
         bundle = buildEvidenceBundle({ contextSnapshotId: `${input.orchestrationRunId}:context:${role}`, agentId: definition.agentId, evidence: input.evidence, evidenceMaterializations: input.evidenceMaterializations ?? [], allowedEvidenceClasses: definition.allowedEvidenceClasses, evaluatedAt: input.evaluatedAt, validUntil: input.evaluatedAt + contextValidForMs, policyVersionIds: input.policyVersionIds ?? ["AI_ZERO_AUTHORITY_POLICY_V1"], certificationIds: input.certificationIds ?? [], controlPlaneStateId: input.controlPlaneStateId ?? "AI_CONTROL_PLANE_UNAVAILABLE" });
-      } catch (error) { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, [evidenceFailureCode(error)])); }
+      } catch (error) { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, [evidenceFailureCode(error)], resourceSnapshot())); }
       contexts.push(bundle.context);
       let artifact;
-      try { artifact = this.registry.assertDefinition(definition.promptArtifactId, definition.definitionVersion, definition.promptArtifactDigest); } catch { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, ["PROMPT_DIGEST_MISMATCH"])); }
+      try { artifact = this.registry.assertDefinition(definition.promptArtifactId, definition.definitionVersion, definition.promptArtifactDigest); } catch { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, ["PROMPT_DIGEST_MISMATCH"], resourceSnapshot())); }
       const modelVersionId = this.provider.modelVersionId;
       const proposalOutput = outputs.get("STRATEGY_PROPOSER");
       const proposalPayload = proposalOutput?.payload;
       const proposalPreviewHash = proposalPayload == null || proposalOutput == null ? undefined : aiSha256({ strategyVersionId: text(proposalPayload.strategyVersionId ?? "ai-preview", "strategyVersionId"), decision: proposalPayload.decision, rationaleClaims: strings(proposalPayload.rationaleClaims, "rationaleClaims"), evidenceReferences: proposalOutput.evidenceReferences, assumptions: strings(proposalPayload.assumptions ?? [], "assumptions"), uncertainty: text(proposalPayload.uncertainty, "uncertainty"), expectedEffect: proposalPayload.expectedEffect, costSensitivity: proposalPayload.costSensitivity, capacitySensitivity: proposalPayload.capacitySensitivity });
       const modelInput = Object.freeze({ role, contextHash: bundle.context.contextHash, evidenceBundleHash: bundle.evidenceBundleHash, evidence: bundle.materializedEvidence.map((item) => Object.freeze({ evidenceId: item.evidence.evidenceId, evidenceType: item.evidence.evidenceType, observedAt: item.evidence.observedAt, validUntil: item.evidence.validUntil, quality: item.evidence.quality, contentDigest: item.evidence.contentDigest, payload: item.payload })), ...(proposalPreviewHash == null ? {} : { proposalHash: proposalPreviewHash }) });
       const request: ModelRequest = Object.freeze({ requestId: `${input.orchestrationRunId}:request:${role}`, role, providerId: this.provider.providerId, modelVersionId, promptArtifactId: artifact.promptArtifactId, promptArtifactVersion: artifact.version, promptArtifactDigest: artifact.digest, instructions: artifact.instructions, contextHash: bundle.context.contextHash, inputHash: aiSha256(modelInput), input: modelInput, maxOutputBytes: 32_768, maxTokens: 2_048, timeoutMs: 10_000, attempt: 0 });
-      const execution = await this.executor.execute(request, (value) => validateRoleOutput(role, value));
-      if (!execution.ok) { failures.push(execution.failure.code); runs.push(this.failedRun(input, definition, bundle.context, request, execution.failure)); return this.cacheAndReturn(input, inputHash, failureResult(input, execution.failure.code === "PROVIDER_UNAVAILABLE" ? "UNAVAILABLE" : "INCOMPLETE", agents, contexts, runs, failures)); }
-      if (role === "EVIDENCE_PRODUCER" && execution.output.payload.evidenceBundleHash !== bundle.evidenceBundleHash) { failures.push("EVIDENCE_DIGEST_MISMATCH"); return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, failures)); }
+      const execution = await executor.execute(request, (value) => validateRoleOutput(role, value));
+      if (!execution.ok) { failures.push(execution.failure.code); runs.push(this.failedRun(input, definition, bundle.context, request, execution.failure)); return this.cacheAndReturn(input, inputHash, failureResult(input, execution.failure.code === "PROVIDER_UNAVAILABLE" ? "UNAVAILABLE" : "INCOMPLETE", agents, contexts, runs, failures, resourceSnapshot())); }
+      if (role === "EVIDENCE_PRODUCER" && execution.output.payload.evidenceBundleHash !== bundle.evidenceBundleHash) { failures.push("EVIDENCE_DIGEST_MISMATCH"); return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, failures, resourceSnapshot())); }
       outputs.set(role, execution.output); outputHashes.push(execution.outputHash); runs.push(this.completedRun(input, definition, bundle.context, request, execution.outputHash, execution.response.startedAt, execution.response.completedAt));
       this.appendRunEvents(input, definition, bundle.evidence, bundle.context, runs.at(-1)!);
     }
@@ -186,10 +216,8 @@ export class MultiAgentOrchestrator {
     const governanceEvaluatedAt = runs.reduce((latest, run) => run.completedAt == null ? latest : Math.max(latest, run.completedAt), input.evaluatedAt);
     const decision = evaluateMultiAgentDecision({ decisionId: input.decisionId, evaluatedAt: governanceEvaluatedAt, agents, roleContracts: roles.map((role) => contract(roleMap[role], outputName[role], role.toLowerCase())), evidence: input.evidence, contexts, runs, evidenceAssessment: assessment, proposal, adversarialReview: review, riskVerification: risk, disagreements: [], controlVetoReasons: [] });
     this.eventSink?.append({ eventId: `${input.orchestrationRunId}:decision`, type: decision.result === "deny" ? MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_DENIED : MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, occurredAt: governanceEvaluatedAt, payload: { decision, independence }, evidenceHash: aiSha256({ decision, independence }) });
-    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
+    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), inferenceResources: resourceSnapshot(), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
   }
-
-  private readonly eventSink?: GovernanceEventSink;
 
   private definition(role: AiAgentRole): AgentDefinition {
     const artifact = this.registry.get(`nusa.ai.${role.toLowerCase()}`, "1.0.0")!;
