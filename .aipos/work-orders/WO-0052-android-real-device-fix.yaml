@@ -6,6 +6,7 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 189cabe20778a2599c56fc5bf483d36803782a80
 implementation_branch: agent/issue-349-mobile-real-use-freeze
+latest_main_observed: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
 objective: "Restore and verify the NUSA Android PAPER core flow on a real device without changing LIVE or AI authority boundaries."
 source_of_truth:
   architecture:
