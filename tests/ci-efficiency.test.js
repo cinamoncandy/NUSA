@@ -44,7 +44,7 @@ test("CI optimization preserves critical safety gates", () => {
     "Deployment capability scan (live trading / credential storage must be absent)",
     "Risk safety drills"
   ]) {
-    assert.match(workflow, new RegExp(`- name: ${step.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}`));
+    assert.ok(workflow.includes(`- name: ${step}`), `missing critical CI step: ${step}`);
   }
   assert.match(workflow, /run: pnpm run release:check:prepared/);
 });
