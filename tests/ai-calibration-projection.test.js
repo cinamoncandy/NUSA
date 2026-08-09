@@ -16,6 +16,39 @@ const baseResult = () => ({
 });
 const cohort = { providerId: "openai", modelVersionId: "model-v1", promptArtifactId, promptArtifactVersion, promptArtifactDigest: digest, outcomeDefinitionId: "next-period-positive", outcomeDefinitionVersion: "1" };
 const profile = (overrides = {}) => ({ cohort, status: "CALIBRATED", sampleCount: 25, expectedCalibrationError: 0.05, brierScore: 0.1, rawProbability: 0.8, calibratedProbability: 0.6, effectiveConfidence: 0.6, reliabilityBuckets: [], provenance: "VERIFIED_RUNTIME_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, ...overrides });
+const providerComparison = (comparisonState, disagreementCodes = []) => ({
+  schemaVersion: 1,
+  comparisonRunId: "run-1:nversion",
+  comparisonState,
+  trustDisposition: comparisonState === "CONSENSUS" ? "NO_UPLIFT" : "ABSTAIN",
+  independentGroupCount: 2,
+  completedGroupCount: comparisonState === "INCOMPLETE" ? 1 : 2,
+  policyIdentity: "p".repeat(64),
+  comparisonIdentity: "c".repeat(64),
+  groups: [],
+  metrics: { decisionAgreement: comparisonState === "CONSENSUS", uncertaintyAgreement: true, maxProbabilityDelta: 0.02, minimumEvidenceReferenceOverlap: 1, minimumAssumptionOverlap: 1, disagreementCodes },
+  inferenceResources: {
+    schemaVersion: 1,
+    health: "HEALTHY",
+    policy: { schemaVersion: 1, policyId: "NVERSION_TEST", policyVersion: "1", maxModelCalls: 2, maxTotalAttempts: 4, maxCumulativeOutputTokens: 8192, maxInputBytes: 1024, maxWallClockMs: 30000, requireUsageAccounting: true },
+    modelCalls: 2,
+    attempts: 2,
+    reservedOutputTokens: 4096,
+    inputBytes: 100,
+    usageAccountingStatus: "VERIFIED",
+    actualInputTokens: 20,
+    actualOutputTokens: 10,
+    actualTotalTokens: 30,
+    elapsedMs: 100,
+    attemptsEvidence: [],
+    liveAuthority: "NONE",
+    productionMutationAllowed: false
+  },
+  liveAuthority: "NONE",
+  realOrderAuthority: false,
+  realTransferAuthority: false,
+  productionMutationAllowed: false
+});
 
 test("raw probability without verified calibration remains visible but untrusted", () => {
   const projection = projectAiReadOnly(baseResult());
@@ -62,4 +95,45 @@ test("incomplete governance suppresses trusted confidence even with a valid cali
   const result = baseResult(); result.governanceDecision = { result: "incomplete", unresolvedDisagreements: ["critic"], vetoReasons: [] };
   const projection = projectAiReadOnly(result, profile());
   assert.equal(projection.status, "INCOMPLETE"); assert.equal(projection.rawProbability, 0.8); assert.equal(projection.calibrationStatus, "CALIBRATED"); assert.equal(projection.confidence, 0); assert.equal(projection.effectiveConfidence, 0);
+});
+
+test("independent provider consensus never uplifts verified calibrated confidence", () => {
+  const comparison = providerComparison("CONSENSUS");
+  const projection = projectAiReadOnly({ ...baseResult(), providerComparison: comparison }, profile());
+  assert.equal(projection.status, "AVAILABLE");
+  assert.equal(projection.confidence, 0.6, "consensus must preserve, not increase, the calibrated primary confidence");
+  assert.equal(projection.effectiveConfidence, 0.6);
+  assert.equal(projection.providerComparisonState, "CONSENSUS");
+  assert.equal(projection.providerTrustDisposition, "NO_UPLIFT");
+  assert.equal(projection.providerIndependentGroupCount, 2);
+  assert.equal(projection.providerComparisonModelCalls, 2);
+  assert.equal(projection.liveAuthority, "NONE");
+});
+
+test("independent provider disagreement forces abstention and zero trusted confidence", () => {
+  const comparison = providerComparison("DISAGREEMENT", ["DECISION_MISMATCH", "PROBABILITY_DELTA_EXCEEDED"]);
+  const projection = projectAiReadOnly({ ...baseResult(), providerComparison: comparison }, profile());
+  assert.equal(projection.status, "INCOMPLETE");
+  assert.equal(projection.thesis, null);
+  assert.equal(projection.rawProbability, 0.8, "raw model probability remains observable");
+  assert.equal(projection.calibratedProbability, 0.6, "calibration evidence remains observable but cannot be trusted for action");
+  assert.equal(projection.confidence, 0);
+  assert.equal(projection.effectiveConfidence, 0);
+  assert.equal(projection.providerComparisonState, "DISAGREEMENT");
+  assert.equal(projection.providerTrustDisposition, "ABSTAIN");
+  assert.ok(projection.disagreements.includes("DECISION_MISMATCH"));
+  assert.ok(projection.disagreements.includes("PROVIDER_COMPARISON_DISAGREEMENT"));
+  assert.equal(projection.liveAuthority, "NONE");
+  assert.equal(projection.productionMutationAllowed, false);
+});
+
+test("partial or unverified N-version comparison cannot be presented as a valid primary recommendation", () => {
+  for (const state of ["INCOMPLETE", "INSUFFICIENT_INDEPENDENCE", "UNVERIFIED"]) {
+    const projection = projectAiReadOnly({ ...baseResult(), providerComparison: providerComparison(state) }, profile());
+    assert.equal(projection.status, "INCOMPLETE");
+    assert.equal(projection.confidence, 0);
+    assert.equal(projection.effectiveConfidence, 0);
+    assert.equal(projection.providerComparisonState, state);
+    assert.equal(projection.providerTrustDisposition, "ABSTAIN");
+  }
 });
