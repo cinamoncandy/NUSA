@@ -46,13 +46,14 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
-      <DataRow label="신뢰도" value={confidence} />
+      <DataRow label="모델 점수 (미보정)" value={confidence} />
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 심각도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="모델" value={ai?.modelVersion ?? "-"} />
       <DataRow label="프롬프트" value={ai?.promptVersion ?? "-"} />
       <DataRow label="최근 분석" value={lastRun} />
       <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>보정 상태가 UNKNOWN인 동안 이 값은 검증된 확률이나 성과 보장을 의미하지 않습니다.</Text>
     </NusaCard>
 
     <NusaCard testID="ai-evidence-card">
