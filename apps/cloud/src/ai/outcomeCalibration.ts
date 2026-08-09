@@ -30,6 +30,7 @@ export interface CalibrationPolicy {
 
 type PredictionInput = Omit<AiCalibrationPrediction, "contentHash">;
 type OutcomeInput = Omit<AiCalibrationOutcome, "contentHash">;
+type OutcomeDefinitionEvaluator = (prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome) => boolean;
 
 const text = (value: string, field: string): string => {
   const normalized = value.trim();
@@ -168,6 +169,16 @@ const sameCohort = (prediction: AiCalibrationPrediction, cohort: AiCalibrationCo
 };
 
 const sameHash = (left: { readonly contentHash: string }, right: { readonly contentHash: string }): boolean => left.contentHash.toLowerCase() === right.contentHash.toLowerCase();
+const outcomeDefinitionKey = (id: string, version: string): string => `${id}@${version}`;
+const VERIFIED_OUTCOME_DEFINITIONS = new Map<string, OutcomeDefinitionEvaluator>([
+  ["UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M@1", (prediction, outcome) => outcome.resolvedValue > prediction.anchorValue]
+]);
+
+function assertOutcomeSemantics(prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome): void {
+  const evaluator = VERIFIED_OUTCOME_DEFINITIONS.get(outcomeDefinitionKey(prediction.outcomeDefinitionId, prediction.outcomeDefinitionVersion));
+  if (evaluator == null) throw new Error("unsupported calibration outcome definition");
+  if (evaluator(prediction, outcome) !== outcome.outcome) throw new Error("calibration outcome does not match resolved value");
+}
 
 export class OutcomeCalibrationLedger {
   private readonly predictions = new Map<string, AiCalibrationPrediction>();
@@ -191,6 +202,7 @@ export class OutcomeCalibrationLedger {
     if (outcome.predictionContentHash.toLowerCase() !== prediction.contentHash.toLowerCase()) throw new Error("calibration outcome prediction hash mismatch");
     if (prediction.outcomeDefinitionId !== outcome.outcomeDefinitionId || prediction.outcomeDefinitionVersion !== outcome.outcomeDefinitionVersion) throw new Error("calibration outcome identity mismatch");
     if (prediction.provenance !== outcome.provenance) throw new Error("calibration provenance mismatch");
+    assertOutcomeSemantics(prediction, outcome);
     if (outcome.resolvedAt < prediction.predictedAt + prediction.horizonMs) throw new Error("calibration outcome resolved before horizon");
     const prior = this.outcomes.get(outcome.predictionId);
     if (prior != null) {
