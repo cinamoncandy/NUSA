@@ -152,11 +152,12 @@ test("malformed output, tool escalation, stale evidence, and missing critic fail
 
 test("strategy proposer raw probability is required and bounded even when a provider bypasses the OpenAI schema", async () => {
   const cases = [undefined, "0.8", -0.01, 1.01, Number.NaN, Number.POSITIVE_INFINITY];
+  const { rawProbability: _rawProbability, ...proposalWithoutProbability } = proposalSeed;
   for (const [index, rawProbability] of cases.entries()) {
     const invalid = new TransportModelProvider("fixture", "model", async (request) => {
       let payload;
       if (request.role === "EVIDENCE_PRODUCER") payload = { observations: [{ claim: "verified", claimType: "fact", evidenceReferences: ["e-1"], freshnessStatus: "fresh" }], missingEvidence: [], evidenceBundleHash: request.input.evidenceBundleHash };
-      if (request.role === "STRATEGY_PROPOSER") payload = { ...proposalSeed, rawProbability };
+      if (request.role === "STRATEGY_PROPOSER") payload = rawProbability === undefined ? proposalWithoutProbability : { ...proposalSeed, rawProbability };
       if (request.role === "ADVERSARIAL_CRITIC") payload = { reviewedProposalHash: request.input.proposalHash, counterClaims: [], failedAssumptions: [], missingTests: [], alternativeExplanations: [], severity: "low" };
       if (request.role === "RISK_VERIFIER") payload = { result: "verified", hardDenies: [], warnings: [], missingRequirements: [], requiredEscalations: [], policyReferences: ["risk-policy"] };
       const output = { schemaVersion: 1, role: request.role, evidenceReferences: ["e-1"], payload };
