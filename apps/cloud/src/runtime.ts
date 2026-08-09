@@ -5,6 +5,7 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
@@ -16,8 +17,7 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
-import { buildPersonalPaperOperationsSnapshot, type PersonalPaperMarketProjection, type PersonalPaperOrderProjection, type PersonalPaperPortfolioProjection } from "../../../packages/contracts/src/personalPaperOperations";
-import { createDefaultResearchRuntimeComposition } from "./researchRuntimeComposition";
+import { buildPersonalPaperOperationsSnapshot } from "../../../packages/contracts/src/personalPaperOperations";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -40,6 +40,7 @@ export interface CloudRuntimeResearchRecoveryLike {
 export interface CloudRuntimeResearchAutomationLike {
   recover?(): ResearchRecoveryResult;
   onMarketData(tick: ResearchRuntimeMarketDataTick): void;
+  /** Optional read-only status projection; absence is represented conservatively as Research unavailable. */
   statusProjection?(): ResearchStatusProjection | null;
 }
 
@@ -49,7 +50,7 @@ export type CloudRuntimeMarketDataClientFactory = (
   onConnectionState: (state: string) => void
 ) => CloudRuntimeMarketDataClientLike;
 
-function createSnapshotRepository(pathname: string): SqliteCloudDashboardSnapshotRepository {
+function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
     const absolute = path.resolve(pathname);
     const sourceTree = path.resolve(process.cwd()) + path.sep;
@@ -57,41 +58,6 @@ function createSnapshotRepository(pathname: string): SqliteCloudDashboardSnapsho
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
   }
   return new SqliteCloudDashboardSnapshotRepository(new SqliteDatabase(pathname));
-}
-
-function buildReadOnlyPortfolio(paperSnapshot: ReturnType<PaperTradingExecutionLoop["snapshot"]> | undefined): PersonalPaperPortfolioProjection | null {
-  if (paperSnapshot == null) return null;
-  const position = [...paperSnapshot.positions].sort((left, right) => left.market.localeCompare(right.market))[0];
-  return {
-    observedAt: new Date(paperSnapshot.updatedAt).toISOString(),
-    mode: "PAPER",
-    account: {
-      available: true,
-      cash: paperSnapshot.cash,
-      equity: paperSnapshot.equity,
-      unrealizedPnl: paperSnapshot.unrealizedPnL,
-      markPrice: position?.markPrice ?? 0,
-      position: position == null
-        ? { market: "", quantity: 0, averagePrice: 0, realizedPnl: paperSnapshot.realizedPnL }
-        : { market: position.market, quantity: position.quantity, averagePrice: position.averageEntryPrice, realizedPnl: position.realizedPnL }
-    },
-    openOrderCount: 0
-  };
-}
-
-function buildReadOnlyOrders(paperSnapshot: ReturnType<PaperTradingExecutionLoop["snapshot"]> | undefined): readonly PersonalPaperOrderProjection[] {
-  if (paperSnapshot == null) return [];
-  return paperSnapshot.orders.map((order) => ({
-    id: order.id,
-    market: order.market,
-    side: order.side,
-    quantity: order.quantity,
-    price: order.price,
-    fee: order.fee,
-    filledAt: new Date(order.filledAt).toISOString(),
-    status: "FILLED" as const,
-    fills: paperSnapshot.fills.filter((fill) => fill.orderId === order.id).map((fill) => ({ id: fill.id, quantity: fill.quantity, price: fill.price, filledAt: new Date(fill.filledAt).toISOString() }))
-  }));
 }
 
 export function startCloudRuntime(
@@ -114,14 +80,28 @@ export function startCloudRuntime(
     ? stateProvider
     : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
+  const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteP0AlertRepository(durableRepository.database())
+    : undefined;
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteCloudPaperAccountRepository(durableRepository.database())
     : undefined);
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
-    : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository }));
+    : new PaperTradingExecutionLoop({
+      initialCapital: config.paperInitialCapitalKrw,
+      repository: effectivePaperRepository,
+      readP0State: () => {
+        if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
+        return effectiveP0Repository.readState();
+      }
+    }));
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
-  try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research remains isolated and fail-closed. */ }
+  try {
+    researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+  } catch {
+    // Research recovery owns its own fail-closed state. It must not abort or mutate PAPER/dashboard startup.
+  }
   const clearPaperProjection = (): void => {
     try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ }
     effectiveProvider.clear();
@@ -130,14 +110,19 @@ export function startCloudRuntime(
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state == null) { clearPaperProjection(); return; }
-    try { effectiveProvider.set(effectivePaperLoop.applyToDashboard(state, Date.now())); } catch { clearPaperProjection(); }
+    try {
+      effectiveProvider.set(effectivePaperLoop.applyToDashboard(state, Date.now()));
+    } catch {
+      clearPaperProjection();
+    }
   };
   try {
     if (!recovered) dashboardHydrator.hydrate(effectiveProvider);
     projectPaperAccount();
-  } catch { clearPaperProjection(); }
+  } catch {
+    clearPaperProjection();
+  }
   const observations = new Map<string, IntelligenceObservation>();
-  const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => {
     try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); }
   };
@@ -146,35 +131,50 @@ export function startCloudRuntime(
     ? marketDataClientFactory(
       config.upbitMarkets,
       (ticker) => {
-        latestTickers.set(ticker.code, {
-          market: ticker.code,
-          price: ticker.trade_price,
-          changeRate: ticker.signed_change_rate ?? null,
-          volume: ticker.acc_trade_price_24h ?? null,
-          observedAt: new Date(ticker.trade_timestamp).toISOString(),
-          source: "UPBIT_PUBLIC_TICKER"
-        });
         const observation = upbitTickerToIntelligenceObservation(ticker, { now: Date.now() });
         if (!observation) { safeHydrate([]); return; }
         observations.set(observation.id, observation);
         while (observations.size > 50) observations.delete(observations.keys().next().value!);
         safeHydrate([...observations.values()]);
         const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now: Date.now() };
-        try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* Research failure never mutates PAPER. */ }
+        try {
+          effectiveResearchRuntime?.onMarketData(researchTick);
+        } catch {
+          // Research is a separate fail-closed bounded context. Its failure must not erase or mutate PAPER state.
+        }
         const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
         if (effectivePaperLoop != null && state != null) {
           const dashboard = buildMobileDashboardResponse(state);
-          const result = effectivePaperLoop.processTick({ now: Date.now(), market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions });
-          if (result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
-        } else if (effectivePaperLoop != null) clearPaperProjection();
+          const result = effectivePaperLoop.processTick({
+            now: Date.now(),
+            market: ticker.code,
+            price: ticker.trade_price,
+            observedAt: ticker.trade_timestamp,
+            mode: state.mode,
+            killSwitchActive: state.killSwitchActive,
+            tradingAllowed: dashboard.tradingAllowed,
+            overallHealth: state.overallHealth,
+            decisions: state.decisions
+          });
+          if (result.status === "FAILED") clearPaperProjection();
+          else projectPaperAccount();
+        } else if (effectivePaperLoop != null) {
+          clearPaperProjection();
+        }
       },
       (state) => {
         marketConnectionState = state;
-        if (state !== "CONNECTED") { observations.clear(); safeHydrate([]); }
+        if (state !== "CONNECTED") {
+          observations.clear();
+          safeHydrate([]);
+        }
       }
     )
     : undefined;
-  if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
+  if (marketDataClient) {
+    marketDataClient.subscribe(config.upbitMarkets);
+    marketDataClient.start();
+  }
   const handle = startCloudDashboardServer({
     port: config.port,
     ...(config.host ? { host: config.host } : {}),
@@ -196,7 +196,9 @@ export function startCloudRuntime(
           ? "STOPPED" as const
           : effectivePaperLoop == null
             ? "STOPPED" as const
-            : transport === "ONLINE" ? "READY" as const : "READY_OFFLINE" as const;
+            : transport === "ONLINE"
+              ? "READY" as const
+              : "READY_OFFLINE" as const;
       return buildPersonalPaperOperationsSnapshot({
         dashboard,
         research: researchAutomation?.statusProjection?.() ?? null,
@@ -211,10 +213,7 @@ export function startCloudRuntime(
           pendingWrites: 0,
           ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}),
           updatedAt: dashboard.generatedAt
-        },
-        portfolio: buildReadOnlyPortfolio(paperSnapshot),
-        orders: buildReadOnlyOrders(paperSnapshot),
-        markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market))
+        }
       }, dashboard.generatedAt);
     }
   });
@@ -222,18 +221,14 @@ export function startCloudRuntime(
   return {
     ...handle,
     stop: async () => {
-      try { marketDataClient?.stop(); await handle.stop(); }
-      finally { if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); }
+      try {
+        marketDataClient?.stop();
+        await handle.stop();
+      } finally {
+        if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close();
+      }
     }
   };
-}
-
-export function startDefaultCloudRuntime(env: NodeJS.ProcessEnv = process.env): CloudDashboardServerHandle {
-  const config = readCloudRuntimeConfig(env);
-  const repository = createSnapshotRepository(config.cloudStateDbPath);
-  const researchAutomation = createDefaultResearchRuntimeComposition(repository.database());
-  try { return startCloudRuntime(env, undefined, undefined, undefined, repository, undefined, undefined, undefined, undefined, researchAutomation); }
-  catch (error) { repository.close(); throw error; }
 }
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
@@ -244,7 +239,8 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 }
 
 function main(): void {
-  const handle = startDefaultCloudRuntime(process.env);
+  const config = readCloudRuntimeConfig(process.env);
+  const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath));
   registerGracefulShutdown(handle);
 }
 

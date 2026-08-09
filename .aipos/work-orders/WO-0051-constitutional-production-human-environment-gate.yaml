@@ -5,7 +5,7 @@ owner: nusa-human-authority
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: e5cef3fc138467bffde1f1628809b2a948588675
-implementation_branch: agent/wo-0051-p8-runtime-composition-secure-session
+implementation_branch: agent/p7-cloud-p0-runtime-enforcement-pr
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
@@ -40,7 +40,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged. P8 is a safe private PAPER/Research composition slice: it makes persisted Research recovery/status visible in default cloud startup and connects existing authenticated read-only PAPER projections without synthetic evaluators, execution credentials, broker mutation, or LIVE authority."
+  analysis: "WO-0051 remains a terminal human/environment gate. P7 Cloud P0 Safety State is complete and merged; the current safe automated hardening slice enforces that durable verified P0 state at the actual Cloud PAPER fill boundary. It grants no LIVE or production authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -135,23 +135,16 @@ cloud_p0_safety_state_slice:
     production_mutation_allowed: false
     risk_governor_bypass: prohibited
     automatic_incident_resolution: prohibited
-runtime_composition_secure_session_slice:
+cloud_p0_runtime_enforcement_slice:
   status: IN_PROGRESS
-  base_commit: e5cef3fc138467bffde1f1628809b2a948588675
-  branch: agent/wo-0051-p8-runtime-composition-secure-session
   scope:
-    - "Compose persisted Research evaluation/candidate/promotion recovery and read-only status into default cloud startup"
-    - "Pause recovered RUNNING Research sessions and keep default market tick evaluation disabled until an explicit real evaluator and canonical input builder are configured"
-    - "Use a process-memory-only dashboard credential session; local foundation sign-in never implies server authentication"
-    - "Project PAPER portfolio, filled-order history, and verified public ticker data through the existing authenticated GET-only Personal PAPER Operations route"
-    - "Wire Portfolio, Markets, and Order History mobile surfaces to that one authenticated read-only snapshot"
+    - "Wire the default Cloud PAPER execution loop to the durable SQLite P0 incident repository"
+    - "Verify durable P0 state on every actual Cloud PAPER execution tick before any strategy decision or fill"
+    - "Block actual PAPER order/fill creation with OPEN_P0_ALERT while any P0 incident is open"
+    - "Fail closed with P0_STATE_UNVERIFIABLE when P0 evidence is unreadable or its hash chain is corrupted"
   safety:
-    credential_persistence: prohibited
-    synthetic_research_evidence: prohibited
-    automatic_research_start: prohibited
-    automatic_promotion: prohibited
-    mutation_routes: prohibited
-    challenger_authority: ZERO_AUTHORITY
-    champion_authority: PAPER_ONLY
     live_authority: NONE
     production_mutation_allowed: false
+    broker_credential_access: prohibited
+    real_money_mutation: prohibited
+    risk_governor_bypass: prohibited
