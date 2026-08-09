@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-10T07:05:00+09:00"
+updated_at: "2026-08-10T07:15:00+09:00"
 phase: mobile-real-device-fix
 status: ready
-objective: "Restore and verify the Android PAPER core flow on a real device while preserving the constitutional human/environment and LIVE safety boundaries."
+objective: "Verify the Android PAPER core flow on a physical device while preserving verified WO-AI-008 scenario governance, merged WO-AI-009 planning truth, WO-0051 constitutional human boundaries, and zero LIVE authority."
 base_branch: main
 active_branch: agent/issue-349-mobile-real-use-freeze
 active_pull_request: 371
-base_commit: 189cabe20778a2599c56fc5bf483d36803782a80
+base_commit: ab227c37f1f886efdefc8c56695b936d0d0704f7
 claimed_state:
   work_order: WO-0052
   status: VERIFYING
@@ -25,7 +25,7 @@ completed:
     summary: "Governed scenario/counterfactual reasoning is merged and verified with immutable observed evidence, explicit BASELINE/HYPOTHETICAL provenance, one enclosing resource budget, disagreement abstention, deterministic replay, and unchanged zero authority."
   - id: WO-AI-007
     evidence: ".aipos/evidence/WO-AI-007-completion.json"
-    summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
+    summary: "Independent OpenAI/Anthropic comparison is opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without execution authority."
   - id: WO-AI-006
     evidence: ".aipos/evidence/WO-AI-006-completion.json"
     summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
@@ -53,7 +53,7 @@ completed:
 in_progress:
   - id: WO-0052
     evidence: ".aipos/work-orders/WO-0052-android-real-device-fix.yaml"
-    summary: "Android PAPER runtime fixes are locally and CI verified; physical device and release reinstall evidence remain required."
+    summary: "Android PAPER runtime fixes are automated-gate candidates; synchronized exact-head validation plus physical device and release reinstall evidence remain required."
 blocked:
   - "PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED"
   - "PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION"
@@ -67,15 +67,14 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
-  reason: "Install the release APK on a physical Android device, collect logcat/runtime evidence, and execute the full Issue #349 core flow before merge."
+  reason: "Revalidate the synchronized PR #371 exact head against protected main, then install that exact release APK on a physical Android device and execute the full Issue #349 core flow before merge."
 verification:
   required:
-    - "Start WO-AI-009 implementation only from the latest protected main after its merged planning gate is reconciled"
-    - "Preserve exact WO-AI-008 observed-versus-hypothetical provenance, resource governance, disagreement abstention, replay, and zero-authority contracts"
-    - "Require exact-head full CI/Coverage, AIPOS/architecture/security, and all Restricted LIVE/read-only workflows before any WO-AI-009 implementation merge"
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
+    - "Fresh synchronized-head Full CI/Coverage, Mobile Native Android release candidate, and all Restricted LIVE/read-only workflows"
+    - "Physical Android cold-start, relaunch, Home/Markets/PAPER/Portfolio/AI navigation, Settings endpoint/credential setup, PAPER order/state/history/portfolio, retry/no-double-fill, release reinstall, logcat, and functional/visual P0/P1=0 evidence"
+    - "Preserve WO-AI-008 evidence, WO-AI-009 merged planning gate, zero-authority contracts, and WO-0051 HUMAN_ENVIRONMENT_ONLY boundaries"
+    - "Operator-authorized external read-only broker preflight before any separately authorized constitutional transition"
+    - "Actual independent human activation ceremony evidence before any real-money LIVE decision"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
