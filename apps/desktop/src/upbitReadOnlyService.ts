@@ -7,12 +7,17 @@ import {
   type UpbitReadAdapter,
   type UpbitCredentials,
 } from "./upbitRestAdapter";
+import {
+  evaluatePrivateRequestClockEligibility,
+  type PrivateRequestClockEvidence,
+} from "./privateRequestClockSafety";
 import type { UpbitReadOnlyCredentialProvider } from "./upbitReadOnlyCredentialProvider";
 import { reconcileReadOnlySnapshots, type UpbitReadOnlyReconciliationResult } from "./upbitReadOnlyReconciliation";
 
 export type UpbitReadOnlyResultCode =
   | "CONNECTED"
   | "NOT_CONFIGURED"
+  | "CLOCK_UNSAFE"
   | "INVALID_CREDENTIALS"
   | "IP_NOT_ALLOWED"
   | "NETWORK_ERROR"
@@ -28,6 +33,7 @@ export interface UpbitReadOnlyResult<T> {
 }
 
 export type UpbitReadAdapterFactory = (credentials: UpbitCredentials) => UpbitReadAdapter;
+export type PrivateRequestClockEvidenceProvider = () => PrivateRequestClockEvidence;
 
 function redact(message: string): string {
   return message
@@ -35,7 +41,7 @@ function redact(message: string): string {
     .replace(/(access|secret|api)[_-]?key\s*[:=]\s*[^,\s]+/gi, "$1Key=[redacted]");
 }
 
-function mapFailure(error: unknown, aborted: boolean): { code: Exclude<UpbitReadOnlyResultCode, "CONNECTED" | "NOT_CONFIGURED">; message: string } {
+function mapFailure(error: unknown, aborted: boolean): { code: Exclude<UpbitReadOnlyResultCode, "CONNECTED" | "NOT_CONFIGURED" | "CLOCK_UNSAFE">; message: string } {
   const safe = redact(error instanceof Error ? error.message : "read-only broker request failed");
   if (aborted) return { code: "TIMEOUT", message: "Read-only broker request timed out" };
   if (error instanceof UpbitApiError) {
@@ -56,6 +62,7 @@ export class UpbitReadOnlyService {
   public constructor(
     private readonly credentials: UpbitReadOnlyCredentialProvider,
     private readonly adapterFactory: UpbitReadAdapterFactory = (value) => new UpbitRestClient({ credentials: value }),
+    private readonly clockEvidence?: PrivateRequestClockEvidenceProvider,
   ) {}
 
   async status(): Promise<Awaited<ReturnType<UpbitReadOnlyCredentialProvider["status"]>>> {
@@ -64,6 +71,28 @@ export class UpbitReadOnlyService {
 
   async testConnection(timeoutMs = 10_000): Promise<UpbitReadOnlyResult<UpbitLiveReadOnlySnapshot>> {
     const startedAt = new Date().toISOString();
+
+    if (this.clockEvidence) {
+      try {
+        const eligibility = evaluatePrivateRequestClockEligibility(this.clockEvidence());
+        if (!eligibility.eligible) {
+          return Object.freeze({
+            ok: false,
+            code: "CLOCK_UNSAFE",
+            message: `Signed/private broker request blocked by clock safety: ${eligibility.reasonCodes.join(",")}`,
+            observedAt: startedAt,
+          });
+        }
+      } catch {
+        return Object.freeze({
+          ok: false,
+          code: "CLOCK_UNSAFE",
+          message: "Signed/private broker request blocked because clock evidence could not be evaluated",
+          observedAt: startedAt,
+        });
+      }
+    }
+
     const credentials = await this.credentials.loadForReadOnlyUse();
     if (!credentials) {
       return Object.freeze({ ok: false, code: "NOT_CONFIGURED", message: "Read-only broker access is not configured", observedAt: startedAt });
