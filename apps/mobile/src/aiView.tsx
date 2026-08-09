@@ -1,8 +1,8 @@
 import React from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
-import { AuthorityBanner, DataRow, NusaCard, SectionHeading, StatusChip } from "./components";
+import { AuthorityBanner, DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 
 interface AiViewProps {
@@ -27,8 +27,24 @@ function severityTone(severity: AiReadOnlyProjection["criticSeverity"]): "danger
   return "default";
 }
 
+function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) {
+  const { theme } = useTheme();
+  return <View style={styles.state} testID={testID}>
+    <NusaCard>
+      {loading ? <ActivityIndicator color={theme.colors.primary} /> : null}
+      <Text style={[styles.stateTitle, { color: theme.colors.text }]}>{title}</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>{detail}</Text>
+      {retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}
+    </NusaCard>
+  </View>;
+}
+
 export function AiView({ ai, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refreshing, onRefresh }: AiViewProps) {
   const { theme } = useTheme();
+
+  if (error) return <AiState title="AI 상태를 표시할 수 없습니다" detail={error} testID="ai-error" retry={onRefresh} />;
+  if (ai === null && research === null) return <AiState title="AI 상태를 불러오는 중" detail="검증된 읽기 전용 AI·리서치 스냅샷을 기다리고 있습니다." testID="ai-loading" loading />;
+
   const confidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const lastRun = ai?.lastModelRun == null ? "-" : new Date(ai.lastModelRun).toLocaleString("ko-KR");
 
@@ -40,8 +56,6 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} />
     </View>
     <AuthorityBanner detail="AI는 분석·비판·불확실성 설명만 제공합니다. Risk Governor, P0, kill switch, HALT를 우회하거나 주문을 승인할 수 없습니다." />
-
-    {error ? <NusaCard testID="ai-error"><Text style={[styles.cardTitle, { color: theme.colors.danger }]}>AI 상태를 불러올 수 없습니다</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{error}</Text></NusaCard> : null}
 
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
@@ -71,8 +85,8 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="Champion 권한" value={research?.champion.authority ?? "-"} emphasis />
       <DataRow label="Challenger" value={research?.challenger.strategyId ?? "-"} />
       <DataRow label="Challenger 권한" value={research?.challenger.authority ?? "-"} emphasis />
-      <DataRow label="후보 수" value={String(research?.candidateCount ?? "-")} />
-      <DataRow label="실험 수" value={String(research?.experimentCount ?? "-")} />
+      <DataRow label="후보 수" value={research == null ? "-" : String(research.candidateCount)} />
+      <DataRow label="실험 수" value={research == null ? "-" : String(research.experimentCount)} />
     </NusaCard>
 
     <NusaCard testID="ai-authority-card">
@@ -87,6 +101,8 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
+  state: { flex: 1, justifyContent: "center", padding: 20 },
+  stateTitle: { fontSize: 18, fontWeight: "700", marginTop: 10 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
