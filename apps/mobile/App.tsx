@@ -117,6 +117,12 @@ function AuthenticatedApp() {
   const ai = snapshot?.ai ?? null;
   const aiConfidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const runtimeTone = healthTone(snapshot?.operations.runtimeState);
+  const nextAction: Readonly<{ title: string; detail: string; label: string; tab: Tab }> | null = snapshot == null ? null
+    : snapshot.health !== "HEALTHY" || snapshot.dashboard.killSwitchActive || !snapshot.readyForPaperOperations
+      ? { title: "안전 상태 우선", detail: "차단·저하 또는 PAPER 운영 대기 상태에서는 실행보다 PAPER 관찰 상태를 먼저 확인합니다.", label: "PAPER 상태 보기", tab: "Trade" }
+      : ai?.status === "AVAILABLE"
+        ? { title: "최신 AI 분석 확인", detail: "검증된 최신 AI 분석과 근거를 읽기 전용으로 확인합니다.", label: "AI 분석 보기", tab: "More" }
+        : { title: "시장 관찰 계속", detail: "AI 분석이 없을 때는 공개 시장 데이터부터 확인합니다.", label: "시장 보기", tab: "Markets" };
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
@@ -153,11 +159,17 @@ function AuthenticatedApp() {
             <DataRow label="시장 전송 상태" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} />
             <DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} />
           </NusaCard>
+          {nextAction ? <NusaCard testID="home-next-action">
+            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>NEXT</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>{nextAction.title}</Text></View><StatusChip label={nextAction.tab === "Trade" ? "우선 확인" : "다음 단계"} tone={nextAction.tab === "Trade" ? "warning" : "primary"} /></View>
+            <Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{nextAction.detail}</Text>
+            <NusaButton accessibilityLabel={nextAction.label} label={nextAction.label} onPress={() => { setUtilityView(null); setActiveTab(nextAction.tab); }} testID="home-next-action-button" />
+          </NusaCard> : null}
           <AuthorityBanner />
           <NusaCard testID="ai-card">
             <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
             <Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text>
-            <DataRow label="신뢰도" value={aiConfidence} />
+            <DataRow label="모델 점수 (미보정)" value={aiConfidence} />
+            <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
             <DataRow label="모델" value={ai?.modelVersion ?? "-"} />
             <DataRow label="비판 심각도" value={ai?.criticSeverity ?? "-"} tone={ai?.criticSeverity === "critical" || ai?.criticSeverity === "high" ? "danger" : ai?.criticSeverity === "medium" ? "warning" : "default"} />
           </NusaCard>
