@@ -3,6 +3,12 @@ const { join } = require("node:path");
 
 const WORKFLOW_DIR = ".github/workflows";
 const SHA40 = /^[a-f0-9]{40}$/i;
+const DOCKER_DIGEST = /@sha256:[a-f0-9]{64}$/i;
+
+function actionReference(line) {
+  const match = line.match(/^\s*(?:-\s*)?uses:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))/);
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
+}
 
 function validateWorkflowActionPins(root = process.cwd()) {
   const directory = join(root, WORKFLOW_DIR);
@@ -13,10 +19,13 @@ function validateWorkflowActionPins(root = process.cwd()) {
     const path = join(directory, name);
     const lines = readFileSync(path, "utf8").split(/\r?\n/);
     for (let index = 0; index < lines.length; index += 1) {
-      const match = lines[index].match(/^\s*-\s+uses:\s*([^\s#]+)/);
-      if (!match) continue;
-      const action = match[1];
-      if (action.startsWith("./") || action.startsWith("docker://")) continue;
+      const action = actionReference(lines[index]);
+      if (action == null) continue;
+      if (action.startsWith("./")) continue;
+      if (action.startsWith("docker://")) {
+        if (!DOCKER_DIGEST.test(action)) failures.push(`WORKFLOW_DOCKER_ACTION_NOT_DIGEST_PINNED:${name}:${index + 1}:${action}`);
+        continue;
+      }
       const separator = action.lastIndexOf("@");
       const reference = separator < 0 ? "" : action.slice(separator + 1);
       if (!SHA40.test(reference)) failures.push(`WORKFLOW_ACTION_NOT_SHA_PINNED:${name}:${index + 1}:${action}`);
@@ -35,4 +44,4 @@ if (require.main === module) {
   console.log("Workflow action pin validation PASS");
 }
 
-module.exports = { WORKFLOW_DIR, validateWorkflowActionPins };
+module.exports = { WORKFLOW_DIR, actionReference, validateWorkflowActionPins };
