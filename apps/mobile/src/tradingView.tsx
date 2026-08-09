@@ -17,7 +17,7 @@ interface TradingViewProps {
 
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) {
   const { theme } = useTheme();
-  return <View style={styles.state} testID="trading-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>PAPER 관찰 화면을 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View>;
+  return <View style={styles.state} testID="trading-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>PAPER 화면을 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View>;
 }
 
 export function TradingView({ snapshot, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit }: TradingViewProps) {
@@ -44,8 +44,8 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
   const marketReady = model.blockedReasons.includes("MARKET_DATA_NOT_READY") === false;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="trading-screen">
-    <SectionHeading eyebrow="PAPER WORKSPACE" title="PAPER" description={readOnly ? "현재 앱 경로에는 주문 제출 기능이 연결되어 있지 않습니다. 검증된 PAPER 상태만 관찰합니다." : "명시적으로 연결된 PAPER 주문 입력 상태를 확인합니다."} />
-    <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label={marketReady ? "시장 온라인" : "시장 대기"} tone={marketReady ? "success" : "warning"} /><StatusChip label={readOnly ? "주문 권한 없음" : "PAPER 입력"} tone={readOnly ? "info" : "primary"} /></View>
+    <SectionHeading eyebrow="PAPER WORKSPACE" title="PAPER" description={readOnly ? "실제 시장·PAPER 계좌 상태를 관찰합니다. 현재 세션에는 주문 실행 권한이 없습니다." : "PAPER 주문 상태를 확인하고 입력합니다."} />
+    <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label={marketReady ? "시장 온라인" : "시장 대기"} tone={marketReady ? "success" : "warning"} /><StatusChip label={readOnly ? "READ ONLY" : "PAPER 입력"} tone={readOnly ? "info" : "primary"} /></View>
     <NusaCard testID="trading-safety" raised>
       <View style={styles.marketHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>관찰 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
       <Text style={[styles.price, { color: theme.colors.text }]}>{priceLabel}</Text>
@@ -55,14 +55,14 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
       <DataRow label="보유 수량" value={`${snapshot.account.position.quantity} ${tradingAssetCode(model.market)}`} />
     </NusaCard>
     {readOnly ? <>
-      <AuthorityBanner detail="이 화면은 가격·PAPER 잔고·주문 상태를 읽기만 합니다. 매수/매도 요청을 서버로 전송할 수 없습니다." />
+      <AuthorityBanner detail="이 화면은 가격과 PAPER 계좌 상태를 읽기만 합니다. 매수·매도 요청을 만들거나 서버로 전송할 수 없습니다." />
       <NusaCard testID="trading-readonly-state" raised>
-        <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.info }]}>EXECUTION BOUNDARY</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>주문 입력 비활성</Text></View><StatusChip label="READ ONLY" tone="info" /></View>
-        <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 App wiring에는 주문 제출 callback이 없습니다. 실행 가능한 컨트롤을 흉내 내지 않고 관찰 상태만 표시합니다.</Text>
+        <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>PAPER 관찰 모드</Text><StatusChip label="ZERO MUTATION" tone="info" /></View>
+        <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>실행 기능이 명시적으로 연결되기 전까지 이 화면은 관찰 전용입니다. 동작하지 않는 주문 컨트롤은 표시하지 않습니다.</Text>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-        <DataRow label="PAPER 모드" value={snapshot.mode} emphasis />
-        <DataRow label="주문 제출" value="연결 안 됨" tone="success" />
-        <DataRow label="서버 mutation" value="불가" tone="success" />
+        <DataRow label="주문 생성" value="연결 안 됨" tone="default" />
+        <DataRow label="서버 전송" value="불가" tone="default" />
+        <DataRow label="현재 권한" value="읽기 전용" tone="default" emphasis />
       </NusaCard>
     </> : <>
       <View style={styles.segmentRow} testID="trading-side-tabs"><NusaButton label="매수" onPress={() => setSide("BUY")} tone={side === "BUY" ? "primary" : "neutral"} testID="trading-buy" /><NusaButton label="매도" onPress={() => setSide("SELL")} tone={side === "SELL" ? "danger" : "neutral"} testID="trading-sell" /></View>
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12 },
   divider: { height: 1, marginVertical: 13 },
   segmentRow: { flexDirection: "row", gap: 10 },
-  cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 },
-  cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
+  cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
   reason: { marginTop: 7, fontSize: 13 },
 });
