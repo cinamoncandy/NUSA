@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T09:04:00+09:00"
-phase: real-provider-challenger-runtime
-status: in_progress
-objective: "Activate an explicitly configured real model challenger below the grounded zero-authority AI runtime, then verify provider availability, secret isolation, usage observability, and unchanged PAPER/safety authority."
+updated_at: "2026-08-09T09:15:00+09:00"
+phase: real-provider-challenger-runtime-complete
+status: ready
+objective: "Preserve the completed explicit real-provider challenger boundary and run a fresh evidence-based AI capability audit before opening any next AI implementation slice."
 base_branch: main
-active_branch: agent/ai-003-real-provider-challenger
-active_pull_request: 215
-base_commit: 3941bfbef711792396b61acb611579d73a9867f9
+active_branch: main
+active_pull_request: null
+base_commit: 509f11c1df73e2e8964e8d0d76de2177a3328096
 claimed_state:
-  work_order: WO-AI-003
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-002
+  work_order: WO-AI-003
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-002-completion.json"
+  evidence: ".aipos/evidence/WO-AI-003-completion.json"
 latest_verified_slice:
-  id: wo-ai-002-grounded-trustworthy-ai-runtime-complete
-  evidence: ".aipos/evidence/WO-AI-002-completion.json"
-  summary: "WO-AI-002 completed across PR #203 Grounding Trust Core and PR #204 bounded Cloud read-only activation, with exact-head Full CI, isolated suite, coverage, AI zero-authority, and all Restricted LIVE/read-only safety workflows PASS."
+  id: wo-ai-003-real-provider-challenger-complete
+  evidence: ".aipos/evidence/WO-AI-003-completion.json"
+  summary: "WO-AI-003 added an explicitly configured OpenAI Responses challenger behind the provider-neutral zero-authority runtime, with exact-head Full CI, isolated suite, coverage, provider regressions, and all Restricted LIVE/read-only safety workflows PASS."
 completed:
+  - id: WO-AI-003
+    evidence: ".aipos/evidence/WO-AI-003-completion.json"
+    summary: "The grounded AI runtime now supports an explicit real-model challenger with strict structured output, bounded timeout, usage metadata, fail-closed provider errors, and unchanged zero execution authority."
   - id: WO-AI-002
     evidence: ".aipos/evidence/WO-AI-002-completion.json"
     summary: "AI model runs are grounded in digest-bound sanitized evidence and exact prompt artifacts, replay/correlation semantics are truthful, and bounded asynchronous Cloud AI exposes only fresh validated read-only results with zero execution authority."
@@ -32,13 +35,10 @@ completed:
   - id: WO-0049
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
-  - id: WO-0048
-    evidence: ".aipos/evidence/WO-0048-completion.json"
-    summary: "Added fail-closed post-LIVE session evidence validation without scale-up authority."
 in_progress:
-  - id: WO-AI-003
-    evidence: ".aipos/work-orders/WO-AI-003-real-provider-challenger-runtime.yaml"
-    summary: "Fresh AI gap audit selected provider diversity / real inference availability as the lowest safe dimension; implement explicit opt-in OpenAI Responses challenger activation under unchanged zero-authority governance."
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -49,21 +49,20 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-AI-003-real-provider-challenger-runtime.yaml
-  reason: "Implement and verify the explicit opt-in OpenAI Responses challenger with strict structured output, secret isolation, bounded usage telemetry, provider failure isolation, and unchanged zero-authority governance before calibration work."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-AI-003 is evidence-verified complete. Preserve the human-only terminal gate; before any next AI implementation slice, run a fresh read-only AI capability audit after sufficient challenger observations and select the lowest-scoring safe dimension by evidence."
 verification:
   required:
-    - "WO-AI-003 exact-head provider/AI focused tests, Full CI, full isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
-    - "No provider credential in evidence, logs, persisted state, dashboard output, replay identity, or repository content"
-    - "Default/unconfigured provider remains network-free and unavailable"
+    - "Fresh repository/AI capability audit before opening the next AI implementation work order"
+    - "Calibration/outcome linkage assessment after sufficient real challenger observations"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #213 merged at 3941bfbef711792396b61acb611579d73a9867f9 from exact-head ea2b6ac52e3f8aed6d870ecfb3079e96247e810b after CI 31284591253 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. WO-AI-003 implementation is now tracked by PR #215."
-  current_commit: "ca902aaa8e8a367b54f73afd759c98367c5dcb06; WO-AI-003 OpenAI challenger implementation committed; PR #215 active"
+  last_result: "PR #215 merged at 509f11c1df73e2e8964e8d0d76de2177a3328096 from exact-head 65042532e35f65386631bddcb66ac00c54275b0c after CI 31285411133 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, provider regressions, and coverage; read-only/Restricted LIVE workflows 31285411126, 31285411123, 31285411099, 31285411101 PASS."
+  current_commit: "509f11c1df73e2e8964e8d0d76de2177a3328096; WO-AI-003 provider challenger implementation merged; completion bookkeeping pending exact-head verification"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
