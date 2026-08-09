@@ -15,7 +15,7 @@ type DurabilityProjection = Pick<
 
 type ResourceProjection = Pick<
   AiReadOnlyProjection,
-  "inferenceResourceHealth" | "inferenceResourceFailureCode" | "inferenceResourcePolicyId" | "inferenceResourcePolicyVersion" | "inferenceModelCalls" | "inferenceAttempts" | "inferenceReservedOutputTokens" | "inferenceInputBytes" | "inferenceActualInputTokens" | "inferenceActualOutputTokens" | "inferenceActualTotalTokens" | "inferenceElapsedMs"
+  "inferenceResourceHealth" | "inferenceResourceFailureCode" | "inferenceResourcePolicyId" | "inferenceResourcePolicyVersion" | "inferenceModelCalls" | "inferenceAttempts" | "inferenceReservedOutputTokens" | "inferenceInputBytes" | "inferenceUsageAccountingStatus" | "inferenceActualInputTokens" | "inferenceActualOutputTokens" | "inferenceActualTotalTokens" | "inferenceElapsedMs"
 >;
 
 const rawProbabilityFrom = (result: AiOrchestrationResult): number | null => {
@@ -60,9 +60,10 @@ const resourceFields = (snapshot: AiInferenceResourceSnapshot | undefined): Reso
   inferenceAttempts: snapshot?.attempts ?? 0,
   inferenceReservedOutputTokens: snapshot?.reservedOutputTokens ?? 0,
   inferenceInputBytes: snapshot?.inputBytes ?? 0,
-  inferenceActualInputTokens: snapshot?.actualInputTokens ?? 0,
-  inferenceActualOutputTokens: snapshot?.actualOutputTokens ?? 0,
-  inferenceActualTotalTokens: snapshot?.actualTotalTokens ?? 0,
+  inferenceUsageAccountingStatus: snapshot?.usageAccountingStatus ?? "UNAVAILABLE",
+  inferenceActualInputTokens: snapshot?.actualInputTokens ?? null,
+  inferenceActualOutputTokens: snapshot?.actualOutputTokens ?? null,
+  inferenceActualTotalTokens: snapshot?.actualTotalTokens ?? null,
   inferenceElapsedMs: snapshot?.elapsedMs ?? 0
 });
 
