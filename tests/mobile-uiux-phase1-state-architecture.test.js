@@ -76,10 +76,13 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
-test("recoverable local states expose retry actions", () => {
+test("recoverable states expose retry while unwired notifications stay truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const trading = read("src/tradingView.tsx");
-  assert.match(notifications, /testID="notifications-error"/);
-  assert.match(notifications, /NusaButton label="다시 시도"/);
+  assert.match(notifications, /testID="notifications-paper"/);
+  assert.match(notifications, /StatusChip label="미연결"/);
+  assert.match(notifications, /DataRow label="현재 상태" value="이벤트 수집 미연결"/);
+  assert.match(notifications, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);
+  assert.doesNotMatch(notifications, /testID="notifications-error"|NusaButton label="다시 시도"/);
   assert.match(trading, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
 });
