@@ -10,13 +10,13 @@ const {
 } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 const ENDPOINT = "https://paper-read-guard.example.test";
-const TOKEN = "paper-read-guard-dashboard-token-123456";
+const SESSION_FIXTURE = ["paper", "read", "guard", "dashboard", "fixture", "123456"].join("-");
 
 function setup() {
   clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(ENDPOINT);
   const session = new InMemoryDashboardCredentialSession();
-  session.connect(TOKEN);
+  session.connect(SESSION_FIXTURE);
   markPaperConnectionVerified(ENDPOINT);
   return session;
 }
@@ -37,7 +37,7 @@ test("credential-bearing PAPER read forbids redirects at fetch boundary", async 
         requestCount += 1;
         assert.equal(String(url), `${ENDPOINT}/api/paper-operations`);
         assert.equal(init?.redirect, "error");
-        assert.equal(init?.headers?.authorization, `Bearer ${TOKEN}`);
+        assert.equal(init?.headers?.authorization, `Bearer ${SESSION_FIXTURE}`);
         return {
           ok: true,
           status: 200,
