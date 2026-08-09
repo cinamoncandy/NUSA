@@ -17,6 +17,9 @@ test("system theme follows device preference and persisted settings are applied"
   assert.match(app, /settingsRepository\.load\(\)/);
   assert.match(app, /<ThemeProvider initialMode="system">/);
   assert.match(settings, /value === "SYSTEM" \? "system"/);
+  assert.match(settings, /Promise<boolean>/);
+  assert.match(settings, /const previousTheme = settings\.theme/);
+  assert.match(settings, /if \(!saved\) setMode\(themePreference\(previousTheme\)\)/);
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
 
