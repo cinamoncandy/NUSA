@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T13:20:00+09:00"
-phase: outcome-linked-ai-calibration
-status: in_progress
-objective: "Build deterministic outcome-linked AI calibration so raw model confidence is separated from empirically verified confidence while preserving zero execution authority."
+updated_at: "2026-08-09T15:12:00+09:00"
+phase: human-environment-gate
+status: ready
+objective: "Preserve verified WO-AI-004 outcome calibration while keeping WO-0051 at the constitutional human/environment boundary; run fresh read-only audits before any future safe AI slice."
 base_branch: main
-active_branch: agent/ai-004-outcome-calibration-current-main
-active_pull_request: 256
-base_commit: 32051ac472badadd752cb7a130085e0ec485eff1
+active_branch: main
+active_pull_request: null
+base_commit: 7ee02b9806052061651ae715c1c9a11079a1f769
 claimed_state:
-  work_order: WO-AI-004
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-003
+  work_order: WO-AI-004
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-003-completion.json"
+  evidence: ".aipos/evidence/WO-AI-004-completion.json"
 latest_verified_slice:
-  id: wo-ai-003-real-provider-challenger-complete
-  evidence: ".aipos/evidence/WO-AI-003-completion.json"
-  summary: "WO-AI-003 added an explicitly configured OpenAI Responses challenger behind the provider-neutral zero-authority runtime, with exact-head Full CI, isolated suite, coverage, provider regressions, and all Restricted LIVE/read-only safety workflows PASS."
+  id: wo-ai-004-outcome-linked-calibration-complete
+  evidence: ".aipos/evidence/WO-AI-004-completion.json"
+  summary: "WO-AI-004 binds model probability to verified market outcomes with exact cohort identity, conservative ECE/Brier calibration, audited horizon/staleness enforcement, fail-closed sample sufficiency, truthful read-only projection, and unchanged zero execution authority."
 completed:
+  - id: WO-AI-004
+    evidence: ".aipos/evidence/WO-AI-004-completion.json"
+    summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations and fail-closed resolution windows while preserving zero authority."
   - id: WO-AI-003
     evidence: ".aipos/evidence/WO-AI-003-completion.json"
     summary: "The grounded AI runtime supports an explicit real-model challenger with strict structured output, bounded timeout, usage metadata, fail-closed provider errors, and unchanged zero execution authority."
@@ -36,9 +39,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-AI-004
-    evidence: ".aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml"
-    summary: "Canonical PR #256 implements immutable prediction/outcome linkage, bounded raw proposer probability, verified-runtime calibration identity, weighted ECE/Brier metrics, exact cohort stratification, conservative read-only confidence, and truthful mobile presentation from current main."
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -49,23 +52,20 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml
-  reason: "Finish canonical PR #256, proving raw proposer probability remains untrusted until exact-cohort verified outcome calibration is healthy; do not increase provider weight or AI authority."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-AI-004 is evidence-verified complete through final hardening and post-merge verification. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
 verification:
   required:
-    - "WO-AI-004 exact-head calibration/AI tests, Full CI, isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
-    - "Prediction and outcome identities are immutable/hash-bound and cohort mixing fails closed"
-    - "Insufficient or degraded calibration cannot increase effective confidence"
-    - "Synthetic test outcomes cannot be represented as real runtime calibration evidence"
-    - "No calibration-derived execution, promotion, risk, or LIVE authority"
+    - "Fresh repository/AI capability audit before opening the next AI implementation work order"
+    - "Outcome-calibration durability, explanation quality, cost/latency, independent provider diversity, scenario reasoning, and memory attribution must be re-ranked by evidence"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #256 is the sole canonical WO-AI-004 implementation path from latest main 32051ac472badadd752cb7a130085e0ec485eff1; stale PR #247 is closed unmerged. Exact-head verification is pending and WO-AI-004 remains IN_PROGRESS."
-  current_commit: "Base main 32051ac472badadd752cb7a130085e0ec485eff1 is integrated into active branch agent/ai-004-outcome-calibration-current-main for PR #256; completion is not claimed before Merge + post-merge PASS."
+  last_result: "WO-AI-004 implementation PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 after exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 CI 31295456484 PASS, Mobile Native 31295456482 PASS, and four read-only/Restricted LIVE workflows PASS; final stale-outcome ledger-boundary hardening PR #268 merged at e76a3a8a2d169f677c91cc7502a04d456018146b after latest-main exact-head 1f10ea6e3d0b8e816b728cd88fc70894489d99cb CI 31296277719 PASS and four safety workflows PASS; post-merge main CI 31296534244 and Mobile Native 31296534245 PASS."
+  current_commit: "7ee02b9806052061651ae715c1c9a11079a1f769; WO-AI-004 final calibration hardening remains verified at e76a3a8a2d169f677c91cc7502a04d456018146b, with later architecture/recovery hardening integrated and zero AI/LIVE authority change"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
