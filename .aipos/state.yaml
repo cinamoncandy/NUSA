@@ -1,28 +1,31 @@
 version: 1
 project: nusa
-updated_at: "2026-08-10T01:58:00+09:00"
+updated_at: "2026-08-10T06:13:00+09:00"
 phase: mobile-real-device-fix
 status: ready
-objective: "Restore and verify the Android PAPER core flow on a real device while preserving the constitutional human/environment and LIVE safety boundaries."
+objective: "Verify the Android PAPER core flow on a physical device while preserving verified WO-AI-008 scenario governance, merged WO-AI-009 planning truth, WO-0051 constitutional human boundaries, and zero LIVE authority."
 base_branch: main
 active_branch: agent/issue-349-mobile-real-use-freeze
 active_pull_request: 371
-base_commit: 189cabe20778a2599c56fc5bf483d36803782a80
+base_commit: ab227c37f1f886efdefc8c56695b936d0d0704f7
 claimed_state:
   work_order: WO-0052
   status: VERIFYING
 verified_state:
-  work_order: WO-AI-007
+  work_order: WO-AI-008
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-007-completion.json"
+  evidence: ".aipos/evidence/WO-AI-008-completion.json"
 latest_verified_slice:
-  id: wo-ai-007-n-version-provider-diversity-complete
-  evidence: ".aipos/evidence/WO-AI-007-completion.json"
-  summary: "WO-AI-007 adds explicit independent-provider N-version comparison, shared resource governance, deterministic disagreement/abstention, fake-independence rejection, and consensus-without-confidence-uplift under unchanged zero authority."
+  id: wo-ai-008-governed-scenario-counterfactual-reasoning-complete
+  evidence: ".aipos/evidence/WO-AI-008-completion.json"
+  summary: "WO-AI-008 adds exact-baseline-bound hypothetical scenario reasoning, deterministic sensitivity/contradiction states, shared resource governance, provider-disagreement abstention, and no realized-learning or execution authority uplift."
 completed:
+  - id: WO-AI-008
+    evidence: ".aipos/evidence/WO-AI-008-completion.json"
+    summary: "Governed scenario/counterfactual reasoning is merged and verified with immutable observed evidence, explicit BASELINE/HYPOTHETICAL provenance, one enclosing resource budget, disagreement abstention, deterministic replay, and unchanged zero authority."
   - id: WO-AI-007
     evidence: ".aipos/evidence/WO-AI-007-completion.json"
-    summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
+    summary: "Independent OpenAI/Anthropic comparison is opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without execution authority."
   - id: WO-AI-006
     evidence: ".aipos/evidence/WO-AI-006-completion.json"
     summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
@@ -50,7 +53,7 @@ completed:
 in_progress:
   - id: WO-0052
     evidence: ".aipos/work-orders/WO-0052-android-real-device-fix.yaml"
-    summary: "Android PAPER runtime fixes are locally and CI verified; physical device and release reinstall evidence remain required."
+    summary: "Android PAPER runtime fixes are automated-gate candidates; synchronized exact-head validation plus physical device and release reinstall evidence remain required."
 blocked:
   - "PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED"
   - "PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION"
@@ -64,19 +67,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
-  reason: "Install the release APK on a physical Android device, collect logcat/runtime evidence, and execute the full Issue #349 core flow before merge."
+  reason: "Revalidate the synchronized PR #371 exact head against protected main, then install that exact release APK on a physical Android device and execute the full Issue #349 core flow before merge."
 verification:
   required:
-    - "Fresh post-WO-AI-007 capability audit before selecting the next AI implementation work order"
-    - "Re-rank scenario/counterfactual reasoning, explanation faithfulness/completeness, post-decision learning/attribution, provider-pool lifecycle/cancellation, cost-quality optimization, calibration, grounding, and resource governance from merged evidence"
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
+    - "Fresh synchronized-head Full CI/Coverage, Mobile Native Android release candidate, and all Restricted LIVE/read-only workflows"
+    - "Physical Android cold-start, relaunch, Home/Markets/PAPER/Portfolio/AI navigation, Settings endpoint/credential setup, PAPER order/state/history/portfolio, retry/no-double-fill, release reinstall, logcat, and functional/visual P0/P1=0 evidence"
+    - "Preserve WO-AI-008 evidence, WO-AI-009 merged planning gate, zero-authority contracts, and WO-0051 HUMAN_ENVIRONMENT_ONLY boundaries"
+    - "Operator-authorized external read-only broker preflight before any separately authorized constitutional transition"
+    - "Actual independent human activation ceremony evidence before any real-money LIVE decision"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-007 planning PR #374 merged at 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4. Canonical implementation PR #376 exact head 8fe07e4fc078e51297a1b1963f0415f410b8fbbf passed Full CI/Coverage 31321492237 and all four Restricted LIVE/read-only workflows, then merged at 3df6b28d08ead38f893cd0c84bd70a31f275f8a9. Adversarial evaluation improved cross-provider conflict observability from 0/5 baseline to 5/5 disagreement/abstention detections without claiming market predictive-accuracy improvement. Android PR #371 head 5f24b5ba0cb6f4dc2525f2ba823754a7af0a9ad5 passes CI; physical-device evidence remains pending."
-  current_commit: "5f24b5ba0cb6f4dc2525f2ba823754a7af0a9ad5 contains the verified Android runtime fix and current AIPOS mission alignment; physical-device evidence is still pending."
+  last_result: "WO-AI-008 implementation/completion and WO-AI-009 planning are merged and evidence-bound on protected main through #386. PR #371 was synchronized through main@ed948a7e before this control-room merge and remains unmerged; its mobile implementation must receive fresh exact-head automated validation after incorporating main@ab227c37, and physical-device evidence remains mandatory."
+  current_commit: "This synchronized #371 candidate combines the mobile WO-0052 recovery tree with protected main@ab227c37f1f886efdefc8c56695b936d0d0704f7 AI-008/AI-009 governance truth. Fresh automated gates and physical-device evidence remain required before PR merge."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

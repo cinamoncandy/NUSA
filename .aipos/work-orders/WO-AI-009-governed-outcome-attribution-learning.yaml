@@ -89,7 +89,14 @@ verification:
     - pnpm run aipos:conformance
     - pnpm run security:gate
     - git diff --check
-  result: PENDING
+  result: PASS
+  planning_exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
+  planning_ci_run: 31333678605
+  restricted_live_transport_run: 31333678622
+  restricted_live_activation_run: 31333678644
+  readonly_broker_run: 31333678599
+  restricted_live_capability_run: 31333678603
+  restricted_live_readonly_workflows: PASS_4_OF_4
   evaluation_requirements:
     - independent deterministic evaluator where feasible
     - immutable holdout partition and leakage detection
@@ -106,10 +113,17 @@ verification:
     - provider or broker credential material
     - autonomous model/provider weighting prompt mutation strategy promotion risk increase or execution
 planning_gate:
-  status: OPEN_PENDING_EXACT_HEAD_VALIDATION
+  status: MERGED
+  pull_request: 382
   base_commit: 8dcc2e6abad05de824ac7c183210adf2fe02c624
+  exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
+  merge_commit: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
 implementation_gate:
-  status: BLOCKED_UNTIL_PLANNING_MERGED
+  status: NOT_STARTED
+  planning_pr_merged: true
+  latest_main_required_before_start: true
+  latest_main_required_before_merge: true
 next: >-
-  Freeze the planning branch after PR creation, require exact-head CI/AIPOS/architecture/security and all Restricted LIVE/read-only
-  workflows to pass, merge only with unchanged latest-main ancestry and expected-head protection, then re-read protected main before any implementation.
+  Planning PR #382 is merged and its exact planning head passed Full CI plus all four Restricted LIVE/read-only workflows.
+  Start implementation only from the then-current protected main, set the Work Order to IN_PROGRESS on the implementation branch,
+  preserve WO-0051 HUMAN_ENVIRONMENT_ONLY and zero-authority boundaries, and require fresh exact-head implementation verification before merge.
