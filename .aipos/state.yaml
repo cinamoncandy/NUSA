@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T14:02:53+09:00"
+updated_at: "2026-08-09T14:15:00+09:00"
 phase: outcome-linked-ai-calibration-complete
 status: ready
 objective: "Preserve verified outcome-linked AI calibration and run a fresh evidence-based AI capability audit before opening any next AI implementation slice."
@@ -62,7 +62,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 from exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 after CI 31295456484 PASS including Security, Typecheck, Build, Architecture/Repository Truth, AI zero-authority, AIPOS, PAPER verification, E2E/release, repository-wide audit, full isolated suite, and Coverage; Mobile Native 31295456482 PASS for foundation/Android/iOS; Restricted LIVE/read-only workflows 31295456483, 31295456490, 31295456480, 31295456481 PASS."
-  current_commit: "799a1c0ea8c5aeecc236b5a84b2096a7251e1351; WO-AI-004 implementation merged; completion bookkeeping pending exact-head verification"
+  current_commit: "799a1c0ea8c5aeecc236b5a84b2096a7251e1351; WO-AI-004 implementation merged and completion evidence recorded on canonical bookkeeping PR #270"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
