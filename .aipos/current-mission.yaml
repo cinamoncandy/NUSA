@@ -1,7 +1,7 @@
 id: WO-AI-004
 title: Outcome-Linked Calibration Engine
-branch: agent/ai-004-outcome-calibration-plan-v4
-pull_request: null
+branch: agent/ai-004-outcome-calibration-current-main
+pull_request: 256
 base_branch: main
 phase: implementation
 status: IN_PROGRESS
@@ -13,7 +13,10 @@ scope:
   - weighted expected calibration error and Brier score
   - provider/model/prompt/outcome cohort isolation
   - insufficient-data and degraded-calibration fail-closed semantics
+  - strict bounded raw proposer probability in provider and orchestrator validation
+  - verified-runtime proposer-to-calibration prediction bridge
   - read-only calibration projection with raw probability separated from calibrated/effective confidence
+  - truthful mobile presentation of raw probability, calibration evidence, and trusted confidence
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -34,4 +37,4 @@ blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Implement WO-AI-004 only from its recorded implementation branch rebased on current main while preserving zero-authority and deterministic safety boundaries.
+next_recommended_task: Complete and verify PR #256 only; do not start a different WO-AI-004 implementation path before exact-head checks, merge, and post-merge verification pass.
