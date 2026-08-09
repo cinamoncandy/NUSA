@@ -18,3 +18,7 @@ dist/
 .codex/
 outputs/
 work/
+
+# Test temporary files
+*-test-failure.txt
+isolated-test-failure.txt
