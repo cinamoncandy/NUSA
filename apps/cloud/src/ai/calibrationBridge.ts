@@ -7,6 +7,10 @@ export interface CalibrationPredictionBridgeOptions {
   readonly outcomeDefinitionId: string;
   readonly outcomeDefinitionVersion: string;
   readonly horizonMs: number;
+  readonly targetId: string;
+  readonly anchorValue: number;
+  readonly anchorObservedAt: number;
+  readonly anchorEvidenceReference: string;
 }
 
 const requiredText = (value: string, field: string): string => {
@@ -17,6 +21,16 @@ const requiredText = (value: string, field: string): string => {
 
 const positiveSafeInteger = (value: number, field: string): number => {
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${field} must be a positive safe integer`);
+  return value;
+};
+
+const nonNegativeSafeInteger = (value: number, field: string): number => {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${field} must be a non-negative safe integer`);
+  return value;
+};
+
+const finiteNumber = (value: number, field: string): number => {
+  if (!Number.isFinite(value)) throw new Error(`${field} must be finite`);
   return value;
 };
 
@@ -41,6 +55,12 @@ export function createVerifiedRuntimeCalibrationPrediction(
   const providerId = requiredText(options.providerId, "providerId");
   if (agent.correlatedGroupId !== `model:${providerId}:${run.modelVersionId}`) throw new Error("strategy proposer provider identity mismatch");
   const horizonMs = positiveSafeInteger(options.horizonMs, "horizonMs");
+  const targetId = requiredText(options.targetId, "targetId");
+  const anchorValue = finiteNumber(options.anchorValue, "anchorValue");
+  const anchorObservedAt = nonNegativeSafeInteger(options.anchorObservedAt, "anchorObservedAt");
+  const anchorEvidenceReference = requiredText(options.anchorEvidenceReference, "anchorEvidenceReference");
+  if (anchorObservedAt > run.completedAt) throw new Error("calibration anchor cannot postdate proposer completion");
+  if (!output.evidenceReferences.includes(anchorEvidenceReference)) throw new Error("calibration anchor must be referenced by proposer output");
   const proposalId = `${run.agentRunId}:proposal`;
   const predictionId = `${proposalId}:${outcomeDefinitionId}@${outcomeDefinitionVersion}`;
 
@@ -57,6 +77,10 @@ export function createVerifiedRuntimeCalibrationPrediction(
     promptArtifactDigest: run.promptArtifactDigest,
     outcomeDefinitionId,
     outcomeDefinitionVersion,
+    targetId,
+    anchorValue,
+    anchorObservedAt,
+    anchorEvidenceReference,
     rawProbability,
     predictedAt: run.completedAt,
     horizonMs,
