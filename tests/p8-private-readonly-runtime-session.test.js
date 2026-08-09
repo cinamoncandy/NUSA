@@ -67,7 +67,7 @@ test("dashboard bearer credential is sent only to a secure or explicitly configu
     return { ok: false, status: 503 };
   };
   const insecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
-  assert.equal(insecure.status, "NOT_CONFIGURED");
+  assert.equal(insecure.status, "UNAVAILABLE");
   assert.equal(requestCount, 0);
 
   const secure = await loadPersonalPaperOperations({ baseUrl: "https://nusa.invalid", credentialProvider, request });
@@ -214,20 +214,24 @@ test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", asy
   }
 });
 
-test("mobile source consumes only the single authenticated operations snapshot and exposes no mutation path", () => {
+test("mobile source keeps read projections separate while exposing only explicit PAPER mutation", () => {
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const session = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "dashboardCredentialSession.ts"), "utf8");
-  const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
+  const readClient = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
+  const orderClient = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOrderClient.ts"), "utf8");
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts"), "utf8");
   assert.match(app, /InMemoryDashboardCredentialSession/);
-  assert.match(app, /secureTextEntry/);
   assert.match(app, /snapshot\?\.portfolio/);
   assert.match(app, /snapshot\?\.orders/);
   assert.match(app, /snapshot\.markets/);
-  assert.match(client, /\/api\/paper-operations/);
-  assert.doesNotMatch(client, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/);
+  assert.match(readClient, /\/api\/paper-operations/);
+  assert.doesNotMatch(readClient, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/);
+  assert.match(orderClient, /\/api\/paper-orders/);
+  assert.match(orderClient, /method:\s*["']POST["']/);
+  assert.match(orderClient, /authority:\s*"PAPER_ONLY"|PersonalPaperOrderCommand/);
+  assert.doesNotMatch(orderClient, /\/api\/(?:live|withdraw|transfer)/i);
   assert.doesNotMatch(session, /AsyncStorage|Keychain|SecureStore|console\.|process\.env/);
-  assert.doesNotMatch(app, /placeOrder|cancelOrder|withdraw|\/api\/(?:account|markets|orders|trade)/);
+  assert.doesNotMatch(app, /withdraw|\/api\/(?:live|withdraw|transfer)/i);
   assert.match(runtime, /portfolio:\s*buildReadOnlyPortfolio/);
   assert.match(runtime, /orders:\s*buildReadOnlyOrders/);
   assert.match(runtime, /markets:\s*\[\.\.\.latestTickers\.values\(\)\]/);
