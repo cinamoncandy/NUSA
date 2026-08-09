@@ -27,6 +27,14 @@ function severityTone(severity: AiReadOnlyProjection["criticSeverity"]): "danger
   return "default";
 }
 
+function percent(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "-" : `${Math.round(value * 100)}%`;
+}
+
+function metric(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "-" : value.toFixed(3);
+}
+
 function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) {
   const { theme } = useTheme();
   return <View style={styles.state} testID={testID}>
@@ -45,7 +53,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   if (error) return <AiState title="AI 상태를 표시할 수 없습니다" detail={error} testID="ai-error" retry={onRefresh} />;
   if (ai === null && research === null) return <AiState title="AI 상태를 불러오는 중" detail="검증된 읽기 전용 AI·리서치 스냅샷을 기다리고 있습니다." testID="ai-loading" loading />;
 
-  const confidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
+  const trustedConfidence = ai?.calibrationStatus === "CALIBRATED" ? percent(ai.confidence) : "-";
+  const rawProbability = percent(ai?.rawProbability);
+  const calibratedProbability = ai?.calibrationStatus === "CALIBRATED" ? percent(ai.calibratedProbability) : "-";
   const lastRun = ai?.lastModelRun == null ? "-" : new Date(ai.lastModelRun).toLocaleString("ko-KR");
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
@@ -60,12 +70,17 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
-      <DataRow label="모델 점수 (미보정)" value={confidence} />
+      <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
+      <DataRow label="검증 신뢰도" value={trustedConfidence} emphasis={ai?.calibrationStatus === "CALIBRATED"} />
+      <DataRow label="보정 확률" value={calibratedProbability} />
+      <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
+      <DataRow label="보정 표본" value={ai?.calibrationSampleCount == null ? "-" : String(ai.calibrationSampleCount)} />
+      <DataRow label="ECE" value={metric(ai?.calibrationExpectedError)} />
+      <DataRow label="Brier" value={metric(ai?.calibrationBrierScore)} />
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="최근 분석" value={lastRun} />
-      <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>보정 상태가 UNKNOWN인 동안 모델 점수는 검증된 확률이나 성과 보장을 의미하지 않습니다.</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. 보정 상태가 CALIBRATED일 때만 별도의 검증 신뢰도를 표시합니다.</Text>
     </NusaCard>
 
     <NusaCard testID="ai-evidence-card">
