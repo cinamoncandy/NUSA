@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { validateDisasterRecoveryRestore } = require("./validate-disaster-recovery-restore.js");
+const { scanText } = require("./security-gate.js");
 
 const root = path.resolve(__dirname, "..");
 const MAX_FILES = 200;
@@ -67,10 +68,25 @@ function walk(input) {
 }
 
 function redact(text) {
+  const sensitiveKey = "(?:authorization|access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)";
+  const assignment = new RegExp(`(${sensitiveKey}\\s*["']?\\s*[:=]\\s*)("[^"\\r\\n]*"|'[^'\\r\\n]*'|(?:bearer\\s+)?[^\\s,}]+)`, "gi");
   return text
-    .replace(/(authorization\s*[:=]\s*)(bearer\s+)?[^\s,"'}]+/gi, "$1[REDACTED]")
-    .replace(/((?:secret|token|password|credential|api[_-]?key|private[_-]?key)\s*["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi, "$1[REDACTED]")
-    .replace(/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)/g, "$1\n[REDACTED]\n$2");
+    .replace(/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)/g, "$1\n[REDACTED]\n$2")
+    .replace(assignment, (_match, prefix, value) => {
+      const quote = value[0];
+      return quote === '"' || quote === "'" ? `${prefix}${quote}[REDACTED]${quote}` : `${prefix}[REDACTED]`;
+    })
+    .replace(/\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b/g, "[REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED]");
+}
+
+function assertNoResidualSecrets(text, file) {
+  const normalized = text
+    .replaceAll("[REDACTED]", "redacted")
+    .replace(/(["'])(access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)\1\s*:/gi, "$2:");
+  const findings = scanText(normalized, file);
+  if (findings.length > 0) throw new Error(`residual secret material detected after redaction: ${file}`);
 }
 
 function validateRuntimeDiagnostics(input) {
@@ -132,6 +148,7 @@ function generateBundle(options) {
       try { content = fs.readFileSync(file, "utf8"); }
       catch { throw new Error(`diagnostics source must be UTF-8 text: ${relative}`); }
       const safe = redact(content);
+      assertNoResidualSecrets(safe, relative);
       const bytes = Buffer.from(safe, "utf8");
       totalBytes += bytes.length;
       if (totalBytes > MAX_FILES * MAX_BYTES) throw new Error("diagnostics aggregate size cap exceeded");
