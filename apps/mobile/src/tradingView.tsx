@@ -29,7 +29,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
 
   if (error) return <ErrorState message={error} onRetry={onRefresh} />;
   if (snapshot === null) return <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>PAPER 상태를 불러오는 중</Text></View>;
-  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state}><View style={styles.stateInner}><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>관찰 가능한 시장이 없습니다</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View></View>;
+  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><View style={styles.stateInner}><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>관찰 가능한 시장이 없습니다</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View></View>;
 
   const submitAvailable = onSubmit !== undefined || builtInSubmitAvailable;
   const model = buildTradingViewModel({ market: { market: snapshot.account.position.market, connectionState: marketConnectionState, stale, price: snapshot.account.markPrice }, account: { mode: snapshot.mode, liveMutationAllowed: false, cash: snapshot.account.cash, assetQuantity: snapshot.account.position.quantity, market: snapshot.account.position.market }, draft, submitAvailable });
