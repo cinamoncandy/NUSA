@@ -45,6 +45,16 @@ const safeIdempotencyKey = (value: string): string => {
   return value;
 };
 
+function validateOrderProjection(order: PersonalPaperOrderProjection): PersonalPaperOrderProjection {
+  if (!order.id.trim() || !order.market.trim() || (order.side !== "BUY" && order.side !== "SELL") || order.status !== "FILLED" || !Number.isFinite(Date.parse(order.filledAt))) throw new Error("invalid PAPER order projection");
+  if (!Number.isFinite(order.quantity) || order.quantity <= 0 || !Number.isFinite(order.price) || order.price <= 0 || !Number.isFinite(order.fee) || order.fee < 0) throw new Error("invalid PAPER order value");
+  const fills = order.fills.map((fill) => {
+    if (!fill.id.trim() || !Number.isFinite(fill.quantity) || fill.quantity <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(Date.parse(fill.filledAt))) throw new Error("invalid PAPER fill projection");
+    return Object.freeze({ id: fill.id, quantity: fill.quantity, price: fill.price, filledAt: fill.filledAt });
+  });
+  return Object.freeze({ id: order.id, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, filledAt: order.filledAt, status: "FILLED", fills: Object.freeze(fills) });
+}
+
 const sameOrder = (left: PersonalPaperOrderProjection, right: PersonalPaperOrderProjection): boolean =>
   left.id === right.id && left.market === right.market && left.side === right.side && left.quantity === right.quantity &&
   left.price === right.price && left.fee === right.fee && left.filledAt === right.filledAt && left.status === right.status &&
@@ -91,14 +101,19 @@ export function validatePersonalPaperOrderCommandResult(
 
   let order: PersonalPaperOrderProjection | undefined;
   if (result.order != null) {
-    if (snapshot == null) throw new Error("PAPER order result order requires snapshot");
-    const corresponding = snapshot.orders.find((candidate) => candidate.id === result.order?.id);
-    if (corresponding == null || !sameOrder(result.order, corresponding)) throw new Error("PAPER order result does not match snapshot order");
-    if (corresponding.market !== command.market || corresponding.side !== command.side || corresponding.quantity !== command.quantity) throw new Error("PAPER order result does not match submitted command");
-    order = corresponding;
+    const validatedOrder = validateOrderProjection(result.order);
+    if (snapshot != null) {
+      const corresponding = snapshot.orders.find((candidate) => candidate.id === validatedOrder.id);
+      if (corresponding == null || !sameOrder(validatedOrder, corresponding)) throw new Error("PAPER order result does not match snapshot order");
+      order = corresponding;
+    } else {
+      order = validatedOrder;
+    }
+    if (order.market !== command.market || order.side !== command.side || order.quantity !== command.quantity) throw new Error("PAPER order result does not match submitted command");
   }
 
-  if ((result.status === "FILLED" || result.status === "DUPLICATE") && (order == null || snapshot == null)) throw new Error(`${result.status} PAPER order result requires order and snapshot`);
+  if (result.status === "FILLED" && (order == null || snapshot == null)) throw new Error("FILLED PAPER order result requires order and snapshot");
+  if (result.status === "DUPLICATE" && order == null) throw new Error("DUPLICATE PAPER order result requires prior order");
 
   return Object.freeze({ schemaVersion: 1, status: result.status, idempotencyKey: command.idempotencyKey, market: command.market, side: command.side, orderType: command.orderType, quantity: command.quantity, ...(command.limitPrice === undefined ? {} : { limitPrice: command.limitPrice }), ...(reason == null ? {} : { reason: reason.trim() }), ...(order == null ? {} : { order }), ...(snapshot == null ? {} : { snapshot }), liveAuthority: "NONE", productionMutationAllowed: false });
 }
