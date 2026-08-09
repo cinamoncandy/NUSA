@@ -17,9 +17,13 @@ test("CI uses instrumented coverage as the single isolated/UI/E2E execution", ()
   assert.ok(browserInstall >= 0 && coverage > browserInstall, "Playwright Chromium must be installed before coverage E2E execution");
 });
 
-test("prepared paths skip only setup already proven by CI", () => {
+test("prepared paths skip only setup already proven once by CI", () => {
+  const workflow = read(".github/workflows/ci.yml");
   const pkg = JSON.parse(read("package.json"));
   const coverage = read("scripts/run-coverage.js");
+  assert.match(workflow, /- name: Preflight\n\s+run: pnpm run preflight/);
+  assert.ok(workflow.indexOf("- name: Preflight") < workflow.indexOf("- name: Typecheck"), "Preflight must pass before Typecheck");
+  assert.ok(workflow.indexOf("- name: Typecheck") < workflow.indexOf("- name: Build"), "Typecheck must pass before Build");
   assert.equal(pkg.scripts.coverage, "node scripts/run-coverage.js");
   assert.equal(pkg.scripts["coverage:prepared"], "node scripts/run-coverage.js --prepared");
   assert.equal(pkg.scripts["release:check:prepared"], "node scripts/release-readiness.js");
