@@ -47,6 +47,29 @@ test("shared contracts reject side-effect runtime imports of implementation modu
   });
 });
 
+test("shared contracts reject comment-obfuscated side-effect imports", () => {
+  withFixture({
+    "packages/contracts/src/public.ts": 'import/* red-team */"../../core/src/register"; export interface PublicContract { readonly id: string; }\n',
+    "packages/core/src/register.ts": "globalThis.__nusaContractLeak = true;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(contractFindings(result).length, 1);
+    assert.equal(contractFindings(result)[0].kind, "runtime");
+  });
+});
+
+test("shared contracts reject comment-obfuscated bound imports and require calls", () => {
+  withFixture({
+    "packages/contracts/src/public.ts": 'import/* red-team */{ runtimeValue } from "../../core/src/runtime"; const other = require/* red-team */("../../aipos/src/plugin"); export const value = runtimeValue + other.runtimeValue;\n',
+    "packages/core/src/runtime.ts": "export const runtimeValue = 1;\n",
+    "packages/aipos/src/plugin.ts": "export const runtimeValue = 2;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(contractFindings(result).length, 2);
+    assert.ok(contractFindings(result).every((finding) => finding.kind === "runtime"));
+  });
+});
+
 test("shared contracts reject type-only dependencies on AIPOS implementation", () => {
   withFixture({
     "packages/contracts/src/public.ts": 'import type { AiposState } from "../../aipos/src/types"; export type PublicState = AiposState;\n',
@@ -67,6 +90,18 @@ test("shared contracts reject literal import expressions that escape the package
     assert.equal(contractFindings(result).length, 1);
     assert.equal(contractFindings(result)[0].kind, "inline-import");
     assert.deepEqual(result.runtimeCycles, []);
+  });
+});
+
+test("shared contracts reject comment-obfuscated dynamic and type import expressions", () => {
+  withFixture({
+    "packages/contracts/src/public.ts": 'export type RuntimeState = import/* red-team */("../../core/src/runtime").RuntimeState; export async function load() { return import/* red-team */("../../aipos/src/plugin"); }\n',
+    "packages/core/src/runtime.ts": "export interface RuntimeState { readonly id: string; }\n",
+    "packages/aipos/src/plugin.ts": "export const runtimeValue = 2;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(contractFindings(result).length, 2);
+    assert.ok(contractFindings(result).every((finding) => finding.kind === "inline-import"));
   });
 });
 
