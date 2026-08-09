@@ -76,25 +76,26 @@ export class OraclePaperTradingExecutionLoop extends PaperTradingExecutionLoop {
     if (actionable.length !== 1) return this.blocked("MULTIPLE_ACTIONABLE_DECISIONS_REQUIRE_REVIEW");
 
     const decision = actionable[0];
+    const side: "BUY" | "SELL" = decision.action === "BUY" ? "BUY" : "SELL";
     const state = this.snapshot();
-    const idempotencyKey = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
+    const idempotencyKey = `paper:${tick.market}:${tick.observedAt}:${side}:${decision.decidedAt}`;
     if (state.processedIdempotencyKeys.includes(idempotencyKey)) {
       return Object.freeze({ status: "DUPLICATE", reason: idempotencyKey, orders: Object.freeze([]), fills: Object.freeze([]), state });
     }
 
     const position = state.positions.find((item) => item.market === tick.market);
-    const quantity = Number((tick.quantity ?? (decision.action === "SELL"
+    const quantity = Number((tick.quantity ?? (side === "SELL"
       ? position?.quantity ?? 0
       : state.cash * decision.allocation / tick.price)).toFixed(8));
     if (quantity <= 0) {
-      return this.blocked(decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero", "REJECTED");
+      return this.blocked(side === "SELL" ? "insufficient paper position" : "decision allocation is zero", "REJECTED");
     }
     const notional = Number((quantity * tick.price).toFixed(8));
     const fee = Number((notional * this.oracleFeeRate).toFixed(8));
-    if (decision.action === "BUY" && notional + fee > state.cash + Number.EPSILON) {
+    if (side === "BUY" && notional + fee > state.cash + Number.EPSILON) {
       return this.blocked("insufficient paper cash", "REJECTED");
     }
-    if (decision.action === "SELL" && quantity > (position?.quantity ?? 0) + Number.EPSILON) {
+    if (side === "SELL" && quantity > (position?.quantity ?? 0) + Number.EPSILON) {
       return this.blocked("insufficient paper position", "REJECTED");
     }
 
@@ -104,7 +105,7 @@ export class OraclePaperTradingExecutionLoop extends PaperTradingExecutionLoop {
         nowMs: tick.now,
         observedAt: tick.observedAt,
         market: tick.market,
-        side: decision.action,
+        side,
         strategyDecisionAt: decision.decidedAt,
         idempotencyKey,
         currentEquity: state.equity,
