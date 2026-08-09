@@ -85,9 +85,9 @@ export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebr
   return <View style={styles.sectionHeading}>{eyebrow ? <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{eyebrow}</Text> : null}<Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>{description ? <Text style={[styles.sectionDescription, { color: theme.colors.textMuted }]}>{description}</Text> : null}</View>;
 }
 
-export function AuthorityBanner({ detail = "AI와 모바일 화면은 분석·조회만 수행합니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
+export function AuthorityBanner({ detail = "AI는 분석과 근거 표시만 수행합니다. PAPER 주문 경로와 분리되며 AI에는 주문·이체·LIVE 실행 권한이 없습니다." }: Readonly<{ detail?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="UI 주문 경로 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
+  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>AI ZERO AUTHORITY</Text><StatusChip label="AI 주문 권한 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
 }
 
 export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
@@ -118,5 +118,5 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
-  dataValueEmphasis: { fontSize: 14 },
+  dataValueEmphasis: { fontSize: 14 }
 });
