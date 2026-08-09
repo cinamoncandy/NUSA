@@ -22,12 +22,8 @@ test("settings UI exposes only implemented preferences, PAPER safety, reset, and
   assert.match(source, /settings\.theme === value \? "primary" : "neutral"/);
   assert.match(source, /value === "SYSTEM" \? "system"/);
 
-  assert.match(source, />알림</);
-  assert.match(source, /"enabled", "riskAlerts", "orderUpdates"/);
-  assert.match(source, /updateNotification\(field\)/);
-  assert.match(source, /전체 알림/);
-  assert.match(source, /리스크 알림/);
-  assert.match(source, /주문 상태 업데이트/);
+  assert.doesNotMatch(source, /updateNotification|전체 알림|리스크 알림|주문 상태 업데이트/);
+  assert.doesNotMatch(source, /"enabled", "riskAlerts", "orderUpdates"/);
 
   assert.match(source, /거래 권한/);
   assert.match(source, /StatusChip label="PAPER ONLY"/);
