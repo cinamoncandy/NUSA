@@ -1,6 +1,7 @@
 import type { ModelRequest, ModelResponse } from "./aiInference";
 
 export type AiInferenceResourceHealth = "HEALTHY" | "EXHAUSTED" | "UNVERIFIED";
+export type AiInferenceUsageAccountingStatus = "VERIFIED" | "PARTIAL" | "UNAVAILABLE";
 export type AiInferenceResourceFailureCode =
   | "CALL_BUDGET_EXHAUSTED"
   | "ATTEMPT_BUDGET_EXHAUSTED"
@@ -46,9 +47,10 @@ export interface AiInferenceResourceSnapshot {
   readonly attempts: number;
   readonly reservedOutputTokens: number;
   readonly inputBytes: number;
-  readonly actualInputTokens: number;
-  readonly actualOutputTokens: number;
-  readonly actualTotalTokens: number;
+  readonly usageAccountingStatus: AiInferenceUsageAccountingStatus;
+  readonly actualInputTokens: number | null;
+  readonly actualOutputTokens: number | null;
+  readonly actualTotalTokens: number | null;
   readonly elapsedMs: number;
   readonly attemptsEvidence: readonly AiInferenceAttemptUsage[];
   readonly failureCode?: AiInferenceResourceFailureCode;
@@ -58,6 +60,7 @@ export interface AiInferenceResourceSnapshot {
 
 export interface AiInferenceResourceController {
   reserveCall(callId: string, at: number): boolean;
+  /** Returns true only when a NEW attempt is admitted. Exact duplicate replay is state-idempotent but is not re-authorized. */
   reserveAttempt(request: ModelRequest, at: number): boolean;
   completeAttempt(request: ModelRequest, response: ModelResponse, at: number): boolean;
   failAttempt(request: ModelRequest, at: number): void;
@@ -74,9 +77,10 @@ declare module "./aiInference" {
     readonly inferenceAttempts?: number;
     readonly inferenceReservedOutputTokens?: number;
     readonly inferenceInputBytes?: number;
-    readonly inferenceActualInputTokens?: number;
-    readonly inferenceActualOutputTokens?: number;
-    readonly inferenceActualTotalTokens?: number;
+    readonly inferenceUsageAccountingStatus?: AiInferenceUsageAccountingStatus;
+    readonly inferenceActualInputTokens?: number | null;
+    readonly inferenceActualOutputTokens?: number | null;
+    readonly inferenceActualTotalTokens?: number | null;
     readonly inferenceElapsedMs?: number;
   }
 }
