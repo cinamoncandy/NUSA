@@ -1,14 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  AppState,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type AppStateStatus,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip, WaveMark } from "./src/components";
 import { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";
@@ -33,6 +35,7 @@ const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { HISTORY: "주문 이력", NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const theme = { container: { flex: 1 } } as const;
 const CHART_MARKET = "KRW-BTC";
+const PAPER_REFRESH_INTERVAL_MS = 5000;
 const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
 
 function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
@@ -66,7 +69,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
   </NusaCard></View></View>;
 }
 
-export default function App() { return <ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider>; }
+export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [status, setStatus] = useState<AuthStatus>("CHECKING");
@@ -83,23 +86,44 @@ function AuthenticatedApp() {
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
   const [refreshing, setRefreshing] = useState(false);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshGenerationRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
-      return;
+      return Promise.resolve();
     }
-    setOperations(await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }));
+
+    let request: Promise<void>;
+    request = (async () => {
+      try {
+        const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+        if (generation !== refreshGenerationRef.current) return;
+        const currentEndpoint = getConfiguredPaperEndpoint();
+        if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+        setOperations(result);
+      } finally {
+        if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
+      }
+    })();
+    refreshInFlightRef.current = request;
+    return request;
   }, [credentialSession]);
 
   const closeUtility = useCallback(() => setUtilityView(null), []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const handleSignOut = useCallback(() => {
+    refreshGenerationRef.current += 1;
     credentialSession.clear();
     clearPaperConnectionVerification();
+    setRefreshing(false);
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
     setUtilityMenuOpen(false);
     setUtilityView(null);
@@ -108,12 +132,41 @@ function AuthenticatedApp() {
   }, [credentialSession, signOut]);
 
   useEffect(() => {
-    if (authStatus !== "SIGNED_IN") return;
-    void refresh();
-    const timer = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(timer);
-  }, [authStatus, refresh]);
-  const onRefresh = useCallback(async () => { setRefreshing(true); await refresh(); setRefreshing(false); }, [refresh]);
+    const subscription = AppState.addEventListener("change", setAppState);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    refreshGenerationRef.current += 1;
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    const generation = refreshGenerationRef.current;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNext = () => {
+      if (cancelled || generation !== refreshGenerationRef.current) return;
+      timer = setTimeout(() => {
+        timer = null;
+        void refresh().catch(() => undefined).finally(scheduleNext);
+      }, PAPER_REFRESH_INTERVAL_MS);
+    };
+
+    void refresh().catch(() => undefined).finally(scheduleNext);
+    return () => {
+      cancelled = true;
+      refreshGenerationRef.current += 1;
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [appState, authStatus, refresh]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
 
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
 
@@ -194,15 +247,15 @@ const styles = StyleSheet.create({
   headerInner: { width: "100%", maxWidth: 1180, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerTools: { flexDirection: "row", alignItems: "center" },
-  utilityButton: { minWidth: 48, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   utilityText: { fontSize: 12, fontWeight: "700" },
   utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" },
   utilityMenuInner: { width: "100%", maxWidth: 1180, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" },
-  utilityMenuButton: { flex: 1, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" },
   utilityNavigationInner: { width: "100%", maxWidth: 1180, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   utilityTitle: { fontSize: 14, fontWeight: "700" },
-  utilityClose: { minWidth: 48, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   authorityStrip: { minHeight: 38, borderBottomWidth: 1, alignItems: "center" },
   authorityStripInner: { width: "100%", maxWidth: 1180, paddingHorizontal: 20, minHeight: 38, flexDirection: "row", flexWrap: "wrap", gap: 7, alignItems: "center" },
   authorityCopy: { fontSize: 11, fontWeight: "600", marginLeft: 2 },
