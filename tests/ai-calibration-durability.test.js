@@ -199,3 +199,24 @@ test("durable append failure marks calibration unhealthy before in-memory trust 
   assert.equal(profile.sampleCount, 0, "failed durable append must not create trusted in-memory calibration history");
   assert.equal(profile.effectiveConfidence, 0);
 });
+
+test("premature durable expiry is rejected at the durability boundary", () => {
+  const { directory, filename } = tempDb();
+  try {
+    const first = prediction("premature-expiry");
+    const store = new SqliteAiCalibrationDurableStore(filename);
+    store.appendPrediction(first, predictedAt + 1);
+    const ledger = new OutcomeCalibrationLedger();
+    const durability = new CalibrationDurabilityRuntime(ledger, store, dueAt + 10, graceMs);
+    assert.equal(durability.snapshot().status, "HEALTHY");
+    assert.equal(durability.snapshot().recoveredPendingCount, 1);
+
+    assert.equal(durability.persistExpiry(first, dueAt + graceMs), false, "expiry at the last valid instant must be rejected");
+    assert.equal(durability.snapshot().status, "UNHEALTHY");
+    assert.equal(durability.snapshot().errorCode, "EXPIRE_FAILED");
+    assert.equal(store.replay().expiredPending.length, 0, "premature expiry must not reach durable history");
+    store.close();
+  } finally {
+    cleanup(directory);
+  }
+});
