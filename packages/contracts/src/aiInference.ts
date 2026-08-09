@@ -93,6 +93,8 @@ export interface AiCalibrationPrediction extends AiCalibrationCohortKey {
 
 export interface AiCalibrationOutcome {
   readonly predictionId: string;
+  /** Exact immutable prediction content this outcome resolves. */
+  readonly predictionContentHash: string;
   readonly outcomeDefinitionId: string;
   readonly outcomeDefinitionVersion: string;
   readonly outcome: boolean;
