@@ -85,6 +85,14 @@ export class CalibrationDurabilityRuntime {
   }
 
   public persistExpiry(prediction: AiCalibrationPrediction, expiredAt: number): boolean {
+    try {
+      if (!Number.isSafeInteger(expiredAt) || expiredAt <= safeLatestAllowed(prediction, this.graceMs)) {
+        throw new Error("calibration pending expiry is premature");
+      }
+    } catch {
+      if (this.health.status !== "DISABLED") this.health = this.failedHealth("EXPIRE_FAILED");
+      return false;
+    }
     if (this.health.status === "DISABLED") return true;
     if (this.store == null || this.health.status !== "HEALTHY") return false;
     try {
