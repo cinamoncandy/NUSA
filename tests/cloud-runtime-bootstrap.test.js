@@ -89,14 +89,14 @@ test("the real bootstrap process starts, serves /health without auth, and enforc
     assert.equal(health.status, 200);
     assert.equal(JSON.parse(health.body).ok, true);
 
-    const unauthenticated = await get(port, "/");
+    const unauthenticated = await get(port, "/api/dashboard");
     assert.equal(unauthenticated.status, 401);
 
-    const wrongToken = await get(port, "/", { authorization: "Bearer not-the-token" });
+    const wrongToken = await get(port, "/api/dashboard", { authorization: "Bearer not-the-token" });
     assert.equal(wrongToken.status, 401);
 
     // The token is accepted and startup hydrates an explicit safe PAPER dashboard state.
-    const rightToken = await get(port, "/", { authorization: `Bearer ${authToken}` });
+    const rightToken = await get(port, "/api/dashboard", { authorization: `Bearer ${authToken}` });
     assert.equal(rightToken.status, 200);
     const dashboard = JSON.parse(rightToken.body);
     assert.equal(dashboard.mode, "PAPER");
