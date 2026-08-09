@@ -44,14 +44,20 @@ test("verified PAPER connection is shared and invalidated when endpoint or sessi
   assert.match(trading, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
 });
 
-test("normal PAPER clients use only the Settings-configured verified endpoint, never an independent env URL", () => {
+test("normal PAPER clients use only the Settings-configured verified endpoint", () => {
   const app = read("apps/mobile/App.tsx");
   const operations = read("apps/mobile/src/personalPaperOperationsClient.ts");
   const orders = read("apps/mobile/src/personalPaperOrderClient.ts");
 
-  // App may still expose a legacy env value for compatibility, but normal clients must never
-  // authorize or route transport with it. Settings probe is the sole unverified exception.
-  assert.match(app, /EXPO_PUBLIC_NUSA_MONITOR_URL/);
+  // The app itself now resolves the saved+verified endpoint and passes that exact endpoint to
+  // dashboard refresh; no independent environment endpoint remains in the normal user path.
+  assert.doesNotMatch(app, /EXPO_PUBLIC_NUSA_MONITOR_URL/);
+  assert.match(app, /const endpoint = getConfiguredPaperEndpoint\(\)/);
+  assert.match(app, /endpoint == null \|\| !isPaperConnectionVerified\(endpoint\)/);
+  assert.match(app, /loadPersonalPaperOperations\(\{ baseUrl: endpoint, credentialProvider: credentialSession\.credentialProvider \}\)/);
+
+  // Settings probe is the sole unverified exception; normal transports remain bound to the
+  // configured+verified endpoint and cannot select a separate caller/environment authority.
   assert.match(operations, /allowUnverifiedEndpoint === true && requested !== configured/);
   assert.match(operations, /options\.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified\(configured\)/);
   assert.match(operations, /fetch\)\(`\$\{configured\}\/api\/paper-operations`/);
