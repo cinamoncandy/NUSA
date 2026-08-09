@@ -54,6 +54,22 @@ test("redaction removes bearer and secret-shaped values", () => {
   assert.match(output, /safe=visible/);
 });
 
+test("redaction removes complete quoted secrets with spaces while preserving parseable JSON", () => {
+  const input = JSON.stringify({
+    token: "secret value with spaces",
+    authorization: "Bearer abc def",
+    note: "ghp_1234567890abcdefghijklmnop",
+    safe: "visible"
+  });
+  const output = redact(input);
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.token, "[REDACTED]");
+  assert.equal(parsed.authorization, "[REDACTED]");
+  assert.equal(parsed.note, "[REDACTED]");
+  assert.equal(parsed.safe, "visible");
+  assert.doesNotMatch(output, /secret value with spaces|Bearer abc def|ghp_1234567890abcdefghijklmnop/);
+});
+
 test("diagnostics bundle is read-only, hashed, redacted, and accepts validated zero-mutation runtime diagnostics", () => {
   const root = tempRoot();
   const output = path.join(root, "bundle");
