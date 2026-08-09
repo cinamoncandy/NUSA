@@ -5,7 +5,7 @@ import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGa
 import { CanonicalRiskSafetyGate } from "../../../apps/execution/src/risk-safety-integration";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
-import type { PaperAccountState, PaperExecutionRiskGate, PaperExecutionRiskRequest } from "./paperTradingExecutionLoop";
+import type { PaperAccountState } from "./paperTradingExecutionLoop";
 
 const ACCOUNT_ID = "paper-default";
 const MANUAL_APPROVAL_TTL_MS = 60_000;
@@ -28,12 +28,35 @@ export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxPriceDeviationRatio: 0.05
 });
 
+export interface CloudPaperRiskRequest {
+  readonly path: "MANUAL" | "STRATEGY";
+  readonly commandId: string;
+  readonly signalId: string;
+  readonly clientOrderId: string;
+  readonly strategyId: string;
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly quantity: number;
+  readonly price: number;
+  readonly now: number;
+  readonly observedAt: number;
+  readonly maximumMarketAgeMs: number;
+  readonly killSwitchActive: boolean;
+  readonly openP0: boolean;
+  readonly overallHealth: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+  readonly state: PaperAccountState;
+  readonly approvedBy?: string;
+}
+
+export interface CloudPaperRiskGate {
+  evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>;
+}
+
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
 
 function validateLimits(limits: IndependentRiskLimits): void {
-  const numeric = Object.entries(limits);
-  for (const [name, value] of numeric) {
+  for (const [name, value] of Object.entries(limits)) {
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
   if (limits.maxOrdersPerSecond < 1 || limits.maxOrdersPerMinute < 1 || limits.maxSameSideStreak < 1 || limits.maxConsecutiveLosses < 1) {
@@ -132,11 +155,10 @@ export interface CloudPaperCanonicalRiskGatewayOptions {
 
 /**
  * Cloud adapter over the existing independent gateway + CanonicalRiskSafetyGate.
- * It owns no broker mutation. It only returns ALLOW/REJECT/HALT; the execution loop mutates
- * PAPER state only after ALLOW. Missing persistence, invalid state, P0, stale market data,
- * missing human confirmation, or any canonical/independent rejection therefore fails closed.
+ * It owns no broker mutation. A separate production execution boundary may mutate PAPER
+ * state only after this returns ALLOW.
  */
-export class CloudPaperCanonicalRiskGateway implements PaperExecutionRiskGate {
+export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly persistence: SqliteRiskSafetyPersistence;
   private readonly canonical: CanonicalRiskSafetyGate;
   private readonly limits: IndependentRiskLimits;
@@ -159,7 +181,7 @@ export class CloudPaperCanonicalRiskGateway implements PaperExecutionRiskGate {
     });
   }
 
-  public evaluate(input: PaperExecutionRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
+  public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
     const marketAge = input.now - input.observedAt;
@@ -171,7 +193,8 @@ export class CloudPaperCanonicalRiskGateway implements PaperExecutionRiskGate {
     const portfolioExposureNotional = input.state.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
-    this.peakEquity = Math.max(this.peakEquity, input.state.equity);
+    const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
+    this.peakEquity = Math.max(this.peakEquity, currentEquity);
     const identity: RiskIdentityState = Object.freeze({
       strategyFingerprint: this.fingerprints.strategy,
       configFingerprint: this.fingerprints.config,
@@ -205,7 +228,7 @@ export class CloudPaperCanonicalRiskGateway implements PaperExecutionRiskGate {
       deploymentState: { integrityVerified: persistent },
       rateState: rateState(input.state, input.now, input.side),
       exposureState: { symbolExposureNotional, portfolioExposureNotional, dailyBuyNotional: notionals.dailyBuyNotional, dailySellNotional: notionals.dailySellNotional },
-      sessionState: { dailyRealizedPnL: lossState.dailyRealizedPnL, consecutiveLossCount: lossState.consecutiveLossCount, sessionPeakEquity: this.peakEquity, sessionEquity: input.state.equity }
+      sessionState: { dailyRealizedPnL: lossState.dailyRealizedPnL, consecutiveLossCount: lossState.consecutiveLossCount, sessionPeakEquity: this.peakEquity, sessionEquity: currentEquity }
     };
     const independent = evaluatePreTradeRisk(independentRequest, identity, this.limits);
     if (independent.status !== "ALLOW") return Object.freeze({ status: independent.status === "REJECT" ? "REJECT" : "HALT", reasonCodes: independent.reasonCodes });
@@ -242,7 +265,7 @@ export class CloudPaperCanonicalRiskGateway implements PaperExecutionRiskGate {
       policyFingerprint: this.fingerprints.riskPolicy,
       ...(approvalId === undefined ? {} : { approvalId }),
       nowMs: input.now,
-      currentEquity: input.state.equity,
+      currentEquity,
       marketDataFresh: marketStatus === "HEALTHY",
       marketHealthy: marketStatus === "HEALTHY" && input.overallHealth === "HEALTHY",
       killSwitchActive: input.killSwitchActive,
