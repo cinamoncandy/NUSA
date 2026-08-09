@@ -1,6 +1,6 @@
 id: WO-AI-006
 title: Inference Resource Budget and Latency Governance
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
 branch: agent/control-room-ai-006-replay
 base_branch: main
@@ -86,6 +86,9 @@ verification:
     - pnpm run aipos:conformance
     - pnpm run security:gate
     - git diff --check
+  exact_head: 439c7a81651545bb5b34a52e64e41a227bfbe426
+  ci_run: 31315926107
+  result: PASS
   prohibited_evidence:
     - synthetic resource evidence presented as external/LIVE authorization
     - hidden chain-of-thought
@@ -96,12 +99,14 @@ planning_gate:
   pull_request: 360
   merge_commit: 2d1d7b1b6d79ab6498297df13373afa88fef6937
 implementation_gate:
-  status: IN_PROGRESS
+  status: MERGED
   pull_request: 372
   branch: agent/control-room-ai-006-replay
   branch_start_commit: 189cabe20778a2599c56fc5bf483d36803782a80
   source_verified_commit: 47b188b51408c3b3ce202e777c205b0c76bad519
+  exact_head: 439c7a81651545bb5b34a52e64e41a227bfbe426
+  merge_commit: 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1
   latest_main_required_before_merge: true
 next: >-
-  Keep PR #372 aligned to current protected main, pass exact-head Full CI/Coverage plus all required Restricted LIVE/read-only workflows,
-  clear review blockers, verify P0/P1=0, and merge only by expected head SHA. WO-0051 remains HUMAN_ENVIRONMENT_ONLY throughout.
+  WO-AI-006 is complete on protected main. Reassess the next highest-value AI capability from current merged evidence.
+  WO-0051 remains HUMAN_ENVIRONMENT_ONLY and is neither satisfied nor bypassed by this completion.
