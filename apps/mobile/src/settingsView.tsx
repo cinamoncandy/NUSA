@@ -79,7 +79,7 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     <NusaCard raised><View style={styles.modeHeader}><Text style={[styles.section, { color: theme.colors.text, marginBottom: 0 }]}>거래 권한</Text><StatusChip label="PAPER ONLY" tone="info" /></View><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체·production mutation 권한은 없습니다.</Text></NusaCard>
     <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>앱 정보</Text><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="PAPER / Personal" /></NusaCard>
     <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 설정 초기화</Text><NusaButton label={saving ? "저장 중..." : "설정 초기화"} disabled={saving} onPress={resetSettings} tone="danger" /></NusaCard>
-    {onSignOut ? <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 세션</Text><NusaButton label="개인 모드 종료" onPress={onSignOut} tone="neutral" /></NusaCard> : null}
+    {onSignOut ? <NusaCard><Text style={[styles.section, { color: theme.colors.text }]}>로컬 세션</Text><NusaButton label="개인 모드 종료" onPress={onSignOut} tone="neutral" testID="settings-sign-out" /></NusaCard> : null}
   </ScrollView>;
 }
 
