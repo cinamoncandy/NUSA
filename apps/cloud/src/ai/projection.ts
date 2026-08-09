@@ -12,23 +12,17 @@ const calibrationFields = (result: AiOrchestrationResult, profile: AiCalibration
   if (rawProbability == null) return Object.freeze({ confidence: 0, calibrationStatus: "UNKNOWN", rawProbability: null, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
   if (profile == null) return Object.freeze({ confidence: 0, calibrationStatus: "UNVERIFIED", rawProbability, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
   const proposerRun = result.runs.find((run) => run.agentId === "ai-strategy-proposer");
+  const proposerAgent = result.agents.find((agent) => agent.agentId === "ai-strategy-proposer");
   const identityMatches = profile.rawProbability === rawProbability
     && proposerRun != null
+    && proposerAgent != null
     && profile.cohort.modelVersionId === proposerRun.modelVersionId
+    && profile.cohort.promptArtifactId === proposerAgent.promptArtifactId
+    && profile.cohort.promptArtifactVersion === proposerAgent.definitionVersion
     && profile.cohort.promptArtifactDigest === proposerRun.promptArtifactDigest;
   if (!identityMatches) return Object.freeze({ confidence: 0, calibrationStatus: "UNVERIFIED", rawProbability, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
   const effectiveConfidence = profile.status === "CALIBRATED" ? Math.min(rawProbability, Math.max(0, profile.effectiveConfidence)) : 0;
-  return Object.freeze({
-    confidence: effectiveConfidence,
-    calibrationStatus: profile.status,
-    rawProbability,
-    calibratedProbability: profile.status === "CALIBRATED" ? profile.calibratedProbability : null,
-    effectiveConfidence,
-    calibrationSampleCount: profile.sampleCount,
-    calibrationExpectedError: profile.expectedCalibrationError,
-    calibrationBrierScore: profile.brierScore,
-    calibrationCohort: profile.cohort
-  });
+  return Object.freeze({ confidence: effectiveConfidence, calibrationStatus: profile.status, rawProbability, calibratedProbability: profile.status === "CALIBRATED" ? profile.calibratedProbability : null, effectiveConfidence, calibrationSampleCount: profile.sampleCount, calibrationExpectedError: profile.expectedCalibrationError, calibrationBrierScore: profile.brierScore, calibrationCohort: profile.cohort });
 };
 
 const emptyCalibration = Object.freeze({ confidence: 0, calibrationStatus: "UNKNOWN" as const, rawProbability: null, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
