@@ -31,12 +31,12 @@ export function handlePersonalPaperOrderHttp(
   catch { return dashboardJsonResponse(400, { error: "INVALID_PAPER_ORDER" }); }
 
   const idempotencyHeader = request.headers["idempotency-key"] ?? request.headers["Idempotency-Key"];
-  if (typeof idempotencyHeader !== "string" || idempotencyHeader.trim() !== command.idempotencyKey) {
+  if (typeof idempotencyHeader !== "string" || idempotencyHeader !== command.idempotencyKey) {
     return dashboardJsonResponse(400, { error: "IDEMPOTENCY_KEY_MISMATCH" });
   }
 
   try {
-    const result = validatePersonalPaperOrderCommandResult(dependencies.submitOrder(authorization.principal, command));
+    const result = validatePersonalPaperOrderCommandResult(dependencies.submitOrder(authorization.principal, command), command);
     if (result.liveAuthority !== "NONE" || result.productionMutationAllowed !== false) {
       return dashboardJsonResponse(503, { error: "PAPER_ORDER_AUTHORITY_VIOLATION" });
     }
