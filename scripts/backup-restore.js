@@ -29,6 +29,10 @@ function sha256File(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+function sha256Json(value) {
+  return crypto.createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+}
+
 function ensureCurrentRecoveryContract() {
   const result = validateDisasterRecoveryRestore();
   if (!result.ok) throw new Error(`current disaster-recovery contract is invalid: ${result.failures.join(",")}`);
@@ -131,6 +135,7 @@ function snapshotId(requested) {
 }
 
 function atomicJson(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: "wx" });
   fs.renameSync(temporary, file);
@@ -143,6 +148,7 @@ function createBackup(args) {
   for (const { source } of includes) {
     if (isInside(source, destinationRoot)) throw new Error("backup destination must not be inside a recovery source");
   }
+  fs.mkdirSync(destinationRoot, { recursive: true, mode: 0o700 });
   const id = snapshotId(args["snapshot-id"]);
   const snapshot = path.join(destinationRoot, id);
   if (fs.existsSync(snapshot)) throw new Error(`backup snapshot already exists: ${snapshot}`);
@@ -214,7 +220,36 @@ function readAndVerify(snapshotPath) {
     if (fs.statSync(file).size !== entry.sizeBytes) throw new Error(`size mismatch: ${entry.path}`);
     if (sha256File(file) !== entry.sha256) throw new Error(`checksum mismatch: ${entry.path}`);
   }
-  return Object.freeze({ snapshot, manifest });
+  return Object.freeze({ snapshot, manifest, manifestPath, manifestSha256: sha256File(manifestPath) });
+}
+
+function writeDrillLog(args, verified, result, targetRemoved) {
+  const logFile = normalizedAbsolute(
+    args["drill-log"] || path.join(path.dirname(verified.snapshot), `${verified.manifest.snapshotId}.drill-log.json`),
+    "drill-log"
+  );
+  if (isInside(verified.snapshot, logFile)) throw new Error("drill log must be outside the immutable recovery snapshot");
+  if (fs.existsSync(logFile)) throw new Error("drill log must not already exist");
+  const payload = Object.freeze({
+    schemaVersion: SCHEMA_VERSION,
+    eventType: "RECOVERY_DRILL_EVIDENCE",
+    createdAt: new Date().toISOString(),
+    sourceCommit: gitHead(),
+    snapshotId: verified.manifest.snapshotId,
+    snapshotManifestSha256: verified.manifestSha256,
+    status: result.status,
+    mode: result.mode,
+    artifactCount: result.artifactCount,
+    targetRemoved,
+    automaticRestartAllowed: false,
+    destructiveRestoreAllowed: false,
+    productionMutationAllowed: false,
+    evidenceMutationAllowed: false
+  });
+  const evidenceHashSha256 = sha256Json(payload);
+  const evidence = Object.freeze({ ...payload, evidenceHashSha256 });
+  atomicJson(logFile, evidence);
+  return Object.freeze({ logFile, evidence });
 }
 
 function runDrill(args) {
@@ -230,6 +265,7 @@ function runDrill(args) {
       fs.copyFileSync(source, output, fs.constants.COPYFILE_EXCL);
       if (sha256File(output) !== entry.sha256) throw new Error(`drill checksum mismatch: ${entry.path}`);
     }
+    const keepTarget = args.keep === "true";
     const result = Object.freeze({
       status: "PASS",
       mode: "VERIFY_ONLY_RESTORE_DRILL",
@@ -241,8 +277,9 @@ function runDrill(args) {
       productionMutationAllowed: false,
       evidenceMutationAllowed: false
     });
-    if (args.keep !== "true") fs.rmSync(target, { recursive: true, force: true });
-    return result;
+    if (!keepTarget) fs.rmSync(target, { recursive: true, force: true });
+    const drillLog = writeDrillLog(args, verified, result, !keepTarget);
+    return Object.freeze({ ...result, drillLog: drillLog.logFile, evidenceHashSha256: drillLog.evidence.evidenceHashSha256, targetRemoved: !keepTarget });
   } catch (error) {
     fs.rmSync(target, { recursive: true, force: true });
     throw error;
@@ -258,7 +295,7 @@ function main() {
   }
   if (args.command === "verify") {
     const result = readAndVerify(args.snapshot);
-    console.log(JSON.stringify({ status: "PASS", mode: "VERIFY_ONLY", snapshotId: result.manifest.snapshotId, artifactCount: result.manifest.entries.length, productionMutationAllowed: false }, null, 2));
+    console.log(JSON.stringify({ status: "PASS", mode: "VERIFY_ONLY", snapshotId: result.manifest.snapshotId, artifactCount: result.manifest.entries.length, manifestSha256: result.manifestSha256, productionMutationAllowed: false }, null, 2));
     return;
   }
   if (args.command === "drill") {
@@ -277,4 +314,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createBackup, readAndVerify, runDrill, parseIncludes };
+module.exports = { createBackup, readAndVerify, runDrill, parseIncludes, writeDrillLog };
