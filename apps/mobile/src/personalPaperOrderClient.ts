@@ -35,7 +35,6 @@ export class PersonalPaperOrderRetryIdentity {
   }
 }
 
-function normalizeEndpoint(value: string): string { return value.trim().replace(/\/+$/, ""); }
 function isSecureEndpoint(baseUrl: string): boolean { try { const url = new URL(baseUrl); if (url.username || url.password) return false; if (url.protocol === "https:") return true; if (url.protocol !== "http:") return false; const host = url.hostname.toLowerCase(); return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]"; } catch { return false; } }
 function readTimeoutMs(value: number | undefined): number { const timeoutMs = value ?? 10_000; if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 30_000) throw new Error("PAPER order timeout must be an integer in (0, 30000]"); return timeoutMs; }
 
@@ -43,10 +42,10 @@ export async function submitPersonalPaperOrder(options: PersonalPaperOrderClient
   let validated: PersonalPaperOrderCommand; let timeoutMs: number;
   try { validated = validatePersonalPaperOrderCommand(command); timeoutMs = readTimeoutMs(options.timeoutMs); } catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER order command is invalid." }); }
 
+  // PAPER order authority is bound only to the Settings-configured, process-locally verified
+  // endpoint. The legacy caller baseUrl is intentionally not an authority input.
   const configured = getConfiguredPaperEndpoint();
   if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
-  const requested = normalizeEndpoint(options.baseUrl);
-  if (requested && requested !== configured) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER order endpoint does not match the configured connection." });
   if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before an order credential can be used." });
   if (!isSecureEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER credential will not be sent over insecure remote HTTP." });
 

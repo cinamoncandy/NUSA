@@ -37,8 +37,12 @@ function isSecureDashboardEndpoint(baseUrl: string): boolean {
 export async function loadPersonalPaperOperations(options: PersonalPaperOperationsClientOptions): Promise<PersonalPaperOperationsLoadResult> {
   const configured = getConfiguredPaperEndpoint();
   if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
+
+  // Only the Settings connection probe may name a requested endpoint, and it must be the exact
+  // configured endpoint. Normal reads intentionally ignore caller/env base URLs and use the
+  // configured+verified Settings endpoint below so credentials can never be redirected by env.
   const requested = normalizeEndpoint(options.baseUrl);
-  if (requested && requested !== configured) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint does not match the configured connection." });
+  if (options.allowUnverifiedEndpoint === true && requested !== configured) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint does not match the configured connection." });
   if (options.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before credentials can be used." });
   if (!isSecureDashboardEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP." });
 
