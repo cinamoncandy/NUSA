@@ -26,13 +26,15 @@ test("shared button exposes disabled state and tokenized press feedback", () => 
   assert.match(source, /borderWidth: tokens\.borderWidth/);
 });
 
-test("shared text field exposes visible focus treatment", () => {
+test("shared text field exposes visible focus treatment only while editable", () => {
   const source = read("src/components.tsx");
   assert.match(source, /const \[focused, setFocused\] = useState\(false\)/);
   assert.match(source, /onBlur=\{\(\) => setFocused\(false\)\}/);
   assert.match(source, /onFocus=\{\(\) => setFocused\(true\)\}/);
-  assert.match(source, /borderColor: focused \? tokens\.focus : tokens\.border/);
-  assert.match(source, /borderWidth: focused \? tokens\.focusBorderWidth : tokens\.borderWidth/);
+  assert.match(source, /borderColor: focused && editable \? tokens\.focus : tokens\.border/);
+  assert.match(source, /borderWidth: focused && editable \? tokens\.focusBorderWidth : tokens\.borderWidth/);
+  assert.match(source, /color: focused && editable \? theme\.colors\.focus : theme\.colors\.textMuted/);
+  assert.match(source, /accessibilityState=\{\{ disabled: !editable \}\}/);
   assert.match(source, /selectionColor=\{theme\.colors\.primary\}/);
 });
 
