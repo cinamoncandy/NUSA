@@ -72,3 +72,17 @@ export interface AiProviderComparisonResult {
   readonly realTransferAuthority: false;
   readonly productionMutationAllowed: false;
 }
+
+declare module "./aiInference" {
+  interface AiReadOnlyProjection {
+    readonly providerComparisonState?: AiProviderComparisonState;
+    readonly providerTrustDisposition?: AiProviderTrustDisposition;
+    readonly providerIndependentGroupCount?: number;
+    readonly providerCompletedGroupCount?: number;
+    readonly providerDisagreementCodes?: readonly string[];
+    readonly providerComparisonIdentity?: string | null;
+    readonly providerComparisonResourceHealth?: AiInferenceResourceSnapshot["health"];
+    readonly providerComparisonModelCalls?: number;
+    readonly providerComparisonAttempts?: number;
+  }
+}
