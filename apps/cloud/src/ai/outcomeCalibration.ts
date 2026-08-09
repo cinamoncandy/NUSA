@@ -22,6 +22,7 @@ export interface CalibrationMetrics {
 
 export interface CalibrationPolicy {
   readonly minimumSamples?: number;
+  readonly minimumBucketSamples?: number;
   readonly bucketCount?: number;
   readonly maximumExpectedCalibrationError?: number;
   readonly maximumBrierScore?: number;
@@ -39,6 +40,11 @@ const text = (value: string, field: string): string => {
 const sha256 = (value: string, field: string): string => {
   if (!isAiSha256(value)) throw new Error(`${field} must be sha256`);
   return value.toLowerCase();
+};
+
+const finiteNumber = (value: number, field: string): number => {
+  if (!Number.isFinite(value)) throw new Error(`${field} must be finite`);
+  return value;
 };
 
 const probability = (value: number, field = "probability"): number => {
@@ -66,28 +72,39 @@ const normalizeCohort = (cohort: AiCalibrationCohortKey): AiCalibrationCohortKey
   outcomeDefinitionVersion: text(cohort.outcomeDefinitionVersion, "outcomeDefinitionVersion")
 });
 
-const predictionIdentity = (prediction: PredictionInput): Readonly<Record<string, unknown>> => ({
-  predictionId: text(prediction.predictionId, "predictionId"),
-  orchestrationRunId: text(prediction.orchestrationRunId, "orchestrationRunId"),
-  proposalId: text(prediction.proposalId, "proposalId"),
-  agentId: text(prediction.agentId, "agentId"),
-  role: prediction.role,
-  ...normalizeCohort(prediction),
-  rawProbability: probability(prediction.rawProbability, "rawProbability"),
-  predictedAt: timestamp(prediction.predictedAt, "predictedAt"),
-  horizonMs: positiveInteger(prediction.horizonMs, "horizonMs"),
-  provenance: prediction.provenance
-});
+const predictionIdentity = (prediction: PredictionInput): Readonly<Record<string, unknown>> => {
+  const predictedAt = timestamp(prediction.predictedAt, "predictedAt");
+  const anchorObservedAt = timestamp(prediction.anchorObservedAt, "anchorObservedAt");
+  if (anchorObservedAt > predictedAt) throw new Error("calibration anchor cannot postdate prediction");
+  return {
+    predictionId: text(prediction.predictionId, "predictionId"),
+    orchestrationRunId: text(prediction.orchestrationRunId, "orchestrationRunId"),
+    proposalId: text(prediction.proposalId, "proposalId"),
+    agentId: text(prediction.agentId, "agentId"),
+    role: prediction.role,
+    ...normalizeCohort(prediction),
+    targetId: text(prediction.targetId, "targetId"),
+    anchorValue: finiteNumber(prediction.anchorValue, "anchorValue"),
+    anchorObservedAt,
+    anchorEvidenceReference: text(prediction.anchorEvidenceReference, "anchorEvidenceReference"),
+    rawProbability: probability(prediction.rawProbability, "rawProbability"),
+    predictedAt,
+    horizonMs: positiveInteger(prediction.horizonMs, "horizonMs"),
+    provenance: prediction.provenance
+  };
+};
 
 const outcomeIdentity = (outcome: OutcomeInput): Readonly<Record<string, unknown>> => {
   const evidenceReferences = Object.freeze([...new Set(outcome.evidenceReferences.map((item) => text(item, "evidenceReference")))].sort());
   if (evidenceReferences.length === 0) throw new Error("outcome evidenceReferences are required");
+  if (typeof outcome.outcome !== "boolean") throw new Error("calibration outcome must be boolean");
   return {
     predictionId: text(outcome.predictionId, "predictionId"),
     predictionContentHash: sha256(outcome.predictionContentHash, "predictionContentHash"),
     outcomeDefinitionId: text(outcome.outcomeDefinitionId, "outcomeDefinitionId"),
     outcomeDefinitionVersion: text(outcome.outcomeDefinitionVersion, "outcomeDefinitionVersion"),
     outcome: outcome.outcome,
+    resolvedValue: finiteNumber(outcome.resolvedValue, "resolvedValue"),
     resolvedAt: timestamp(outcome.resolvedAt, "resolvedAt"),
     evidenceReferences,
     provenance: outcome.provenance
@@ -120,7 +137,10 @@ export function computeCalibrationMetrics(samples: readonly CalibrationSample[],
   positiveInteger(bucketCount, "bucketCount");
   if (bucketCount > 100) throw new Error("bucketCount is too large");
   if (samples.length === 0) return Object.freeze({ sampleCount: 0, expectedCalibrationError: 0, brierScore: 0, reliabilityBuckets: Object.freeze(Array.from({ length: bucketCount }, (_, index) => emptyBucket(index, bucketCount))) });
-  const normalized = samples.map((sample) => Object.freeze({ probability: probability(sample.probability), outcome: sample.outcome }));
+  const normalized = samples.map((sample) => {
+    if (typeof sample.outcome !== "boolean") throw new Error("calibration sample outcome must be boolean");
+    return Object.freeze({ probability: probability(sample.probability), outcome: sample.outcome });
+  });
   const grouped = Array.from({ length: bucketCount }, () => [] as CalibrationSample[]);
   for (const sample of normalized) grouped[Math.min(bucketCount - 1, Math.floor(sample.probability * bucketCount))]!.push(sample);
   const reliabilityBuckets = Object.freeze(grouped.map((bucket, index) => {
@@ -185,10 +205,12 @@ export class OutcomeCalibrationLedger {
     const normalizedCohort = normalizeCohort(cohort);
     const raw = probability(rawProbability, "rawProbability");
     const minimumSamples = policy.minimumSamples ?? 20;
+    const minimumBucketSamples = policy.minimumBucketSamples ?? 5;
     const bucketCount = policy.bucketCount ?? 10;
     const maximumExpectedCalibrationError = probability(policy.maximumExpectedCalibrationError ?? 0.15, "maximumExpectedCalibrationError");
     const maximumBrierScore = probability(policy.maximumBrierScore ?? 0.25, "maximumBrierScore");
     positiveInteger(minimumSamples, "minimumSamples");
+    positiveInteger(minimumBucketSamples, "minimumBucketSamples");
     const samples: CalibrationSample[] = [];
     for (const prediction of this.predictions.values()) {
       if (prediction.provenance !== "VERIFIED_RUNTIME" || !sameCohort(prediction, normalizedCohort)) continue;
@@ -197,9 +219,12 @@ export class OutcomeCalibrationLedger {
       samples.push(Object.freeze({ probability: prediction.rawProbability, outcome: outcome.outcome }));
     }
     const metrics = computeCalibrationMetrics(samples, bucketCount);
-    let status: AiCalibrationProfile["status"] = "INSUFFICIENT_DATA";
-    if (metrics.sampleCount >= minimumSamples) status = metrics.expectedCalibrationError <= maximumExpectedCalibrationError && metrics.brierScore <= maximumBrierScore ? "CALIBRATED" : "DEGRADED";
     const bucket = metrics.reliabilityBuckets[Math.min(bucketCount - 1, Math.floor(raw * bucketCount))];
+    let status: AiCalibrationProfile["status"] = "INSUFFICIENT_DATA";
+    if (metrics.sampleCount >= minimumSamples) {
+      if (metrics.expectedCalibrationError > maximumExpectedCalibrationError || metrics.brierScore > maximumBrierScore) status = "DEGRADED";
+      else if ((bucket?.count ?? 0) >= minimumBucketSamples) status = "CALIBRATED";
+    }
     const calibratedProbability = status === "CALIBRATED" ? bucket?.observedRate ?? null : null;
     const effectiveConfidence = calibratedProbability == null ? 0 : Math.min(raw, calibratedProbability);
     return Object.freeze({ cohort: normalizedCohort, status, sampleCount: metrics.sampleCount, expectedCalibrationError: metrics.sampleCount === 0 ? null : metrics.expectedCalibrationError, brierScore: metrics.sampleCount === 0 ? null : metrics.brierScore, rawProbability: raw, calibratedProbability, effectiveConfidence, reliabilityBuckets: metrics.reliabilityBuckets, provenance: "VERIFIED_RUNTIME_ONLY", liveAuthority: "NONE", productionMutationAllowed: false });
