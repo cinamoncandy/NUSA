@@ -123,14 +123,14 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     if (anchor == null || !supportsAutomaticResolution(calibration)) return;
     for (const [predictionId, pending] of pendingPredictions) {
       const prediction = pending.prediction;
+      if (prediction.targetId !== anchor.targetId) continue;
       const dueAt = prediction.predictedAt + prediction.horizonMs;
-      // A verified ticker also acts as trusted time evidence for expiring missed resolution windows.
-      // Late observations must never be mislabeled as the audited "after 5m" outcome.
+      // Only a verified ticker for the prediction's own market can resolve or expire its audited window.
       if (anchor.observedAt > dueAt + AI_CALIBRATION_RESOLUTION_GRACE_MS) {
         pendingPredictions.delete(predictionId);
         continue;
       }
-      if (prediction.targetId !== anchor.targetId || anchor.observedAt < dueAt) continue;
+      if (anchor.observedAt < dueAt) continue;
       try {
         calibrationLedger.appendOutcome(createCalibrationOutcome({
           predictionId: prediction.predictionId,
