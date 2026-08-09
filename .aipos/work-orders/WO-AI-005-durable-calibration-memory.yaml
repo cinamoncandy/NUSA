@@ -2,9 +2,9 @@ id: WO-AI-005
 title: Durable Calibration Memory and Replay
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-005-durable-calibration-plan
+branch: agent/ai-005-durable-calibration-memory
 base_branch: main
-implementation_branch: agent/ai-005-durable-calibration-plan
+implementation_branch: agent/ai-005-durable-calibration-memory
 architecture_impact:
   acknowledged: true
   analysis: "Adds durable append-only calibration persistence and deterministic restart replay below the verified zero-authority AI runtime while preserving Storage/Core/Cloud dependency direction."
@@ -31,7 +31,7 @@ constraints:
   - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
 implementation:
   - define a stable durable calibration store/port with append and replay semantics
-  - add SQLite schema/migration for immutable prediction, outcome, pending-resolution, sequence/integrity metadata
+  - add SQLite schema for immutable prediction, outcome, pending-resolution, sequence/integrity metadata
   - persist prediction before it can contribute to future durable calibration state
   - persist verified outcome and pending-resolution transition atomically
   - deterministically rebuild OutcomeCalibrationLedger and pending predictions on startup
@@ -39,7 +39,7 @@ implementation:
   - expire recovered stale pending predictions without producing calibration samples
   - fail closed on corrupt/partial/unsupported durable state and expose zero trusted confidence
   - expose read-only durability health/recovered sample metadata without mutation capability
-  - add restart, corruption, crash-window, replay, migration, and zero-authority adversarial tests
+  - add restart, corruption, crash-window, replay, schema, and zero-authority adversarial tests
 acceptance_criteria:
   - verified prediction/outcome samples survive process restart and produce the same exact cohort profile after replay
   - pending prediction survives restart only when its original audited resolution window is still valid
@@ -77,6 +77,6 @@ verification:
     - provider or broker credential material
     - real order, cancel, transfer, or withdrawal
 next: >-
-  Merge this planning gate after exact-head verification, then replay the Work Order onto a
-  dedicated implementation branch from latest main and implement one vertical durable-calibration
-  slice before any later AI capability work.
+  Complete canonical implementation PR #351 only after its latest-main exact head passes the full
+  durability, architecture/AIPOS, security, isolated/coverage, and Restricted LIVE/read-only gates;
+  then seal completion evidence before opening any later AI capability work.
