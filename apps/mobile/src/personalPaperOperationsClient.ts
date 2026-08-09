@@ -32,7 +32,13 @@ function isSecureDashboardEndpoint(baseUrl: string): boolean {
   }
 }
 
-/** Uses only an explicitly saved endpoint. Historical localhost fallback is ignored unless saved by the operator. */
+/**
+ * Reads the authenticated, read-only personal PAPER operations snapshot.
+ * A saved Settings endpoint is authoritative. A caller-supplied HTTPS endpoint may be used for
+ * explicit secure integration, while unsaved insecure remote HTTP and the historical loopback
+ * fallback remain NOT_CONFIGURED. Once an insecure remote endpoint is explicitly saved, its
+ * truthful state is UNAVAILABLE because the bearer credential must never be transmitted to it.
+ */
 export async function loadPersonalPaperOperations(
   options: PersonalPaperOperationsClientOptions
 ): Promise<PersonalPaperOperationsLoadResult> {
@@ -45,7 +51,17 @@ export async function loadPersonalPaperOperations(
   }
 
   const configured = getConfiguredPaperEndpoint();
-  const fallback = options.baseUrl === "http://127.0.0.1:41731" ? "" : options.baseUrl;
+  const requested = options.baseUrl.trim().replace(/\/+$/, "");
+  const historicalLoopback = requested === "http://127.0.0.1:41731";
+
+  if (configured == null && requested && !historicalLoopback && !isSecureDashboardEndpoint(requested)) {
+    return Object.freeze({
+      status: "NOT_CONFIGURED",
+      reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint."
+    });
+  }
+
+  const fallback = historicalLoopback ? "" : requested;
   const baseUrl = (configured ?? fallback).replace(/\/+$/, "");
   if (!baseUrl) {
     return Object.freeze({
@@ -53,6 +69,7 @@ export async function loadPersonalPaperOperations(
       reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint."
     });
   }
+
   if (!isSecureDashboardEndpoint(baseUrl)) {
     return Object.freeze({
       status: "UNAVAILABLE",
