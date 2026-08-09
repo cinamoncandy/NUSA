@@ -2,9 +2,9 @@ id: WO-AI-003
 title: Real Provider Challenger Runtime
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-003-real-provider-challenger-plan
+branch: agent/ai-003-real-provider-challenger
 base_branch: main
-implementation_branch: agent/ai-003-real-provider-challenger-plan
+implementation_branch: agent/ai-003-real-provider-challenger
 architecture_impact:
   acknowledged: true
   analysis: "Adds an explicitly opt-in real model provider below the existing grounded zero-authority runtime without changing deterministic PAPER/safety authority."

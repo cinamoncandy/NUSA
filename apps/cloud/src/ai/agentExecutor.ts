@@ -27,9 +27,13 @@ export class AgentExecutor {
       } catch (error) {
         const code: ModelFailure["code"] = error instanceof Error && error.name === "TimeoutError"
           ? "TIMEOUT"
-          : error instanceof Error && /schema|structured|observation|decision|severity|result|references/i.test(error.message)
-            ? "SCHEMA_VIOLATION"
-            : "PROVIDER_UNAVAILABLE";
+          : error instanceof Error && error.name === "OutputTooLargeError"
+            ? "OUTPUT_TOO_LARGE"
+            : error instanceof Error && error.name === "MalformedModelOutputError"
+              ? "MALFORMED_OUTPUT"
+              : error instanceof Error && /schema|structured|observation|decision|severity|result|references/i.test(error.message)
+                ? "SCHEMA_VIOLATION"
+                : "PROVIDER_UNAVAILABLE";
         if (attempt >= this.maxRetries) return { ok: false, failure: failure(request, code, code === "TIMEOUT" || code === "PROVIDER_UNAVAILABLE") };
       }
     }
