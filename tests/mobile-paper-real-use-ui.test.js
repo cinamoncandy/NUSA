@@ -60,7 +60,10 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
   // configured+verified endpoint and cannot select a separate caller/environment authority.
   assert.match(operations, /allowUnverifiedEndpoint === true && requested !== configured/);
   assert.match(operations, /options\.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified\(configured\)/);
-  assert.match(operations, /fetch\)\(`\$\{configured\}\/api\/paper-operations`/);
+  assert.match(operations, /const endpoint = new URL\(`\$\{configured\}\/api\/paper-operations`\)\.href/);
+  assert.match(operations, /\(options\.request \?\? fetch\)\(endpoint,/);
+  assert.match(operations, /response\.redirected === true/);
+  assert.match(operations, /new URL\(response\.url\)\.href !== endpoint/);
   assert.doesNotMatch(operations, /requested && requested !== configured/);
   assert.match(orders, /isPaperConnectionVerified\(configured\)/);
   assert.match(orders, /new URL\(`\$\{configured\}\/api\/paper-orders`\)/);
