@@ -1,50 +1,46 @@
-id: WO-AI-005
-title: Durable Calibration Memory and Replay
-branch: agent/ai-005-durable-calibration-future-chronology
-pull_request: 354
+id: WO-0051
+title: Constitutional Production Transition Human/Environment Gate
+branch: main
+pull_request: null
 base_branch: main
-phase: durable-ai-calibration-memory
+phase: constitutional-human-environment-gate
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
-objective: "Preserve verified outcome calibration across Cloud restarts with integrity-checked SQLite replay while keeping AI zero-authority and WO-0051 human/environment gates unchanged."
+source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; automation cannot satisfy or bypass this gate."
 scope:
-  - durable hash-bound prediction/outcome calibration metadata
-  - deterministic restart replay through existing calibration validators
-  - bounded pending-resolution recovery and stale expiry
-  - corruption/partial-state/future-chronology fail-closed confidence behavior
-  - read-only durability/recovery health projection
+  - operator-authorized external read-only preflight evidence
+  - actual independent human activation ceremony evidence
+  - separate constitutional human production/LIVE decision
+  - post-LIVE evidence only after any separately authorized tiny session
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  aiExecutionAuthority: ZERO_AUTHORITY
-  credentialPersistence: prohibited
-  hiddenReasoningPersistence: prohibited
-  human_environment_gate: required_for_any_future_real_money_transition
+  automatedCompletion: prohibited
+  syntheticCiCompletion: prohibited
+  chatConsentAsLiveAuthority: prohibited
+  aiLiveAuthority: prohibited
 latest_verified_slice:
-  id: WO-AI-004
+  id: WO-AI-005
   status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-004-completion.json
-planning_gate:
-  pull_request: 345
-  merge_commit: fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2
-  status: MERGED
-implementation_gate:
-  pull_request: 354
-  base_commit: 4700613433674be923e35c471c1e83a17c7d51cb
-  status: IN_PROGRESS
+  evidence: .aipos/evidence/WO-AI-005-completion.json
+ai_005_completion:
+  planning_pull_request: 345
+  implementation_pull_request: 354
+  implementation_exact_head: b03dd50c01dd789a3023217c018c53fc53a42ea8
+  merge_commit: b4303b928e8d64417f3c07334ed3900ea3075046
+  post_merge_ci_run: 31306311738
+  post_merge_mobile_native_run: 31306311737
+  status: COMPLETED
 verification:
   required:
-    - exact-head Full CI/Coverage and architecture/AIPOS/security validation
-    - deterministic restart replay preserves exact verified cohort calibration
-    - corrupt/partial/conflicting/future chronology history fails closed with trusted confidence zero/unavailable
-    - stale recovered pending windows expire without calibration credit
-    - append failure cannot leave an in-memory sample trusted as durable
-    - no credential, raw prompt, hidden reasoning, or raw evidence payload persistence
-    - all Restricted LIVE/read-only workflows remain PASS
+    - genuine operator-authorized external read-only broker preflight
+    - actual independent human activation ceremony evidence
+    - separate constitutional human production/LIVE decision
+    - no synthetic CI or AI substitution for human/environment evidence
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Verify exact-head implementation PR #354 on latest main, resolve any P0/P1 or CI failures, freeze the passing head, and merge by expected head SHA without changing WO-0051 human-only authority gates.
+next_recommended_task: Await or collect genuine WO-0051 human/environment evidence; any future AI work requires a separately defined zero-authority work order and cannot alter this gate.
