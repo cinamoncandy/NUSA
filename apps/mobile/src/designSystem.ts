@@ -47,6 +47,14 @@ export interface Theme {
   readonly radii: Readonly<{ sm: 8; md: 12; lg: 16; xl: 24; full: 9999; }>;
   readonly shadows: Readonly<{ sm: ShadowToken; md: ShadowToken; focus: ShadowToken }>;
   readonly icons: Readonly<{ sm: 16; md: 20; lg: 24; xl: 32 }>;
+  readonly interaction: Readonly<{
+    touchTarget: 48;
+    controlHeight: 48;
+    borderWidth: 1;
+    focusBorderWidth: 2;
+    pressedOpacity: 0.88;
+    disabledOpacity: 0.42;
+  }>;
 }
 
 const freezeTheme = (theme: Theme): Theme => Object.freeze({
@@ -57,6 +65,7 @@ const freezeTheme = (theme: Theme): Theme => Object.freeze({
   radii: Object.freeze({ ...theme.radii }),
   shadows: Object.freeze(Object.fromEntries(Object.entries(theme.shadows).map(([key, value]) => [key, Object.freeze({ ...value, offset: Object.freeze({ ...value.offset }) })])) as Theme["shadows"]),
   icons: Object.freeze({ ...theme.icons }),
+  interaction: Object.freeze({ ...theme.interaction }),
 });
 
 export function createTheme(mode: ThemeMode): Theme {
@@ -103,6 +112,14 @@ export function createTheme(mode: ThemeMode): Theme {
       focus: { color: dark ? "#74EBDD" : "#087D75", offset: { width: 0, height: 0 }, opacity: 0.3, radius: 5, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
+    interaction: {
+      touchTarget: 48,
+      controlHeight: 48,
+      borderWidth: 1,
+      focusBorderWidth: 2,
+      pressedOpacity: 0.88,
+      disabledOpacity: 0.42,
+    },
   });
 }
 
@@ -113,9 +130,11 @@ export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
     background: tone === "danger" ? theme.colors.danger : tone === "neutral" ? theme.colors.surfaceRaised : theme.colors.primary,
     foreground: tone === "danger" ? theme.colors.onDanger : tone === "neutral" ? theme.colors.text : theme.colors.onPrimary,
     border: tone === "neutral" ? theme.colors.borderStrong : "transparent",
-    disabledOpacity: 0.42,
+    disabledOpacity: theme.interaction.disabledOpacity,
+    pressedOpacity: theme.interaction.pressedOpacity,
+    borderWidth: theme.interaction.borderWidth,
     radius: theme.radii.md,
-    minHeight: 48,
+    minHeight: theme.interaction.controlHeight,
     horizontalPadding: theme.spacing.lg,
   });
 }
@@ -127,8 +146,10 @@ export function fieldTokens(theme: Theme) {
     placeholder: theme.colors.textMuted,
     border: theme.colors.border,
     focus: theme.colors.focus,
+    borderWidth: theme.interaction.borderWidth,
+    focusBorderWidth: theme.interaction.focusBorderWidth,
     radius: theme.radii.md,
-    minHeight: 48,
+    minHeight: theme.interaction.controlHeight,
   });
 }
 
@@ -149,5 +170,6 @@ export function designSystemSnapshot(theme: Theme): string {
     spacing: theme.spacing,
     radii: theme.radii,
     icons: theme.icons,
+    interaction: theme.interaction,
   });
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
@@ -19,10 +19,11 @@ export function NusaButton({ label, onPress, disabled = false, tone = "primary",
     <Pressable
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      style={({ pressed }) => [styles.button, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, minHeight: tokens.minHeight, paddingHorizontal: tokens.horizontalPadding, opacity: disabled ? tokens.disabledOpacity : pressed ? 0.88 : 1, transform: [{ scale: pressed && !disabled ? 0.99 : 1 }] }]}
+      style={({ pressed }) => [styles.button, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, borderWidth: tokens.borderWidth, minHeight: tokens.minHeight, paddingHorizontal: tokens.horizontalPadding, opacity: disabled ? tokens.disabledOpacity : pressed ? tokens.pressedOpacity : 1, transform: [{ scale: pressed && !disabled ? 0.99 : 1 }] }]}
     >
       <Text style={[styles.buttonLabel, { color: tokens.foreground, fontWeight: theme.typography.weights.bold }]}>{label}</Text>
     </Pressable>
@@ -42,16 +43,20 @@ export interface NusaTextFieldProps {
 export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
+        onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
         placeholder={placeholder}
         placeholderTextColor={tokens.placeholder}
         secureTextEntry={secureTextEntry}
-        style={[styles.field, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, color: tokens.foreground, minHeight: tokens.minHeight }]}
+        selectionColor={theme.colors.primary}
+        style={[styles.field, { backgroundColor: tokens.background, borderColor: focused ? tokens.focus : tokens.border, borderRadius: tokens.radius, borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth, color: tokens.foreground, minHeight: tokens.minHeight }]}
         testID={testID}
         value={value}
       />
@@ -71,7 +76,7 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
   const { theme } = useTheme();
   const foreground = tone === "primary" ? theme.colors.primary : tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.info : theme.colors.textMuted;
   const background = tone === "primary" ? theme.colors.primarySoft : theme.colors.surfaceSunken;
-  return <View testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
+  return <View accessibilityRole="text" testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
 }
 
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
@@ -93,14 +98,14 @@ export function AuthorityBanner({ detail = "AI 분석은 읽기 전용입니다.
 export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
   const { theme } = useTheme();
   const color = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.text;
-  return <View style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
+  return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  button: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  button: { alignItems: "center", justifyContent: "center" },
   buttonLabel: { fontSize: 15, letterSpacing: -0.15 },
   card: { borderWidth: 1 },
-  field: { borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
+  field: { paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
   fieldGroup: { gap: 7 },
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
