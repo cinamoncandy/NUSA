@@ -38,7 +38,8 @@ test("settings UI exposes only implemented preferences, PAPER safety, reset, and
   assert.match(source, /onPress=\{resetSettings\}/);
   assert.match(source, /로컬 세션/);
   assert.match(source, /label="개인 모드 종료"/);
-  assert.match(source, /onPress=\{onSignOut\}/);
+  assert.match(source, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) onSignOut\?\.\(\); \};/);
+  assert.match(source, /onPress=\{signOutLocal\}/);
 
   assert.match(source, /SettingsRepository/);
   assert.match(source, /credentialSession\.clear\(\)/);
