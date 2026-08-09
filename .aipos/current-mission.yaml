@@ -1,41 +1,37 @@
-id: EP06-012-coverage-baseline
-title: Establish repository coverage baseline
-branch: agent/mobile-first-ui-v1
-pull_request: 45
+id: WO-AI-004
+title: Outcome-Linked Calibration Engine
+branch: main
+pull_request: null
 base_branch: main
-phase: audit
-status: COMPLETE
+phase: implementation
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml
+objective: "Bind probabilistic AI predictions to verified resolved outcomes and compute deterministic cohort-specific calibration metrics without granting AI execution, promotion, risk, or LIVE authority."
 scope:
-  - unified Node and Vitest coverage collection
-  - coverage summary and HTML/JSON/LCOV/SVG artifact generation
-  - CI coverage artifact upload
-  - critical-path coverage review
+  - immutable hash-bound prediction and outcome identity
+  - deterministic append-only calibration observations
+  - weighted expected calibration error and Brier score
+  - provider/model/prompt/outcome cohort isolation
+  - insufficient-data and degraded-calibration fail-closed semantics
+  - read-only calibration projection with raw probability separated from calibrated/effective confidence
 safety:
+  liveAuthority: NONE
   productionMutationAllowed: false
-  liveTrading: disabled
-  credentials: not-configured
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiExecutionAuthority: ZERO_AUTHORITY
+  human_environment_gate: required_for_any_future_real_money_transition
 verification:
-  preflight: PASS
-  typecheck: PASS
-  build: PASS
-  lint: PASS
-  tests: PASS (291 isolated files)
-  test_ui: PASS (2 files, 4 tests)
-  test_e2e: PASS (4 tests)
-  coverage: PASS (84.37% statements/lines, 76.37% branches, 92.56% functions)
-  coverage_badge: PASS (coverage/badge.svg)
-  package_validate: PASS
-  release_check: PASS
-  ci: UPDATED
-  electron_smoke: UNVERIFIED
-  installer: BLOCKED
+  required:
+    - exact-head calibration and AI regressions
+    - typecheck and build
+    - architecture and AIPOS validation
+    - security gate
+    - isolated suite and coverage
+    - Mobile Native when triggered
+    - all Restricted LIVE/read-only workflows
 blockers:
-  - id: browser-page-coverage
-    severity: P2
-    status: UNVERIFIED
-    reason: "Playwright executes Chromium page code without a browser instrumentation hook."
-  - id: external-production-evidence
-    severity: P1
-    status: BLOCKED
-    reason: "Native mobile, installed Electron, real Upbit, and long-duration production evidence remain external requirements."
-next_recommended_task: Add focused tests for the eight zero-coverage recovery and reconciliation modules only after their current runtime ownership is confirmed.
+  - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
+  - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
+  - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
+next_recommended_task: Implement WO-AI-004 only from a fresh current-main branch while preserving zero-authority and deterministic safety boundaries.
