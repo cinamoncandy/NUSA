@@ -80,7 +80,7 @@ test("the real bootstrap process fails closed and exits non-zero when required e
 // test.
 test("the real bootstrap process starts, serves /health without auth, and enforces the configured token", async () => {
   const port = 41831;
-  const authToken = "runtime-bootstrap-test-token";
+  const authToken = "runtime-bootstrap-test-token-32bytes-min";
   const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   try {
     await waitForListening(child, port, STARTUP_TIMEOUT_MS);
@@ -123,7 +123,7 @@ test("SIGTERM triggers a clean, graceful shutdown (process.exit(0), not signal-k
 
 test("SIGINT also triggers a clean shutdown", { skip: posixOnly }, async () => {
   const port = 41832;
-  const authToken = "runtime-bootstrap-sigint-token";
+  const authToken = "runtime-bootstrap-sigint-token-32bytes-min";
   const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(child, port, STARTUP_TIMEOUT_MS);
   child.kill("SIGINT");
@@ -134,7 +134,7 @@ test("SIGINT also triggers a clean shutdown", { skip: posixOnly }, async () => {
 
 test("after an explicit shutdown, the port is actually released (not left bound by a lingering handle)", async () => {
   const port = 41833;
-  const authToken = "runtime-bootstrap-release-token";
+  const authToken = "runtime-bootstrap-release-token-32bytes-min";
   const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(first, port, STARTUP_TIMEOUT_MS);
   first.kill("SIGTERM");
