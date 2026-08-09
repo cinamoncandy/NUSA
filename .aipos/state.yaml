@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T18:36:16+09:00"
+updated_at: "2026-08-09T23:56:00+09:00"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-005 durable calibration while keeping WO-0051 at the constitutional human/environment boundary; run fresh read-only audits before any future safe AI slice."
+objective: "Preserve verified WO-AI-006 inference resource governance while keeping WO-0051 at the constitutional human/environment boundary; proceed with the separately planned zero-authority WO-AI-007 provider-diversity implementation."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: b4303b928e8d64417f3c07334ed3900ea3075046
+base_commit: 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-005
+  work_order: WO-AI-006
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-005-completion.json"
+  evidence: ".aipos/evidence/WO-AI-006-completion.json"
 latest_verified_slice:
-  id: wo-ai-005-durable-calibration-memory-complete
-  evidence: ".aipos/evidence/WO-AI-005-completion.json"
-  summary: "WO-AI-005 preserves verified calibration prediction/outcome/pending state across Cloud restarts with an integrity-checked append-only SQLite journal, semantic replay, fail-closed corruption/chronology handling, and unchanged zero execution authority."
+  id: wo-ai-006-inference-resource-governance-complete
+  evidence: ".aipos/evidence/WO-AI-006-completion.json"
+  summary: "WO-AI-006 bounds model calls, retries, input bytes, output-token reservation, and orchestration wall-clock time with truthful usage accounting and fail-closed exhaustion while preserving zero execution authority."
 completed:
+  - id: WO-AI-006
+    evidence: ".aipos/evidence/WO-AI-006-completion.json"
+    summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
   - id: WO-AI-005
     evidence: ".aipos/evidence/WO-AI-005-completion.json"
     summary: "Durable calibration memory survives restart, preserves exact cohort truth, expires stale pending predictions without credit, and makes corrupt or failed persistence unavailable rather than trusted."
@@ -56,19 +59,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-005 is evidence-verified complete. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
+  reason: "WO-AI-006 is evidence-verified complete and WO-AI-007 planning PR #374 is merged. Keep the human-only terminal gate active while the independent zero-authority AI-007 implementation proceeds from current protected main."
 verification:
   required:
-    - "Fresh repository/AI capability audit before opening the next AI implementation work order"
-    - "Explanation quality, cost/latency, independent provider diversity, scenario reasoning, memory attribution, calibration lifecycle, and in-process resource ownership must be re-ranked by evidence"
+    - "WO-AI-007 implementation must preserve one shared WO-AI-006 resource budget across all N-version fan-out"
+    - "Provider/model independence, disagreement, abstention, replay, failure isolation, and secret minimization must be adversarially tested"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-005 planning PR #345 merged at fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2; canonical implementation PR #354 merged at b4303b928e8d64417f3c07334ed3900ea3075046 after exact-head b03dd50c01dd789a3023217c018c53fc53a42ea8 CI 31306050500 PASS, Full isolated/Coverage PASS, and all four Restricted LIVE/read-only workflows PASS."
-  current_commit: "b4303b928e8d64417f3c07334ed3900ea3075046 contains the verified WO-AI-005 implementation with zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
+  last_result: "WO-AI-006 planning PR #360 merged at 2d1d7b1b6d79ab6498297df13373afa88fef6937; canonical implementation PR #372 merged at 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1 after exact-head 439c7a81651545bb5b34a52e64e41a227bfbe426 CI 31315926107 PASS and all four Restricted LIVE/read-only workflows PASS. WO-AI-007 planning PR #374 subsequently merged at 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4."
+  current_commit: "26f53749b8b81eed18844ed651b1e7a4cf8ef7f1 contains the verified WO-AI-006 implementation with zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
