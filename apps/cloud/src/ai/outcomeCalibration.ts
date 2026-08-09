@@ -54,6 +54,8 @@ const timestamp = (value: number, field: string): number => {
 const normalizeCohort = (cohort: AiCalibrationCohortKey): AiCalibrationCohortKey => Object.freeze({
   providerId: text(cohort.providerId, "providerId"),
   modelVersionId: text(cohort.modelVersionId, "modelVersionId"),
+  promptArtifactId: text(cohort.promptArtifactId, "promptArtifactId"),
+  promptArtifactVersion: text(cohort.promptArtifactVersion, "promptArtifactVersion"),
   promptArtifactDigest: isAiSha256(cohort.promptArtifactDigest) ? cohort.promptArtifactDigest.toLowerCase() : (() => { throw new Error("promptArtifactDigest must be sha256"); })(),
   outcomeDefinitionId: text(cohort.outcomeDefinitionId, "outcomeDefinitionId"),
   outcomeDefinitionVersion: text(cohort.outcomeDefinitionVersion, "outcomeDefinitionVersion")
@@ -132,6 +134,8 @@ const sameCohort = (prediction: AiCalibrationPrediction, cohort: AiCalibrationCo
   const normalized = normalizeCohort(cohort);
   return prediction.providerId === normalized.providerId
     && prediction.modelVersionId === normalized.modelVersionId
+    && prediction.promptArtifactId === normalized.promptArtifactId
+    && prediction.promptArtifactVersion === normalized.promptArtifactVersion
     && prediction.promptArtifactDigest === normalized.promptArtifactDigest
     && prediction.outcomeDefinitionId === normalized.outcomeDefinitionId
     && prediction.outcomeDefinitionVersion === normalized.outcomeDefinitionVersion;
@@ -191,19 +195,6 @@ export class OutcomeCalibrationLedger {
     const bucket = metrics.reliabilityBuckets[Math.min(bucketCount - 1, Math.floor(raw * bucketCount))];
     const calibratedProbability = status === "CALIBRATED" ? bucket?.observedRate ?? null : null;
     const effectiveConfidence = calibratedProbability == null ? 0 : Math.min(raw, calibratedProbability);
-    return Object.freeze({
-      cohort: normalizedCohort,
-      status,
-      sampleCount: metrics.sampleCount,
-      expectedCalibrationError: metrics.sampleCount === 0 ? null : metrics.expectedCalibrationError,
-      brierScore: metrics.sampleCount === 0 ? null : metrics.brierScore,
-      rawProbability: raw,
-      calibratedProbability,
-      effectiveConfidence,
-      reliabilityBuckets: metrics.reliabilityBuckets,
-      provenance: "VERIFIED_RUNTIME_ONLY",
-      liveAuthority: "NONE",
-      productionMutationAllowed: false
-    });
+    return Object.freeze({ cohort: normalizedCohort, status, sampleCount: metrics.sampleCount, expectedCalibrationError: metrics.sampleCount === 0 ? null : metrics.expectedCalibrationError, brierScore: metrics.sampleCount === 0 ? null : metrics.brierScore, rawProbability: raw, calibratedProbability, effectiveConfidence, reliabilityBuckets: metrics.reliabilityBuckets, provenance: "VERIFIED_RUNTIME_ONLY", liveAuthority: "NONE", productionMutationAllowed: false });
   }
 }
