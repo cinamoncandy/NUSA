@@ -5,7 +5,8 @@ import type {
   AiInferenceResourceController,
   AiInferenceResourceFailureCode,
   AiInferenceResourceHealth,
-  AiInferenceResourceSnapshot
+  AiInferenceResourceSnapshot,
+  AiInferenceUsageAccountingStatus
 } from "../../../../packages/contracts/src/aiInferenceResources";
 
 export const DEFAULT_AI_INFERENCE_BUDGET_POLICY: AiInferenceBudgetPolicy = Object.freeze({
@@ -127,9 +128,13 @@ export class InferenceResourceLedger implements AiInferenceResourceController {
   private attemptsCount = 0;
   private reservedOutputTokensCount = 0;
   private inputBytesCount = 0;
+  private completedAttemptsCount = 0;
   private actualInputTokensCount = 0;
   private actualOutputTokensCount = 0;
   private actualTotalTokensCount = 0;
+  private inputUsageReportedCount = 0;
+  private outputUsageReportedCount = 0;
+  private totalUsageReportedCount = 0;
   private lastEventAt: number;
 
   public readonly policy: AiInferenceBudgetPolicy;
@@ -167,7 +172,11 @@ export class InferenceResourceLedger implements AiInferenceResourceController {
     const key = `${request.requestId}:${attempt}`;
     const identityHash = requestIdentity(request);
     const prior = this.attemptsByKey.get(key);
-    if (prior != null) return prior.identityHash === identityHash || this.fail("RESOURCE_REPLAY_CONFLICT", "UNVERIFIED");
+    if (prior != null) {
+      if (prior.identityHash !== identityHash) return this.fail("RESOURCE_REPLAY_CONFLICT", "UNVERIFIED");
+      // Exact replay is state-idempotent but MUST NOT re-authorize another provider side effect.
+      return false;
+    }
     if (this.attemptsCount >= this.policy.maxTotalAttempts) return this.fail("ATTEMPT_BUDGET_EXHAUSTED", "EXHAUSTED");
     let nextReserved: number;
     let nextInputBytes: number;
@@ -214,9 +223,19 @@ export class InferenceResourceLedger implements AiInferenceResourceController {
     if (usage == null) return this.fail("USAGE_UNVERIFIED", "UNVERIFIED");
     if (usage.output != null && usage.output > item.reservedOutputTokens) return this.fail("INVALID_USAGE", "UNVERIFIED");
     try {
-      if (usage.input != null) this.actualInputTokensCount = safeAdd(this.actualInputTokensCount, usage.input, "AI inference actual input tokens");
-      if (usage.output != null) this.actualOutputTokensCount = safeAdd(this.actualOutputTokensCount, usage.output, "AI inference actual output tokens");
-      if (usage.total != null) this.actualTotalTokensCount = safeAdd(this.actualTotalTokensCount, usage.total, "AI inference actual total tokens");
+      if (usage.input != null) {
+        this.actualInputTokensCount = safeAdd(this.actualInputTokensCount, usage.input, "AI inference actual input tokens");
+        this.inputUsageReportedCount += 1;
+      }
+      if (usage.output != null) {
+        this.actualOutputTokensCount = safeAdd(this.actualOutputTokensCount, usage.output, "AI inference actual output tokens");
+        this.outputUsageReportedCount += 1;
+      }
+      if (usage.total != null) {
+        this.actualTotalTokensCount = safeAdd(this.actualTotalTokensCount, usage.total, "AI inference actual total tokens");
+        this.totalUsageReportedCount += 1;
+      }
+      this.completedAttemptsCount = safeAdd(this.completedAttemptsCount, 1, "AI inference completed attempts");
     } catch { return this.fail("INVALID_USAGE", "UNVERIFIED"); }
     item.actualInputTokens = usage.input;
     item.actualOutputTokens = usage.output;
@@ -266,6 +285,7 @@ export class InferenceResourceLedger implements AiInferenceResourceController {
         durationMs: item.durationMs,
         result: item.result
       }));
+    const usageAccountingStatus = this.usageAccountingStatus();
     return Object.freeze({
       schemaVersion: 1,
       health: this.healthValue,
@@ -274,15 +294,26 @@ export class InferenceResourceLedger implements AiInferenceResourceController {
       attempts: this.attemptsCount,
       reservedOutputTokens: this.reservedOutputTokensCount,
       inputBytes: this.inputBytesCount,
-      actualInputTokens: this.actualInputTokensCount,
-      actualOutputTokens: this.actualOutputTokensCount,
-      actualTotalTokens: this.actualTotalTokensCount,
+      usageAccountingStatus,
+      actualInputTokens: this.completedAttemptsCount > 0 && this.inputUsageReportedCount === this.completedAttemptsCount ? this.actualInputTokensCount : null,
+      actualOutputTokens: this.completedAttemptsCount > 0 && this.outputUsageReportedCount === this.completedAttemptsCount ? this.actualOutputTokensCount : null,
+      actualTotalTokens: this.completedAttemptsCount > 0 && this.totalUsageReportedCount === this.completedAttemptsCount ? this.actualTotalTokensCount : null,
       elapsedMs,
       attemptsEvidence: Object.freeze(attemptsEvidence),
       ...(this.failureCodeValue == null ? {} : { failureCode: this.failureCodeValue }),
       liveAuthority: "NONE",
       productionMutationAllowed: false
     });
+  }
+
+  private usageAccountingStatus(): AiInferenceUsageAccountingStatus {
+    if (this.completedAttemptsCount === 0) return "UNAVAILABLE";
+    const fullyVerified = this.inputUsageReportedCount === this.completedAttemptsCount
+      && this.outputUsageReportedCount === this.completedAttemptsCount
+      && this.totalUsageReportedCount === this.completedAttemptsCount;
+    if (fullyVerified) return "VERIFIED";
+    const anyReported = this.inputUsageReportedCount > 0 || this.outputUsageReportedCount > 0 || this.totalUsageReportedCount > 0;
+    return anyReported ? "PARTIAL" : "UNAVAILABLE";
   }
 
   private guardTime(at: number): boolean {
