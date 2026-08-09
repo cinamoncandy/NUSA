@@ -66,8 +66,8 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
-    if (isMobilePresentationSource(edge.source) && /^(apps|packages)\//.test(edge.target) && !edge.target.startsWith("apps/mobile/")) {
-      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation must consume mobile-local application/view-model modules instead of package or cross-app implementations."));
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may consume mobile-local modules and type-only shared contracts, but not runtime package or cross-app implementations."));
     }
   }
 
@@ -78,8 +78,8 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
-    if (isMobilePresentationSource(edge.source) && /^(apps|packages)\//.test(edge.target) && !edge.target.startsWith("apps/mobile/")) {
-      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation must consume mobile-local application/view-model modules instead of package or cross-app implementations."));
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may consume mobile-local modules and type-only shared contracts, but not runtime package or cross-app implementations."));
     }
   }
 
@@ -146,6 +146,13 @@ function resolveLocal(file, specifier, nodes, root) {
 
 function isMobilePresentationSource(file) {
   return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
+}
+
+function isForbiddenMobilePresentationReference(edge) {
+  if (!isMobilePresentationSource(edge.source)) return false;
+  if (edge.target.startsWith("apps/mobile/")) return false;
+  if (edge.kind === "type" && edge.target.startsWith("packages/contracts/")) return false;
+  return /^(apps|packages)\//.test(edge.target);
 }
 
 function layerOf(file) {
