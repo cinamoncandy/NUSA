@@ -3,13 +3,17 @@ const assert = require("node:assert/strict");
 const { OutcomeCalibrationLedger, computeCalibrationMetrics, createCalibrationOutcome, createCalibrationPrediction, verifyCalibrationOutcome, verifyCalibrationPrediction } = require("../dist/apps/cloud/src/ai/outcomeCalibration.js");
 
 const digest = "a".repeat(64);
+const calibrationHorizonMs = 5 * 60 * 1_000;
+const calibrationResolutionGraceMs = 60_000;
+const predictedAt = 1_000;
+const dueAt = predictedAt + calibrationHorizonMs;
 const cohort = Object.freeze({ providerId: "openai", modelVersionId: "model-v1", promptArtifactId: "nusa.ai.strategy_proposer", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, outcomeDefinitionId: "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M", outcomeDefinitionVersion: "1" });
-const prediction = (id, rawProbability, provenance = "VERIFIED_RUNTIME", overrides = {}) => createCalibrationPrediction({ predictionId: id, orchestrationRunId: `run-${id}`, proposalId: `proposal-${id}`, agentId: "ai-strategy-proposer", role: "STRATEGY_PROPOSER", ...cohort, targetId: "KRW-BTC", anchorValue: 100, anchorObservedAt: 900, anchorEvidenceReference: `anchor-${id}`, rawProbability, predictedAt: 1_000, horizonMs: 100, provenance, ...overrides });
+const prediction = (id, rawProbability, provenance = "VERIFIED_RUNTIME", overrides = {}) => createCalibrationPrediction({ predictionId: id, orchestrationRunId: `run-${id}`, proposalId: `proposal-${id}`, agentId: "ai-strategy-proposer", role: "STRATEGY_PROPOSER", ...cohort, targetId: "KRW-BTC", anchorValue: 100, anchorObservedAt: 900, anchorEvidenceReference: `anchor-${id}`, rawProbability, predictedAt, horizonMs: calibrationHorizonMs, provenance, ...overrides });
 const outcome = (predictionOrId, result, provenance = "VERIFIED_RUNTIME", overrides = {}) => {
   const linkedPrediction = typeof predictionOrId === "string" ? null : predictionOrId;
   const predictionId = linkedPrediction?.predictionId ?? predictionOrId;
   const predictionContentHash = overrides.predictionContentHash ?? linkedPrediction?.contentHash ?? "0".repeat(64);
-  return createCalibrationOutcome({ predictionId, predictionContentHash, outcomeDefinitionId: cohort.outcomeDefinitionId, outcomeDefinitionVersion: cohort.outcomeDefinitionVersion, outcome: result, resolvedValue: result ? 101 : 99, resolvedAt: 1_100, evidenceReferences: [`evidence-${predictionId}`], provenance, ...overrides });
+  return createCalibrationOutcome({ predictionId, predictionContentHash, outcomeDefinitionId: cohort.outcomeDefinitionId, outcomeDefinitionVersion: cohort.outcomeDefinitionVersion, outcome: result, resolvedValue: result ? 101 : 99, resolvedAt: dueAt, evidenceReferences: [`evidence-${predictionId}`], provenance, ...overrides });
 };
 
 test("calibration rejects invalid probabilities and hash tampering", () => {
@@ -20,7 +24,7 @@ test("calibration rejects invalid probabilities and hash tampering", () => {
   assert.equal(verifyCalibrationPrediction({ ...valid, promptArtifactVersion: "2.0.0" }), false);
   assert.equal(verifyCalibrationPrediction({ ...valid, anchorValue: 101 }), false);
   assert.equal(verifyCalibrationPrediction({ ...valid, targetId: "KRW-ETH" }), false);
-  assert.throws(() => prediction("future-anchor", 0.5, "VERIFIED_RUNTIME", { anchorObservedAt: 1_001 }), /cannot postdate prediction/);
+  assert.throws(() => prediction("future-anchor", 0.5, "VERIFIED_RUNTIME", { anchorObservedAt: predictedAt + 1 }), /cannot postdate prediction/);
   const resolved = outcome(valid, true);
   assert.equal(verifyCalibrationOutcome(resolved), true);
   assert.equal(verifyCalibrationOutcome({ ...resolved, outcome: false }), false);
@@ -28,7 +32,7 @@ test("calibration rejects invalid probabilities and hash tampering", () => {
   assert.equal(verifyCalibrationOutcome({ ...resolved, predictionContentHash: "f".repeat(64) }), false);
 });
 
-test("calibration ledger is idempotent but rejects conflicting replay, detached outcomes, and premature outcomes", () => {
+test("calibration ledger is idempotent but rejects conflicting replay, detached outcomes, and invalid resolution windows", () => {
   const ledger = new OutcomeCalibrationLedger();
   const first = prediction("p1", 0.7);
   assert.equal(ledger.appendPrediction(first), first);
@@ -37,7 +41,11 @@ test("calibration ledger is idempotent but rejects conflicting replay, detached 
   assert.throws(() => ledger.appendOutcome(outcome("missing", true)), /prediction is missing/);
   const other = prediction("other", 0.4);
   assert.throws(() => ledger.appendOutcome(outcome(first, true, "VERIFIED_RUNTIME", { predictionContentHash: other.contentHash })), /prediction hash mismatch/);
-  assert.throws(() => ledger.appendOutcome(outcome(first, true, "VERIFIED_RUNTIME", { resolvedAt: 1_099 })), /before horizon/);
+  assert.throws(() => ledger.appendOutcome(outcome(first, true, "VERIFIED_RUNTIME", { resolvedAt: dueAt - 1 })), /before horizon/);
+  assert.throws(() => ledger.appendOutcome(outcome(first, true, "VERIFIED_RUNTIME", { resolvedAt: dueAt + calibrationResolutionGraceMs + 1 })), /stale for the resolution window/);
+  const wrongHorizon = prediction("wrong-horizon", 0.7, "VERIFIED_RUNTIME", { horizonMs: 100 });
+  ledger.appendPrediction(wrongHorizon);
+  assert.throws(() => ledger.appendOutcome(outcome(wrongHorizon, true, "VERIFIED_RUNTIME", { resolvedAt: predictedAt + 100 })), /horizon does not match outcome definition/);
   const resolved = outcome(first, true);
   assert.equal(ledger.appendOutcome(resolved), resolved);
   assert.equal(ledger.appendOutcome(resolved), resolved);

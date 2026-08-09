@@ -28,10 +28,15 @@ safety:
   aiLiveAuthority: prohibited
 verification:
   implementation_merge: 799a1c0ea8c5aeecc236b5a84b2096a7251e1351
-  ai004_exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
-  ai004_ci_run: 31295456484
-  ai004_mobile_native_run: 31295456482
-  ai004_restricted_live_readonly_workflows: PASS_4_OF_4
+  implementation_exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
+  implementation_ci_run: 31295456484
+  implementation_mobile_native_run: 31295456482
+  hardening_merge: e76a3a8a2d169f677c91cc7502a04d456018146b
+  hardening_exact_head: 1f10ea6e3d0b8e816b728cd88fc70894489d99cb
+  hardening_ci_run: 31296277719
+  post_merge_ci_run: 31296534244
+  post_merge_mobile_native_run: 31296534245
+  restricted_live_readonly_workflows: PASS_4_OF_4_ON_IMPLEMENTATION_AND_HARDENING
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED

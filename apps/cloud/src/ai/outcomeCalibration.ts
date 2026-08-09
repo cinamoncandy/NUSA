@@ -30,7 +30,11 @@ export interface CalibrationPolicy {
 
 type PredictionInput = Omit<AiCalibrationPrediction, "contentHash">;
 type OutcomeInput = Omit<AiCalibrationOutcome, "contentHash">;
-type OutcomeDefinitionEvaluator = (prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome) => boolean;
+interface OutcomeDefinitionRule {
+  readonly evaluator: (prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome) => boolean;
+  readonly horizonMs: number;
+  readonly maximumResolutionDelayMs: number;
+}
 
 const text = (value: string, field: string): string => {
   const normalized = value.trim();
@@ -170,14 +174,24 @@ const sameCohort = (prediction: AiCalibrationPrediction, cohort: AiCalibrationCo
 
 const sameHash = (left: { readonly contentHash: string }, right: { readonly contentHash: string }): boolean => left.contentHash.toLowerCase() === right.contentHash.toLowerCase();
 const outcomeDefinitionKey = (id: string, version: string): string => `${id}@${version}`;
-const VERIFIED_OUTCOME_DEFINITIONS = new Map<string, OutcomeDefinitionEvaluator>([
-  ["UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M@1", (prediction, outcome) => outcome.resolvedValue > prediction.anchorValue]
+const VERIFIED_OUTCOME_DEFINITIONS = new Map<string, OutcomeDefinitionRule>([
+  ["UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M@1", Object.freeze({
+    evaluator: (prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome) => outcome.resolvedValue > prediction.anchorValue,
+    horizonMs: 5 * 60 * 1_000,
+    maximumResolutionDelayMs: 60_000
+  })]
 ]);
 
 function assertOutcomeSemantics(prediction: AiCalibrationPrediction, outcome: AiCalibrationOutcome): void {
-  const evaluator = VERIFIED_OUTCOME_DEFINITIONS.get(outcomeDefinitionKey(prediction.outcomeDefinitionId, prediction.outcomeDefinitionVersion));
-  if (evaluator == null) throw new Error("unsupported calibration outcome definition");
-  if (evaluator(prediction, outcome) !== outcome.outcome) throw new Error("calibration outcome does not match resolved value");
+  const rule = VERIFIED_OUTCOME_DEFINITIONS.get(outcomeDefinitionKey(prediction.outcomeDefinitionId, prediction.outcomeDefinitionVersion));
+  if (rule == null) throw new Error("unsupported calibration outcome definition");
+  if (prediction.horizonMs !== rule.horizonMs) throw new Error("calibration prediction horizon does not match outcome definition");
+  const dueAt = prediction.predictedAt + prediction.horizonMs;
+  const latestAllowedAt = dueAt + rule.maximumResolutionDelayMs;
+  if (!Number.isSafeInteger(dueAt) || !Number.isSafeInteger(latestAllowedAt)) throw new Error("calibration resolution window is invalid");
+  if (outcome.resolvedAt < dueAt) throw new Error("calibration outcome resolved before horizon");
+  if (outcome.resolvedAt > latestAllowedAt) throw new Error("calibration outcome is stale for the resolution window");
+  if (rule.evaluator(prediction, outcome) !== outcome.outcome) throw new Error("calibration outcome does not match resolved value");
 }
 
 export class OutcomeCalibrationLedger {
@@ -203,7 +217,6 @@ export class OutcomeCalibrationLedger {
     if (prediction.outcomeDefinitionId !== outcome.outcomeDefinitionId || prediction.outcomeDefinitionVersion !== outcome.outcomeDefinitionVersion) throw new Error("calibration outcome identity mismatch");
     if (prediction.provenance !== outcome.provenance) throw new Error("calibration provenance mismatch");
     assertOutcomeSemantics(prediction, outcome);
-    if (outcome.resolvedAt < prediction.predictedAt + prediction.horizonMs) throw new Error("calibration outcome resolved before horizon");
     const prior = this.outcomes.get(outcome.predictionId);
     if (prior != null) {
       if (!sameHash(prior, outcome)) throw new Error("conflicting calibration outcome replay");

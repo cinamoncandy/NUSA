@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T14:15:00+09:00"
-phase: outcome-linked-ai-calibration-complete
+updated_at: "2026-08-09T14:28:00+09:00"
+phase: human-environment-gate
 status: ready
-objective: "Preserve verified outcome-linked AI calibration and run a fresh evidence-based AI capability audit before opening any next AI implementation slice."
+objective: "Preserve verified WO-AI-004 outcome calibration while keeping WO-0051 at the constitutional human/environment boundary; run fresh read-only audits before any future safe AI slice."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: 799a1c0ea8c5aeecc236b5a84b2096a7251e1351
+base_commit: e76a3a8a2d169f677c91cc7502a04d456018146b
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -18,11 +18,11 @@ verified_state:
 latest_verified_slice:
   id: wo-ai-004-outcome-linked-calibration-complete
   evidence: ".aipos/evidence/WO-AI-004-completion.json"
-  summary: "WO-AI-004 binds model probability to verified market outcomes with exact cohort identity, conservative ECE/Brier calibration, fail-closed sample sufficiency, truthful read-only projection, and unchanged zero execution authority."
+  summary: "WO-AI-004 binds model probability to verified market outcomes with exact cohort identity, conservative ECE/Brier calibration, audited horizon/staleness enforcement, fail-closed sample sufficiency, truthful read-only projection, and unchanged zero execution authority."
 completed:
   - id: WO-AI-004
     evidence: ".aipos/evidence/WO-AI-004-completion.json"
-    summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations while preserving zero authority."
+    summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations and fail-closed resolution windows while preserving zero authority."
   - id: WO-AI-003
     evidence: ".aipos/evidence/WO-AI-003-completion.json"
     summary: "The grounded AI runtime supports an explicit real-model challenger with strict structured output, bounded timeout, usage metadata, fail-closed provider errors, and unchanged zero execution authority."
@@ -50,7 +50,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-004 is evidence-verified complete. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
+  reason: "WO-AI-004 is evidence-verified complete through final hardening and post-merge verification. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
 verification:
   required:
     - "Fresh repository/AI capability audit before opening the next AI implementation work order"
@@ -61,8 +61,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 from exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 after CI 31295456484 PASS including Security, Typecheck, Build, Architecture/Repository Truth, AI zero-authority, AIPOS, PAPER verification, E2E/release, repository-wide audit, full isolated suite, and Coverage; Mobile Native 31295456482 PASS for foundation/Android/iOS; Restricted LIVE/read-only workflows 31295456483, 31295456490, 31295456480, 31295456481 PASS."
-  current_commit: "799a1c0ea8c5aeecc236b5a84b2096a7251e1351; WO-AI-004 implementation merged and completion evidence recorded on canonical bookkeeping PR #270"
+  last_result: "WO-AI-004 implementation PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 after exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 CI 31295456484 PASS, Mobile Native 31295456482 PASS, and four read-only/Restricted LIVE workflows PASS; final stale-outcome ledger-boundary hardening PR #268 merged at e76a3a8a2d169f677c91cc7502a04d456018146b after latest-main exact-head 1f10ea6e3d0b8e816b728cd88fc70894489d99cb CI 31296277719 PASS and four safety workflows PASS; post-merge main CI 31296534244 and Mobile Native 31296534245 PASS."
+  current_commit: "e76a3a8a2d169f677c91cc7502a04d456018146b; WO-AI-004 implementation and final hardening merged with post-merge CI and Mobile Native verification PASS"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
