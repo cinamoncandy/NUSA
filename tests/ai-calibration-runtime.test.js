@@ -7,7 +7,8 @@ const {
   createCloudAiRuntime,
   AI_CALIBRATION_OUTCOME_DEFINITION_ID,
   AI_CALIBRATION_OUTCOME_DEFINITION_VERSION,
-  AI_CALIBRATION_HORIZON_MS
+  AI_CALIBRATION_HORIZON_MS,
+  AI_CALIBRATION_RESOLUTION_GRACE_MS
 } = require("../dist/apps/cloud/src/ai/runtime.js");
 
 const firstObservedAt = 1_700_000_000_000;
@@ -115,6 +116,35 @@ test("cloud AI runtime records a verified prediction and resolves it only from a
   assert.equal(projection.liveAuthority, "NONE");
   assert.equal(projection.productionMutationAllowed, false);
   assert.equal(runtime.recordCalibrationOutcome, undefined, "manual outcome injection must not exist on the runtime surface");
+});
+
+test("a late ticker outside the audited resolution window cannot be mislabeled as the five-minute outcome", async () => {
+  let runtimeNow = firstObservedAt + 100;
+  modelCompletedAt = firstObservedAt + 2;
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, {
+    now: () => runtimeNow,
+    minimumCadenceMs: 0,
+    maximumResultAgeMs: 10_000_000,
+    calibration: {
+      outcomeDefinitionId: AI_CALIBRATION_OUTCOME_DEFINITION_ID,
+      outcomeDefinitionVersion: AI_CALIBRATION_OUTCOME_DEFINITION_VERSION,
+      horizonMs: AI_CALIBRATION_HORIZON_MS,
+      policy: { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 }
+    }
+  });
+  const first = evidenceFor(100, firstObservedAt);
+  runtime.schedule(orchestrationInput("late-first", firstObservedAt, first));
+  await waitForRuntime(runtime);
+  assert.equal(runtime.calibrationProfile().sampleCount, 0);
+
+  const lateObservedAt = firstObservedAt + 2 + AI_CALIBRATION_HORIZON_MS + AI_CALIBRATION_RESOLUTION_GRACE_MS + 1;
+  runtimeNow = lateObservedAt + 100;
+  modelCompletedAt = lateObservedAt + 2;
+  const late = evidenceFor(150, lateObservedAt);
+  runtime.schedule(orchestrationInput("late-second", lateObservedAt, late));
+  assert.equal(runtime.calibrationProfile().sampleCount, 0, "late verified data must expire the missed window without calibration credit");
+  await waitForRuntime(runtime);
+  assert.equal(runtime.calibrationProfile().sampleCount, 0);
 });
 
 test("unverified or tampered market evidence cannot create calibration credit", async () => {
