@@ -1,20 +1,20 @@
 id: WO-AI-004
 title: Outcome-Linked Calibration Engine
-branch: agent/ai-004-outcome-calibration-current-main
+branch: main
 pull_request: 256
 base_branch: main
-phase: implementation
-status: IN_PROGRESS
+phase: completion
+status: COMPLETE
 source_work_order: .aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml
-objective: "Bind probabilistic AI predictions to verified resolved outcomes and compute deterministic cohort-specific calibration metrics without granting AI execution, promotion, risk, or LIVE authority."
+objective: "Preserve evidence-verified outcome-linked calibration that separates raw model probability from trusted confidence without granting AI execution, promotion, risk, or LIVE authority."
 scope:
   - immutable hash-bound prediction and outcome identity
   - deterministic append-only calibration observations
   - weighted expected calibration error and Brier score
   - provider/model/prompt/outcome cohort isolation
-  - insufficient-data and degraded-calibration fail-closed semantics
-  - strict bounded raw proposer probability in provider and orchestrator validation
-  - verified-runtime proposer-to-calibration prediction bridge
+  - global and reliability-bucket sample sufficiency
+  - verified-runtime automatic market outcome resolution
+  - wrong-market and late-window fail-closed semantics
   - read-only calibration projection with raw probability separated from calibrated/effective confidence
   - truthful mobile presentation of raw probability, calibration evidence, and trusted confidence
 safety:
@@ -25,16 +25,14 @@ safety:
   aiExecutionAuthority: ZERO_AUTHORITY
   human_environment_gate: required_for_any_future_real_money_transition
 verification:
-  required:
-    - exact-head calibration and AI regressions
-    - typecheck and build
-    - architecture and AIPOS validation
-    - security gate
-    - isolated suite and coverage
-    - Mobile Native when triggered
-    - all Restricted LIVE/read-only workflows
+  implementation_merge: 799a1c0ea8c5aeecc236b5a84b2096a7251e1351
+  exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
+  ci_run: 31295456484
+  mobile_native_run: 31295456482
+  restricted_live_readonly_workflows: PASS_4_OF_4
+  final_grill: P0_0_P1_0
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Complete and verify PR #256 only; do not start a different WO-AI-004 implementation path before exact-head checks, merge, and post-merge verification pass.
+next_recommended_task: Run a fresh read-only repository/AI capability audit and select the lowest evidence-based safe dimension before opening any next AI implementation work order; preserve WO-0051 human-only authority gates.
