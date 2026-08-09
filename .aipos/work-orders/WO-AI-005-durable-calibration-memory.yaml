@@ -2,9 +2,9 @@ id: WO-AI-005
 title: Durable Calibration Memory and Replay
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-005-durable-calibration-plan
+branch: agent/ai-005-durable-calibration-future-chronology
 base_branch: main
-implementation_branch: agent/ai-005-durable-calibration-plan
+implementation_branch: agent/ai-005-durable-calibration-future-chronology
 architecture_impact:
   acknowledged: true
   analysis: "Adds durable append-only calibration persistence and deterministic restart replay below the verified zero-authority AI runtime while preserving Storage/Core/Cloud dependency direction."
@@ -23,7 +23,7 @@ objective: >-
 constraints:
   - Durable state stores canonical calibration metadata only; provider credentials, API keys, bearer tokens, raw prompt bodies, hidden reasoning, raw evidence payloads, and broker secrets are prohibited.
   - Recovery must replay through the same prediction/outcome hash and semantic validators used by the live calibration ledger.
-  - Exact duplicate replay is idempotent; conflicting duplicate, broken hash, broken linkage, unsupported outcome definition, invalid chronology, or partial/corrupt state fails closed.
+  - Exact duplicate replay is idempotent; conflicting duplicate, broken hash, broken linkage, unsupported outcome definition, invalid chronology, future chronology, or partial/corrupt state fails closed.
   - Pending prediction recovery must preserve exact market, anchor, content hash, outcome definition, horizon, and grace window; stale pending records expire without calibration credit.
   - Persistence/open/replay/append failure may not alter PAPER execution and may not preserve or increase trusted confidence; effective confidence must be zero/unavailable until durability health is verified.
   - Storage must not depend on Cloud/application implementations; Cloud composition injects the durable adapter through a stable contract/port.
@@ -35,11 +35,11 @@ implementation:
   - persist prediction before it can contribute to future durable calibration state
   - persist verified outcome and pending-resolution transition atomically
   - deterministically rebuild OutcomeCalibrationLedger and pending predictions on startup
-  - validate content hashes, prediction-outcome linkage, provenance, outcome definition, chronology, and duplicate identity during replay
+  - validate content hashes, prediction-outcome linkage, provenance, outcome definition, chronology, future timestamps, and duplicate identity during replay
   - expire recovered stale pending predictions without producing calibration samples
   - fail closed on corrupt/partial/unsupported durable state and expose zero trusted confidence
   - expose read-only durability health/recovered sample metadata without mutation capability
-  - add restart, corruption, crash-window, replay, migration, and zero-authority adversarial tests
+  - add restart, corruption, crash-window, replay, migration, chronology, and zero-authority adversarial tests
 acceptance_criteria:
   - verified prediction/outcome samples survive process restart and produce the same exact cohort profile after replay
   - pending prediction survives restart only when its original audited resolution window is still valid
@@ -48,6 +48,7 @@ acceptance_criteria:
   - conflicting duplicate prediction or outcome fails closed
   - tampered prediction/outcome content hash fails closed
   - mismatched predictionContentHash or outcome definition/version fails closed
+  - premature expiry and future prediction/outcome/expiry timestamps fail closed during startup replay
   - truncated/partial transaction or unsupported schema version does not produce trusted confidence
   - append failure cannot leave an in-memory sample trusted as durable
   - storage corruption/replay failure results in durability unhealthy and effective confidence zero/unavailable
@@ -77,6 +78,5 @@ verification:
     - provider or broker credential material
     - real order, cancel, transfer, or withdrawal
 next: >-
-  Merge this planning gate after exact-head verification, then replay the Work Order onto a
-  dedicated implementation branch from latest main and implement one vertical durable-calibration
-  slice before any later AI capability work.
+  Verify implementation PR #354 on its exact latest-main head, resolve any CI/review findings, freeze the
+  passing implementation head, and merge by expected head SHA before any later AI capability work.
