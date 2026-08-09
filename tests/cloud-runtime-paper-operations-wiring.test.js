@@ -9,7 +9,8 @@ const serverPath = path.join(__dirname, "..", "apps", "cloud", "src", "server.ts
 test("startCloudRuntime wires the authenticated PAPER operations loader into the actual server", () => {
   const source = fs.readFileSync(runtimePath, "utf8");
   assert.match(source, /startCloudDashboardServer\(\{/);
-  assert.match(source, /loadPaperOperations:\s*\(principal\)\s*=>/);
+  assert.match(source, /const\s+loadPaperOperations\s*=\s*\(principal:\s*DashboardPrincipal\)\s*:/);
+  assert.match(source, /\n\s*loadPaperOperations,\s*\n/);
   assert.match(source, /buildPersonalPaperOperationsSnapshot/);
   assert.match(source, /effectiveProvider\.read\(principal\)/);
   assert.match(source, /marketConnectionState\s*===\s*"CONNECTED"/);
