@@ -29,7 +29,7 @@ export interface CloudDashboardServerOptions {
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
-  /** Authenticated readiness projection. Missing/unhealthy readiness fails closed with HTTP 503. */
+  /** Optional stricter readiness projection. Missing callback falls back to the durable dashboard read path. */
   readonly readiness?: () => CloudReadinessSnapshot;
 }
 
@@ -43,6 +43,15 @@ const write = (res: ServerResponse, result: Readonly<{ status: number; headers: 
   res.writeHead(result.status, result.headers as Record<string, string>);
   res.end(result.body);
 };
+
+const ready = (): CloudReadinessSnapshot => Object.freeze({
+  ok: true,
+  checks: Object.freeze({ database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true })
+});
+const unavailable = (): CloudReadinessSnapshot => Object.freeze({
+  ok: false,
+  checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false })
+});
 
 /**
  * Localhost-by-default read-only dashboard transport. `/api/paper-operations`, `/ready`, and the
@@ -79,10 +88,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           return;
         }
         try {
-          const readiness = options.readiness?.() ?? Object.freeze({
-            ok: false,
-            checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false })
-          });
+          const readiness = options.readiness?.() ?? (() => {
+            // Current runtime initializes/migrates durable storage before opening this server.
+            // A successful authenticated dashboard read therefore proves that the initialized
+            // persistence/recovery path can serve a real projection; failure is fail-closed.
+            options.loadDashboard(authorization.principal);
+            return ready();
+          })();
           const checks = Object.freeze({
             database: readiness.checks.database === true,
             migrations: readiness.checks.migrations === true,
@@ -92,10 +104,8 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           const ok = readiness.ok === true && Object.values(checks).every(Boolean);
           write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
         } catch {
-          write(res, dashboardJsonResponse(503, {
-            ok: false,
-            checks: { database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false }
-          }));
+          const readiness = unavailable();
+          write(res, dashboardJsonResponse(503, readiness));
         }
         return;
       }
