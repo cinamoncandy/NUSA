@@ -25,16 +25,18 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const chartAvailable = Array.isArray(rawCandles) && rawCandles.length > 0;
   const visiblePanel = chartAvailable ? panel : "WATCHLIST";
 
-  return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
+  return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace"><View style={styles.content}>
     {chartAvailable ? <View style={[styles.panels, { borderBottomColor: theme.colors.border }]} testID="markets-panels">
       <NusaButton label="관심시장" onPress={() => setPanel("WATCHLIST")} tone={visiblePanel === "WATCHLIST" ? "primary" : "neutral"} testID="markets-watchlist-tab" />
       <NusaButton label="차트" onPress={() => setPanel("CHART")} tone={visiblePanel === "CHART" ? "primary" : "neutral"} testID="markets-chart-tab" />
     </View> : null}
-    {visiblePanel === "WATCHLIST" ? <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} /> : <ChartView error={error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />}
-  </View>;
+    <View style={styles.panelBody}>{visiblePanel === "WATCHLIST" ? <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} /> : <ChartView error={error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />}</View>
+  </View></View>;
 }
 
 const styles = StyleSheet.create({
-  workspace: { flex: 1 },
+  workspace: { flex: 1, alignItems: "center" },
+  content: { flex: 1, width: "100%", maxWidth: 1080 },
+  panelBody: { flex: 1, width: "100%" },
   panels: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1 },
 });
