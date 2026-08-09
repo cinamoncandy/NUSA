@@ -127,16 +127,12 @@ jobs:
           retention-days: 14
       - name: Lint
         run: pnpm run lint
-      - name: UI tests
-        run: pnpm run test:ui
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
-      - name: E2E tests
-        run: pnpm run test:e2e
       - name: Package validation
         run: pnpm run package:validate
       - name: Release validation
-        run: pnpm run release:check
+        run: pnpm run release:check:prepared
       - name: Deployment capability scan (live trading / credential storage must be absent)
         run: node scripts/build-deployment-descriptor.js --dist dist --output deployment-descriptor.json
       - name: Risk safety drills
@@ -165,10 +161,8 @@ jobs:
         run: node --test --test-reporter=spec tests/scenario-paper-validation.test.js tests/scenario-evidence-bundle.test.js tests/operational-completion-gate.test.js tests/profitability-claim-gate.test.js tests/release-readiness-audit.test.js
       - name: Repository-wide security and readiness audit tests
         run: node --test --test-reporter=spec tests/repository-hardening.test.js tests/architecture-audit.test.js tests/desktop-sqlite-safety.test.js tests/storage-migrations.test.js tests/sqlite-recovery-drill.test.js tests/research-dataset.test.js tests/backtest-analytics.test.js tests/release-readiness-audit.test.js
-      - name: Full isolated test suite
-        run: node scripts/run-tests-isolated.js
-      - name: Coverage baseline
-        run: pnpm run coverage
+      - name: Coverage baseline (isolated + UI + E2E)
+        run: pnpm run coverage:prepared
       - name: Upload coverage baseline
         if: always()
         uses: actions/upload-artifact@v4
