@@ -71,6 +71,8 @@ export interface StructuredAgentOutput {
 export interface AiCalibrationCohortKey {
   readonly providerId: string;
   readonly modelVersionId: string;
+  readonly promptArtifactId: string;
+  readonly promptArtifactVersion: string;
   readonly promptArtifactDigest: string;
   readonly outcomeDefinitionId: string;
   readonly outcomeDefinitionVersion: string;
