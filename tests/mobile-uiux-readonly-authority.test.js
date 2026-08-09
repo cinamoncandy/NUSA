@@ -6,14 +6,16 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-001 keeps the five-tab foundation while presenting Korean primary navigation", () => {
+test("UIUX-002 preserves stable five-tab keys while presenting product navigation", () => {
   const app = read("App.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\] as const/);
   assert.match(app, /Home: "홈"/);
   assert.match(app, /Markets: "시장"/);
-  assert.match(app, /Trade: "거래"/);
+  assert.match(app, /Trade: "PAPER"/);
   assert.match(app, /Portfolio: "자산"/);
-  assert.match(app, /More: "더보기"/);
+  assert.match(app, /More: "AI"/);
+  assert.match(app, /activeTab === "More" \? <AiView/);
+  assert.doesNotMatch(app, /<MoreView/);
 });
 
 test("mobile intelligence shell displays real AI projection and truthful authority state", () => {
