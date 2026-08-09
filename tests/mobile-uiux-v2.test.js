@@ -21,14 +21,14 @@ test("product navigation promotes PAPER and AI without changing foundation tab k
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
   const source = read("src/aiView.tsx");
-  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /AI ZERO AUTHORITY/);
   assert.match(source, /READ ONLY/);
   assert.match(source, /ai\.evidenceReferences/);
   assert.match(source, /ai\.counterEvidence/);
   assert.match(source, /ai\.disagreements/);
   assert.match(source, /liveAuthority/);
   assert.match(source, /productionMutationAllowed/);
-  assert.match(source, /주문·이체·LIVE 실행 권한은 없습니다/);
+  assert.match(source, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
   assert.doesNotMatch(source, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
 });
 
@@ -37,21 +37,29 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   const app = read("App.tsx");
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
   assert.match(source, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(source, /\{chartAvailable \? <View/);
-  assert.match(source, /visiblePanel === "WATCHLIST"/);
+  assert.match(source, /chartAvailable && wide \? <ChartView/);
+  assert.match(source, /chartAvailable && !wide \? <View/);
+  assert.match(source, /wide \|\| visiblePanel === "WATCHLIST" \? <WatchlistView/);
+  assert.match(source, /testID="markets-chart-tab"/);
   assert.match(app, /rawCandles=\{null\}/);
 });
 
-test("read-only PAPER path has one explicit zero-mutation state and no fake controls", () => {
+test("Trading permits only verified PAPER mutation and never LIVE authority", () => {
   const source = read("src/tradingView.tsx");
-  assert.match(source, /const readOnly = onSubmit === undefined/);
-  assert.match(source, /PAPER 관찰 모드/);
-  assert.match(source, /ZERO MUTATION/);
-  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
-  assert.match(source, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
-  assert.doesNotMatch(source, /<AuthorityBanner/);
-  assert.doesNotMatch(source, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
-  assert.doesNotMatch(source, /매수 미리보기|매도 미리보기|읽기 전용 — 주문 권한 없음/);
+  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label="LIVE 금지"/);
+  assert.match(source, /PAPER 주문 연결 필요/);
+  assert.match(source, /PAPER 주문 확인/);
+  assert.match(source, /PAPER 주문 확정/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
+  assert.match(source, /PersonalPaperOrderRetryIdentity/);
+  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
+  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {
