@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildOrderHistoryViewModel, type OrderHistoryFilter, type OrderHistoryPeriod, type OrderHistorySort } from "./orderHistory";
+import { orderSideLabel, orderStatusLabel } from "./userFacingStatus";
 
 interface OrderHistoryViewProps {
   readonly rawOrders: readonly unknown[] | null;
@@ -24,9 +25,9 @@ function OrderRow({ order }: Readonly<{ order: ReturnType<typeof buildOrderHisto
   const { theme } = useTheme();
   const statusTone = order.status === "FILLED" ? "success" : order.status === "CANCELLED" ? "warning" : "danger";
   return <NusaCard testID={`order-history-${order.id}`}>
-    <View style={styles.rowHeader}><View><Text style={[styles.market, { color: theme.colors.text }]}>{order.market}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>{order.id}</Text></View><StatusChip label={order.status} tone={statusTone} /></View>
+    <View style={styles.rowHeader}><View><Text style={[styles.market, { color: theme.colors.text }]}>{order.market}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>{order.id}</Text></View><StatusChip label={orderStatusLabel(order.status)} tone={statusTone} /></View>
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <DataRow label="방향 / 수량" value={`${order.side} ${order.quantity}`} />
+    <DataRow label="방향 / 수량" value={`${orderSideLabel(order.side)} ${order.quantity}`} />
     <DataRow label="체결 가격" value={money(order.price)} />
     <DataRow label="수수료" value={money(order.fee)} />
     <DataRow label="체결 시각" value={new Date(order.filledAt).toLocaleString("ko-KR")} />
@@ -49,7 +50,7 @@ export function OrderHistoryView({ rawOrders, error, refreshing, onRefresh }: Or
 
   if (error) return <View style={styles.state} testID="order-history-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>주문 이력을 표시할 수 없습니다</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{error}</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
   if (model.state === "LOADING") return <View style={styles.state} testID="order-history-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>주문 이력을 불러오는 중</Text></View>;
-  if (model.state === "ERROR") return <View style={styles.state} testID="order-history-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>주문 데이터 오류</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{model.error}</Text></NusaCard></View>;
+  if (model.state === "ERROR") return <View style={styles.state} testID="order-history-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>주문 데이터 오류</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{model.error}</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
   if (model.state === "EMPTY") return <View style={styles.state} testID="order-history-empty"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>조건에 맞는 주문 없음</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>완료된 PAPER 주문이 있으면 여기에 표시됩니다.</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="order-history-screen">
