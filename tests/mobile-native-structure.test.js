@@ -70,3 +70,12 @@ test("mobile release workflow validates unsigned Android and iOS candidates", ()
   assert.match(workflow, /-configuration Release/);
   assert.match(workflow, /CODE_SIGNING_ALLOWED=NO/);
 });
+
+test("mobile workflow cancels obsolete runs and reuses safe dependency caches", () => {
+  const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8").replace(/\r\n/g, "\n");
+  assert.equal(workflow.includes("group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"), true);
+  assert.equal(workflow.includes("cancel-in-progress: true"), true);
+  assert.equal((workflow.match(/cache: pnpm/g) ?? []).length, 5);
+  assert.equal((workflow.match(/cache: gradle/g) ?? []).length, 2);
+  assert.equal(workflow.includes("if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')"), true);
+});
