@@ -1,9 +1,10 @@
 id: WO-AI-007
 title: N-Version Provider Diversity and Disagreement Governance
-status: PLANNED
+status: IN_PROGRESS
 priority: P1
-branch: agent/ai-007-provider-diversity-plan
+branch: agent/ai-007-n-version-runtime
 base_branch: main
+implementation_branch: agent/ai-007-n-version-runtime
 planning_branch: agent/ai-007-provider-diversity-plan
 architecture_impact:
   acknowledged: true
@@ -91,11 +92,17 @@ verification:
     - provider or broker credential material
     - real order cancel transfer or withdrawal
 planning_gate:
-  status: IN_PROGRESS
+  status: MERGED
   pull_request: 374
+  exact_head: 45b1460593e504ce3896ccb5d631be4cdc53c620
+  merge_commit: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
 implementation_gate:
-  status: BLOCKED_UNTIL_PLANNING_MERGED
+  status: IN_PROGRESS
+  branch: agent/ai-007-n-version-runtime
+  branch_start_commit: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
+  latest_main_required_before_merge: true
 next: >-
-  Merge this planning slice only after exact-head required CI and safety checks pass. Then start implementation
-  from the then-current protected main, revalidating provider API contracts before adding any new concrete adapter.
+  Complete the shared-budget N-version provider comparison runtime, add a concrete independently verified
+  second provider adapter only against current official API contracts, wire read-only comparison evidence into
+  the Cloud AI surface, pass exact-head full CI/Coverage and all safety workflows, then merge by expected head.
   WO-0051 remains HUMAN_ENVIRONMENT_ONLY and active.

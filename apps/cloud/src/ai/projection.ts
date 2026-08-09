@@ -1,11 +1,13 @@
 import type { AiCalibrationDurabilityHealth } from "../../../../packages/contracts/src/aiCalibrationDurability";
 import type { AiCalibrationProfile, AiReadOnlyProjection } from "../../../../packages/contracts/src/aiInference";
 import type { AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
+import type { AiProviderComparisonResult } from "../../../../packages/contracts/src/aiProviderDiversity";
 import type { AiOrchestrationResult } from "./multiAgentOrchestrator";
 
 type CalibrationBoundResult = AiOrchestrationResult & {
   readonly calibrationProfile?: AiCalibrationProfile | null;
   readonly calibrationDurabilityHealth?: AiCalibrationDurabilityHealth;
+  readonly providerComparison?: AiProviderComparisonResult;
 };
 
 type DurabilityProjection = Pick<
@@ -16,6 +18,11 @@ type DurabilityProjection = Pick<
 type ResourceProjection = Pick<
   AiReadOnlyProjection,
   "inferenceResourceHealth" | "inferenceResourceFailureCode" | "inferenceResourcePolicyId" | "inferenceResourcePolicyVersion" | "inferenceModelCalls" | "inferenceAttempts" | "inferenceReservedOutputTokens" | "inferenceInputBytes" | "inferenceUsageAccountingStatus" | "inferenceActualInputTokens" | "inferenceActualOutputTokens" | "inferenceActualTotalTokens" | "inferenceElapsedMs"
+>;
+
+type ProviderProjection = Pick<
+  AiReadOnlyProjection,
+  "providerComparisonState" | "providerTrustDisposition" | "providerIndependentGroupCount" | "providerCompletedGroupCount" | "providerDisagreementCodes" | "providerComparisonIdentity" | "providerComparisonResourceHealth" | "providerComparisonModelCalls" | "providerComparisonAttempts"
 >;
 
 const rawProbabilityFrom = (result: AiOrchestrationResult): number | null => {
@@ -67,9 +74,21 @@ const resourceFields = (snapshot: AiInferenceResourceSnapshot | undefined): Reso
   inferenceElapsedMs: snapshot?.elapsedMs ?? 0
 });
 
+const providerFields = (comparison: AiProviderComparisonResult): ProviderProjection => Object.freeze({
+  providerComparisonState: comparison.comparisonState,
+  providerTrustDisposition: comparison.trustDisposition,
+  providerIndependentGroupCount: comparison.independentGroupCount,
+  providerCompletedGroupCount: comparison.completedGroupCount,
+  providerDisagreementCodes: comparison.metrics.disagreementCodes,
+  providerComparisonIdentity: comparison.comparisonIdentity,
+  providerComparisonResourceHealth: comparison.inferenceResources.health,
+  providerComparisonModelCalls: comparison.inferenceResources.modelCalls,
+  providerComparisonAttempts: comparison.inferenceResources.attempts
+});
+
 const emptyCalibration = Object.freeze({ confidence: 0, calibrationStatus: "UNKNOWN" as const, rawProbability: null, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
 
-export function projectAiReadOnly(
+function projectPrimaryAiReadOnly(
   result: AiOrchestrationResult | null,
   calibrationProfile?: AiCalibrationProfile | null,
   durabilityHealth?: AiCalibrationDurabilityHealth
@@ -94,4 +113,34 @@ export function projectAiReadOnly(
   const disagreements = [...new Set([...result.governanceDecision.unresolvedDisagreements, ...result.governanceDecision.vetoReasons, ...(result.independence?.reasonCodes ?? [])])].sort();
   if (result.governanceDecision.result === "incomplete") return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, ...resources, confidence: 0, effectiveConfidence: 0, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? "analysis incomplete" : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
   return Object.freeze({ status: "AVAILABLE", thesis: result.governanceDecision.result === "preview_candidate" ? String(claims[0] ?? "AI analysis candidate; deterministic gates still apply") : null, ...calibration, ...durability, ...resources, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? (result.governanceDecision.unresolvedDisagreements.length ? "unresolved disagreement" : null) : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
+}
+
+function applyProviderComparison(base: AiReadOnlyProjection, comparison: AiProviderComparisonResult | undefined): AiReadOnlyProjection {
+  if (comparison == null) return base;
+  const fields = providerFields(comparison);
+  if (comparison.comparisonState === "CONSENSUS") {
+    // Independent agreement is evidence, not confidence creation. Preserve the primary calibrated value exactly.
+    return Object.freeze({ ...base, ...fields });
+  }
+  const comparisonCode = `PROVIDER_COMPARISON_${comparison.comparisonState}`;
+  const disagreements = Object.freeze([...new Set([...base.disagreements, ...comparison.metrics.disagreementCodes, comparisonCode])].sort());
+  return Object.freeze({
+    ...base,
+    ...fields,
+    status: "INCOMPLETE" as const,
+    thesis: null,
+    confidence: 0,
+    effectiveConfidence: 0,
+    uncertainty: comparison.comparisonState === "DISAGREEMENT" ? "independent provider disagreement" : "independent provider comparison incomplete",
+    disagreements
+  });
+}
+
+export function projectAiReadOnly(
+  result: AiOrchestrationResult | null,
+  calibrationProfile?: AiCalibrationProfile | null,
+  durabilityHealth?: AiCalibrationDurabilityHealth
+): AiReadOnlyProjection {
+  const boundResult = result as CalibrationBoundResult | null;
+  return applyProviderComparison(projectPrimaryAiReadOnly(result, calibrationProfile, durabilityHealth), boundResult?.providerComparison);
 }
