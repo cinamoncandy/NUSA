@@ -15,6 +15,8 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(app, /시장 보기/);
   assert.match(app, /setActiveTab\(nextAction\.tab\)/);
   assert.match(app, /snapshot\.health !== "HEALTHY" \|\| snapshot\.dashboard\.killSwitchActive \|\| !snapshot\.readyForPaperOperations/);
+  assert.match(app, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
+  assert.match(app, /: aiInsightAvailable\s*\? \{ title: "최신 AI 분석 확인"/s);
 });
 
 test("AI confidence is presented as an uncalibrated model score, not trusted probability", () => {
