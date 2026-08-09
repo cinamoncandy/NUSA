@@ -58,12 +58,11 @@ const correlationId = (req: IncomingMessage): string => {
 };
 
 /**
- * Localhost-by-default read-only dashboard transport. `/`, `/api/dashboard`,
+ * Localhost-by-default read-only dashboard transport. `/api/dashboard`,
  * `/api/paper-operations`, and `/ready` share the same GET-only Bearer +
  * `dashboard:read` authorization boundary. `/health` GET is deliberately
- * unauthenticated liveness only; other methods still traverse the dashboard
- * method guard so the established 405 contract is preserved. Unknown paths
- * fail closed with 404.
+ * unauthenticated liveness only. Known routes reject unsupported methods;
+ * unknown paths fail closed with 404.
  *
  * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
  */
@@ -79,7 +78,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   const server: Server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
     try {
-      if (req.method === "GET" && req.url === "/health") {
+      if (req.url === "/health") {
+        if (req.method !== "GET") {
+          write(res, dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" }));
+          return;
+        }
         write(res, dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
         return;
       }
@@ -125,7 +128,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      if (req.url === "/api/dashboard" || req.url === "/" || req.url === "/health") {
+      if (req.url === "/api/dashboard") {
         write(res, handleMobileDashboardHttp(dashboardRequest, {
           tokenVerifier: options.tokenVerifier,
           loadDashboard: options.loadDashboard
