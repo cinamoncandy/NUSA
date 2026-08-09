@@ -53,6 +53,43 @@ test("ambiguous network retry sends the same idempotency key until a definitive 
   assert.equal(third.status, "UNAVAILABLE"); assert.notEqual(observedKeys[2], observedKeys[1], "a new user submission after a definitive result must get a fresh key");
 });
 
+test("credential rotation makes an in-flight PAPER result ambiguous and preserves its retry key", async () => {
+  const identity = new PersonalPaperOrderRetryIdentity();
+  const createKey = keyFactory();
+  const fingerprint = JSON.stringify([draft.market, draft.side, draft.orderType, draft.quantity, null]);
+  const originalToken = "paper-order-original-token-123456";
+  const rotatedToken = "paper-order-rotated-token-654321";
+  let currentToken = originalToken;
+  const observedKeys = [];
+
+  const first = await submitPersonalPaperOrderWithRetryIdentity({
+    baseUrl: ENDPOINT,
+    credentialProvider: async () => currentToken,
+    request: async (_url, init) => {
+      observedKeys.push(init.headers["idempotency-key"]);
+      assert.equal(init.headers.authorization, `Bearer ${originalToken}`);
+      const submitted = JSON.parse(init.body);
+      currentToken = rotatedToken;
+      return responseFor(submitted);
+    }
+  }, identity, fingerprint, createKey, draft);
+  assert.equal(first.status, "UNAVAILABLE");
+  assert.match(first.reason, /connection changed while the order request was in flight/i);
+
+  const second = await submitPersonalPaperOrderWithRetryIdentity({
+    baseUrl: ENDPOINT,
+    credentialProvider: async () => currentToken,
+    request: async (_url, init) => {
+      observedKeys.push(init.headers["idempotency-key"]);
+      assert.equal(init.headers.authorization, `Bearer ${rotatedToken}`);
+      return responseFor(JSON.parse(init.body));
+    }
+  }, identity, fingerprint, createKey, draft);
+  assert.equal(second.status, "READY");
+  assert.equal(second.result.status, "BLOCKED");
+  assert.equal(observedKeys[1], observedKeys[0], "credential rotation must not consume the unresolved retry identity");
+});
+
 test("TradingView keeps unresolved retry identity across tab unmount and remount", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   assert.match(source, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
