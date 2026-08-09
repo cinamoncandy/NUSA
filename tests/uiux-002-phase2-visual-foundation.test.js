@@ -33,7 +33,7 @@ test("financial values use stable tabular numerals and touch targets remain acce
   const components = read("components.tsx");
   const design = read("designSystem.ts");
   assert.match(components, /fontVariant: \["tabular-nums"\]/);
-  assert.match(design, /minHeight: 48/);
+  assert.match(design, /controlHeight: 48/);
   assert.match(components, /accessibilityRole="button"/);
 });
 

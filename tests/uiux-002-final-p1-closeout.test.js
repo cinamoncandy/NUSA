@@ -27,7 +27,7 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   const design = read("apps/mobile/src/designSystem.ts");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  assert.match(design, /minHeight: 48/);
+  assert.match(design, /controlHeight: 48/);
   assert.match(app, /utilityButton: \{[^}]*minHeight: 44/);
   assert.match(app, /utilityClose: \{[^}]*minHeight: 44/);
   assert.match(watchlist, /sortChip: \{[^}]*minHeight: 44/);

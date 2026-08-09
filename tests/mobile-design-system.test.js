@@ -33,6 +33,8 @@ test("common component contracts consume ocean intelligence theme tokens", () =>
     foreground: "#041F1C",
     border: "transparent",
     disabledOpacity: 0.42,
+    pressedOpacity: 0.88,
+    borderWidth: 1,
     radius: 12,
     minHeight: 48,
     horizontalPadding: 16,
@@ -71,6 +73,14 @@ test("design system snapshot is deterministic", () => {
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
+    interaction: {
+      touchTarget: 48,
+      controlHeight: 48,
+      borderWidth: 1,
+      focusBorderWidth: 2,
+      pressedOpacity: 0.88,
+      disabledOpacity: 0.42,
+    },
   });
   assert.equal(designSystemSnapshot(createTheme("dark")), expected);
 });
