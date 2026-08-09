@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaCard, SectionHeading, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, type SettingsRepository } from "./settings";
 import { MobileNotificationCenter } from "./notificationCenter";
@@ -9,8 +9,18 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
   const { theme } = useTheme();
   const [ready, setReady] = useState(false);
   const [enabled, setEnabled] = useState(DEFAULT_SETTINGS.notifications.enabled);
-  useEffect(() => { void repository.load().then((value) => { setEnabled(value?.notifications.enabled ?? true); setReady(true); }).catch(() => setReady(true)); }, [repository]);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setReady(false);
+    setError(null);
+    void repository.load().then((value) => { setEnabled(value?.notifications.enabled ?? true); setReady(true); }).catch((loadError) => { setError(loadError instanceof Error ? loadError.message : "알림 설정을 불러올 수 없습니다."); setReady(true); });
+  }, [repository]);
+
+  useEffect(() => { load(); }, [load]);
   if (!ready) return <View style={styles.state} testID="notifications-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>알림 설정을 불러오는 중</Text></View>;
+  if (error) return <View style={styles.state} testID="notifications-error"><NusaCard><Text style={[styles.title, { color: theme.colors.danger }]}>알림 설정을 표시할 수 없습니다</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{error}</Text><NusaButton label="다시 시도" onPress={load} /></NusaCard></View>;
+
   return <ScrollView contentContainerStyle={styles.content} testID="notifications-screen">
     <SectionHeading eyebrow="LOCAL NOTIFICATIONS" title="알림" description="PAPER 운영과 시스템 이벤트를 로컬 설정에 따라 정리합니다." />
     <NusaCard testID="notifications-paper" raised>
