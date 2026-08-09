@@ -65,6 +65,15 @@ test("valid PAPER request reaches callback once and wire result is bound to exac
   assert.equal(payload.productionMutationAllowed, false);
 });
 
+test("PAPER persistence infrastructure failure is HTTP unavailable, not a business rejection", () => {
+  const response = handlePersonalPaperOrderHttp(request(), command(), {
+    tokenVerifier: verifier(["paper:trade"]),
+    submitOrder: () => ({ schemaVersion: 1, status: "BLOCKED", reason: "paper account persistence failed", liveAuthority: "NONE", productionMutationAllowed: false })
+  });
+  assert.equal(response.status, 503);
+  assert.equal(parse(response).error, "PAPER_ORDER_UNAVAILABLE");
+});
+
 test("non-POST PAPER order route fails closed", () => {
   let calls = 0;
   const response = handlePersonalPaperOrderHttp({ method: "GET", headers: { authorization: "Bearer valid-token", "idempotency-key": command().idempotencyKey } }, command(), { tokenVerifier: verifier(["paper:trade"]), submitOrder: () => { calls += 1; return blockedResult(); } });
