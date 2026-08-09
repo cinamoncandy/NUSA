@@ -74,7 +74,7 @@ test("durable calibration journal is idempotent, canonical, secret-minimized, an
     store.appendPrediction(first, predictedAt + 1);
     store.appendOutcomeAndResolve(outcome(first), dueAt);
     store.appendOutcomeAndResolve(outcome(first), dueAt);
-    store.appendPrediction({ ...second, rawPrompt: "SECRET_PROMPT", apiKey: "SECRET_API_KEY" }, predictedAt + 2);
+    store.appendPrediction({ ...second, rawPrompt: "PRIVATE_PROMPT_BODY", apiKey: "example-key" }, predictedAt + 2);
 
     const replay = store.replay();
     assert.equal(replay.predictions.length, 2);
@@ -87,7 +87,7 @@ test("durable calibration journal is idempotent, canonical, secret-minimized, an
     const raw = new DatabaseSync(filename);
     const payloads = raw.prepare("SELECT payload_json FROM ai_calibration_durability_events ORDER BY sequence").all().map((row) => String(row.payload_json));
     raw.close();
-    assert.equal(payloads.some((payload) => payload.includes("SECRET_PROMPT") || payload.includes("SECRET_API_KEY")), false, "non-canonical secret-like extras must never be persisted");
+    assert.equal(payloads.some((payload) => payload.includes("PRIVATE_PROMPT_BODY") || payload.includes("example-key")), false, "non-canonical secret-like extras must never be persisted");
   } finally {
     cleanup(directory);
   }
