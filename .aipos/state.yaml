@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T14:28:00+09:00"
-phase: human-environment-gate
-status: ready
-objective: "Preserve verified WO-AI-004 outcome calibration while keeping WO-0051 at the constitutional human/environment boundary; run fresh read-only audits before any future safe AI slice."
+updated_at: "2026-08-09T16:10:00+09:00"
+phase: durable-ai-calibration-memory
+status: in_progress
+objective: "Make verified outcome calibration durable across Cloud restarts with integrity-checked deterministic replay while preserving zero AI execution authority and all human-only production gates."
 base_branch: main
-active_branch: main
-active_pull_request: null
-base_commit: e76a3a8a2d169f677c91cc7502a04d456018146b
+active_branch: agent/ai-005-durable-calibration-plan
+active_pull_request: 345
+base_commit: 96e9bb692c968ab1dfae7785e503c3be95819443
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-AI-005
   status: IN_PROGRESS
 verified_state:
   work_order: WO-AI-004
@@ -39,9 +39,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+  - id: WO-AI-005
+    evidence: ".aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml"
+    summary: "Persist verified calibration prediction/outcome/pending metadata with hash-checked SQLite replay so empirical confidence survives restart and corrupt history fails closed."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -52,20 +52,23 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-004 is evidence-verified complete through final hardening and post-merge verification. Preserve the human-only terminal gate; before opening any next AI implementation work order, run a fresh repository/AI capability audit and select the lowest-scoring safe dimension by evidence."
+  work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
+  reason: "Fresh post-AI-004 capability audit scored calibration durability lowest because the current ledger and pending-resolution state are process-memory only. Merge and verify PR #345 before implementation."
 verification:
   required:
-    - "Fresh repository/AI capability audit before opening the next AI implementation work order"
-    - "Outcome-calibration durability, explanation quality, cost/latency, independent provider diversity, scenario reasoning, and memory attribution must be re-ranked by evidence"
+    - "WO-AI-005 plan exact-head Full CI/Coverage, architecture/AIPOS, security, and all Restricted LIVE/read-only workflows PASS before implementation starts"
+    - "Implementation must prove deterministic restart replay of verified prediction/outcome samples and still-valid pending predictions"
+    - "Corrupt, partial, conflicting, unsupported, or stale durable state fails closed with effective confidence zero/unavailable"
+    - "No provider credential, broker credential, API key, bearer token, raw prompt body, hidden reasoning, or raw evidence payload is persisted"
+    - "Exact provider/model/prompt/outcome cohort and minimum sample/bucket sufficiency remain unchanged across replay"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-004 implementation PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 after exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 CI 31295456484 PASS, Mobile Native 31295456482 PASS, and four read-only/Restricted LIVE workflows PASS; final stale-outcome ledger-boundary hardening PR #268 merged at e76a3a8a2d169f677c91cc7502a04d456018146b after latest-main exact-head 1f10ea6e3d0b8e816b728cd88fc70894489d99cb CI 31296277719 PASS and four safety workflows PASS; post-merge main CI 31296534244 and Mobile Native 31296534245 PASS."
-  current_commit: "e76a3a8a2d169f677c91cc7502a04d456018146b; WO-AI-004 implementation and final hardening merged with post-merge CI and Mobile Native verification PASS"
+  last_result: "WO-AI-004 is verified complete on main; frozen mobile architecture boundary PR #343 merged after exact-head Full CI/Coverage and four safety/read-only workflows PASS. Fresh audit selected calibration durability as the next lowest-scoring safe AI capability."
+  current_commit: "96e9bb692c968ab1dfae7785e503c3be95819443; WO-AI-005 planning PR #345 only, no product implementation or authority change yet"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
