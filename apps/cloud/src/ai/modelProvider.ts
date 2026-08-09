@@ -1,4 +1,5 @@
 import type { ModelProvider, ModelRequest, ModelResponse } from "../../../../packages/contracts/src/aiInference";
+import { OpenAiResponsesModelProvider } from "./openAiResponsesModelProvider";
 
 export class ModelProviderUnavailableError extends Error {
   public constructor() {
@@ -17,6 +18,13 @@ export class UnavailableModelProvider implements ModelProvider {
   }
 }
 
+export interface ModelProviderStatus {
+  readonly status: "UNAVAILABLE" | "CONFIGURED";
+  readonly providerId: string | null;
+  readonly modelVersionId: string | null;
+  readonly credentialMaterialExposed: false;
+}
+
 export type ModelTransport = (request: ModelRequest) => Promise<ModelResponse>;
 
 /** Adapter for an approved model SDK. The transport receives evidence-only input. */
@@ -32,8 +40,19 @@ export class TransportModelProvider implements ModelProvider {
   }
 }
 
-export function createModelProviderFromEnvironment(_env: NodeJS.ProcessEnv = process.env): ModelProvider {
-  // AI is intentionally unavailable until an explicit, application-owned provider is injected.
-  // No credential or network fallback is allowed in the default cloud composition.
-  return new UnavailableModelProvider();
+export function describeModelProvider(provider: ModelProvider): ModelProviderStatus {
+  const unavailable = provider.providerId === "unavailable";
+  return Object.freeze({ status: unavailable ? "UNAVAILABLE" : "CONFIGURED", providerId: unavailable ? null : provider.providerId, modelVersionId: unavailable ? null : provider.modelVersionId, credentialMaterialExposed: false });
+}
+
+const enabled = (value: string | undefined): boolean => value?.trim().toLowerCase() === "true";
+
+export function createModelProviderFromEnvironment(env: NodeJS.ProcessEnv = process.env): ModelProvider {
+  if (!enabled(env.NUSA_AI_ENABLED)) return new UnavailableModelProvider();
+  const provider = env.NUSA_AI_PROVIDER?.trim().toLowerCase();
+  if (provider !== "openai") return new UnavailableModelProvider();
+  const apiKey = env.NUSA_AI_OPENAI_API_KEY?.trim();
+  const modelVersionId = env.NUSA_AI_MODEL?.trim();
+  if (!apiKey || !modelVersionId) return new UnavailableModelProvider();
+  return new OpenAiResponsesModelProvider({ apiKey, modelVersionId });
 }

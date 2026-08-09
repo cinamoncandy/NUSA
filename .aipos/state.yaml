@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T08:36:00+09:00"
+updated_at: "2026-08-09T08:53:00+09:00"
 phase: real-provider-challenger-runtime
 status: in_progress
 objective: "Activate an explicitly configured real model challenger below the grounded zero-authority AI runtime, then verify provider availability, secret isolation, usage observability, and unchanged PAPER/safety authority."
 base_branch: main
-active_branch: agent/ai-003-real-provider-challenger-plan
-active_pull_request: 213
-base_commit: 235a92ff5b2d887f6b008e80c698d9ea1f860ba6
+active_branch: agent/ai-003-real-provider-challenger
+active_pull_request: null
+base_commit: 3941bfbef711792396b61acb611579d73a9867f9
 claimed_state:
   work_order: WO-AI-003
   status: IN_PROGRESS
@@ -38,7 +38,7 @@ completed:
 in_progress:
   - id: WO-AI-003
     evidence: ".aipos/work-orders/WO-AI-003-real-provider-challenger-runtime.yaml"
-    summary: "Fresh AI gap audit selected provider diversity / real inference availability as the lowest safe dimension; plan explicit opt-in real provider challenger activation under unchanged zero-authority governance."
+    summary: "Fresh AI gap audit selected provider diversity / real inference availability as the lowest safe dimension; implement explicit opt-in OpenAI Responses challenger activation under unchanged zero-authority governance."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -50,7 +50,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-003-real-provider-challenger-runtime.yaml
-  reason: "Fresh AI capability audit scored provider diversity / real inference availability lowest. Implement an explicit opt-in real provider challenger with strict structured output, secret isolation, bounded usage telemetry, and unchanged zero-authority governance before calibration work."
+  reason: "Implement and verify the explicit opt-in OpenAI Responses challenger with strict structured output, secret isolation, bounded usage telemetry, provider failure isolation, and unchanged zero-authority governance before calibration work."
 verification:
   required:
     - "WO-AI-003 exact-head provider/AI focused tests, Full CI, full isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
@@ -62,8 +62,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #208 merged at 3580de8dcc8e0b16a7314b456a873672f6bb8503 from exact-head 3f84d544721d74b7653cc0ef4667a5cafb6bfb74 after CI 31283420227 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. Fresh post-AI-002 capability audit selected provider diversity / real inference availability as the lowest-scoring safe AI dimension. PR #209 later merged at 235a92ff5b2d887f6b008e80c698d9ea1f860ba6 with desktop loading-timeout changes and no AIPOS files; WO-AI-003 plan is rebased for new exact-head verification."
-  current_commit: "235a92ff5b2d887f6b008e80c698d9ea1f860ba6; latest main includes PR #209 desktop loading-timeout fix; WO-AI-003 planning rebased for exact-head verification"
+  last_result: "PR #213 merged at 3941bfbef711792396b61acb611579d73a9867f9 from exact-head ea2b6ac52e3f8aed6d870ecfb3079e96247e810b after CI 31284591253 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. WO-AI-003 implementation branch opened from that verified planning baseline."
+  current_commit: "3941bfbef711792396b61acb611579d73a9867f9; WO-AI-003 plan merged and implementation branch active"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
