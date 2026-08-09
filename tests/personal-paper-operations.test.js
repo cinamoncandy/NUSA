@@ -164,7 +164,7 @@ test("mobile performs no request without a secure credential provider", async ()
 });
 
 test("mobile reads only the authenticated PAPER operations route after exact endpoint verification", async () => {
-  const value = snapshot();
+  const value = { ...snapshot(), generatedAt: Date.now() };
   setConfiguredPaperEndpoint(LOOPBACK_ENDPOINT);
   markPaperConnectionVerified(LOOPBACK_ENDPOINT);
   let observedUrl = "";
