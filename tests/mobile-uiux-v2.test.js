@@ -57,9 +57,11 @@ test("market discovery uses compact accessible favorite and sort controls", () =
   const source = read("src/watchlistView.tsx");
   assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
   assert.match(source, /accessibilityRole="button"/);
-  assert.match(source, /favorite: \{ width: 44, height: 44/);
+  assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
+  assert.match(source, /favorite: \{ minWidth: 52, height: 44/);
   assert.match(source, /sortChip: \{ minHeight: 44/);
-  assert.match(source, /PUBLIC · READ ONLY/);
-  assert.match(source, /active \? "★" : "☆"/);
-  assert.doesNotMatch(source, /label=\{active \? "삭제" : "추가"\}/);
+  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
+  assert.match(source, /active \? "관심중" : "관심"/);
+  assert.doesNotMatch(source, /★|☆/);
 });
