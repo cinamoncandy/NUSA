@@ -81,14 +81,14 @@ const namedError = (name: string, message: string): Error => {
 export class AnthropicMessagesModelProvider implements ModelProvider {
   public readonly providerId = "anthropic";
   public readonly modelVersionId: string;
-  private readonly apiKey: string;
+  #apiKey: string;
   private readonly fetchImpl: AnthropicFetch;
   private readonly now: () => number;
 
   public constructor(options: AnthropicMessagesModelProviderOptions) {
-    this.apiKey = options.apiKey.trim();
+    this.#apiKey = options.apiKey.trim();
     this.modelVersionId = options.modelVersionId.trim();
-    if (!this.apiKey || !this.modelVersionId) throw new Error("AI provider configuration is incomplete");
+    if (!this.#apiKey || !this.modelVersionId) throw new Error("AI provider configuration is incomplete");
     this.fetchImpl = options.fetchImpl ?? defaultFetch;
     this.now = options.now ?? Date.now;
   }
@@ -116,7 +116,7 @@ export class AnthropicMessagesModelProvider implements ModelProvider {
     try {
       response = await this.fetchImpl(ANTHROPIC_MESSAGES_ENDPOINT, {
         method: "POST",
-        headers: Object.freeze({ "x-api-key": this.apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" }),
+        headers: Object.freeze({ "x-api-key": this.#apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" }),
         body,
         signal: controller.signal
       });
