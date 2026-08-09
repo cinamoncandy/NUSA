@@ -1,14 +1,16 @@
 # NUSA
 
-NUSA is an Electron-based Upbit Paper/Shadow trading application with fail-closed safety, recovery, diagnostics, and evidence workflows.
+NUSA is an Electron-based Upbit Paper/Shadow trading application with fail-closed safety, recovery, diagnostics, evidence workflows, a bounded Cloud PAPER runtime, and read-only mobile operations surfaces.
 
 Renderer interaction guidance: [Command Palette](docs/design/command-palette.md).
 
 ## Safety scope
 
-- Live trading is not implemented.
-- The application does not request or store API keys.
+- Live trading is not implemented or authorized.
+- Production mutation remains disabled; current Cloud/mobile operations are PAPER/read-only only.
+- The application does not request or store LIVE exchange execution credentials.
 - Buy and sell activity is Paper/Shadow simulation only.
+- AI remains advisory/zero-authority and cannot authorize orders, transfers, or LIVE activation.
 - Electron renderer isolation, sandboxing, and restricted preload IPC remain enabled.
 
 ## Run the desktop app
@@ -24,12 +26,25 @@ pnpm run build
 pnpm desktop
 ```
 
+## Cloud PAPER runtime
+
+The repository includes an executable Cloud PAPER/read-only runtime bootstrap. It wires the Cloud dashboard server, durable SQLite-backed dashboard/PAPER state when configured, Upbit public market data, research coordination, and the bounded zero-authority AI runtime. It does **not** grant LIVE authority or production mutation.
+
+Required environment configuration remains fail-closed; see `apps/cloud/src/cloudRuntimeConfig.ts`. Start the configured runtime with:
+
+```bash
+pnpm cloud:runtime
+```
+
+`cloud:runtime` being runnable does not mean it is publicly hosted or production-authorized. Hosting, external read-only preflight, and any future real-money transition remain separate operator/human-gated decisions.
+
 Run validation:
 
 ```bash
 pnpm test
 pnpm run typecheck
 pnpm run lint
+pnpm run architecture:truth
 pnpm run package:validate
 ```
 
@@ -46,14 +61,13 @@ pnpm package:win
 - `apps/desktop/src/upbitWebSocket.ts`: public Upbit market-data WebSocket and reconnect handling
 - `apps/desktop/src/paperBroker.ts`: Paper cash, positions, fees, and PnL
 - `apps/desktop/renderer`: NUSA desktop workspace
-- `apps/cloud/src`: server-side domain logic (investment committee, strategy governance, control
-  audit ledger, and a Paper trading engine port of the desktop core). Not currently deployed or
-  wired into a running process -- see `apps/cloud/src/server.ts` and
-  `apps/cloud/src/paperEngineControlState.ts` for what exists and what is explicitly still open
-  (a real token issuer, a persistence backend, and a hosting decision).
-- `packages/contracts`: shared accounting and risk contracts
-- `packages/storage`: SQLite accounting storage
+- `apps/cloud/src/runtime.ts`: executable Cloud PAPER/read-only runtime composition root
+- `apps/cloud/src/server.ts`: localhost-by-default authenticated GET-only dashboard/PAPER operations HTTP surface
+- `apps/cloud/src/cloudRuntimeConfig.ts`: fail-closed Cloud runtime environment/configuration boundary
+- `apps/cloud/src`: investment/research governance, durable PAPER state, public market-data, read-only operations projection, and zero-authority AI runtime integration
+- `packages/contracts`: shared accounting, operations, AI, and risk contracts
+- `packages/storage`: SQLite accounting and durable storage infrastructure
 
 ## Release boundary
 
-Runnable does not mean Production-authorized. NUSA remains Paper/Shadow only. Do not add credentials or enable live-trading capabilities as part of desktop verification.
+Runnable does not mean Production-authorized. NUSA remains Paper/Shadow only, `liveAuthority` remains `NONE`, and `productionMutationAllowed` remains `false` unless a separately approved human/constitutional transition changes that boundary. Repository or CI validation must never be treated as real-world LIVE authorization.

@@ -1,0 +1,117 @@
+const { existsSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+const { execFileSync } = require("node:child_process");
+const { block, scalar } = require("./validate-aipos-drift.js");
+
+const REQUIRED_RUNTIME_FILES = Object.freeze([
+  "apps/cloud/src/runtime.ts",
+  "apps/cloud/src/server.ts",
+  "apps/cloud/src/cloudRuntimeConfig.ts"
+]);
+const STALE_README_CLAIMS = Object.freeze([
+  "Not currently deployed or wired into a running process",
+  "a real token issuer, a persistence backend, and a hosting decision"
+]);
+
+function read(root, relativePath, failures) {
+  const path = join(root, relativePath);
+  if (!existsSync(path)) {
+    failures.push(`REPOSITORY_TRUTH_PATH_MISSING:${relativePath}`);
+    return "";
+  }
+  return readFileSync(path, "utf8");
+}
+
+function defaultIsAncestor(root, commit) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], {
+      cwd: root,
+      stdio: "ignore"
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateRepositoryTruth(root = process.cwd(), options = {}) {
+  const failures = [];
+  const readme = read(root, "README.md", failures);
+  const packageSource = read(root, "package.json", failures);
+  const state = read(root, ".aipos/state.yaml", failures);
+
+  let packageJson;
+  try {
+    packageJson = JSON.parse(packageSource);
+  } catch {
+    failures.push("REPOSITORY_TRUTH_PACKAGE_JSON_INVALID");
+    packageJson = {};
+  }
+
+  for (const relativePath of REQUIRED_RUNTIME_FILES) {
+    if (!existsSync(join(root, relativePath))) failures.push(`CLOUD_RUNTIME_PATH_MISSING:${relativePath}`);
+  }
+
+  const cloudRuntimeScript = packageJson?.scripts?.["cloud:runtime"];
+  if (typeof cloudRuntimeScript !== "string" || !cloudRuntimeScript.includes("dist/apps/cloud/src/runtime.js")) {
+    failures.push("CLOUD_RUNTIME_SCRIPT_MISSING_OR_DRIFTED");
+  }
+  if (packageJson?.scripts?.["architecture:truth"] !== "node scripts/validate-repository-truth.js") {
+    failures.push("ARCHITECTURE_TRUTH_SCRIPT_NOT_REGISTERED");
+  }
+
+  if (!readme.includes("## Cloud PAPER runtime")) failures.push("README_CLOUD_RUNTIME_SECTION_MISSING");
+  if (!readme.includes("pnpm cloud:runtime")) failures.push("README_CLOUD_RUNTIME_COMMAND_MISSING");
+  if (!readme.includes("liveAuthority") || !readme.includes("productionMutationAllowed")) {
+    failures.push("README_AUTHORITY_BOUNDARY_MISSING");
+  }
+  for (const staleClaim of STALE_README_CLAIMS) {
+    if (readme.includes(staleClaim)) failures.push(`README_STALE_RUNTIME_CLAIM:${staleClaim}`);
+  }
+
+  const activeBranch = scalar(state, "active_branch");
+  const activePullRequest = scalar(state, "active_pull_request");
+  if (activePullRequest === "null" && activeBranch !== "main") {
+    failures.push(`AIPOS_IDLE_BRANCH_DRIFT:${activeBranch || "missing"}`);
+  }
+
+  const verifiedState = block(state, "verified_state");
+  const verifiedStatus = scalar(verifiedState, "status");
+  const verifiedEvidence = scalar(verifiedState, "evidence");
+  if (verifiedStatus === "COMPLETED") {
+    if (!verifiedEvidence || !existsSync(join(root, verifiedEvidence))) failures.push("AIPOS_VERIFIED_EVIDENCE_MISSING");
+    const verification = block(state, "verification");
+    const currentCommit = scalar(verification, "current_commit") || "";
+    if (/pending exact-head verification/i.test(currentCommit)) failures.push("AIPOS_VERIFIED_STATE_CONTRADICTS_PENDING_WORDING");
+  }
+
+  const baseCommit = scalar(state, "base_commit");
+  if (!/^[0-9a-f]{40}$/.test(baseCommit || "")) {
+    failures.push("AIPOS_BASE_COMMIT_INVALID");
+  } else {
+    const isAncestor = options.isAncestor || defaultIsAncestor;
+    if (!isAncestor(root, baseCommit)) failures.push(`AIPOS_BASE_COMMIT_NOT_ANCESTOR:${baseCommit}`);
+  }
+
+  const restrictedLive = block(state, "restricted_live_authority");
+  if (scalar(restrictedLive, "real_money_execution") !== "prohibited") failures.push("AIPOS_REAL_MONEY_BOUNDARY_DRIFT");
+  if (scalar(restrictedLive, "credential_execution_use") !== "prohibited") failures.push("AIPOS_CREDENTIAL_EXECUTION_BOUNDARY_DRIFT");
+
+  return { ok: failures.length === 0, failures };
+}
+
+if (require.main === module) {
+  const result = validateRepositoryTruth();
+  if (!result.ok) {
+    console.error("Repository architecture truth validation FAILED");
+    for (const failure of result.failures) console.error(`- ${failure}`);
+    process.exit(1);
+  }
+  console.log("Repository architecture truth validation PASS");
+}
+
+module.exports = {
+  REQUIRED_RUNTIME_FILES,
+  STALE_README_CLAIMS,
+  validateRepositoryTruth
+};
