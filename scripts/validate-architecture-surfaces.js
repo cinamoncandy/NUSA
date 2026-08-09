@@ -83,26 +83,60 @@ function validateArchitectureSurfaces(root = process.cwd()) {
   const surfaces = Array.isArray(manifest.surfaces) ? manifest.surfaces : [];
   if (!Array.isArray(manifest.surfaces)) failures.push("ARCH_SURFACE_LIST_INVALID");
   const ids = new Set();
-  const paths = new Set();
+  const bindings = new Set();
+  const registered = new Map();
+
   for (const surface of surfaces) {
     if (!surface || typeof surface !== "object") { failures.push("ARCH_SURFACE_ENTRY_INVALID"); continue; }
     if (typeof surface.id !== "string" || !surface.id) failures.push("ARCH_SURFACE_ID_MISSING");
     else if (ids.has(surface.id)) failures.push(`ARCH_SURFACE_DUPLICATE_ID:${surface.id}`);
     else ids.add(surface.id);
+
     if (typeof surface.path !== "string" || !surface.path) { failures.push(`ARCH_SURFACE_PATH_MISSING:${surface.id || "unknown"}`); continue; }
     const path = normalize(surface.path);
-    if (paths.has(path)) failures.push(`ARCH_SURFACE_DUPLICATE_PATH:${path}`);
-    paths.add(path);
+    const marker = typeof surface.marker === "string" ? surface.marker : "";
+    if (!marker) failures.push(`ARCH_SURFACE_MARKER_MISSING:${path}`);
+
+    if (marker) {
+      const binding = `${path}\u0000${marker}`;
+      if (bindings.has(binding)) failures.push(`ARCH_SURFACE_DUPLICATE_BINDING:${path}:${marker}`);
+      else bindings.add(binding);
+      const markers = registered.get(path) || new Set();
+      markers.add(marker);
+      registered.set(path, markers);
+    } else if (!registered.has(path)) {
+      registered.set(path, new Set());
+    }
+
     if (!existsSync(join(root, path))) failures.push(`ARCH_SURFACE_OWNER_MISSING:${path}`);
-    else if (typeof surface.marker !== "string" || !readFileSync(join(root, path), "utf8").includes(surface.marker)) failures.push(`ARCH_SURFACE_MARKER_DRIFT:${path}`);
+    else if (!marker || !readFileSync(join(root, path), "utf8").includes(marker)) failures.push(`ARCH_SURFACE_MARKER_DRIFT:${path}`);
     if (surface.liveAuthority !== "NONE") failures.push(`ARCH_SURFACE_LIVE_AUTHORITY_DRIFT:${path}`);
     if (surface.productionMutationAllowed !== false) failures.push(`ARCH_SURFACE_PRODUCTION_MUTATION_DRIFT:${path}`);
     if (surface.credentialExecutionAllowed !== false) failures.push(`ARCH_SURFACE_CREDENTIAL_EXECUTION_DRIFT:${path}`);
   }
 
   const discovered = discoverSurfaceOwners(root);
-  for (const path of discovered.keys()) if (!paths.has(path)) failures.push(`ARCH_SURFACE_UNREGISTERED_OWNER:${path}`);
-  for (const path of paths) if (!discovered.has(path)) failures.push(`ARCH_SURFACE_STALE_OWNER:${path}`);
+  for (const [path, markers] of discovered) {
+    const registeredMarkers = registered.get(path);
+    if (!registeredMarkers) {
+      failures.push(`ARCH_SURFACE_UNREGISTERED_OWNER:${path}`);
+      continue;
+    }
+    for (const marker of markers) {
+      if (!registeredMarkers.has(marker)) failures.push(`ARCH_SURFACE_UNREGISTERED_MARKER:${path}:${marker}`);
+    }
+  }
+  for (const [path, markers] of registered) {
+    const discoveredMarkers = discovered.get(path);
+    if (!discoveredMarkers) {
+      failures.push(`ARCH_SURFACE_STALE_OWNER:${path}`);
+      continue;
+    }
+    const discoveredSet = new Set(discoveredMarkers);
+    for (const marker of markers) {
+      if (!discoveredSet.has(marker)) failures.push(`ARCH_SURFACE_STALE_MARKER:${path}:${marker}`);
+    }
+  }
 
   return { ok: failures.length === 0, failures, discovered: [...discovered.keys()].sort() };
 }
