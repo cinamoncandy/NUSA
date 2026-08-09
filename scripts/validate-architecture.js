@@ -1,5 +1,6 @@
 const { existsSync, readdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { join, relative, resolve, dirname, extname } = require("node:path");
+const ts = require("typescript");
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".json"]);
 const SOURCE_ROOTS = ["apps", "packages"];
@@ -110,27 +111,58 @@ function walk(directory) {
   });
 }
 
-function parseImports(source) {
+function importClauseIsTypeOnly(clause) {
+  if (!clause) return false;
+  if (clause.isTypeOnly) return true;
+  if (clause.name || !clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) return false;
+  return clause.namedBindings.elements.length > 0 && clause.namedBindings.elements.every((element) => element.isTypeOnly);
+}
+
+function exportDeclarationIsTypeOnly(node) {
+  if (node.isTypeOnly) return true;
+  if (!node.exportClause || !ts.isNamedExports(node.exportClause)) return false;
+  return node.exportClause.elements.length > 0 && node.exportClause.elements.every((element) => element.isTypeOnly);
+}
+
+function parseModuleReferences(source) {
+  const sourceFile = ts.createSourceFile("architecture-source.tsx", String(source ?? ""), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const imports = [];
-  const patterns = [
-    /\bimport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
-    /\bexport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
-    /\brequire\(\s*["']([^"']+)["']\s*\)/g,
-    /\bimport\s*["']([^"']+)["']/g
-  ];
-  for (const [index, pattern] of patterns.entries()) {
-    for (const match of source.matchAll(pattern)) {
-      imports.push({
-        specifier: index < 2 ? match[2] : match[1],
-        typeOnly: index < 2 && /^\s*(?:import|export)\s+type\b/.test(match[0])
-      });
+  const importExpressions = [];
+
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      imports.push({ specifier: node.moduleSpecifier.text, typeOnly: importClauseIsTypeOnly(node.importClause) });
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      imports.push({ specifier: node.moduleSpecifier.text, typeOnly: exportDeclarationIsTypeOnly(node) });
+    } else if (ts.isImportEqualsDeclaration(node)
+      && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression
+      && ts.isStringLiteralLike(node.moduleReference.expression)) {
+      imports.push({ specifier: node.moduleReference.expression.text, typeOnly: Boolean(node.isTypeOnly) });
+    } else if (ts.isCallExpression(node) && node.arguments.length > 0 && ts.isStringLiteralLike(node.arguments[0])) {
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        importExpressions.push(node.arguments[0].text);
+      } else if (ts.isIdentifier(node.expression) && node.expression.text === "require") {
+        imports.push({ specifier: node.arguments[0].text, typeOnly: false });
+      }
+    } else if (ts.isImportTypeNode(node)
+      && ts.isLiteralTypeNode(node.argument)
+      && ts.isStringLiteralLike(node.argument.literal)) {
+      importExpressions.push(node.argument.literal.text);
     }
-  }
-  return imports;
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return { imports, importExpressions };
+}
+
+function parseImports(source) {
+  return parseModuleReferences(source).imports;
 }
 
 function parseImportExpressions(source) {
-  return [...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)].map((match) => match[1]);
+  return parseModuleReferences(source).importExpressions;
 }
 
 function resolveLocal(file, specifier, nodes, root) {
