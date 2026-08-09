@@ -4,6 +4,8 @@ const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
 const { canonicalResearchJson } = require("../dist/packages/contracts/src/researchRuntime.js");
 
+const DASHBOARD_TOKEN = "research-runtime-boundary-test-token-32bytes-min";
+
 test("canonical research JSON rejects non-finite numbers and normalizes negative zero", () => {
   assert.throws(() => canonicalResearchJson(Number.NaN), /non-finite/);
   assert.throws(() => canonicalResearchJson(Number.POSITIVE_INFINITY), /non-finite/);
@@ -29,7 +31,7 @@ test("cloud market-data wiring selects one research entrypoint when legacy and a
     return { subscribe() {}, start() {}, stop() { stopped = true; } };
   };
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: "41939", NUSA_CLOUD_DASHBOARD_TOKEN: "test", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: "41939", NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     undefined,
     factory,
@@ -63,7 +65,7 @@ test("research recovery and tick failures stay isolated from PAPER/dashboard sta
     return { subscribe() {}, start() {}, stop() {} };
   };
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: "41940", NUSA_CLOUD_DASHBOARD_TOKEN: "test", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: "41940", NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     undefined,
     factory,
