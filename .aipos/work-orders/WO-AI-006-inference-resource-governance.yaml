@@ -4,6 +4,7 @@ status: COMPLETED
 priority: P1
 branch: agent/control-room-ai-006-replay
 base_branch: main
+merge_commit: 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1
 implementation_branch: agent/control-room-ai-006-replay
 planning_branch: agent/ai-006-inference-resource-governance-plan
 architecture_impact:
