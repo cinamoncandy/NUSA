@@ -16,6 +16,7 @@ const calibrationFields = (result: AiOrchestrationResult, profile: AiCalibration
   const identityMatches = profile.rawProbability === rawProbability
     && proposerRun != null
     && proposerAgent != null
+    && proposerAgent.correlatedGroupId === `model:${profile.cohort.providerId}:${proposerRun.modelVersionId}`
     && profile.cohort.modelVersionId === proposerRun.modelVersionId
     && profile.cohort.promptArtifactId === proposerAgent.promptArtifactId
     && profile.cohort.promptArtifactVersion === proposerAgent.definitionVersion
