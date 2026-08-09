@@ -10,11 +10,13 @@ function analyzeRepository(root = process.cwd()) {
   const files = sourceFiles(root);
   const nodes = new Set(files.map((file) => relative(root, file).replaceAll("\\", "/")));
   const edges = [];
+  const boundaryReferences = [];
   const unresolved = [];
 
   for (const file of files) {
     const source = relative(root, file).replaceAll("\\", "/");
-    for (const imported of parseImports(readFileSync(file, "utf8"))) {
+    const sourceText = readFileSync(file, "utf8");
+    for (const imported of parseImports(sourceText)) {
       if (!imported.specifier.startsWith(".")) continue;
       const target = resolveLocal(file, imported.specifier, nodes, root);
       if (!target) {
@@ -22,6 +24,17 @@ function analyzeRepository(root = process.cwd()) {
         continue;
       }
       edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+    }
+    if (source.startsWith("packages/core/")) {
+      for (const specifier of parseImportExpressions(sourceText)) {
+        if (!specifier.startsWith(".")) continue;
+        const target = resolveLocal(file, specifier, nodes, root);
+        if (!target) {
+          unresolved.push({ source, specifier });
+          continue;
+        }
+        boundaryReferences.push({ source, target, kind: "inline-import" });
+      }
     }
   }
 
@@ -48,6 +61,12 @@ function analyzeRepository(root = process.cwd()) {
       findings.push(finding("EXECUTION_CROSS_LAYER_REFERENCE", edge, "Execution domain must not depend on desktop, mobile, cloud, or storage implementations."));
     }
     if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
+      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
+    }
+  }
+
+  for (const edge of boundaryReferences) {
+    if (edge.target.startsWith("packages/aipos/")) {
       findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
     }
   }
@@ -90,19 +109,21 @@ function parseImports(source) {
   const patterns = [
     /\bimport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
     /\bexport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
-    /\brequire\(\s*["']([^"']+)["']\s*\)/g,
-    /\bimport\(\s*["']([^"']+)["']\s*\)/g
+    /\brequire\(\s*["']([^"']+)["']\s*\)/g
   ];
   for (const [index, pattern] of patterns.entries()) {
     for (const match of source.matchAll(pattern)) {
-      const callExpression = index >= 2;
       imports.push({
-        specifier: callExpression ? match[1] : match[2],
-        typeOnly: !callExpression && /^\s*(?:import|export)\s+type\b/.test(match[0])
+        specifier: index === 2 ? match[1] : match[2],
+        typeOnly: index !== 2 && /^\s*(?:import|export)\s+type\b/.test(match[0])
       });
     }
   }
   return imports;
+}
+
+function parseImportExpressions(source) {
+  return [...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)].map((match) => match[1]);
 }
 
 function resolveLocal(file, specifier, nodes, root) {
@@ -194,4 +215,4 @@ if (require.main === module) {
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports };
+module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions };
