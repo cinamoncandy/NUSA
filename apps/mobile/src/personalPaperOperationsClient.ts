@@ -27,12 +27,12 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   const configured = getConfiguredPaperEndpoint();
   const baseUrl = (configured ?? (options.baseUrl === "http://127.0.0.1:41731" ? "" : options.baseUrl)).replace(/\/+$/, "");
   if (!baseUrl) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
-  if (!isSecureDashboardEndpoint(baseUrl)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Dashboard endpoint must use HTTPS unless it is loopback-only." });
+  if (!isSecureDashboardEndpoint(baseUrl)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP." });
   try {
     const response = await (options.request ?? fetch)(`${baseUrl}/api/paper-operations`, { method: "GET", headers: { authorization: `Bearer ${token.trim()}`, accept: "application/json" } });
     if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
     const payload: unknown = await response.json();
     try { return Object.freeze({ status: "READY", snapshot: validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot) }); }
-    catch { return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." }); }
+    catch { return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." });
   } catch { return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER operations connection is unavailable." }); }
 }
