@@ -63,12 +63,15 @@ test("an empty-string token fails closed", () => {
   assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "   " }), /NUSA_CLOUD_DASHBOARD_TOKEN is required/);
 });
 
-test("the shared-secret verifier accepts only the exact configured token", () => {
+test("the shared-secret verifier accepts only the exact configured token with explicit personal PAPER scopes", () => {
   const verifier = createSharedSecretTokenVerifier(VALID_TOKEN);
   const principal = verifier.verify(VALID_TOKEN);
   assert.ok(principal);
   assert.equal(principal.userId, "operator");
-  assert.deepEqual([...principal.scopes], ["dashboard:read"]);
+  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade"]);
+  assert.equal(principal.scopes.includes("live:trade"), false);
+  assert.equal(principal.scopes.includes("transfer:write"), false);
+  assert.equal(principal.scopes.includes("withdraw:write"), false);
 });
 
 test("the shared-secret verifier rejects a wrong token, a prefix, and a suffix", () => {
