@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T10:02:00+09:00"
+updated_at: "2026-08-09T10:04:00+09:00"
 phase: outcome-linked-ai-calibration
 status: in_progress
 objective: "Build deterministic outcome-linked AI calibration so raw model confidence is separated from empirically verified confidence while preserving zero execution authority."
 base_branch: main
 active_branch: agent/ai-004-outcome-calibration-plan-v3
-active_pull_request: null
+active_pull_request: 220
 base_commit: c8db0cb396ceb0ffaeccdda2cd9bd7aa19370132
 claimed_state:
   work_order: WO-AI-004
@@ -64,8 +64,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #216 merged at 53863d7f2121f998c77148b0f79cc6e228ac707f from exact-head c5e11dec664c183b80f2deb1ce0fe0ec0a54857e after CI 31285899698 PASS. PR #219 then merged AI Command Center UI at c8db0cb396ceb0ffaeccdda2cd9bd7aa19370132 without AIPOS changes. Fresh post-completion AI audit selected outcome-linked calibration as the next safe dimension; the plan is rebased to current main."
-  current_commit: "c8db0cb396ceb0ffaeccdda2cd9bd7aa19370132; latest main includes AI Command Center UI; WO-AI-004 planning rebased to current main"
+  last_result: "PR #216 merged at 53863d7f2121f998c77148b0f79cc6e228ac707f from exact-head c5e11dec664c183b80f2deb1ce0fe0ec0a54857e after CI 31285899698 PASS. PR #219 then merged AI Command Center UI at c8db0cb396ceb0ffaeccdda2cd9bd7aa19370132 without AIPOS changes. Fresh post-completion AI audit selected outcome-linked calibration as the next safe dimension."
+  current_commit: "c8db0cb396ceb0ffaeccdda2cd9bd7aa19370132; latest main includes AI Command Center UI; WO-AI-004 planning tracked by PR #220"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
