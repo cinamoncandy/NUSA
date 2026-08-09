@@ -1,18 +1,13 @@
 import React from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildPortfolioViewModel, type PortfolioAccountResponse, type PortfolioViewModel } from "./portfolioViewModel";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 
-function money(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function signedMoney(value: number): string {
-  return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`;
-}
+function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
+function signedMoney(value: number): string { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }
 
 function LoadingState({ theme }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"] }>) {
   return <View style={styles.state} testID="portfolio-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text></View>;
@@ -44,15 +39,14 @@ function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useT
 
 export function PortfolioView({ snapshot, error, refreshing, onRefresh }: PortfolioViewProps) {
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 900;
   if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
   if (snapshot === null) return <LoadingState theme={theme} />;
 
   let model: PortfolioViewModel;
-  try {
-    model = buildPortfolioViewModel(snapshot);
-  } catch (validationError) {
-    return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />;
-  }
+  try { model = buildPortfolioViewModel(snapshot); }
+  catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
     <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="검증된 계정 전체 집계와 현재 PAPER 포지션을 구분해 표시합니다." />
@@ -61,23 +55,27 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
       <Text style={[styles.total, { color: theme.colors.text }]}>{money(model.totalEquity)}</Text>
       <Text style={[styles.pnl, { color: model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.totalPnl)} 계정 누적 손익</Text>
     </NusaCard>
-    <View style={styles.metrics}>
-      <View style={styles.metricCell}><NusaCard testID="portfolio-realized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>실현 손익</Text><Text style={[styles.metric, { color: model.realizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.realizedPnl)}</Text></NusaCard></View>
-      <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
+    <View style={[styles.portfolioGrid, isTablet && styles.portfolioGridWide]} testID={isTablet ? "portfolio-tablet-grid" : "portfolio-mobile-stack"}>
+      <View style={styles.portfolioColumn}>
+        <View style={styles.metrics}>
+          <View style={styles.metricCell}><NusaCard testID="portfolio-realized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>실현 손익</Text><Text style={[styles.metric, { color: model.realizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.realizedPnl)}</Text></NusaCard></View>
+          <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
+        </View>
+        <NusaCard testID="portfolio-allocation">
+          <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
+          <DataRow label="현금" value={money(model.cash)} />
+          <DataRow label="포지션 평가액" value={money(model.assetValue)} />
+          <DataRow label="열린 주문" value={String(model.openOrderCount)} />
+          <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
+        </NusaCard>
+      </View>
+      <View style={styles.portfolioColumn}>{renderPosition(model, theme)}</View>
     </View>
-    <NusaCard testID="portfolio-allocation">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
-      <DataRow label="현금" value={money(model.cash)} />
-      <DataRow label="포지션 평가액" value={money(model.assetValue)} />
-      <DataRow label="열린 주문" value={String(model.openOrderCount)} />
-      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
-    </NusaCard>
-    {renderPosition(model, theme)}
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
+  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1200, alignSelf: "center" },
   state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 },
   stateTitle: { fontSize: 18, fontWeight: "700" },
   stateMessage: { lineHeight: 21, fontSize: 14 },
@@ -92,4 +90,7 @@ const styles = StyleSheet.create({
   positionMarket: { fontSize: 21, fontWeight: "700", marginTop: 5 },
   divider: { height: 1, marginVertical: 12 },
   scopeNote: { fontSize: 12, lineHeight: 18, marginTop: 12 },
+  portfolioGrid: { gap: 14 },
+  portfolioGridWide: { flexDirection: "row", alignItems: "flex-start" },
+  portfolioColumn: { flex: 1, minWidth: 0, gap: 14 }
 });
