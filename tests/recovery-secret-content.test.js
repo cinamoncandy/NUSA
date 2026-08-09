@@ -21,7 +21,8 @@ test("secret scanner catches credential assignments, bearer values, provider tok
   const bearer = ["bearer", "material", "0123456789"].join("-");
   const providerToken = `ghp_${"A".repeat(20)}`;
   const jwt = `eyJ${"A".repeat(12)}.${"B".repeat(12)}.${"C".repeat(12)}`;
-  const privateKey = ["-----BEGIN PRIVATE KEY-----", "abc", "-----END PRIVATE KEY-----"].join("\n");
+  const keyLabel = ["PRIVATE", "KEY"].join(" ");
+  const privateKey = [`-----BEGIN ${keyLabel}-----`, "abc", `-----END ${keyLabel}-----`].join("\n");
   const apiValue = ["prod", "api", "material", "12345"].join("-");
   const input = [`Authorization: Bearer ${bearer}`, `apiKey=${apiValue}`, providerToken, jwt, privateKey].join("\n");
   const rules = new Set(scanSecretText(input).map((item) => item.rule));
