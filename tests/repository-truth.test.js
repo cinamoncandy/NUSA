@@ -22,6 +22,7 @@ function fixture() {
     "architecture:truth": "node scripts/validate-repository-truth.js"
   } }));
   for (const path of ["apps/cloud/src/runtime.ts", "apps/cloud/src/server.ts", "apps/cloud/src/cloudRuntimeConfig.ts"]) write(root, path);
+  write(root, ".aipos/work-orders/WO-AI-009-governed-outcome-attribution-learning.yaml", `id: WO-AI-009\nstatus: PLANNED\nverification:\n  result: PASS\nplanning_gate:\n  status: MERGED\n  exact_head: ${"b".repeat(40)}\n  merge_commit: ${"c".repeat(40)}\nimplementation_gate:\n  status: NOT_STARTED\n`);
   write(root, ".aipos/evidence/WO-AI-003-completion.json", "{}\n");
   write(root, ".aipos/current-mission.yaml", `id: WO-AI-004\ntitle: Outcome-Linked Calibration Engine\nstatus: IN_PROGRESS\n`);
   write(root, ".aipos/state.yaml", `version: 1\nbase_commit: ${BASE_COMMIT}\nverified_state:\n  work_order: WO-AI-003\n  status: COMPLETED\n  evidence: .aipos/evidence/WO-AI-003-completion.json\nin_progress:\n  - id: WO-AI-004\nverification:\n  current_commit: verified baseline remains evidence-bound\nrestricted_live_authority:\n  credential_execution_use: prohibited\n  real_money_execution: prohibited\n`);
@@ -60,6 +61,20 @@ test("repository truth rejects stale WO-0031 parallel-authority wording", () => 
     const result = validate(root);
     assert.equal(result.ok, false);
     assert.equal(result.failures.some((failure) => failure.startsWith("NEXT_TASK_STALE_WO0031_CLAIM:")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("repository truth rejects a WO-AI-009 gate that still claims merged planning is blocked", () => {
+  const root = fixture();
+  try {
+    write(root, ".aipos/work-orders/WO-AI-009-governed-outcome-attribution-learning.yaml", `id: WO-AI-009\nstatus: PLANNED\nverification:\n  result: PENDING\nplanning_gate:\n  status: OPEN_PENDING_EXACT_HEAD_VALIDATION\nimplementation_gate:\n  status: BLOCKED_UNTIL_PLANNING_MERGED\n`);
+    const result = validate(root);
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.includes("WO_AI_009_PLANNING_GATE_NOT_MERGED:OPEN_PENDING_EXACT_HEAD_VALIDATION"), true);
+    assert.equal(result.failures.includes("WO_AI_009_PLANNING_VERIFICATION_NOT_PASS"), true);
+    assert.equal(result.failures.includes("WO_AI_009_IMPLEMENTATION_GATE_STALE_BLOCK"), true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
