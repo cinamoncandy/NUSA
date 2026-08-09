@@ -38,11 +38,14 @@ test("read-only PAPER surface hides executable order controls when App has no su
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /const readOnly = onSubmit === undefined/);
-  assert.match(trading, /StatusChip label=\{readOnly \? "주문 권한 없음" : "PAPER 입력"\}/);
+  assert.match(trading, /StatusChip label=\{readOnly \? "READ ONLY" : "PAPER 입력"\}/);
   assert.match(trading, /testID="trading-readonly-state"/);
-  assert.match(trading, /현재 App wiring에는 주문 제출 callback이 없습니다/);
-  assert.match(trading, /<DataRow label="주문 제출" value="연결 안 됨" tone="success" \/>/);
-  assert.match(trading, /<DataRow label="서버 mutation" value="불가" tone="success" \/>/);
+  assert.match(trading, /PAPER 관찰 모드/);
+  assert.match(trading, /ZERO MUTATION/);
+  assert.match(trading, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
+  assert.match(trading, /<DataRow label="주문 생성" value="연결 안 됨" tone="default" \/>/);
+  assert.match(trading, /<DataRow label="서버 전송" value="불가" tone="default" \/>/);
+  assert.match(trading, /<DataRow label="현재 권한" value="읽기 전용" tone="default" emphasis \/>/);
   assert.match(trading, /\{readOnly \? <>[\s\S]*testID="trading-readonly-state"[\s\S]*<\/\> : <>[\s\S]*testID="trading-buy"/);
   assert.doesNotMatch(trading, /disabled label="매수 미리보기"|disabled label="매도 미리보기"/);
 });
