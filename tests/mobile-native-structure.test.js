@@ -43,16 +43,19 @@ test("mobile foundation exposes a Home screen, theme, and five-tab navigation", 
   assert.match(app, /accessibilityRole="button"/);
 });
 
-test("mobile authentication foundation exposes a sign-in entry and environment mode", () => {
+test("fresh install exposes a truthful local PAPER entry instead of fake credential authentication", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
-  assert.match(app, /const AUTH_MODE = process\.env\.EXPO_PUBLIC_NUSA_AUTH_MODE/);
-  assert.match(app, /useState\(false\)/);
-  assert.match(app, /accessibilityLabel=\"Email\"/);
-  assert.match(app, /accessibilityLabel=\"Password\"/);
-  assert.match(app, /accessibilityLabel=\"Sign in\"/);
+  assert.match(app, /testID="local-session-start"/);
+  assert.match(app, /PAPER 작업공간 열기/);
+  assert.match(app, /계정 인증을 가장하지 않으며/);
+  assert.doesNotMatch(app, /auth-email/);
+  assert.doesNotMatch(app, /auth-password/);
+  assert.doesNotMatch(app, /accessibilityLabel="Email"/);
+  assert.doesNotMatch(app, /accessibilityLabel="Password"/);
+  assert.doesNotMatch(app, /EXPO_PUBLIC_NUSA_AUTH_MODE/);
 });
 
-test("authentication flow exposes Splash, Login guard, and Auth Context", () => {
+test("authentication flow retains Splash, local session guard, and Auth Context", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   const context = fs.readFileSync(path.join(mobile, "src", "authContext.ts"), "utf8");
   assert.match(app, /authStatus === "CHECKING"/);
@@ -60,6 +63,36 @@ test("authentication flow exposes Splash, Login guard, and Auth Context", () => 
   assert.match(app, /authStatus !== "SIGNED_IN"/);
   assert.match(context, /AuthContext/);
   assert.match(context, /SecureStoragePort/);
+});
+
+test("mobile shell exposes PAPER-only truth and a single Settings credential path", () => {
+  const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
+  const settings = fs.readFileSync(path.join(mobile, "src", "settingsView.tsx"), "utf8");
+  const components = fs.readFileSync(path.join(mobile, "src", "components.tsx"), "utf8");
+  assert.match(app, /testID="global-authority-strip"/);
+  assert.match(app, /PAPER ONLY/);
+  assert.match(app, /LIVE NONE/);
+  assert.doesNotMatch(app, /dashboard-credential/);
+  assert.doesNotMatch(app, /dashboard-connect/);
+  assert.match(app, /home-open-settings/);
+  assert.match(settings, /settings-paper-endpoint/);
+  assert.match(settings, /settings-paper-token/);
+  assert.match(settings, /settings-paper-connect/);
+  assert.match(components, /AI ZERO AUTHORITY/);
+  assert.match(components, /AI 주문 권한 없음/);
+  assert.doesNotMatch(components, /UI 주문 경로 없음/);
+});
+
+test("Home, Markets, Portfolio, and AI expose intentional tablet compositions", () => {
+  const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
+  const markets = fs.readFileSync(path.join(mobile, "src", "marketsView.tsx"), "utf8");
+  const portfolio = fs.readFileSync(path.join(mobile, "src", "portfolioView.tsx"), "utf8");
+  const ai = fs.readFileSync(path.join(mobile, "src", "aiView.tsx"), "utf8");
+  for (const source of [app, markets, portfolio, ai]) assert.match(source, /useWindowDimensions/);
+  assert.match(app, /home-tablet-grid/);
+  assert.match(markets, /markets-tablet-grid/);
+  assert.match(portfolio, /portfolio-tablet-grid/);
+  assert.match(ai, /ai-tablet-grid/);
 });
 
 test("mobile release workflow validates unsigned Android and iOS candidates", () => {
