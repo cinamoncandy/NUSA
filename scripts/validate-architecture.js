@@ -10,32 +10,39 @@ const IGNORED_DIRECTORY = new Set(["node_modules", "dist", "coverage", "release"
 function analyzeRepository(root = process.cwd()) {
   const files = sourceFiles(root);
   const nodes = new Set(files.map((file) => relative(root, file).replaceAll("\\", "/")));
+  const workspaceOwners = workspacePackageOwners(root);
   const edges = [];
-  const boundaryReferences = [];
   const unresolved = [];
 
   for (const file of files) {
     const source = relative(root, file).replaceAll("\\", "/");
     const sourceText = readFileSync(file, "utf8");
     for (const imported of parseImports(sourceText)) {
-      if (!imported.specifier.startsWith(".")) continue;
-      const target = resolveLocal(file, imported.specifier, nodes, root);
-      if (!target) {
-        unresolved.push({ source, specifier: imported.specifier });
-        continue;
-      }
-      edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
-    }
-    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/")) {
-      for (const specifier of parseImportExpressions(sourceText)) {
-        if (!specifier.startsWith(".")) continue;
-        const target = resolveLocal(file, specifier, nodes, root);
+      if (imported.specifier.startsWith(".")) {
+        const target = resolveLocal(file, imported.specifier, nodes, root);
         if (!target) {
-          unresolved.push({ source, specifier });
+          unresolved.push({ source, specifier: imported.specifier });
           continue;
         }
-        boundaryReferences.push({ source, target, kind: "inline-import" });
+        edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+        continue;
       }
+      const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
+      if (target) edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+    }
+
+    for (const imported of parseImportExpressionReferences(sourceText)) {
+      if (imported.specifier.startsWith(".")) {
+        const target = resolveLocal(file, imported.specifier, nodes, root);
+        if (!target) {
+          unresolved.push({ source, specifier: imported.specifier });
+          continue;
+        }
+        edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime", inline: true });
+        continue;
+      }
+      const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
+      if (target) edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime", inline: true });
     }
   }
 
@@ -52,7 +59,7 @@ function analyzeRepository(root = process.cwd()) {
     if (sourceLayer === "DOMAIN" && targetLayer === "APPLICATION") {
       findings.push(finding("DOMAIN_TO_APPLICATION", edge, "Domain must not depend on application orchestration."));
     }
-    if (sourceLayer === "PRESENTATION" && targetLayer !== "APPLICATION") {
+    if (sourceLayer === "PRESENTATION" && !isMobilePresentationSource(edge.source) && targetLayer !== "APPLICATION") {
       findings.push(finding("PRESENTATION_SHORTCUT", edge, "Presentation may depend only on application-facing contracts."));
     }
     if (edge.kind === "runtime" && edge.source.startsWith("packages/storage/") && edge.target.startsWith("apps/")) {
@@ -67,14 +74,8 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
-  }
-
-  for (const edge of boundaryReferences) {
-    if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
-      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
-    }
-    if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
-      findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may consume mobile-local modules and static type-only shared contracts, but not runtime package or cross-app implementations."));
     }
   }
 
@@ -141,14 +142,14 @@ function parseModuleReferences(source) {
       imports.push({ specifier: node.moduleReference.expression.text, typeOnly: Boolean(node.isTypeOnly) });
     } else if (ts.isCallExpression(node) && node.arguments.length > 0 && ts.isStringLiteralLike(node.arguments[0])) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        importExpressions.push(node.arguments[0].text);
+        importExpressions.push({ specifier: node.arguments[0].text, typeOnly: false });
       } else if (ts.isIdentifier(node.expression) && node.expression.text === "require") {
         imports.push({ specifier: node.arguments[0].text, typeOnly: false });
       }
     } else if (ts.isImportTypeNode(node)
       && ts.isLiteralTypeNode(node.argument)
       && ts.isStringLiteralLike(node.argument.literal)) {
-      importExpressions.push(node.argument.literal.text);
+      importExpressions.push({ specifier: node.argument.literal.text, typeOnly: true });
     }
     ts.forEachChild(node, visit);
   };
@@ -161,8 +162,12 @@ function parseImports(source) {
   return parseModuleReferences(source).imports;
 }
 
-function parseImportExpressions(source) {
+function parseImportExpressionReferences(source) {
   return parseModuleReferences(source).importExpressions;
+}
+
+function parseImportExpressions(source) {
+  return parseImportExpressionReferences(source).map((item) => item.specifier);
 }
 
 function resolveLocal(file, specifier, nodes, root) {
@@ -171,8 +176,52 @@ function resolveLocal(file, specifier, nodes, root) {
   return candidates.map((candidate) => relative(root, candidate).replaceAll("\\", "/")).find((candidate) => nodes.has(candidate));
 }
 
+function workspacePackageOwners(root) {
+  const owners = new Map();
+  for (const sourceRoot of SOURCE_ROOTS) {
+    const directory = join(root, sourceRoot);
+    if (!existsSync(directory)) continue;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const manifestPath = join(directory, entry.name, "package.json");
+      if (!existsSync(manifestPath)) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+        if (typeof manifest.name === "string" && manifest.name.length > 0) {
+          owners.set(manifest.name, `${sourceRoot}/${entry.name}/`);
+        }
+      } catch {
+        // Package manifest syntax is validated elsewhere; architecture scanning skips invalid manifests here.
+      }
+    }
+  }
+  return owners;
+}
+
+function resolveWorkspaceOwner(specifier, owners) {
+  for (const [packageName, owner] of owners) {
+    if (specifier === packageName || specifier.startsWith(`${packageName}/`)) return owner;
+  }
+  return undefined;
+}
+
+function isMobilePresentationSource(file) {
+  return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
+}
+
+function isProtectedBoundarySource(file) {
+  return file.startsWith("packages/core/") || file.startsWith("packages/contracts/") || isMobilePresentationSource(file);
+}
+
+function isForbiddenMobilePresentationReference(edge) {
+  if (!isMobilePresentationSource(edge.source)) return false;
+  if (edge.target.startsWith("apps/mobile/")) return false;
+  if (edge.kind === "type" && !edge.inline && edge.target.startsWith("packages/contracts/")) return false;
+  return /^(apps|packages)\//.test(edge.target);
+}
+
 function layerOf(file) {
-  if (file.startsWith("apps/desktop/renderer/")) return "PRESENTATION";
+  if (file.startsWith("apps/desktop/renderer/") || isMobilePresentationSource(file)) return "PRESENTATION";
   if (file.startsWith("packages/storage/")) return "INFRASTRUCTURE";
   if (file.startsWith("packages/") || file.startsWith("apps/execution/")) return "DOMAIN";
   if (file.startsWith("apps/")) return "APPLICATION";
@@ -254,4 +303,4 @@ if (require.main === module) {
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions };
+module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions, resolveWorkspaceOwner, workspacePackageOwners };

@@ -54,7 +54,7 @@ test("stable Core rejects dynamic imports of AIPOS implementation", () => {
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(coreToAiposFindings(result).length, 1);
-    assert.equal(coreToAiposFindings(result)[0].kind, "inline-import");
+    assert.equal(coreToAiposFindings(result)[0].kind, "runtime");
     assert.deepEqual(result.runtimeCycles, []);
   });
 });
@@ -66,7 +66,7 @@ test("stable Core rejects TypeScript import type expressions referencing AIPOS",
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(coreToAiposFindings(result).length, 1);
-    assert.equal(coreToAiposFindings(result)[0].kind, "inline-import");
+    assert.equal(coreToAiposFindings(result)[0].kind, "type");
     assert.deepEqual(result.runtimeCycles, []);
   });
 });
