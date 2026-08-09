@@ -22,13 +22,18 @@ test("Home exposes one real safety-first next action from verified runtime state
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<AiView/);
-  assert.match(ai, /원시 모델 확률 \(미보정\)/);
-  assert.match(ai, /검증 신뢰도/);
+  for (const source of [app, ai]) {
+    assert.match(source, /원시 모델 확률 \(미보정\)/);
+    assert.match(source, /검증 신뢰도/);
+    assert.match(source, /보정 상태/);
+    assert.doesNotMatch(source, /<DataRow label="신뢰도"/);
+    assert.doesNotMatch(source, /모델 점수 \(미보정\)/);
+  }
+  assert.match(app, /ai\?\.calibrationStatus === "CALIBRATED"/);
+  assert.match(app, /aiRawProbability/);
+  assert.match(app, /aiTrustedConfidence/);
+  assert.match(ai, /calibrationStatus === "CALIBRATED"/);
   assert.match(ai, /보정 확률/);
-  assert.match(ai, /보정 상태/);
-  assert.doesNotMatch(ai, /<DataRow label="신뢰도"/);
-  assert.doesNotMatch(ai, /모델 점수 \(미보정\)/);
   assert.match(ai, /원시 모델 확률은 미보정 모델 출력/);
   assert.match(ai, /검증된 성공 확률이나 성과 보장이 아닙니다/);
   assert.match(ai, /CALIBRATED일 때만 별도의 검증 신뢰도/);
