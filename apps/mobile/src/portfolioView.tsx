@@ -24,6 +24,7 @@ function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<ty
 
 export interface PortfolioViewProps {
   readonly snapshot: PortfolioAccountResponse | null;
+  readonly stale: boolean;
   readonly error: string | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
@@ -42,7 +43,7 @@ function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useT
   </NusaCard>;
 }
 
-export function PortfolioView({ snapshot, error, refreshing, onRefresh }: PortfolioViewProps) {
+export function PortfolioView({ snapshot, stale, error, refreshing, onRefresh }: PortfolioViewProps) {
   const { theme } = useTheme();
   if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
   if (snapshot === null) return <LoadingState theme={theme} />;
@@ -55,7 +56,8 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
   }
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="검증된 계정 전체 집계와 현재 PAPER 포지션을 구분해 표시합니다." />
+    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="계정 전체 집계와 현재 PAPER 포지션을 구분해 표시합니다." />
+    {stale ? <NusaCard testID="portfolio-stale"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.warning }]}>데이터 상태 확인 필요</Text><StatusChip label="점검 필요" tone="warning" /></View><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 스냅샷의 운영 상태가 정상으로 확인되지 않았습니다. 금액은 마지막으로 받은 읽기 전용 값이며 새로고침 후 상태를 다시 확인해 주세요.</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard> : null}
     <NusaCard testID="portfolio-summary" raised>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>계정 총 평가자산</Text>
       <Text style={[styles.total, { color: theme.colors.text }]}>{money(model.totalEquity)}</Text>
@@ -66,11 +68,11 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
       <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
     </View>
     <NusaCard testID="portfolio-allocation">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
+      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label={stale ? "점검 필요" : "검증됨"} tone={stale ? "warning" : "info"} /></View>
       <DataRow label="현금" value={money(model.cash)} />
       <DataRow label="포지션 평가액" value={money(model.assetValue)} />
       <DataRow label="열린 주문" value={String(model.openOrderCount)} />
-      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
+      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>{stale ? "계정 집계 구조는 검증됐지만 현재 운영 상태가 정상으로 확인되지 않았습니다." : "총 평가자산·현금·손익은 검증된 계정 집계값입니다."}</Text>
     </NusaCard>
     {renderPosition(model, theme)}
   </ScrollView>;
