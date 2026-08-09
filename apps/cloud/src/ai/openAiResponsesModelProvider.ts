@@ -75,14 +75,14 @@ const timeoutError = (): Error => namedError("TimeoutError", "AI model provider 
 export class OpenAiResponsesModelProvider implements ModelProvider {
   public readonly providerId = "openai";
   public readonly modelVersionId: string;
-  private readonly apiKey: string;
+  #apiKey: string;
   private readonly fetchImpl: OpenAiFetch;
   private readonly now: () => number;
 
   public constructor(options: OpenAiResponsesModelProviderOptions) {
-    this.apiKey = options.apiKey.trim();
+    this.#apiKey = options.apiKey.trim();
     this.modelVersionId = options.modelVersionId.trim();
-    if (!this.apiKey || !this.modelVersionId) throw new Error("AI provider configuration is incomplete");
+    if (!this.#apiKey || !this.modelVersionId) throw new Error("AI provider configuration is incomplete");
     this.fetchImpl = options.fetchImpl ?? defaultFetch;
     this.now = options.now ?? Date.now;
   }
@@ -114,7 +114,7 @@ export class OpenAiResponsesModelProvider implements ModelProvider {
     try {
       response = await this.fetchImpl(OPENAI_RESPONSES_ENDPOINT, {
         method: "POST",
-        headers: Object.freeze({ Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" }),
+        headers: Object.freeze({ Authorization: `Bearer ${this.#apiKey}`, "Content-Type": "application/json" }),
         body,
         signal: controller.signal
       });
