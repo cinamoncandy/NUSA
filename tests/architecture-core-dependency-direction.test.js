@@ -47,6 +47,17 @@ test("stable Core rejects type-only dependencies on AIPOS implementation", () =>
   });
 });
 
+test("stable Core rejects dynamic imports of AIPOS implementation", () => {
+  withFixture({
+    "packages/core/src/runtime.ts": 'export async function loadAipos() { return import("../../aipos/src/plugin"); }\n',
+    "packages/aipos/src/plugin.ts": "export class AiposPlugin {}\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(coreToAiposFindings(result).length, 1);
+    assert.equal(coreToAiposFindings(result)[0].kind, "runtime");
+  });
+});
+
 test("AIPOS may consume stable Core plugin contracts", () => {
   withFixture({
     "packages/core/src/pluginSystem.ts": "export interface Plugin { readonly id: string; }\n",
