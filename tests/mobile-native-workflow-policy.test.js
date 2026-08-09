@@ -33,8 +33,8 @@ test("ordinary pull requests keep foundation and both debug jobs unconditional",
 test("release candidate jobs are gated but preserve release build commands", () => {
   const android = jobBlock("android-release-candidate");
   const ios = jobBlock("ios-release-candidate");
-  assert.match(android, new RegExp(releaseIntent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(ios, new RegExp(releaseIntent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.ok(android.includes(releaseIntent));
+  assert.ok(ios.includes(releaseIntent));
   assert.match(android, /assembleRelease/);
   assert.match(ios, /-configuration Release/);
 });
