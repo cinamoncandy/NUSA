@@ -2,6 +2,7 @@ name: Mobile Native
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths:
       - "apps/mobile/**"
       - "apps/desktop/src/upbitRestAdapter*"
@@ -14,6 +15,7 @@ on:
       - "pnpm-lock.yaml"
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -76,6 +78,7 @@ jobs:
         working-directory: apps/mobile/ios
 
   android-release-candidate:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +106,7 @@ jobs:
         working-directory: apps/mobile/android
 
   ios-release-candidate:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
