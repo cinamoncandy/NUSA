@@ -24,11 +24,13 @@ function MarketRow({ market, active, onToggle }: Readonly<{ market: WatchlistMar
   const changeColor = market.changeRate === null ? theme.colors.textMuted : market.changeRate >= 0 ? theme.colors.success : theme.colors.danger;
   return <View style={[styles.marketRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID={`watchlist-market-${market.market}`}>
     <View style={styles.marketMain}>
-      <View style={styles.marketIdentity}><Text style={[styles.market, { color: theme.colors.text }]}>{market.market}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>PUBLIC · READ ONLY</Text></View>
+      <View style={styles.marketIdentity}>
+        <Text style={[styles.market, { color: theme.colors.text }]}>{market.market}</Text>
+        <Text style={[styles.volumeInline, { color: theme.colors.textMuted }]} numberOfLines={1}>거래량 {formatVolume(market.volume)}</Text>
+      </View>
       <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]}>{formatPrice(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatChange(market.changeRate)}</Text></View>
-      <Pressable accessibilityLabel={`${market.market} ${active ? "관심시장에서 제거" : "관심시장에 추가"}`} accessibilityRole="button" accessibilityState={{ selected: active }} hitSlop={4} onPress={onToggle} style={[styles.favorite, { backgroundColor: active ? theme.colors.primarySoft : theme.colors.surfaceSunken, borderColor: active ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-toggle-${market.market}`}><Text style={[styles.favoriteGlyph, { color: active ? theme.colors.primary : theme.colors.textMuted }]}>{active ? "★" : "☆"}</Text></Pressable>
+      <Pressable accessibilityLabel={`${market.market} ${active ? "관심시장에서 제거" : "관심시장에 추가"}`} accessibilityRole="button" accessibilityState={{ selected: active }} hitSlop={4} onPress={onToggle} style={[styles.favorite, { backgroundColor: active ? theme.colors.primarySoft : theme.colors.surfaceSunken, borderColor: active ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-toggle-${market.market}`}><Text style={[styles.favoriteLabel, { color: active ? theme.colors.primary : theme.colors.textMuted }]}>{active ? "관심중" : "관심"}</Text></Pressable>
     </View>
-    <View style={[styles.marketMeta, { borderTopColor: theme.colors.border }]}><Text style={[styles.volumeLabel, { color: theme.colors.textMuted }]}>거래량</Text><Text style={[styles.volume, { color: theme.colors.text }]} numberOfLines={1}>{formatVolume(market.volume)}</Text></View>
   </View>;
 }
 
@@ -66,7 +68,7 @@ export function WatchlistView({ repository, rawMarkets, error, refreshing, onRef
     <NusaTextField label="시장 검색" value={query} onChangeText={setQuery} placeholder="예: KRW-BTC" testID="watchlist-search" />
     <View style={styles.sortRow} testID="watchlist-sort">{sorts.map((value) => <SortChip key={value} value={value} selected={sort === value} onPress={() => setSort(value)} />)}</View>
     <View style={styles.sectionHeader}><Text style={[styles.section, { color: theme.colors.text }]}>관심시장</Text><Text style={[styles.sectionCount, { color: theme.colors.textMuted }]}>{model.activeMarkets.length}</Text></View>
-    {model.activeMarkets.length === 0 ? <NusaCard testID="watchlist-saved-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>☆ 버튼으로 자주 보는 시장을 저장할 수 있습니다.</Text></NusaCard> : <View style={styles.marketList}>{model.activeMarkets.map((market) => <MarketRow key={`saved-${market.market}`} active market={market} onToggle={() => void toggle(market.market)} />)}</View>}
+    {model.activeMarkets.length === 0 ? <NusaCard testID="watchlist-saved-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>시장 행의 관심 버튼으로 자주 보는 시장을 저장할 수 있습니다.</Text></NusaCard> : <View style={styles.marketList}>{model.activeMarkets.map((market) => <MarketRow key={`saved-${market.market}`} active market={market} onToggle={() => void toggle(market.market)} />)}</View>}
     <View style={styles.sectionHeader}><Text style={[styles.section, { color: theme.colors.text }]}>전체 결과</Text><Text style={[styles.sectionCount, { color: theme.colors.textMuted }]}>{model.searchResults.length}</Text></View>
     {model.searchResults.length === 0 ? <NusaCard testID="watchlist-search-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>조건에 맞는 공개 시장이 없습니다.</Text></NusaCard> : <View style={styles.marketList}>{model.searchResults.map((market) => <MarketRow key={`result-${market.market}`} active={model.watchlist.includes(market.market)} market={market} onToggle={() => void toggle(market.market)} />)}</View>}
   </ScrollView>;
@@ -83,19 +85,16 @@ const styles = StyleSheet.create({
   sortLabel: { fontSize: 12, fontWeight: "700" },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   section: { fontSize: 17, fontWeight: "700", letterSpacing: -0.3 },
-  sectionCount: { fontSize: 12, fontWeight: "700" },
-  marketList: { gap: 8 },
-  marketRow: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
+  sectionCount: { fontSize: 12, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  marketList: { gap: 7 },
+  marketRow: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   marketMain: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 },
-  marketIdentity: { flex: 1, minWidth: 92 },
+  marketIdentity: { flex: 1, minWidth: 104 },
   marketNumbers: { alignItems: "flex-end", justifyContent: "center" },
   market: { fontSize: 15, fontWeight: "800" },
-  meta: { fontSize: 9, fontWeight: "700", letterSpacing: 0.5, marginTop: 4 },
+  volumeInline: { marginTop: 4, fontSize: 10, lineHeight: 14, fontWeight: "600", fontVariant: ["tabular-nums"] },
   price: { fontSize: 17, fontWeight: "800", letterSpacing: -0.4, fontVariant: ["tabular-nums"] },
   change: { fontSize: 12, fontWeight: "700", marginTop: 3, fontVariant: ["tabular-nums"] },
-  favorite: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  favoriteGlyph: { fontSize: 22, lineHeight: 24 },
-  marketMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, marginTop: 8, paddingTop: 8, gap: 12 },
-  volumeLabel: { fontSize: 10, fontWeight: "700" },
-  volume: { flex: 1, textAlign: "right", fontSize: 11, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  favorite: { minWidth: 56, height: 44, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  favoriteLabel: { fontSize: 11, fontWeight: "800" },
 });
