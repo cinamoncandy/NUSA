@@ -4,6 +4,7 @@ const {
   validatePersonalPaperOrderCommand,
   validatePersonalPaperOrderCommandResult
 } = require("../dist/packages/contracts/src/personalPaperOrderCommand.js");
+const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 const { submitPersonalPaperOrder } = require("../dist/apps/mobile/src/personalPaperOrderClient.js");
 
 const command = (overrides = {}) => ({
@@ -17,6 +18,64 @@ const command = (overrides = {}) => ({
   quantity: 0.001,
   ...overrides
 });
+
+const NOW = 1_700_000_000_000;
+const filledOrder = (overrides = {}) => ({
+  id: "paper-order-1",
+  market: "KRW-BTC",
+  side: "BUY",
+  quantity: 0.001,
+  price: 100_000_000,
+  fee: 50,
+  filledAt: new Date(NOW - 1_000).toISOString(),
+  status: "FILLED",
+  fills: [{
+    id: "paper-fill-1",
+    quantity: 0.001,
+    price: 100_000_000,
+    filledAt: new Date(NOW - 1_000).toISOString()
+  }],
+  ...overrides
+});
+
+const paperSnapshot = (order = filledOrder(), generatedAt = NOW) => buildPersonalPaperOperationsSnapshot({
+  dashboard: {
+    apiVersion: "1",
+    generatedAt,
+    mode: "PAPER",
+    overallHealth: "HEALTHY",
+    killSwitchActive: false,
+    tradingAllowed: true
+  },
+  research: null,
+  ai: null,
+  operations: {
+    runtimeState: "READY",
+    schedulerRunning: false,
+    schedulerMode: "OFF",
+    pipelineStage: "IDLE",
+    transport: "ONLINE",
+    killSwitchActive: false,
+    accountHalted: false,
+    pendingWrites: 0,
+    updatedAt: generatedAt
+  },
+  orders: [order],
+  markets: []
+}, generatedAt);
+
+const filledResult = (overrides = {}) => {
+  const order = filledOrder();
+  return {
+    schemaVersion: 1,
+    status: "FILLED",
+    order,
+    snapshot: paperSnapshot(order),
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    ...overrides
+  };
+};
 
 test("PAPER order command hard-codes PAPER_ONLY and no production mutation", () => {
   const value = validatePersonalPaperOrderCommand(command());
@@ -33,9 +92,29 @@ test("LIMIT orders require a positive limit price", () => {
   assert.equal(value.limitPrice, 1000);
 });
 
-test("FILLED result requires a truthful PAPER order and snapshot", () => {
-  assert.throws(() => validatePersonalPaperOrderCommandResult({ schemaVersion: 1, status: "FILLED", liveAuthority: "NONE", productionMutationAllowed: false }), /requires order and snapshot/);
-  assert.throws(() => validatePersonalPaperOrderCommandResult({ schemaVersion: 1, status: "BLOCKED", liveAuthority: "LIVE", productionMutationAllowed: false }), /authority/);
+test("FILLED result requires a truthful PAPER order and canonical snapshot", () => {
+  assert.throws(() => validatePersonalPaperOrderCommandResult({ schemaVersion: 1, status: "FILLED", liveAuthority: "NONE", productionMutationAllowed: false }, NOW), /requires order and snapshot/);
+  assert.throws(() => validatePersonalPaperOrderCommandResult({ schemaVersion: 1, status: "BLOCKED", liveAuthority: "LIVE", productionMutationAllowed: false }, NOW), /authority/);
+
+  const result = validatePersonalPaperOrderCommandResult(filledResult(), NOW);
+  assert.equal(result.status, "FILLED");
+  assert.equal(result.order.id, "paper-order-1");
+  assert.equal(result.snapshot.orders.length, 1);
+});
+
+test("FILLED result rejects stale or malformed nested PAPER snapshots", () => {
+  const valid = filledResult();
+  assert.throws(() => validatePersonalPaperOrderCommandResult(valid, NOW + 15_001, 15_000), /stale/);
+
+  const malformed = structuredClone(valid);
+  malformed.snapshot.orders[0].price = -1;
+  assert.throws(() => validatePersonalPaperOrderCommandResult(malformed, NOW), /invalid PAPER order value/);
+});
+
+test("FILLED result rejects standalone order that does not match canonical snapshot", () => {
+  const valid = filledResult();
+  const mismatched = { ...valid, order: { ...valid.order, price: valid.order.price + 1 } };
+  assert.throws(() => validatePersonalPaperOrderCommandResult(mismatched, NOW), /does not match snapshot order/);
 });
 
 test("mobile client makes no request without dashboard credential", async () => {
