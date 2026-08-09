@@ -15,13 +15,14 @@ test("watchlist favorite action uses explicit text instead of unicode star glyph
   assert.doesNotMatch(source, /★|☆/);
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{[^}]*minWidth: 56, height: 44/);
+  assert.match(source, /favorite: \{[^}]*minWidth: 52, height: 44/);
 });
 
 test("market rows keep price change and volume scannable without a separate metadata row", () => {
   assert.match(source, /volumeInline:/);
   assert.match(source, /거래량 \{formatVolume\(market\.volume\)\}/);
   assert.doesNotMatch(source, /marketMeta:/);
+  assert.match(source, /marketIdentity: \{[^}]*minWidth: 84/);
   assert.match(source, /price: \{[^}]*fontVariant: \["tabular-nums"\]/);
   assert.match(source, /change: \{[^}]*fontVariant: \["tabular-nums"\]/);
   assert.match(source, /volumeInline: \{[^}]*fontVariant: \["tabular-nums"\]/);
