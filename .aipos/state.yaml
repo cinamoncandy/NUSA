@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T18:08:00+09:00"
-phase: durable-ai-calibration-memory
+updated_at: "2026-08-09T18:44:00+09:00"
+phase: constitutional-human-environment-gate
 status: in_progress
-objective: "Make verified outcome calibration durable across Cloud restarts with integrity-checked deterministic replay while preserving zero AI execution authority and all human-only production gates."
+objective: "Hold the production transition at the human/environment boundary while preserving the completed zero-authority AI durability slice and requiring genuine external/human evidence for any later LIVE transition."
 base_branch: main
-active_branch: agent/ai-005-durable-calibration-future-chronology
-active_pull_request: 354
-base_commit: 4700613433674be923e35c471c1e83a17c7d51cb
+active_branch: main
+active_pull_request: null
+base_commit: b4303b928e8d64417f3c07334ed3900ea3075046
 claimed_state:
-  work_order: WO-AI-005
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-004
+  work_order: WO-AI-005
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-004-completion.json"
+  evidence: ".aipos/evidence/WO-AI-005-completion.json"
 latest_verified_slice:
-  id: wo-ai-004-outcome-linked-calibration-complete
-  evidence: ".aipos/evidence/WO-AI-004-completion.json"
-  summary: "WO-AI-004 binds model probability to verified market outcomes with exact cohort identity, conservative ECE/Brier calibration, audited horizon/staleness enforcement, fail-closed sample sufficiency, truthful read-only projection, and unchanged zero execution authority."
+  id: wo-ai-005-durable-calibration-memory-complete
+  evidence: ".aipos/evidence/WO-AI-005-completion.json"
+  summary: "WO-AI-005 durably persists verified calibration prediction/outcome/pending metadata, deterministically replays it across restart, and fails closed on corruption, invalid chronology, or durability failure while preserving zero execution authority."
 completed:
+  - id: WO-AI-005
+    evidence: ".aipos/evidence/WO-AI-005-completion.json"
+    summary: "Durable calibration memory and replay completed at merge b4303b928e8d64417f3c07334ed3900ea3075046 with exact-head CI/Coverage, four Restricted LIVE/read-only workflows, post-merge main CI, and Mobile Native all PASS."
   - id: WO-AI-004
     evidence: ".aipos/evidence/WO-AI-004-completion.json"
     summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations and fail-closed resolution windows while preserving zero authority."
@@ -39,9 +42,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-AI-005
-    evidence: ".aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml"
-    summary: "Implementation PR #354 persists verified calibration prediction/outcome/pending metadata with hash-checked SQLite replay so empirical confidence survives restart and corrupt or invalid chronology fails closed."
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Human/environment-only terminal gate remains open; CI, AI, chat shorthand, and repository automation cannot satisfy it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -52,23 +55,21 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
-  reason: "Planning PR #345 is merged. Verify implementation PR #354 on its exact latest-main head, resolve CI/review findings, preserve zero authority, and merge only after all required gates pass."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-AI-005 is verified complete. The repository returns to WO-0051, which may advance only from genuine operator-authorized external read-only evidence, actual independent human ceremony evidence, and a separate constitutional human decision; automation must not infer completion."
 verification:
   required:
-    - "WO-AI-005 implementation PR #354 exact-head Full CI/Coverage, architecture/AIPOS, security, and all Restricted LIVE/read-only workflows PASS"
-    - "Implementation proves deterministic restart replay of verified prediction/outcome samples and still-valid pending predictions"
-    - "Corrupt, partial, conflicting, unsupported, stale, premature-expiry, or future-chronology durable state fails closed with effective confidence zero/unavailable"
-    - "No provider credential, broker credential, API key, bearer token, raw prompt body, hidden reasoning, or raw evidence payload is persisted"
-    - "Exact provider/model/prompt/outcome cohort and minimum sample/bucket sufficiency remain unchanged across replay"
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
+    - "WO-AI-005 completion evidence remains hash-bound to the COMPLETED work order and merge b4303b928e8d64417f3c07334ed3900ea3075046"
+    - "WO-AI-005 implementation exact-head CI/Coverage and four Restricted LIVE/read-only workflows remain PASS"
+    - "WO-AI-005 post-merge main CI 31306311738 and Mobile Native 31306311737 remain PASS"
+    - "Optional public-distribution signing verification only if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-005 planning PR #345 merged at fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2. Canonical implementation PR #354 is based on protected main 4700613433674be923e35c471c1e83a17c7d51cb and includes durability plus chronology fail-closed hardening."
-  current_commit: "Implementation PR #354 is based on 4700613433674be923e35c471c1e83a17c7d51cb; exact implementation head must be frozen only after all required checks pass."
+  last_result: "WO-AI-005 COMPLETED: planning PR #345 merged; canonical implementation PR #354 exact-head b03dd50c01dd789a3023217c018c53fc53a42ea8 passed Full CI/Coverage and four safety/read-only workflows, merged at b4303b928e8d64417f3c07334ed3900ea3075046; post-merge CI 31306311738 and Mobile Native 31306311737 passed."
+  current_commit: "b4303b928e8d64417f3c07334ed3900ea3075046"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
