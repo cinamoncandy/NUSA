@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-006-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-006",
+    "path": ".aipos/work-orders/WO-AI-006-inference-resource-governance.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "477bf314928c8943c177efc9c7536f2297e57052"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "26f53749b8b81eed18844ed651b1e7a4cf8ef7f1"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "planning_pr_merged": true,
+      "implementation_pr_merged": true,
+      "run_level_resource_budget": true,
+      "shared_call_attempt_accounting": true,
+      "output_token_reservation": true,
+      "input_byte_ceiling": true,
+      "wall_clock_budget": true,
+      "truthful_usage_accounting": true,
+      "fail_closed_exhaustion": true,
+      "single_use_attempt_admission": true,
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "exact_head": "439c7a81651545bb5b34a52e64e41a227bfbe426",
+      "ci_run": 31315926107,
+      "safety_workflows_passed": 4,
+      "implementation_merge_sha": "26f53749b8b81eed18844ed651b1e7a4cf8ef7f1"
+    },
+    "hash": {"algorithm": "sha256", "value": "cd86c906de36df6c38be09e5e4e22ba2dbb5b79ccc0440451d5705cccf068cc6"}
+  },
+  "observed_at": "2026-08-09T23:56:00+09:00",
+  "provenance": [
+    "github:pull/360",
+    "git:merge/2d1d7b1b6d79ab6498297df13373afa88fef6937",
+    "github:pull/372",
+    "github:actions/run/31315926107",
+    "github:actions/run/31315926099",
+    "github:actions/run/31315926096",
+    "github:actions/run/31315926104",
+    "github:actions/run/31315926091",
+    "git:merge/26f53749b8b81eed18844ed651b1e7a4cf8ef7f1"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "planning_pr_merged", "status": "PASS"},
+    {"name": "implementation_pr_merged", "status": "PASS"},
+    {"name": "official_exact_head_full_ci", "status": "PASS"},
+    {"name": "coverage_baseline", "status": "PASS"},
+    {"name": "security_gate", "status": "PASS"},
+    {"name": "typecheck_build_lint", "status": "PASS"},
+    {"name": "architecture_repository_truth", "status": "PASS"},
+    {"name": "ai_zero_authority_architecture", "status": "PASS"},
+    {"name": "aipos_drift_evidence_conformance", "status": "PASS"},
+    {"name": "restricted_live_readonly_workflows", "status": "PASS"},
+    {"name": "run_level_resource_budget", "status": "PASS"},
+    {"name": "shared_call_attempt_accounting", "status": "PASS"},
+    {"name": "output_token_reservation", "status": "PASS"},
+    {"name": "input_byte_ceiling", "status": "PASS"},
+    {"name": "wall_clock_budget", "status": "PASS"},
+    {"name": "truthful_usage_accounting", "status": "PASS"},
+    {"name": "fail_closed_exhaustion", "status": "PASS"},
+    {"name": "single_use_attempt_admission", "status": "PASS"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"},
+    {"name": "wo_0051_human_environment_gate_unchanged", "status": "PASS"}
+  ]
+}

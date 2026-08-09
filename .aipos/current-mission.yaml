@@ -12,6 +12,10 @@ scope:
   - Android PAPER navigation and order-flow verification on a real device
   - release APK reinstall and runtime verification
   - physical-device logcat and runtime evidence before PR merge
+latest_verified_slice:
+  id: WO-AI-007
+  status: COMPLETED
+  evidence: .aipos/evidence/WO-AI-007-completion.json
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -21,6 +25,14 @@ safety:
   syntheticCiCompletion: prohibited
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
+verification:
+  ai_007_planning_merge: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
+  ai_007_implementation_merge: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
+  ai_007_exact_head: 8fe07e4fc078e51297a1b1963f0415f410b8fbbf
+  ai_007_ci_run: 31321492237
+  restricted_live_readonly_workflows: PASS_4_OF_4
+  adversarial_cross_provider_conflict_observability: PASS_0_OF_5_TO_5_OF_5
+  physical_device_runtime_evidence: PENDING
 blockers:
   - PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED
   - PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION

@@ -1,9 +1,11 @@
 import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
 import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from "../../../../packages/contracts/src/aiCalibrationDurability";
+import type { AiProviderComparisonResult, AiProviderPoolPolicy } from "../../../../packages/contracts/src/aiProviderDiversity";
 import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
 import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
-import { createModelProviderFromEnvironment } from "./modelProvider";
+import { createModelProviderFromEnvironment, createNVersionProviderPoolFromEnvironment, type NVersionProviderEnvironmentPool } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
+import { NVersionStrategyEvaluator, type NVersionStrategyInput } from "./nVersionStrategyEvaluator";
 import { createVerifiedRuntimeCalibrationPrediction } from "./calibrationBridge";
 import { createCalibrationOutcome, OutcomeCalibrationLedger, type CalibrationPolicy } from "./outcomeCalibration";
 import { CalibrationDurabilityRuntime } from "./calibrationDurabilityRuntime";
@@ -15,16 +17,22 @@ export const AI_CALIBRATION_HORIZON_MS = 5 * 60 * 1_000;
 /** The audited 5-minute outcome accepts only a narrowly bounded observation after its due time. */
 export const AI_CALIBRATION_RESOLUTION_GRACE_MS = 60_000;
 
+export type CloudAiOrchestrationResult = AiOrchestrationResult & {
+  readonly providerComparison?: AiProviderComparisonResult;
+};
+
 export interface CloudAiRuntime {
   readonly enabled: boolean;
   readonly orchestrator: MultiAgentOrchestrator;
   schedule(input: AiOrchestrationInput): boolean;
-  latest(now?: number): AiOrchestrationResult | null;
+  latest(now?: number): CloudAiOrchestrationResult | null;
   latestProjection(now?: number): AiReadOnlyProjection | null;
+  latestProviderComparison(now?: number): AiProviderComparisonResult | null;
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
   calibrationDurabilityHealth(): AiCalibrationDurabilityHealth;
   isInFlight(): boolean;
+  isProviderComparisonInFlight(): boolean;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
@@ -43,6 +51,8 @@ export interface CloudAiRuntimeOptions {
   readonly calibration?: CloudAiCalibrationOptions;
   /** Explicit test/composition injection. Production Cloud auto-composes SQLite from its state DB path. */
   readonly durableCalibrationStore?: AiCalibrationDurableStore;
+  /** Undefined auto-composes explicit environment N-version config; null explicitly disables it. */
+  readonly nVersionEvaluator?: Pick<NVersionStrategyEvaluator, "run"> | null;
 }
 
 interface VerifiedMarketAnchor {
@@ -86,8 +96,42 @@ function calibrationOptions(value: CloudAiCalibrationOptions | undefined): Cloud
   });
 }
 
+function defaultNVersionPolicy(pool: NVersionProviderEnvironmentPool): AiProviderPoolPolicy {
+  return Object.freeze({
+    schemaVersion: 1,
+    policyId: "NUSA_AI_NVERSION_PROVIDER_COMPARISON_V1",
+    policyVersion: "1",
+    groups: Object.freeze(pool.groups.map((group) => Object.freeze({
+      groupId: group.groupId,
+      providerId: group.providerId,
+      modelVersionId: group.modelVersionId,
+      modelFamilyId: group.modelFamilyId
+    }))),
+    minIndependentGroups: 2,
+    maxProbabilityDelta: 0.2,
+    minEvidenceReferenceOverlap: 0.5,
+    minAssumptionOverlap: 0.25,
+    requireUncertaintyAgreement: false,
+    inferenceBudget: Object.freeze({
+      schemaVersion: 1,
+      policyId: "NUSA_AI_NVERSION_RESOURCE_BUDGET_V1",
+      policyVersion: "1",
+      maxModelCalls: 2,
+      maxTotalAttempts: 4,
+      maxCumulativeOutputTokens: 8192,
+      maxInputBytes: 1024 * 1024,
+      maxWallClockMs: 30_000,
+      requireUsageAccounting: true
+    })
+  });
+}
+
 function zeroAuthority(result: AiOrchestrationResult): boolean {
   return result.liveAuthority === "NONE" && result.realOrderAuthority === false && result.realTransferAuthority === false && result.productionMutationAllowed === false && (result.governanceDecision == null || (result.governanceDecision.realOrderAuthority === false && result.governanceDecision.realTransferAuthority === false && result.governanceDecision.productionMutationAllowed === false));
+}
+
+function comparisonZeroAuthority(result: AiProviderComparisonResult): boolean {
+  return result.liveAuthority === "NONE" && result.realOrderAuthority === false && result.realTransferAuthority === false && result.productionMutationAllowed === false;
 }
 
 function verifiedMarketAnchor(input: AiOrchestrationInput): VerifiedMarketAnchor | null {
@@ -131,6 +175,12 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const calibration = calibrationOptions(options.calibration);
   const calibrationLedger = new OutcomeCalibrationLedger();
   const orchestrator = new MultiAgentOrchestrator(provider, { enabled });
+  const environmentPool = options.nVersionEvaluator === undefined ? createNVersionProviderPoolFromEnvironment(env) : null;
+  const nVersionEvaluator = options.nVersionEvaluator === undefined
+    ? environmentPool == null
+      ? null
+      : new NVersionStrategyEvaluator(environmentPool.groups.map((group) => Object.freeze({ groupId: group.groupId, provider: group.provider })), defaultNVersionPolicy(environmentPool), { now })
+    : options.nVersionEvaluator;
   const pendingPredictions = new Map<string, PendingPrediction>();
   let durableStore = options.durableCalibrationStore;
   let durabilityOpenFailure = false;
@@ -144,9 +194,12 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const durability = new CalibrationDurabilityRuntime(calibrationLedger, durableStore, now(), AI_CALIBRATION_RESOLUTION_GRACE_MS, durabilityOpenFailure);
   for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction }));
   let inFlight = false;
+  let comparisonInFlight = false;
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
+  let latestComparison: AiProviderComparisonResult | null = null;
+  let latestComparisonCompletedAt: number | null = null;
   let latestPrediction: AiCalibrationPrediction | null = durability.recovered().latestPrediction;
 
   const resolvePending = (anchor: VerifiedMarketAnchor | null): void => {
@@ -187,6 +240,33 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     }
   };
 
+  const scheduleProviderComparison = (input: AiOrchestrationInput): void => {
+    if (nVersionEvaluator == null || comparisonInFlight) return;
+    const comparisonInput: NVersionStrategyInput = Object.freeze({
+      comparisonRunId: `${input.orchestrationRunId}:nversion`,
+      decisionId: input.decisionId,
+      evaluatedAt: input.evaluatedAt,
+      evidence: input.evidence,
+      evidenceMaterializations: input.evidenceMaterializations,
+      policyVersionIds: input.policyVersionIds,
+      certificationIds: input.certificationIds,
+      controlPlaneStateId: input.controlPlaneStateId,
+      contextValidForMs: input.contextValidForMs
+    });
+    comparisonInFlight = true;
+    void nVersionEvaluator.run(comparisonInput).then((result) => {
+      const completedAt = now();
+      if (comparisonZeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
+        latestComparison = result;
+        latestComparisonCompletedAt = completedAt;
+      }
+    }).catch(() => {
+      // Independent-provider evidence is advisory-only and cannot disturb the primary AI or PAPER.
+    }).finally(() => {
+      comparisonInFlight = false;
+    });
+  };
+
   const schedule = (input: AiOrchestrationInput): boolean => {
     const anchor = verifiedMarketAnchor(input);
     resolvePending(anchor);
@@ -195,6 +275,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     if (!enabled || inFlight || scheduledAt - lastScheduledAt < minimumCadenceMs) return false;
     lastScheduledAt = scheduledAt;
     inFlight = true;
+    scheduleProviderComparison(input);
     void orchestrator.run(input).then((result) => {
       const completedAt = now();
       if (result.status === "COMPLETED" && zeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
@@ -245,14 +326,22 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     }
   };
 
-  const latest = (at = now()): AiOrchestrationResult | null => {
+  const latestProviderComparison = (at = now()): AiProviderComparisonResult | null => {
+    if (latestComparison == null || latestComparisonCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
+    if (latestComparisonCompletedAt > at || at - latestComparisonCompletedAt > maximumResultAgeMs) return null;
+    return latestComparison;
+  };
+
+  const latest = (at = now()): CloudAiOrchestrationResult | null => {
     if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
     if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
+    const providerComparison = latestProviderComparison(at);
     return Object.freeze({
       ...latestResult,
       calibrationProfile: currentProfile(),
-      calibrationDurabilityHealth: durability.snapshot()
-    }) as AiOrchestrationResult;
+      calibrationDurabilityHealth: durability.snapshot(),
+      ...(providerComparison == null ? {} : { providerComparison })
+    }) as CloudAiOrchestrationResult;
   };
 
   const latestProjection = (at = now()): AiReadOnlyProjection | null => {
@@ -266,10 +355,12 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     schedule,
     latest,
     latestProjection,
+    latestProviderComparison,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
     calibrationDurabilityHealth: () => durability.snapshot(),
     isInFlight: () => inFlight,
+    isProviderComparisonInFlight: () => comparisonInFlight,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
   });
