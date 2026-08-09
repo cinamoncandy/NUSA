@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   marketHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   market: { marginTop: 4, fontSize: 20, fontWeight: "700" },
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
-  price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12 },
+  price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12, fontVariant: ["tabular-nums"] },
   divider: { height: 1, marginVertical: 13 },
   segmentRow: { flexDirection: "row", gap: 10 },
   cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
