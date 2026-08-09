@@ -23,6 +23,9 @@ const CLOUD_ACCESS_KEY = /\bAKIA[0-9A-Z]{16}\b/g;
 const AUTHORIZATION_VALUE = /(\bauthorization\b\s*["']?\s*[:=]\s*["']?(?:bearer\s+)?)([^"'\s,}]{16,})/gi;
 const BARE_BEARER = /(\bbearer\s+)([A-Za-z0-9._~+/=-]{16,})/gi;
 const CREDENTIAL_ASSIGNMENT = /(\b(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token)\b\s*["']?\s*[:=]\s*["']?)([^"'\s,}]{8,})/gi;
+const AUTHORIZATION_REDACTION = /(\bauthorization\b\s*["']?\s*[:=]\s*["']?(?:bearer\s+)?)([^"'\s,}]+)/gi;
+const BARE_BEARER_REDACTION = /(\bbearer\s+)([A-Za-z0-9._~+/=-]+)/gi;
+const CREDENTIAL_REDACTION = /(\b(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token)\b\s*["']?\s*[:=]\s*["']?)([^"'\s,}]+)/gi;
 
 function normalizedCandidate(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -62,9 +65,9 @@ function scanSecretBytes(value) {
 function redactSecretText(value) {
   let safe = String(value ?? "");
   safe = safe.replace(PRIVATE_KEY_BLOCK, "[REDACTED_PRIVATE_KEY]");
-  safe = safe.replace(AUTHORIZATION_VALUE, "$1[REDACTED]");
-  safe = safe.replace(BARE_BEARER, "$1[REDACTED]");
-  safe = safe.replace(CREDENTIAL_ASSIGNMENT, "$1[REDACTED]");
+  safe = safe.replace(AUTHORIZATION_REDACTION, "$1[REDACTED]");
+  safe = safe.replace(BARE_BEARER_REDACTION, "$1[REDACTED]");
+  safe = safe.replace(CREDENTIAL_REDACTION, "$1[REDACTED]");
   safe = safe.replace(TOKEN_PREFIX, "[REDACTED_TOKEN]");
   safe = safe.replace(JWT_VALUE, "[REDACTED_JWT]");
   safe = safe.replace(CLOUD_ACCESS_KEY, "[REDACTED_ACCESS_KEY]");
