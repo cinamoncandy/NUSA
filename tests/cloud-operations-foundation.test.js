@@ -138,7 +138,7 @@ test("operator scripts expose safe dry-run paths without emitting generated secr
   assert.equal(JSON.parse(securityResult.stdout).rootExecution, false);
 });
 
-test("atomic deployment dry-run is versioned, reversible, and does not mutate current", () => {
+test("atomic deployment dry-run is versioned, reversible, and validates canonical release paths", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-deploy-"));
   const commit = "a".repeat(40);
   fs.mkdirSync(path.join(root, "releases", commit), { recursive: true });
@@ -149,6 +149,10 @@ test("atomic deployment dry-run is versioned, reversible, and does not mutate cu
   assert.equal(output.restartRequired, true);
   assert.equal(output.readinessRequired, true);
   assert.equal(fs.existsSync(path.join(root, "current")), false);
+  const deploySource = fs.readFileSync("scripts/atomic-deploy.js", "utf8");
+  assert.match(deploySource, /realpathSync\(releases\)/);
+  assert.match(deploySource, /lstatSync\(target\)/);
+  assert.match(deploySource, /not a symlink/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
