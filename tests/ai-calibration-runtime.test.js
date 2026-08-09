@@ -15,8 +15,8 @@ const firstObservedAt = 1_700_000_000_000;
 const secondObservedAt = firstObservedAt + AI_CALIBRATION_HORIZON_MS + 10;
 let modelCompletedAt = firstObservedAt + 2;
 
-const evidenceFor = (price, observedAt) => buildCloudRuntimeAiEvidence({
-  code: "KRW-BTC",
+const evidenceFor = (price, observedAt, market = "KRW-BTC") => buildCloudRuntimeAiEvidence({
+  code: market,
   trade_price: price,
   trade_timestamp: observedAt,
   signed_change_rate: 0.01,
@@ -58,20 +58,22 @@ const orchestrationInput = (id, observedAt, bundle) => ({
   contextValidForMs: 120_000
 });
 
+const runtimeOptions = (now) => ({
+  now,
+  minimumCadenceMs: 0,
+  maximumResultAgeMs: 10_000_000,
+  calibration: {
+    outcomeDefinitionId: AI_CALIBRATION_OUTCOME_DEFINITION_ID,
+    outcomeDefinitionVersion: AI_CALIBRATION_OUTCOME_DEFINITION_VERSION,
+    horizonMs: AI_CALIBRATION_HORIZON_MS,
+    policy: { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 }
+  }
+});
+
 test("cloud AI runtime records a verified prediction and resolves it only from a later verified Upbit ticker", async () => {
   let runtimeNow = firstObservedAt + 100;
   modelCompletedAt = firstObservedAt + 2;
-  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, {
-    now: () => runtimeNow,
-    minimumCadenceMs: 0,
-    maximumResultAgeMs: 1_000_000,
-    calibration: {
-      outcomeDefinitionId: AI_CALIBRATION_OUTCOME_DEFINITION_ID,
-      outcomeDefinitionVersion: AI_CALIBRATION_OUTCOME_DEFINITION_VERSION,
-      horizonMs: AI_CALIBRATION_HORIZON_MS,
-      policy: { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 }
-    }
-  });
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, runtimeOptions(() => runtimeNow));
   const first = evidenceFor(100, firstObservedAt);
   assert.equal(runtime.schedule(orchestrationInput("first", firstObservedAt, first)), true);
   await waitForRuntime(runtime);
@@ -118,20 +120,47 @@ test("cloud AI runtime records a verified prediction and resolves it only from a
   assert.equal(runtime.recordCalibrationOutcome, undefined, "manual outcome injection must not exist on the runtime surface");
 });
 
+test("pre-horizon ticker cannot resolve a pending prediction", async () => {
+  let runtimeNow = firstObservedAt + 100;
+  modelCompletedAt = firstObservedAt + 2;
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, runtimeOptions(() => runtimeNow));
+  runtime.schedule(orchestrationInput("pre-first", firstObservedAt, evidenceFor(100, firstObservedAt)));
+  await waitForRuntime(runtime);
+
+  const earlyObservedAt = firstObservedAt + AI_CALIBRATION_HORIZON_MS - 1_000;
+  runtimeNow = earlyObservedAt + 100;
+  modelCompletedAt = earlyObservedAt + 2;
+  runtime.schedule(orchestrationInput("pre-early", earlyObservedAt, evidenceFor(150, earlyObservedAt)));
+  assert.equal(runtime.calibrationProfile().sampleCount, 0);
+  await waitForRuntime(runtime);
+});
+
+test("a different market cannot resolve or expire another market prediction", async () => {
+  let runtimeNow = firstObservedAt + 100;
+  modelCompletedAt = firstObservedAt + 2;
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, runtimeOptions(() => runtimeNow));
+  runtime.schedule(orchestrationInput("market-first", firstObservedAt, evidenceFor(100, firstObservedAt, "KRW-BTC")));
+  await waitForRuntime(runtime);
+
+  const wrongMarketAt = firstObservedAt + AI_CALIBRATION_HORIZON_MS + AI_CALIBRATION_RESOLUTION_GRACE_MS + 10;
+  runtimeNow = wrongMarketAt + 100;
+  modelCompletedAt = wrongMarketAt + 2;
+  runtime.schedule(orchestrationInput("market-eth", wrongMarketAt, evidenceFor(999, wrongMarketAt, "KRW-ETH")));
+  assert.equal(runtime.calibrationProfile().sampleCount, 0);
+  await waitForRuntime(runtime);
+
+  const btcDueAt = firstObservedAt + 2 + AI_CALIBRATION_HORIZON_MS + 10;
+  runtimeNow = btcDueAt + 100;
+  modelCompletedAt = btcDueAt + 2;
+  runtime.schedule(orchestrationInput("market-btc", btcDueAt, evidenceFor(110, btcDueAt, "KRW-BTC")));
+  assert.equal(runtime.calibrationProfile().sampleCount, 1, "wrong-market data must not remove the pending BTC calibration window");
+  await waitForRuntime(runtime);
+});
+
 test("a late ticker outside the audited resolution window cannot be mislabeled as the five-minute outcome", async () => {
   let runtimeNow = firstObservedAt + 100;
   modelCompletedAt = firstObservedAt + 2;
-  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, {
-    now: () => runtimeNow,
-    minimumCadenceMs: 0,
-    maximumResultAgeMs: 10_000_000,
-    calibration: {
-      outcomeDefinitionId: AI_CALIBRATION_OUTCOME_DEFINITION_ID,
-      outcomeDefinitionVersion: AI_CALIBRATION_OUTCOME_DEFINITION_VERSION,
-      horizonMs: AI_CALIBRATION_HORIZON_MS,
-      policy: { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 }
-    }
-  });
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, runtimeOptions(() => runtimeNow));
   const first = evidenceFor(100, firstObservedAt);
   runtime.schedule(orchestrationInput("late-first", firstObservedAt, first));
   await waitForRuntime(runtime);
