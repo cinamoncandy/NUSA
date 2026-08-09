@@ -117,10 +117,11 @@ function AuthenticatedApp() {
   const ai = snapshot?.ai ?? null;
   const aiConfidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const runtimeTone = healthTone(snapshot?.operations.runtimeState);
+  const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
   const nextAction: Readonly<{ title: string; detail: string; label: string; tab: Tab }> | null = snapshot == null ? null
     : snapshot.health !== "HEALTHY" || snapshot.dashboard.killSwitchActive || !snapshot.readyForPaperOperations
       ? { title: "안전 상태 우선", detail: "차단·저하 또는 PAPER 운영 대기 상태에서는 실행보다 PAPER 관찰 상태를 먼저 확인합니다.", label: "PAPER 상태 보기", tab: "Trade" }
-      : ai?.status === "AVAILABLE"
+      : aiInsightAvailable
         ? { title: "최신 AI 분석 확인", detail: "검증된 최신 AI 분석과 근거를 읽기 전용으로 확인합니다.", label: "AI 분석 보기", tab: "More" }
         : { title: "시장 관찰 계속", detail: "AI 분석이 없을 때는 공개 시장 데이터부터 확인합니다.", label: "시장 보기", tab: "Markets" };
 
