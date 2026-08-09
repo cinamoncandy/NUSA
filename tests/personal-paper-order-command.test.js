@@ -6,8 +6,12 @@ const {
 } = require("../dist/packages/contracts/src/personalPaperOrderCommand.js");
 const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 const { submitPersonalPaperOrder } = require("../dist/apps/mobile/src/personalPaperOrderClient.js");
+const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
-const { clearConfiguredPaperEndpoint } = require("../dist/apps/mobile/src/paperConnectionSession.js");
+const {
+  clearConfiguredPaperEndpoint,
+  setConfiguredPaperEndpoint
+} = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 const command = (overrides = {}) => ({ schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, idempotencyKey: "paper-mobile-00000001", market: "KRW-BTC", side: "BUY", orderType: "MARKET", quantity: 0.001, ...overrides });
 const binding = (item = command()) => ({ idempotencyKey: item.idempotencyKey, market: item.market, side: item.side, orderType: item.orderType, quantity: item.quantity, ...(item.limitPrice === undefined ? {} : { limitPrice: item.limitPrice }) });
@@ -17,8 +21,13 @@ const paperSnapshot = (order = filledOrder(), generatedAt = NOW) => buildPersona
 const filledResult = (overrides = {}, submitted = command()) => { const order = filledOrder({ market: submitted.market, side: submitted.side, quantity: submitted.quantity }); return { schemaVersion: 1, status: "FILLED", ...binding(submitted), order, snapshot: paperSnapshot(order), liveAuthority: "NONE", productionMutationAllowed: false, ...overrides }; };
 const blockedWireResult = (submitted = command(), overrides = {}) => ({ schemaVersion: 1, status: "BLOCKED", ...binding(submitted), reason: "TEST_BLOCK", liveAuthority: "NONE", productionMutationAllowed: false, ...overrides });
 
-test.beforeEach(() => clearConfiguredPaperEndpoint());
-test.afterEach(() => clearConfiguredPaperEndpoint());
+const clearMobileConnection = () => {
+  clearConfiguredPaperEndpoint();
+  new InMemoryDashboardCredentialSession().clear();
+};
+
+test.beforeEach(clearMobileConnection);
+test.afterEach(clearMobileConnection);
 
 test("PAPER order command hard-codes PAPER_ONLY and no production mutation", () => {
   const value = validatePersonalPaperOrderCommand(command());
@@ -80,6 +89,37 @@ test("mobile client refuses insecure non-loopback PAPER endpoint", async () => {
 test("mobile client treats historical localhost default as unconfigured unless explicitly saved", async () => {
   let calls = 0; const result = await submitPersonalPaperOrder({ baseUrl: "http://127.0.0.1:41731", credentialProvider: async () => "1234567890123456", request: async () => { calls += 1; throw new Error("must not call"); } }, command());
   assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0); assert.match(result.reason, /endpoint is not configured/i);
+});
+
+test("Settings connection state reaches a separate Trading PAPER client instance", async () => {
+  const settingsSession = new InMemoryDashboardCredentialSession();
+  const tradingSession = new InMemoryDashboardCredentialSession();
+  const submitted = command();
+  let observedUrl = "";
+  let observedAuthorization = "";
+
+  setConfiguredPaperEndpoint("https://paper.settings.test/");
+  settingsSession.connect("settings-shared-token-0001");
+
+  const result = await submitPersonalPaperOrder({
+    baseUrl: "http://127.0.0.1:41731",
+    credentialProvider: tradingSession.credentialProvider,
+    request: async (url, init) => {
+      observedUrl = String(url);
+      observedAuthorization = String(init.headers.authorization);
+      return {
+        ok: true,
+        status: 200,
+        redirected: false,
+        url: "https://paper.settings.test/api/paper-orders",
+        json: async () => blockedWireResult(submitted)
+      };
+    }
+  }, submitted);
+
+  assert.equal(result.status, "READY");
+  assert.equal(observedUrl, "https://paper.settings.test/api/paper-orders");
+  assert.equal(observedAuthorization, "Bearer settings-shared-token-0001");
 });
 
 test("mobile client posts only to exact PAPER route with no redirects and bound authority", async () => {
