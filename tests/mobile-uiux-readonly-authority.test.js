@@ -20,16 +20,19 @@ test("UIUX-002 preserves stable five-tab keys while presenting product navigatio
 
 test("mobile intelligence shell displays real AI projection and truthful authority state", () => {
   const app = read("App.tsx");
+  const home = read("src/homeView.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(app, /ai\?\.thesis \?\? "현재 표시할 AI 분석이 없습니다\."/);
+  assert.match(home, /ai\?\.thesis \?\? "현재 표시할 AI 분석이 없습니다\."/);
+  assert.match(home, /ai\.evidenceReferences\.length/);
   assert.match(components, /ZERO AUTHORITY/);
   assert.match(components, /UI 주문 경로 없음/);
   assert.doesNotMatch(components, /LIVE 권한 없음/);
-  assert.match(app, /<DataRow label="LIVE 권한" value=\{snapshot\.liveAuthority\} emphasis \/>/);
-  assert.match(app, /<DataRow label="Production mutation" value=\{snapshot\.productionMutationAllowed \? "허용" : "금지"\}/);
+  assert.match(home, /<DataRow label="LIVE 권한" value=\{snapshot\.liveAuthority\} emphasis \/>/);
+  assert.match(home, /<DataRow label="Production mutation" value=\{snapshot\.productionMutationAllowed \? "허용" : "금지"\}/);
   assert.match(components, /실제 주문 권한은 없습니다/);
   assert.doesNotMatch(app, /94%/);
+  assert.doesNotMatch(home, /94%/);
 });
 
 test("read-only PAPER surface exposes authority state without fake order controls", () => {
@@ -51,10 +54,11 @@ test("read-only PAPER surface exposes authority state without fake order control
 
 test("dashboard credential flow remains memory-only and independently connected", () => {
   const app = read("App.tsx");
+  const home = read("src/homeView.tsx");
   assert.match(app, /InMemoryDashboardCredentialSession/);
   assert.match(app, /credentialSession\.connect\(dashboardTokenDraft\)/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /프로세스 메모리에만 유지/);
   assert.match(app, /testID="dashboard-connect"/);
-  assert.match(app, /testID="dashboard-disconnect"/);
+  assert.match(home, /testID="dashboard-disconnect"/);
 });
