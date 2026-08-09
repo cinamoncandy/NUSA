@@ -22,7 +22,12 @@ export class AgentExecutor {
         if (encoded == null || Buffer.byteLength(encoded, "utf8") > request.maxOutputBytes) return { ok: false, failure: failure(request, "OUTPUT_TOO_LARGE", false) };
         const outputHash = aiSha256(response.structuredOutput);
         if (response.outputHash !== outputHash) return { ok: false, failure: failure(request, "SCHEMA_VIOLATION", false) };
-        const output = validate(response.structuredOutput);
+        let output: StructuredAgentOutput;
+        try {
+          output = validate(response.structuredOutput);
+        } catch {
+          return { ok: false, failure: failure(request, "SCHEMA_VIOLATION", false) };
+        }
         return { ok: true, response, output, outputHash };
       } catch (error) {
         const code: ModelFailure["code"] = error instanceof Error && error.name === "TimeoutError"
@@ -31,9 +36,7 @@ export class AgentExecutor {
             ? "OUTPUT_TOO_LARGE"
             : error instanceof Error && error.name === "MalformedModelOutputError"
               ? "MALFORMED_OUTPUT"
-              : error instanceof Error && /schema|structured|observation|decision|severity|result|references/i.test(error.message)
-                ? "SCHEMA_VIOLATION"
-                : "PROVIDER_UNAVAILABLE";
+              : "PROVIDER_UNAVAILABLE";
         if (attempt >= this.maxRetries) return { ok: false, failure: failure(request, code, code === "TIMEOUT" || code === "PROVIDER_UNAVAILABLE") };
       }
     }

@@ -158,7 +158,8 @@ function AuthenticatedApp() {
   const account = snapshot?.portfolio?.account ?? null;
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
-  const aiConfidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
+  const aiRawProbability = ai?.rawProbability == null || !Number.isFinite(ai.rawProbability) ? "-" : `${Math.round(ai.rawProbability * 100)}%`;
+  const aiTrustedConfidence = ai?.calibrationStatus === "CALIBRATED" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const runtimeTone = healthTone(snapshot?.operations.runtimeState);
   const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
   const nextAction: Readonly<{ title: string; detail: string; label: string; tab: Tab }> | null = snapshot == null ? null
@@ -212,7 +213,8 @@ function AuthenticatedApp() {
           <NusaCard testID="ai-card">
             <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
             <Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text>
-            <DataRow label="모델 점수 (미보정)" value={aiConfidence} />
+            <DataRow label="원시 모델 확률 (미보정)" value={aiRawProbability} />
+            <DataRow label="검증 신뢰도" value={aiTrustedConfidence} />
             <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
             <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
           </NusaCard>

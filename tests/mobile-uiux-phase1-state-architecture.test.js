@@ -64,7 +64,8 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   const ai = read("src/aiView.tsx");
   assert.match(ai, /testID="ai-loading"/);
   assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /모델 점수 \(미보정\)/);
+  assert.match(ai, /원시 모델 확률 \(미보정\)/);
+  assert.match(ai, /검증 신뢰도/);
   assert.match(ai, /불확실성/);
   assert.match(ai, /보정 상태/);
   assert.match(ai, /근거와 반대 근거/);

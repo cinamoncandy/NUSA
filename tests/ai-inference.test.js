@@ -13,18 +13,26 @@ const digest = "a".repeat(64);
 const request = (overrides = {}) => ({ requestId: "request-1", role: "EVIDENCE_PRODUCER", providerId: "test", modelVersionId: "model-1", promptArtifactId: "prompt-1", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, instructions: "Evidence only; zero authority.", contextHash: digest, inputHash: digest, input: Object.freeze({ evidenceIds: ["e-1"] }), maxOutputBytes: 1000, maxTokens: 100, timeoutMs: 50, attempt: 0, ...overrides });
 const response = (req, output, overrides = {}) => ({ requestId: req.requestId, providerId: req.providerId, modelVersionId: req.modelVersionId, promptArtifactDigest: req.promptArtifactDigest, contextHash: req.contextHash, inputHash: req.inputHash, structuredOutput: output, outputHash: aiSha256(output), startedAt: 1, completedAt: 2, ...overrides });
 
-test("model executor enforces output hash, size, and bounded failure behavior", async () => {
+test("model executor enforces output hash, validator schema, size, and bounded failure behavior", async () => {
   const output = { schemaVersion: 1, role: "EVIDENCE_PRODUCER", evidenceReferences: ["e-1"], payload: { observations: [], missingEvidence: [] } };
   const provider = new TransportModelProvider("test", "model-1", async (req) => response(req, output));
   const executed = await new AgentExecutor(provider, 0).execute(request(), (value) => value);
   assert.equal(executed.ok, true);
+
+  const validatorRejected = await new AgentExecutor(provider, 0).execute(request(), () => { throw new Error("rawProbability must be finite and within [0,1]"); });
+  assert.equal(validatorRejected.ok, false);
+  assert.equal(validatorRejected.failure.code, "SCHEMA_VIOLATION");
+  assert.equal(validatorRejected.failure.retryable, false);
+
   const tampered = new TransportModelProvider("test", "model-1", async (req) => response(req, output, { outputHash: digest }));
   const rejected = await new AgentExecutor(tampered, 0).execute(request(), (value) => value);
   assert.equal(rejected.ok, false);
   assert.equal(rejected.failure.code, "SCHEMA_VIOLATION");
+
   const unavailable = await new AgentExecutor(new UnavailableModelProvider(), 0).execute(request(), (value) => value);
   assert.equal(unavailable.ok, false);
   assert.equal(unavailable.failure.code, "PROVIDER_UNAVAILABLE");
+
   const timeout = await new AgentExecutor(new TransportModelProvider("test", "model-1", async () => new Promise(() => {})), 0).execute(request({ timeoutMs: 1 }), (value) => value);
   assert.equal(timeout.ok, false);
   assert.equal(timeout.failure.code, "TIMEOUT");
