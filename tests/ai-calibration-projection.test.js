@@ -7,7 +7,7 @@ const promptArtifactId = "nusa.ai.strategy_proposer";
 const promptArtifactVersion = "1.0.0";
 const baseResult = () => ({
   status: "COMPLETED", orchestrationRunId: "run-1", governanceDecision: { result: "preview_candidate", unresolvedDisagreements: [], vetoReasons: [] }, independence: { reasonCodes: [] },
-  agents: [{ agentId: "ai-strategy-proposer", modelVersionId: "model-v1", definitionVersion: promptArtifactVersion, promptArtifactId, promptArtifactDigest: digest }], contexts: [],
+  agents: [{ agentId: "ai-strategy-proposer", modelVersionId: "model-v1", definitionVersion: promptArtifactVersion, promptArtifactId, promptArtifactDigest: digest, correlatedGroupId: "model:openai:model-v1" }], contexts: [],
   runs: [{ agentId: "ai-strategy-proposer", modelVersionId: "model-v1", promptArtifactDigest: digest, completedAt: 100 }], failureCodes: [], outputHashes: [],
   structuredOutputs: [
     { schemaVersion: 1, role: "STRATEGY_PROPOSER", evidenceReferences: ["e-1"], payload: { rawProbability: 0.8, rationaleClaims: ["candidate"], uncertainty: "medium" } },
@@ -37,7 +37,14 @@ test("calibrated confidence is exposed conservatively and never exceeds raw prob
 });
 
 test("calibration identity mismatch fails closed instead of borrowing another cohort", () => {
-  for (const mismatched of [profile({ rawProbability: 0.7 }), profile({ cohort: { ...cohort, modelVersionId: "other-model" } }), profile({ cohort: { ...cohort, promptArtifactId: "other-prompt" } }), profile({ cohort: { ...cohort, promptArtifactVersion: "2.0.0" } }), profile({ cohort: { ...cohort, promptArtifactDigest: "b".repeat(64) } })]) {
+  for (const mismatched of [
+    profile({ rawProbability: 0.7 }),
+    profile({ cohort: { ...cohort, providerId: "other" } }),
+    profile({ cohort: { ...cohort, modelVersionId: "other-model" } }),
+    profile({ cohort: { ...cohort, promptArtifactId: "other-prompt" } }),
+    profile({ cohort: { ...cohort, promptArtifactVersion: "2.0.0" } }),
+    profile({ cohort: { ...cohort, promptArtifactDigest: "b".repeat(64) } })
+  ]) {
     const projection = projectAiReadOnly(baseResult(), mismatched);
     assert.equal(projection.calibrationStatus, "UNVERIFIED"); assert.equal(projection.confidence, 0); assert.equal(projection.calibratedProbability, null); assert.equal(projection.calibrationCohort, null);
   }
