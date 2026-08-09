@@ -183,12 +183,6 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return true;
   };
 
-  const latest = (at = now()): AiOrchestrationResult | null => {
-    if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
-    if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
-    return latestResult;
-  };
-
   const currentProfile = (): AiCalibrationProfile | null => {
     if (latestPrediction == null) return null;
     try {
@@ -198,9 +192,15 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     }
   };
 
+  const latest = (at = now()): AiOrchestrationResult | null => {
+    if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
+    if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
+    return Object.freeze({ ...latestResult, calibrationProfile: currentProfile() }) as AiOrchestrationResult;
+  };
+
   const latestProjection = (at = now()): AiReadOnlyProjection | null => {
     const result = latest(at);
-    return result == null ? null : projectAiReadOnly(result, currentProfile());
+    return result == null ? null : projectAiReadOnly(result);
   };
 
   return Object.freeze({
