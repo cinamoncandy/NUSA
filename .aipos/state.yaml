@@ -6,7 +6,7 @@ status: in_progress
 objective: "Build deterministic outcome-linked AI calibration so raw model confidence is separated from empirically verified confidence while preserving zero execution authority."
 base_branch: main
 active_branch: agent/ai-004-outcome-calibration-plan-v2
-active_pull_request: null
+active_pull_request: 218
 base_commit: 58236072c6a6d3409d7e5b500b3a40420b95d9bd
 claimed_state:
   work_order: WO-AI-004
@@ -65,7 +65,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "PR #216 merged at 53863d7f2121f998c77148b0f79cc6e228ac707f from exact-head c5e11dec664c183b80f2deb1ce0fe0ec0a54857e after CI 31285899698 PASS including AIPOS completion evidence integrity, Security, Typecheck, Build, AI zero-authority, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. PR #214 then merged UI-only PAPER workspace interaction cleanup at 58236072c6a6d3409d7e5b500b3a40420b95d9bd with no AI authority change. Fresh post-completion AI audit selected outcome-linked calibration as the next safe dimension."
-  current_commit: "58236072c6a6d3409d7e5b500b3a40420b95d9bd; latest main includes UIUX-002; WO-AI-004 planning rebased to current main"
+  current_commit: "58236072c6a6d3409d7e5b500b3a40420b95d9bd; latest main includes UIUX-002; WO-AI-004 planning tracked by PR #218"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
