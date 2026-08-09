@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T16:10:00+09:00"
+updated_at: "2026-08-09T17:52:00+09:00"
 phase: durable-ai-calibration-memory
 status: in_progress
 objective: "Make verified outcome calibration durable across Cloud restarts with integrity-checked deterministic replay while preserving zero AI execution authority and all human-only production gates."
 base_branch: main
-active_branch: agent/ai-005-durable-calibration-plan
-active_pull_request: 345
-base_commit: 96e9bb692c968ab1dfae7785e503c3be95819443
+active_branch: agent/ai-005-durable-calibration-memory
+active_pull_request: 351
+base_commit: dee1cdd9d311c90f73adeb92c04b09a4f3957fd1
 claimed_state:
   work_order: WO-AI-005
   status: IN_PROGRESS
@@ -41,7 +41,7 @@ completed:
 in_progress:
   - id: WO-AI-005
     evidence: ".aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml"
-    summary: "Persist verified calibration prediction/outcome/pending metadata with hash-checked SQLite replay so empirical confidence survives restart and corrupt history fails closed."
+    summary: "Canonical PR #351 persists verified calibration prediction/outcome/pending metadata through a hash-chained SQLite store and replays it through existing validators so empirical confidence survives restart while corrupt history fails closed."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -53,22 +53,24 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
-  reason: "Fresh post-AI-004 capability audit scored calibration durability lowest because the current ledger and pending-resolution state are process-memory only. Merge and verify PR #345 before implementation."
+  reason: "Complete canonical implementation PR #351 only; require latest-main exact-head verification and completion evidence before opening another AI capability slice."
 verification:
   required:
-    - "WO-AI-005 plan exact-head Full CI/Coverage, architecture/AIPOS, security, and all Restricted LIVE/read-only workflows PASS before implementation starts"
+    - "WO-AI-005 implementation PR #351 exact-head Full CI/Coverage, architecture/AIPOS, security, focused durability tests, and all Restricted LIVE/read-only workflows PASS before merge"
     - "Implementation must prove deterministic restart replay of verified prediction/outcome samples and still-valid pending predictions"
     - "Corrupt, partial, conflicting, unsupported, or stale durable state fails closed with effective confidence zero/unavailable"
     - "No provider credential, broker credential, API key, bearer token, raw prompt body, hidden reasoning, or raw evidence payload is persisted"
     - "Exact provider/model/prompt/outcome cohort and minimum sample/bucket sufficiency remain unchanged across replay"
+    - "Expected-head merge only after latest main remains integrated and review threads are clear"
+    - "Separate completion evidence PR must pass and merge before WO-AI-005 is marked COMPLETED"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-004 is verified complete on main; frozen mobile architecture boundary PR #343 merged after exact-head Full CI/Coverage and four safety/read-only workflows PASS. Fresh audit selected calibration durability as the next lowest-scoring safe AI capability."
-  current_commit: "96e9bb692c968ab1dfae7785e503c3be95819443; WO-AI-005 planning PR #345 only, no product implementation or authority change yet"
+  last_result: "WO-AI-004 is verified complete on main and AI-005 planning PR #345 is merged; canonical implementation PR #351 is active from main dee1cdd9d311c90f73adeb92c04b09a4f3957fd1 with exact-head verification pending."
+  current_commit: "AI-005 implementation PR #351 is IN_PROGRESS; no completion claim before exact-head Merge + completion evidence PASS."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
