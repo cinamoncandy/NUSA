@@ -12,25 +12,35 @@ function fixture(workflow) {
   return root;
 }
 
-test("workflow action pin validator accepts immutable commit references and local actions", () => {
-  const root = fixture(`jobs:\n  test:\n    steps:\n      - uses: actions/checkout@${"a".repeat(40)} # v4\n      - uses: ./local-action\n`);
+test("workflow action pin validator accepts immutable commit references, reusable workflows, local actions, and Docker digests", () => {
+  const root = fixture(`jobs:\n  test:\n    uses: owner/repo/.github/workflows/reusable.yml@${"b".repeat(40)}\n  steps-job:\n    steps:\n      - uses: actions/checkout@${"a".repeat(40)} # v4\n      - uses: ./local-action\n      - uses: docker://registry.example/image@sha256:${"c".repeat(64)}\n`);
   try {
     const result = validateWorkflowActionPins(root);
     assert.equal(result.ok, true, result.failures.join("\n"));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("workflow action pin validator rejects mutable major tags and branches", () => {
-  const root = fixture("jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: owner/action@main\n");
+test("workflow action pin validator rejects mutable step refs, quoted refs, and job-level reusable workflow refs", () => {
+  const root = fixture("jobs:\n  reusable:\n    uses: owner/repo/.github/workflows/reusable.yml@main\n  test:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: 'owner/action@main'\n");
   try {
     const result = validateWorkflowActionPins(root);
     assert.equal(result.ok, false);
     assert.equal(result.failures.some((failure) => failure.includes("actions/checkout@v4")), true);
     assert.equal(result.failures.some((failure) => failure.includes("owner/action@main")), true);
+    assert.equal(result.failures.some((failure) => failure.includes("reusable.yml@main")), true);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("current repository workflows pin every external action to a full commit SHA", () => {
+test("workflow action pin validator rejects mutable Docker image tags", () => {
+  const root = fixture("jobs:\n  test:\n    steps:\n      - uses: docker://alpine:3.20\n");
+  try {
+    const result = validateWorkflowActionPins(root);
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.some((failure) => failure.startsWith("WORKFLOW_DOCKER_ACTION_NOT_DIGEST_PINNED:")), true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("current repository workflows pin every external action to an immutable reference", () => {
   const result = validateWorkflowActionPins(process.cwd());
   assert.equal(result.ok, true, result.failures.join("\n"));
 });
