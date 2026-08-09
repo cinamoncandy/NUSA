@@ -115,11 +115,21 @@ export class CalibrationDurabilityRuntime {
       if (!Number.isSafeInteger(recoveryNow) || recoveryNow <= 0) throw new Error("calibration recovery time is invalid");
       let replay = this.store.replay();
       const predictionsById = new Map(replay.predictions.map((prediction) => [prediction.predictionId, prediction] as const));
+      for (const prediction of replay.predictions) {
+        if (!Number.isSafeInteger(prediction.predictedAt) || prediction.predictedAt > recoveryNow) {
+          throw new Error("durable calibration prediction chronology is invalid");
+        }
+      }
+      for (const outcome of replay.outcomes) {
+        if (!Number.isSafeInteger(outcome.resolvedAt) || outcome.resolvedAt > recoveryNow) {
+          throw new Error("durable calibration outcome chronology is invalid");
+        }
+      }
       for (const expiry of replay.expiredPending) {
         const prediction = predictionsById.get(expiry.predictionId);
         if (prediction == null) throw new Error("durable calibration expiry prediction is missing");
         if (expiry.predictionContentHash.toLowerCase() !== prediction.contentHash.toLowerCase()) throw new Error("durable calibration expiry linkage mismatch");
-        if (!Number.isSafeInteger(expiry.expiredAt) || expiry.expiredAt <= safeLatestAllowed(prediction, this.graceMs)) {
+        if (!Number.isSafeInteger(expiry.expiredAt) || expiry.expiredAt > recoveryNow || expiry.expiredAt <= safeLatestAllowed(prediction, this.graceMs)) {
           throw new Error("durable calibration expiry chronology is invalid");
         }
       }
