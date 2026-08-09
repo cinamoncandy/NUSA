@@ -25,6 +25,8 @@ const credentialCases = [
   ["token-char-scheme", "Authorization: X+Y 0123456789abcdef0123456789abcdef\n"],
   ["numeric-leading-scheme", "Authorization: 9Auth 0123456789abcdef0123456789abcdef\n"],
   ["quoted-json", `${JSON.stringify({ Authorization: "Basic dXNlcjpwYXNzd29yZA==" })}\n`],
+  ["quoted-null-string", `${JSON.stringify({ Authorization: "null" })}\n`],
+  ["quoted-undefined-string", 'Authorization: "undefined"\n'],
   ["bracket-assignment", 'headers["Authorization"] = "Basic dXNlcjpwYXNzd29yZA==";\n'],
   ["dot-property", 'headers.Authorization = "Basic dXNlcjpwYXNzd29yZA==";\n'],
   ["nested-dot-property", 'request.headers.Authorization = "Bearer abc";\n'],
