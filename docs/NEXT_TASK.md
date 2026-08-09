@@ -151,32 +151,28 @@ what the numbers say, and the computed pattern is surfaced only as
 `syntheticPatternObserved`. Only synthetic fixtures have been run; no production
 strategy or symbol changed.
 
-### WO-0031: Strategy Research Scorecard
+### WO-0031: canonical strategy research promotion architecture
 
-`scripts/lib/strategy-research-scorecard.js` binds the WO-0025--WO-0030 evidence classes through immutable linkage tuples and canonical payload hashes. It is read-only and zero-authority: it does not rerun research, modify strategies, place orders, or allow production mutation.
+WO-0031 has one canonical research-promotion authority.
 
-### WO-0031: strategy research promotion gate (parallel second layer)
+`scripts/lib/strategy-research-evidence-manifest.js` owns evidence integrity, provenance,
+and immutable linkage. It does not produce a `researchDecision`.
 
-**Two WO-0031 layers now exist on this branch and neither has been removed.** The
-evidence-seal layer above and the promotion gate described here were written in parallel,
-use different request shapes, and do not import each other. Consolidating onto one is an
-open owner decision.
+`scripts/lib/strategy-research-promotion-gate-runner.js` owns the only research-promotion
+`researchDecision`; `scripts/lib/strategy-research-promotion-gate-verifier.js`
+independently re-derives that decision without delegating the deciding logic back to the
+runner.
 
-`scripts/lib/strategy-research-evidence-manifest.js`,
-`scripts/lib/strategy-research-promotion-gate-runner.js`,
-`scripts/lib/strategy-research-promotion-gate-verifier.js`, and
-`scripts/run-strategy-research-promotion-gate.js` consolidate the same eight evidence
-classes into ten scored dimensions and one gate decision. It **reads declared evidence and
-never recomputes or rewrites any research result**. Three rules are enforced in code
-rather than left as caveats: there is no single numeric total score (a weighted total would
-let a data-integrity failure be averaged away), `executionStatus` and `researchDecision`
-are separate fields, and synthetic evidence can never promote. D-008/D-009 have no evidence
-entry of their own and inherit the worst trust of the analyses they read, which closed a
-hole where a synthetic benchmark comparison escaped the synthetic downgrade. A D-010
-failure — a discovered live-trading capability, a failing kill switch, or non-atomic
-persistence — is a hard stop that forces `INVALID`, not a hold. The verifier does not call
-the runner's dimension evaluators or its decision helper; it re-derives the gate outcome,
-so recomputing a hash over tampered content does not get past it. See
+`scripts/lib/strategy-research-scorecard.js` remains a compatibility/readiness and
+provenance surface. It is read-only and zero-authority and must not emit, own, or imply an
+independent research-promotion decision.
+
+The gate reads declared evidence and never recomputes or rewrites research results. There
+is no single numeric total score that can average away an integrity or safety failure,
+`executionStatus` and `researchDecision` remain separate, and synthetic or incomplete
+evidence can never promote. D-008/D-009 inherit the worst trust of the analyses they read.
+A D-010 failure is a hard stop, and mandatory owner review remains required before any
+promotion beyond the documented PAPER boundary. See
 `docs/research/strategy-research-promotion-gate-contract.md`.
 
 **Applied to this repository's actual state, the decision is `INSUFFICIENT_EVIDENCE`**
