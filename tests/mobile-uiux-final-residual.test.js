@@ -19,15 +19,19 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(app, /: aiInsightAvailable\s*\? \{ title: "최신 AI 분석 확인"/s);
 });
 
-test("AI confidence is presented as an uncalibrated model score, not trusted probability", () => {
+test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  for (const source of [app, ai]) {
-    assert.match(source, /모델 점수 \(미보정\)/);
-    assert.match(source, /보정 상태/);
-    assert.doesNotMatch(source, /<DataRow label="신뢰도"/);
-  }
-  assert.match(ai, /검증된 확률이나 성과 보장을 의미하지 않습니다/);
+  assert.match(app, /<AiView/);
+  assert.match(ai, /원시 모델 확률 \(미보정\)/);
+  assert.match(ai, /검증 신뢰도/);
+  assert.match(ai, /보정 확률/);
+  assert.match(ai, /보정 상태/);
+  assert.doesNotMatch(ai, /<DataRow label="신뢰도"/);
+  assert.doesNotMatch(ai, /모델 점수 \(미보정\)/);
+  assert.match(ai, /원시 모델 확률은 미보정 모델 출력/);
+  assert.match(ai, /검증된 성공 확률이나 성과 보장이 아닙니다/);
+  assert.match(ai, /CALIBRATED일 때만 별도의 검증 신뢰도/);
 });
 
 test("Residual polish preserves read-only and zero-authority product boundaries", () => {
