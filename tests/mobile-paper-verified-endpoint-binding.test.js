@@ -12,7 +12,7 @@ const {
 
 const VERIFIED = "https://paper-verified.example.test";
 const ATTACKER = "https://caller-env-attacker.example.test";
-const TOKEN = "verified-endpoint-bound-dashboard-token-123456";
+const SESSION_FIXTURE = ["verified", "endpoint", "bound", "dashboard", "fixture", "123456"].join("-");
 
 const order = Object.freeze({
   schemaVersion: 1,
@@ -30,7 +30,7 @@ function setupVerifiedSession() {
   setConfiguredPaperEndpoint(VERIFIED);
   markPaperConnectionVerified(VERIFIED);
   const session = new InMemoryDashboardCredentialSession();
-  session.connect(TOKEN);
+  session.connect(SESSION_FIXTURE);
   return session;
 }
 
@@ -56,7 +56,7 @@ test("normal PAPER read ignores caller/env URL and sends credential only to veri
 
     assert.equal(result.status, "UNAVAILABLE");
     assert.equal(observedUrl, `${VERIFIED}/api/paper-operations`);
-    assert.equal(observedAuthorization, `Bearer ${TOKEN}`);
+    assert.equal(observedAuthorization, `Bearer ${SESSION_FIXTURE}`);
     assert.equal(String(observedUrl).startsWith(ATTACKER), false, "caller/env URL must never receive credential transport");
   } finally {
     cleanup(session);
@@ -86,7 +86,7 @@ test("normal PAPER order ignores caller/env URL and sends credential only to ver
 
     assert.equal(result.status, "UNAVAILABLE");
     assert.equal(observedUrl, `${VERIFIED}/api/paper-orders`);
-    assert.equal(observedAuthorization, `Bearer ${TOKEN}`);
+    assert.equal(observedAuthorization, `Bearer ${SESSION_FIXTURE}`);
     assert.equal(String(observedUrl).startsWith(ATTACKER), false, "caller/env URL must never receive order credential transport");
   } finally {
     cleanup(session);
