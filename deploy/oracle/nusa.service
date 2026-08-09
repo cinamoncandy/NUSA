@@ -1,0 +1,23 @@
+[Unit]
+Description=NUSA Cloud Paper Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa/current
+EnvironmentFile=/etc/nusa/cloud-runtime.env
+ExecStart=/usr/bin/node /opt/nusa/current/dist/apps/cloud/src/runtime.js
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nusa /var/backups/nusa
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

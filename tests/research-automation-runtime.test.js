@@ -114,6 +114,6 @@ test("cloud market-data wiring invokes the research-only hook and never grants L
   let onTicker; let stopped = false; let calls = 0;
   const automation = { recover: () => ({ status: "READY", snapshot: null, reasons: [] }), onMarketData(tick) { assert.equal(tick.market, "KRW-BTC"); calls += 1; } };
   const factory = (markets, callback) => { assert.deepEqual(markets, ["KRW-BTC"]); onTicker = callback; return { subscribe() {}, start() {}, stop() { stopped = true; } }; };
-  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: "41929", NUSA_CLOUD_DASHBOARD_TOKEN: "test", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" }, provider, undefined, factory, undefined, undefined, undefined, undefined, undefined, automation);
+  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: "41929", NUSA_CLOUD_DASHBOARD_TOKEN: "research-runtime-test-token-at-least-32-bytes", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" }, provider, undefined, factory, undefined, undefined, undefined, undefined, undefined, automation);
   try { onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, signed_change_rate: 0.01, acc_trade_price_24h: 1000, trade_timestamp: Date.now() }); assert.equal(calls, 1); assert.equal(automation.liveAuthority, undefined); } finally { await handle.stop(); assert.equal(stopped, true); }
 });

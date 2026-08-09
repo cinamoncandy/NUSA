@@ -51,13 +51,15 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   }
 
   const token = env[TOKEN_ENV];
-  if (token === undefined || token.trim().length === 0) {
-    // There is no default that accepts any token -- an unset secret must refuse to start, not
-    // fall back to "accept everything" or "accept nothing silently while reporting healthy".
-    throw new Error(`${TOKEN_ENV} is required -- there is no default that accepts any token`);
+  if (token === undefined || token.trim().length === 0 || Buffer.byteLength(token, "utf8") < 32) {
+    // Oracle operations require a high-entropy dashboard secret. There is no permissive default.
+    throw new Error(`${TOKEN_ENV} is required and must contain at least 32 UTF-8 bytes`);
   }
 
   const host = env[HOST_ENV]?.trim();
+  if (host !== undefined && host !== "" && host !== "127.0.0.1" && host.toLowerCase() !== "localhost") {
+    throw new Error(`${HOST_ENV} must be 127.0.0.1 or localhost`);
+  }
   const paperInitialCapitalRaw = env[PAPER_INITIAL_CAPITAL_ENV]?.trim();
   const paperInitialCapitalKrw = paperInitialCapitalRaw === undefined || paperInitialCapitalRaw === "" ? undefined : Number(paperInitialCapitalRaw);
   if (paperInitialCapitalKrw !== undefined && (!Number.isFinite(paperInitialCapitalKrw) || paperInitialCapitalKrw <= 0)) {
@@ -87,7 +89,7 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
  * the true secret's length through which branch runs.
  */
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
-  if (sharedSecret.trim().length === 0) throw new Error("shared secret must not be empty");
+  if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
   const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
   return Object.freeze({
