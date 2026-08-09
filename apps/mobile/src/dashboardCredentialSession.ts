@@ -4,8 +4,8 @@ const MAX_TOKEN_LENGTH = 4096;
 
 /**
  * Process-memory-only credential boundary for the single personal operator session.
- * Instances intentionally share one in-memory token so Settings, dashboard reads, and PAPER submit
- * use the same ephemeral credential without writing it to AsyncStorage or application settings.
+ * Instances intentionally share one ephemeral token across Settings, dashboard reads, and PAPER submit.
+ * No persistence adapter or application setting receives the credential.
  */
 export class InMemoryDashboardCredentialSession {
   private static token: string | null = null;
