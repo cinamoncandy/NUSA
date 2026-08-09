@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { validateDisasterRecoveryRestore } = require("./validate-disaster-recovery-restore.js");
+const { redactSecretText, scanSecretText } = require("./recovery-secret-safety.js");
 
 const root = path.resolve(__dirname, "..");
 const MAX_FILES = 200;
@@ -66,12 +67,7 @@ function walk(input) {
   return files;
 }
 
-function redact(text) {
-  return text
-    .replace(/(authorization\s*[:=]\s*)(bearer\s+)?[^\s,"'}]+/gi, "$1[REDACTED]")
-    .replace(/((?:secret|token|password|credential|api[_-]?key|private[_-]?key)\s*["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi, "$1[REDACTED]")
-    .replace(/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)/g, "$1\n[REDACTED]\n$2");
-}
+const redact = (value) => redactSecretText(value);
 
 function validateRuntimeDiagnostics(input) {
   if (!input) return undefined;
@@ -132,6 +128,8 @@ function generateBundle(options) {
       try { content = fs.readFileSync(file, "utf8"); }
       catch { throw new Error(`diagnostics source must be UTF-8 text: ${relative}`); }
       const safe = redact(content);
+      const findings = scanSecretText(safe);
+      if (findings.length > 0) throw new Error(`diagnostics post-redaction secret scan failed: ${relative}:${[...new Set(findings.map((item) => item.rule))].join(",")}`);
       const bytes = Buffer.from(safe, "utf8");
       totalBytes += bytes.length;
       if (totalBytes > MAX_FILES * MAX_BYTES) throw new Error("diagnostics aggregate size cap exceeded");
@@ -148,6 +146,7 @@ function generateBundle(options) {
       evidenceMutationAllowed: false,
       secretMaterialIncluded: false,
       redactionEnabled: true,
+      contentSecretScan: "PASS",
       disasterRecoveryContract: "PASS",
       runtimeDiagnosticsValidation: runtimeInput ? "PASS" : "NOT_REQUESTED",
       releaseContract,
@@ -155,7 +154,9 @@ function generateBundle(options) {
       totalBytes,
       entries
     });
-    fs.writeFileSync(path.join(output, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    const serializedManifest = `${JSON.stringify(manifest, null, 2)}\n`;
+    if (scanSecretText(serializedManifest).length > 0) throw new Error("diagnostics manifest secret scan failed");
+    fs.writeFileSync(path.join(output, "manifest.json"), serializedManifest, { mode: 0o600, flag: "wx" });
     return manifest;
   } catch (error) {
     fs.rmSync(output, { recursive: true, force: true });
