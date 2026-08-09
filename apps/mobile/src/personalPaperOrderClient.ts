@@ -51,17 +51,21 @@ export async function submitPersonalPaperOrder(options: PersonalPaperOrderClient
 
   const token = await options.credentialProvider();
   if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  const requestToken = token.trim();
   const endpoint = new URL(`${configured}/api/paper-orders`).href;
   const controller = new AbortController(); let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const operation = (async () => {
-      const response = await (options.request ?? fetch)(endpoint, { method: "POST", redirect: "error", signal: controller.signal, headers: { authorization: `Bearer ${token.trim()}`, accept: "application/json", "content-type": "application/json", "idempotency-key": validated.idempotencyKey }, body: JSON.stringify(validated) });
+      const response = await (options.request ?? fetch)(endpoint, { method: "POST", redirect: "error", signal: controller.signal, headers: { authorization: `Bearer ${requestToken}`, accept: "application/json", "content-type": "application/json", "idempotency-key": validated.idempotencyKey }, body: JSON.stringify(validated) });
       if (response.redirected === true) throw new Error("PAPER order redirect is prohibited.");
       if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER order final endpoint changed.");
       const payload: unknown = await response.json().catch(() => null); return { response, payload };
     })();
     const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { controller.abort(); reject(new Error("PAPER order request timed out.")); }, timeoutMs); });
     const { response, payload } = await Promise.race([operation, timeout]);
+    const currentToken = await options.credentialProvider();
+    const connectionStillCurrent = getConfiguredPaperEndpoint() === configured && isPaperConnectionVerified(configured) && currentToken != null && currentToken.trim() === requestToken;
+    if (!connectionStillCurrent) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the order request was in flight." });
     if (!response.ok) { const reason = payload != null && typeof payload === "object" && "error" in payload ? String((payload as { readonly error?: unknown }).error ?? "") : ""; return Object.freeze({ status: "UNAVAILABLE", reason: reason || `PAPER order unavailable (${response.status}).` }); }
     return Object.freeze({ status: "READY", result: validatePersonalPaperOrderCommandResult(payload as PersonalPaperOrderCommandResult, validated, Date.now()) });
   } catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER order connection is unavailable." }); }
