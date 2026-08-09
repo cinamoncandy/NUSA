@@ -112,6 +112,25 @@ test("cloud server rejects non-localhost bind attempts", () => {
   }), /must bind to localhost/);
 });
 
+test("cloud server exposes dashboard only on the explicit route and rejects authenticated unknown paths", async () => {
+  const handle = startCloudDashboardServer({
+    port: 41996,
+    tokenVerifier: createSharedSecretTokenVerifier(token),
+    loadDashboard: () => ({ ok: true })
+  });
+  try {
+    const headers = { authorization: `Bearer ${token}` };
+    const dashboard = await request(handle.port, "/api/dashboard", headers);
+    assert.equal(dashboard.status, 200);
+    assert.deepEqual(JSON.parse(dashboard.body), { ok: true });
+    const unknown = await request(handle.port, "/unexpected", headers);
+    assert.equal(unknown.status, 404);
+    assert.deepEqual(JSON.parse(unknown.body), { error: "NOT_FOUND" });
+  } finally {
+    await handle.stop();
+  }
+});
+
 test("systemd template remains non-root and least-privilege", () => {
   const unit = fs.readFileSync("deploy/oracle/nusa.service", "utf8");
   for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "PrivateTmp=true", "ProtectSystem=strict", "ProtectHome=true", "Restart=on-failure"]) {
