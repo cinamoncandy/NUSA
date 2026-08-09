@@ -7,6 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { validateDisasterRecoveryRestore } = require("./validate-disaster-recovery-restore.js");
+const { assertSecretFree } = require("./recovery-secret-safety.js");
 
 const SCHEMA_VERSION = 2;
 const CATEGORIES = new Set(["CONFIG", "EVIDENCE", "LOG", "DATABASE_SNAPSHOT"]);
@@ -165,13 +166,13 @@ function createBackup(args) {
           continue;
         }
         assertNoSymlink(file, source);
+        const bytes = fs.readFileSync(file);
+        assertSecretFree(bytes, `recovery source ${category}/${relative}`);
         const outputRelative = `${category}/${crypto.createHash("sha256").update(source).digest("hex").slice(0, 12)}/${relative}`;
         const output = path.join(snapshot, ...outputRelative.split("/"));
         fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
-        fs.copyFileSync(file, output, fs.constants.COPYFILE_EXCL);
-        fs.chmodSync(output, 0o600);
-        const sizeBytes = fs.statSync(output).size;
-        entries.push(Object.freeze({ category, path: outputRelative, sizeBytes, sha256: sha256File(output) }));
+        fs.writeFileSync(output, bytes, { mode: 0o600, flag: "wx" });
+        entries.push(Object.freeze({ category, path: outputRelative, sizeBytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex") }));
       }
     }
     entries.sort((a, b) => a.path.localeCompare(b.path));
@@ -186,6 +187,7 @@ function createBackup(args) {
       productionMutationAllowed: false,
       evidenceMutationAllowed: false,
       secretMaterialIncluded: false,
+      contentSecretScan: "PASS",
       secretExcludedCount,
       releaseContract: releaseContract(args["release-root"]),
       entries
@@ -204,7 +206,7 @@ function readAndVerify(snapshotPath) {
   const manifestPath = path.join(snapshot, "manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   if (manifest.schemaVersion !== SCHEMA_VERSION) throw new Error(`unsupported recovery manifest schema: ${manifest.schemaVersion}`);
-  if (manifest.destructiveRestoreAllowed !== false || manifest.productionMutationAllowed !== false || manifest.evidenceMutationAllowed !== false || manifest.secretMaterialIncluded !== false) {
+  if (manifest.destructiveRestoreAllowed !== false || manifest.productionMutationAllowed !== false || manifest.evidenceMutationAllowed !== false || manifest.secretMaterialIncluded !== false || manifest.contentSecretScan !== "PASS") {
     throw new Error("recovery manifest safety invariants are invalid");
   }
   if (!Array.isArray(manifest.entries) || manifest.entries.length === 0) throw new Error("recovery manifest entries are required");
@@ -219,6 +221,7 @@ function readAndVerify(snapshotPath) {
     if (!isInside(snapshot, file) || !fs.existsSync(file) || !fs.lstatSync(file).isFile()) throw new Error(`missing recovery artifact: ${entry.path}`);
     if (fs.statSync(file).size !== entry.sizeBytes) throw new Error(`size mismatch: ${entry.path}`);
     if (sha256File(file) !== entry.sha256) throw new Error(`checksum mismatch: ${entry.path}`);
+    assertSecretFree(fs.readFileSync(file), `recovery artifact ${entry.path}`);
   }
   return Object.freeze({ snapshot, manifest, manifestPath, manifestSha256: sha256File(manifestPath) });
 }
