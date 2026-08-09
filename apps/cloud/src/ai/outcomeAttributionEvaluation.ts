@@ -312,11 +312,12 @@ export function zeroAiAttributionEvaluationResources(latencyMs = 0): AiAttributi
 
 /** Captures truthful provider accounting from an existing WO-AI-006 snapshot. */
 export function aiAttributionEvaluationResourcesFromSnapshot(snapshot: AiInferenceResourceSnapshot): AiAttributionEvaluationResources {
+  if (snapshot.attempts > 0 && snapshot.actualTotalTokens == null) throw new Error("attribution token accounting is unavailable for admitted attempts");
   const failures = snapshot.attemptsEvidence.filter((attempt) => attempt.result === "FAILED").length;
   return Object.freeze({
     providerCalls: snapshot.modelCalls,
     attempts: snapshot.attempts,
-    totalTokens: snapshot.actualTotalTokens ?? 0,
+    totalTokens: snapshot.attempts === 0 ? 0 : snapshot.actualTotalTokens!,
     latencyMs: snapshot.elapsedMs,
     failureRate: snapshot.attempts === 0 ? 0 : failures / snapshot.attempts
   });
