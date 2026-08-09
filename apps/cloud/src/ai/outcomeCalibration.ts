@@ -36,6 +36,11 @@ const text = (value: string, field: string): string => {
   return normalized;
 };
 
+const sha256 = (value: string, field: string): string => {
+  if (!isAiSha256(value)) throw new Error(`${field} must be sha256`);
+  return value.toLowerCase();
+};
+
 const probability = (value: number, field = "probability"): number => {
   if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${field} must be finite and within [0,1]`);
   return value;
@@ -56,7 +61,7 @@ const normalizeCohort = (cohort: AiCalibrationCohortKey): AiCalibrationCohortKey
   modelVersionId: text(cohort.modelVersionId, "modelVersionId"),
   promptArtifactId: text(cohort.promptArtifactId, "promptArtifactId"),
   promptArtifactVersion: text(cohort.promptArtifactVersion, "promptArtifactVersion"),
-  promptArtifactDigest: isAiSha256(cohort.promptArtifactDigest) ? cohort.promptArtifactDigest.toLowerCase() : (() => { throw new Error("promptArtifactDigest must be sha256"); })(),
+  promptArtifactDigest: sha256(cohort.promptArtifactDigest, "promptArtifactDigest"),
   outcomeDefinitionId: text(cohort.outcomeDefinitionId, "outcomeDefinitionId"),
   outcomeDefinitionVersion: text(cohort.outcomeDefinitionVersion, "outcomeDefinitionVersion")
 });
@@ -79,6 +84,7 @@ const outcomeIdentity = (outcome: OutcomeInput): Readonly<Record<string, unknown
   if (evidenceReferences.length === 0) throw new Error("outcome evidenceReferences are required");
   return {
     predictionId: text(outcome.predictionId, "predictionId"),
+    predictionContentHash: sha256(outcome.predictionContentHash, "predictionContentHash"),
     outcomeDefinitionId: text(outcome.outcomeDefinitionId, "outcomeDefinitionId"),
     outcomeDefinitionVersion: text(outcome.outcomeDefinitionVersion, "outcomeDefinitionVersion"),
     outcome: outcome.outcome,
@@ -162,6 +168,7 @@ export class OutcomeCalibrationLedger {
     if (!verifyCalibrationOutcome(outcome)) throw new Error("calibration outcome hash mismatch");
     const prediction = this.predictions.get(outcome.predictionId);
     if (prediction == null) throw new Error("calibration prediction is missing");
+    if (outcome.predictionContentHash.toLowerCase() !== prediction.contentHash.toLowerCase()) throw new Error("calibration outcome prediction hash mismatch");
     if (prediction.outcomeDefinitionId !== outcome.outcomeDefinitionId || prediction.outcomeDefinitionVersion !== outcome.outcomeDefinitionVersion) throw new Error("calibration outcome identity mismatch");
     if (prediction.provenance !== outcome.provenance) throw new Error("calibration provenance mismatch");
     if (outcome.resolvedAt < prediction.predictedAt + prediction.horizonMs) throw new Error("calibration outcome resolved before horizon");
