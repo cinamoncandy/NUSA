@@ -77,7 +77,7 @@ test("/health responds without authentication and reports liveness only", async 
   }, 41801);
 });
 
-test("a non-GET request to /health is not treated as the health check -- it still goes through the real handler", async () => {
+test("a non-GET request to /health is rejected as method-not-allowed", async () => {
   await withServer(async (handle) => {
     const post = await new Promise((resolve, reject) => {
       const req = http.request({ host: "127.0.0.1", port: handle.port, path: "/health", method: "POST" }, (res) => {
@@ -87,20 +87,21 @@ test("a non-GET request to /health is not treated as the health check -- it stil
       req.end();
     });
     assert.equal(post.status, 405);
+    assert.equal(JSON.parse(post.body).error, "METHOD_NOT_ALLOWED");
   }, 41802);
 });
 
-test("an unauthenticated request is rejected over a real socket, not just in-process", async () => {
+test("an unauthenticated dashboard request is rejected over a real socket, not just in-process", async () => {
   await withServer(async (handle) => {
-    const res = await request(handle.port, "/");
+    const res = await request(handle.port, "/api/dashboard");
     assert.equal(res.status, 401);
     assert.equal(JSON.parse(res.body).error, "UNAUTHORIZED");
   });
 });
 
-test("a valid bearer token receives the dashboard payload with no-store caching", async () => {
+test("a valid bearer token receives the explicit dashboard payload with no-store caching", async () => {
   await withServer(async (handle) => {
-    const res = await request(handle.port, "/", { authorization: `Bearer ${VALID_TOKEN}` });
+    const res = await request(handle.port, "/api/dashboard", { authorization: `Bearer ${VALID_TOKEN}` });
     assert.equal(res.status, 200);
     assert.equal(res.headers["cache-control"], "no-store, max-age=0");
     const body = JSON.parse(res.body);
@@ -125,13 +126,13 @@ test("the personal PAPER operations endpoint shares auth and exposes only the re
   }, 41803);
 });
 
-test("a wrong-scope or invalid token is rejected, and a non-GET method is rejected", async () => {
+test("a wrong-scope or invalid token is rejected, and a non-GET dashboard method is rejected", async () => {
   await withServer(async (handle) => {
-    const bad = await request(handle.port, "/", { authorization: "Bearer not-a-real-token" });
+    const bad = await request(handle.port, "/api/dashboard", { authorization: "Bearer not-a-real-token" });
     assert.equal(bad.status, 401);
 
     const post = await new Promise((resolve, reject) => {
-      const req = http.request({ host: "127.0.0.1", port: handle.port, path: "/", method: "POST", headers: { authorization: `Bearer ${VALID_TOKEN}` } }, (res) => {
+      const req = http.request({ host: "127.0.0.1", port: handle.port, path: "/api/dashboard", method: "POST", headers: { authorization: `Bearer ${VALID_TOKEN}` } }, (res) => {
         let body = ""; res.on("data", (c) => body += c); res.on("end", () => resolve({ status: res.statusCode, body }));
       });
       req.on("error", reject);
@@ -139,6 +140,14 @@ test("a wrong-scope or invalid token is rejected, and a non-GET method is reject
     });
     assert.equal(post.status, 405);
   });
+});
+
+test("unknown paths stay closed even with a valid dashboard token", async () => {
+  await withServer(async (handle) => {
+    const res = await request(handle.port, "/", { authorization: `Bearer ${VALID_TOKEN}` });
+    assert.equal(res.status, 404);
+    assert.equal(JSON.parse(res.body).error, "NOT_FOUND");
+  }, 41804);
 });
 
 test("the server can be stopped and the port released", async () => {

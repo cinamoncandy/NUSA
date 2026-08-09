@@ -9,7 +9,7 @@ import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
-import { startCloudDashboardServer, type CloudDashboardServerHandle } from "./server";
+import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
@@ -114,6 +114,34 @@ function buildReadOnlyOrders(paperSnapshot: ReturnType<PaperTradingExecutionLoop
       .filter((fill) => fill.orderId === order.id)
       .map((fill) => ({ id: fill.id, quantity: fill.quantity, price: fill.price, filledAt: new Date(fill.filledAt).toISOString() }))
   }));
+}
+
+function buildCloudRuntimeReadiness(
+  durableRepository: CloudDashboardSnapshotRepository | undefined,
+  effectiveProvider: CloudDashboardStateProvider
+): CloudReadinessSnapshot {
+  const failed = (): CloudReadinessSnapshot => Object.freeze({
+    ok: false,
+    checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false })
+  });
+  if (!(durableRepository instanceof SqliteCloudDashboardSnapshotRepository)) return failed();
+  try {
+    const db = durableRepository.database();
+    const quickCheck = db.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+    const database = quickCheck != null && Object.values(quickCheck).includes("ok");
+    const latestMigration = db.connection.prepare("SELECT id FROM schema_migrations ORDER BY id DESC LIMIT 1").get() as Record<string, unknown> | undefined;
+    const migrations = db.migrationResult.currentVersion !== undefined
+      && String(latestMigration?.id ?? "") === db.migrationResult.currentVersion;
+    const dashboardState = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
+    const persistedSnapshot = durableRepository.loadLatest();
+    const dashboardPersistence = dashboardState != null && persistedSnapshot != null;
+    const corrupted = db.connection.prepare("SELECT COUNT(*) AS count FROM cloud_dashboard_snapshots WHERE status = 'CORRUPTED'").get() as Record<string, unknown> | undefined;
+    const runtimeRecovery = persistedSnapshot != null && Number(corrupted?.count ?? 0) === 0;
+    const checks = Object.freeze({ database, migrations, dashboardPersistence, runtimeRecovery });
+    return Object.freeze({ ok: Object.values(checks).every(Boolean), checks });
+  } catch {
+    return failed();
+  }
 }
 
 export function startCloudRuntime(
@@ -262,6 +290,7 @@ export function startCloudRuntime(
     port: config.port,
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
+    readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => {
       const input = effectiveProvider.read(principal);
       if (input === undefined) throw new Error("dashboard state is not ready");

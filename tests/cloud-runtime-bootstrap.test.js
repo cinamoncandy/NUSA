@@ -80,7 +80,7 @@ test("the real bootstrap process fails closed and exits non-zero when required e
 // test.
 test("the real bootstrap process starts, serves /health without auth, and enforces the configured token", async () => {
   const port = 41831;
-  const authToken = "runtime-bootstrap-test-token";
+  const authToken = "runtime-bootstrap-test-token-32bytes-min";
   const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   try {
     await waitForListening(child, port, STARTUP_TIMEOUT_MS);
@@ -89,14 +89,14 @@ test("the real bootstrap process starts, serves /health without auth, and enforc
     assert.equal(health.status, 200);
     assert.equal(JSON.parse(health.body).ok, true);
 
-    const unauthenticated = await get(port, "/");
+    const unauthenticated = await get(port, "/api/dashboard");
     assert.equal(unauthenticated.status, 401);
 
-    const wrongToken = await get(port, "/", { authorization: "Bearer not-the-token" });
+    const wrongToken = await get(port, "/api/dashboard", { authorization: "Bearer not-the-token" });
     assert.equal(wrongToken.status, 401);
 
     // The token is accepted and startup hydrates an explicit safe PAPER dashboard state.
-    const rightToken = await get(port, "/", { authorization: `Bearer ${authToken}` });
+    const rightToken = await get(port, "/api/dashboard", { authorization: `Bearer ${authToken}` });
     assert.equal(rightToken.status, 200);
     const dashboard = JSON.parse(rightToken.body);
     assert.equal(dashboard.mode, "PAPER");
@@ -123,7 +123,7 @@ test("SIGTERM triggers a clean, graceful shutdown (process.exit(0), not signal-k
 
 test("SIGINT also triggers a clean shutdown", { skip: posixOnly }, async () => {
   const port = 41832;
-  const authToken = "runtime-bootstrap-sigint-token";
+  const authToken = "runtime-bootstrap-sigint-token-32bytes-min";
   const child = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(child, port, STARTUP_TIMEOUT_MS);
   child.kill("SIGINT");
@@ -134,7 +134,7 @@ test("SIGINT also triggers a clean shutdown", { skip: posixOnly }, async () => {
 
 test("after an explicit shutdown, the port is actually released (not left bound by a lingering handle)", async () => {
   const port = 41833;
-  const authToken = "runtime-bootstrap-release-token";
+  const authToken = "runtime-bootstrap-release-token-32bytes-min";
   const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
   await waitForListening(first, port, STARTUP_TIMEOUT_MS);
   first.kill("SIGTERM");
@@ -148,5 +148,23 @@ test("after an explicit shutdown, the port is actually released (not left bound 
   } finally {
     second.kill("SIGTERM");
     await waitForExit(second, SHUTDOWN_TIMEOUT_MS);
+  }
+});
+
+test("a second runtime on an occupied dashboard port fails closed instead of running without its control surface", async () => {
+  const port = 41835;
+  const authToken = "runtime-bootstrap-port-conflict-token";
+  const first = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
+  await waitForListening(first, port, STARTUP_TIMEOUT_MS);
+  const second = spawnRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: authToken });
+  try {
+    const { code } = await waitForExit(second, STARTUP_TIMEOUT_MS);
+    assert.notEqual(code, 0, "bind failure must terminate the duplicate runtime");
+    const health = await get(port, "/health");
+    assert.equal(health.status, 200, "the original runtime must remain the process serving the occupied port");
+  } finally {
+    if (second.exitCode === null && second.signalCode === null) second.kill("SIGTERM");
+    first.kill("SIGTERM");
+    await waitForExit(first, SHUTDOWN_TIMEOUT_MS);
   }
 });
