@@ -58,9 +58,9 @@ const correlationId = (req: IncomingMessage): string => {
 };
 
 /**
- * Localhost-by-default read-only dashboard transport. `/api/paper-operations`, `/ready`, and the
- * legacy dashboard projection share the same GET-only Bearer + `dashboard:read` authorization
- * boundary. `/health` is deliberately unauthenticated liveness only.
+ * Localhost-by-default read-only dashboard transport. `/api/dashboard`, `/api/paper-operations`,
+ * and `/ready` share the same GET-only Bearer + `dashboard:read` authorization boundary.
+ * `/health` is deliberately unauthenticated liveness only. Unknown paths fail closed with 404.
  *
  * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
  */
@@ -114,17 +114,23 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      const result = req.url === "/api/paper-operations"
-        ? handlePersonalPaperOperationsHttp(dashboardRequest, {
-            tokenVerifier: options.tokenVerifier,
-            loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); })
-          })
-        : handleMobileDashboardHttp(dashboardRequest, {
-            tokenVerifier: options.tokenVerifier,
-            loadDashboard: options.loadDashboard
-          });
+      if (req.url === "/api/paper-operations") {
+        write(res, handlePersonalPaperOperationsHttp(dashboardRequest, {
+          tokenVerifier: options.tokenVerifier,
+          loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); })
+        }));
+        return;
+      }
 
-      write(res, result);
+      if (req.url === "/api/dashboard") {
+        write(res, handleMobileDashboardHttp(dashboardRequest, {
+          tokenVerifier: options.tokenVerifier,
+          loadDashboard: options.loadDashboard
+        }));
+        return;
+      }
+
+      write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
     } catch {
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
       if (!res.headersSent) {
