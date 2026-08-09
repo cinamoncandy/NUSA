@@ -115,13 +115,14 @@ function parseImports(source) {
   const patterns = [
     /\bimport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
     /\bexport\s+(type\s+)?[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
-    /\brequire\(\s*["']([^"']+)["']\s*\)/g
+    /\brequire\(\s*["']([^"']+)["']\s*\)/g,
+    /\bimport\s*["']([^"']+)["']/g
   ];
   for (const [index, pattern] of patterns.entries()) {
     for (const match of source.matchAll(pattern)) {
       imports.push({
-        specifier: index === 2 ? match[1] : match[2],
-        typeOnly: index !== 2 && /^\s*(?:import|export)\s+type\b/.test(match[0])
+        specifier: index < 2 ? match[2] : match[1],
+        typeOnly: index < 2 && /^\s*(?:import|export)\s+type\b/.test(match[0])
       });
     }
   }
