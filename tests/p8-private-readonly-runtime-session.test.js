@@ -27,13 +27,7 @@ function seedP0(dbPath, corrupt = false) {
   const db = new SqliteDatabase(dbPath);
   try {
     const p0 = new SqliteP0AlertRepository(db);
-    p0.append({
-      eventId: "p8-open",
-      incidentId: "p8-runtime-incident",
-      type: "OPENED",
-      occurredAt: 100,
-      reason: "P8 read-only projection must fail closed"
-    });
+    p0.append({ eventId: "p8-open", incidentId: "p8-runtime-incident", type: "OPENED", occurredAt: 100, reason: "P8 read-only projection must fail closed" });
     if (corrupt) db.connection.prepare("UPDATE cloud_p0_alert_events SET hash = ? WHERE sequence = 1").run("f".repeat(64));
   } finally { db.close(); }
 }
@@ -62,13 +56,17 @@ test("memory-only dashboard credential session never persists or infers local au
 test("dashboard bearer credential is sent only to a secure or explicitly configured loopback endpoint", async () => {
   let requestCount = 0;
   const credentialProvider = async () => "read-only-dashboard-token-123456";
-  const request = async () => {
-    requestCount += 1;
-    return { ok: false, status: 503 };
-  };
-  const insecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
-  assert.equal(insecure.status, "UNAVAILABLE");
+  const request = async () => { requestCount += 1; return { ok: false, status: 503 }; };
+
+  const unsavedInsecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
+  assert.equal(unsavedInsecure.status, "NOT_CONFIGURED");
   assert.equal(requestCount, 0);
+
+  setConfiguredPaperEndpoint("http://192.168.1.50:41731");
+  const configuredInsecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
+  assert.equal(configuredInsecure.status, "UNAVAILABLE");
+  assert.equal(requestCount, 0, "configured insecure remote HTTP must still refuse the credential");
+  clearPaperConnectionSession();
 
   const secure = await loadPersonalPaperOperations({ baseUrl: "https://nusa.invalid", credentialProvider, request });
   assert.equal(secure.status, "UNAVAILABLE");
@@ -105,22 +103,10 @@ test("cloud runtime exposes one authenticated read-only snapshot with real PAPER
 
 test("multi-position PAPER portfolio projects aggregate totals without corrupting representative position", async () => {
   const token = ["p8", "multi-position", "read-only", "dashboard", "fixture"].join("-");
-  const restoredState = Object.freeze({
-    version: 1,
-    initialCapital: 1000000,
-    cash: 603000,
-    equity: 1043000,
-    realizedPnL: 3000,
-    unrealizedPnL: 40000,
-    positions: Object.freeze([
-      Object.freeze({ market: "KRW-BTC", quantity: 1, averageEntryPrice: 200000, realizedPnL: 1000, unrealizedPnL: 20000, markPrice: 220000 }),
-      Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 2000, unrealizedPnL: 20000, markPrice: 110000 })
-    ]),
-    orders: Object.freeze([]),
-    fills: Object.freeze([]),
-    processedIdempotencyKeys: Object.freeze([]),
-    updatedAt: 1000
-  });
+  const restoredState = Object.freeze({ version: 1, initialCapital: 1000000, cash: 603000, equity: 1043000, realizedPnL: 3000, unrealizedPnL: 40000, positions: Object.freeze([
+    Object.freeze({ market: "KRW-BTC", quantity: 1, averageEntryPrice: 200000, realizedPnL: 1000, unrealizedPnL: 20000, markPrice: 220000 }),
+    Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 2000, unrealizedPnL: 20000, markPrice: 110000 })
+  ]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 1000 });
   const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
   const handle = startCloudRuntime(testEnv(token, 41944), undefined, undefined, undefined, undefined, undefined, paperLoop);
   try {
@@ -144,22 +130,10 @@ test("multi-position PAPER portfolio projects aggregate totals without corruptin
 
 test("closed lexicographic PAPER position cannot hide another open position", async () => {
   const token = ["p8", "closed-first", "representative", "position", "fixture"].join("-");
-  const restoredState = Object.freeze({
-    version: 1,
-    initialCapital: 1000000,
-    cash: 800000,
-    equity: 1020000,
-    realizedPnL: 0,
-    unrealizedPnL: 20000,
-    positions: Object.freeze([
-      Object.freeze({ market: "KRW-BTC", quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: 220000 }),
-      Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 0, unrealizedPnL: 20000, markPrice: 110000 })
-    ]),
-    orders: Object.freeze([]),
-    fills: Object.freeze([]),
-    processedIdempotencyKeys: Object.freeze([]),
-    updatedAt: 1000
-  });
+  const restoredState = Object.freeze({ version: 1, initialCapital: 1000000, cash: 800000, equity: 1020000, realizedPnL: 0, unrealizedPnL: 20000, positions: Object.freeze([
+    Object.freeze({ market: "KRW-BTC", quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: 220000 }),
+    Object.freeze({ market: "KRW-ETH", quantity: 2, averageEntryPrice: 100000, realizedPnL: 0, unrealizedPnL: 20000, markPrice: 110000 })
+  ]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 1000 });
   const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
   const handle = startCloudRuntime(testEnv(token, 41945), undefined, undefined, undefined, undefined, undefined, paperLoop);
   try {
@@ -188,10 +162,7 @@ test("open durable P0 projects Personal PAPER Operations as HALTED", async () =>
     assert.equal(body.readyForPaperOperations, false);
     assert.equal(body.liveAuthority, "NONE");
     assert.equal(body.productionMutationAllowed, false);
-  } finally {
-    await handle.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  } finally { await handle.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", async () => {
@@ -208,10 +179,7 @@ test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", asy
     assert.equal(body.readyForPaperOperations, false);
     assert.equal(body.liveAuthority, "NONE");
     assert.equal(body.productionMutationAllowed, false);
-  } finally {
-    await handle.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  } finally { await handle.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("mobile source keeps read-only snapshot consumption separate from Settings-held credential entry", () => {
