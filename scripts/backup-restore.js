@@ -13,13 +13,34 @@ const SCHEMA_VERSION = 2;
 const CATEGORIES = new Set(["CONFIG", "EVIDENCE", "LOG", "DATABASE_SNAPSHOT"]);
 const FORBIDDEN_NAME = /(^|[._-])(env|secret|token|password|credential|private[-_]?key|api[-_]?key)([._-]|$)|\.(pem|p12|pfx|key)$/i;
 const SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
-const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:authorization|access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
+const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
+const AUTHORIZATION_VALUE = '(?<credential>"[^"\\r\\n]*"|\'[^\'\\r\\n]*\'|[^,}\\]\\r\\n]*)';
+const AUTHORIZATION_TARGET = '(?:[A-Za-z_$][\\w$]*(?:\\s*\\.\\s*[A-Za-z_$][\\w$]*)*\\s*(?:\\.\\s*authorization|\\[\\s*["\\']authorization["\\']\\s*\\])|["\\']?authorization["\\']?)';
+const AUTHORIZATION_ASSIGNMENT = new RegExp(`(?:^|[\\s,{;])${AUTHORIZATION_TARGET}\\s*(?::|=)\\s*${AUTHORIZATION_VALUE}`, "i");
+const AUTHORIZATION_PAIR = new RegExp(`(?:^|[\\[,])\\s*["']authorization["']\\s*,\\s*${AUTHORIZATION_VALUE}`, "i");
+const AUTHORIZATION_SETTER = new RegExp(`\\.\\s*(?:set|append|setRequestHeader)\\s*\\(\\s*["']authorization["']\\s*,\\s*${AUTHORIZATION_VALUE}`, "i");
+
+function authorizationCredential(match) {
+  if (!match) return undefined;
+  let value = String(match.groups?.credential ?? "").trim();
+  const quoted = (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
+  if (quoted && value.length >= 2) value = value.slice(1, -1).trim();
+  if (!value || /^(?:null|undefined)$/i.test(value)) return undefined;
+  return value;
+}
+
+function hasAuthorizationCredential(text) {
+  const normalized = String(text ?? "").replace(/\\(["'])/g, "$1");
+  return [AUTHORIZATION_ASSIGNMENT, AUTHORIZATION_PAIR, AUTHORIZATION_SETTER]
+    .some((expression) => authorizationCredential(expression.exec(normalized)) !== undefined);
+}
 
 function secretFindings(bytes, file) {
   const text = bytes.toString("utf8");
   const normalized = text.replace(/(["'])(authorization|access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)\1\s*:/gi, "$2:");
   const findings = scanText(normalized, file);
   if (SENSITIVE_ASSIGNMENT.test(text)) findings.push({ file, line: 0, rule: "SENSITIVE_ASSIGNMENT" });
+  if (hasAuthorizationCredential(text)) findings.push({ file, line: 0, rule: "AUTHORIZATION_CREDENTIAL" });
   return findings;
 }
 
