@@ -28,6 +28,8 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
