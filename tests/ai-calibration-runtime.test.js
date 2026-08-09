@@ -26,63 +26,34 @@ const waitForRuntime = async (runtime) => {
 };
 
 test("cloud AI runtime records verified predictions and recalculates read-only calibration after verified outcomes", async () => {
-  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, {
-    now: () => 1_000,
-    minimumCadenceMs: 0,
-    maximumResultAgeMs: 10_000,
-    calibration: {
-      outcomeDefinitionId: "next-period-positive",
-      outcomeDefinitionVersion: "1",
-      horizonMs: 100,
-      policy: { minimumSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 }
-    }
-  });
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, { now: () => 1_000, minimumCadenceMs: 0, maximumResultAgeMs: 10_000, calibration: { outcomeDefinitionId: "next-period-positive", outcomeDefinitionVersion: "1", horizonMs: 100, policy: { minimumSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 } } });
   assert.equal(runtime.schedule({ orchestrationRunId: "runtime-1", decisionId: "decision-1", evaluatedAt: 10, evidence: [evidence], evidenceMaterializations: [materialization] }), true);
   await waitForRuntime(runtime);
-
   const prediction = runtime.latestCalibrationPrediction();
   assert.ok(prediction);
-  assert.equal(prediction.providerId, "openai");
-  assert.equal(prediction.modelVersionId, "model-v1");
-  assert.equal(prediction.promptArtifactId, "nusa.ai.strategy_proposer");
-  assert.equal(prediction.promptArtifactVersion, "1.0.0");
-  assert.equal(prediction.rawProbability, 0.8);
-  assert.equal(prediction.provenance, "VERIFIED_RUNTIME");
-
+  assert.equal(prediction.providerId, "openai"); assert.equal(prediction.modelVersionId, "model-v1"); assert.equal(prediction.promptArtifactId, "nusa.ai.strategy_proposer"); assert.equal(prediction.promptArtifactVersion, "1.0.0"); assert.equal(prediction.rawProbability, 0.8); assert.equal(prediction.provenance, "VERIFIED_RUNTIME");
   const before = runtime.calibrationProfile();
-  assert.ok(before);
-  assert.equal(before.status, "INSUFFICIENT_DATA");
-  assert.equal(before.sampleCount, 0);
-  assert.equal(before.effectiveConfidence, 0);
+  assert.ok(before); assert.equal(before.status, "INSUFFICIENT_DATA"); assert.equal(before.sampleCount, 0); assert.equal(before.effectiveConfidence, 0);
   const beforeProjection = runtime.latestProjection();
-  assert.equal(beforeProjection.rawProbability, 0.8);
-  assert.equal(beforeProjection.calibrationStatus, "INSUFFICIENT_DATA");
-  assert.equal(beforeProjection.confidence, 0);
-
-  const resolved = createCalibrationOutcome({ predictionId: prediction.predictionId, outcomeDefinitionId: prediction.outcomeDefinitionId, outcomeDefinitionVersion: prediction.outcomeDefinitionVersion, outcome: true, resolvedAt: prediction.predictedAt + prediction.horizonMs, evidenceReferences: ["verified-outcome:e-1"], provenance: "VERIFIED_RUNTIME" });
+  assert.equal(beforeProjection.rawProbability, 0.8); assert.equal(beforeProjection.calibrationStatus, "INSUFFICIENT_DATA"); assert.equal(beforeProjection.confidence, 0);
+  const resolved = createCalibrationOutcome({ predictionId: prediction.predictionId, predictionContentHash: prediction.contentHash, outcomeDefinitionId: prediction.outcomeDefinitionId, outcomeDefinitionVersion: prediction.outcomeDefinitionVersion, outcome: true, resolvedAt: prediction.predictedAt + prediction.horizonMs, evidenceReferences: ["verified-outcome:e-1"], provenance: "VERIFIED_RUNTIME" });
   runtime.recordCalibrationOutcome(resolved);
   const after = runtime.calibrationProfile();
-  assert.equal(after.status, "CALIBRATED");
-  assert.equal(after.sampleCount, 1);
-  assert.equal(after.calibratedProbability, 1);
-  assert.equal(after.effectiveConfidence, 0.8);
+  assert.equal(after.status, "CALIBRATED"); assert.equal(after.sampleCount, 1); assert.equal(after.calibratedProbability, 1); assert.equal(after.effectiveConfidence, 0.8);
   const afterProjection = runtime.latestProjection();
-  assert.equal(afterProjection.calibrationStatus, "CALIBRATED");
-  assert.equal(afterProjection.rawProbability, 0.8);
-  assert.equal(afterProjection.calibrationSampleCount, 1);
-  assert.equal(afterProjection.confidence, 0, "same-model multi-agent governance remains incomplete, so calibration cannot create trusted decision confidence");
-  assert.equal(afterProjection.liveAuthority, "NONE");
-  assert.equal(afterProjection.productionMutationAllowed, false);
+  assert.equal(afterProjection.calibrationStatus, "CALIBRATED"); assert.equal(afterProjection.rawProbability, 0.8); assert.equal(afterProjection.calibrationSampleCount, 1); assert.equal(afterProjection.confidence, 0, "same-model multi-agent governance remains incomplete, so calibration cannot create trusted decision confidence"); assert.equal(afterProjection.liveAuthority, "NONE"); assert.equal(afterProjection.productionMutationAllowed, false);
 });
 
-test("runtime refuses synthetic-as-real outcomes and invalid calibration configuration", async () => {
+test("runtime refuses detached or synthetic-as-real outcomes and invalid calibration configuration", async () => {
   assert.throws(() => createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, { calibration: { outcomeDefinitionId: "x", outcomeDefinitionVersion: "1", horizonMs: 0 } }), /positive safe integer/);
   const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, provider, { now: () => 1_000, minimumCadenceMs: 0, calibration: { outcomeDefinitionId: "next-period-positive", outcomeDefinitionVersion: "1", horizonMs: 100 } });
   runtime.schedule({ orchestrationRunId: "runtime-2", decisionId: "decision-2", evaluatedAt: 10, evidence: [evidence], evidenceMaterializations: [materialization] });
   await waitForRuntime(runtime);
   const prediction = runtime.latestCalibrationPrediction();
   assert.ok(prediction);
-  const synthetic = createCalibrationOutcome({ predictionId: prediction.predictionId, outcomeDefinitionId: prediction.outcomeDefinitionId, outcomeDefinitionVersion: prediction.outcomeDefinitionVersion, outcome: true, resolvedAt: prediction.predictedAt + prediction.horizonMs, evidenceReferences: ["fixture"], provenance: "SYNTHETIC_TEST" });
+  const detached = createCalibrationOutcome({ predictionId: prediction.predictionId, predictionContentHash: "f".repeat(64), outcomeDefinitionId: prediction.outcomeDefinitionId, outcomeDefinitionVersion: prediction.outcomeDefinitionVersion, outcome: true, resolvedAt: prediction.predictedAt + prediction.horizonMs, evidenceReferences: ["verified-outcome"] , provenance: "VERIFIED_RUNTIME" });
+  assert.throws(() => runtime.recordCalibrationOutcome(detached), /prediction hash mismatch/);
+  const synthetic = createCalibrationOutcome({ predictionId: prediction.predictionId, predictionContentHash: prediction.contentHash, outcomeDefinitionId: prediction.outcomeDefinitionId, outcomeDefinitionVersion: prediction.outcomeDefinitionVersion, outcome: true, resolvedAt: prediction.predictedAt + prediction.horizonMs, evidenceReferences: ["fixture"], provenance: "SYNTHETIC_TEST" });
   assert.throws(() => runtime.recordCalibrationOutcome(synthetic), /provenance mismatch/);
   assert.equal(runtime.calibrationProfile().sampleCount, 0);
 });
