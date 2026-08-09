@@ -47,23 +47,52 @@
     document.getElementById("application-state-action").textContent = item.action;
   }
 
-  function mount(document, windowObject) {
+  function mount(document, windowObject, options = {}) {
+    const loadingTimeoutMs = Number.isSafeInteger(options.loadingTimeoutMs) && options.loadingTimeoutMs > 0
+      ? options.loadingTimeoutMs
+      : 8_000;
+    let loadingTimer;
+    let loadingTimedOut = false;
+
+    const clearLoadingTimer = () => {
+      if (loadingTimer === undefined) return;
+      windowObject.clearTimeout(loadingTimer);
+      loadingTimer = undefined;
+    };
+
     const read = () => {
       const price = document.getElementById("price")?.textContent || "";
       const status = document.getElementById("status")?.textContent || "";
       const strategy = document.getElementById("strategy-status")?.textContent || "";
       const auto = document.getElementById("auto-trade")?.checked === true;
       const decisionState = document.body.dataset.decisionState;
-      const loading = price.includes("대기") && !status.includes("연결됨");
+      const rawLoading = price.includes("대기") && !status.includes("연결됨");
+
+      if (!rawLoading) {
+        loadingTimedOut = false;
+        clearLoadingTimer();
+      }
+
+      const timeoutFallback = rawLoading && loadingTimedOut;
       render(document, resolveState({
-        loading,
+        loading: rawLoading && !loadingTimedOut,
         online: windowObject.navigator?.onLine !== false,
-        connectionStatus: status,
-        hasPrice: !price.includes("대기") && price !== "-" && price !== "",
+        // A timed-out bootstrap has no verified connection state. Dropping the placeholder
+        // is safer than fabricating CONNECTED/OFFLINE from text such as "연결 상태 확인 중".
+        connectionStatus: timeoutFallback ? "" : status,
+        hasPrice: timeoutFallback ? false : !price.includes("대기") && price !== "-" && price !== "",
         strategyStatus: strategy,
         autoTradeEnabled: auto,
         decisionState
       }));
+
+      if (rawLoading && !loadingTimedOut && loadingTimer === undefined) {
+        loadingTimer = windowObject.setTimeout(() => {
+          loadingTimer = undefined;
+          loadingTimedOut = true;
+          read();
+        }, loadingTimeoutMs);
+      }
     };
 
     const observer = new windowObject.MutationObserver(read);
@@ -75,7 +104,13 @@
     windowObject.addEventListener("online", read);
     windowObject.addEventListener("offline", read);
     read();
-    return { refresh: read, disconnect: () => observer.disconnect() };
+    return {
+      refresh: read,
+      disconnect: () => {
+        observer.disconnect();
+        clearLoadingTimer();
+      }
+    };
   }
 
   return { catalog, resolveState, render, mount };
