@@ -1,7 +1,6 @@
 import React from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
-import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
+import type { AiReadOnlyProjection, ResearchStatusProjection } from "./aiViewModel";
 import { AuthorityBanner, DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 
