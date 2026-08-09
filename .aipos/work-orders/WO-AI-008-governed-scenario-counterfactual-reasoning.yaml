@@ -101,7 +101,7 @@ verification:
     - real order cancel transfer or withdrawal
 planning_gate:
   status: IN_PROGRESS
-  pull_request: null
+  pull_request: 378
 implementation_gate:
   status: BLOCKED_UNTIL_PLANNING_MERGED
 next: >-
