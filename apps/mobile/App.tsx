@@ -18,6 +18,7 @@ import { MarketsView } from "./src/marketsView";
 import { AiView } from "./src/aiView";
 import { NotificationView } from "./src/notificationView";
 import { SettingsView } from "./src/settingsView";
+import { OrderHistoryView } from "./src/orderHistoryView";
 import { WatchlistRepository } from "./src/watchlist";
 import type { SettingsRepository } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
@@ -28,7 +29,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:4
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
-type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
+type UtilityView = "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | null;
 const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장", Trade: "PAPER", Portfolio: "자산", More: "AI" };
 const tabGlyphs: Readonly<Record<Tab, string>> = { Home: "⌁", Markets: "◫", Trade: "⇄", Portfolio: "◒", More: "✦" };
 const theme = { container: { flex: 1 } } as const;
@@ -121,12 +122,14 @@ function AuthenticatedApp() {
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
       <View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>INTELLIGENCE</Text></View></View>
       <View style={styles.headerTools}>
+        <Pressable accessibilityLabel="주문 이력" accessibilityRole="button" accessibilityState={{ selected: utilityView === "HISTORY" }} onPress={() => setUtilityView((current) => current === "HISTORY" ? null : "HISTORY")} style={[styles.utilityButton, { borderColor: utilityView === "HISTORY" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "HISTORY" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-order-history"><Text style={[styles.utilityText, { color: utilityView === "HISTORY" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>이력</Text></Pressable>
         <Pressable accessibilityLabel="알림" accessibilityRole="button" accessibilityState={{ selected: utilityView === "NOTIFICATIONS" }} onPress={() => setUtilityView((current) => current === "NOTIFICATIONS" ? null : "NOTIFICATIONS")} style={[styles.utilityButton, { borderColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-notifications"><Text style={[styles.utilityText, { color: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>알림</Text></Pressable>
         <Pressable accessibilityLabel="설정" accessibilityRole="button" accessibilityState={{ selected: utilityView === "SETTINGS" }} onPress={() => setUtilityView((current) => current === "SETTINGS" ? null : "SETTINGS")} style={[styles.utilityButton, { borderColor: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "SETTINGS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-settings"><Text style={[styles.utilityText, { color: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>설정</Text></Pressable>
       </View>
     </View>
     <View style={[styles.authorityStrip, { borderBottomColor: appTheme.colors.border }]}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><Text style={[styles.authorityCopy, { color: appTheme.colors.textMuted }]}>실행 권한 없음</Text></View>
-    {utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
+    {utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
+      : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError ?? notConfigured} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError ?? notConfigured} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
