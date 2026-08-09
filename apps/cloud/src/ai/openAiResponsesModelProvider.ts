@@ -1,8 +1,7 @@
 import { aiSha256, type AiAgentRole, type ModelProvider, type ModelRequest, type ModelResponse, type ModelUsage } from "../../../../packages/contracts/src/aiInference";
+import { structuredOutputSchema } from "./structuredOutputSchema";
 
 const OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses";
-
-type JsonSchema = Readonly<Record<string, unknown>>;
 
 export interface OpenAiHttpResponse {
   readonly ok: boolean;
@@ -29,94 +28,8 @@ export interface OpenAiResponsesModelProviderOptions {
 
 const defaultFetch: OpenAiFetch = async (url, init) => fetch(url, { method: init.method, headers: { ...init.headers }, body: init.body, signal: init.signal });
 
-const stringArraySchema = (): JsonSchema => ({ type: "array", items: { type: "string" } });
-
-const payloadSchema = (role: AiAgentRole): JsonSchema => {
-  if (role === "EVIDENCE_PRODUCER") {
-    return {
-      type: "object",
-      additionalProperties: false,
-      required: ["observations", "missingEvidence", "evidenceBundleHash"],
-      properties: {
-        observations: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["claim", "claimType", "evidenceReferences", "confidence", "freshnessStatus"],
-            properties: {
-              claim: { type: "string" },
-              claimType: { type: "string", enum: ["fact", "derived", "assumption", "unknown"] },
-              evidenceReferences: stringArraySchema(),
-              confidence: { type: "string" },
-              freshnessStatus: { type: "string", enum: ["fresh", "stale", "conflicted", "unknown"] }
-            }
-          }
-        },
-        missingEvidence: stringArraySchema(),
-        evidenceBundleHash: { type: "string" }
-      }
-    };
-  }
-  if (role === "STRATEGY_PROPOSER") {
-    return {
-      type: "object",
-      additionalProperties: false,
-      required: ["strategyVersionId", "decision", "rationaleClaims", "assumptions", "uncertainty", "rawProbability", "expectedEffect", "costSensitivity", "capacitySensitivity"],
-      properties: {
-        strategyVersionId: { type: "string" },
-        decision: { type: "string", enum: ["candidate", "no_action", "insufficient_evidence"] },
-        rationaleClaims: stringArraySchema(),
-        assumptions: stringArraySchema(),
-        uncertainty: { type: "string" },
-        rawProbability: { type: "number", minimum: 0, maximum: 1 },
-        expectedEffect: { type: "string" },
-        costSensitivity: { type: "string" },
-        capacitySensitivity: { type: "string" }
-      }
-    };
-  }
-  if (role === "ADVERSARIAL_CRITIC") {
-    return {
-      type: "object",
-      additionalProperties: false,
-      required: ["reviewedProposalHash", "counterClaims", "failedAssumptions", "missingTests", "alternativeExplanations", "severity"],
-      properties: {
-        reviewedProposalHash: { type: "string" },
-        counterClaims: stringArraySchema(),
-        failedAssumptions: stringArraySchema(),
-        missingTests: stringArraySchema(),
-        alternativeExplanations: stringArraySchema(),
-        severity: { type: "string", enum: ["none", "low", "medium", "high", "critical"] }
-      }
-    };
-  }
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["result", "hardDenies", "warnings", "missingRequirements", "requiredEscalations", "policyReferences"],
-    properties: {
-      result: { type: "string", enum: ["verified", "denied", "incomplete"] },
-      hardDenies: stringArraySchema(),
-      warnings: stringArraySchema(),
-      missingRequirements: stringArraySchema(),
-      requiredEscalations: stringArraySchema(),
-      policyReferences: stringArraySchema()
-    }
-  };
-};
-
-export const openAiStructuredOutputSchema = (role: AiAgentRole): JsonSchema => ({
-  type: "object",
-  additionalProperties: false,
-  required: ["schemaVersion", "role", "evidenceReferences", "payload"],
-  properties: {
-    schemaVersion: { type: "integer", enum: [1] },
-    role: { type: "string", enum: [role] },
-    evidenceReferences: stringArraySchema(),
-    payload: payloadSchema(role)
-  }
-});
+/** Backward-compatible export; the schema is provider-neutral and shared with other adapters. */
+export const openAiStructuredOutputSchema = (role: AiAgentRole): Readonly<Record<string, unknown>> => structuredOutputSchema(role);
 
 const record = (value: unknown, name: string): Record<string, unknown> => {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error(`AI structured ${name} is malformed`);
@@ -193,7 +106,7 @@ export class OpenAiResponsesModelProvider implements ModelProvider {
           type: "json_schema",
           name: `nusa_${request.role.toLowerCase()}`,
           strict: true,
-          schema: openAiStructuredOutputSchema(request.role)
+          schema: structuredOutputSchema(request.role)
         }
       }
     });
