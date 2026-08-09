@@ -4,6 +4,7 @@ import { AuthorityBanner, DataRow, NusaButton, NusaCard, NusaTextField, SectionH
 import { useTheme } from "./ThemeProvider";
 import { buildTradingViewModel, formatTradingAmount, tradingAssetCode, type TradingDraft, type TradingOrderSide, type TradingOrderType } from "./tradingViewModel";
 import type { PortfolioAccountResponse } from "./portfolioViewModel";
+import { marketConnectionLabel } from "./userFacingStatus";
 
 interface TradingViewProps {
   readonly snapshot: PortfolioAccountResponse | null;
@@ -50,7 +51,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
       <View style={styles.marketHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>관찰 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
       <Text style={[styles.price, { color: theme.colors.text }]}>{priceLabel}</Text>
       <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-      <DataRow label="시장 연결" value={marketConnectionState} tone={marketReady ? "success" : "warning"} />
+      <DataRow label="시장 연결" value={marketConnectionLabel(marketConnectionState)} tone={marketReady ? "success" : "warning"} />
       <DataRow label="사용 가능 현금" value={formatTradingAmount(snapshot.account.cash, "KRW")} />
       <DataRow label="보유 수량" value={`${snapshot.account.position.quantity} ${tradingAssetCode(model.market)}`} />
     </NusaCard>
@@ -70,7 +71,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
       {orderType === "LIMIT" ? <NusaTextField label="가격" value={priceInput} onChangeText={setPriceInput} placeholder="KRW 가격" testID="trading-price" /> : null}
       <NusaTextField label={`수량 (${tradingAssetCode(model.market)})`} value={quantityInput} onChangeText={setQuantityInput} placeholder="수량" testID="trading-quantity" />
       <NusaCard testID="trading-preview"><Text style={[styles.label, { color: theme.colors.textMuted }]}>PAPER 주문 미리보기</Text><DataRow label="예상 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} /><DataRow label="사용 가능" value={formatTradingAmount(model.availableAmount, model.availableUnit)} /><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>수수료와 슬리피지는 실행 전에는 확정할 수 없습니다.</Text></NusaCard>
-      {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <NusaCard testID="trading-blockers"><Text style={[styles.label, { color: theme.colors.warning }]}>주문 차단 사유</Text>{[...model.validationErrors, ...model.blockedReasons].map((reason) => <Text key={reason} style={[styles.reason, { color: theme.colors.textMuted }]}>{reason}</Text>)}</NusaCard> : null}
+      {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <NusaCard testID="trading-blockers"><Text style={[styles.label, { color: theme.colors.warning }]}>주문 차단 사유</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 입력 또는 안전 상태 때문에 PAPER 주문을 사용할 수 없습니다.</Text></NusaCard> : null}
       <NusaButton label={submitEnabled ? `${side === "BUY" ? "매수" : "매도"} PAPER 주문` : "PAPER 주문 사용 불가"} disabled={!submitEnabled} onPress={() => { if (submitEnabled) onSubmit?.(draft); }} testID="trading-submit" />
     </>}
   </ScrollView>;
