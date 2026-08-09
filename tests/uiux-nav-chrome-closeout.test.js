@@ -31,10 +31,11 @@ test("header collapses secondary utilities behind one compact tools entry withou
   assert.match(app, /navItem: \{ flex: 1, minHeight: 54/);
 });
 
-test("nav and chrome closeout preserves PAPER read-only and utility routing semantics", () => {
-  assert.match(app, /StatusChip label="PAPER"/);
-  assert.match(app, /StatusChip label="READ ONLY"/);
-  assert.match(app, /실행 권한 없음/);
+test("nav and chrome closeout preserves PAPER-only authority and utility routing semantics", () => {
+  assert.match(app, /StatusChip label="PAPER ONLY"/);
+  assert.match(app, /StatusChip label="LIVE NONE"/);
+  assert.doesNotMatch(app, /StatusChip label="READ ONLY"/);
+  assert.doesNotMatch(app, /실행 권한 없음/);
   assert.match(app, /setUtilityView\("HISTORY"\)/);
   assert.match(app, /setUtilityView\("NOTIFICATIONS"\)/);
   assert.match(app, /setUtilityView\("SETTINGS"\)/);
