@@ -116,7 +116,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
         } catch {
           const readiness = unavailable();
-          operationalLog("ERROR", "cloud.readiness", requestId, readiness);
+          operationalLog("ERROR", "cloud.readiness", requestId, { ok: readiness.ok, checks: readiness.checks });
           write(res, dashboardJsonResponse(503, readiness));
         }
         return;
