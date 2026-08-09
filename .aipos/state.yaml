@@ -35,6 +35,9 @@ completed:
   - id: WO-0050
     evidence: ".aipos/evidence/WO-0050-completion.json"
     summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
+  - id: WO-0049
+    evidence: ".aipos/evidence/WO-0049-completion.json"
+    summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
