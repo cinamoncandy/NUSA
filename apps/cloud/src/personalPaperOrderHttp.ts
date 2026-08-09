@@ -29,6 +29,9 @@ export function handlePersonalPaperOrderHttp(request: DashboardHttpRequest, body
   if (typeof idempotencyHeader !== "string" || idempotencyHeader !== command.idempotencyKey) return dashboardJsonResponse(400, { error: "IDEMPOTENCY_KEY_MISMATCH" });
   try {
     const executionResult = dependencies.submitOrder(authorization.principal, command);
+    if (executionResult.status === "BLOCKED" && executionResult.reason === "paper account persistence failed") {
+      return dashboardJsonResponse(503, { error: "PAPER_ORDER_UNAVAILABLE" });
+    }
     const duplicateSnapshot = executionResult.status === "DUPLICATE" && executionResult.snapshot == null && executionResult.order != null
       ? dependencies.loadSnapshot?.(authorization.principal)
       : undefined;
