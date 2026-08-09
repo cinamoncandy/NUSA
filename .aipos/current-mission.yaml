@@ -1,7 +1,7 @@
 id: WO-AI-005
 title: Durable Calibration Memory and Replay
-branch: agent/ai-005-durable-calibration
-pull_request: 350
+branch: agent/ai-005-durable-calibration-frozen
+pull_request: 353
 base_branch: main
 phase: durable-ai-calibration-memory
 status: IN_PROGRESS
@@ -31,7 +31,7 @@ planning_gate:
   merge_commit: fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2
   status: MERGED
 implementation_gate:
-  pull_request: 350
+  pull_request: 353
   base_commit: dee1cdd9d311c90f73adeb92c04b09a4f3957fd1
   status: IN_PROGRESS
 verification:
@@ -43,8 +43,9 @@ verification:
     - append failure cannot leave an in-memory sample trusted as durable
     - no credential, raw prompt, hidden reasoning, or raw evidence payload persistence
     - all Restricted LIVE/read-only workflows remain PASS
+    - latest main ancestry and review threads must be clear before expected-head merge
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Verify exact-head implementation PR #350, resolve any P0/P1 or CI failures, freeze the passing head, and merge by expected head SHA without changing WO-0051 human-only authority gates.
+next_recommended_task: Verify canonical PR #353 on its new truth-rebound exact head, keep P0/P1 at zero, and merge by expected head SHA without changing WO-0051 human-only authority gates.
