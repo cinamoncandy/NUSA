@@ -30,16 +30,21 @@ test("mobile intelligence shell displays real AI projection and truthful authori
   assert.doesNotMatch(app, /94%/);
 });
 
-test("read-only Trade surface does not present an executable order call to action", () => {
+test("read-only PAPER surface exposes authority state without fake order controls", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /const readOnly = onSubmit === undefined/);
-  assert.match(trading, /disabled label="매수 미리보기"/);
-  assert.match(trading, /disabled label="매도 미리보기"/);
-  assert.match(trading, /읽기 전용 — 주문 권한 없음/);
-  assert.match(trading, /주문을 생성하거나 수정하지 않습니다|주문을 생성하지 않습니다|주문은 생성되지 않습니다/);
+  assert.match(trading, /PAPER 관찰 모드/);
+  assert.match(trading, /ZERO MUTATION/);
+  assert.match(trading, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
+  assert.match(trading, /<DataRow label="주문 생성" value="연결 안 됨"/);
+  assert.match(trading, /<DataRow label="서버 전송" value="불가"/);
+  assert.match(trading, /<DataRow label="현재 권한" value="읽기 전용"/);
+  assert.doesNotMatch(trading, /disabled label="매수 미리보기"/);
+  assert.doesNotMatch(trading, /disabled label="매도 미리보기"/);
+  assert.doesNotMatch(trading, /읽기 전용 — 주문 권한 없음/);
 });
 
 test("dashboard credential flow remains memory-only and independently connected", () => {
