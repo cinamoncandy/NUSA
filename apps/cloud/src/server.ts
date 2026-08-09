@@ -1,5 +1,7 @@
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
+  authorizeDashboardReadRequest,
+  dashboardJsonResponse,
   handleMobileDashboardHttp,
   type DashboardHttpRequest,
   type DashboardTokenVerifier,
@@ -10,6 +12,16 @@ import {
   type PersonalPaperOperationsHttpDependencies
 } from "./personalPaperOperationsHttp";
 
+export interface CloudReadinessSnapshot {
+  readonly ok: boolean;
+  readonly checks: Readonly<{
+    database: boolean;
+    migrations: boolean;
+    dashboardPersistence: boolean;
+    runtimeRecovery: boolean;
+  }>;
+}
+
 export interface CloudDashboardServerOptions {
   readonly port: number;
   /** Defaults to "127.0.0.1". Binding beyond localhost is a deliberate, separate decision. */
@@ -17,6 +29,8 @@ export interface CloudDashboardServerOptions {
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
+  /** Authenticated readiness projection. Missing/unhealthy readiness fails closed with HTTP 503. */
+  readonly readiness?: () => CloudReadinessSnapshot;
 }
 
 export interface CloudDashboardServerHandle {
@@ -25,9 +39,16 @@ export interface CloudDashboardServerHandle {
   stop(): Promise<void>;
 }
 
+const write = (res: ServerResponse, result: Readonly<{ status: number; headers: Readonly<Record<string, string>>; body: string }>): void => {
+  res.writeHead(result.status, result.headers as Record<string, string>);
+  res.end(result.body);
+};
+
 /**
- * Localhost-by-default read-only dashboard transport. `/api/paper-operations` and the legacy
- * dashboard projection share the same GET-only Bearer + `dashboard:read` authorization boundary.
+ * Localhost-by-default read-only dashboard transport. `/api/paper-operations`, `/ready`, and the
+ * legacy dashboard projection share the same GET-only Bearer + `dashboard:read` authorization
+ * boundary. `/health` is deliberately unauthenticated liveness only.
+ *
  * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
  */
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
@@ -35,12 +56,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     throw new Error("invalid cloud dashboard server port");
   }
   const host = options.host ?? "127.0.0.1";
+  if (host !== "127.0.0.1" && host.toLowerCase() !== "localhost") {
+    throw new Error("cloud dashboard server must bind to localhost");
+  }
 
   const server: Server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     try {
       if (req.method === "GET" && req.url === "/health") {
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ ok: true, observedAt: new Date().toISOString() }));
+        write(res, dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
         return;
       }
 
@@ -48,6 +71,34 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         method: req.method ?? "GET",
         headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>)
       });
+
+      if (req.url === "/ready") {
+        const authorization = authorizeDashboardReadRequest(dashboardRequest, options.tokenVerifier);
+        if (!authorization.ok) {
+          write(res, authorization.response);
+          return;
+        }
+        try {
+          const readiness = options.readiness?.() ?? Object.freeze({
+            ok: false,
+            checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false })
+          });
+          const checks = Object.freeze({
+            database: readiness.checks.database === true,
+            migrations: readiness.checks.migrations === true,
+            dashboardPersistence: readiness.checks.dashboardPersistence === true,
+            runtimeRecovery: readiness.checks.runtimeRecovery === true
+          });
+          const ok = readiness.ok === true && Object.values(checks).every(Boolean);
+          write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
+        } catch {
+          write(res, dashboardJsonResponse(503, {
+            ok: false,
+            checks: { database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false }
+          }));
+        }
+        return;
+      }
 
       const result = req.url === "/api/paper-operations"
         ? handlePersonalPaperOperationsHttp(dashboardRequest, {
@@ -59,12 +110,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
             loadDashboard: options.loadDashboard
           });
 
-      res.writeHead(result.status, result.headers as Record<string, string>);
-      res.end(result.body);
+      write(res, result);
     } catch {
       if (!res.headersSent) {
-        res.writeHead(503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ error: "DASHBOARD_SERVER_UNAVAILABLE" }));
+        write(res, dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" }));
       } else {
         res.destroy();
       }
