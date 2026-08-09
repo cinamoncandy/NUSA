@@ -18,10 +18,10 @@ test("settings UI exposes persisted configuration, Paper safety, reset, and requ
   assert.match(source, /이 설정 화면에서 권한을 승격할 수 없습니다/);
   assert.match(source, /SettingsRepository/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
-  const more = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "moreView.tsx"), "utf8");
-  assert.match(more, /SettingsView/);
-  assert.match(more, /OrderHistoryView/);
+
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(app, /<MoreView/);
+  assert.doesNotMatch(app, /<MoreView/);
+  assert.match(app, /header-settings/);
+  assert.match(app, /utilityView === "SETTINGS" \? <SettingsView/);
   assert.match(app, /settingsRepository/);
 });
