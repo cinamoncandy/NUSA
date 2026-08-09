@@ -26,7 +26,7 @@ function analyzeRepository(root = process.cwd()) {
       }
       edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
     }
-    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/")) {
+    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/") || isMobilePresentationSource(source)) {
       for (const specifier of parseImportExpressions(sourceText)) {
         if (!specifier.startsWith(".")) continue;
         const target = resolveLocal(file, specifier, nodes, root);
@@ -52,7 +52,7 @@ function analyzeRepository(root = process.cwd()) {
     if (sourceLayer === "DOMAIN" && targetLayer === "APPLICATION") {
       findings.push(finding("DOMAIN_TO_APPLICATION", edge, "Domain must not depend on application orchestration."));
     }
-    if (sourceLayer === "PRESENTATION" && targetLayer !== "APPLICATION") {
+    if (sourceLayer === "PRESENTATION" && !isMobilePresentationSource(edge.source) && targetLayer !== "APPLICATION") {
       findings.push(finding("PRESENTATION_SHORTCUT", edge, "Presentation may depend only on application-facing contracts."));
     }
     if (edge.kind === "runtime" && edge.source.startsWith("packages/storage/") && edge.target.startsWith("apps/")) {
@@ -67,6 +67,9 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may depend only on mobile-local application/view-model modules."));
+    }
   }
 
   for (const edge of boundaryReferences) {
@@ -75,6 +78,9 @@ function analyzeRepository(root = process.cwd()) {
     }
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
+    }
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may depend only on mobile-local application/view-model modules."));
     }
   }
 
@@ -171,8 +177,18 @@ function resolveLocal(file, specifier, nodes, root) {
   return candidates.map((candidate) => relative(root, candidate).replaceAll("\\", "/")).find((candidate) => nodes.has(candidate));
 }
 
+function isMobilePresentationSource(file) {
+  return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
+}
+
+function isForbiddenMobilePresentationReference(edge) {
+  if (!isMobilePresentationSource(edge.source)) return false;
+  if (edge.target.startsWith("apps/mobile/")) return false;
+  return /^(apps|packages)\//.test(edge.target);
+}
+
 function layerOf(file) {
-  if (file.startsWith("apps/desktop/renderer/")) return "PRESENTATION";
+  if (file.startsWith("apps/desktop/renderer/") || isMobilePresentationSource(file)) return "PRESENTATION";
   if (file.startsWith("packages/storage/")) return "INFRASTRUCTURE";
   if (file.startsWith("packages/") || file.startsWith("apps/execution/")) return "DOMAIN";
   if (file.startsWith("apps/")) return "APPLICATION";
