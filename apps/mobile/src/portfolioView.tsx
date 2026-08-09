@@ -32,7 +32,7 @@ export interface PortfolioViewProps {
 function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useTheme>["theme"]) {
   if (!model.position) return <NusaCard testID="portfolio-empty"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>열린 포지션 없음</Text><StatusChip label="현금 대기" tone="neutral" /></View><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 PAPER 계좌에 열린 포지션이 없습니다. 사용 가능한 현금은 배분 카드에서 확인할 수 있습니다.</Text></NusaCard>;
   return <NusaCard testID="portfolio-position">
-    <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>대표 열린 포지션</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View>
+    <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>열린 포지션</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View>
     <DataRow label="수량" value={String(model.position.quantity)} />
     <DataRow label="평균 단가" value={money(model.position.averagePrice)} />
     <DataRow label="현재 평가가" value={money(model.position.currentPrice)} />
@@ -54,7 +54,7 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
   }
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="전체 계좌 평가액과 실제 PAPER 포지션을 함께 봅니다." />
+    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="전체 계좌 평가액과 현재 노출된 PAPER 포지션을 함께 봅니다." />
     <NusaCard testID="portfolio-summary" raised>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>총 평가자산</Text>
       <Text style={[styles.total, { color: theme.colors.text }]}>{money(model.totalEquity)}</Text>
