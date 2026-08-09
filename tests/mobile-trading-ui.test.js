@@ -60,9 +60,15 @@ test("Market order uses the verified current price and UI preserves the safety c
 
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /주문 권한 없음/);
+  assert.match(source, /PAPER 관찰 모드/);
   assert.match(source, /READ ONLY/);
-  assert.match(source, /매수\/매도 요청을 서버로 전송할 수 없습니다/);
+  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
+  assert.match(source, /주문 생성/);
+  assert.match(source, /연결 안 됨/);
+  assert.match(source, /서버 전송/);
+  assert.match(source, /value="불가"/);
+  assert.match(source, /현재 권한/);
+  assert.match(source, /value="읽기 전용"/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /trading-loading/);
   assert.match(source, /trading-empty/);
