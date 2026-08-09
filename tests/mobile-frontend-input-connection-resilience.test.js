@@ -34,6 +34,12 @@ test("Settings connection mutation is single-flight and probes only the persiste
   assert.match(source, /finally \{[\s\S]*connectionInFlightRef\.current = false;[\s\S]*setConnecting\(false\)/);
 });
 
+test("Settings revokes prior credential verification before testing a replacement token", () => {
+  const source = read("apps/mobile/src/settingsView.tsx");
+  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
+  assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
+});
+
 test("Settings fields use mobile-appropriate endpoint and secret input semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
   assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} keyboardType="url" label="Cloud endpoint"/);
