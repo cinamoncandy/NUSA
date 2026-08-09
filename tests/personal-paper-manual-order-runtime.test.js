@@ -65,6 +65,43 @@ test("manual PAPER exact duplicate cannot create a second fill", () => {
   } finally { db.close(); }
 });
 
+test("manual PAPER duplicate recovery survives newly closed safety gates without mutation", () => {
+  let openP0 = false;
+  const { db, loop } = harness(() => ({ openP0 }));
+  try {
+    const first = loop.submitManualOrder(command(), context());
+    assert.equal(first.status, "FILLED");
+    const before = JSON.stringify(loop.snapshot());
+    const originalOrderId = first.orders[0].id;
+
+    openP0 = true;
+    const underP0 = loop.submitManualOrder(command(), context({ now: context().now + 1, observedAt: context().observedAt + 1 }));
+    assert.equal(underP0.status, "DUPLICATE");
+    assert.equal(underP0.orders[0].id, originalOrderId);
+    assert.equal(underP0.fills.length, 1);
+    assert.equal(JSON.stringify(loop.snapshot()), before);
+
+    const conflictUnderP0 = loop.submitManualOrder(command({ quantity: 0.002 }), context({ now: context().now + 2, observedAt: context().observedAt + 2 }));
+    assert.equal(conflictUnderP0.status, "REJECTED");
+    assert.equal(conflictUnderP0.reason, "PAPER_IDEMPOTENCY_CONFLICT");
+    assert.equal(JSON.stringify(loop.snapshot()), before);
+
+    openP0 = false;
+    for (const closedContext of [
+      context({ now: context().now + 3, observedAt: context().observedAt + 3, killSwitchActive: true }),
+      context({ now: context().now + 30_100, observedAt: context().now })
+    ]) {
+      const retry = loop.submitManualOrder(command(), closedContext);
+      assert.equal(retry.status, "DUPLICATE");
+      assert.equal(retry.orders[0].id, originalOrderId);
+      assert.equal(retry.fills.length, 1);
+      assert.equal(loop.snapshot().orders.length, 1);
+      assert.equal(loop.snapshot().fills.length, 1);
+      assert.equal(JSON.stringify(loop.snapshot()), before);
+    }
+  } finally { db.close(); }
+});
+
 test("same idempotency key with a different PAPER command fails closed without mutation", () => {
   const { db, loop } = harness();
   try {
