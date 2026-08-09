@@ -57,8 +57,14 @@ jobs:
         run: pnpm run typecheck
       - name: Build
         run: pnpm run build
-      - name: High-signal regression fast gate
-        run: node --test --test-reporter=spec tests/mobile-order-history.test.js tests/mobile-watchlist.test.js tests/p8-private-readonly-runtime-session.test.js tests/p8-open-representative-position.test.js
+      - name: High-signal mobile order history
+        run: node --test --test-reporter=spec tests/mobile-order-history.test.js
+      - name: High-signal mobile watchlist
+        run: node --test --test-reporter=spec tests/mobile-watchlist.test.js
+      - name: High-signal private read-only runtime session
+        run: node --test --test-reporter=spec tests/p8-private-readonly-runtime-session.test.js
+      - name: High-signal representative open position
+        run: node --test --test-reporter=spec tests/p8-open-representative-position.test.js
       - name: Architecture validation
         run: pnpm run architecture:check
       - name: Repository architecture truth validation
