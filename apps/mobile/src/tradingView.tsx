@@ -11,6 +11,8 @@ import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdent
 interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; }
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>PAPER 화면을 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View></View>; }
 const idempotencyKey = (): string => `paper-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+// Keep unresolved PAPER submission identities for the whole app process so tab navigation/remounts cannot rotate an ambiguous request key.
+const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
 
 export function TradingView({ snapshot, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit }: TradingViewProps) {
   const { theme } = useTheme();
@@ -22,7 +24,6 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
-  const retryIdentity = useMemo(() => new PersonalPaperOrderRetryIdentity(), []);
   const configuredEndpoint = getConfiguredPaperEndpoint();
   const builtInSubmitAvailable = Boolean(configuredEndpoint && credentialSession.isConfigured() && isPaperConnectionVerified(configuredEndpoint));
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
@@ -44,7 +45,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
       const fingerprint = JSON.stringify([model.market, side, orderType, quantity, limitPrice ?? null]);
       const result = await submitPersonalPaperOrderWithRetryIdentity(
         { baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider },
-        retryIdentity,
+        processPaperOrderRetryIdentity,
         fingerprint,
         idempotencyKey,
         { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) }
