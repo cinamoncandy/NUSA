@@ -29,6 +29,10 @@ function read(root, relativePath, failures) {
   return readFileSync(path, "utf8");
 }
 
+function normalizeWhitespace(source) {
+  return source.replace(/\s+/g, " ").trim();
+}
+
 function defaultIsAncestor(root, commit) {
   try {
     execFileSync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], {
@@ -49,6 +53,7 @@ function validateRepositoryTruth(root = process.cwd(), options = {}) {
   const failures = [];
   const readme = read(root, "README.md", failures);
   const nextTask = read(root, "docs/NEXT_TASK.md", failures);
+  const normalizedNextTask = normalizeWhitespace(nextTask);
   const packageSource = read(root, "package.json", failures);
   const state = read(root, ".aipos/state.yaml", failures);
   const currentMission = read(root, ".aipos/current-mission.yaml", failures);
@@ -82,14 +87,19 @@ function validateRepositoryTruth(root = process.cwd(), options = {}) {
     if (readme.includes(staleClaim)) failures.push(`README_STALE_RUNTIME_CLAIM:${staleClaim}`);
   }
 
-  if (!nextTask.includes("WO-0031 has one canonical research-promotion authority.")) {
+  if (!normalizedNextTask.includes("WO-0031 has one canonical research-promotion authority.")) {
     failures.push("NEXT_TASK_WO0031_CANONICAL_AUTHORITY_MISSING");
   }
-  if (!nextTask.includes("scorecard.js") || !nextTask.includes("must not emit, own, or imply an independent research-promotion decision")) {
+  if (
+    !normalizedNextTask.includes("scorecard.js") ||
+    !normalizedNextTask.includes("must not emit, own, or imply an independent research-promotion decision")
+  ) {
     failures.push("NEXT_TASK_WO0031_SCORECARD_BOUNDARY_MISSING");
   }
   for (const staleClaim of STALE_NEXT_TASK_CLAIMS) {
-    if (nextTask.includes(staleClaim)) failures.push(`NEXT_TASK_STALE_WO0031_CLAIM:${staleClaim}`);
+    if (normalizedNextTask.includes(normalizeWhitespace(staleClaim))) {
+      failures.push(`NEXT_TASK_STALE_WO0031_CLAIM:${staleClaim}`);
+    }
   }
 
   const inProgress = block(state, "in_progress");
