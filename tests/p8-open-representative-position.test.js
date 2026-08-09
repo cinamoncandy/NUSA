@@ -41,7 +41,7 @@ test("read-only portfolio representative skips a closed position sorted before a
     updatedAt: 1000
   });
   const paperLoop = new PaperTradingExecutionLoop({ initialCapital: 1000000, restoredState });
-  const handle = startCloudRuntime(testEnv(token, 41945), undefined, undefined, undefined, undefined, undefined, paperLoop);
+  const handle = startCloudRuntime(testEnv(token, 41947), undefined, undefined, undefined, undefined, undefined, paperLoop);
   try {
     const body = await loadOperations(handle, token);
     assert.equal(body.liveAuthority, "NONE");
