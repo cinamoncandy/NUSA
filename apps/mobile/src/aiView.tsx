@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
-import { AuthorityBanner, DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 
 interface AiViewProps {
@@ -59,13 +59,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const lastRun = ai?.lastModelRun == null ? "-" : new Date(ai.lastModelRun).toLocaleString("ko-KR");
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
-    <SectionHeading eyebrow="AI RESEARCH" title="AI 인텔리전스" description="검증된 근거와 불확실성을 읽습니다. 주문·이체·LIVE 실행 권한은 없습니다." />
-    <View style={styles.statusRow}>
-      <StatusChip label="ZERO AUTHORITY" tone="info" />
-      <StatusChip label="READ ONLY" tone="primary" />
-      <StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} />
-    </View>
-    <AuthorityBanner detail="AI는 분석·비판·불확실성 설명만 제공합니다. Risk Governor, P0, kill switch, HALT를 우회하거나 주문을 승인할 수 없습니다." />
+    <SectionHeading eyebrow="AI RESEARCH" title="AI 인텔리전스" description="검증된 분석, 근거, 불확실성과 보정 상태를 확인합니다." />
 
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
@@ -82,6 +76,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="최근 분석" value={lastRun} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. 보정 상태가 CALIBRATED일 때만 별도의 검증 신뢰도를 표시합니다.</Text>
     </NusaCard>
+
+    <View style={styles.authoritySummary} testID="ai-authority-summary">
+      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
+      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
+    </View>
 
     <NusaCard testID="ai-evidence-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>근거와 반대 근거</Text><StatusChip label={`${ai?.evidenceReferences.length ?? 0} 근거`} tone="neutral" /></View>
@@ -105,11 +104,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     </NusaCard>
 
     <NusaCard testID="ai-authority-card">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>시스템 권한</Text><StatusChip label={health ?? "UNKNOWN"} tone={health === "HEALTHY" ? "success" : "warning"} /></View>
+      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>운영 경계</Text><StatusChip label={health ?? "UNKNOWN"} tone={health === "HEALTHY" ? "success" : "warning"} /></View>
       <DataRow label="AI LIVE 권한" value={liveAuthority ?? "-"} emphasis />
       <DataRow label="Production mutation" value={productionMutationAllowed == null ? "-" : "금지"} tone={productionMutationAllowed === false ? "success" : "default"} />
       <DataRow label="킬 스위치" value={killSwitchActive == null ? "-" : killSwitchActive ? "활성" : "비활성"} tone={killSwitchActive === true ? "danger" : killSwitchActive === false ? "success" : "default"} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>ZERO AUTHORITY는 제품 정책이며, 서버 snapshot이 연결되면 실제 권한 불변식도 함께 표시됩니다.</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>서버 snapshot이 연결되면 실제 권한 불변식과 안전 상태를 이 진단 영역에 표시합니다.</Text>
     </NusaCard>
   </ScrollView>;
 }
@@ -119,6 +118,8 @@ const styles = StyleSheet.create({
   state: { flex: 1, justifyContent: "center", padding: 20 },
   stateTitle: { fontSize: 18, fontWeight: "700", marginTop: 10 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  authoritySummary: { gap: 6, paddingHorizontal: 2 },
+  authorityCopy: { fontSize: 12, lineHeight: 18, fontWeight: "600" },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
   cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
