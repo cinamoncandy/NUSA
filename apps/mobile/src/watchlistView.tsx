@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildWatchlistViewModel, type WatchlistMarket, type WatchlistRepository, type WatchlistSort } from "./watchlist";
 
@@ -21,14 +21,20 @@ function formatVolume(value: number | null): string { return value === null ? "-
 
 function MarketRow({ market, active, onToggle }: Readonly<{ market: WatchlistMarket; active: boolean; onToggle: () => void }>) {
   const { theme } = useTheme();
-  const changeTone = market.changeRate === null ? "default" : market.changeRate >= 0 ? "success" : "danger";
-  return <NusaCard testID={`watchlist-market-${market.market}`}>
-    <View style={styles.rowHeader}><View><Text style={[styles.market, { color: theme.colors.text }]}>{market.market}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>Upbit 공개 시세 · 읽기 전용</Text></View><NusaButton label={active ? "삭제" : "추가"} onPress={onToggle} tone={active ? "neutral" : "primary"} testID={`watchlist-toggle-${market.market}`} /></View>
-    <Text style={[styles.price, { color: theme.colors.text }]}>{formatPrice(market.price)}</Text>
-    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <DataRow label="등락률" value={formatChange(market.changeRate)} tone={changeTone} />
-    <DataRow label="거래량" value={formatVolume(market.volume)} />
-  </NusaCard>;
+  const changeColor = market.changeRate === null ? theme.colors.textMuted : market.changeRate >= 0 ? theme.colors.success : theme.colors.danger;
+  return <View style={[styles.marketRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID={`watchlist-market-${market.market}`}>
+    <View style={styles.marketMain}>
+      <View style={styles.marketIdentity}><Text style={[styles.market, { color: theme.colors.text }]}>{market.market}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>PUBLIC · READ ONLY</Text></View>
+      <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]}>{formatPrice(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatChange(market.changeRate)}</Text></View>
+      <Pressable accessibilityLabel={`${market.market} ${active ? "관심시장에서 제거" : "관심시장에 추가"}`} accessibilityRole="button" accessibilityState={{ selected: active }} hitSlop={4} onPress={onToggle} style={[styles.favorite, { backgroundColor: active ? theme.colors.primarySoft : theme.colors.surfaceSunken, borderColor: active ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-toggle-${market.market}`}><Text style={[styles.favoriteGlyph, { color: active ? theme.colors.primary : theme.colors.textMuted }]}>{active ? "★" : "☆"}</Text></Pressable>
+    </View>
+    <View style={[styles.marketMeta, { borderTopColor: theme.colors.border }]}><Text style={[styles.volumeLabel, { color: theme.colors.textMuted }]}>거래량</Text><Text style={[styles.volume, { color: theme.colors.text }]} numberOfLines={1}>{formatVolume(market.volume)}</Text></View>
+  </View>;
+}
+
+function SortChip({ value, selected, onPress }: Readonly<{ value: WatchlistSort; selected: boolean; onPress: () => void }>) {
+  const { theme } = useTheme();
+  return <Pressable accessibilityLabel={`${sortLabels[value]} 기준 정렬`} accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={[styles.sortChip, { backgroundColor: selected ? theme.colors.primarySoft : theme.colors.surfaceSunken, borderColor: selected ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-sort-${value}`}><Text style={[styles.sortLabel, { color: selected ? theme.colors.primary : theme.colors.textMuted }]}>{sortLabels[value]}</Text></Pressable>;
 }
 
 export function WatchlistView({ repository, rawMarkets, error, refreshing, onRefresh }: WatchlistViewProps) {
@@ -56,13 +62,13 @@ export function WatchlistView({ repository, rawMarkets, error, refreshing, onRef
   if (model.state === "EMPTY") return <View style={styles.state} testID="watchlist-empty"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>공개 시장 데이터 없음</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>검증된 Upbit 공개 데이터가 준비되면 검색하고 관심시장에 저장할 수 있습니다.</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="watchlist-screen">
-    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="관심시장" description="공개 시세만 관찰합니다. 계좌·주문 권한과 연결되지 않습니다." /><StatusChip label="READ ONLY" tone="info" /></View>
+    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장" description="공개 시세를 빠르게 비교합니다. 계좌·주문 권한과 연결되지 않습니다." /><StatusChip label="READ ONLY" tone="info" /></View>
     <NusaTextField label="시장 검색" value={query} onChangeText={setQuery} placeholder="예: KRW-BTC" testID="watchlist-search" />
-    <View style={styles.sortRow} testID="watchlist-sort">{sorts.map((value) => <NusaButton key={value} label={sortLabels[value]} onPress={() => setSort(value)} tone={sort === value ? "primary" : "neutral"} testID={`watchlist-sort-${value}`} />)}</View>
-    <Text style={[styles.section, { color: theme.colors.text }]}>저장한 시장</Text>
-    {model.activeMarkets.length === 0 ? <NusaCard testID="watchlist-saved-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>저장한 시장이 없습니다.</Text></NusaCard> : model.activeMarkets.map((market) => <MarketRow key={`saved-${market.market}`} active market={market} onToggle={() => void toggle(market.market)} />)}
-    <Text style={[styles.section, { color: theme.colors.text }]}>검색 결과</Text>
-    {model.searchResults.length === 0 ? <NusaCard testID="watchlist-search-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>조건에 맞는 공개 시장이 없습니다.</Text></NusaCard> : model.searchResults.map((market) => <MarketRow key={`result-${market.market}`} active={model.watchlist.includes(market.market)} market={market} onToggle={() => void toggle(market.market)} />)}
+    <View style={styles.sortRow} testID="watchlist-sort">{sorts.map((value) => <SortChip key={value} value={value} selected={sort === value} onPress={() => setSort(value)} />)}</View>
+    <View style={styles.sectionHeader}><Text style={[styles.section, { color: theme.colors.text }]}>관심시장</Text><Text style={[styles.sectionCount, { color: theme.colors.textMuted }]}>{model.activeMarkets.length}</Text></View>
+    {model.activeMarkets.length === 0 ? <NusaCard testID="watchlist-saved-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>☆ 버튼으로 자주 보는 시장을 저장할 수 있습니다.</Text></NusaCard> : <View style={styles.marketList}>{model.activeMarkets.map((market) => <MarketRow key={`saved-${market.market}`} active market={market} onToggle={() => void toggle(market.market)} />)}</View>}
+    <View style={styles.sectionHeader}><Text style={[styles.section, { color: theme.colors.text }]}>전체 결과</Text><Text style={[styles.sectionCount, { color: theme.colors.textMuted }]}>{model.searchResults.length}</Text></View>
+    {model.searchResults.length === 0 ? <NusaCard testID="watchlist-search-empty"><Text style={[styles.message, { color: theme.colors.textMuted }]}>조건에 맞는 공개 시장이 없습니다.</Text></NusaCard> : <View style={styles.marketList}>{model.searchResults.map((market) => <MarketRow key={`result-${market.market}`} active={model.watchlist.includes(market.market)} market={market} onToggle={() => void toggle(market.market)} />)}</View>}
   </ScrollView>;
 }
 
@@ -72,11 +78,24 @@ const styles = StyleSheet.create({
   stateTitle: { fontSize: 18, fontWeight: "700" },
   message: { lineHeight: 21, fontSize: 14, marginTop: 8 },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
-  meta: { fontSize: 11, marginTop: 4 },
   sortRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
-  section: { fontSize: 18, fontWeight: "700", marginTop: 5, letterSpacing: -0.4 },
-  rowHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
-  market: { fontSize: 18, fontWeight: "700" },
-  price: { fontSize: 25, fontWeight: "800", letterSpacing: -0.7, marginTop: 14 },
-  divider: { height: 1, marginVertical: 12 },
+  sortChip: { minHeight: 44, minWidth: 62, borderRadius: 12, borderWidth: 1, paddingHorizontal: 13, alignItems: "center", justifyContent: "center" },
+  sortLabel: { fontSize: 12, fontWeight: "700" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  section: { fontSize: 17, fontWeight: "700", letterSpacing: -0.3 },
+  sectionCount: { fontSize: 12, fontWeight: "700" },
+  marketList: { gap: 8 },
+  marketRow: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
+  marketMain: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 },
+  marketIdentity: { flex: 1, minWidth: 92 },
+  marketNumbers: { alignItems: "flex-end", justifyContent: "center" },
+  market: { fontSize: 15, fontWeight: "800" },
+  meta: { fontSize: 9, fontWeight: "700", letterSpacing: 0.5, marginTop: 4 },
+  price: { fontSize: 17, fontWeight: "800", letterSpacing: -0.4 },
+  change: { fontSize: 12, fontWeight: "700", marginTop: 3 },
+  favorite: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  favoriteGlyph: { fontSize: 22, lineHeight: 24 },
+  marketMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, marginTop: 8, paddingTop: 8, gap: 12 },
+  volumeLabel: { fontSize: 10, fontWeight: "700" },
+  volume: { flex: 1, textAlign: "right", fontSize: 11, fontWeight: "600" },
 });
