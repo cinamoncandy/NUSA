@@ -116,6 +116,22 @@ test("shared contracts reject comment-obfuscated dynamic and type import express
   });
 });
 
+test("shared contracts reject workspace package-name aliases to implementation owners", () => {
+  withFixture({
+    "packages/contracts/package.json": '{"name":"@nusa/contracts"}',
+    "packages/contracts/src/public.ts": 'import type { CloudState } from "@nusa/cloud/state"; export async function load() { return import("@nusa/cloud/runtime"); } export type PublicState = CloudState;\n',
+    "apps/cloud/package.json": '{"name":"@nusa/cloud"}',
+    "apps/cloud/state.ts": "export interface CloudState { readonly id: string; }\n",
+    "apps/cloud/runtime.ts": "export const runtimeValue = 1;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    const findings = contractFindings(result);
+    assert.equal(findings.length, 2);
+    assert.deepEqual(new Set(findings.map((finding) => finding.kind)), new Set(["type", "inline-import"]));
+    assert.equal(findings.every((finding) => finding.target === "apps/cloud/"), true);
+  });
+});
+
 test("shared contracts may compose other shared contracts", () => {
   withFixture({
     "packages/contracts/src/a.ts": 'import type { SharedB } from "./b"; export interface SharedA { readonly b: SharedB; }\n',
