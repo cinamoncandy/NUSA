@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
   authorizeDashboardReadRequest,
@@ -11,6 +12,7 @@ import {
   handlePersonalPaperOperationsHttp,
   type PersonalPaperOperationsHttpDependencies
 } from "./personalPaperOperationsHttp";
+import { operationalLog } from "./structuredOperationalLog";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -52,6 +54,12 @@ const unavailable = (): CloudReadinessSnapshot => Object.freeze({
   ok: false,
   checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false })
 });
+const correlationId = (req: IncomingMessage): string => {
+  const value = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0].trim();
+  return randomUUID();
+};
 
 /**
  * Localhost-by-default read-only dashboard transport. `/api/paper-operations`, `/ready`, and the
@@ -70,6 +78,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   }
 
   const server: Server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+    const requestId = correlationId(req);
     try {
       if (req.method === "GET" && req.url === "/health") {
         write(res, dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
@@ -84,6 +93,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (req.url === "/ready") {
         const authorization = authorizeDashboardReadRequest(dashboardRequest, options.tokenVerifier);
         if (!authorization.ok) {
+          operationalLog("WARN", "cloud.readiness.authorization_failed", requestId, { status: authorization.response.status });
           write(res, authorization.response);
           return;
         }
@@ -102,9 +112,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
             runtimeRecovery: readiness.checks.runtimeRecovery === true
           });
           const ok = readiness.ok === true && Object.values(checks).every(Boolean);
+          operationalLog(ok ? "INFO" : "WARN", "cloud.readiness", requestId, { ok, checks });
           write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
         } catch {
           const readiness = unavailable();
+          operationalLog("ERROR", "cloud.readiness", requestId, readiness);
           write(res, dashboardJsonResponse(503, readiness));
         }
         return;
@@ -122,6 +134,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
       write(res, result);
     } catch {
+      operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
       if (!res.headersSent) {
         write(res, dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" }));
       } else {
