@@ -16,6 +16,7 @@ function write(root, relativePath, content = "") {
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "nusa-repository-truth-"));
   write(root, "README.md", `# NUSA\n\n## Cloud PAPER runtime\n\nRun with pnpm cloud:runtime.\n\nAuthority remains liveAuthority NONE and productionMutationAllowed false.\n`);
+  write(root, "docs/NEXT_TASK.md", `# Next Task\n\n### WO-0031: canonical strategy research promotion architecture\n\nWO-0031 has one canonical research-promotion authority.\n\nThe evidence manifest owns evidence integrity, provenance, and immutable linkage only. The promotion-gate runner plus independent verifier own the only researchDecision. strategy-research-scorecard.js remains compatibility/readiness only and must not emit, own, or imply an independent research-promotion decision.\n`);
   write(root, "package.json", JSON.stringify({ scripts: {
     "cloud:runtime": "pnpm run build && node dist/apps/cloud/src/runtime.js",
     "architecture:truth": "node scripts/validate-repository-truth.js"
@@ -47,6 +48,18 @@ test("repository truth rejects the obsolete unwired Cloud README claim", () => {
     const result = validate(root);
     assert.equal(result.ok, false);
     assert.equal(result.failures.some((failure) => failure.startsWith("README_STALE_RUNTIME_CLAIM:")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("repository truth rejects stale WO-0031 parallel-authority wording", () => {
+  const root = fixture();
+  try {
+    write(root, "docs/NEXT_TASK.md", `# Next Task\n\n### WO-0031\n\nWO-0031 has one canonical research-promotion authority. strategy-research-scorecard.js must not emit, own, or imply an independent research-promotion decision.\n\nstrategy research promotion gate (parallel second layer)\nTwo WO-0031 layers now exist on this branch and neither has been removed.\nConsolidating onto one is an open owner decision.\n`);
+    const result = validate(root);
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.some((failure) => failure.startsWith("NEXT_TASK_STALE_WO0031_CLAIM:")), true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
