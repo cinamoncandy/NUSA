@@ -91,7 +91,8 @@ verification:
     - real order cancel transfer or withdrawal
 planning_gate:
   status: IN_PROGRESS
-  pull_request: null
+  pull_request: 360
+  base_commit: 66ca62fed422bd7186cbb5d589a8810dc2b83260
 next: >-
-  Review and merge the planning-only audit, ADR-0009, and WO-AI-006 definition. Only after the planning
-  gate is merged should a fresh implementation branch be created from then-current protected main.
+  Review and merge planning PR #360 containing the read-only audit, ADR-0009, and WO-AI-006 definition.
+  Only after that planning gate is merged should a fresh implementation branch be created from then-current protected main.
