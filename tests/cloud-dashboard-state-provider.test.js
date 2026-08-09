@@ -6,6 +6,8 @@ const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudR
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
+const DASHBOARD_TOKEN = "x".repeat(32);
+
 const dashboardInput = (now = Date.now()) => ({
   now,
   mode: "PAPER",
@@ -38,7 +40,7 @@ function freePort() {
   });
 }
 
-function request(port, token = "secret") {
+function request(port, token = DASHBOARD_TOKEN) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       host: "127.0.0.1", port, path: "/api/dashboard", method: "GET",
@@ -68,7 +70,7 @@ test("in-memory provider starts empty and only exposes explicitly set state", ()
 test("cloud runtime hydrates a safe state and returns 200, then serves explicit provider state", async () => {
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
-  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" }, provider);
+  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN }, provider);
   try {
     const safe = await request(port);
     assert.equal(safe.status, 200);
@@ -89,7 +91,7 @@ test("runtime hydration failure clears state and keeps dashboard at 503", async 
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider(dashboardInput(100));
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN },
     provider,
     { hydrate() { throw new Error("hydration failed"); } }
   );
@@ -122,7 +124,7 @@ test("hydration failure clears the provider and preserves fail-closed state", ()
 test("runtime starts with a hydrated safe state", async () => {
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
-  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret" }, provider);
+  const handle = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN }, provider);
   try {
     const response = await request(port);
     assert.equal(response.status, 200);
@@ -146,7 +148,7 @@ test("ticker hydration exposes a degraded read-only dashboard and stops the sock
     stop: () => calls.push(["stop"])
   };
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     new CloudRuntimeDashboardHydrator(),
     (markets, tickerHandler, stateHandler) => {
@@ -182,7 +184,7 @@ test("runtime projects initial paper capital and preserves it while the kill swi
   const loop = new PaperTradingExecutionLoop({ initialCapital: 100_000 });
   let onTicker;
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     new CloudRuntimeDashboardHydrator(),
     (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },
@@ -225,7 +227,7 @@ test("runtime restores and projects the durable paper account after restart", as
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000" },
     provider,
     new CloudRuntimeDashboardHydrator(),
     undefined,
@@ -258,7 +260,7 @@ test("WAIT ticks keep the projected paper account synchronized", async () => {
   const provider = new InMemoryCloudDashboardStateProvider();
   let onTicker;
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: "secret", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     { hydrate(target) { target.set(dashboardInput(Date.now())); } },
     (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },
