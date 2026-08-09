@@ -29,7 +29,7 @@ test("utility navigation has an explicit close path and local settings expose re
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /testID="settings-sign-out"/);
+  assert.match(settings, /NusaButton label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
@@ -38,7 +38,7 @@ test("utility navigation has an explicit close path and local settings expose re
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-connection-go-home"/);
+  assert.match(app, /testID="dashboard-connection-go-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
@@ -81,5 +81,5 @@ test("recoverable local states expose retry actions", () => {
   const trading = read("src/tradingView.tsx");
   assert.match(notifications, /testID="notifications-error"/);
   assert.match(notifications, /NusaButton label="다시 시도"/);
-  assert.match(trading, /testID="trading-empty"[\s\S]*NusaButton label="다시 불러오기"/);
+  assert.match(trading, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
 });
