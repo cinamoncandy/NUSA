@@ -7,7 +7,7 @@ const DISCOVERY_RULES = Object.freeze([
   { marker: "contextBridge.exposeInMainWorld(", roots: ["apps/desktop/src"] },
   { marker: "registrar.handle(", roots: ["apps/desktop/src"] },
   { marker: "http.createServer(", roots: ["apps/desktop/src", "apps/cloud/src"] },
-  { marker: "process.argv.slice(2)", roots: ["scripts"] }
+  { marker: "process.argv.slice(2)", paths: ["scripts/nusa.js"] }
 ]);
 
 function normalize(path) {
@@ -36,17 +36,23 @@ function sourceFiles(root, relativeRoot) {
   return files;
 }
 
+function rulePaths(root, rule) {
+  const explicit = Array.isArray(rule.paths) ? rule.paths : [];
+  const scanned = (Array.isArray(rule.roots) ? rule.roots : []).flatMap((scanRoot) => sourceFiles(root, scanRoot));
+  return [...new Set([...explicit, ...scanned].map(normalize))];
+}
+
 function discoverSurfaceOwners(root = process.cwd()) {
   const discovered = new Map();
   for (const rule of DISCOVERY_RULES) {
-    for (const scanRoot of rule.roots) {
-      for (const path of sourceFiles(root, scanRoot)) {
-        const source = readFileSync(join(root, path), "utf8");
-        if (!source.includes(rule.marker)) continue;
-        const markers = discovered.get(path) || new Set();
-        markers.add(rule.marker);
-        discovered.set(path, markers);
-      }
+    for (const path of rulePaths(root, rule)) {
+      const absolute = join(root, path);
+      if (!existsSync(absolute)) continue;
+      const source = readFileSync(absolute, "utf8");
+      if (!source.includes(rule.marker)) continue;
+      const markers = discovered.get(path) || new Set();
+      markers.add(rule.marker);
+      discovered.set(path, markers);
     }
   }
   return new Map([...discovered.entries()].map(([path, markers]) => [path, [...markers].sort()]));
