@@ -65,6 +65,29 @@ test("manual PAPER exact duplicate cannot create a second fill", () => {
   } finally { db.close(); }
 });
 
+test("manual PAPER persistence failure is FAILED and does not consume retry identity", () => {
+  const failingRepository = {
+    save() { throw new Error("simulated storage outage"); },
+    loadLatest() { return undefined; },
+    clear() {}
+  };
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, repository: failingRepository, readP0State: () => ({ openP0: false }) });
+  const before = JSON.stringify(loop.snapshot());
+  const failed = loop.submitManualOrder(command({ idempotencyKey: "paper-persist-fail-0001" }), context());
+  assert.equal(failed.status, "FAILED");
+  assert.equal(failed.reason, "paper account persistence failed");
+  assert.equal(JSON.stringify(loop.snapshot()), before);
+  assert.equal(loop.snapshot().orders.length, 0);
+  assert.equal(loop.snapshot().fills.length, 0);
+  assert.equal(loop.snapshot().processedIdempotencyKeys.includes("paper-persist-fail-0001"), false);
+
+  const retryLoop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, restoredState: loop.snapshot(), readP0State: () => ({ openP0: false }) });
+  const retry = retryLoop.submitManualOrder(command({ idempotencyKey: "paper-persist-fail-0001" }), context({ now: context().now + 1, observedAt: context().observedAt + 1 }));
+  assert.equal(retry.status, "FILLED");
+  assert.equal(retryLoop.snapshot().orders.length, 1);
+  assert.equal(retryLoop.snapshot().fills.length, 1);
+});
+
 test("manual PAPER duplicate recovery survives newly closed safety gates without mutation", () => {
   let openP0 = false;
   const { db, loop } = harness(() => ({ openP0 }));
