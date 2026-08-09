@@ -4,6 +4,7 @@ import type {
   AiCalibrationPrediction,
   AiCalibrationStatus
 } from "./aiInference";
+import type { AiInferenceResourceSnapshot } from "./aiInferenceResources";
 import type { AiProviderComparisonState } from "./aiProviderDiversity";
 import type { AiScenarioRobustnessState } from "./aiScenarioReasoning";
 
@@ -17,6 +18,8 @@ export type AiAttributionCause =
   | "REGIME_SHIFT_CANDIDATE"
   | "UNRESOLVED";
 export type AiAttributionPartition = "TRAIN" | "HOLDOUT";
+export type AiAttributionReplayStatus = "COMPLETED" | "RESOURCE_BLOCKED" | "FAILED" | "UNVERIFIED";
+export type AiAttributionNetBenefitStatus = "PASS" | "FAIL";
 
 export interface AiObservedEvidenceIdentity {
   readonly evidenceId: string;
@@ -165,4 +168,73 @@ export interface AiAttributionBenchmarkMetrics {
   readonly falseAttributionRate: number;
   readonly unresolvedCount: number;
   readonly unresolvedRate: number;
+}
+
+export interface AiAttributionReplayProjection {
+  readonly strength: AiAttributionStrength;
+  readonly primaryCause: AiAttributionCause | null;
+  readonly candidateCauses: readonly AiAttributionCause[];
+  readonly reasonCodes: readonly string[];
+  /** Replay/ablation output is diagnostic-only and can never be durable realized-market learning credit. */
+  readonly realizedLearningCreditAllowed: false;
+}
+
+export interface AiAttributionReplayResult {
+  readonly schemaVersion: 1;
+  readonly experimentId: string;
+  readonly status: AiAttributionReplayStatus;
+  readonly changedDimension: string | null;
+  readonly baseline: AiAttributionReplayProjection | null;
+  readonly ablation: AiAttributionReplayProjection | null;
+  readonly resourceBefore: AiInferenceResourceSnapshot;
+  readonly resourceAfter: AiInferenceResourceSnapshot;
+  readonly reasonCodes: readonly string[];
+  readonly liveAuthority: "NONE";
+  readonly realOrderAuthority: false;
+  readonly realTransferAuthority: false;
+  readonly productionMutationAllowed: false;
+}
+
+export interface AiAttributionEvaluationResources {
+  readonly providerCalls: number;
+  readonly attempts: number;
+  readonly totalTokens: number;
+  readonly latencyMs: number;
+  readonly failureRate: number;
+}
+
+export interface AiAttributionNetBenefitPolicy {
+  readonly schemaVersion: 1;
+  readonly policyId: string;
+  readonly policyVersion: string;
+  readonly requireQualityImprovement: boolean;
+  readonly maxProviderCallIncrease: number;
+  readonly maxAttemptIncrease: number;
+  readonly maxTokenIncrease: number;
+  readonly maxLatencyIncreaseMs: number;
+  readonly maxFailureRateIncrease: number;
+}
+
+export interface AiAttributionNetBenefitInput {
+  readonly beforeQuality: AiAttributionBenchmarkMetrics;
+  readonly afterQuality: AiAttributionBenchmarkMetrics;
+  readonly beforeResources: AiAttributionEvaluationResources;
+  readonly afterResources: AiAttributionEvaluationResources;
+  readonly safetyRegressionCount: number;
+}
+
+export interface AiAttributionNetBenefitResult {
+  readonly schemaVersion: 1;
+  readonly status: AiAttributionNetBenefitStatus;
+  readonly knownCauseAccuracyDelta: number | null;
+  readonly ambiguityAbstentionAccuracyDelta: number | null;
+  readonly falseAttributionRateDelta: number;
+  readonly unresolvedRateDelta: number;
+  readonly providerCallDelta: number;
+  readonly attemptDelta: number;
+  readonly tokenDelta: number;
+  readonly latencyDeltaMs: number;
+  readonly failureRateDelta: number;
+  readonly safetyRegressionCount: number;
+  readonly reasonCodes: readonly string[];
 }
