@@ -1,6 +1,6 @@
 id: WO-AI-005
 title: Durable Calibration Memory and Replay
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
 branch: agent/ai-005-durable-calibration-future-chronology
 base_branch: main
@@ -58,25 +58,28 @@ acceptance_criteria:
   - restart/replay cannot change PAPER orders, fills, risk state, P0 state, HALT, kill switch, strategy promotion, or LIVE authority
   - exact-head focused durability/AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, and all Restricted LIVE/read-only workflows pass
   - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
-  - PR is merged only after all required checks pass
+  - implementation PR #354 is merged at b4303b928e8d64417f3c07334ed3900ea3075046 after exact-head gates pass
+  - post-merge main CI run 31306311738 and Mobile Native run 31306311737 pass on merge SHA b4303b928e8d64417f3c07334ed3900ea3075046
 verification:
-  required_commands:
-    - pnpm run ai:architecture
-    - pnpm run typecheck
-    - pnpm run lint
-    - pnpm run build
-    - pnpm test
-    - pnpm run coverage
-    - pnpm run architecture:check
-    - pnpm run aipos:drift
-    - pnpm run aipos:conformance
-    - pnpm run security:gate
-    - git diff --check
+  implementation_pull_request: 354
+  implementation_head: b03dd50c01dd789a3023217c018c53fc53a42ea8
+  merge_commit: b4303b928e8d64417f3c07334ed3900ea3075046
+  exact_head_runs:
+    ci: 31306050500
+    readonly_broker_credential_integration: 31306050473
+    restricted_live_capability_surface_guard: 31306050483
+    restricted_live_activation_rehearsal: 31306050472
+    restricted_live_transport_credential_readiness: 31306050499
+  post_merge_runs:
+    ci: 31306311738
+    mobile_native: 31306311737
+  result: PASS
   prohibited_evidence:
     - synthetic durability evidence presented as a real external/LIVE authorization
     - hidden chain-of-thought
     - provider or broker credential material
     - real order, cancel, transfer, or withdrawal
+completion_evidence: .aipos/evidence/WO-AI-005-completion.json
 next: >-
-  Verify implementation PR #354 on its exact latest-main head, resolve any CI/review findings, freeze the
-  passing implementation head, and merge by expected head SHA before any later AI capability work.
+  Select and approve the next zero-authority AI work order before implementation. Do not infer or create
+  LIVE, production mutation, risk increase, or WO-0051 completion authority from WO-AI-005 completion.
