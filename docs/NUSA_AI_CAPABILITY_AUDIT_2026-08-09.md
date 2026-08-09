@@ -2,21 +2,30 @@
 
 ## Scope
 
-Fresh read-only capability audit after verified completion of WO-AI-006. Baseline: `main@26e06b8fc0070db20f4b598344396052b359ac50`.
+Fresh read-only capability audit after evidence-verified completion of WO-AI-007. Baseline: `main@a4148334a90bb7a2f4113199817d47b8694b672f`.
 
-This audit selects the next **zero-authority** AI improvement. It does not satisfy or modify WO-0051, does not authorize LIVE, and does not add execution, credential, promotion, risk-increase, or production-mutation authority.
+This audit selects the next **zero-authority** AI intelligence improvement. It does not satisfy or modify WO-0051, does not authorize LIVE, and does not add execution, credential, promotion, risk-increase, or production-mutation authority.
 
 ## Evidence reviewed
 
 - `docs/NUSA_AI_ARCHITECTURE_V1.md`
 - `docs/NUSA_AI_EVOLUTION_PRINCIPLE.md`
 - `packages/contracts/src/aiInference.ts`
+- `packages/contracts/src/aiInferenceResources.ts`
+- `packages/contracts/src/aiProviderDiversity.ts`
 - `apps/cloud/src/ai/agentExecutor.ts`
 - `apps/cloud/src/ai/modelProvider.ts`
 - `apps/cloud/src/ai/openAiResponsesModelProvider.ts`
+- `apps/cloud/src/ai/anthropicMessagesModelProvider.ts`
 - `apps/cloud/src/ai/multiAgentOrchestrator.ts`
-- `.aipos/work-orders/WO-AI-006-inference-resource-governance.yaml`
-- WO-AI-001 through WO-AI-006 merged verification evidence
+- `apps/cloud/src/ai/nVersionStrategyEvaluator.ts`
+- `apps/cloud/src/ai/outcomeCalibration.ts`
+- `apps/cloud/src/ai/calibrationDurabilityRuntime.ts`
+- `apps/cloud/src/ai/runtime.ts`
+- `apps/cloud/src/ai/projection.ts`
+- `.aipos/evidence/WO-AI-007-completion.json`
+- WO-AI-001 through WO-AI-007 merged verification evidence
+- repository searches for scenario/counterfactual generation, explanation-faithfulness evaluation, experience attribution, and post-decision learning capabilities
 
 ## Current capability scorecard
 
@@ -25,71 +34,86 @@ Scale: 0 = absent, 1 = minimal, 2 = partial, 3 = substantial, 4 = strong verifie
 | Dimension | Score | Evidence |
 | --- | ---: | --- |
 | Grounding / provenance / prompt identity | 4 | Evidence-only inputs, digest-bound materialization, prompt artifacts, replay identity, schema validation. |
-| Outcome calibration lifecycle | 4 | Verified outcomes, cohort partitioning, ECE/Brier gates, durable SQLite replay, corruption/chronology fail-closed. |
-| Inference resource governance | 4 | WO-AI-006 adds immutable run budgets, shared call/retry accounting, byte/token/time ceilings, truthful usage state and fail-closed exhaustion. |
-| Explanation quality | 2 | Rationale claims, assumptions, uncertainty, counter-claims and alternatives exist, but no independent faithfulness/completeness evaluator. |
-| Independent provider/model diversity | 1 | Environment composition still constructs only OpenAI or unavailable; all four roles share one provider/model correlated failure group. |
-| Scenario / counterfactual reasoning | 1 | Target architecture calls for governed scenario generation and counterfactual research, but current inference path has no dedicated scenario contract/runtime. |
-| Learning / attribution beyond calibration | 1 | Durable calibration memory exists, but post-decision attribution does not yet separate model skill, regime, execution, risk intervention and noise. |
-| Multi-agent independence / disagreement intelligence | 2 | Multiple roles and independence metadata exist, but correlated provider/model lineage means disagreement is not yet N-version evidence. |
-| In-process AI resource ownership | 3 | WO-AI-006 bounds shared inference resources; broader cache/provider-pool lifecycle and cancellation isolation remain future work. |
+| Outcome calibration lifecycle | 4 | Verified runtime outcomes, exact cohort partitioning, ECE/Brier gates, durable SQLite replay, stale/corrupt chronology fail-closed. |
+| Inference resource governance | 4 | WO-AI-006 provides immutable run budgets, shared call/retry accounting, byte/token/time ceilings, truthful usage state and fail-closed exhaustion. |
+| Independent provider/model diversity | 3 | WO-AI-007 adds explicitly opt-in independent OpenAI + Anthropic comparison with provider/model-family identity and failure isolation; N-version comparison currently targets the strategy-proposer decision path rather than every AI role/capability. |
+| Multi-agent independence / disagreement intelligence | 3 | N-version structured disagreement now detects correlated/fake independence and forces abstention; broader independent evaluation across all agent roles remains future work. |
+| Explanation quality / faithfulness | 2 | Rationale claims, assumptions, uncertainty, adversarial counter-claims and alternatives exist, but there is no independent explanation-faithfulness/completeness evaluator. |
+| Scenario / counterfactual reasoning | 1 | Target architecture explicitly requires a Scenario Generator and Counterfactual Research, but the merged Cloud AI path has no governed scenario contract, intervention model, sensitivity matrix, or counterfactual evaluation runtime. |
+| Learning / attribution beyond calibration | 1 | Durable outcome calibration exists, but no post-decision attribution layer separates model skill, regime effect, execution, sizing, risk intervention, or noise/luck. |
+| Provider-pool / in-process resource ownership | 3 | Shared inference budgets, timeouts, private credentials and provider failure isolation exist; broader pool cancellation/cache lifecycle remains future hardening. |
+| Cost-quality optimization | 2 | Calls/tokens/latency are auditable and bounded, but no versioned monetary rate-card or quality-per-cost selection policy exists. |
 
 ## Selected next dimension
 
-**Independent provider/model diversity and N-version disagreement evaluation** is selected for WO-AI-007.
+**Governed scenario and counterfactual reasoning** is selected for WO-AI-008.
 
-Provider diversity, scenario reasoning and broader attribution remain low-scoring, but true N-version inference is the highest-value next prerequisite because:
+Scenario/counterfactual reasoning and broader learning/attribution both remain at 1/4. Scenario intelligence is selected first because it is the safer upstream prerequisite for both stronger investment reasoning and later causal attribution:
 
-1. Current four-agent output can look plural while sharing one provider/model failure mode.
-2. Independent provider/model families create a measurable signal for correlated error, disagreement, consensus and abstention.
-3. WO-AI-006 now bounds calls, retries, tokens, bytes and elapsed time, so additional inference paths can be admitted under a common resource contract instead of expanding cost blindly.
-4. Provider diversity can improve robustness without granting any execution authority: all outputs remain evidence-only and zero-authority.
-5. A trustworthy disagreement layer becomes reusable by later scenario generation, explanation faithfulness checks and broader learning/attribution.
+1. The target architecture explicitly places a Scenario Generator in the Perception/World-Model layer and Counterfactual Research in the Research layer.
+2. The current AI evaluates one observed evidence state but cannot yet ask how its decision changes under controlled alternative assumptions or shocks.
+3. WO-AI-006 already bounds calls, attempts, tokens, bytes and time, preventing scenario fan-out from becoming unbounded research.
+4. WO-AI-007 already provides independent-provider disagreement/abstention evidence, so scenario sensitivity can be cross-checked instead of trusting one correlated model path.
+5. Controlled scenarios create reusable evidence for later explanation-faithfulness and post-decision attribution without requiring online self-modification.
+6. The capability can be evaluated deterministically for robustness observability without pretending hypothetical scenarios are observed market facts or claiming predictive accuracy.
 
 ## Observed gap
 
-`createModelProviderFromEnvironment()` currently accepts only `NUSA_AI_PROVIDER=openai`; otherwise it returns `UnavailableModelProvider`. One configured provider/model is injected into the existing multi-agent runtime, so proposer, critic, risk analyst and final synthesizer remain correlated at the model/provider lineage level.
+The merged Cloud AI path has grounded evidence, a four-role primary orchestration, independent provider comparison, calibration, and durable outcome memory. It does **not** yet have a canonical boundary for hypothetical interventions.
 
-The missing layer is not merely a second adapter. NUSA needs explicit **provider-group identity, independence evidence, bounded fan-out, comparable structured outputs, disagreement measurement, and fail-closed aggregation**. A second provider that silently substitutes for the first or is mixed without provenance would add complexity without trustworthy intelligence.
+Without that boundary, asking a model informal "what if" questions would be unsafe and hard to evaluate because:
 
-## WO-AI-007 design direction
+- hypothetical values could be confused with observed evidence;
+- scenario definitions would lack immutable identity and replay semantics;
+- repeated or semantically equivalent scenarios could waste inference budget;
+- scenario fan-out could escape the shared resource envelope;
+- counterfactual outputs could accidentally be fed into verified-runtime calibration or learning as though they occurred;
+- sensitivity and invariance would remain narrative rather than measurable;
+- one model could invent both the scenario and the conclusion, creating self-confirming evaluation.
 
-WO-AI-007 should introduce provider-neutral **N-version inference and disagreement governance** with:
+## WO-AI-008 design direction
 
-- a versioned immutable provider-pool policy;
-- at least two explicitly configured independent provider/model groups before any result may claim cross-provider consensus;
-- canonical provider/model/prompt/schema/input/resource-policy lineage on every run;
-- same evidence snapshot and same role contract for comparable N-version runs;
-- deterministic bounded fan-out governed by WO-AI-006 resource admission;
-- explicit `CONSENSUS | DISAGREEMENT | INSUFFICIENT_INDEPENDENCE | INCOMPLETE | UNVERIFIED` evaluation state;
-- disagreement metrics over structured decision fields, probability, uncertainty, assumptions and cited evidence identities;
-- no majority-vote authority: disagreement can reduce trust or force abstention, never create execution authority;
-- provider failure isolation so one timeout/refusal/malformed output cannot be silently replaced and presented as independent agreement;
-- no secret, raw credential, hidden reasoning or authorization material in comparison evidence;
-- replay/idempotency binding that prevents duplicate side effects and detects lineage/config conflicts;
-- read-only projection of provider groups, completeness, disagreement and trust impact;
-- adversarial regressions for fake independence, duplicate provider/model lineage, partial provider failure, schema drift, correlated identical outputs, contradictory outputs, replay conflict and resource exhaustion.
+WO-AI-008 should introduce a provider-neutral **Governed Scenario & Counterfactual Reasoning** capability with:
+
+- an immutable versioned `AiScenarioPolicy` defining allowed intervention dimensions, bounded magnitudes, horizon semantics, maximum scenario count, deduplication and resource limits;
+- a canonical `AiScenarioDefinition` that explicitly distinguishes `BASELINE` from `HYPOTHETICAL` and binds every scenario to the exact observed evidence snapshot it perturbs;
+- strict separation between observed evidence and hypothetical intervention material: a scenario may reference observed evidence but may never rewrite its provenance, quality, timestamps, content digest or `VERIFIED_RUNTIME` status;
+- deterministic scenario identity, canonical ordering, duplicate detection and replay/idempotency;
+- bounded scenario generation/materialization that cannot create secret, credential, tool, broker, order, risk-policy or LIVE inputs;
+- scenario evaluation through the existing provider-neutral model boundary and, where configured, the WO-AI-007 independent-provider comparison path;
+- one enclosing experiment/resource budget so scenario count, provider fan-out and retries cannot multiply WO-AI-006 limits invisibly;
+- structured sensitivity evidence across decision, raw probability, uncertainty, assumptions, rationale/evidence references, provider disagreement and failure state;
+- explicit robustness states such as `ROBUST | SENSITIVE | CONTRADICTORY | INCOMPLETE | UNVERIFIED` without turning robustness into execution authority;
+- fail-closed behavior when baseline identity, scenario lineage, provider comparison, resource accounting or replay identity conflicts;
+- hard prohibition on using hypothetical scenario results as verified calibration outcomes, realized market evidence, production evidence, or autonomous learning credit;
+- read-only projection of scenario coverage, sensitivity, contradiction, uncertainty and resource use;
+- no automatic strategy mutation, promotion, risk change, execution, order, transfer, withdrawal, credential use, or LIVE authority.
 
 ## Evaluation requirements
 
-AI-007 must not claim intelligence improvement merely because more models are called. Verification must include measurable before/after evidence:
+AI-008 must prove improved **decision-robustness observability**, not merely produce more text or more model calls. Verification should include deterministic/adversarial before-after evidence covering at least:
 
-- independence gate catches same-provider/same-model masquerading as diversity;
-- injected contradictory fixtures produce deterministic disagreement/abstention;
-- injected agreement fixtures produce consensus only when lineage independence is valid;
-- partial provider failure remains incomplete rather than fabricated consensus;
-- resource/call/token/latency ceilings remain enforced under fan-out;
-- calibration and grounding evidence remain intact for each provider group;
-- zero-authority, PAPER isolation and all Restricted LIVE/read-only safety workflows remain PASS.
+- material controlled intervention that changes a fixture decision is detected as sensitivity rather than hidden;
+- invariant fixture remains stable across irrelevant perturbations;
+- contradictory scenario/provider conclusions produce `CONTRADICTORY` or abstention rather than cherry-picked confidence;
+- duplicate/equivalent scenario definitions are deduplicated before provider side effects;
+- attempted mutation of observed evidence/provenance is rejected before inference;
+- hypothetical scenario results cannot enter `VERIFIED_RUNTIME` calibration or durable outcome credit;
+- scenario/provider fan-out obeys one enclosing resource budget and stops before later side effects on exhaustion;
+- exact replay is idempotent while changed policy/evidence/scenario identity fails closed;
+- raw/calibrated confidence is never increased merely because more scenarios were evaluated;
+- zero-authority, PAPER isolation, security and all Restricted LIVE/read-only safety workflows remain PASS.
+
+Synthetic scenario fixtures may prove robustness/sensitivity detection only. They must not be described as evidence of real-market predictive accuracy or profitability.
 
 ## Deferred dimensions
 
-After WO-AI-007 is verified, re-audit rather than assuming the next task. Current likely candidates are:
+After WO-AI-008 is verified, re-audit rather than assuming the next task. Current likely candidates are:
 
-1. governed scenario/counterfactual reasoning;
+1. broader post-decision learning and attribution;
 2. independent explanation faithfulness/completeness evaluation;
-3. broader post-decision learning/attribution;
-4. provider-pool lifecycle/cache/cancellation hardening;
-5. versioned monetary rate-card / cost-quality optimization only after trustworthy usage and provider diversity evidence exist.
+3. wider N-version independence across additional AI roles/capabilities;
+4. provider-pool lifecycle/cancellation/cache hardening;
+5. versioned monetary rate-card and cost-quality optimization.
 
 The ranking must be recomputed from merged repository evidence after every completed slice.
