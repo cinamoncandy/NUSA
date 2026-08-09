@@ -18,9 +18,11 @@ export interface PaperAccountPosition {
   readonly unrealizedPnL: number;
   readonly markPrice: number;
 }
+
 export interface PaperOrderRecord {
   readonly id: string;
   readonly idempotencyKey: string;
+  readonly commandFingerprint?: string;
   readonly market: string;
   readonly side: "BUY" | "SELL";
   readonly quantity: number;
@@ -30,6 +32,7 @@ export interface PaperOrderRecord {
   readonly createdAt: number;
   readonly filledAt: number;
 }
+
 export interface PaperFillRecord {
   readonly id: string;
   readonly orderId: string;
@@ -40,6 +43,7 @@ export interface PaperFillRecord {
   readonly fee: number;
   readonly filledAt: number;
 }
+
 export interface PaperAccountState {
   readonly version: 1;
   readonly initialCapital: number;
@@ -53,10 +57,12 @@ export interface PaperAccountState {
   readonly processedIdempotencyKeys: readonly string[];
   readonly updatedAt: number;
 }
+
 export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; }
 
 export class SqliteCloudPaperAccountRepository implements PaperAccountRepository {
   public constructor(private readonly db: SqliteDatabase) {}
+
   public save(state: PaperAccountState): void {
     validateState(state);
     const stateJson = JSON.stringify(state);
@@ -69,6 +75,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       `).run(ACCOUNT_ID, SCHEMA_VERSION, state.updatedAt, stateJson, accountChecksum(state));
     });
   }
+
   public loadLatest(): PaperAccountState | undefined {
     const row = this.db.connection.prepare("SELECT * FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'").get(ACCOUNT_ID) as Record<string, string | number | null> | undefined;
     if (row == null) return undefined;
@@ -83,17 +90,24 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       throw error;
     }
   }
+
   public clear(): void { this.db.transaction(() => { this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
 }
 
 function accountChecksum(state: PaperAccountState): string { return createHash("sha256").update(JSON.stringify(state), "utf8").digest("hex"); }
+
 function validateState(state: PaperAccountState): void {
   if (state.version !== 1) throw new Error("unsupported paper account state version");
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
   if (state.initialCapital <= 0 || state.cash < 0 || state.equity < 0) throw new Error("paper account balance invariant failed");
   if (!Number.isSafeInteger(state.updatedAt) || state.updatedAt < 0) throw new Error("paper account updatedAt is invalid");
   for (const position of state.positions) {
-    finiteNonNegative(position.quantity, "position.quantity"); finiteNonNegative(position.averageEntryPrice, "position.averageEntryPrice"); finiteNonNegative(position.markPrice, "position.markPrice");
+    finiteNonNegative(position.quantity, "position.quantity");
+    finiteNonNegative(position.averageEntryPrice, "position.averageEntryPrice");
+    finiteNonNegative(position.markPrice, "position.markPrice");
+  }
+  for (const order of state.orders) {
+    if (order.commandFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.commandFingerprint)) throw new Error("paper order commandFingerprint is invalid");
   }
 }
 
@@ -109,6 +123,7 @@ export interface PaperExecutionTick {
   readonly overallHealth: MobileDashboardApiInput["overallHealth"];
   readonly decisions: readonly CioDecision[];
 }
+
 export interface PaperManualOrderContext {
   readonly now: number;
   readonly marketPrice: number;
@@ -118,6 +133,7 @@ export interface PaperManualOrderContext {
   readonly tradingAllowed: boolean;
   readonly overallHealth: MobileDashboardApiInput["overallHealth"];
 }
+
 export interface PaperExecutionResult {
   readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "DUPLICATE" | "FAILED";
   readonly reason?: string;
@@ -125,6 +141,7 @@ export interface PaperExecutionResult {
   readonly fills: readonly PaperFillRecord[];
   readonly state: PaperAccountState;
 }
+
 export interface PaperExecutionSafetyState { readonly openP0: boolean; }
 export interface PaperTradingExecutionLoopOptions {
   readonly initialCapital: number;
@@ -133,6 +150,20 @@ export interface PaperTradingExecutionLoopOptions {
   readonly repository?: PaperAccountRepository;
   readonly restoredState?: PaperAccountState;
   readonly readP0State?: () => PaperExecutionSafetyState;
+}
+
+function canonicalManualCommandFingerprint(command: PersonalPaperOrderCommand): string {
+  const canonical = JSON.stringify({
+    schemaVersion: command.schemaVersion,
+    authority: command.authority,
+    productionMutationAllowed: command.productionMutationAllowed,
+    market: command.market.trim().toUpperCase(),
+    side: command.side,
+    orderType: command.orderType,
+    quantity: command.quantity,
+    limitPrice: command.orderType === "LIMIT" ? command.limitPrice ?? null : null
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
 export class PaperTradingExecutionLoop {
@@ -163,11 +194,16 @@ export class PaperTradingExecutionLoop {
     if (gate != null) return this.result("BLOCKED", gate);
     if (!command.idempotencyKey.trim() || command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false) return this.result("FAILED", "invalid PAPER order authority");
     if (!command.market.trim() || !Number.isFinite(command.quantity) || command.quantity <= 0) return this.result("FAILED", "invalid PAPER order command");
+
+    const commandFingerprint = canonicalManualCommandFingerprint(command);
     const prior = this.state.orders.find((order) => order.idempotencyKey === command.idempotencyKey);
-    if (prior != null || this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) {
-      const fills = prior == null ? [] : this.state.fills.filter((fill) => fill.orderId === prior.id);
-      return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze(prior == null ? [] : [prior]), fills: Object.freeze(fills), state: this.state });
+    if (prior != null) {
+      if (prior.commandFingerprint !== commandFingerprint) return this.result("REJECTED", "IDEMPOTENCY_KEY_CONFLICT");
+      const fills = this.state.fills.filter((fill) => fill.orderId === prior.id);
+      return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze([prior]), fills: Object.freeze(fills), state: this.state });
     }
+    if (this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) return this.result("REJECTED", "IDEMPOTENCY_KEY_CONFLICT");
+
     const market = command.market.trim().toUpperCase();
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
@@ -175,8 +211,9 @@ export class PaperTradingExecutionLoop {
       const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
       if (!marketable) return this.result("REJECTED", "PAPER_LIMIT_NOT_MARKETABLE");
     }
+
     try {
-      const executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate);
+      const executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, commandFingerprint);
       const working = markToMarket(executed.state, market, context.marketPrice, context.now);
       this.repository?.save(working);
       this.state = working;
@@ -196,6 +233,7 @@ export class PaperTradingExecutionLoop {
     const nextOrders: PaperOrderRecord[] = [];
     const nextFills: PaperFillRecord[] = [];
     let working = cloneState(this.state);
+
     for (const decision of actionable.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.action.localeCompare(b.action))) {
       const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
       if (existingKeys.has(key)) return this.result("DUPLICATE", key);
@@ -206,8 +244,12 @@ export class PaperTradingExecutionLoop {
       let order: ReturnType<typeof executeOrder>;
       try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
-      working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
+      working = order.state;
+      nextOrders.push(order.order);
+      nextFills.push(order.fill);
+      existingKeys.add(key);
     }
+
     working = markToMarket(working, tick.market, tick.price, tick.now);
     try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
@@ -238,7 +280,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, commandFingerprint?: string): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -247,6 +289,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   let cash = state.cash;
   let position: PaperAccountPosition;
   let realizedPnL = state.realizedPnL;
+
   if (side === "BUY") {
     if (notional + fee > cash) throw new Error("insufficient paper cash");
     const nextQuantity = round8(previous.quantity + quantity);
@@ -260,9 +303,10 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
     realizedPnL = round8(realizedPnL + realized);
     cash = round8(cash + notional - fee);
   }
+
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
-  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now });
+  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, ...(commandFingerprint === undefined ? {} : { commandFingerprint }), market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now });
   const fill: PaperFillRecord = Object.freeze({ id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now });
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys].slice(0, 2_000), updatedAt: now }, order, fill };
 }
