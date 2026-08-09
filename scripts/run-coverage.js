@@ -8,6 +8,7 @@ const coverageDirectory = join(root, "coverage");
 const tempDirectory = join(tmpdir(), "nusa-v8-coverage");
 const nodeCommand = process.execPath;
 const pnpmDirectory = join(root, "node_modules", ".pnpm");
+const prepared = process.argv.includes("--prepared");
 
 function packageFile(prefix, packageName, file) {
   const directory = readdirSync(pnpmDirectory).find((name) => name.startsWith(`${prefix}@`));
@@ -25,20 +26,22 @@ rmSync(tempDirectory, { recursive: true, force: true });
 mkdirSync(coverageDirectory, { recursive: true });
 mkdirSync(tempDirectory, { recursive: true });
 
-for (const args of [
-  [join(root, "scripts", "check-runtime.js")],
-  [join(root, "scripts", "validate-repository-portability.js")]
-]) {
-  const setup = spawnSync(nodeCommand, args, { cwd: root, encoding: "utf8", stdio: "inherit", windowsHide: true });
-  if (setup.error || setup.status !== 0) process.exit(setup.status || 1);
+if (!prepared) {
+  for (const args of [
+    [join(root, "scripts", "check-runtime.js")],
+    [join(root, "scripts", "validate-repository-portability.js")]
+  ]) {
+    const setup = spawnSync(nodeCommand, args, { cwd: root, encoding: "utf8", stdio: "inherit", windowsHide: true });
+    if (setup.error || setup.status !== 0) process.exit(setup.status || 1);
+  }
+  const build = spawnSync(nodeCommand, [typeScriptCommand, "-p", "tsconfig.json"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: "inherit",
+    windowsHide: true
+  });
+  if (build.error || build.status !== 0) process.exit(build.status || 1);
 }
-const build = spawnSync(nodeCommand, [typeScriptCommand, "-p", "tsconfig.json"], {
-  cwd: root,
-  encoding: "utf8",
-  stdio: "inherit",
-  windowsHide: true
-});
-if (build.error || build.status !== 0) process.exit(build.status || 1);
 
 const suites = [
   {
@@ -159,6 +162,7 @@ if (unified.error || unified.status !== 0) {
 const summaryPath = join(coverageDirectory, "unified-summary.json");
 const summary = existsSync(summaryPath) ? JSON.parse(readFileSync(summaryPath, "utf8")) : null;
 writeManifest(results, "PASS", {
+  prepared,
   summary,
   reportFiles: [
     "coverage/unified-report.md",
@@ -181,6 +185,7 @@ function writeManifest(suiteResults, status, extra = {}) {
       generatedAt: new Date().toISOString(),
       repository: "NUSA",
       status,
+      prepared,
       ...extra,
       suites: suiteResults
     }, null, 2)}\n`,
