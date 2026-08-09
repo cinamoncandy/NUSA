@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T08:53:00+09:00"
+updated_at: "2026-08-09T09:04:00+09:00"
 phase: real-provider-challenger-runtime
 status: in_progress
 objective: "Activate an explicitly configured real model challenger below the grounded zero-authority AI runtime, then verify provider availability, secret isolation, usage observability, and unchanged PAPER/safety authority."
 base_branch: main
 active_branch: agent/ai-003-real-provider-challenger
-active_pull_request: null
+active_pull_request: 215
 base_commit: 3941bfbef711792396b61acb611579d73a9867f9
 claimed_state:
   work_order: WO-AI-003
@@ -62,8 +62,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #213 merged at 3941bfbef711792396b61acb611579d73a9867f9 from exact-head ea2b6ac52e3f8aed6d870ecfb3079e96247e810b after CI 31284591253 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. WO-AI-003 implementation branch opened from that verified planning baseline."
-  current_commit: "3941bfbef711792396b61acb611579d73a9867f9; WO-AI-003 plan merged and implementation branch active"
+  last_result: "PR #213 merged at 3941bfbef711792396b61acb611579d73a9867f9 from exact-head ea2b6ac52e3f8aed6d870ecfb3079e96247e810b after CI 31284591253 PASS including Security, Typecheck, Build, AI zero-authority architecture/focused regressions, AIPOS evidence integrity/conformance, E2E/release, Full isolated suite, and coverage; all four Restricted LIVE/read-only workflows PASS. WO-AI-003 implementation is now tracked by PR #215."
+  current_commit: "ca902aaa8e8a367b54f73afd759c98367c5dcb06; WO-AI-003 OpenAI challenger implementation committed; PR #215 active"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
