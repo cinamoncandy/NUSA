@@ -15,7 +15,7 @@ export interface SettingsRepository { load(): Promise<AppSettings | null>; save(
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({ theme: "SYSTEM", locale: "ko-KR", notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }), paperEndpoint: "" });
 const text = (value: string, field: string): string => { const normalized = value.trim(); if (!normalized) throw new Error(`${field} must not be empty`); return normalized; };
-const normalizeEndpoint = (value: string | undefined): string => {
+export const normalizePaperEndpoint = (value: string | undefined): string => {
   const normalized = value?.trim() ?? "";
   if (!normalized) return "";
   let url: URL;
@@ -34,7 +34,7 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   if (!["ko-KR", "en-US"].includes(locale)) throw new Error("locale is invalid");
   const notifications = input.notifications ?? DEFAULT_SETTINGS.notifications;
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), paperEndpoint: normalizeEndpoint(input.paperEndpoint) });
+  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), paperEndpoint: normalizePaperEndpoint(input.paperEndpoint) });
 };
 
 /** Environment configuration is fail-closed: endpoint variables must be explicitly supplied by the caller. */
