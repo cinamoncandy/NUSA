@@ -12,6 +12,8 @@ This runbook deploys the NUSA Cloud runtime to an Oracle Linux host while preser
 - Runtime database and backups live outside `/opt/nusa/current`.
 - Releases are immutable directories under `/opt/nusa/releases/<full-commit-sha>`.
 - `/opt/nusa/current` is an atomic symlink.
+- Oracle starts `dist/apps/cloud/src/oracleRuntime.js`, which injects the current canonical risk gate before PAPER fills.
+- Canonical PAPER approval is never generated or inferred by the runtime. Missing, expired, mismatched, duplicate, P0, kill-switch, recovery, persistence, market-health, or stale-data conditions fail closed before a fill.
 - `productionMutationAllowed=false`; no deploy step changes execution authority.
 
 ## Host layout
@@ -29,7 +31,7 @@ Create the service user and persistent directories with the least privileges req
 
 ## Environment and token rotation
 
-The minimum environment file is:
+The minimum read-only environment file is:
 
 ```text
 NUSA_CLOUD_DASHBOARD_PORT=3000
@@ -38,7 +40,20 @@ NUSA_CLOUD_STATE_DB_PATH=/var/lib/nusa/cloud-state.db
 NUSA_CLOUD_DASHBOARD_TOKEN=<secret>
 ```
 
-Generate or rotate the secret atomically with:
+To enable the existing PAPER execution loop on Oracle, configuration remains explicit and bounded:
+
+```text
+NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW=<positive-number>
+NUSA_CLOUD_RISK_POLICY_FINGERPRINT=<approved-policy-fingerprint>
+NUSA_CLOUD_PAPER_MAX_DAILY_LOSS_KRW=<positive-number>
+NUSA_CLOUD_PAPER_MAX_OPEN_ORDERS=<positive-integer>
+NUSA_CLOUD_PAPER_APPROVAL_ID_KRW_BTC=<existing-canonical-approval-id>
+NUSA_CLOUD_PAPER_APPROVAL_ID_KRW_ETH=<existing-canonical-approval-id>
+```
+
+The canonical strategy identity for this Oracle Cloud loop is `cloud-cio-paper-v1`. Each approval stored in the current durable canonical risk repository must match `PAPER`, the exact market symbol, this strategy ID, and the configured policy fingerprint. A generic `NUSA_CLOUD_PAPER_APPROVAL_ID` may be used as a fallback, but market-specific IDs are preferred because canonical approval scope is symbol-bound. The runtime never creates an approval. If no valid approval exists, the canonical gate returns `APPROVAL_MISSING` (or the relevant mismatch/expiry reason) and no fill occurs.
+
+Generate or rotate the dashboard secret atomically with:
 
 ```bash
 sudo -u root node scripts/generate-dashboard-token.js
@@ -69,6 +84,8 @@ sudo node scripts/oracle-validate.js
 
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
+When PAPER execution is enabled, additionally verify the risk-policy fingerprint, daily-loss limit, open-order limit, and intended market approval IDs are present. Do not weaken or bypass these values to recover service.
+
 ## Atomic release switch
 
 Stage and verify the complete release at `/opt/nusa/releases/<full-sha>` first. Then switch only the symlink:
@@ -92,6 +109,8 @@ sudo node scripts/oracle-readiness-check.js
 
 Accept the release only when `/ready` returns HTTP 200 and all four checks are true: database, migrations, dashboard persistence, and runtime recovery.
 
+A healthy `/ready` response does not itself grant PAPER execution. Canonical approval, P0, kill switch, market freshness/health, recovery, persistence, daily-loss, open-order and idempotency checks remain authoritative on every actionable PAPER tick.
+
 ## Failed readiness: rollback
 
 If readiness fails, do not attempt an automatic database restore. Roll the release symlink back, restart, and prove readiness again:
@@ -102,7 +121,7 @@ sudo systemctl restart nusa.service
 sudo node scripts/oracle-readiness-check.js
 ```
 
-If rollback readiness also fails, stop the service and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
+If rollback readiness also fails, stop the service and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, loosen canonical risk limits, fabricate approval, or enable LIVE/private mutation to recover service.
 
 ## Operational logging
 
@@ -116,4 +135,4 @@ journalctl -u nusa.service --since today --output=cat
 
 ## Restore policy
 
-Backups are evidence for a **manual, reviewed** restore. No script in this scope automatically overwrites the live database, deletes Evidence, or mutates production state. A restore requires a separate maintenance decision, service stop, checksum/integrity verification, preserved pre-restore copy, and post-restore authenticated readiness verification.
+Backups are evidence for a **manual, reviewed** restore. No script in this scope automatically overwrites the live database, deletes Evidence, or mutates production state. A restore requires a separate maintenance decision, service stop, checksum/integrity verification, preserved pre-restore copy, and post-restore authenticated readiness verification. Canonical PAPER approvals and risk state are part of the durable database and must be reviewed after restore before PAPER execution is considered safe to resume.
