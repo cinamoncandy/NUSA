@@ -6,7 +6,7 @@ status: in_progress
 objective: "Make verified outcome calibration durable across Cloud restarts with integrity-checked deterministic replay while preserving zero AI execution authority and all human-only production gates."
 base_branch: main
 active_branch: agent/ai-005-durable-calibration-plan
-active_pull_request: null
+active_pull_request: 345
 base_commit: 96e9bb692c968ab1dfae7785e503c3be95819443
 claimed_state:
   work_order: WO-AI-005
@@ -53,7 +53,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
-  reason: "Fresh post-AI-004 capability audit scored calibration durability lowest because the current ledger and pending-resolution state are process-memory only. Merge and verify this planning gate before implementation."
+  reason: "Fresh post-AI-004 capability audit scored calibration durability lowest because the current ledger and pending-resolution state are process-memory only. Merge and verify PR #345 before implementation."
 verification:
   required:
     - "WO-AI-005 plan exact-head Full CI/Coverage, architecture/AIPOS, security, and all Restricted LIVE/read-only workflows PASS before implementation starts"
@@ -68,7 +68,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-004 is verified complete on main; frozen mobile architecture boundary PR #343 merged after exact-head Full CI/Coverage and four safety/read-only workflows PASS. Fresh audit selected calibration durability as the next lowest-scoring safe AI capability."
-  current_commit: "96e9bb692c968ab1dfae7785e503c3be95819443; WO-AI-005 planning only, no product implementation or authority change yet"
+  current_commit: "96e9bb692c968ab1dfae7785e503c3be95819443; WO-AI-005 planning PR #345 only, no product implementation or authority change yet"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

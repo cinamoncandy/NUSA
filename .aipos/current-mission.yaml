@@ -1,7 +1,7 @@
 id: WO-AI-005
 title: Durable Calibration Memory and Replay
 branch: agent/ai-005-durable-calibration-plan
-pull_request: null
+pull_request: 345
 base_branch: main
 phase: durable-ai-calibration-memory
 status: IN_PROGRESS
@@ -35,4 +35,4 @@ blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Merge and verify the WO-AI-005 planning gate only; do not start product implementation before that merge is complete.
+next_recommended_task: Merge and verify PR #345 planning gate only; do not start product implementation before that merge is complete.
