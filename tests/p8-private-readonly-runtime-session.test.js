@@ -8,7 +8,7 @@ const { SqliteP0AlertRepository } = require("../dist/apps/cloud/src/p0AlertRepos
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
-const { setConfiguredPaperEndpoint, clearConfiguredPaperEndpoint } = require("../dist/apps/mobile/src/paperConnectionSession.js");
+const { setConfiguredPaperEndpoint, clearPaperConnectionSession } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 const { buildPortfolioViewModel } = require("../dist/apps/mobile/src/portfolioViewModel.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
@@ -44,8 +44,8 @@ async function loadOperations(handle, token) {
   return response.json();
 }
 
-test.beforeEach(() => clearConfiguredPaperEndpoint());
-test.afterEach(() => clearConfiguredPaperEndpoint());
+test.beforeEach(() => clearPaperConnectionSession());
+test.afterEach(() => clearPaperConnectionSession());
 
 test("memory-only dashboard credential session never persists or infers local auth", async () => {
   const session = new InMemoryDashboardCredentialSession();
@@ -67,7 +67,7 @@ test("dashboard bearer credential is sent only to a secure or explicitly configu
     return { ok: false, status: 503 };
   };
   const insecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
-  assert.equal(insecure.status, "NOT_CONFIGURED");
+  assert.equal(insecure.status, "UNAVAILABLE");
   assert.equal(requestCount, 0);
 
   const secure = await loadPersonalPaperOperations({ baseUrl: "https://nusa.invalid", credentialProvider, request });
@@ -214,13 +214,16 @@ test("unverifiable durable P0 projects Personal PAPER Operations as HALTED", asy
   }
 });
 
-test("mobile source consumes only the single authenticated operations snapshot and exposes no mutation path", () => {
+test("mobile source keeps read-only snapshot consumption separate from Settings-held credential entry", () => {
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
+  const settings = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "settingsView.tsx"), "utf8");
   const session = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "dashboardCredentialSession.ts"), "utf8");
   const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts"), "utf8");
   assert.match(app, /InMemoryDashboardCredentialSession/);
-  assert.match(app, /secureTextEntry/);
+  assert.doesNotMatch(app, /secureTextEntry/);
+  assert.match(settings, /secureTextEntry/);
+  assert.match(settings, /settings-paper-token/);
   assert.match(app, /snapshot\?\.portfolio/);
   assert.match(app, /snapshot\?\.orders/);
   assert.match(app, /snapshot\.markets/);
