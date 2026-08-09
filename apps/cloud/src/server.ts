@@ -58,9 +58,12 @@ const correlationId = (req: IncomingMessage): string => {
 };
 
 /**
- * Localhost-by-default read-only dashboard transport. `/api/dashboard`, `/api/paper-operations`,
- * and `/ready` share the same GET-only Bearer + `dashboard:read` authorization boundary.
- * `/health` is deliberately unauthenticated liveness only. Unknown paths fail closed with 404.
+ * Localhost-by-default read-only dashboard transport. `/`, `/api/dashboard`,
+ * `/api/paper-operations`, and `/ready` share the same GET-only Bearer +
+ * `dashboard:read` authorization boundary. `/health` GET is deliberately
+ * unauthenticated liveness only; other methods still traverse the dashboard
+ * method guard so the established 405 contract is preserved. Unknown paths
+ * fail closed with 404.
  *
  * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
  */
@@ -122,7 +125,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      if (req.url === "/api/dashboard") {
+      if (req.url === "/api/dashboard" || req.url === "/" || req.url === "/health") {
         write(res, handleMobileDashboardHttp(dashboardRequest, {
           tokenVerifier: options.tokenVerifier,
           loadDashboard: options.loadDashboard
