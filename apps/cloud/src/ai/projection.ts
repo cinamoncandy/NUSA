@@ -1,6 +1,8 @@
 import type { AiCalibrationProfile, AiReadOnlyProjection } from "../../../../packages/contracts/src/aiInference";
 import type { AiOrchestrationResult } from "./multiAgentOrchestrator";
 
+type CalibrationBoundResult = AiOrchestrationResult & { readonly calibrationProfile?: AiCalibrationProfile | null };
+
 const rawProbabilityFrom = (result: AiOrchestrationResult): number | null => {
   const proposer = result.structuredOutputs.find((output) => output.role === "STRATEGY_PROPOSER");
   const value = proposer?.payload.rawProbability;
@@ -30,7 +32,8 @@ const emptyCalibration = Object.freeze({ confidence: 0, calibrationStatus: "UNKN
 
 export function projectAiReadOnly(result: AiOrchestrationResult | null, calibrationProfile?: AiCalibrationProfile | null): AiReadOnlyProjection {
   if (result == null || result.status === "UNAVAILABLE") return Object.freeze({ status: "UNAVAILABLE", thesis: null, ...emptyCalibration, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: [], lastModelRun: null, modelVersion: null, promptVersion: null, liveAuthority: "NONE", productionMutationAllowed: false });
-  const calibration = calibrationFields(result, calibrationProfile);
+  const boundProfile = calibrationProfile === undefined ? (result as CalibrationBoundResult).calibrationProfile : calibrationProfile;
+  const calibration = calibrationFields(result, boundProfile);
   if (result.governanceDecision == null) return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, confidence: 0, effectiveConfidence: 0, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: result.independence?.reasonCodes ?? [], lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
   const proposal = result.structuredOutputs.find((output) => output.role === "STRATEGY_PROPOSER");
   const critic = result.structuredOutputs.find((output) => output.role === "ADVERSARIAL_CRITIC");
