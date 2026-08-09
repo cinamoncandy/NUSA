@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const {
   SqliteDatabase,
@@ -8,8 +9,10 @@ const {
   SqliteResearchEvaluationLedger,
   SqliteCandidatePromotionRepository
 } = require("../dist/packages/storage/src/index.js");
+const { SqliteP0AlertRepository } = require("../dist/apps/cloud/src/p0AlertRepository.js");
 const { DefaultResearchRuntimeComposition } = require("../dist/apps/cloud/src/researchRuntimeComposition.js");
 const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
+const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
 const { startDefaultCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
 const hash = "a".repeat(64);
@@ -52,6 +55,12 @@ function runningSession() {
   };
 }
 
+async function fetchOperations(handle, token) {
+  const response = await fetch(`http://${handle.host}:${handle.port}/api/paper-operations`, { headers: { authorization: `Bearer ${token}` } });
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
 test("memory-only dashboard credential session never persists or infers local auth", async () => {
   const session = new InMemoryDashboardCredentialSession();
   assert.equal(await session.credentialProvider(), null);
@@ -62,6 +71,27 @@ test("memory-only dashboard credential session never persists or infers local au
   assert.equal(Object.prototype.hasOwnProperty.call(session, "storage"), false);
   session.clear();
   assert.equal(await session.credentialProvider(), null);
+});
+
+test("mobile read-only client rejects legacy snapshot shapes and insecure remote HTTP", async () => {
+  let remoteRequestCalled = false;
+  const insecure = await loadPersonalPaperOperations({
+    baseUrl: "http://192.0.2.10:41731",
+    credentialProvider: async () => "token",
+    request: async () => { remoteRequestCalled = true; throw new Error("must not run"); }
+  });
+  assert.equal(insecure.status, "NOT_CONFIGURED");
+  assert.equal(remoteRequestCalled, false);
+
+  const legacy = await loadPersonalPaperOperations({
+    baseUrl: "http://127.0.0.1:41731",
+    credentialProvider: async () => "token",
+    request: async () => ({
+      ok: true,
+      json: async () => ({ schemaVersion: 1, liveAuthority: "NONE", productionMutationAllowed: false, dashboard: {}, operations: {} })
+    })
+  });
+  assert.equal(legacy.status, "UNAVAILABLE");
 });
 
 test("default Research composition replays persistent state, pauses RUNNING work, and never evaluates on ticks", () => {
@@ -102,9 +132,7 @@ test("default cloud runtime exposes one authenticated read-only PAPER projection
   try {
     const unauthenticated = await fetch(`http://${handle.host}:${handle.port}/api/paper-operations`);
     assert.equal(unauthenticated.status, 401);
-    const response = await fetch(`http://${handle.host}:${handle.port}/api/paper-operations`, { headers: { authorization: `Bearer ${token}` } });
-    assert.equal(response.status, 200);
-    const body = await response.json();
+    const body = await fetchOperations(handle, token);
     assert.equal(body.liveAuthority, "NONE");
     assert.equal(body.productionMutationAllowed, false);
     assert.equal(body.portfolio.mode, "PAPER");
@@ -114,13 +142,54 @@ test("default cloud runtime exposes one authenticated read-only PAPER projection
   } finally { await handle.stop(); }
 });
 
-test("P8 source wiring has no implicit Research evaluator, persisted token, or trading mutation route", () => {
+test("durable P0 open or corrupted evidence projects PAPER Operations as HALTED", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-p8-p0-"));
+  const databasePath = path.join(dir, "cloud.sqlite");
+  const token = "p8-p0-read-only-dashboard-token-123456";
+  const handle = startDefaultCloudRuntime({
+    NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
+    NUSA_CLOUD_DASHBOARD_PORT: "41940",
+    NUSA_CLOUD_DASHBOARD_TOKEN: token,
+    NUSA_CLOUD_STATE_DB_PATH: databasePath,
+    NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false",
+    NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000000"
+  });
+  const db = new SqliteDatabase(databasePath);
+  try {
+    const p0 = new SqliteP0AlertRepository(db);
+    p0.append({ eventId: "p8-p0-open", incidentId: "p8-p0", type: "OPENED", occurredAt: 100, reason: "P8 projection regression" });
+    const open = await fetchOperations(handle, token);
+    assert.equal(open.operations.runtimeState, "HALTED");
+    assert.equal(open.operations.accountHalted, true);
+    assert.equal(open.health, "FAIL_CLOSED");
+    assert.equal(open.readyForPaperOperations, false);
+
+    db.connection.prepare("UPDATE cloud_p0_alert_events SET hash = ? WHERE sequence = 1").run("f".repeat(64));
+    const corrupted = await fetchOperations(handle, token);
+    assert.equal(corrupted.operations.runtimeState, "HALTED");
+    assert.equal(corrupted.operations.accountHalted, true);
+    assert.equal(corrupted.health, "FAIL_CLOSED");
+    assert.equal(corrupted.readyForPaperOperations, false);
+  } finally {
+    db.close();
+    await handle.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("P8 source wiring preserves P0 fill safety and has no implicit Research evaluator or mutation route", () => {
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts"), "utf8");
   const research = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "researchRuntimeComposition.ts"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const session = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "dashboardCredentialSession.ts"), "utf8");
+  const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   assert.match(runtime, /startDefaultCloudRuntime/);
   assert.match(runtime, /createDefaultResearchRuntimeComposition/);
+  assert.match(runtime, /SqliteP0AlertRepository/);
+  assert.match(runtime, /readP0State/);
+  assert.match(runtime, /P0 safety repository unavailable/);
+  assert.match(runtime, /p0ProjectionHalted/);
+  assert.match(runtime, /latestTickers\.clear\(\)/);
   assert.match(runtime, /portfolio:\s*buildReadOnlyPortfolio/);
   assert.match(runtime, /orders:\s*buildReadOnlyOrders/);
   assert.match(runtime, /markets:\s*\[\.\.\.latestTickers\.values\(\)\]/);
@@ -131,6 +200,8 @@ test("P8 source wiring has no implicit Research evaluator, persisted token, or t
   assert.match(app, /snapshot\?\.portfolio/);
   assert.match(app, /snapshot\?\.orders/);
   assert.match(app, /snapshot\.markets/);
+  assert.match(client, /Array\.isArray\(snapshot\.orders\)/);
+  assert.match(client, /isSecureDashboardEndpoint/);
   assert.doesNotMatch(session, /AsyncStorage|Keychain|SecureStore|console\.|process\.env/);
   assert.doesNotMatch(app, /placeOrder|cancelOrder|withdraw|\/api\/(?:account|markets|orders|trade)/);
 });
