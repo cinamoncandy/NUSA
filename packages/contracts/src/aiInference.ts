@@ -84,6 +84,12 @@ export interface AiCalibrationPrediction extends AiCalibrationCohortKey {
   readonly proposalId: string;
   readonly agentId: string;
   readonly role: AiAgentRole;
+  /** Exact target being forecast, for example KRW-BTC. */
+  readonly targetId: string;
+  /** Verified value observed before inference and used as the objective outcome baseline. */
+  readonly anchorValue: number;
+  readonly anchorObservedAt: number;
+  readonly anchorEvidenceReference: string;
   readonly rawProbability: number;
   readonly predictedAt: number;
   readonly horizonMs: number;
@@ -98,6 +104,8 @@ export interface AiCalibrationOutcome {
   readonly outcomeDefinitionId: string;
   readonly outcomeDefinitionVersion: string;
   readonly outcome: boolean;
+  /** Verified observed value used to deterministically resolve the boolean outcome. */
+  readonly resolvedValue: number;
   readonly resolvedAt: number;
   readonly evidenceReferences: readonly string[];
   readonly provenance: AiCalibrationProvenance;
