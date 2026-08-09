@@ -5,9 +5,9 @@ phase: outcome-linked-ai-calibration
 status: in_progress
 objective: "Build deterministic outcome-linked AI calibration so raw model confidence is separated from empirically verified confidence while preserving zero execution authority."
 base_branch: main
-active_branch: main
+active_branch: agent/ai-004-outcome-calibration-plan-v4
 active_pull_request: null
-base_commit: 41a4409a745ae179fac61d2c5a6b52ffb81eddc8
+base_commit: 82ef1e9de8f20f675b779f37013d081f4bd3bad1
 claimed_state:
   work_order: WO-AI-004
   status: IN_PROGRESS
@@ -64,8 +64,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #232 merged at 41a4409a745ae179fac61d2c5a6b52ffb81eddc8 and opened the WO-AI-004 outcome-linked calibration plan on main; repository-facing AIPOS mission metadata is synchronized to that merged baseline."
-  current_commit: "41a4409a745ae179fac61d2c5a6b52ffb81eddc8; WO-AI-004 planning is merged and remains IN_PROGRESS; no active implementation PR is recorded in AIPOS state."
+  last_result: "PR #232 merged the WO-AI-004 plan at 41a4409a745ae179fac61d2c5a6b52ffb81eddc8; PR #244 then advanced main to 82ef1e9de8f20f675b779f37013d081f4bd3bad1 with the deterministic Strategy Registry while preserving the active WO-AI-004 safety boundary."
+  current_commit: "82ef1e9de8f20f675b779f37013d081f4bd3bad1; WO-AI-004 remains IN_PROGRESS on its recorded implementation branch; no active implementation PR is recorded in AIPOS state."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
