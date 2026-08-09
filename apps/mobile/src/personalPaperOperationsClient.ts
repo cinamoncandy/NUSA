@@ -15,6 +15,7 @@ export interface PersonalPaperOperationsClientOptions {
   readonly baseUrl: string;
   readonly credentialProvider: DashboardCredentialProvider;
   readonly request?: typeof fetch;
+  readonly timeoutMs?: number;
   /** Settings-only connection probe. Normal reads must never opt out of verified endpoint binding. */
   readonly allowUnverifiedEndpoint?: boolean;
 }
@@ -32,6 +33,11 @@ function isSecureDashboardEndpoint(baseUrl: string): boolean {
     return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
   } catch { return false; }
 }
+function readTimeoutMs(value: number | undefined): number {
+  const timeoutMs = value ?? 10_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 30_000) throw new Error("PAPER operations timeout must be an integer in (0, 30000]");
+  return timeoutMs;
+}
 
 /** Uses only the explicitly saved endpoint. Normal reads require that exact endpoint to be verified before credential access. */
 export async function loadPersonalPaperOperations(options: PersonalPaperOperationsClientOptions): Promise<PersonalPaperOperationsLoadResult> {
@@ -46,19 +52,36 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   if (options.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before credentials can be used." });
   if (!isSecureDashboardEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP." });
 
+  let timeoutMs: number;
+  try { timeoutMs = readTimeoutMs(options.timeoutMs); }
+  catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations timeout is invalid." }); }
   const token = await options.credentialProvider();
   if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
 
+  const endpoint = new URL(`${configured}/api/paper-operations`).href;
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
-    const response = await (options.request ?? fetch)(`${configured}/api/paper-operations`, {
-      method: "GET",
-      headers: { authorization: `Bearer ${token.trim()}`, accept: "application/json" }
-    });
+    const operation = (async () => {
+      const response = await (options.request ?? fetch)(endpoint, {
+        method: "GET",
+        redirect: "error",
+        signal: controller.signal,
+        headers: { authorization: `Bearer ${token.trim()}`, accept: "application/json" }
+      });
+      if (response.redirected === true) throw new Error("PAPER operations redirect is prohibited.");
+      if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER operations final endpoint changed.");
+      return response;
+    })();
+    const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { controller.abort(); reject(new Error("PAPER operations request timed out.")); }, timeoutMs); });
+    const response = await Promise.race([operation, timeout]);
     if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
     const payload: unknown = await response.json();
     try { return Object.freeze({ status: "READY", snapshot: validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot) }); }
     catch { return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." }); }
-  } catch {
-    return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER operations connection is unavailable." });
+  } catch (error) {
+    return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable." });
+  } finally {
+    if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
   }
 }
