@@ -1,7 +1,7 @@
 id: WO-AI-005
 title: Durable Calibration Memory and Replay
-branch: agent/ai-005-durable-calibration-plan
-pull_request: 345
+branch: agent/ai-005-durable-calibration-memory
+pull_request: 351
 base_branch: main
 phase: durable-ai-calibration-memory
 status: IN_PROGRESS
@@ -28,11 +28,12 @@ latest_verified_slice:
   evidence: .aipos/evidence/WO-AI-004-completion.json
 verification:
   required:
-    - exact-head plan Full CI/Coverage and architecture/AIPOS validation before implementation starts
-    - durability implementation must prove restart replay, corruption fail-closed, and exact cohort preservation
+    - exact-head PR #351 Full CI/Coverage and architecture/AIPOS validation before merge
+    - durability implementation must prove restart replay, corruption fail-closed, exact cohort preservation, and stale pending expiry without credit
     - all Restricted LIVE/read-only workflows remain PASS
+    - latest main remains integrated and review threads are clear before expected-head merge
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-next_recommended_task: Merge and verify PR #345 planning gate only; do not start product implementation before that merge is complete.
+next_recommended_task: Complete and verify canonical implementation PR #351 only; do not start another AI capability slice before Merge + completion evidence PASS.
