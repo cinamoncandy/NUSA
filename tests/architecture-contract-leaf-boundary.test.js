@@ -36,6 +36,17 @@ test("shared contracts reject runtime dependencies on Core implementation", () =
   });
 });
 
+test("shared contracts reject side-effect runtime imports of implementation modules", () => {
+  withFixture({
+    "packages/contracts/src/public.ts": 'import "../../core/src/register"; export interface PublicContract { readonly id: string; }\n',
+    "packages/core/src/register.ts": "globalThis.__nusaContractLeak = true;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(contractFindings(result).length, 1);
+    assert.equal(contractFindings(result)[0].kind, "runtime");
+  });
+});
+
 test("shared contracts reject type-only dependencies on AIPOS implementation", () => {
   withFixture({
     "packages/contracts/src/public.ts": 'import type { AiposState } from "../../aipos/src/types"; export type PublicState = AiposState;\n',
