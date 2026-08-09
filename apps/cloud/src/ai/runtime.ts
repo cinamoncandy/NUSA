@@ -1,8 +1,12 @@
 import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
+import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from "../../../../packages/contracts/src/aiCalibrationDurability";
+import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
+import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
 import { createModelProviderFromEnvironment } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
 import { createVerifiedRuntimeCalibrationPrediction } from "./calibrationBridge";
 import { createCalibrationOutcome, OutcomeCalibrationLedger, type CalibrationPolicy } from "./outcomeCalibration";
+import { CalibrationDurabilityRuntime } from "./calibrationDurabilityRuntime";
 import { projectAiReadOnly } from "./projection";
 
 export const AI_CALIBRATION_OUTCOME_DEFINITION_ID = "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M";
@@ -19,6 +23,7 @@ export interface CloudAiRuntime {
   latestProjection(now?: number): AiReadOnlyProjection | null;
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
+  calibrationDurabilityHealth(): AiCalibrationDurabilityHealth;
   isInFlight(): boolean;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -36,6 +41,8 @@ export interface CloudAiRuntimeOptions {
   readonly minimumCadenceMs?: number;
   readonly maximumResultAgeMs?: number;
   readonly calibration?: CloudAiCalibrationOptions;
+  /** Explicit test/composition injection. Production Cloud auto-composes SQLite from its state DB path. */
+  readonly durableCalibrationStore?: AiCalibrationDurableStore;
 }
 
 interface VerifiedMarketAnchor {
@@ -104,6 +111,18 @@ function supportsAutomaticResolution(calibration: CloudAiCalibrationOptions): bo
     && calibration.horizonMs === AI_CALIBRATION_HORIZON_MS;
 }
 
+/**
+ * Only the actual Cloud bootstrap gets implicit durability. Unit/library callers without the
+ * mandatory dashboard bind/token environment keep the historical in-memory behavior unless a
+ * store is explicitly injected.
+ */
+function implicitDurabilityPath(env: NodeJS.ProcessEnv): string | null {
+  const port = env.NUSA_CLOUD_DASHBOARD_PORT?.trim();
+  const token = env.NUSA_CLOUD_DASHBOARD_TOKEN?.trim();
+  if (!port || !token) return null;
+  return env.NUSA_CLOUD_STATE_DB_PATH?.trim() || DEFAULT_CLOUD_STATE_DB_PATH;
+}
+
 export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provider: ModelProvider = createModelProviderFromEnvironment(env), options: CloudAiRuntimeOptions = {}): CloudAiRuntime {
   const enabled = env.NUSA_AI_ENABLED?.trim().toLowerCase() === "true";
   const now = options.now ?? Date.now;
@@ -113,26 +132,37 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const calibrationLedger = new OutcomeCalibrationLedger();
   const orchestrator = new MultiAgentOrchestrator(provider, { enabled });
   const pendingPredictions = new Map<string, PendingPrediction>();
+  let durableStore = options.durableCalibrationStore;
+  let durabilityOpenFailure = false;
+  if (durableStore == null) {
+    const pathname = implicitDurabilityPath(env);
+    if (pathname != null) {
+      try { durableStore = new SqliteAiCalibrationDurableStore(pathname); }
+      catch { durabilityOpenFailure = true; }
+    }
+  }
+  const durability = new CalibrationDurabilityRuntime(calibrationLedger, durableStore, now(), AI_CALIBRATION_RESOLUTION_GRACE_MS, durabilityOpenFailure);
+  for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction }));
   let inFlight = false;
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
-  let latestPrediction: AiCalibrationPrediction | null = null;
+  let latestPrediction: AiCalibrationPrediction | null = durability.recovered().latestPrediction;
 
   const resolvePending = (anchor: VerifiedMarketAnchor | null): void => {
-    if (anchor == null || !supportsAutomaticResolution(calibration)) return;
+    if (anchor == null || !supportsAutomaticResolution(calibration) || !durability.trusted()) return;
     for (const [predictionId, pending] of pendingPredictions) {
       const prediction = pending.prediction;
       if (prediction.targetId !== anchor.targetId) continue;
       const dueAt = prediction.predictedAt + prediction.horizonMs;
       // Only a verified ticker for the prediction's own market can resolve or expire its audited window.
       if (anchor.observedAt > dueAt + AI_CALIBRATION_RESOLUTION_GRACE_MS) {
-        pendingPredictions.delete(predictionId);
+        if (durability.persistExpiry(prediction, anchor.observedAt)) pendingPredictions.delete(predictionId);
         continue;
       }
       if (anchor.observedAt < dueAt) continue;
       try {
-        calibrationLedger.appendOutcome(createCalibrationOutcome({
+        const outcome = createCalibrationOutcome({
           predictionId: prediction.predictionId,
           predictionContentHash: prediction.contentHash,
           outcomeDefinitionId: prediction.outcomeDefinitionId,
@@ -142,10 +172,17 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
           resolvedAt: anchor.observedAt,
           evidenceReferences: [anchor.evidenceReference],
           provenance: "VERIFIED_RUNTIME"
-        }));
+        });
+        // Validate semantics before the durable transaction. This keeps a rejected runtime outcome
+        // from ever reaching durable history while still requiring persistence before trust.
+        const verifier = new OutcomeCalibrationLedger();
+        verifier.appendPrediction(prediction);
+        verifier.appendOutcome(outcome);
+        if (!durability.persistOutcome(outcome, anchor.observedAt)) continue;
+        calibrationLedger.appendOutcome(outcome);
         pendingPredictions.delete(predictionId);
       } catch {
-        // Calibration is advisory-only. A malformed or conflicting outcome stays unresolved and cannot gain confidence.
+        // Calibration is advisory-only. Malformed/conflicting outcomes cannot gain confidence.
       }
     }
   };
@@ -163,9 +200,9 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       if (result.status === "COMPLETED" && zeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
         latestResult = result;
         latestCompletedAt = completedAt;
-        if (anchor != null) {
+        if (anchor != null && durability.trusted()) {
           try {
-            latestPrediction = calibrationLedger.appendPrediction(createVerifiedRuntimeCalibrationPrediction(result, {
+            const prediction = createVerifiedRuntimeCalibrationPrediction(result, {
               providerId: provider.providerId,
               outcomeDefinitionId: calibration.outcomeDefinitionId,
               outcomeDefinitionVersion: calibration.outcomeDefinitionVersion,
@@ -174,10 +211,17 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
               anchorValue: anchor.value,
               anchorObservedAt: anchor.observedAt,
               anchorEvidenceReference: anchor.evidenceReference
-            }));
+            });
+            const verifier = new OutcomeCalibrationLedger();
+            verifier.appendPrediction(prediction);
+            if (!durability.persistPrediction(prediction, completedAt)) {
+              latestPrediction = null;
+              return;
+            }
+            latestPrediction = calibrationLedger.appendPrediction(prediction);
             pendingPredictions.set(latestPrediction.predictionId, Object.freeze({ prediction: latestPrediction }));
           } catch {
-            // A valid zero-authority AI result may remain readable, but no verified anchor means no calibration credit.
+            // A valid zero-authority AI result may remain readable, but no durable/verified prediction means no calibration credit.
             latestPrediction = null;
           }
         } else {
@@ -193,7 +237,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   };
 
   const currentProfile = (): AiCalibrationProfile | null => {
-    if (latestPrediction == null) return null;
+    if (latestPrediction == null || !durability.trusted()) return null;
     try {
       return calibrationLedger.profile(latestPrediction, latestPrediction.rawProbability, calibration.policy);
     } catch {
@@ -204,7 +248,11 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const latest = (at = now()): AiOrchestrationResult | null => {
     if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
     if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
-    return Object.freeze({ ...latestResult, calibrationProfile: currentProfile() }) as AiOrchestrationResult;
+    return Object.freeze({
+      ...latestResult,
+      calibrationProfile: currentProfile(),
+      calibrationDurabilityHealth: durability.snapshot()
+    }) as AiOrchestrationResult;
   };
 
   const latestProjection = (at = now()): AiReadOnlyProjection | null => {
@@ -220,6 +268,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     latestProjection,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
+    calibrationDurabilityHealth: () => durability.snapshot(),
     isInFlight: () => inFlight,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const

@@ -31,6 +31,7 @@ export * from "./researchHardening";
 export * from "./researchMemoryLifecycle";
 export * from "./personalPaperOperations";
 export * from "./aiInference";
+export * from "./aiCalibrationDurability";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
