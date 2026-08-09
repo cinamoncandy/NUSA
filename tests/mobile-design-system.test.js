@@ -74,10 +74,15 @@ test("design system snapshot is deterministic", () => {
   assert.equal(designSystemSnapshot(createTheme("dark")), expected);
 });
 
-test("React Native common intelligence components and ThemeProvider are present", () => {
+test("React Native common intelligence components and truthful system ThemeProvider are present", () => {
   const components = fs.readFileSync(path.join(__dirname, "../apps/mobile/src/components.tsx"), "utf8");
   const provider = fs.readFileSync(path.join(__dirname, "../apps/mobile/src/ThemeProvider.tsx"), "utf8");
   for (const name of ["NusaButton", "NusaTextField", "NusaCard", "StatusChip", "WaveMark", "SectionHeading", "AuthorityBanner", "DataRow"]) assert.match(components, new RegExp(`export function ${name}`));
   assert.match(provider, /export function ThemeProvider/);
   assert.match(provider, /export function useTheme/);
+  assert.match(provider, /useColorScheme/);
+  assert.match(provider, /ThemePreference = ThemeMode \| "system"/);
+  assert.match(provider, /preference === "system"/);
+  assert.match(provider, /colorScheme === "light" \? "light" : "dark"/);
+  assert.match(provider, /createTheme\(mode\)/);
 });
