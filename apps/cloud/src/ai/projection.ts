@@ -1,5 +1,6 @@
 import type { AiCalibrationDurabilityHealth } from "../../../../packages/contracts/src/aiCalibrationDurability";
 import type { AiCalibrationProfile, AiReadOnlyProjection } from "../../../../packages/contracts/src/aiInference";
+import type { AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
 import type { AiOrchestrationResult } from "./multiAgentOrchestrator";
 
 type CalibrationBoundResult = AiOrchestrationResult & {
@@ -10,6 +11,11 @@ type CalibrationBoundResult = AiOrchestrationResult & {
 type DurabilityProjection = Pick<
   AiReadOnlyProjection,
   "calibrationDurabilityStatus" | "calibrationRecoveredPredictionCount" | "calibrationRecoveredOutcomeCount" | "calibrationRecoveredPendingCount" | "calibrationExpiredPendingCount"
+>;
+
+type ResourceProjection = Pick<
+  AiReadOnlyProjection,
+  "inferenceResourceHealth" | "inferenceResourceFailureCode" | "inferenceResourcePolicyId" | "inferenceResourcePolicyVersion" | "inferenceModelCalls" | "inferenceAttempts" | "inferenceReservedOutputTokens" | "inferenceInputBytes" | "inferenceUsageAccountingStatus" | "inferenceActualInputTokens" | "inferenceActualOutputTokens" | "inferenceActualTotalTokens" | "inferenceElapsedMs"
 >;
 
 const rawProbabilityFrom = (result: AiOrchestrationResult): number | null => {
@@ -45,6 +51,22 @@ const durabilityFields = (health: AiCalibrationDurabilityHealth | undefined): Du
   calibrationExpiredPendingCount: health?.expiredPendingCount ?? 0
 });
 
+const resourceFields = (snapshot: AiInferenceResourceSnapshot | undefined): ResourceProjection => Object.freeze({
+  inferenceResourceHealth: snapshot?.health ?? "UNVERIFIED",
+  inferenceResourceFailureCode: snapshot?.failureCode ?? null,
+  inferenceResourcePolicyId: snapshot?.policy.policyId ?? null,
+  inferenceResourcePolicyVersion: snapshot?.policy.policyVersion ?? null,
+  inferenceModelCalls: snapshot?.modelCalls ?? 0,
+  inferenceAttempts: snapshot?.attempts ?? 0,
+  inferenceReservedOutputTokens: snapshot?.reservedOutputTokens ?? 0,
+  inferenceInputBytes: snapshot?.inputBytes ?? 0,
+  inferenceUsageAccountingStatus: snapshot?.usageAccountingStatus ?? "UNAVAILABLE",
+  inferenceActualInputTokens: snapshot?.actualInputTokens ?? null,
+  inferenceActualOutputTokens: snapshot?.actualOutputTokens ?? null,
+  inferenceActualTotalTokens: snapshot?.actualTotalTokens ?? null,
+  inferenceElapsedMs: snapshot?.elapsedMs ?? 0
+});
+
 const emptyCalibration = Object.freeze({ confidence: 0, calibrationStatus: "UNKNOWN" as const, rawProbability: null, calibratedProbability: null, effectiveConfidence: 0, calibrationSampleCount: 0, calibrationExpectedError: null, calibrationBrierScore: null, calibrationCohort: null });
 
 export function projectAiReadOnly(
@@ -55,19 +77,21 @@ export function projectAiReadOnly(
   const boundResult = result as CalibrationBoundResult | null;
   const boundDurability = durabilityHealth ?? boundResult?.calibrationDurabilityHealth;
   const durability = durabilityFields(boundDurability);
-  if (result == null || result.status === "UNAVAILABLE") return Object.freeze({ status: "UNAVAILABLE", thesis: null, ...emptyCalibration, ...durability, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: [], lastModelRun: null, modelVersion: null, promptVersion: null, liveAuthority: "NONE", productionMutationAllowed: false });
+  const resources = resourceFields(result?.inferenceResources);
+  if (result == null || result.status === "UNAVAILABLE") return Object.freeze({ status: "UNAVAILABLE", thesis: null, ...emptyCalibration, ...durability, ...resources, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: [], lastModelRun: null, modelVersion: null, promptVersion: null, liveAuthority: "NONE", productionMutationAllowed: false });
   const boundProfile = calibrationProfile === undefined ? boundResult?.calibrationProfile : calibrationProfile;
   // Corrupt/unavailable durable history cannot remain a trusted calibration source. Raw model
   // probability remains visible, but all calibrated/effective confidence is forced to zero.
   const trustedProfile = boundDurability?.status === "UNHEALTHY" ? null : boundProfile;
   const calibration = calibrationFields(result, trustedProfile);
-  if (result.governanceDecision == null) return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, confidence: 0, effectiveConfidence: 0, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: result.independence?.reasonCodes ?? [], lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
+  if (result.inferenceResources != null && result.inferenceResources.health !== "HEALTHY") return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, ...resources, confidence: 0, effectiveConfidence: 0, evidenceReferences: [], counterEvidence: [], uncertainty: "inference resource budget unavailable", criticSeverity: null, disagreements: result.independence?.reasonCodes ?? [], lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
+  if (result.governanceDecision == null) return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, ...resources, confidence: 0, effectiveConfidence: 0, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: result.independence?.reasonCodes ?? [], lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
   const proposal = result.structuredOutputs.find((output) => output.role === "STRATEGY_PROPOSER");
   const critic = result.structuredOutputs.find((output) => output.role === "ADVERSARIAL_CRITIC");
   const proposalPayload = proposal?.payload as Record<string, unknown> | undefined;
   const criticPayload = critic?.payload as Record<string, unknown> | undefined;
   const claims = Array.isArray(proposalPayload?.rationaleClaims) ? proposalPayload.rationaleClaims : [];
   const disagreements = [...new Set([...result.governanceDecision.unresolvedDisagreements, ...result.governanceDecision.vetoReasons, ...(result.independence?.reasonCodes ?? [])])].sort();
-  if (result.governanceDecision.result === "incomplete") return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, confidence: 0, effectiveConfidence: 0, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? "analysis incomplete" : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
-  return Object.freeze({ status: "AVAILABLE", thesis: result.governanceDecision.result === "preview_candidate" ? String(claims[0] ?? "AI analysis candidate; deterministic gates still apply") : null, ...calibration, ...durability, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? (result.governanceDecision.unresolvedDisagreements.length ? "unresolved disagreement" : null) : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
+  if (result.governanceDecision.result === "incomplete") return Object.freeze({ status: "INCOMPLETE", thesis: null, ...calibration, ...durability, ...resources, confidence: 0, effectiveConfidence: 0, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? "analysis incomplete" : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
+  return Object.freeze({ status: "AVAILABLE", thesis: result.governanceDecision.result === "preview_candidate" ? String(claims[0] ?? "AI analysis candidate; deterministic gates still apply") : null, ...calibration, ...durability, ...resources, evidenceReferences: proposal?.evidenceReferences ?? Object.freeze([]), counterEvidence: Array.isArray(criticPayload?.counterClaims) ? criticPayload.counterClaims as string[] : result.governanceDecision.vetoReasons, uncertainty: proposalPayload?.uncertainty == null ? (result.governanceDecision.unresolvedDisagreements.length ? "unresolved disagreement" : null) : String(proposalPayload.uncertainty), criticSeverity: criticPayload?.severity == null ? null : criticPayload.severity as AiReadOnlyProjection["criticSeverity"], disagreements, lastModelRun: result.runs.at(-1)?.completedAt ?? null, modelVersion: result.agents[0]?.modelVersionId ?? null, promptVersion: result.agents[0]?.definitionVersion ?? null, liveAuthority: "NONE", productionMutationAllowed: false });
 }
