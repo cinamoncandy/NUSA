@@ -8,6 +8,7 @@ module.exports = {
   watchFolders: [path.resolve(__dirname, "../..")],
   resolver: {
     ...config.resolver,
+    nodeModulesPaths: [path.resolve(__dirname, "node_modules")],
     unstable_enableSymlinks: true,
   },
 };

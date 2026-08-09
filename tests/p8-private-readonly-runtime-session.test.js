@@ -8,6 +8,7 @@ const { SqliteP0AlertRepository } = require("../dist/apps/cloud/src/p0AlertRepos
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
+const { setConfiguredPaperEndpoint, clearConfiguredPaperEndpoint } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 const { buildPortfolioViewModel } = require("../dist/apps/mobile/src/portfolioViewModel.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
@@ -43,6 +44,9 @@ async function loadOperations(handle, token) {
   return response.json();
 }
 
+test.beforeEach(() => clearConfiguredPaperEndpoint());
+test.afterEach(() => clearConfiguredPaperEndpoint());
+
 test("memory-only dashboard credential session never persists or infers local auth", async () => {
   const session = new InMemoryDashboardCredentialSession();
   assert.equal(await session.credentialProvider(), null);
@@ -55,7 +59,7 @@ test("memory-only dashboard credential session never persists or infers local au
   assert.equal(await session.credentialProvider(), null);
 });
 
-test("dashboard bearer credential is never sent over insecure remote HTTP", async () => {
+test("dashboard bearer credential is sent only to a secure or explicitly configured loopback endpoint", async () => {
   let requestCount = 0;
   const credentialProvider = async () => "read-only-dashboard-token-123456";
   const request = async () => {
@@ -65,12 +69,19 @@ test("dashboard bearer credential is never sent over insecure remote HTTP", asyn
   const insecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
   assert.equal(insecure.status, "NOT_CONFIGURED");
   assert.equal(requestCount, 0);
+
   const secure = await loadPersonalPaperOperations({ baseUrl: "https://nusa.invalid", credentialProvider, request });
   assert.equal(secure.status, "UNAVAILABLE");
   assert.equal(requestCount, 1);
-  const loopback = await loadPersonalPaperOperations({ baseUrl: "http://127.0.0.1:41731", credentialProvider, request });
-  assert.equal(loopback.status, "UNAVAILABLE");
-  assert.equal(requestCount, 2);
+
+  const historicalLoopback = await loadPersonalPaperOperations({ baseUrl: "http://127.0.0.1:41731", credentialProvider, request });
+  assert.equal(historicalLoopback.status, "NOT_CONFIGURED");
+  assert.equal(requestCount, 1, "historical localhost fallback must not silently become configured");
+
+  setConfiguredPaperEndpoint("http://127.0.0.1:41731");
+  const explicitLoopback = await loadPersonalPaperOperations({ baseUrl: "http://127.0.0.1:41731", credentialProvider, request });
+  assert.equal(explicitLoopback.status, "UNAVAILABLE");
+  assert.equal(requestCount, 2, "explicitly saved loopback endpoint may receive the memory-only credential");
 });
 
 test("cloud runtime exposes one authenticated read-only snapshot with real PAPER account projection", async () => {
