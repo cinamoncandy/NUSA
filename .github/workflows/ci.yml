@@ -61,8 +61,22 @@ jobs:
         run: node --test --test-reporter=spec tests/mobile-order-history.test.js
       - name: High-signal mobile watchlist
         run: node --test --test-reporter=spec tests/mobile-watchlist.test.js
-      - name: High-signal private read-only runtime session
-        run: node --test --test-reporter=spec tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 memory-only credential session
+        run: node --test --test-reporter=spec --test-name-pattern="memory-only dashboard credential session" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 endpoint transport policy
+        run: node --test --test-reporter=spec --test-name-pattern="dashboard bearer credential is sent" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 base read-only projection
+        run: node --test --test-reporter=spec --test-name-pattern="cloud runtime exposes one authenticated" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 multi-position projection
+        run: node --test --test-reporter=spec --test-name-pattern="multi-position PAPER portfolio" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 open representative projection
+        run: node --test --test-reporter=spec --test-name-pattern="closed lexicographic PAPER position" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 open durable P0 projection
+        run: node --test --test-reporter=spec --test-name-pattern="open durable P0" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 corrupt durable P0 projection
+        run: node --test --test-reporter=spec --test-name-pattern="unverifiable durable P0" tests/p8-private-readonly-runtime-session.test.js
+      - name: P8 mobile source boundary
+        run: node --test --test-reporter=spec --test-name-pattern="mobile source keeps read-only snapshot" tests/p8-private-readonly-runtime-session.test.js
       - name: High-signal representative open position
         run: node --test --test-reporter=spec tests/p8-open-representative-position.test.js
       - name: Architecture validation
