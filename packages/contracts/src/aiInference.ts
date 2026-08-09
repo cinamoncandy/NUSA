@@ -158,6 +158,12 @@ export interface AiReadOnlyProjection {
   readonly calibrationExpectedError?: number | null;
   readonly calibrationBrierScore?: number | null;
   readonly calibrationCohort?: AiCalibrationCohortKey | null;
+  /** Durability is a separate trust dimension from statistical calibration. */
+  readonly calibrationDurabilityStatus?: "DISABLED" | "HEALTHY" | "UNHEALTHY";
+  readonly calibrationRecoveredPredictionCount?: number;
+  readonly calibrationRecoveredOutcomeCount?: number;
+  readonly calibrationRecoveredPendingCount?: number;
+  readonly calibrationExpiredPendingCount?: number;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
