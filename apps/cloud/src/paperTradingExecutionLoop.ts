@@ -197,15 +197,20 @@ export class PaperTradingExecutionLoop {
       const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
       if (!marketable) return this.result("REJECTED", "PAPER_LIMIT_NOT_MARKETABLE");
     }
+    let executed: ReturnType<typeof executeOrder>;
     try {
-      const executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint);
-      const working = markToMarket(executed.state, market, context.marketPrice, context.now);
-      this.repository?.save(working);
-      this.state = working;
-      return Object.freeze({ status: "FILLED", orders: Object.freeze([executed.order]), fills: Object.freeze([executed.fill]), state: this.state });
+      executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint);
     } catch (error) {
       return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected");
     }
+    const working = markToMarket(executed.state, market, context.marketPrice, context.now);
+    try {
+      this.repository?.save(working);
+    } catch {
+      return this.result("FAILED", "paper account persistence failed");
+    }
+    this.state = working;
+    return Object.freeze({ status: "FILLED", orders: Object.freeze([executed.order]), fills: Object.freeze([executed.fill]), state: this.state });
   }
 
   public processTick(tick: PaperExecutionTick): PaperExecutionResult {
