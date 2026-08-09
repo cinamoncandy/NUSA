@@ -13,6 +13,7 @@ const cases = [
   ["custom-scheme", "Authorization: Foo 0123456789abcdef0123456789abcdef\n"],
   ["token-char-scheme", "Authorization: X+Y 0123456789abcdef0123456789abcdef\n"],
   ["numeric-leading-scheme", "Authorization: 9Auth 0123456789abcdef0123456789abcdef\n"],
+  ["short-custom-credential", "Authorization: A+B x\n"],
   ["quoted-json", `${JSON.stringify({ Authorization: "Basic dXNlcjpwYXNzd29yZA==" })}\n`],
 ];
 
