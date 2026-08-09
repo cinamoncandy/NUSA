@@ -143,7 +143,7 @@ function AuthenticatedApp() {
       <Text style={[styles.authHeading, { color: appTheme.colors.text }]}>다시 오신 것을 환영합니다</Text>
       <Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>로컬 인증은 개인 화면 진입용이며, 서버 대시보드 자격 증명과 분리됩니다.</Text>
       <NusaTextField accessibilityLabel="Email" label="이메일" onChangeText={setEmail} placeholder="Email" testID="auth-email" value={email} />
-      <NusaTextField accessibilityLabel="Password" label="비밀번호" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" />
+      <NusaTextField accessibilityLabel="Password" label="비밀번호" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" value={password} />
       <NusaButton accessibilityLabel="Sign in" label="로그인" onPress={signIn} testID="auth-submit" />
       <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>인증 모드: {AUTH_MODE} · 서버 읽기 자격 증명은 로그인 정보에서 추론하거나 저장하지 않습니다.</Text>
     </View></SafeAreaView>;
