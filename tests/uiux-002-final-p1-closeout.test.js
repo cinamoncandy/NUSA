@@ -19,7 +19,7 @@ test("primary financial values use stable tabular numerals outside DataRow", () 
   for (const style of ["heroValue", "heroPnl"]) expectTabularStyle(app, style);
   for (const style of ["total", "pnl", "metric"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
-  for (const style of ["price", "change", "volume"]) expectTabularStyle(watchlist, style);
+  for (const style of ["price", "change", "volumeInline"]) expectTabularStyle(watchlist, style);
 });
 
 test("touch-target policy is truthful: standard controls 48px, compact controls at least 44pt", () => {
@@ -31,7 +31,7 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(app, /utilityButton: \{[^}]*minHeight: 44/);
   assert.match(app, /utilityClose: \{[^}]*minHeight: 44/);
   assert.match(watchlist, /sortChip: \{[^}]*minHeight: 44/);
-  assert.match(watchlist, /favorite: \{[^}]*width: 44, height: 44/);
+  assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, height: 44/);
 });
 
 test("closeout does not change authority or mutation semantics", () => {

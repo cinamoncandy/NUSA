@@ -61,10 +61,11 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.match(source, /watchlist-toggle-/);
   assert.match(source, /watchlist-loading/);
   assert.match(source, /watchlist-error/);
-  assert.match(source, /PUBLIC · READ ONLY/);
+  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
   assert.match(source, /계좌·주문 권한과 연결되지 않습니다/);
   assert.match(source, /sortChip: \{ minHeight: 44/);
-  assert.match(source, /favorite: \{ width: 44, height: 44/);
+  assert.match(source, /favorite: \{ minWidth: 52, height: 44/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
   const marketsView = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   assert.match(marketsView, /WatchlistView/);
