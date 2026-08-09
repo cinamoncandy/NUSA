@@ -39,6 +39,7 @@ export function createVerifiedRuntimeCalibrationPrediction(
   const outcomeDefinitionId = requiredText(options.outcomeDefinitionId, "outcomeDefinitionId");
   const outcomeDefinitionVersion = requiredText(options.outcomeDefinitionVersion, "outcomeDefinitionVersion");
   const providerId = requiredText(options.providerId, "providerId");
+  if (agent.correlatedGroupId !== `model:${providerId}:${run.modelVersionId}`) throw new Error("strategy proposer provider identity mismatch");
   const horizonMs = positiveSafeInteger(options.horizonMs, "horizonMs");
   const proposalId = `${run.agentRunId}:proposal`;
   const predictionId = `${proposalId}:${outcomeDefinitionId}@${outcomeDefinitionVersion}`;
