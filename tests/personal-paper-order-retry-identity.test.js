@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   PersonalPaperOrderRetryIdentity,
   submitPersonalPaperOrderWithRetryIdentity
@@ -49,4 +51,11 @@ test("ambiguous network retry sends the same idempotency key until a definitive 
   assert.equal(second.status, "READY"); assert.equal(second.result.status, "BLOCKED"); assert.equal(observedKeys[1], observedKeys[0], "ambiguous retry must hit the server with the original idempotency key");
   const third = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: ENDPOINT, credentialProvider: async () => "1234567890123456", request: async (_url, init) => { observedKeys.push(init.headers["idempotency-key"]); throw new Error("stop after observing new submission identity"); } }, identity, fingerprint, createKey, draft);
   assert.equal(third.status, "UNAVAILABLE"); assert.notEqual(observedKeys[2], observedKeys[1], "a new user submission after a definitive result must get a fresh key");
+});
+
+test("TradingView keeps unresolved retry identity across tab unmount and remount", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  assert.match(source, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
+  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity\([\s\S]*processPaperOrderRetryIdentity/);
+  assert.doesNotMatch(source, /const retryIdentity = useMemo\(\(\) => new PersonalPaperOrderRetryIdentity\(\), \[\]\)/);
 });
