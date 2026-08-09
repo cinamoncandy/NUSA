@@ -1,10 +1,11 @@
 id: WO-AI-005
 title: Durable Calibration Memory and Replay
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
-branch: agent/ai-005-durable-calibration-future-chronology
+branch: main
 base_branch: main
-implementation_branch: agent/ai-005-durable-calibration-future-chronology
+implementation_branch: main
+merge_commit: b4303b928e8d64417f3c07334ed3900ea3075046
 architecture_impact:
   acknowledged: true
   analysis: "Adds durable append-only calibration persistence and deterministic restart replay below the verified zero-authority AI runtime while preserving Storage/Core/Cloud dependency direction."
@@ -31,7 +32,7 @@ constraints:
   - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
 implementation:
   - define a stable durable calibration store/port with append and replay semantics
-  - add SQLite schema/migration for immutable prediction, outcome, pending-resolution, sequence/integrity metadata
+  - add integrity-checked SQLite storage for immutable prediction, outcome, pending-resolution, sequence/integrity metadata
   - persist prediction before it can contribute to future durable calibration state
   - persist verified outcome and pending-resolution transition atomically
   - deterministically rebuild OutcomeCalibrationLedger and pending predictions on startup
@@ -39,7 +40,7 @@ implementation:
   - expire recovered stale pending predictions without producing calibration samples
   - fail closed on corrupt/partial/unsupported durable state and expose zero trusted confidence
   - expose read-only durability health/recovered sample metadata without mutation capability
-  - add restart, corruption, crash-window, replay, migration, chronology, and zero-authority adversarial tests
+  - add restart, corruption, append-failure, replay, chronology, idempotency, secret-minimization, and zero-authority adversarial tests
 acceptance_criteria:
   - verified prediction/outcome samples survive process restart and produce the same exact cohort profile after replay
   - pending prediction survives restart only when its original audited resolution window is still valid
@@ -77,6 +78,27 @@ verification:
     - hidden chain-of-thought
     - provider or broker credential material
     - real order, cancel, transfer, or withdrawal
+completion:
+  evidence: .aipos/evidence/WO-AI-005-completion.json
+  completed_at: "2026-08-09T18:36:16+09:00"
+  planning_pr: 345
+  planning_merge_sha: fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2
+  implementation_pr: 354
+  implementation_exact_head: b03dd50c01dd789a3023217c018c53fc53a42ea8
+  implementation_ci_run: 31306050500
+  implementation_safety_workflows:
+    - 31306050473
+    - 31306050483
+    - 31306050472
+    - 31306050499
+  implementation_merge_sha: b4303b928e8d64417f3c07334ed3900ea3075046
+  merge_sha: b4303b928e8d64417f3c07334ed3900ea3075046
+  authority:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    realOrderAuthority: false
+    realTransferAuthority: false
 next: >-
-  Verify implementation PR #354 on its exact latest-main head, resolve any CI/review findings, freeze the
-  passing implementation head, and merge by expected head SHA before any later AI capability work.
+  Run a fresh repository/AI capability audit and select the lowest evidence-based safe dimension
+  before opening any next AI implementation slice. Preserve WO-0051 human/environment gates and
+  do not increase execution, promotion, risk, credential, production-mutation, or LIVE authority.
