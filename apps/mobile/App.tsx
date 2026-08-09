@@ -31,7 +31,6 @@ const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
 type UtilityView = "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | null;
 const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장", Trade: "PAPER", Portfolio: "자산", More: "AI" };
-const tabGlyphs: Readonly<Record<Tab, string>> = { Home: "⌁", Markets: "◫", Trade: "⇄", Portfolio: "◒", More: "✦" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { HISTORY: "주문 이력", NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const theme = { container: { flex: 1 } } as const;
 const CHART_MARKET = "KRW-BTC";
@@ -85,6 +84,7 @@ function AuthenticatedApp() {
   const { theme: appTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
+  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [dashboardTokenDraft, setDashboardTokenDraft] = useState("");
@@ -115,11 +115,12 @@ function AuthenticatedApp() {
   }, [credentialSession]);
 
   const closeUtility = useCallback(() => setUtilityView(null), []);
-  const goHome = useCallback(() => { setUtilityView(null); setActiveTab("Home"); }, []);
+  const goHome = useCallback(() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); }, []);
   const handleSignOut = useCallback(() => {
     credentialSession.clear();
     setDashboardTokenDraft("");
     setOperations({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+    setUtilityMenuOpen(false);
     setUtilityView(null);
     setActiveTab("Home");
     setEmail("");
@@ -174,12 +175,22 @@ function AuthenticatedApp() {
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
       <View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>INTELLIGENCE</Text></View></View>
       <View style={styles.headerTools}>
-        <Pressable accessibilityLabel="주문 이력" accessibilityRole="button" accessibilityState={{ selected: utilityView === "HISTORY" }} onPress={() => setUtilityView((current) => current === "HISTORY" ? null : "HISTORY")} style={[styles.utilityButton, { borderColor: utilityView === "HISTORY" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "HISTORY" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-order-history"><Text style={[styles.utilityText, { color: utilityView === "HISTORY" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>이력</Text></Pressable>
-        <Pressable accessibilityLabel="알림" accessibilityRole="button" accessibilityState={{ selected: utilityView === "NOTIFICATIONS" }} onPress={() => setUtilityView((current) => current === "NOTIFICATIONS" ? null : "NOTIFICATIONS")} style={[styles.utilityButton, { borderColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "NOTIFICATIONS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-notifications"><Text style={[styles.utilityText, { color: utilityView === "NOTIFICATIONS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>알림</Text></Pressable>
-        <Pressable accessibilityLabel="설정" accessibilityRole="button" accessibilityState={{ selected: utilityView === "SETTINGS" }} onPress={() => setUtilityView((current) => current === "SETTINGS" ? null : "SETTINGS")} style={[styles.utilityButton, { borderColor: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityView === "SETTINGS" ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-settings"><Text style={[styles.utilityText, { color: utilityView === "SETTINGS" ? appTheme.colors.primary : appTheme.colors.textMuted }]}>설정</Text></Pressable>
+        <Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => {
+          if (utilityView !== null) {
+            setUtilityView(null);
+            setUtilityMenuOpen(true);
+            return;
+          }
+          setUtilityMenuOpen((current) => !current);
+        }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable>
       </View>
     </View>
     <View style={[styles.authorityStrip, { borderBottomColor: appTheme.colors.border }]}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><Text style={[styles.authorityCopy, { color: appTheme.colors.textMuted }]}>실행 권한 없음</Text></View>
+    {utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray">
+      <Pressable accessibilityLabel="주문 이력" accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView("HISTORY"); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="header-order-history"><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>이력</Text></Pressable>
+      <Pressable accessibilityLabel="알림" accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView("NOTIFICATIONS"); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="header-notifications"><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>알림</Text></Pressable>
+      <Pressable accessibilityLabel="설정" accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="header-settings"><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>설정</Text></Pressable>
+    </View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View> : null}
     {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "대시보드 연결이 필요합니다."} onGoHome={goHome} />
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
@@ -207,7 +218,7 @@ function AuthenticatedApp() {
           {nextAction ? <NusaCard testID="home-next-action">
             <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>NEXT</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>{nextAction.title}</Text></View><StatusChip label={nextAction.tab === "Trade" ? "우선 확인" : "다음 단계"} tone={nextAction.tab === "Trade" ? "warning" : "primary"} /></View>
             <Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{nextAction.detail}</Text>
-            <NusaButton accessibilityLabel={nextAction.label} label={nextAction.label} onPress={() => { setUtilityView(null); setActiveTab(nextAction.tab); }} testID="home-next-action-button" />
+            <NusaButton accessibilityLabel={nextAction.label} label={nextAction.label} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(nextAction.tab); }} testID="home-next-action-button" />
           </NusaCard> : null}
           <AuthorityBanner />
           <NusaCard testID="ai-card">
@@ -224,7 +235,7 @@ function AuthenticatedApp() {
       </ScrollView>}
     <View style={[styles.navigation, { backgroundColor: appTheme.colors.surfaceSunken, borderTopColor: appTheme.colors.border }]}>{tabs.map((tab) => {
       const active = utilityView === null && activeTab === tab;
-      return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setUtilityView(null); setActiveTab(tab); }} style={styles.navItem}><View style={[styles.navGlyphWrap, active && { backgroundColor: appTheme.colors.primarySoft }]}><Text style={[styles.navGlyph, { color: active ? appTheme.colors.primary : appTheme.colors.textMuted }]}>{tabGlyphs[tab]}</Text></View><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>;
+      return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, active && { backgroundColor: appTheme.colors.primarySoft }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.primary : "transparent" }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>;
     })}</View>
   </SafeAreaView>;
 }
@@ -235,9 +246,11 @@ const styles = StyleSheet.create({
   authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
   header: { minHeight: 64, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1 },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerTools: { flexDirection: "row", gap: 8, alignItems: "center" },
+  headerTools: { flexDirection: "row", alignItems: "center" },
   utilityButton: { minWidth: 48, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   utilityText: { fontSize: 12, fontWeight: "700" },
+  utilityMenu: { minHeight: 52, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center", borderBottomWidth: 1 },
+  utilityMenuButton: { flex: 1, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   utilityNavigation: { minHeight: 48, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1 },
   utilityTitle: { fontSize: 14, fontWeight: "700" },
   utilityClose: { minWidth: 48, minHeight: 44, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
@@ -262,9 +275,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, marginVertical: 14 },
   aiThesis: { fontSize: 16, fontWeight: "600", lineHeight: 24, marginBottom: 10 },
   navigation: { flexDirection: "row", borderTopWidth: 1, paddingTop: 7, paddingBottom: 7 },
-  navItem: { flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", gap: 3 },
-  navGlyphWrap: { minWidth: 32, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
-  navGlyph: { fontSize: 15, fontWeight: "700" },
+  navItem: { flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, marginHorizontal: 2 },
+  navIndicator: { width: 22, height: 3, borderRadius: 2 },
   navLabel: { fontSize: 10, fontWeight: "600" },
   navLabelActive: { fontWeight: "800" },
 });
