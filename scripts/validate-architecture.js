@@ -12,7 +12,6 @@ function analyzeRepository(root = process.cwd()) {
   const nodes = new Set(files.map((file) => relative(root, file).replaceAll("\\", "/")));
   const workspaceOwners = workspacePackageOwners(root);
   const edges = [];
-  const boundaryReferences = [];
   const unresolved = [];
 
   for (const file of files) {
@@ -28,22 +27,23 @@ function analyzeRepository(root = process.cwd()) {
         edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
         continue;
       }
-      if (isProtectedBoundarySource(source)) {
-        const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
-        if (target) boundaryReferences.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
-      }
+      const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
+      if (target) edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
     }
-    if (isProtectedBoundarySource(source)) {
-      for (const specifier of parseImportExpressions(sourceText)) {
-        const target = specifier.startsWith(".")
-          ? resolveLocal(file, specifier, nodes, root)
-          : resolveWorkspaceOwner(specifier, workspaceOwners);
+
+    for (const imported of parseImportExpressionReferences(sourceText)) {
+      if (imported.specifier.startsWith(".")) {
+        if (!isProtectedBoundarySource(source)) continue;
+        const target = resolveLocal(file, imported.specifier, nodes, root);
         if (!target) {
-          if (specifier.startsWith(".")) unresolved.push({ source, specifier });
+          unresolved.push({ source, specifier: imported.specifier });
           continue;
         }
-        boundaryReferences.push({ source, target, kind: "inline-import" });
+        edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+        continue;
       }
+      const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
+      if (target) edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
     }
   }
 
@@ -69,18 +69,6 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("apps/execution/") && /^(apps\/(desktop|mobile|cloud)|packages\/storage)\//.test(edge.target)) {
       findings.push(finding("EXECUTION_CROSS_LAYER_REFERENCE", edge, "Execution domain must not depend on desktop, mobile, cloud, or storage implementations."));
     }
-    if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
-      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
-    }
-    if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
-      findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
-    }
-    if (isForbiddenMobilePresentationReference(edge)) {
-      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may depend only on mobile-local application/view-model modules."));
-    }
-  }
-
-  for (const edge of boundaryReferences) {
     if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
       findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
     }
@@ -155,14 +143,14 @@ function parseModuleReferences(source) {
       imports.push({ specifier: node.moduleReference.expression.text, typeOnly: Boolean(node.isTypeOnly) });
     } else if (ts.isCallExpression(node) && node.arguments.length > 0 && ts.isStringLiteralLike(node.arguments[0])) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        importExpressions.push(node.arguments[0].text);
+        importExpressions.push({ specifier: node.arguments[0].text, typeOnly: false });
       } else if (ts.isIdentifier(node.expression) && node.expression.text === "require") {
         imports.push({ specifier: node.arguments[0].text, typeOnly: false });
       }
     } else if (ts.isImportTypeNode(node)
       && ts.isLiteralTypeNode(node.argument)
       && ts.isStringLiteralLike(node.argument.literal)) {
-      importExpressions.push(node.argument.literal.text);
+      importExpressions.push({ specifier: node.argument.literal.text, typeOnly: true });
     }
     ts.forEachChild(node, visit);
   };
@@ -175,8 +163,12 @@ function parseImports(source) {
   return parseModuleReferences(source).imports;
 }
 
-function parseImportExpressions(source) {
+function parseImportExpressionReferences(source) {
   return parseModuleReferences(source).importExpressions;
+}
+
+function parseImportExpressions(source) {
+  return parseImportExpressionReferences(source).map((item) => item.specifier);
 }
 
 function resolveLocal(file, specifier, nodes, root) {
