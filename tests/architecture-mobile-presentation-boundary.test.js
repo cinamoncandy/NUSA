@@ -47,6 +47,27 @@ test("mobile UI rejects type-only imports from AIPOS implementation", () => {
   });
 });
 
+test("mobile UI may consume type-only shared contracts", () => {
+  withFixture({
+    "apps/mobile/src/view.tsx": 'import type { SharedProjection } from "../../../packages/contracts/src/public"; export type Props = { readonly projection: SharedProjection };\n',
+    "packages/contracts/src/public.ts": "export interface SharedProjection { readonly id: string; }\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.deepEqual(mobileFindings(result), []);
+  });
+});
+
+test("mobile UI rejects runtime imports from shared contracts", () => {
+  withFixture({
+    "apps/mobile/src/view.tsx": 'import { sharedValue } from "../../../packages/contracts/src/public"; export const value = sharedValue;\n',
+    "packages/contracts/src/public.ts": "export const sharedValue = 1;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    assert.equal(mobileFindings(result).length, 1);
+    assert.equal(mobileFindings(result)[0].kind, "runtime");
+  });
+});
+
 test("mobile UI rejects require shortcuts to Storage implementation", () => {
   withFixture({
     "apps/mobile/src/view.tsx": 'const storage = require("../../../packages/storage/src/store"); export const value = storage.value;\n',
@@ -90,7 +111,7 @@ test("mobile UI may consume mobile-local application and view-model modules", ()
   });
 });
 
-test("current repository mobile UI has no package or cross-app shortcut", () => {
+test("current repository mobile UI has no implementation shortcut", () => {
   const result = analyzeRepository(process.cwd());
   assert.deepEqual(mobileFindings(result), []);
   assert.deepEqual(result.runtimeCycles, []);
