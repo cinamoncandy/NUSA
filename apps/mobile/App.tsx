@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  BackHandler,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -24,6 +25,7 @@ import { DEFAULT_SETTINGS, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { aiStatusLabel, calibrationStatusLabel, liveAuthorityLabel, operationsHealthLabel, runtimeStateLabel } from "./src/userFacingStatus";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -85,8 +87,6 @@ function AuthenticatedApp() {
   const { theme: appTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [dashboardTokenDraft, setDashboardTokenDraft] = useState("");
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
   const [refreshing, setRefreshing] = useState(false);
@@ -122,10 +122,14 @@ function AuthenticatedApp() {
     setOperations({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
     setUtilityView(null);
     setActiveTab("Home");
-    setEmail("");
-    setPassword("");
     signOut();
   }, [credentialSession, signOut]);
+
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || utilityView === null) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => { closeUtility(); return true; });
+    return () => subscription.remove();
+  }, [authStatus, closeUtility, utilityView]);
 
   useEffect(() => {
     if (authStatus !== "SIGNED_IN") return;
@@ -135,17 +139,15 @@ function AuthenticatedApp() {
   }, [authStatus, refresh]);
   const onRefresh = useCallback(async () => { setRefreshing(true); await refresh(); setRefreshing(false); }, [refresh]);
 
-  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>보안 상태 확인 중</Text></View></SafeAreaView>;
+  if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 세션 준비 중</Text></View></SafeAreaView>;
 
   if (authStatus !== "SIGNED_IN") {
     return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}>
       <View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View>
-      <Text style={[styles.authHeading, { color: appTheme.colors.text }]}>다시 오신 것을 환영합니다</Text>
-      <Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>로컬 인증은 개인 화면 진입용이며, 서버 대시보드 자격 증명과 분리됩니다.</Text>
-      <NusaTextField accessibilityLabel="Email" label="이메일" onChangeText={setEmail} placeholder="Email" testID="auth-email" value={email} />
-      <NusaTextField accessibilityLabel="Password" label="비밀번호" onChangeText={setPassword} placeholder="Password" secureTextEntry testID="auth-password" value={password} />
-      <NusaButton accessibilityLabel="Sign in" label="로그인" onPress={signIn} testID="auth-submit" />
-      <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>인증 모드: {AUTH_MODE} · 서버 읽기 자격 증명은 로그인 정보에서 추론하거나 저장하지 않습니다.</Text>
+      <Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 화면 열기</Text>
+      <Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>현재 이 단계는 서버 로그인이나 계정 인증이 아닙니다. 기기 안의 NUSA 화면 세션만 열며, 읽기 전용 대시보드 자격 증명은 홈에서 별도로 연결합니다.</Text>
+      <NusaButton accessibilityLabel="로컬 화면 열기" label="로컬 화면 열기" onPress={signIn} testID="auth-submit" />
+      <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>진입 방식: {AUTH_MODE === "foundation" ? "로컬 세션 · 서버 인증 없음" : "로컬 세션"} · 이메일/비밀번호를 입력받거나 저장하지 않습니다.</Text>
     </View></SafeAreaView>;
   }
 
@@ -184,7 +186,7 @@ function AuthenticatedApp() {
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView onSignOut={handleSignOut} repository={settingsRepository} />
-      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
+      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
@@ -200,7 +202,7 @@ function AuthenticatedApp() {
         </NusaCard> : null}
         {snapshot ? <>
           <NusaCard testID="account-hero-card" raised>
-            <View style={styles.heroTop}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.textMuted }]}>PAPER EQUITY</Text><Text style={[styles.heroValue, { color: appTheme.colors.text }]}>{account ? krw(account.equity) : "포트폴리오 없음"}</Text></View><StatusChip label={snapshot.operations.runtimeState} tone={runtimeTone} /></View>
+            <View style={styles.heroTop}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.textMuted }]}>PAPER EQUITY</Text><Text style={[styles.heroValue, { color: appTheme.colors.text }]}>{account ? krw(account.equity) : "포트폴리오 없음"}</Text></View><StatusChip label={runtimeStateLabel(snapshot.operations.runtimeState)} tone={runtimeTone} /></View>
             {totalPnl != null ? <Text style={[styles.heroPnl, { color: totalPnl >= 0 ? appTheme.colors.success : appTheme.colors.danger }]}>{totalPnl >= 0 ? "+" : ""}{krw(totalPnl)} 누적 손익</Text> : <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>계좌 평가 정보가 아직 없습니다.</Text>}
           </NusaCard>
           {nextAction ? <NusaCard testID="home-next-action">
@@ -210,13 +212,13 @@ function AuthenticatedApp() {
           </NusaCard> : null}
           <AuthorityBanner />
           <NusaCard testID="ai-card">
-            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
+            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={aiStatusLabel(ai?.status)} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
             <Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text>
             <DataRow label="모델 점수 (미보정)" value={aiConfidence} />
             <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
-            <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
+            <DataRow label="보정 상태" value={calibrationStatusLabel(ai?.calibrationStatus)} />
           </NusaCard>
-          <NusaCard testID="safety-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>안전 및 운영 상태</Text><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={snapshot.operations.runtimeState} tone={runtimeTone} /><DataRow label="시장 연결" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} /><DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} emphasis /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></NusaCard>
+          <NusaCard testID="safety-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>안전 및 운영 상태</Text><StatusChip label={operationsHealthLabel(snapshot.health)} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={runtimeStateLabel(snapshot.operations.runtimeState)} tone={runtimeTone} /><DataRow label="시장 연결" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} /><DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={liveAuthorityLabel(snapshot.liveAuthority)} emphasis /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></NusaCard>
           <NusaButton accessibilityLabel="Disconnect read only" label="읽기 전용 연결 해제" onPress={disconnectReadOnly} tone="neutral" testID="dashboard-disconnect" />
         </> : null}
       </ScrollView>}
