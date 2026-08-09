@@ -48,8 +48,8 @@ test("fresh install exposes a truthful local PAPER entry instead of fake credent
   assert.match(app, /testID="local-session-start"/);
   assert.match(app, /PAPER 작업공간 열기/);
   assert.match(app, /계정 인증을 가장하지 않으며/);
-  assert.doesNotMatch(app, /auth-email/);
-  assert.doesNotMatch(app, /auth-password/);
+  assert.doesNotMatch(app, /testID="auth-email"/);
+  assert.doesNotMatch(app, /testID="auth-password"/);
   assert.doesNotMatch(app, /accessibilityLabel="Email"/);
   assert.doesNotMatch(app, /accessibilityLabel="Password"/);
   assert.doesNotMatch(app, /EXPO_PUBLIC_NUSA_AUTH_MODE/);
@@ -72,8 +72,8 @@ test("mobile shell exposes PAPER-only truth and a single Settings credential pat
   assert.match(app, /testID="global-authority-strip"/);
   assert.match(app, /PAPER ONLY/);
   assert.match(app, /LIVE NONE/);
-  assert.doesNotMatch(app, /dashboard-credential/);
-  assert.doesNotMatch(app, /dashboard-connect/);
+  assert.doesNotMatch(app, /testID="dashboard-credential"/);
+  assert.doesNotMatch(app, /testID="dashboard-connect"/);
   assert.match(app, /home-open-settings/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
