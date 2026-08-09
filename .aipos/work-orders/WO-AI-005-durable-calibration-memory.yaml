@@ -1,0 +1,82 @@
+id: WO-AI-005
+title: Durable Calibration Memory and Replay
+status: IN_PROGRESS
+priority: P1
+branch: agent/ai-005-durable-calibration-plan
+base_branch: main
+implementation_branch: agent/ai-005-durable-calibration-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds durable append-only calibration persistence and deterministic restart replay below the verified zero-authority AI runtime while preserving Storage/Core/Cloud dependency direction."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0007-outcome-linked-ai-calibration.md
+    - .aipos/decisions/ADR-0008-durable-outcome-calibration-memory.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Preserve verified AI calibration predictions, resolved outcomes, and still-valid pending
+  resolution state across Cloud restarts using integrity-checked SQLite replay so empirical
+  confidence can accumulate over time without granting AI any execution, promotion, risk, or LIVE authority.
+constraints:
+  - Durable state stores canonical calibration metadata only; provider credentials, API keys, bearer tokens, raw prompt bodies, hidden reasoning, raw evidence payloads, and broker secrets are prohibited.
+  - Recovery must replay through the same prediction/outcome hash and semantic validators used by the live calibration ledger.
+  - Exact duplicate replay is idempotent; conflicting duplicate, broken hash, broken linkage, unsupported outcome definition, invalid chronology, or partial/corrupt state fails closed.
+  - Pending prediction recovery must preserve exact market, anchor, content hash, outcome definition, horizon, and grace window; stale pending records expire without calibration credit.
+  - Persistence/open/replay/append failure may not alter PAPER execution and may not preserve or increase trusted confidence; effective confidence must be zero/unavailable until durability health is verified.
+  - Storage must not depend on Cloud/application implementations; Cloud composition injects the durable adapter through a stable contract/port.
+  - No automatic provider/model weighting, Champion promotion, strategy mutation/deployment, risk-limit change, LIVE execution, production mutation, or safety-control release.
+  - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
+implementation:
+  - define a stable durable calibration store/port with append and replay semantics
+  - add SQLite schema/migration for immutable prediction, outcome, pending-resolution, sequence/integrity metadata
+  - persist prediction before it can contribute to future durable calibration state
+  - persist verified outcome and pending-resolution transition atomically
+  - deterministically rebuild OutcomeCalibrationLedger and pending predictions on startup
+  - validate content hashes, prediction-outcome linkage, provenance, outcome definition, chronology, and duplicate identity during replay
+  - expire recovered stale pending predictions without producing calibration samples
+  - fail closed on corrupt/partial/unsupported durable state and expose zero trusted confidence
+  - expose read-only durability health/recovered sample metadata without mutation capability
+  - add restart, corruption, crash-window, replay, migration, and zero-authority adversarial tests
+acceptance_criteria:
+  - verified prediction/outcome samples survive process restart and produce the same exact cohort profile after replay
+  - pending prediction survives restart only when its original audited resolution window is still valid
+  - stale recovered pending prediction cannot be resolved later and cannot produce calibration credit
+  - exact duplicate durable replay is idempotent
+  - conflicting duplicate prediction or outcome fails closed
+  - tampered prediction/outcome content hash fails closed
+  - mismatched predictionContentHash or outcome definition/version fails closed
+  - truncated/partial transaction or unsupported schema version does not produce trusted confidence
+  - append failure cannot leave an in-memory sample trusted as durable
+  - storage corruption/replay failure results in durability unhealthy and effective confidence zero/unavailable
+  - no secret, credential, raw prompt, hidden reasoning, or raw evidence payload is persisted
+  - recovered calibration preserves exact provider/model/prompt/outcome cohort partitioning and minimum sample/bucket gates
+  - read-only projection distinguishes durability health from raw model probability and calibration status
+  - restart/replay cannot change PAPER orders, fills, risk state, P0 state, HALT, kill switch, strategy promotion, or LIVE authority
+  - exact-head focused durability/AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, and all Restricted LIVE/read-only workflows pass
+  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - synthetic durability evidence presented as a real external/LIVE authorization
+    - hidden chain-of-thought
+    - provider or broker credential material
+    - real order, cancel, transfer, or withdrawal
+next: >-
+  Merge this planning gate after exact-head verification, then replay the Work Order onto a
+  dedicated implementation branch from latest main and implement one vertical durable-calibration
+  slice before any later AI capability work.

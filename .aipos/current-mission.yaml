@@ -1,45 +1,38 @@
-id: WO-0051
-title: Constitutional Production Transition Human/Environment Gate
-branch: main
+id: WO-AI-005
+title: Durable Calibration Memory and Replay
+branch: agent/ai-005-durable-calibration-plan
 pull_request: null
 base_branch: main
-phase: human-environment-gate
+phase: durable-ai-calibration-memory
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-004 outcome calibration as verified zero-authority capability."
+source_work_order: .aipos/work-orders/WO-AI-005-durable-calibration-memory.yaml
+objective: "Preserve verified outcome calibration across Cloud restarts with integrity-checked SQLite replay while keeping AI zero-authority and WO-0051 human/environment gates unchanged."
 scope:
-  - operator-authorized external read-only preflight only
-  - actual independent human activation ceremony evidence
-  - separate constitutional human decision before any real-money LIVE transition
-  - post-LIVE validation only after a separately authorized tiny session
-  - fresh read-only repository/AI capability audit may select a future safe AI work order, but cannot satisfy or bypass this gate
-latest_verified_slice:
-  id: WO-AI-004
-  status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-004-completion.json
+  - durable hash-bound prediction/outcome calibration metadata
+  - deterministic restart replay through existing calibration validators
+  - bounded pending-resolution recovery and stale expiry
+  - corruption/partial-state fail-closed confidence behavior
+  - read-only durability/recovery health projection
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  automatedCompletion: prohibited
-  syntheticCiCompletion: prohibited
-  chatConsentAsLiveAuthority: prohibited
-  aiLiveAuthority: prohibited
+  aiExecutionAuthority: ZERO_AUTHORITY
+  credentialPersistence: prohibited
+  hiddenReasoningPersistence: prohibited
+  human_environment_gate: required_for_any_future_real_money_transition
+latest_verified_slice:
+  id: WO-AI-004
+  status: COMPLETED
+  evidence: .aipos/evidence/WO-AI-004-completion.json
 verification:
-  implementation_merge: 799a1c0ea8c5aeecc236b5a84b2096a7251e1351
-  implementation_exact_head: f58feac8a2a4200acd734cad97db43d0abe9ef98
-  implementation_ci_run: 31295456484
-  implementation_mobile_native_run: 31295456482
-  hardening_merge: e76a3a8a2d169f677c91cc7502a04d456018146b
-  hardening_exact_head: 1f10ea6e3d0b8e816b728cd88fc70894489d99cb
-  hardening_ci_run: 31296277719
-  post_merge_ci_run: 31296534244
-  post_merge_mobile_native_run: 31296534245
-  restricted_live_readonly_workflows: PASS_4_OF_4_ON_IMPLEMENTATION_AND_HARDENING
+  required:
+    - exact-head plan Full CI/Coverage and architecture/AIPOS validation before implementation starts
+    - durability implementation must prove restart replay, corruption fail-closed, and exact cohort preservation
+    - all Restricted LIVE/read-only workflows remain PASS
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
-  - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Run a fresh read-only repository/AI capability audit before opening any next AI implementation work order; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
+next_recommended_task: Merge and verify the WO-AI-005 planning gate only; do not start product implementation before that merge is complete.
