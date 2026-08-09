@@ -22,6 +22,14 @@ test("raw probability without verified calibration remains visible but untrusted
   assert.equal(projection.rawProbability, 0.8); assert.equal(projection.calibrationStatus, "UNVERIFIED"); assert.equal(projection.confidence, 0); assert.equal(projection.effectiveConfidence, 0); assert.equal(projection.calibratedProbability, null); assert.equal(projection.liveAuthority, "NONE"); assert.equal(projection.productionMutationAllowed, false);
 });
 
+test("a runtime-bound calibration profile is honored by the existing read-only projection call path", () => {
+  const projection = projectAiReadOnly({ ...baseResult(), calibrationProfile: profile() });
+  assert.equal(projection.calibrationStatus, "CALIBRATED");
+  assert.equal(projection.rawProbability, 0.8);
+  assert.equal(projection.calibratedProbability, 0.6);
+  assert.equal(projection.confidence, 0.6);
+});
+
 test("insufficient and degraded calibration can never create trusted confidence", () => {
   for (const status of ["INSUFFICIENT_DATA", "DEGRADED"]) {
     const projection = projectAiReadOnly(baseResult(), profile({ status, calibratedProbability: null, effectiveConfidence: 0 }));
