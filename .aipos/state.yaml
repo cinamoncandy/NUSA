@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-10T07:15:00+09:00"
+updated_at: "2026-08-10T07:20:00+09:00"
 phase: mobile-real-device-fix
 status: ready
 objective: "Verify the Android PAPER core flow on a physical device while preserving verified WO-AI-008 scenario governance, merged WO-AI-009 planning truth, WO-0051 constitutional human boundaries, and zero LIVE authority."
@@ -78,8 +78,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-008 planning PR #378 merged at 91ffb97ce6d6b50355af19d61fae0f0ee522436f. Canonical implementation PR #380 exact head 93b2369456679664e205c198bbe2ee1bff2db2e2 passed Full CI/Coverage run 31325820228 and all four Restricted LIVE/read-only workflows, then merged at a1cdb9d025e54fc929b82fe5f64c5548eeefc424. Completion bookkeeping PR #381 merged at 9a71352dfc407cc1cd4f7fb9cc99896f81ea9cbf. Fresh post-AI-008 audit/planning PR #382 exact head 20f7c18a09cdaf24c79130dcf6a137cdab636fd0 passed Full CI and all four safety workflows and merged at 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1, selecting WO-AI-009 without granting authority."
-  current_commit: "429fc611e3324ad4ce37457eaed4dcf0ca3b50e1 contains verified WO-AI-008 completion lineage plus merged WO-AI-009 planning; ed948a7e451ff0691ddd381df7580b0500d56849 additionally canonicalizes WO-0031 repository truth. WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  last_result: "WO-AI-008 implementation/completion and WO-AI-009 planning are merged and evidence-bound on protected main through PR #386 merge ab227c37f1f886efdefc8c56695b936d0d0704f7. PR #371 preserves that governance truth while WO-0052 remains VERIFYING; fresh exact-head automated validation and physical-device evidence remain mandatory before merge."
+  current_commit: "PR #371 is synchronized with protected main@ab227c37f1f886efdefc8c56695b936d0d0704f7 and preserves WO-0052 as the Android physical-device mission alongside verified WO-AI-008 and merged WO-AI-009 planning truth. Physical-device evidence remains pending."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
