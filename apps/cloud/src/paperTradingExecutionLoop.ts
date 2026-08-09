@@ -29,6 +29,7 @@ export interface PaperOrderRecord {
   readonly status: "FILLED";
   readonly createdAt: number;
   readonly filledAt: number;
+  readonly requestFingerprint?: string;
 }
 export interface PaperFillRecord {
   readonly id: string;
@@ -95,6 +96,24 @@ function validateState(state: PaperAccountState): void {
   for (const position of state.positions) {
     finiteNonNegative(position.quantity, "position.quantity"); finiteNonNegative(position.averageEntryPrice, "position.averageEntryPrice"); finiteNonNegative(position.markPrice, "position.markPrice");
   }
+  for (const order of state.orders) {
+    if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
+  }
+}
+
+function manualCommandFingerprint(command: PersonalPaperOrderCommand): string {
+  const canonical = JSON.stringify({
+    schemaVersion: command.schemaVersion,
+    authority: command.authority,
+    productionMutationAllowed: command.productionMutationAllowed,
+    idempotencyKey: command.idempotencyKey,
+    market: command.market.trim().toUpperCase(),
+    side: command.side,
+    orderType: command.orderType,
+    quantity: command.quantity,
+    limitPrice: command.limitPrice ?? null
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
 export interface PaperExecutionTick {
@@ -163,11 +182,14 @@ export class PaperTradingExecutionLoop {
     if (gate != null) return this.result("BLOCKED", gate);
     if (!command.idempotencyKey.trim() || command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false) return this.result("FAILED", "invalid PAPER order authority");
     if (!command.market.trim() || !Number.isFinite(command.quantity) || command.quantity <= 0) return this.result("FAILED", "invalid PAPER order command");
+    const requestFingerprint = manualCommandFingerprint(command);
     const prior = this.state.orders.find((order) => order.idempotencyKey === command.idempotencyKey);
-    if (prior != null || this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) {
-      const fills = prior == null ? [] : this.state.fills.filter((fill) => fill.orderId === prior.id);
-      return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze(prior == null ? [] : [prior]), fills: Object.freeze(fills), state: this.state });
+    if (prior != null) {
+      if (prior.requestFingerprint !== requestFingerprint) return this.result("REJECTED", "PAPER_IDEMPOTENCY_CONFLICT");
+      const fills = this.state.fills.filter((fill) => fill.orderId === prior.id);
+      return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze([prior]), fills: Object.freeze(fills), state: this.state });
     }
+    if (this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) return this.result("REJECTED", "PAPER_IDEMPOTENCY_CONFLICT");
     const market = command.market.trim().toUpperCase();
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
@@ -176,7 +198,7 @@ export class PaperTradingExecutionLoop {
       if (!marketable) return this.result("REJECTED", "PAPER_LIMIT_NOT_MARKETABLE");
     }
     try {
-      const executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate);
+      const executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint);
       const working = markToMarket(executed.state, market, context.marketPrice, context.now);
       this.repository?.save(working);
       this.state = working;
@@ -238,7 +260,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -262,7 +284,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   }
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
-  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now });
+  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
   const fill: PaperFillRecord = Object.freeze({ id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now });
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys].slice(0, 2_000), updatedAt: now }, order, fill };
 }
