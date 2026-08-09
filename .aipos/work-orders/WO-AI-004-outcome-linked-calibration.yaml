@@ -2,9 +2,9 @@ id: WO-AI-004
 title: Outcome-Linked Calibration Engine
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-004-outcome-calibration-plan-v4
+branch: agent/ai-004-outcome-calibration-impl
 base_branch: main
-implementation_branch: agent/ai-004-outcome-calibration-plan-v4
+implementation_branch: agent/ai-004-outcome-calibration-impl
 architecture_impact:
   acknowledged: true
   analysis: "Adds deterministic outcome-linked confidence calibration below the existing grounded real-provider challenger while preserving zero-authority PAPER/safety boundaries."
