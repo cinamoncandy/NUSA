@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
@@ -30,7 +30,7 @@ export function NusaButton({ label, onPress, disabled = false, tone = "primary",
   );
 }
 
-export interface NusaTextFieldProps {
+export interface NusaTextFieldProps extends Pick<TextInputProps, "autoCapitalize" | "autoCorrect" | "editable" | "keyboardType" | "returnKeyType"> {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
@@ -40,23 +40,29 @@ export interface NusaTextFieldProps {
   readonly testID?: string;
 }
 
-export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
+export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID, autoCapitalize, autoCorrect, editable = true, keyboardType, returnKeyType }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused && editable ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption, opacity: editable ? 1 : theme.interaction.disabledOpacity }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityState={{ disabled: !editable }}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        editable={editable}
+        keyboardType={keyboardType}
         onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
         placeholder={placeholder}
         placeholderTextColor={tokens.placeholder}
+        returnKeyType={returnKeyType}
         secureTextEntry={secureTextEntry}
         selectionColor={theme.colors.primary}
-        style={[styles.field, { backgroundColor: tokens.background, borderColor: focused ? tokens.focus : tokens.border, borderRadius: tokens.radius, borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth, color: tokens.foreground, minHeight: tokens.minHeight }]}
+        style={[styles.field, { backgroundColor: tokens.background, borderColor: focused && editable ? tokens.focus : tokens.border, borderRadius: tokens.radius, borderWidth: focused && editable ? tokens.focusBorderWidth : tokens.borderWidth, color: tokens.foreground, minHeight: tokens.minHeight, opacity: editable ? 1 : theme.interaction.disabledOpacity }]}
         testID={testID}
         value={value}
       />
