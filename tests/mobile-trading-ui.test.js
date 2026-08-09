@@ -53,26 +53,36 @@ test("Trading model enforces balance, mode, and live mutation gates", () => {
   assert.ok(unsafe.blockedReasons.includes("LIVE_MUTATION_DISABLED"));
 });
 
-test("Market order uses the verified current price and UI preserves the safety contract", () => {
+test("Market order uses verified current price and UI exposes only verified PAPER execution", () => {
   const model = buildTradingViewModel(input({ draft: { side: "BUY", orderType: "MARKET", priceInput: "", quantityInput: "2" } }));
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
 
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /PAPER 관찰 모드/);
-  assert.match(source, /ZERO MUTATION/);
-  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
-  assert.match(source, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
-  assert.doesNotMatch(source, /<AuthorityBanner/);
-  assert.doesNotMatch(source, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
-  assert.match(source, /RefreshControl/);
-  assert.match(source, /trading-loading/);
-  assert.match(source, /trading-empty/);
-  assert.match(source, /trading-error/);
+
+  assert.match(source, /eyebrow="PAPER WORKSPACE"/);
+  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label="LIVE 금지"/);
+  assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(source, /credentialSession\.isConfigured\(\)/);
+  assert.match(source, /PAPER 주문 연결 필요/);
+  assert.match(source, /PAPER 주문 미리보기/);
+  assert.match(source, /PAPER 주문 확인/);
+  assert.match(source, /PAPER 주문 확정/);
+  assert.match(source, /PersonalPaperOrderRetryIdentity/);
+  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
+  assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /disabled=\{!submitEnabled\}/);
+  assert.match(source, /RefreshControl/);
   assert.match(source, /NusaTextField/);
-  assert.match(app, /StatusChip label="READ ONLY"/);
+
+  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+
   assert.match(app, /activeTab === "Trade"/);
   assert.match(app, /<TradingView/);
 });
