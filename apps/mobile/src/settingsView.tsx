@@ -47,7 +47,7 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     if (!await saveEndpoint()) return;
     try {
       credentialSession.connect(tokenDraft);
-      const result = await loadPersonalPaperOperations({ baseUrl: endpointDraft, credentialProvider: credentialSession.credentialProvider });
+      const result = await loadPersonalPaperOperations({ baseUrl: endpointDraft, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status === "READY") { markPaperConnectionVerified(endpointDraft); setTokenDraft(""); }
       else { credentialSession.clear(); clearPaperConnectionVerification(); }
       setConnection(result);
