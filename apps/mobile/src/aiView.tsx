@@ -37,14 +37,14 @@ function metric(value: number | null | undefined): string {
 
 function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) {
   const { theme } = useTheme();
-  return <View style={styles.state} testID={testID}>
+  return <View style={styles.state} testID={testID}><View style={styles.stateInner}>
     <NusaCard>
       {loading ? <ActivityIndicator color={theme.colors.primary} /> : null}
       <Text style={[styles.stateTitle, { color: theme.colors.text }]}>{title}</Text>
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>{detail}</Text>
       {retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}
     </NusaCard>
-  </View>;
+  </View></View>;
 }
 
 export function AiView({ ai, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refreshing, onRefresh }: AiViewProps) {
@@ -78,11 +78,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     </NusaCard>
 
     <View style={styles.authoritySummary} testID="ai-authority-summary">
-      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
-      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
+      <View style={styles.statusRow}><StatusChip label="AI ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
+      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다.</Text>
     </View>
 
-    <NusaCard testID="ai-evidence-card">
+    <View style={styles.detailGrid}><View style={styles.detailCell}><NusaCard testID="ai-evidence-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>근거와 반대 근거</Text><StatusChip label={`${ai?.evidenceReferences.length ?? 0} 근거`} tone="neutral" /></View>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>근거 참조</Text>
       {ai && ai.evidenceReferences.length > 0 ? ai.evidenceReferences.slice(0, 5).map((item) => <Text key={item} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={2}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증된 근거 참조가 없습니다.</Text>}
@@ -91,9 +91,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       {ai && ai.counterEvidence.length > 0 ? ai.counterEvidence.slice(0, 5).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>등록된 반대 근거가 없습니다.</Text>}
       {ai && ai.counterEvidence.length > 5 ? <Text style={[styles.more, { color: theme.colors.textMuted }]}>외 {ai.counterEvidence.length - 5}개 반대 근거가 있습니다.</Text> : null}
       {ai && ai.disagreements.length > 0 ? <><Text style={[styles.label, styles.sectionGap, { color: theme.colors.textMuted }]}>분석 간 불일치</Text>{ai.disagreements.slice(0, 5).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>)}{ai.disagreements.length > 5 ? <Text style={[styles.more, { color: theme.colors.textMuted }]}>외 {ai.disagreements.length - 5}개 불일치가 있습니다.</Text> : null}</> : null}
-    </NusaCard>
+    </NusaCard></View>
 
-    <NusaCard testID="ai-research-card">
+    <View style={styles.detailCell}><NusaCard testID="ai-research-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>리서치 상태</Text><StatusChip label={research?.health ?? "UNAVAILABLE"} tone={research?.health === "HEALTHY" ? "success" : research?.health === "FAIL_CLOSED" ? "danger" : "warning"} /></View>
       <DataRow label="현재 PAPER 전략" value={research?.champion.strategyId ?? "-"} />
       <DataRow label="현재 전략 권한" value={research?.champion.authority ?? "-"} emphasis />
@@ -109,17 +109,20 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="Production mutation" value={productionMutationAllowed == null ? "-" : "금지"} tone={productionMutationAllowed === false ? "success" : "default"} />
       <DataRow label="킬 스위치" value={killSwitchActive == null ? "-" : killSwitchActive ? "활성" : "비활성"} tone={killSwitchActive === true ? "danger" : killSwitchActive === false ? "success" : "default"} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>서버 snapshot이 연결되면 실제 권한 불변식과 안전 상태를 이 진단 영역에 표시합니다.</Text>
-    </NusaCard>
+    </NusaCard></View></View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
-  state: { flex: 1, justifyContent: "center", padding: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1080, alignSelf: "center" },
+  state: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" },
+  stateInner: { width: "100%", maxWidth: 720 },
   stateTitle: { fontSize: 18, fontWeight: "700", marginTop: 10 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   authoritySummary: { gap: 6, paddingHorizontal: 2 },
   authorityCopy: { fontSize: 12, lineHeight: 18, fontWeight: "600" },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" },
+  detailCell: { flexGrow: 1, flexBasis: 440, gap: 14 },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
   cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
