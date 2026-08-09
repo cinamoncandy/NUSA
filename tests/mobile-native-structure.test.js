@@ -43,16 +43,18 @@ test("mobile foundation exposes a Home screen, theme, and five-tab navigation", 
   assert.match(app, /accessibilityRole="button"/);
 });
 
-test("mobile authentication foundation exposes a sign-in entry and environment mode", () => {
+test("mobile local-session foundation exposes a truthful non-authenticated entry", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /const AUTH_MODE = process\.env\.EXPO_PUBLIC_NUSA_AUTH_MODE/);
   assert.match(app, /useState\(false\)/);
-  assert.match(app, /accessibilityLabel=\"Email\"/);
-  assert.match(app, /accessibilityLabel=\"Password\"/);
-  assert.match(app, /accessibilityLabel=\"Sign in\"/);
+  assert.match(app, /testID="auth-submit"/);
+  assert.match(app, /서버 로그인이나 계정 인증이 아닙니다/);
+  assert.match(app, /이메일\/비밀번호를 입력받거나 저장하지 않습니다/);
+  assert.match(app, /accessibilityLabel="로컬 화면 열기"/);
+  assert.doesNotMatch(app, /accessibilityLabel="Email"|accessibilityLabel="Password"|testID="auth-email"|testID="auth-password"/);
 });
 
-test("authentication flow exposes Splash, Login guard, and Auth Context", () => {
+test("authentication flow exposes Splash, local entry guard, and Auth Context", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   const context = fs.readFileSync(path.join(mobile, "src", "authContext.ts"), "utf8");
   assert.match(app, /authStatus === "CHECKING"/);
