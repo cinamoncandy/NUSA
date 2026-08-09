@@ -19,7 +19,7 @@ function LoadingState({ theme }: Readonly<{ theme: ReturnType<typeof useTheme>["
 }
 
 function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"]; message: string; onRetry: () => void }>) {
-  return <View style={styles.state} testID="portfolio-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>자산 정보를 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View>;
+  return <View style={styles.state} testID="portfolio-error"><View style={styles.stateInner}><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>자산 정보를 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View></View>;
 }
 
 export interface PortfolioViewProps {
@@ -65,20 +65,20 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
       <View style={styles.metricCell}><NusaCard testID="portfolio-realized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>실현 손익</Text><Text style={[styles.metric, { color: model.realizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.realizedPnl)}</Text></NusaCard></View>
       <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
     </View>
-    <NusaCard testID="portfolio-allocation">
+    <View style={styles.detailGrid}><View style={styles.detailCell}><NusaCard testID="portfolio-allocation">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
       <DataRow label="현금" value={money(model.cash)} />
       <DataRow label="포지션 평가액" value={money(model.assetValue)} />
       <DataRow label="열린 주문" value={String(model.openOrderCount)} />
       <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
-    </NusaCard>
-    {renderPosition(model, theme)}
+    </NusaCard></View><View style={styles.detailCell}>{renderPosition(model, theme)}</View></View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
-  state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 },
+  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1080, alignSelf: "center" },
+  state: { flex: 1, justifyContent: "center", padding: 20, gap: 14, alignItems: "center" },
+  stateInner: { width: "100%", maxWidth: 720 },
   stateTitle: { fontSize: 18, fontWeight: "700" },
   stateMessage: { lineHeight: 21, fontSize: 14 },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
@@ -86,9 +86,11 @@ const styles = StyleSheet.create({
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
   total: { fontSize: 34, fontWeight: "800", letterSpacing: -1.3, marginTop: 8, fontVariant: ["tabular-nums"] },
   pnl: { fontSize: 15, fontWeight: "700", marginTop: 8, fontVariant: ["tabular-nums"] },
-  metrics: { flexDirection: "row", gap: 10 },
-  metricCell: { flex: 1 },
+  metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  metricCell: { flexGrow: 1, flexBasis: 300 },
   metric: { fontSize: 17, fontWeight: "700", marginTop: 8, fontVariant: ["tabular-nums"] },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "stretch" },
+  detailCell: { flexGrow: 1, flexBasis: 420 },
   positionMarket: { fontSize: 21, fontWeight: "700", marginTop: 5 },
   divider: { height: 1, marginVertical: 12 },
   scopeNote: { fontSize: 12, lineHeight: 18, marginTop: 12 },
