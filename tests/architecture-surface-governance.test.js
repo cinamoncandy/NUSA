@@ -52,6 +52,39 @@ test("architecture surface governance rejects a newly introduced unregistered ow
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("architecture surface governance rejects a second unregistered boundary marker in an already registered owner", () => {
+  const root = fixture();
+  try {
+    write(root, "apps/desktop/src/main.ts", "ipcMain.handle(\"paper:test\", () => null);\nconst http = require(\"node:http\"); http.createServer(() => {});\n");
+    const result = validateArchitectureSurfaces(root);
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.includes("ARCH_SURFACE_UNREGISTERED_MARKER:apps/desktop/src/main.ts:http.createServer("), true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("architecture surface governance supports multiple explicitly registered boundaries in one owner", () => {
+  const root = fixture();
+  try {
+    write(root, "apps/desktop/src/main.ts", "ipcMain.handle(\"paper:test\", () => null);\nconst http = require(\"node:http\"); http.createServer(() => {});\n");
+    const path = join(root, "config/architecture/surfaces.json");
+    const manifest = JSON.parse(require("node:fs").readFileSync(path, "utf8"));
+    manifest.surfaces.push({
+      id: "desktop-main-http",
+      kind: "LOCAL_HTTP",
+      path: "apps/desktop/src/main.ts",
+      marker: "http.createServer(",
+      access: "LOCALHOST_GET_ONLY",
+      authority: "READ_ONLY",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      credentialExecutionAllowed: false
+    });
+    writeFileSync(path, JSON.stringify(manifest, null, 2));
+    const result = validateArchitectureSurfaces(root);
+    assert.equal(result.ok, true, result.failures.join("\n"));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("architecture surface governance rejects authority expansion", () => {
   const root = fixture();
   try {
