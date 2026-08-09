@@ -23,13 +23,15 @@ test("system theme follows device preference and persisted settings are applied"
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
 
-test("utility navigation has an explicit close path and local settings expose real sign-out", () => {
+test("utility navigation has an explicit close path and local settings expose guarded real sign-out", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /NusaButton label="개인 모드 종료" onPress=\{onSignOut\}/);
+  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) onSignOut\?\.\(\); \};/);
+  assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
+  assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
