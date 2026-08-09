@@ -78,6 +78,38 @@ function assertNoSymlink(file, root) {
   }
 }
 
+function readStableRegularFile(file, root) {
+  assertNoSymlink(file, root);
+  const before = fs.lstatSync(file, { bigint: true });
+  if (!before.isFile()) throw new Error(`recovery source must remain a regular file: ${file}`);
+  const expectedRealpath = fs.realpathSync(file);
+  const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    const currentRealpath = fs.realpathSync(file);
+    if (!opened.isFile()
+      || opened.dev !== before.dev
+      || opened.ino !== before.ino
+      || opened.size !== before.size
+      || currentRealpath !== expectedRealpath) {
+      throw new Error(`recovery source identity changed before read: ${file}`);
+    }
+    const bytes = fs.readFileSync(descriptor);
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    if (after.dev !== opened.dev
+      || after.ino !== opened.ino
+      || after.size !== opened.size
+      || after.mtimeNs !== opened.mtimeNs
+      || after.ctimeNs !== opened.ctimeNs) {
+      throw new Error(`recovery source changed while being read: ${file}`);
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
 function parseIncludes(raw) {
   if (!Array.isArray(raw) || raw.length === 0) throw new Error("at least one --include CATEGORY:/absolute/path is required");
   return raw.map((entry) => {
@@ -174,8 +206,7 @@ function createBackup(args) {
           secretExcludedCount += 1;
           continue;
         }
-        assertNoSymlink(file, source);
-        const sourceBytes = fs.readFileSync(file);
+        const sourceBytes = readStableRegularFile(file, source);
         if (secretFindings(sourceBytes, relative).length > 0) {
           secretExcludedCount += 1;
           continue;
@@ -183,10 +214,13 @@ function createBackup(args) {
         const outputRelative = `${category}/${crypto.createHash("sha256").update(source).digest("hex").slice(0, 12)}/${relative}`;
         const output = path.join(snapshot, ...outputRelative.split("/"));
         fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
-        fs.copyFileSync(file, output, fs.constants.COPYFILE_EXCL);
-        fs.chmodSync(output, 0o600);
-        const sizeBytes = fs.statSync(output).size;
-        entries.push(Object.freeze({ category, path: outputRelative, sizeBytes, sha256: sha256File(output) }));
+        fs.writeFileSync(output, sourceBytes, { mode: 0o600, flag: "wx" });
+        entries.push(Object.freeze({
+          category,
+          path: outputRelative,
+          sizeBytes: sourceBytes.length,
+          sha256: crypto.createHash("sha256").update(sourceBytes).digest("hex")
+        }));
       }
     }
     entries.sort((a, b) => a.path.localeCompare(b.path));
