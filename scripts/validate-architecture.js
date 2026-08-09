@@ -10,6 +10,7 @@ const IGNORED_DIRECTORY = new Set(["node_modules", "dist", "coverage", "release"
 function analyzeRepository(root = process.cwd()) {
   const files = sourceFiles(root);
   const nodes = new Set(files.map((file) => relative(root, file).replaceAll("\\", "/")));
+  const workspaceOwners = workspacePackageOwners(root);
   const edges = [];
   const boundaryReferences = [];
   const unresolved = [];
@@ -18,20 +19,27 @@ function analyzeRepository(root = process.cwd()) {
     const source = relative(root, file).replaceAll("\\", "/");
     const sourceText = readFileSync(file, "utf8");
     for (const imported of parseImports(sourceText)) {
-      if (!imported.specifier.startsWith(".")) continue;
-      const target = resolveLocal(file, imported.specifier, nodes, root);
-      if (!target) {
-        unresolved.push({ source, specifier: imported.specifier });
+      if (imported.specifier.startsWith(".")) {
+        const target = resolveLocal(file, imported.specifier, nodes, root);
+        if (!target) {
+          unresolved.push({ source, specifier: imported.specifier });
+          continue;
+        }
+        edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
         continue;
       }
-      edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+      if (isProtectedBoundarySource(source)) {
+        const target = resolveWorkspaceOwner(imported.specifier, workspaceOwners);
+        if (target) boundaryReferences.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+      }
     }
-    if (source.startsWith("packages/core/") || source.startsWith("packages/contracts/")) {
+    if (isProtectedBoundarySource(source)) {
       for (const specifier of parseImportExpressions(sourceText)) {
-        if (!specifier.startsWith(".")) continue;
-        const target = resolveLocal(file, specifier, nodes, root);
+        const target = specifier.startsWith(".")
+          ? resolveLocal(file, specifier, nodes, root)
+          : resolveWorkspaceOwner(specifier, workspaceOwners);
         if (!target) {
-          unresolved.push({ source, specifier });
+          if (specifier.startsWith(".")) unresolved.push({ source, specifier });
           continue;
         }
         boundaryReferences.push({ source, target, kind: "inline-import" });
@@ -52,7 +60,7 @@ function analyzeRepository(root = process.cwd()) {
     if (sourceLayer === "DOMAIN" && targetLayer === "APPLICATION") {
       findings.push(finding("DOMAIN_TO_APPLICATION", edge, "Domain must not depend on application orchestration."));
     }
-    if (sourceLayer === "PRESENTATION" && targetLayer !== "APPLICATION") {
+    if (sourceLayer === "PRESENTATION" && !isMobilePresentationSource(edge.source) && targetLayer !== "APPLICATION") {
       findings.push(finding("PRESENTATION_SHORTCUT", edge, "Presentation may depend only on application-facing contracts."));
     }
     if (edge.kind === "runtime" && edge.source.startsWith("packages/storage/") && edge.target.startsWith("apps/")) {
@@ -67,6 +75,9 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
     }
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may use mobile-local modules and static type-only Contracts imports; implementation/runtime shortcuts are forbidden."));
+    }
   }
 
   for (const edge of boundaryReferences) {
@@ -75,6 +86,9 @@ function analyzeRepository(root = process.cwd()) {
     }
     if (edge.source.startsWith("packages/contracts/") && !edge.target.startsWith("packages/contracts/")) {
       findings.push(finding("CONTRACTS_TO_IMPLEMENTATION_REFERENCE", edge, "Shared contracts must remain implementation-free and may depend only on other shared contracts."));
+    }
+    if (isForbiddenMobilePresentationReference(edge)) {
+      findings.push(finding("MOBILE_PRESENTATION_SHORTCUT", edge, "Mobile presentation may use mobile-local modules and static type-only Contracts imports; implementation/runtime shortcuts are forbidden."));
     }
   }
 
@@ -171,8 +185,52 @@ function resolveLocal(file, specifier, nodes, root) {
   return candidates.map((candidate) => relative(root, candidate).replaceAll("\\", "/")).find((candidate) => nodes.has(candidate));
 }
 
+function workspacePackageOwners(root) {
+  const owners = new Map();
+  for (const sourceRoot of SOURCE_ROOTS) {
+    const directory = join(root, sourceRoot);
+    if (!existsSync(directory)) continue;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const manifestPath = join(directory, entry.name, "package.json");
+      if (!existsSync(manifestPath)) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+        if (typeof manifest.name === "string" && manifest.name.length > 0) {
+          owners.set(manifest.name, `${sourceRoot}/${entry.name}/`);
+        }
+      } catch {
+        // Package manifest syntax is validated elsewhere; architecture scanning skips invalid manifests here.
+      }
+    }
+  }
+  return owners;
+}
+
+function resolveWorkspaceOwner(specifier, owners) {
+  for (const [packageName, owner] of owners) {
+    if (specifier === packageName || specifier.startsWith(`${packageName}/`)) return owner;
+  }
+  return undefined;
+}
+
+function isMobilePresentationSource(file) {
+  return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
+}
+
+function isProtectedBoundarySource(file) {
+  return file.startsWith("packages/core/") || file.startsWith("packages/contracts/") || isMobilePresentationSource(file);
+}
+
+function isForbiddenMobilePresentationReference(edge) {
+  if (!isMobilePresentationSource(edge.source)) return false;
+  if (edge.target.startsWith("apps/mobile/")) return false;
+  if (edge.kind === "type" && edge.target.startsWith("packages/contracts/")) return false;
+  return /^(apps|packages)\//.test(edge.target);
+}
+
 function layerOf(file) {
-  if (file.startsWith("apps/desktop/renderer/")) return "PRESENTATION";
+  if (file.startsWith("apps/desktop/renderer/") || isMobilePresentationSource(file)) return "PRESENTATION";
   if (file.startsWith("packages/storage/")) return "INFRASTRUCTURE";
   if (file.startsWith("packages/") || file.startsWith("apps/execution/")) return "DOMAIN";
   if (file.startsWith("apps/")) return "APPLICATION";
@@ -254,4 +312,4 @@ if (require.main === module) {
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions };
+module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions, resolveWorkspaceOwner, workspacePackageOwners };
