@@ -7,11 +7,21 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { validateDisasterRecoveryRestore } = require("./validate-disaster-recovery-restore.js");
+const { scanText } = require("./security-gate.js");
 
 const SCHEMA_VERSION = 2;
 const CATEGORIES = new Set(["CONFIG", "EVIDENCE", "LOG", "DATABASE_SNAPSHOT"]);
 const FORBIDDEN_NAME = /(^|[._-])(env|secret|token|password|credential|private[-_]?key|api[-_]?key)([._-]|$)|\.(pem|p12|pfx|key)$/i;
 const SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
+const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
+
+function secretFindings(bytes, file) {
+  const text = bytes.toString("utf8");
+  const normalized = text.replace(/(["'])(access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)\1\s*:/gi, "$2:");
+  const findings = scanText(normalized, file);
+  if (SENSITIVE_ASSIGNMENT.test(text)) findings.push({ file, line: 0, rule: "SENSITIVE_ASSIGNMENT" });
+  return findings;
+}
 
 function parseArgs(argv) {
   const args = { include: [] };
@@ -165,6 +175,11 @@ function createBackup(args) {
           continue;
         }
         assertNoSymlink(file, source);
+        const sourceBytes = fs.readFileSync(file);
+        if (secretFindings(sourceBytes, relative).length > 0) {
+          secretExcludedCount += 1;
+          continue;
+        }
         const outputRelative = `${category}/${crypto.createHash("sha256").update(source).digest("hex").slice(0, 12)}/${relative}`;
         const output = path.join(snapshot, ...outputRelative.split("/"));
         fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
@@ -219,6 +234,7 @@ function readAndVerify(snapshotPath) {
     if (!isInside(snapshot, file) || !fs.existsSync(file) || !fs.lstatSync(file).isFile()) throw new Error(`missing recovery artifact: ${entry.path}`);
     if (fs.statSync(file).size !== entry.sizeBytes) throw new Error(`size mismatch: ${entry.path}`);
     if (sha256File(file) !== entry.sha256) throw new Error(`checksum mismatch: ${entry.path}`);
+    if (secretFindings(fs.readFileSync(file), entry.path).length > 0) throw new Error(`secret material detected in recovery artifact: ${entry.path}`);
   }
   return Object.freeze({ snapshot, manifest, manifestPath, manifestSha256: sha256File(manifestPath) });
 }
