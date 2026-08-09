@@ -10,11 +10,13 @@ function analyzeRepository(root = process.cwd()) {
   const files = sourceFiles(root);
   const nodes = new Set(files.map((file) => relative(root, file).replaceAll("\\", "/")));
   const edges = [];
+  const boundaryReferences = [];
   const unresolved = [];
 
   for (const file of files) {
     const source = relative(root, file).replaceAll("\\", "/");
-    for (const imported of parseImports(readFileSync(file, "utf8"))) {
+    const sourceText = readFileSync(file, "utf8");
+    for (const imported of parseImports(sourceText)) {
       if (!imported.specifier.startsWith(".")) continue;
       const target = resolveLocal(file, imported.specifier, nodes, root);
       if (!target) {
@@ -22,6 +24,17 @@ function analyzeRepository(root = process.cwd()) {
         continue;
       }
       edges.push({ source, target, kind: imported.typeOnly ? "type" : "runtime" });
+    }
+    if (source.startsWith("packages/core/")) {
+      for (const specifier of parseImportExpressions(sourceText)) {
+        if (!specifier.startsWith(".")) continue;
+        const target = resolveLocal(file, specifier, nodes, root);
+        if (!target) {
+          unresolved.push({ source, specifier });
+          continue;
+        }
+        boundaryReferences.push({ source, target, kind: "inline-import" });
+      }
     }
   }
 
@@ -46,6 +59,15 @@ function analyzeRepository(root = process.cwd()) {
     }
     if (edge.source.startsWith("apps/execution/") && /^(apps\/(desktop|mobile|cloud)|packages\/storage)\//.test(edge.target)) {
       findings.push(finding("EXECUTION_CROSS_LAYER_REFERENCE", edge, "Execution domain must not depend on desktop, mobile, cloud, or storage implementations."));
+    }
+    if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
+      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
+    }
+  }
+
+  for (const edge of boundaryReferences) {
+    if (edge.target.startsWith("packages/aipos/")) {
+      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
     }
   }
 
@@ -98,6 +120,10 @@ function parseImports(source) {
     }
   }
   return imports;
+}
+
+function parseImportExpressions(source) {
+  return [...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)].map((match) => match[1]);
 }
 
 function resolveLocal(file, specifier, nodes, root) {
@@ -180,7 +206,13 @@ if (require.main === module) {
     console.error(`Architecture validation found ${result.unresolved.length} unresolved local imports.`);
     process.exit(1);
   }
+  if (result.runtimeCycles.length > 0) {
+    for (const cycle of result.runtimeCycles) console.error(`Runtime cycle: ${cycle.join(" -> ")}`);
+  }
+  if (result.findings.length > 0) {
+    for (const item of result.findings) console.error(`${item.rule}: ${item.source} -> ${item.target} (${item.kind})`);
+  }
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports };
+module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions };
