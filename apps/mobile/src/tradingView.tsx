@@ -56,7 +56,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
     </NusaCard>
     {readOnly ? <>
       <AuthorityBanner detail="이 화면은 가격과 PAPER 계좌 상태를 읽기만 합니다. 매수·매도 요청을 만들거나 서버로 전송할 수 없습니다." />
-      <NusaCard testID="trading-readonly-state" raised>
+      <NusaCard testID="trading-preview">
         <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>PAPER 관찰 모드</Text><StatusChip label="ZERO MUTATION" tone="info" /></View>
         <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>실행 기능이 명시적으로 연결되기 전까지 이 화면은 관찰 전용입니다. 동작하지 않는 주문 컨트롤은 표시하지 않습니다.</Text>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
