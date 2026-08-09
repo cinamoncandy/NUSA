@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { OutcomeCalibrationLedger, computeCalibrationMetrics, createCalibrationOutcome, createCalibrationPrediction, verifyCalibrationOutcome, verifyCalibrationPrediction } = require("../dist/apps/cloud/src/ai/outcomeCalibration.js");
 
 const digest = "a".repeat(64);
-const cohort = Object.freeze({ providerId: "openai", modelVersionId: "model-v1", promptArtifactId: "nusa.ai.strategy_proposer", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, outcomeDefinitionId: "next-period-positive", outcomeDefinitionVersion: "1" });
+const cohort = Object.freeze({ providerId: "openai", modelVersionId: "model-v1", promptArtifactId: "nusa.ai.strategy_proposer", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, outcomeDefinitionId: "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M", outcomeDefinitionVersion: "1" });
 const prediction = (id, rawProbability, provenance = "VERIFIED_RUNTIME", overrides = {}) => createCalibrationPrediction({ predictionId: id, orchestrationRunId: `run-${id}`, proposalId: `proposal-${id}`, agentId: "ai-strategy-proposer", role: "STRATEGY_PROPOSER", ...cohort, targetId: "KRW-BTC", anchorValue: 100, anchorObservedAt: 900, anchorEvidenceReference: `anchor-${id}`, rawProbability, predictedAt: 1_000, horizonMs: 100, provenance, ...overrides });
 const outcome = (predictionOrId, result, provenance = "VERIFIED_RUNTIME", overrides = {}) => {
   const linkedPrediction = typeof predictionOrId === "string" ? null : predictionOrId;
@@ -42,6 +42,18 @@ test("calibration ledger is idempotent but rejects conflicting replay, detached 
   assert.equal(ledger.appendOutcome(resolved), resolved);
   assert.equal(ledger.appendOutcome(resolved), resolved);
   assert.throws(() => ledger.appendOutcome(outcome(first, false)), /conflicting calibration outcome replay/);
+});
+
+test("calibration outcome semantics fail closed when boolean and resolved value disagree or definition is unknown", () => {
+  const ledger = new OutcomeCalibrationLedger();
+  const first = prediction("semantic", 0.7);
+  ledger.appendPrediction(first);
+  assert.throws(() => ledger.appendOutcome(outcome(first, false, "VERIFIED_RUNTIME", { resolvedValue: 101 })), /does not match resolved value/);
+  assert.throws(() => ledger.appendOutcome(outcome(first, true, "VERIFIED_RUNTIME", { resolvedValue: 99 })), /does not match resolved value/);
+
+  const unknown = prediction("unknown-definition", 0.5, "VERIFIED_RUNTIME", { outcomeDefinitionId: "UNREGISTERED_OUTCOME" });
+  ledger.appendPrediction(unknown);
+  assert.throws(() => ledger.appendOutcome(outcome(unknown, true, "VERIFIED_RUNTIME", { outcomeDefinitionId: "UNREGISTERED_OUTCOME" })), /unsupported calibration outcome definition/);
 });
 
 test("reliability buckets include probability zero and one and compute weighted ECE and Brier", () => {
