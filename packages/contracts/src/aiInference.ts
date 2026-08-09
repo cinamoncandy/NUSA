@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 export type AiAgentRole = "EVIDENCE_PRODUCER" | "STRATEGY_PROPOSER" | "ADVERSARIAL_CRITIC" | "RISK_VERIFIER";
 export type AiOrchestrationStatus = "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE" | "INVALID";
 export type ModelFailureCode = "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "OUTPUT_TOO_LARGE" | "MALFORMED_OUTPUT" | "SCHEMA_VIOLATION" | "PROMPT_DIGEST_MISMATCH" | "CONTEXT_INVALID" | "EVIDENCE_MISSING" | "EVIDENCE_DIGEST_MISMATCH" | "SENSITIVE_EVIDENCE" | "REPLAY_CONFLICT" | "UNKNOWN";
+export type AiCalibrationStatus = "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA" | "CALIBRATED" | "DEGRADED";
+export type AiCalibrationProvenance = "VERIFIED_RUNTIME" | "SYNTHETIC_TEST";
 
 export interface ModelUsage {
   readonly inputTokens?: number;
@@ -66,9 +68,66 @@ export interface StructuredAgentOutput {
   readonly payload: Readonly<Record<string, unknown>>;
 }
 
+export interface AiCalibrationCohortKey {
+  readonly providerId: string;
+  readonly modelVersionId: string;
+  readonly promptArtifactDigest: string;
+  readonly outcomeDefinitionId: string;
+  readonly outcomeDefinitionVersion: string;
+}
+
+export interface AiCalibrationPrediction extends AiCalibrationCohortKey {
+  readonly predictionId: string;
+  readonly orchestrationRunId: string;
+  readonly proposalId: string;
+  readonly agentId: string;
+  readonly role: AiAgentRole;
+  readonly rawProbability: number;
+  readonly predictedAt: number;
+  readonly horizonMs: number;
+  readonly provenance: AiCalibrationProvenance;
+  readonly contentHash: string;
+}
+
+export interface AiCalibrationOutcome {
+  readonly predictionId: string;
+  readonly outcomeDefinitionId: string;
+  readonly outcomeDefinitionVersion: string;
+  readonly outcome: boolean;
+  readonly resolvedAt: number;
+  readonly evidenceReferences: readonly string[];
+  readonly provenance: AiCalibrationProvenance;
+  readonly contentHash: string;
+}
+
+export interface AiCalibrationReliabilityBucket {
+  readonly lowerBound: number;
+  readonly upperBound: number;
+  readonly count: number;
+  readonly meanPredicted: number | null;
+  readonly observedRate: number | null;
+  readonly absoluteGap: number | null;
+}
+
+export interface AiCalibrationProfile {
+  readonly cohort: AiCalibrationCohortKey;
+  readonly status: AiCalibrationStatus;
+  readonly sampleCount: number;
+  readonly expectedCalibrationError: number | null;
+  readonly brierScore: number | null;
+  readonly rawProbability: number;
+  readonly calibratedProbability: number | null;
+  readonly effectiveConfidence: number;
+  readonly reliabilityBuckets: readonly AiCalibrationReliabilityBucket[];
+  readonly provenance: "VERIFIED_RUNTIME_ONLY";
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+}
+
 export interface AiReadOnlyProjection {
   readonly status: "AVAILABLE" | "UNAVAILABLE" | "INCOMPLETE";
   readonly thesis: string | null;
+  /** Trusted effective confidence only. It remains zero unless calibration is verified and CALIBRATED. */
   readonly confidence: number;
   readonly evidenceReferences: readonly string[];
   readonly counterEvidence: readonly string[];
@@ -78,7 +137,15 @@ export interface AiReadOnlyProjection {
   readonly lastModelRun: number | null;
   readonly modelVersion: string | null;
   readonly promptVersion: string | null;
-  readonly calibrationStatus: "UNKNOWN";
+  readonly calibrationStatus: AiCalibrationStatus;
+  /** Raw model probability is uncalibrated model output, not a verified success probability or performance guarantee. */
+  readonly rawProbability?: number | null;
+  readonly calibratedProbability?: number | null;
+  readonly effectiveConfidence?: number;
+  readonly calibrationSampleCount?: number;
+  readonly calibrationExpectedError?: number | null;
+  readonly calibrationBrierScore?: number | null;
+  readonly calibrationCohort?: AiCalibrationCohortKey | null;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
