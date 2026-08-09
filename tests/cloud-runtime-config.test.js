@@ -68,7 +68,7 @@ test("the shared-secret verifier accepts only the exact configured token", () =>
   const principal = verifier.verify(VALID_TOKEN);
   assert.ok(principal);
   assert.equal(principal.userId, "operator");
-  assert.deepEqual([...principal.scopes], ["dashboard:read"]);
+  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade"]);
 });
 
 test("the shared-secret verifier rejects a wrong token, a prefix, and a suffix", () => {
