@@ -1,9 +1,10 @@
 id: WO-AI-009
 title: Governed Outcome Attribution and Learning Memory
-status: PLANNED
+status: IN_PROGRESS
 priority: P1
-branch: agent/ai-009-outcome-attribution-learning-plan
+branch: agent/ai-009-outcome-attribution-learning-runtime
 base_branch: main
+implementation_branch: agent/ai-009-outcome-attribution-learning-runtime
 planning_branch: agent/ai-009-outcome-attribution-learning-plan
 architecture_impact:
   acknowledged: true
@@ -119,11 +120,14 @@ planning_gate:
   exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
   merge_commit: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
 implementation_gate:
-  status: NOT_STARTED
+  status: IN_PROGRESS
   planning_pr_merged: true
+  branch: agent/ai-009-outcome-attribution-learning-runtime
+  branch_start_commit: ab227c37f1f886efdefc8c56695b936d0d0704f7
   latest_main_required_before_start: true
   latest_main_required_before_merge: true
 next: >-
-  Planning PR #382 is merged and its exact planning head passed Full CI plus all four Restricted LIVE/read-only workflows.
-  Start implementation only from the then-current protected main, set the Work Order to IN_PROGRESS on the implementation branch,
-  preserve WO-0051 HUMAN_ENVIRONMENT_ONLY and zero-authority boundaries, and require fresh exact-head implementation verification before merge.
+  Implement and verify the governed outcome-attribution and immutable learning-memory slice on this branch. Preserve
+  verified prediction/outcome/evidence/prompt/provider/calibration/scenario lineage, prefer unresolved attribution over
+  post-hoc certainty, keep lesson retrieval advisory-only, and require fresh exact-head full CI/Coverage plus all
+  architecture/AIPOS/security and Restricted LIVE/read-only workflows before merge.
