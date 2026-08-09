@@ -1,10 +1,10 @@
 id: WO-AI-003
 title: Real Provider Challenger Runtime
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
-branch: agent/ai-003-real-provider-challenger
+branch: main
 base_branch: main
-implementation_branch: agent/ai-003-real-provider-challenger
+implementation_branch: main
 architecture_impact:
   acknowledged: true
   analysis: "Adds an explicitly opt-in real model provider below the existing grounded zero-authority runtime without changing deterministic PAPER/safety authority."
@@ -75,7 +75,26 @@ verification:
     - broker credential
     - real order, cancel, transfer, or withdrawal
     - synthetic evidence presented as LIVE authorization
+completion:
+  evidence: .aipos/evidence/WO-AI-003-completion.json
+  completed_at: "2026-08-09T09:15:00+09:00"
+  planning_pr: 213
+  implementation_pr: 215
+  merge_sha: 509f11c1df73e2e8964e8d0d76de2177a3328096
+  exact_head: 65042532e35f65386631bddcb66ac00c54275b0c
+  ci_run: 31285411133
+  safety_workflows:
+    - 31285411126
+    - 31285411123
+    - 31285411099
+    - 31285411101
+  mobile_native: NOT_TRIGGERED_NO_MOBILE_CHANGES
+  authority:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    realOrderAuthority: false
+    realTransferAuthority: false
 next: >-
-  After verified real challenger observations exist, run a fresh audit and prioritize
-  calibration/outcome linkage before increasing explanation confidence or adding any
-  provider-derived decision weight.
+  Run a fresh repository/AI capability audit after enough real challenger observations
+  exist; prioritize calibration/outcome linkage before increasing explanation confidence,
+  adding provider-derived decision weight, or opening any additional AI implementation slice.
