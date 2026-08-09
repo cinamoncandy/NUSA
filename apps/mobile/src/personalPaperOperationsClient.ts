@@ -57,6 +57,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations timeout is invalid." }); }
   const token = await options.credentialProvider();
   if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  const requestToken = token.trim();
 
   const endpoint = new URL(`${configured}/api/paper-operations`).href;
   const controller = new AbortController();
@@ -67,7 +68,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
         method: "GET",
         redirect: "error",
         signal: controller.signal,
-        headers: { authorization: `Bearer ${token.trim()}`, accept: "application/json" }
+        headers: { authorization: `Bearer ${requestToken}`, accept: "application/json" }
       });
       if (response.redirected === true) throw new Error("PAPER operations redirect is prohibited.");
       if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER operations final endpoint changed.");
@@ -77,6 +78,12 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     const response = await Promise.race([operation, timeout]);
     if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
     const payload: unknown = await response.json();
+    const currentToken = await options.credentialProvider();
+    const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
+    const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
+    if (!endpointStillCurrent || !verificationStillCurrent || currentToken == null || currentToken.trim() !== requestToken) {
+      return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight." });
+    }
     try { return Object.freeze({ status: "READY", snapshot: validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot) }); }
     catch { return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." }); }
   } catch (error) {
