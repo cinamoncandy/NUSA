@@ -69,6 +69,17 @@ jobs:
           apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
       - run: ./gradlew :app:assembleDebug
         working-directory: apps/mobile/android
+      - name: Generate Android debug APK checksum
+        run: sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk.sha256
+      - name: Upload installable Android debug APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nusa-android-debug-apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
 
   ios-debug:
     runs-on: macos-15
@@ -118,6 +129,17 @@ jobs:
           apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
       - run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
+      - name: Generate Android release candidate checksum
+        run: sha256sum apps/mobile/android/app/build/outputs/apk/release/app-release.apk > apps/mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+      - name: Upload Android release candidate APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nusa-android-release-candidate-apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
 
   ios-release-candidate:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
