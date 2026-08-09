@@ -7,7 +7,7 @@ objective: "Build deterministic outcome-linked AI calibration so raw model confi
 base_branch: main
 active_branch: agent/ai-004-outcome-calibration-current-main
 active_pull_request: 256
-base_commit: db26b36e032b810333b2f40bce5f4d058aadfafd
+base_commit: 32051ac472badadd752cb7a130085e0ec485eff1
 claimed_state:
   work_order: WO-AI-004
   status: IN_PROGRESS
@@ -64,8 +64,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #256 is the sole canonical WO-AI-004 implementation path from latest main db26b36e032b810333b2f40bce5f4d058aadfafd; stale PR #247 is closed unmerged. Exact-head verification is pending and WO-AI-004 remains IN_PROGRESS."
-  current_commit: "Base main db26b36e032b810333b2f40bce5f4d058aadfafd is integrated into active branch agent/ai-004-outcome-calibration-current-main for PR #256; completion is not claimed before Merge + post-merge PASS."
+  last_result: "PR #256 is the sole canonical WO-AI-004 implementation path from latest main 32051ac472badadd752cb7a130085e0ec485eff1; stale PR #247 is closed unmerged. Exact-head verification is pending and WO-AI-004 remains IN_PROGRESS."
+  current_commit: "Base main 32051ac472badadd752cb7a130085e0ec485eff1 is integrated into active branch agent/ai-004-outcome-calibration-current-main for PR #256; completion is not claimed before Merge + post-merge PASS."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
