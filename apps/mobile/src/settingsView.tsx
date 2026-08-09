@@ -30,16 +30,34 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
     return () => { active = false; };
   }, [repository, setMode]);
 
-  const persist = async (next: AppSettings): Promise<void> => {
+  const persist = async (next: AppSettings): Promise<boolean> => {
     setSaving(true);
-    try { const normalized = normalizeSettings(next); await repository.save(normalized); setSettings(normalized); setError(null); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); } finally { setSaving(false); }
+    try {
+      const normalized = normalizeSettings(next);
+      await repository.save(normalized);
+      setSettings(normalized);
+      setError(null);
+      return true;
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Settings could not be saved.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
   const updateTheme = (next: ThemeSetting) => {
+    if (!settings) return;
+    const previousTheme = settings.theme;
     setMode(themePreference(next));
-    if (settings) void persist({ ...settings, theme: next });
+    void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); });
   };
   const updateNotification = (field: "enabled" | "riskAlerts" | "orderUpdates") => { if (settings) void persist({ ...settings, notifications: { ...settings.notifications, [field]: !settings.notifications[field] } }); };
-  const resetSettings = () => { setMode("system"); void persist(DEFAULT_SETTINGS); };
+  const resetSettings = () => {
+    if (!settings) return;
+    const previousTheme = settings.theme;
+    setMode("system");
+    void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); });
+  };
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><NusaCard><Text style={[styles.title, { color: theme.colors.danger }]}>설정을 불러올 수 없습니다</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{error}</Text><NusaButton label="다시 시도" onPress={() => { setError(null); void repository.load().then((loaded) => { const next = loaded ?? DEFAULT_SETTINGS; setSettings(next); setMode(themePreference(next.theme)); }).catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Settings are unavailable.")); }} /></NusaCard></View>;
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
