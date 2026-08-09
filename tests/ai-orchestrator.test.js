@@ -6,7 +6,7 @@ const { MultiAgentOrchestrator } = require("../dist/apps/cloud/src/ai/multiAgent
 const { projectAiReadOnly } = require("../dist/apps/cloud/src/ai/projection.js");
 const { SqliteDatabase, SqliteMultiAgentGovernanceStore } = require("../dist/packages/storage/src/index.js");
 
-const proposalSeed = { strategyVersionId: "strategy-preview", decision: "candidate", rationaleClaims: ["market evidence supports review"], assumptions: ["paper-only evaluation"], uncertainty: "medium", expectedEffect: "research review", costSensitivity: "unknown", capacitySensitivity: "unknown" };
+const proposalSeed = { strategyVersionId: "strategy-preview", decision: "candidate", rationaleClaims: ["market evidence supports review"], assumptions: ["paper-only evaluation"], uncertainty: "medium", rawProbability: 0.7, expectedEffect: "research review", costSensitivity: "unknown", capacitySensitivity: "unknown" };
 const marketPayload = Object.freeze({ market: "KRW-BTC", price: 100, changeRate: 0.01, source: "UPBIT_PUBLIC_TICKER" });
 const fixture = (evidenceId = "e-1", payload = marketPayload, overrides = {}) => {
   const contentDigest = aiSha256(payload);
@@ -51,7 +51,8 @@ test("grounded model requests carry exact prompt instructions and verified evide
   const projection = projectAiReadOnly(result);
   assert.equal(projection.status, "INCOMPLETE");
   assert.equal(projection.confidence, 0);
-  assert.equal(projection.calibrationStatus, "UNKNOWN");
+  assert.equal(projection.rawProbability, 0.7);
+  assert.equal(projection.calibrationStatus, "UNVERIFIED");
   assert.equal(projection.liveAuthority, "NONE");
   assert.equal(projection.productionMutationAllowed, false);
 });
@@ -149,6 +150,26 @@ test("malformed output, tool escalation, stale evidence, and missing critic fail
   assert.equal(missingCritic.productionMutationAllowed, false);
 });
 
+test("strategy proposer raw probability is required and bounded even when a provider bypasses the OpenAI schema", async () => {
+  const cases = [undefined, "0.8", -0.01, 1.01, Number.NaN, Number.POSITIVE_INFINITY];
+  for (const [index, rawProbability] of cases.entries()) {
+    const invalid = new TransportModelProvider("fixture", "model", async (request) => {
+      let payload;
+      if (request.role === "EVIDENCE_PRODUCER") payload = { observations: [{ claim: "verified", claimType: "fact", evidenceReferences: ["e-1"], freshnessStatus: "fresh" }], missingEvidence: [], evidenceBundleHash: request.input.evidenceBundleHash };
+      if (request.role === "STRATEGY_PROPOSER") payload = { ...proposalSeed, rawProbability };
+      if (request.role === "ADVERSARIAL_CRITIC") payload = { reviewedProposalHash: request.input.proposalHash, counterClaims: [], failedAssumptions: [], missingTests: [], alternativeExplanations: [], severity: "low" };
+      if (request.role === "RISK_VERIFIER") payload = { result: "verified", hardDenies: [], warnings: [], missingRequirements: [], requiredEscalations: [], policyReferences: ["risk-policy"] };
+      const output = { schemaVersion: 1, role: request.role, evidenceReferences: ["e-1"], payload };
+      return { requestId: request.requestId, providerId: request.providerId, modelVersionId: request.modelVersionId, promptArtifactDigest: request.promptArtifactDigest, contextHash: request.contextHash, inputHash: request.inputHash, structuredOutput: output, outputHash: aiSha256(output), startedAt: 1, completedAt: 2 };
+    });
+    const result = await new MultiAgentOrchestrator(invalid, { enabled: true, maxRetries: 0 }).run(input({ orchestrationRunId: `invalid-probability-${index}`, decisionId: `invalid-probability-${index}` }));
+    assert.equal(result.status, "INCOMPLETE");
+    assert.equal(result.realOrderAuthority, false);
+    assert.equal(result.realTransferAuthority, false);
+    assert.equal(result.productionMutationAllowed, false);
+  }
+});
+
 test("risk denial is a deterministic veto and AI runtime contains no execution path", async () => {
   const denying = new TransportModelProvider("fixture", "model", async (request) => {
     const payload = request.role === "EVIDENCE_PRODUCER" ? { observations: [{ claim: "verified", claimType: "fact", evidenceReferences: ["e-1"], freshnessStatus: "fresh" }], missingEvidence: [], evidenceBundleHash: request.input.evidenceBundleHash } : request.role === "STRATEGY_PROPOSER" ? proposalSeed : request.role === "ADVERSARIAL_CRITIC" ? { reviewedProposalHash: request.input.proposalHash, counterClaims: [], failedAssumptions: [], missingTests: [], alternativeExplanations: [], severity: "none" } : { result: "denied", hardDenies: ["DETERMINISTIC_RISK_VETO"], warnings: [], missingRequirements: [], requiredEscalations: [], policyReferences: ["risk-policy"] };
@@ -161,6 +182,8 @@ test("risk denial is a deterministic veto and AI runtime contains no execution p
   assert.equal(result.governanceDecision.productionMutationAllowed, false);
   const projection = projectAiReadOnly(result);
   assert.equal(projection.status, "AVAILABLE");
+  assert.equal(projection.rawProbability, 0.7);
+  assert.equal(projection.calibrationStatus, "UNVERIFIED");
   assert.equal(projection.confidence, 0);
   const fs = require("node:fs");
   const source = fs.readFileSync("apps/cloud/src/ai/multiAgentOrchestrator.ts", "utf8");
