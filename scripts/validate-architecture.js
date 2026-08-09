@@ -47,6 +47,9 @@ function analyzeRepository(root = process.cwd()) {
     if (edge.source.startsWith("apps/execution/") && /^(apps\/(desktop|mobile|cloud)|packages\/storage)\//.test(edge.target)) {
       findings.push(finding("EXECUTION_CROSS_LAYER_REFERENCE", edge, "Execution domain must not depend on desktop, mobile, cloud, or storage implementations."));
     }
+    if (edge.source.startsWith("packages/core/") && edge.target.startsWith("packages/aipos/")) {
+      findings.push(finding("CORE_TO_AIPOS_REFERENCE", edge, "Stable Core must not depend on AIPOS implementation; AIPOS integrates through Core plugin/runtime contracts."));
+    }
   }
 
   for (const source of nodes) {
