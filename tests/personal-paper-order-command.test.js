@@ -10,6 +10,7 @@ const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const {
   clearConfiguredPaperEndpoint,
+  markPaperConnectionVerified,
   setConfiguredPaperEndpoint
 } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
@@ -21,10 +22,8 @@ const paperSnapshot = (order = filledOrder(), generatedAt = NOW) => buildPersona
 const filledResult = (overrides = {}, submitted = command()) => { const order = filledOrder({ market: submitted.market, side: submitted.side, quantity: submitted.quantity }); return { schemaVersion: 1, status: "FILLED", ...binding(submitted), order, snapshot: paperSnapshot(order), liveAuthority: "NONE", productionMutationAllowed: false, ...overrides }; };
 const blockedWireResult = (submitted = command(), overrides = {}) => ({ schemaVersion: 1, status: "BLOCKED", ...binding(submitted), reason: "TEST_BLOCK", liveAuthority: "NONE", productionMutationAllowed: false, ...overrides });
 
-const clearMobileConnection = () => {
-  clearConfiguredPaperEndpoint();
-  new InMemoryDashboardCredentialSession().clear();
-};
+const clearMobileConnection = () => { clearConfiguredPaperEndpoint(); new InMemoryDashboardCredentialSession().clear(); };
+const verifyEndpoint = (endpoint) => { setConfiguredPaperEndpoint(endpoint); markPaperConnectionVerified(endpoint); };
 
 test.beforeEach(clearMobileConnection);
 test.afterEach(clearMobileConnection);
@@ -76,14 +75,16 @@ test("DUPLICATE result must carry prior truthful order plus canonical snapshot b
   assert.throws(() => validatePersonalPaperOrderCommandResult({ ...duplicate, order: { ...prior, market: "KRW-ETH" } }, submitted, NOW), /snapshot order|submitted command/);
 });
 
-test("mobile client makes no request without dashboard credential", async () => {
+test("mobile client makes no request without dashboard credential after endpoint verification", async () => {
+  verifyEndpoint("https://nusa.invalid");
   let calls = 0; const result = await submitPersonalPaperOrder({ baseUrl: "https://nusa.invalid", credentialProvider: async () => null, request: async () => { calls += 1; throw new Error("must not call"); } }, command());
   assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0);
 });
 
-test("mobile client refuses insecure non-loopback PAPER endpoint", async () => {
+test("mobile client refuses insecure non-loopback PAPER endpoint before credential transport", async () => {
+  verifyEndpoint("http://192.168.1.5:41731");
   let calls = 0; const result = await submitPersonalPaperOrder({ baseUrl: "http://192.168.1.5:41731", credentialProvider: async () => "1234567890123456", request: async () => { calls += 1; throw new Error("must not call"); } }, command());
-  assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0);
+  assert.equal(result.status, "UNAVAILABLE"); assert.equal(calls, 0); assert.match(result.reason, /insecure remote HTTP/i);
 });
 
 test("mobile client treats historical localhost default as unconfigured unless explicitly saved", async () => {
@@ -91,50 +92,43 @@ test("mobile client treats historical localhost default as unconfigured unless e
   assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0); assert.match(result.reason, /endpoint is not configured/i);
 });
 
-test("Settings connection state reaches a separate Trading PAPER client instance", async () => {
+test("Settings verified connection state reaches a separate Trading PAPER client instance", async () => {
   const settingsSession = new InMemoryDashboardCredentialSession();
   const tradingSession = new InMemoryDashboardCredentialSession();
   const submitted = command();
   let observedUrl = "";
   let observedAuthorization = "";
-
   setConfiguredPaperEndpoint("https://paper.settings.test/");
   settingsSession.connect("settings-shared-token-0001");
+  markPaperConnectionVerified("https://paper.settings.test/");
 
   const result = await submitPersonalPaperOrder({
-    baseUrl: "http://127.0.0.1:41731",
+    baseUrl: "https://paper.settings.test",
     credentialProvider: tradingSession.credentialProvider,
     request: async (url, init) => {
-      observedUrl = String(url);
-      observedAuthorization = String(init.headers.authorization);
-      return {
-        ok: true,
-        status: 200,
-        redirected: false,
-        url: "https://paper.settings.test/api/paper-orders",
-        json: async () => blockedWireResult(submitted)
-      };
+      observedUrl = String(url); observedAuthorization = String(init.headers.authorization);
+      return { ok: true, status: 200, redirected: false, url: "https://paper.settings.test/api/paper-orders", json: async () => blockedWireResult(submitted) };
     }
   }, submitted);
-
-  assert.equal(result.status, "READY");
-  assert.equal(observedUrl, "https://paper.settings.test/api/paper-orders");
-  assert.equal(observedAuthorization, "Bearer settings-shared-token-0001");
+  assert.equal(result.status, "READY"); assert.equal(observedUrl, "https://paper.settings.test/api/paper-orders"); assert.equal(observedAuthorization, "Bearer settings-shared-token-0001");
 });
 
-test("mobile client posts only to exact PAPER route with no redirects and bound authority", async () => {
+test("mobile client posts only to exact verified PAPER route with no redirects and bound authority", async () => {
+  verifyEndpoint("https://paper.example.test");
   const submitted = command(); let observedUrl = ""; let observedInit;
   const result = await submitPersonalPaperOrder({ baseUrl: "https://paper.example.test/", credentialProvider: async () => "1234567890123456", request: async (url, init) => { observedUrl = String(url); observedInit = init; return { ok: true, status: 200, redirected: false, url: "https://paper.example.test/api/paper-orders", json: async () => blockedWireResult(submitted) }; } }, submitted);
   assert.equal(result.status, "READY"); assert.equal(observedUrl, "https://paper.example.test/api/paper-orders"); assert.equal(observedInit.method, "POST"); assert.equal(observedInit.redirect, "error"); assert.ok(observedInit.signal); assert.equal(observedInit.headers.authorization, "Bearer 1234567890123456"); assert.equal(observedInit.headers["idempotency-key"], submitted.idempotencyKey); const body = JSON.parse(observedInit.body); assert.equal(body.authority, "PAPER_ONLY"); assert.equal(body.productionMutationAllowed, false);
 });
 
-test("mobile client rejects redirected or changed final PAPER endpoint", async () => {
+test("mobile client rejects redirected or changed final verified PAPER endpoint", async () => {
+  verifyEndpoint("https://paper.example.test");
   const submitted = command();
   const redirected = await submitPersonalPaperOrder({ baseUrl: "https://paper.example.test", credentialProvider: async () => "1234567890123456", request: async () => ({ ok: true, status: 200, redirected: true, url: "https://other.example.test/api/paper-orders", json: async () => blockedWireResult(submitted) }) }, submitted); assert.equal(redirected.status, "UNAVAILABLE"); assert.match(redirected.reason, /redirect/i);
   const changed = await submitPersonalPaperOrder({ baseUrl: "https://paper.example.test", credentialProvider: async () => "1234567890123456", request: async () => ({ ok: true, status: 200, redirected: false, url: "https://paper.example.test/other", json: async () => blockedWireResult(submitted) }) }, submitted); assert.equal(changed.status, "UNAVAILABLE"); assert.match(changed.reason, /endpoint changed/i);
 });
 
-test("mobile client bounds PAPER POST duration and fails closed on timeout", async () => {
+test("mobile client bounds verified PAPER POST duration and fails closed on timeout", async () => {
+  verifyEndpoint("https://paper.example.test");
   const result = await submitPersonalPaperOrder({ baseUrl: "https://paper.example.test", credentialProvider: async () => "1234567890123456", timeoutMs: 1, request: async () => new Promise(() => {}) }, command()); assert.equal(result.status, "UNAVAILABLE"); assert.match(result.reason, /timed out/i);
 });
 
