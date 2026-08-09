@@ -24,6 +24,7 @@ test("light and dark themes expose frozen semantic intelligence tokens", () => {
   assert.equal(Object.isFrozen(dark), true);
   assert.equal(Object.isFrozen(dark.colors), true);
   assert.equal(Object.isFrozen(dark.shadows.sm.offset), true);
+  assert.equal(Object.isFrozen(dark.interaction), true);
 });
 
 test("common component contracts consume ocean intelligence theme tokens", () => {
@@ -45,6 +46,8 @@ test("common component contracts consume ocean intelligence theme tokens", () =>
   assert.equal(buttonTokens(theme, "neutral").border, "#225365");
   assert.equal(fieldTokens(theme).background, "#06151F");
   assert.equal(fieldTokens(theme).focus, "#74EBDD");
+  assert.equal(fieldTokens(theme).borderWidth, 1);
+  assert.equal(fieldTokens(theme).focusBorderWidth, 2);
   assert.equal(cardTokens(theme).padding, 18);
 });
 
