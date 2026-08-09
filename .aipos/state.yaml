@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-08T23:18:00+09:00"
-phase: cloud-p0-runtime-enforcement
+updated_at: "2026-08-09T14:42:00+09:00"
+phase: runtime-composition-secure-readonly-session
 status: ready
-objective: "Enforce durable Cloud P0 safety state at the actual PAPER fill boundary while preserving PAPER/Research safety and the fail-closed LIVE boundary."
+objective: "Preserve verified Cloud P0 fill-boundary enforcement while composing persistent Research recovery and an explicit private read-only PAPER client session without adding LIVE authority."
 base_branch: main
-active_branch: agent/p7-cloud-p0-runtime-enforcement-pr
-active_pull_request: 182
-base_commit: e5cef3fc138467bffde1f1628809b2a948588675
+active_branch: agent/wo-0051-p8-runtime-composition-secure-session
+active_pull_request: 185
+base_commit: a8cc673bb47f9856140485aa6d159140626272e5
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -32,7 +32,7 @@ completed:
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; P7 Cloud P0 runtime enforcement is the current safe automated hardening slice."
+    summary: "Terminal human/environment gate remains IN_PROGRESS; P8 is a bounded PAPER/Research read-only composition slice and cannot complete the constitutional gate."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -44,18 +44,20 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Close P7 runtime composition: the default Cloud PAPER execution loop must verify durable P0 evidence before every fill and fail closed when that evidence is open or unverifiable. Do not auto-complete WO-0051 or infer LIVE authorization from chat/CI."
+  reason: "Complete PR #185 P8 Runtime Composition + Secure Read-only Session on top of merged PR #182: preserve durable P0 checks at every PAPER fill, expose P0 halt state read-only, compose persistent Research recovery/status, and connect authenticated PAPER portfolio/order/public-ticker projections through a process-memory credential. Do not add mutation or LIVE authority."
 verification:
   required:
+    - "Exact-head Full CI, full isolated suite, coverage, architecture/AIPOS, security, E2E, safety, and release PASS for P8"
+    - "Exact-head Mobile Native foundation, Android debug/release, and iOS debug/release PASS for P8"
+    - "All Restricted LIVE/read-only safety workflows PASS at the same P8 head"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
-    - "Exact-head Full CI, coverage, architecture/AIPOS, safety, and release PASS for P7 runtime enforcement"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #180 merged at e5cef3fc138467bffde1f1628809b2a948588675 after exact-head CI 31261174015 PASS and all Restricted LIVE/read-only safety workflows PASS. Fresh gap audit identified the actual Cloud PAPER fill-boundary P0 composition gap; PR #182 is closing it."
-  current_commit: "PR #182 runtime P0 enforcement rebased onto merged PR #180 main; exact-head CI pending"
+  last_result: "PR #182 merged at a8cc673bb47f9856140485aa6d159140626272e5 after exact-head CI run 31261654980 PASS including Full isolated suite and Coverage; Restricted LIVE/read-only workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS. P0 fill-boundary enforcement is verified and must not regress."
+  current_commit: "PR #185 reconciled onto main a8cc673bb47f9856140485aa6d159140626272e5 with durable P0 enforcement preserved; P8 exact-head verification pending."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -137,3 +139,53 @@ continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
   provider_private_context_dependency: prohibited
+cloud_p0_safety_state_slice:
+  status: COMPLETE
+  completion_evidence:
+    - "PR #179 merge dbc4d5abacd0f6f992c61d55a57dd8b090d913b4: Cloud P0 Safety State"
+    - "Exact-head d0aa06bcb66e5d009b028c3d3ea6300bc27a691f CI run 31260740941 PASS including typecheck, build, architecture/AIPOS, safety, E2E, release, full isolated suite, and coverage"
+    - "Exact-head safety workflows 31260740922, 31260740920, 31260740942, 31260740914 PASS"
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    risk_governor_bypass: prohibited
+    automatic_incident_resolution: prohibited
+cloud_p0_runtime_enforcement_slice:
+  status: COMPLETE
+  completion_evidence:
+    - "PR #182 merge a8cc673bb47f9856140485aa6d159140626272e5: durable P0 state enforced at actual Cloud PAPER fill boundary"
+    - "Exact-head CI run 31261654980 PASS including Full isolated suite, Coverage, architecture/AIPOS, safety, E2E, and release"
+    - "Restricted LIVE/read-only workflows 31261654986, 31261654989, 31261654984, 31261655002 PASS"
+  scope:
+    - "Default Cloud PAPER loop reads and verifies durable SQLite P0 state before every strategy decision or fill"
+    - "OPEN_P0_ALERT blocks actual PAPER order/fill creation"
+    - "Unreadable or corrupted P0 evidence fails closed with P0_STATE_UNVERIFIABLE"
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    broker_credential_access: prohibited
+    real_money_mutation: prohibited
+    risk_governor_bypass: prohibited
+runtime_composition_secure_session_slice:
+  status: IN_PROGRESS
+  pull_request: 185
+  base_commit: a8cc673bb47f9856140485aa6d159140626272e5
+  branch: agent/wo-0051-p8-runtime-composition-secure-session
+  scope:
+    - "Compose persisted Research recovery and read-only status into default cloud startup"
+    - "Pause recovered RUNNING Research sessions and keep default market-tick evaluation disabled until an explicit real evaluator and canonical input builder are configured"
+    - "Use a process-memory-only dashboard credential session; local foundation sign-in never implies server authentication"
+    - "Reject insecure non-loopback HTTP dashboard endpoints and legacy/incomplete snapshot shapes"
+    - "Project PAPER portfolio, filled-order history, and verified public ticker data through the existing authenticated GET-only Personal PAPER Operations route"
+    - "Project durable P0 open or unverifiable state as HALTED without weakening the fill boundary"
+    - "Clear public ticker projections on transport disconnect rather than retaining stale data as current"
+  safety:
+    credential_persistence: prohibited
+    synthetic_research_evidence: prohibited
+    automatic_research_start: prohibited
+    automatic_promotion: prohibited
+    mutation_routes: prohibited
+    challenger_authority: ZERO_AUTHORITY
+    champion_authority: PAPER_ONLY
+    live_authority: NONE
+    production_mutation_allowed: false
