@@ -59,6 +59,32 @@ test("memory-only dashboard credential session never persists or infers local au
   assert.equal(await session.credentialProvider(), null);
 });
 
+test("changing PAPER endpoint revokes the previous credential before any request", async () => {
+  const session = new InMemoryDashboardCredentialSession();
+  setConfiguredPaperEndpoint("https://paper-one.invalid");
+  session.connect("endpoint-bound-dashboard-token-123456");
+  assert.equal(await session.credentialProvider(), "endpoint-bound-dashboard-token-123456");
+
+  setConfiguredPaperEndpoint("https://paper-two.invalid");
+  assert.equal(await session.credentialProvider(), null, "endpoint identity change must revoke the shared token");
+  assert.equal(session.isConfigured(), false);
+
+  let requestCount = 0;
+  let authorizationSeen = null;
+  const result = await loadPersonalPaperOperations({
+    baseUrl: "https://paper-two.invalid",
+    credentialProvider: session.credentialProvider,
+    request: async (_url, init) => {
+      requestCount += 1;
+      authorizationSeen = init?.headers?.authorization ?? null;
+      return { ok: false, status: 503 };
+    }
+  });
+  assert.equal(result.status, "NOT_CONFIGURED");
+  assert.equal(requestCount, 0, "no network request is allowed until the new endpoint is re-verified");
+  assert.equal(authorizationSeen, null, "the previous endpoint credential must never be disclosed to the new endpoint");
+});
+
 test("dashboard bearer credential is sent only to a secure or explicitly configured loopback endpoint", async () => {
   let requestCount = 0;
   const credentialProvider = async () => "read-only-dashboard-token-123456";
