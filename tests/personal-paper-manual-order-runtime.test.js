@@ -40,6 +40,7 @@ test("manual PAPER order persists to the canonical SQLite account and survives l
     assert.equal(first.orders.length, 1);
     assert.equal(first.state.orders.length, 1);
     assert.equal(first.state.positions[0].market, "KRW-BTC");
+    assert.match(first.state.orders[0].commandFingerprint, /^[a-f0-9]{64}$/);
     const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, repository, readP0State: () => ({ openP0: false }) });
     assert.equal(restored.snapshot().orders.length, 1);
     assert.equal(restored.snapshot().orders[0].id, first.orders[0].id);
@@ -57,6 +58,31 @@ test("manual PAPER exact duplicate cannot create a second fill", () => {
     assert.equal(loop.snapshot().orders.length, 1);
     assert.equal(loop.snapshot().fills.length, 1);
     assert.equal(duplicate.orders[0].id, first.orders[0].id);
+  } finally { db.close(); }
+});
+
+test("same idempotency key with a different canonical command fails closed before and after restart", () => {
+  const { db, repository, loop } = harness();
+  try {
+    const first = loop.submitManualOrder(command(), context());
+    assert.equal(first.status, "FILLED");
+
+    const conflict = loop.submitManualOrder(command({ quantity: 0.002 }), context({ now: context().now + 1, observedAt: context().observedAt + 1 }));
+    assert.equal(conflict.status, "REJECTED");
+    assert.equal(conflict.reason, "IDEMPOTENCY_KEY_CONFLICT");
+    assert.equal(loop.snapshot().orders.length, 1);
+    assert.equal(loop.snapshot().fills.length, 1);
+
+    const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, repository, readP0State: () => ({ openP0: false }) });
+    const restoredConflict = restored.submitManualOrder(command({ side: "SELL" }), context({ now: context().now + 2, observedAt: context().observedAt + 2 }));
+    assert.equal(restoredConflict.status, "REJECTED");
+    assert.equal(restoredConflict.reason, "IDEMPOTENCY_KEY_CONFLICT");
+    assert.equal(restored.snapshot().orders.length, 1);
+    assert.equal(restored.snapshot().fills.length, 1);
+
+    const restoredDuplicate = restored.submitManualOrder(command(), context({ now: context().now + 3, observedAt: context().observedAt + 3 }));
+    assert.equal(restoredDuplicate.status, "DUPLICATE");
+    assert.equal(restoredDuplicate.orders[0].id, first.orders[0].id);
   } finally { db.close(); }
 });
 
