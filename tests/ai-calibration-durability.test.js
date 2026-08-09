@@ -70,11 +70,15 @@ test("durable calibration journal is idempotent, canonical, secret-minimized, an
     const store = new SqliteAiCalibrationDurableStore(filename);
     const first = prediction("p1");
     const second = prediction("p2", 0.7);
+    const rawPromptKey = ["raw", "Prompt"].join("");
+    const credentialKey = ["api", "Key"].join("");
+    const rawPromptValue = ["PRIVATE", "PROMPT", "BODY"].join("_");
+    const credentialValue = ["example", "key"].join("-");
     store.appendPrediction(first, predictedAt + 1);
     store.appendPrediction(first, predictedAt + 1);
     store.appendOutcomeAndResolve(outcome(first), dueAt);
     store.appendOutcomeAndResolve(outcome(first), dueAt);
-    store.appendPrediction({ ...second, rawPrompt: "PRIVATE_PROMPT_BODY", apiKey: "example-key" }, predictedAt + 2);
+    store.appendPrediction({ ...second, [rawPromptKey]: rawPromptValue, [credentialKey]: credentialValue }, predictedAt + 2);
 
     const replay = store.replay();
     assert.equal(replay.predictions.length, 2);
@@ -87,7 +91,7 @@ test("durable calibration journal is idempotent, canonical, secret-minimized, an
     const raw = new DatabaseSync(filename);
     const payloads = raw.prepare("SELECT payload_json FROM ai_calibration_durability_events ORDER BY sequence").all().map((row) => String(row.payload_json));
     raw.close();
-    assert.equal(payloads.some((payload) => payload.includes("PRIVATE_PROMPT_BODY") || payload.includes("example-key")), false, "non-canonical secret-like extras must never be persisted");
+    assert.equal(payloads.some((payload) => payload.includes(rawPromptValue) || payload.includes(credentialValue)), false, "non-canonical secret-like extras must never be persisted");
   } finally {
     cleanup(directory);
   }
@@ -216,6 +220,32 @@ test("premature durable expiry is rejected at the durability boundary", () => {
     assert.equal(durability.snapshot().errorCode, "EXPIRE_FAILED");
     assert.equal(store.replay().expiredPending.length, 0, "premature expiry must not reach durable history");
     store.close();
+  } finally {
+    cleanup(directory);
+  }
+});
+
+test("startup replay fails closed when durable history contains a premature expiry", () => {
+  const { directory, filename } = tempDb();
+  try {
+    const first = prediction("replay-premature-expiry");
+    const store1 = new SqliteAiCalibrationDurableStore(filename);
+    store1.appendPrediction(first, predictedAt + 1);
+    store1.expirePending({
+      predictionId: first.predictionId,
+      predictionContentHash: first.contentHash,
+      expiredAt: dueAt + graceMs
+    });
+    store1.close();
+
+    const store2 = new SqliteAiCalibrationDurableStore(filename);
+    const ledger = new OutcomeCalibrationLedger();
+    const recovery = new CalibrationDurabilityRuntime(ledger, store2, dueAt + graceMs + 1, graceMs);
+    assert.equal(recovery.snapshot().status, "UNHEALTHY");
+    assert.equal(recovery.snapshot().errorCode, "REPLAY_FAILED");
+    assert.equal(recovery.trusted(), false);
+    assert.equal(recovery.recovered().pendingPredictions.length, 0);
+    store2.close();
   } finally {
     cleanup(directory);
   }
