@@ -32,7 +32,7 @@ function isSecureDashboardEndpoint(baseUrl: string): boolean {
   }
 }
 
-/** Uses only an explicitly saved endpoint. Historical localhost fallback is ignored unless saved by the operator. */
+/** Uses an explicitly saved endpoint, or a secure caller-supplied HTTPS endpoint. Unsaved HTTP endpoints are never trusted. */
 export async function loadPersonalPaperOperations(
   options: PersonalPaperOperationsClientOptions
 ): Promise<PersonalPaperOperationsLoadResult> {
@@ -45,7 +45,17 @@ export async function loadPersonalPaperOperations(
   }
 
   const configured = getConfiguredPaperEndpoint();
-  const fallback = options.baseUrl === "http://127.0.0.1:41731" ? "" : options.baseUrl;
+  const requested = options.baseUrl.replace(/\/+$/, "");
+  const explicitHistoricalLoopback = requested === "http://127.0.0.1:41731";
+
+  if (configured == null && requested && !explicitHistoricalLoopback && !isSecureDashboardEndpoint(requested)) {
+    return Object.freeze({
+      status: "NOT_CONFIGURED",
+      reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint."
+    });
+  }
+
+  const fallback = explicitHistoricalLoopback ? "" : requested;
   const baseUrl = (configured ?? fallback).replace(/\/+$/, "");
   if (!baseUrl) {
     return Object.freeze({
