@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8").replace(/\r\n/g, "\n");
 
 test("CI uses instrumented coverage as the single isolated/UI/E2E execution", () => {
   const workflow = read(".github/workflows/ci.yml");
