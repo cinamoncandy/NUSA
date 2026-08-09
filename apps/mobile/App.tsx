@@ -10,12 +10,13 @@ import {
   View,
 } from "react-native";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
-import { AuthorityBanner, DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip, WaveMark } from "./src/components";
+import { NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip, WaveMark } from "./src/components";
 import { ThemeProvider, useTheme } from "./src/ThemeProvider";
 import { PortfolioView } from "./src/portfolioView";
 import { TradingView } from "./src/tradingView";
 import { MarketsView } from "./src/marketsView";
 import { AiView } from "./src/aiView";
+import { HomeSnapshotContent } from "./src/homeView";
 import { NotificationView } from "./src/notificationView";
 import { SettingsView } from "./src/settingsView";
 import { OrderHistoryView } from "./src/orderHistoryView";
@@ -34,14 +35,6 @@ const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장
 const tabGlyphs: Readonly<Record<Tab, string>> = { Home: "⌁", Markets: "◫", Trade: "⇄", Portfolio: "◒", More: "✦" };
 const theme = { container: { flex: 1 } } as const;
 const CHART_MARKET = "KRW-BTC";
-
-function krw(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function healthTone(health: string | undefined): "success" | "warning" | "danger" {
-  return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning";
-}
 
 export default function App() {
   return <ThemeProvider initialMode="dark"><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></ThemeProvider>;
@@ -112,11 +105,7 @@ function AuthenticatedApp() {
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
   const selectedMarket = snapshot?.markets.find((market) => market.market === CHART_MARKET) ?? null;
-  const account = snapshot?.portfolio?.account ?? null;
-  const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
-  const aiConfidence = ai != null && ai.status !== "UNAVAILABLE" ? `${Math.round(ai.confidence * 100)}%` : "-";
-  const runtimeTone = healthTone(snapshot?.operations.runtimeState);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
@@ -136,7 +125,7 @@ function AuthenticatedApp() {
       : activeTab === "Markets" ? <MarketsView error={readOnlyError ?? notConfigured} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError ?? notConfigured} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={appTheme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
-        <SectionHeading eyebrow="PERSONAL PAPER" title="오늘의 운영 상태" description="실제 PAPER 런타임과 읽기 전용 스냅샷만 표시합니다." />
+        <SectionHeading eyebrow="FINANCIAL COMMAND CENTER" title="내 PAPER 계좌" description="자산과 손익, AI 인사이트, 안전 상태를 우선 표시합니다." />
         {readOnlyError ? <View style={[styles.error, { backgroundColor: appTheme.colors.surfaceSunken, borderColor: appTheme.colors.danger }]}><Text style={[styles.errorTitle, { color: appTheme.colors.danger }]}>대시보드 연결 오류</Text><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>{readOnlyError}</Text></View> : null}
         {notConfigured ? <NusaCard testID="dashboard-session-card" raised>
           <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>READ-ONLY SESSION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>대시보드 연결</Text></View><StatusChip label="메모리 전용" tone="info" /></View>
@@ -145,27 +134,7 @@ function AuthenticatedApp() {
           <NusaButton accessibilityLabel="Connect read only" label="읽기 전용으로 연결" onPress={() => { void connectReadOnly(); }} testID="dashboard-connect" />
           <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>자격 증명은 프로세스 메모리에만 유지되며 연결 해제 또는 앱 재시작 시 사라집니다.</Text>
         </NusaCard> : null}
-        {snapshot ? <>
-          <NusaCard testID="account-hero-card" raised>
-            <View style={styles.heroTop}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.textMuted }]}>PAPER EQUITY</Text><Text style={[styles.heroValue, { color: appTheme.colors.text }]}>{account ? krw(account.equity) : "포트폴리오 없음"}</Text></View><StatusChip label={snapshot.operations.runtimeState} tone={runtimeTone} /></View>
-            {totalPnl != null ? <Text style={[styles.heroPnl, { color: totalPnl >= 0 ? appTheme.colors.success : appTheme.colors.danger }]}>{totalPnl >= 0 ? "+" : ""}{krw(totalPnl)} 누적 손익</Text> : <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>계좌 평가 정보가 아직 없습니다.</Text>}
-            <View style={[styles.divider, { backgroundColor: appTheme.colors.border }]} />
-            <DataRow label="시장 전송 상태" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} />
-            <DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} />
-          </NusaCard>
-          <AuthorityBanner />
-          <NusaCard testID="ai-card">
-            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
-            <Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text>
-            <DataRow label="신뢰도" value={aiConfidence} />
-            <DataRow label="모델" value={ai?.modelVersion ?? "-"} />
-            <DataRow label="비판 심각도" value={ai?.criticSeverity ?? "-"} tone={ai?.criticSeverity === "critical" || ai?.criticSeverity === "high" ? "danger" : ai?.criticSeverity === "medium" ? "warning" : "default"} />
-          </NusaCard>
-          <NusaCard testID="operations-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>운영</Text><StatusChip label={snapshot.operations.runtimeState} tone={runtimeTone} /></View><DataRow label="전송" value={snapshot.operations.transport} /><DataRow label="스케줄러" value={snapshot.operations.schedulerMode} /><DataRow label="대기 쓰기" value={String(snapshot.operations.pendingWrites)} tone={snapshot.operations.pendingWrites > 0 ? "warning" : "default"} /></NusaCard>
-          <NusaCard testID="research-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>리서치</Text><StatusChip label={snapshot.research?.health ?? "UNAVAILABLE"} tone={healthTone(snapshot.research?.health)} /></View><DataRow label="Champion" value={snapshot.research?.champion.strategyId ?? "-"} /><DataRow label="Champion 권한" value={snapshot.research?.champion.authority ?? "-"} /><DataRow label="Challenger" value={snapshot.research?.challenger.strategyId ?? "-"} /><DataRow label="Challenger 권한" value={snapshot.research?.challenger.authority ?? "-"} /><DataRow label="후보 수" value={String(snapshot.research?.candidateCount ?? "-")} /></NusaCard>
-          <NusaCard testID="safety-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>안전 경계</Text><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} emphasis /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></NusaCard>
-          <NusaButton accessibilityLabel="Disconnect read only" label="읽기 전용 연결 해제" onPress={disconnectReadOnly} tone="neutral" testID="dashboard-disconnect" />
-        </> : null}
+        {snapshot ? <HomeSnapshotContent snapshot={snapshot} onOpenPortfolio={() => { setUtilityView(null); setActiveTab("Portfolio"); }} onOpenAi={() => { setUtilityView(null); setActiveTab("More"); }} onDisconnect={disconnectReadOnly} /> : null}
       </ScrollView>}
     <View style={[styles.navigation, { backgroundColor: appTheme.colors.surfaceSunken, borderTopColor: appTheme.colors.border }]}>{tabs.map((tab) => {
       const active = utilityView === null && activeTab === tab;
@@ -197,11 +166,6 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
   cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
-  heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  heroValue: { fontSize: 34, fontWeight: "800", letterSpacing: -1.4, marginTop: 5 },
-  heroPnl: { marginTop: 7, fontSize: 15, fontWeight: "700" },
-  divider: { height: 1, marginVertical: 14 },
-  aiThesis: { fontSize: 16, fontWeight: "600", lineHeight: 24, marginBottom: 10 },
   navigation: { flexDirection: "row", borderTopWidth: 1, paddingTop: 7, paddingBottom: 7 },
   navItem: { flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", gap: 3 },
   navGlyphWrap: { minWidth: 32, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
