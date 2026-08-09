@@ -59,7 +59,7 @@ test("dashboard bearer credential is sent only to a secure or explicitly configu
   const request = async () => { requestCount += 1; return { ok: false, status: 503 }; };
 
   const unsavedInsecure = await loadPersonalPaperOperations({ baseUrl: "http://192.168.1.50:41731", credentialProvider, request });
-  assert.equal(unsavedInsecure.status, "NOT_CONFIGURED");
+  assert.equal(unsavedInsecure.status, "UNAVAILABLE");
   assert.equal(requestCount, 0);
 
   setConfiguredPaperEndpoint("http://192.168.1.50:41731");
