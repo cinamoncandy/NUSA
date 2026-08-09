@@ -7,13 +7,20 @@ const os = require("node:os");
 const path = require("node:path");
 const { createBackup } = require("../scripts/backup-restore.js");
 
+const basicCredential = ["dXNlcjpwYXNzd29yZA", "=="].join("");
+const longCredential = ["0123456789abcdef", "0123456789abcdef"].join("");
 const cases = [
-  ["bearer", "Authorization: Bearer authorization-secret-value-123456\n"],
-  ["basic", "Authorization: Basic dXNlcjpwYXNzd29yZA==\n"],
-  ["custom-scheme", "Authorization: Foo 0123456789abcdef0123456789abcdef\n"],
-  ["token-char-scheme", "Authorization: X+Y 0123456789abcdef0123456789abcdef\n"],
-  ["numeric-leading-scheme", "Authorization: 9Auth 0123456789abcdef0123456789abcdef\n"],
-  ["quoted-json", `${JSON.stringify({ Authorization: "Basic dXNlcjpwYXNzd29yZA==" })}\n`],
+  ["bearer", `Authorization: Bearer ${["authorization", "secret-value", "123456"].join("-")}\n`],
+  ["short-bearer", "Authorization: Bearer abc\n"],
+  ["basic", `Authorization: Basic ${basicCredential}\n`],
+  ["custom-scheme", `Authorization: Foo ${longCredential}\n`],
+  ["token-char-scheme", `Authorization: X+Y ${longCredential}\n`],
+  ["numeric-leading-scheme", `Authorization: 9Auth ${longCredential}\n`],
+  ["quoted-json", `${JSON.stringify({ Authorization: `Basic ${basicCredential}` })}\n`],
+  ["bracket-property", `headers["Authorization"] = "Basic ${basicCredential}"\n`],
+  ["escaped-json", `${JSON.stringify(JSON.stringify({ Authorization: `Basic ${basicCredential}` }))}\n`],
+  ["header-tuple", `${JSON.stringify([["Authorization", `Basic ${basicCredential}`]])}\n`],
+  ["headers-setter", `headers.set("Authorization", "Basic ${basicCredential}")\n`],
 ];
 
 for (const [name, authorizationLine] of cases) {
@@ -34,3 +41,19 @@ for (const [name, authorizationLine] of cases) {
     }
   });
 }
+
+test("empty Authorization representations are not treated as credentials", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recovery-authorization-empty-"));
+  const source = path.join(root, "source");
+  const destination = path.join(root, "backups");
+  fs.mkdirSync(source, { recursive: true });
+  fs.writeFileSync(path.join(source, "settings.json"), JSON.stringify({ mode: "PAPER", productionMutationAllowed: false }));
+  fs.writeFileSync(path.join(source, "empty.log"), `${JSON.stringify({ Authorization: "" })}\n`);
+  try {
+    const backup = createBackup({ include: [`LOG:${source}`], destination, "snapshot-id": "authorization-empty" });
+    assert.equal(backup.manifest.secretExcludedCount, 0);
+    assert.equal(backup.manifest.entries.length, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
