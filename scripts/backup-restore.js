@@ -14,7 +14,7 @@ const CATEGORIES = new Set(["CONFIG", "EVIDENCE", "LOG", "DATABASE_SNAPSHOT"]);
 const FORBIDDEN_NAME = /(^|[._-])(env|secret|token|password|credential|private[-_]?key|api[-_]?key)([._-]|$)|\.(pem|p12|pfx|key)$/i;
 const SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
 const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
-const AUTHORIZATION_VALUE = '(?:"[^"\\r\\n]+"|\'[^\'\\r\\n]+\'|[^\\s,}\\]\\r\\n][^,}\\]\\r\\n]*)';
+const AUTHORIZATION_VALUE = '(?:"[^"\\r\\n]+"|\'[^\'\\r\\n]+\'|[^\\s,"\'}\\]\\r\\n][^,}\\]\\r\\n]*)';
 const AUTHORIZATION_ASSIGNMENT = new RegExp(`(?:^|[\\s,{;])(?:[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*\\s*\\[\\s*)?["']?authorization["']?\\s*(?:\\]\\s*)?(?::|=)\\s*${AUTHORIZATION_VALUE}`, "i");
 const AUTHORIZATION_PAIR = new RegExp(`(?:^|[\\[,])\\s*["']authorization["']\\s*,\\s*${AUTHORIZATION_VALUE}`, "i");
 const AUTHORIZATION_SETTER = new RegExp(`\\.\\s*(?:set|append)\\s*\\(\\s*["']authorization["']\\s*,\\s*${AUTHORIZATION_VALUE}`, "i");
