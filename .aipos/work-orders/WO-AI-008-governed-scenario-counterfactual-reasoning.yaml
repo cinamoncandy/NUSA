@@ -1,0 +1,111 @@
+id: WO-AI-008
+title: Governed Scenario and Counterfactual Reasoning
+status: PLANNED
+priority: P1
+branch: agent/ai-008-scenario-counterfactual-plan
+base_branch: main
+planning_branch: agent/ai-008-scenario-counterfactual-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds a provider-neutral hypothetical-intervention and scenario-sensitivity capability on top of verified grounding, resource governance, calibration, and N-version disagreement without turning hypothetical material into observed evidence or authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - docs/NUSA_AI_CAPABILITY_AUDIT_2026-08-09.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0011-governed-scenario-counterfactual-reasoning.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Add bounded, replayable scenario and counterfactual reasoning that measures how investment conclusions change
+  under explicitly hypothetical interventions while preserving the exact observed evidence snapshot, one enclosing
+  resource budget, independent-provider disagreement semantics, zero execution authority, and strict separation
+  from verified calibration/realized outcome evidence.
+selection_rationale:
+  - Post-WO-AI-007 audit scores scenario/counterfactual reasoning at 1/4, tied with broader learning/attribution for the lowest AI dimension.
+  - Scenario generation is an explicit target capability in the Perception/World-Model layer and Counterfactual Research is explicit in the Research layer.
+  - The current AI evaluates a single observed state and cannot measure decision sensitivity to controlled alternative assumptions or shocks.
+  - WO-AI-006 now provides bounded inference-resource accounting suitable for controlled scenario fan-out.
+  - WO-AI-007 now provides independent-provider disagreement/abstention suitable for cross-checking scenario conclusions.
+  - A canonical hypothetical-evidence boundary is a safer prerequisite for later explanation-faithfulness and post-decision attribution than informal free-form what-if prompts.
+constraints:
+  - No hypothetical value, intervention, scenario assumption, or scenario model output may be represented as observed/verified market evidence.
+  - The exact baseline evidence IDs, provenance, quality, timestamps, content digests, point-in-time semantics and verified-runtime classification are immutable.
+  - Every scenario must be BASELINE or HYPOTHETICAL and bind to the exact canonical baseline snapshot identity.
+  - Scenario policy and definitions are immutable/versioned and included in replay identity.
+  - Allowed intervention dimensions, ranges/magnitudes, horizons and maximum scenario count are explicitly bounded by policy.
+  - Equivalent or duplicate scenarios must be rejected/deduplicated before provider side effects.
+  - Scenario materialization is deterministic and cannot contain credentials, authorization headers, hidden reasoning, broker handles, order mutation callbacks, tool authority, or LIVE authority.
+  - All scenario/provider/retry fan-out consumes one enclosing resource/experiment budget; nested evaluation cannot silently instantiate independent unlimited WO-AI-006 budgets.
+  - When configured, N-version provider evaluation must preserve AI-007 lineage/independence requirements within each scenario.
+  - Scenario contradiction, provider disagreement, partial failure, resource exhaustion, malformed hypothetical material or lineage conflict remains explicit and may force abstention.
+  - Scenario evaluation may preserve or reduce trusted confidence but may never create a confidence uplift simply because more scenarios/models ran.
+  - Hypothetical outputs cannot enter VERIFIED_RUNTIME calibration outcomes, realized-market evidence, production evidence, Paper/LIVE performance credit, or autonomous learning credit.
+  - No automatic strategy generation/mutation/promotion, risk increase, kill-switch release, execution, order, cancel, transfer, withdrawal, credential use, production mutation or LIVE authority.
+  - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
+implementation:
+  - define versioned AiScenarioPolicy with allowed intervention dimensions, bounded values, horizon semantics, max scenario count, duplicate-equivalence and enclosing resource limits
+  - define canonical AiScenarioDefinition and baseline/scenario-set identities with explicit BASELINE/HYPOTHETICAL provenance
+  - add deterministic scenario materialization that references but cannot rewrite the observed evidence snapshot
+  - validate point-in-time/provenance invariants before any model call
+  - deterministically deduplicate equivalent scenarios before provider admission
+  - introduce one scenario-experiment resource ledger that encloses scenario count, provider fan-out, retries, input bytes, output-token reservations and wall-clock time
+  - evaluate scenario decisions through the provider-neutral structured-output boundary and optionally independent AI-007 provider groups
+  - retain exact scenario/evidence/prompt/schema/provider/model/resource-policy lineage per result
+  - compute decision-sensitivity metrics across decision state, raw probability, uncertainty, assumptions, rationale/evidence references, provider disagreement and failure state
+  - expose ROBUST SENSITIVE CONTRADICTORY INCOMPLETE UNVERIFIED scenario robustness states
+  - make contradiction/incomplete state force read-only abstention without mutating primary deterministic governance
+  - prevent scenario material from being accepted by verified outcome calibration or durable realized-outcome paths
+  - bind scenario policy/set/result identities into deterministic replay/idempotency
+  - expose read-only scenario coverage/sensitivity/contradiction/resource evidence without raw secrets or hidden reasoning
+  - add adversarial and before-after evaluation for sensitivity detection invariance duplicate suppression evidence mutation counterfactual contamination resource exhaustion replay conflict provider disagreement and zero authority
+acceptance_criteria:
+  - baseline scenario is exactly bound to one canonical observed evidence snapshot and cannot alter its provenance or digest
+  - every non-baseline scenario is explicitly HYPOTHETICAL in contracts runtime evidence persistence and projection
+  - attempts to mutate observed evidence identity/provenance/timestamps/content digest are rejected before inference
+  - equivalent scenario aliases are deduplicated before model/provider side effects
+  - material controlled intervention fixtures produce deterministic SENSITIVE detection when the tested conclusion changes
+  - irrelevant intervention fixtures preserve expected invariant behavior and can emit ROBUST when all required checks remain stable
+  - contradictory scenario or independent-provider conclusions emit CONTRADICTORY or abstention rather than cherry-picked consensus
+  - partial provider/scenario failure remains INCOMPLETE and cannot be counted as scenario robustness
+  - one enclosing experiment/resource budget caps total scenario count provider calls retry attempts input bytes output-token reservation and elapsed time
+  - later scenario/provider calls are blocked before side effects when the enclosing budget is exhausted
+  - exact duplicate replay is idempotent while policy baseline evidence scenario prompt schema provider/result identity conflicts fail closed
+  - hypothetical outputs cannot be accepted as VERIFIED_RUNTIME calibration outcomes realized evidence or learning credit
+  - read-only projection clearly separates observed baseline data from hypothetical scenario outputs
+  - scenario evaluation cannot increase raw calibrated or effective confidence merely because scenario coverage is larger
+  - synthetic scenario fixtures are labeled as robustness/sensitivity evidence only and are not presented as market predictive-accuracy or profitability proof
+  - grounding provenance point-in-time calibration durability resource-governance and provider-diversity regressions remain PASS
+  - liveAuthority=NONE productionMutationAllowed=false realOrderAuthority=false realTransferAuthority=false remain proven
+  - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
+  - implementation PR is merged only after all required checks pass
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  prohibited_evidence:
+    - model self-rating presented as proof of scenario intelligence improvement
+    - hypothetical scenario presented as observed market evidence
+    - synthetic fixture presented as LIVE external authorization predictive-accuracy or profitability proof
+    - hidden chain-of-thought
+    - provider or broker credential material
+    - real order cancel transfer or withdrawal
+planning_gate:
+  status: IN_PROGRESS
+  pull_request: null
+implementation_gate:
+  status: BLOCKED_UNTIL_PLANNING_MERGED
+next: >-
+  Merge this planning slice only after exact-head Full CI/Coverage, architecture/AIPOS/security and all required
+  Restricted LIVE/read-only workflows pass. Then implement from the then-current protected main with one enclosing
+  scenario resource budget, strict observed-vs-hypothetical provenance, AI-007 independent disagreement semantics,
+  adversarial before-after robustness evaluation and unchanged zero authority. WO-0051 remains HUMAN_ENVIRONMENT_ONLY.
