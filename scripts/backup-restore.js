@@ -25,7 +25,7 @@ function authorizationCredential(match) {
   let value = String(match.groups?.credential ?? "").trim();
   const quoted = (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
   if (quoted && value.length >= 2) value = value.slice(1, -1).trim();
-  if (!value || /^(?:null|undefined)$/i.test(value)) return undefined;
+  if (!value || (!quoted && /^(?:null|undefined)$/i.test(value))) return undefined;
   return value;
 }
 
