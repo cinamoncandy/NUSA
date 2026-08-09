@@ -32,7 +32,9 @@ export function createVerifiedRuntimeCalibrationPrediction(
   if (result.status !== "COMPLETED") throw new Error("completed orchestration is required for calibration prediction");
   const output = result.structuredOutputs.find((candidate) => candidate.role === "STRATEGY_PROPOSER");
   const run = result.runs.find((candidate) => candidate.agentId === "ai-strategy-proposer");
-  if (output == null || run == null || run.completedAt == null || run.status !== "completed") throw new Error("verified strategy proposer run is required for calibration prediction");
+  const agent = result.agents.find((candidate) => candidate.agentId === "ai-strategy-proposer");
+  if (output == null || run == null || agent == null || run.completedAt == null || run.status !== "completed") throw new Error("verified strategy proposer run is required for calibration prediction");
+  if (agent.modelVersionId !== run.modelVersionId || agent.promptArtifactDigest !== run.promptArtifactDigest) throw new Error("strategy proposer identity mismatch");
   const rawProbability = boundedProbability(output.payload.rawProbability);
   const outcomeDefinitionId = requiredText(options.outcomeDefinitionId, "outcomeDefinitionId");
   const outcomeDefinitionVersion = requiredText(options.outcomeDefinitionVersion, "outcomeDefinitionVersion");
@@ -49,6 +51,8 @@ export function createVerifiedRuntimeCalibrationPrediction(
     role: "STRATEGY_PROPOSER",
     providerId,
     modelVersionId: run.modelVersionId,
+    promptArtifactId: requiredText(agent.promptArtifactId, "promptArtifactId"),
+    promptArtifactVersion: requiredText(agent.definitionVersion, "promptArtifactVersion"),
     promptArtifactDigest: run.promptArtifactDigest,
     outcomeDefinitionId,
     outcomeDefinitionVersion,
