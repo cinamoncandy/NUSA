@@ -5,6 +5,12 @@
   const root = document?.getElementById("simple-ui-root");
   if (!document || !root) return;
 
+  /** See renderer.js's resolveColorToken for why SVG's stroke attribute needs this instead of var(). */
+  const resolveColorToken = (name, fallback) => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return raw ? `hsl(${raw})` : fallback;
+  };
+
   const pageLabels = Object.freeze({
     dashboard: "대시보드",
     market: "마켓",
@@ -273,7 +279,7 @@
     if (state.chartPoints.length < 2) { target.replaceChildren(Object.assign(document.createElement("div"), { className: "simple-empty", textContent: "아직 표시할 자산 추이 데이터가 없습니다." })); return; }
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 800 180"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Paper 계정 자산 추이");
     const values = state.chartPoints.map((point) => point.value).filter(finite); const min = Math.min(...values); const max = Math.max(...values); const range = Math.max(1, max - min);
-    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline"); polyline.setAttribute("fill", "none"); polyline.setAttribute("stroke", "#2563eb"); polyline.setAttribute("stroke-width", "3"); polyline.setAttribute("points", values.map((value, index) => `${16 + index / (values.length - 1) * 768},${164 - (value - min) / range * 148}`).join(" ")); svg.append(polyline); target.replaceChildren(svg);
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline"); polyline.setAttribute("fill", "none"); polyline.setAttribute("stroke", resolveColorToken("--color-primary", "#2563eb")); polyline.setAttribute("stroke-width", "3"); polyline.setAttribute("points", values.map((value, index) => `${16 + index / (values.length - 1) * 768},${164 - (value - min) / range * 148}`).join(" ")); svg.append(polyline); target.replaceChildren(svg);
   }
   function renderControl(control) {
     state.control = control || null;
