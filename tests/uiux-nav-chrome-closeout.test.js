@@ -26,8 +26,8 @@ test("header collapses secondary utilities behind one compact tools entry withou
   for (const testID of ["header-order-history", "header-notifications", "header-settings"]) {
     assert.match(app, new RegExp(`testID="${testID}"`));
   }
-  assert.match(app, /utilityMenuButton: \{ flex: 1, minHeight: 44/);
-  assert.match(app, /utilityButton: \{ minWidth: 48, minHeight: 44/);
+  assert.match(app, /utilityMenuButton: \{ flex: 1, minHeight: 48/);
+  assert.match(app, /utilityButton: \{ minWidth: 48, minHeight: 48/);
   assert.match(app, /navItem: \{ flex: 1, minHeight: 54/);
 });
 
