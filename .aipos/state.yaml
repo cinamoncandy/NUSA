@@ -1,25 +1,28 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T23:56:00+09:00"
+updated_at: "2026-08-09T15:42:52Z"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-006 inference resource governance while keeping WO-0051 at the constitutional human/environment boundary; proceed with the separately planned zero-authority WO-AI-007 provider-diversity implementation."
+objective: "Preserve verified WO-AI-007 N-version provider diversity and disagreement governance while keeping WO-0051 at the constitutional human/environment boundary; require a fresh capability audit before selecting any next safe AI slice."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1
+base_commit: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-006
+  work_order: WO-AI-007
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-006-completion.json"
+  evidence: ".aipos/evidence/WO-AI-007-completion.json"
 latest_verified_slice:
-  id: wo-ai-006-inference-resource-governance-complete
-  evidence: ".aipos/evidence/WO-AI-006-completion.json"
-  summary: "WO-AI-006 bounds model calls, retries, input bytes, output-token reservation, and orchestration wall-clock time with truthful usage accounting and fail-closed exhaustion while preserving zero execution authority."
+  id: wo-ai-007-n-version-provider-diversity-complete
+  evidence: ".aipos/evidence/WO-AI-007-completion.json"
+  summary: "WO-AI-007 adds explicit independent-provider N-version comparison, shared resource governance, deterministic disagreement/abstention, fake-independence rejection, and consensus-without-confidence-uplift under unchanged zero authority."
 completed:
+  - id: WO-AI-007
+    evidence: ".aipos/evidence/WO-AI-007-completion.json"
+    summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
   - id: WO-AI-006
     evidence: ".aipos/evidence/WO-AI-006-completion.json"
     summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
@@ -59,19 +62,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-006 is evidence-verified complete and WO-AI-007 planning PR #374 is merged. Keep the human-only terminal gate active while the independent zero-authority AI-007 implementation proceeds from current protected main."
+  reason: "WO-AI-007 is evidence-verified complete. Preserve the human-only terminal gate and run a fresh post-AI-007 repository/AI capability audit before opening any successor AI implementation work order."
 verification:
   required:
-    - "WO-AI-007 implementation must preserve one shared WO-AI-006 resource budget across all N-version fan-out"
-    - "Provider/model independence, disagreement, abstention, replay, failure isolation, and secret minimization must be adversarially tested"
+    - "Fresh post-WO-AI-007 capability audit before selecting the next AI implementation work order"
+    - "Re-rank scenario/counterfactual reasoning, explanation faithfulness/completeness, post-decision learning/attribution, provider-pool lifecycle/cancellation, cost-quality optimization, calibration, grounding, and resource governance from merged evidence"
     - "Optional public-distribution signing verification if public Windows distribution is enabled"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-006 planning PR #360 merged at 2d1d7b1b6d79ab6498297df13373afa88fef6937; canonical implementation PR #372 merged at 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1 after exact-head 439c7a81651545bb5b34a52e64e41a227bfbe426 CI 31315926107 PASS and all four Restricted LIVE/read-only workflows PASS. WO-AI-007 planning PR #374 subsequently merged at 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4."
-  current_commit: "26f53749b8b81eed18844ed651b1e7a4cf8ef7f1 contains the verified WO-AI-006 implementation with zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
+  last_result: "WO-AI-007 planning PR #374 merged at 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4. Canonical implementation PR #376 exact head 8fe07e4fc078e51297a1b1963f0415f410b8fbbf passed Full CI/Coverage 31321492237 and all four Restricted LIVE/read-only workflows, then merged at 3df6b28d08ead38f893cd0c84bd70a31f275f8a9. Adversarial evaluation improved cross-provider conflict observability from 0/5 baseline to 5/5 disagreement/abstention detections without claiming market predictive-accuracy improvement."
+  current_commit: "3df6b28d08ead38f893cd0c84bd70a31f275f8a9 contains verified WO-AI-007 implementation with explicit independent-provider comparison and zero AI/LIVE authority change; completion evidence is hash-bound to the final Work Order."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
