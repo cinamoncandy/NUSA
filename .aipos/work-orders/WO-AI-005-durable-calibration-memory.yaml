@@ -2,9 +2,9 @@ id: WO-AI-005
 title: Durable Calibration Memory and Replay
 status: IN_PROGRESS
 priority: P1
-branch: agent/ai-005-durable-calibration-plan
+branch: agent/ai-005-durable-calibration
 base_branch: main
-implementation_branch: agent/ai-005-durable-calibration-plan
+implementation_branch: agent/ai-005-durable-calibration
 architecture_impact:
   acknowledged: true
   analysis: "Adds durable append-only calibration persistence and deterministic restart replay below the verified zero-authority AI runtime while preserving Storage/Core/Cloud dependency direction."
@@ -77,6 +77,5 @@ verification:
     - provider or broker credential material
     - real order, cancel, transfer, or withdrawal
 next: >-
-  Merge this planning gate after exact-head verification, then replay the Work Order onto a
-  dedicated implementation branch from latest main and implement one vertical durable-calibration
-  slice before any later AI capability work.
+  Verify implementation PR #350 on its exact head, resolve any CI/review findings, freeze the
+  passing implementation head, and merge by expected head SHA before any later AI capability work.
