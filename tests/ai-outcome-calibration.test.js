@@ -4,12 +4,12 @@ const { OutcomeCalibrationLedger, computeCalibrationMetrics, createCalibrationOu
 
 const digest = "a".repeat(64);
 const cohort = Object.freeze({ providerId: "openai", modelVersionId: "model-v1", promptArtifactId: "nusa.ai.strategy_proposer", promptArtifactVersion: "1.0.0", promptArtifactDigest: digest, outcomeDefinitionId: "next-period-positive", outcomeDefinitionVersion: "1" });
-const prediction = (id, rawProbability, provenance = "VERIFIED_RUNTIME", overrides = {}) => createCalibrationPrediction({ predictionId: id, orchestrationRunId: `run-${id}`, proposalId: `proposal-${id}`, agentId: "ai-strategy-proposer", role: "STRATEGY_PROPOSER", ...cohort, rawProbability, predictedAt: 1_000, horizonMs: 100, provenance, ...overrides });
+const prediction = (id, rawProbability, provenance = "VERIFIED_RUNTIME", overrides = {}) => createCalibrationPrediction({ predictionId: id, orchestrationRunId: `run-${id}`, proposalId: `proposal-${id}`, agentId: "ai-strategy-proposer", role: "STRATEGY_PROPOSER", ...cohort, targetId: "KRW-BTC", anchorValue: 100, anchorObservedAt: 900, anchorEvidenceReference: `anchor-${id}`, rawProbability, predictedAt: 1_000, horizonMs: 100, provenance, ...overrides });
 const outcome = (predictionOrId, result, provenance = "VERIFIED_RUNTIME", overrides = {}) => {
   const linkedPrediction = typeof predictionOrId === "string" ? null : predictionOrId;
   const predictionId = linkedPrediction?.predictionId ?? predictionOrId;
   const predictionContentHash = overrides.predictionContentHash ?? linkedPrediction?.contentHash ?? "0".repeat(64);
-  return createCalibrationOutcome({ predictionId, predictionContentHash, outcomeDefinitionId: cohort.outcomeDefinitionId, outcomeDefinitionVersion: cohort.outcomeDefinitionVersion, outcome: result, resolvedAt: 1_100, evidenceReferences: [`evidence-${predictionId}`], provenance, ...overrides });
+  return createCalibrationOutcome({ predictionId, predictionContentHash, outcomeDefinitionId: cohort.outcomeDefinitionId, outcomeDefinitionVersion: cohort.outcomeDefinitionVersion, outcome: result, resolvedValue: result ? 101 : 99, resolvedAt: 1_100, evidenceReferences: [`evidence-${predictionId}`], provenance, ...overrides });
 };
 
 test("calibration rejects invalid probabilities and hash tampering", () => {
@@ -18,9 +18,13 @@ test("calibration rejects invalid probabilities and hash tampering", () => {
   assert.equal(verifyCalibrationPrediction(valid), true);
   assert.equal(verifyCalibrationPrediction({ ...valid, rawProbability: 0.8 }), false);
   assert.equal(verifyCalibrationPrediction({ ...valid, promptArtifactVersion: "2.0.0" }), false);
+  assert.equal(verifyCalibrationPrediction({ ...valid, anchorValue: 101 }), false);
+  assert.equal(verifyCalibrationPrediction({ ...valid, targetId: "KRW-ETH" }), false);
+  assert.throws(() => prediction("future-anchor", 0.5, "VERIFIED_RUNTIME", { anchorObservedAt: 1_001 }), /cannot postdate prediction/);
   const resolved = outcome(valid, true);
   assert.equal(verifyCalibrationOutcome(resolved), true);
   assert.equal(verifyCalibrationOutcome({ ...resolved, outcome: false }), false);
+  assert.equal(verifyCalibrationOutcome({ ...resolved, resolvedValue: 999 }), false);
   assert.equal(verifyCalibrationOutcome({ ...resolved, predictionContentHash: "f".repeat(64) }), false);
 });
 
@@ -50,23 +54,38 @@ test("reliability buckets include probability zero and one and compute weighted 
 test("profiles are exact-cohort, insufficient by default, and synthetic observations cannot satisfy runtime evidence", () => {
   const ledger = new OutcomeCalibrationLedger();
   const synthetic = prediction("synthetic", 0.9, "SYNTHETIC_TEST"); ledger.appendPrediction(synthetic); ledger.appendOutcome(outcome(synthetic, true, "SYNTHETIC_TEST"));
-  let profile = ledger.profile(cohort, 0.9, { minimumSamples: 1 });
+  let profile = ledger.profile(cohort, 0.9, { minimumSamples: 1, minimumBucketSamples: 1 });
   assert.equal(profile.status, "INSUFFICIENT_DATA"); assert.equal(profile.sampleCount, 0); assert.equal(profile.effectiveConfidence, 0);
   const verified = prediction("verified", 0.8); ledger.appendPrediction(verified); ledger.appendOutcome(outcome(verified, true));
   for (const mismatch of [{ modelVersionId: "other-model" }, { promptArtifactId: "other-prompt" }, { promptArtifactVersion: "2.0.0" }, { promptArtifactDigest: "b".repeat(64) }]) {
-    profile = ledger.profile({ ...cohort, ...mismatch }, 0.8, { minimumSamples: 1 });
+    profile = ledger.profile({ ...cohort, ...mismatch }, 0.8, { minimumSamples: 1, minimumBucketSamples: 1 });
     assert.equal(profile.sampleCount, 0); assert.equal(profile.status, "INSUFFICIENT_DATA");
   }
+});
+
+test("global sample sufficiency cannot make a sparse target bucket trusted", () => {
+  const ledger = new OutcomeCalibrationLedger();
+  for (let index = 0; index < 20; index += 1) {
+    const probability = index === 0 ? 0.85 : 0.15;
+    const item = prediction(`sparse-${index}`, probability);
+    ledger.appendPrediction(item);
+    ledger.appendOutcome(outcome(item, probability > 0.5));
+  }
+  const sparse = ledger.profile(cohort, 0.85, { minimumSamples: 20, minimumBucketSamples: 5, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
+  assert.equal(sparse.sampleCount, 20);
+  assert.equal(sparse.status, "INSUFFICIENT_DATA");
+  assert.equal(sparse.calibratedProbability, null);
+  assert.equal(sparse.effectiveConfidence, 0);
 });
 
 test("calibrated confidence is conservative and degraded calibration cannot increase authority or confidence", () => {
   const good = new OutcomeCalibrationLedger();
   for (const id of ["a", "b"]) { const item = prediction(id, 0.8); good.appendPrediction(item); good.appendOutcome(outcome(item, true)); }
-  const calibrated = good.profile(cohort, 0.8, { minimumSamples: 2, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
+  const calibrated = good.profile(cohort, 0.8, { minimumSamples: 2, minimumBucketSamples: 2, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
   assert.equal(calibrated.status, "CALIBRATED"); assert.equal(calibrated.calibratedProbability, 1); assert.equal(calibrated.effectiveConfidence, 0.8); assert.equal(calibrated.liveAuthority, "NONE"); assert.equal(calibrated.productionMutationAllowed, false);
   const bad = new OutcomeCalibrationLedger();
   for (const id of ["c", "d"]) { const item = prediction(id, 0.9); bad.appendPrediction(item); bad.appendOutcome(outcome(item, false)); }
-  const degraded = bad.profile(cohort, 0.9, { minimumSamples: 2, maximumExpectedCalibrationError: 0.1, maximumBrierScore: 0.1 });
+  const degraded = bad.profile(cohort, 0.9, { minimumSamples: 2, minimumBucketSamples: 2, maximumExpectedCalibrationError: 0.1, maximumBrierScore: 0.1 });
   assert.equal(degraded.status, "DEGRADED"); assert.equal(degraded.calibratedProbability, null); assert.equal(degraded.effectiveConfidence, 0); assert.equal(degraded.liveAuthority, "NONE"); assert.equal(degraded.productionMutationAllowed, false);
 });
 
