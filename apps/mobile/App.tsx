@@ -23,10 +23,9 @@ import { WatchlistRepository } from "./src/watchlist";
 import { DEFAULT_SETTINGS, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
-import { clearPaperConnectionVerification } from "./src/paperConnectionSession";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./src/paperConnectionSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 
-const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "";
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
 type UtilityView = "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | null;
@@ -36,17 +35,9 @@ const theme = { container: { flex: 1 } } as const;
 const CHART_MARKET = "KRW-BTC";
 const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
 
-function krw(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function healthTone(health: string | undefined): "success" | "warning" | "danger" {
-  return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning";
-}
-
-function themePreference(value: ThemeSetting): ThemePreference {
-  return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
-}
+function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
+function healthTone(health: string | undefined): "success" | "warning" | "danger" { return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning"; }
+function themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }
 
 function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode }>) {
   const { setMode } = useTheme();
@@ -68,9 +59,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
   </NusaCard></View></View>;
 }
 
-export default function App() {
-  return <ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider>;
-}
+export default function App() { return <ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider>; }
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [status, setStatus] = useState<AuthStatus>("CHECKING");
@@ -91,7 +80,12 @@ function AuthenticatedApp() {
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
 
   const refresh = useCallback(async () => {
-    setOperations(await loadPersonalPaperOperations({ baseUrl: BASE_URL, credentialProvider: credentialSession.credentialProvider }));
+    const endpoint = getConfiguredPaperEndpoint();
+    if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
+      return;
+    }
+    setOperations(await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }));
   }, [credentialSession]);
 
   const closeUtility = useCallback(() => setUtilityView(null), []);
@@ -149,17 +143,10 @@ function AuthenticatedApp() {
   const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home"));
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
-    <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}>
-      <View style={styles.headerInner}>
-        <View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>INTELLIGENCE</Text></View></View>
-        <View style={styles.headerTools}>
-          <Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => {
-            if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; }
-            setUtilityMenuOpen((current) => !current);
-          }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable>
-        </View>
-      </View>
-    </View>
+    <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}>
+      <View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>INTELLIGENCE</Text></View></View>
+      <View style={styles.headerTools}><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View>
+    </View></View>
     <View style={[styles.authorityStrip, { borderBottomColor: appTheme.colors.border }]}><View style={styles.authorityStripInner}><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /><Text style={[styles.authorityCopy, { color: appTheme.colors.textMuted }]}>PAPER 주문 경로만 활성화 · 실제 자금 실행 없음</Text></View></View>
     {utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>
       <Pressable accessibilityLabel="주문 이력" accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView("HISTORY"); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="header-order-history"><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>이력</Text></Pressable>
@@ -178,38 +165,16 @@ function AuthenticatedApp() {
       : <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={appTheme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
         <SectionHeading eyebrow="PERSONAL PAPER" title="오늘의 운영 상태" description="검증된 PAPER 런타임과 읽기 전용 분석 스냅샷만 표시합니다." />
         {readOnlyError ? <View style={[styles.error, { backgroundColor: appTheme.colors.surfaceSunken, borderColor: appTheme.colors.danger }]}><Text style={[styles.errorTitle, { color: appTheme.colors.danger }]}>PAPER 서버 연결 오류</Text><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>{readOnlyError}</Text><NusaButton label="설정에서 연결 확인" onPress={goSettings} tone="neutral" /></View> : null}
-        {notConfigured ? <NusaCard testID="dashboard-session-card" raised>
-          <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>서버 연결 설정</Text></View><StatusChip label="설정 필요" tone="warning" /></View>
-          <Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{notConfigured}</Text>
-          <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Endpoint 저장과 세션 토큰 검증은 Settings 한 곳에서만 수행합니다. 토큰은 기기에 저장하지 않습니다.</Text>
-          <NusaButton label="설정에서 PAPER 연결" onPress={goSettings} testID="dashboard-open-settings" />
-        </NusaCard> : null}
+        {notConfigured ? <NusaCard testID="dashboard-session-card" raised><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>서버 연결 설정</Text></View><StatusChip label="설정 필요" tone="warning" /></View><Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{notConfigured}</Text><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Endpoint 저장과 세션 토큰 검증은 Settings 한 곳에서만 수행합니다. 토큰은 기기에 저장하지 않습니다.</Text><NusaButton label="설정에서 PAPER 연결" onPress={goSettings} testID="dashboard-open-settings" /></NusaCard> : null}
         {snapshot ? <>
-          <NusaCard testID="account-hero-card" raised>
-            <View style={styles.heroTop}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.textMuted }]}>PAPER EQUITY</Text><Text style={[styles.heroValue, { color: appTheme.colors.text }]}>{account ? krw(account.equity) : "포트폴리오 없음"}</Text></View><StatusChip label={snapshot.operations.runtimeState} tone={runtimeTone} /></View>
-            {totalPnl != null ? <Text style={[styles.heroPnl, { color: totalPnl >= 0 ? appTheme.colors.success : appTheme.colors.danger }]}>{totalPnl >= 0 ? "+" : ""}{krw(totalPnl)} 누적 손익</Text> : <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>계좌 평가 정보가 아직 없습니다.</Text>}
-          </NusaCard>
-          {nextAction ? <NusaCard testID="home-next-action">
-            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>NEXT</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>{nextAction.title}</Text></View><StatusChip label={nextAction.tab === "Trade" ? "우선 확인" : "다음 단계"} tone={nextAction.tab === "Trade" ? "warning" : "primary"} /></View>
-            <Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{nextAction.detail}</Text>
-            <NusaButton accessibilityLabel={nextAction.label} label={nextAction.label} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(nextAction.tab); }} testID="home-next-action-button" />
-          </NusaCard> : null}
-          <AuthorityBanner />
-          <NusaCard testID="ai-card">
-            <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View>
-            <Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text>
-            <DataRow label="원시 모델 확률 (미보정)" value={aiRawProbability} />
-            <DataRow label="검증 신뢰도" value={aiTrustedConfidence} />
-            <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
-            <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
-          </NusaCard>
-          <NusaCard testID="safety-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>안전 및 운영 상태</Text><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={snapshot.operations.runtimeState} tone={runtimeTone} /><DataRow label="시장 연결" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} /><DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} emphasis /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></NusaCard>
+          <NusaCard testID="account-hero-card" raised><View style={styles.heroTop}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.textMuted }]}>PAPER EQUITY</Text><Text style={[styles.heroValue, { color: appTheme.colors.text }]}>{account ? krw(account.equity) : "포트폴리오 없음"}</Text></View><StatusChip label={snapshot.operations.runtimeState} tone={runtimeTone} /></View>{totalPnl != null ? <Text style={[styles.heroPnl, { color: totalPnl >= 0 ? appTheme.colors.success : appTheme.colors.danger }]}>{totalPnl >= 0 ? "+" : ""}{krw(totalPnl)} 누적 손익</Text> : <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>계좌 평가 정보가 아직 없습니다.</Text>}</NusaCard>
+          <View style={styles.homeGrid} testID="home-responsive-grid">
+            <View style={styles.homeColumn}>{nextAction ? <NusaCard testID="home-next-action"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.primary }]}>NEXT</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>{nextAction.title}</Text></View><StatusChip label={nextAction.tab === "Trade" ? "우선 확인" : "다음 단계"} tone={nextAction.tab === "Trade" ? "warning" : "primary"} /></View><Text style={[styles.notice, { color: appTheme.colors.textMuted }]}>{nextAction.detail}</Text><NusaButton accessibilityLabel={nextAction.label} label={nextAction.label} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(nextAction.tab); }} testID="home-next-action-button" /></NusaCard> : null}<AuthorityBanner /></View>
+            <View style={styles.homeColumn}><NusaCard testID="ai-card"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.info }]}>AI READ-ONLY</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>AI 인텔리전스</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={ai?.status === "AVAILABLE" ? "success" : ai?.status === "INCOMPLETE" ? "warning" : "neutral"} /></View><Text style={[styles.aiThesis, { color: ai?.thesis ? appTheme.colors.text : appTheme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 AI 분석이 없습니다."}</Text><DataRow label="원시 모델 확률 (미보정)" value={aiRawProbability} /><DataRow label="검증 신뢰도" value={aiTrustedConfidence} /><DataRow label="불확실성" value={ai?.uncertainty ?? "-"} /><DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} /></NusaCard><NusaCard testID="safety-card"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>안전 및 운영 상태</Text><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={snapshot.operations.runtimeState} tone={runtimeTone} /><DataRow label="시장 연결" value={snapshot.operations.transport === "ONLINE" ? "온라인" : "오프라인"} tone={snapshot.operations.transport === "ONLINE" ? "success" : "warning"} /><DataRow label="PAPER 운영 준비" value={snapshot.readyForPaperOperations ? "준비됨" : "대기/차단"} tone={snapshot.readyForPaperOperations ? "success" : "warning"} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} emphasis /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></NusaCard></View>
+          </View>
         </> : null}
       </ScrollView>}
-    <View style={[styles.navigation, { backgroundColor: appTheme.colors.surfaceSunken, borderTopColor: appTheme.colors.border }]}><View style={styles.navigationInner}>{tabs.map((tab) => {
-      const active = utilityView === null && activeTab === tab;
-      return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, active && { backgroundColor: appTheme.colors.primarySoft }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.primary : "transparent" }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>;
-    })}</View></View>
+    <View style={[styles.navigation, { backgroundColor: appTheme.colors.surfaceSunken, borderTopColor: appTheme.colors.border }]}><View style={styles.navigationInner}>{tabs.map((tab) => { const active = utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, active && { backgroundColor: appTheme.colors.primarySoft }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.primary : "transparent" }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
   </SafeAreaView>;
 }
 
@@ -252,6 +217,8 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   heroValue: { fontSize: 34, fontWeight: "800", letterSpacing: -1.4, marginTop: 5, fontVariant: ["tabular-nums"] },
   heroPnl: { marginTop: 7, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  homeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" },
+  homeColumn: { flexGrow: 1, flexBasis: 440, gap: 14 },
   aiThesis: { fontSize: 16, fontWeight: "600", lineHeight: 24, marginBottom: 10 },
   navigation: { borderTopWidth: 1, alignItems: "center" },
   navigationInner: { width: "100%", maxWidth: 1180, flexDirection: "row", paddingTop: 7, paddingBottom: 7 },
