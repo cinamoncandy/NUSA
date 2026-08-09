@@ -30,16 +30,15 @@ export interface PortfolioViewProps {
 }
 
 function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useTheme>["theme"]) {
-  if (!model.position) return <NusaCard testID="portfolio-empty"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>열린 포지션 없음</Text><StatusChip label="현금 대기" tone="neutral" /></View><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 PAPER 계좌에 열린 대표 포지션이 없습니다. 계정 전체 현금과 평가액은 위 집계 카드에서 확인할 수 있습니다.</Text></NusaCard>;
+  if (!model.position) return <NusaCard testID="portfolio-empty"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>열린 포지션 없음</Text><StatusChip label="현금 대기" tone="neutral" /></View><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 PAPER 계좌에 열린 포지션이 없습니다. 계정 전체 현금과 평가액은 위 집계 카드에서 확인할 수 있습니다.</Text></NusaCard>;
   return <NusaCard testID="portfolio-position">
-    <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>대표 포지션 상세</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="1 POSITION DETAIL" tone="info" /></View>
+    <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>열린 포지션</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View>
     <DataRow label="수량" value={String(model.position.quantity)} />
     <DataRow label="평균 단가" value={money(model.position.averagePrice)} />
     <DataRow label="현재 평가가" value={money(model.position.currentPrice)} />
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <DataRow label="미실현 손익" value={signedMoney(model.position.unrealizedPnl)} emphasis tone={model.position.unrealizedPnl >= 0 ? "success" : "danger"} />
     <DataRow label="실현 손익" value={signedMoney(model.position.realizedPnl)} tone={model.position.realizedPnl >= 0 ? "success" : "danger"} />
-    <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>현재 계좌 API는 상세 포지션을 대표 포지션 1개로 제공합니다. 이 카드는 전체 포지션 목록이 아닙니다.</Text>
   </NusaCard>;
 }
 
@@ -56,7 +55,7 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
   }
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="계정 전체 집계와 현재 API가 제공하는 대표 포지션 1개 상세를 구분해 표시합니다." />
+    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="검증된 계정 전체 집계와 현재 PAPER 포지션을 구분해 표시합니다." />
     <NusaCard testID="portfolio-summary" raised>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>계정 총 평가자산</Text>
       <Text style={[styles.total, { color: theme.colors.text }]}>{money(model.totalEquity)}</Text>
@@ -67,11 +66,11 @@ export function PortfolioView({ snapshot, error, refreshing, onRefresh }: Portfo
       <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
     </View>
     <NusaCard testID="portfolio-allocation">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="ACCOUNT TOTALS" tone="info" /></View>
+      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
       <DataRow label="현금" value={money(model.cash)} />
-      <DataRow label="전체 포지션 평가액" value={money(model.assetValue)} />
+      <DataRow label="포지션 평가액" value={money(model.assetValue)} />
       <DataRow label="열린 주문" value={String(model.openOrderCount)} />
-      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 계정 전체 기준으로 검증된 집계값입니다.</Text>
+      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
     </NusaCard>
     {renderPosition(model, theme)}
   </ScrollView>;

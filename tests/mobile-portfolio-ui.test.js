@@ -51,7 +51,7 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
   assert.throws(() => buildPortfolioViewModel(response({ account: { equity: 900 } })), /reconcile/);
 });
 
-test("Portfolio screen exposes truthful account totals and representative detail scope", () => {
+test("Portfolio screen exposes truthful verified totals without unavailable return UI", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(source, /자산 정보를 표시할 수 없습니다/);
@@ -60,13 +60,10 @@ test("Portfolio screen exposes truthful account totals and representative detail
   assert.match(source, /RefreshControl/);
   assert.match(source, /계정 총 평가자산/);
   assert.match(source, /계정 전체 집계/);
-  assert.match(source, /ACCOUNT TOTALS/);
-  assert.match(source, /전체 포지션 평가액/);
-  assert.match(source, /대표 포지션 상세/);
-  assert.match(source, /대표 포지션 1개/);
-  assert.match(source, /1 POSITION DETAIL/);
   assert.match(source, /portfolio-realized-pnl/);
   assert.match(source, /portfolio-unrealized-pnl/);
+  assert.match(source, />열린 포지션</);
+  assert.doesNotMatch(source, /대표 포지션|대표 열린 포지션/);
   assert.doesNotMatch(source, /수익률/);
   assert.match(source, /NusaButton label="다시 불러오기"/);
   assert.match(app, /activeTab === "Portfolio"/);
