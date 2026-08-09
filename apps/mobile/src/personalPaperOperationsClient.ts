@@ -55,7 +55,7 @@ export async function loadPersonalPaperOperations(
   }
   if (!isSecureDashboardEndpoint(baseUrl)) {
     return Object.freeze({
-      status: "NOT_CONFIGURED",
+      status: "UNAVAILABLE",
       reason: "Dashboard credential will not be sent over insecure remote HTTP."
     });
   }
