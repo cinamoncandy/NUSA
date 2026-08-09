@@ -149,10 +149,10 @@ test("a different market cannot resolve or expire another market prediction", as
   assert.equal(runtime.calibrationProfile().sampleCount, 0);
   await waitForRuntime(runtime);
 
-  const btcDueAt = firstObservedAt + 2 + AI_CALIBRATION_HORIZON_MS + 10;
-  runtimeNow = btcDueAt + 100;
-  modelCompletedAt = btcDueAt + 2;
-  runtime.schedule(orchestrationInput("market-btc", btcDueAt, evidenceFor(110, btcDueAt, "KRW-BTC")));
+  const btcObservedAt = firstObservedAt + 2 + AI_CALIBRATION_HORIZON_MS + 10;
+  runtimeNow = wrongMarketAt + 200;
+  modelCompletedAt = runtimeNow + 2;
+  runtime.schedule(orchestrationInput("market-btc", btcObservedAt, evidenceFor(110, btcObservedAt, "KRW-BTC")));
   assert.equal(runtime.calibrationProfile().sampleCount, 1, "wrong-market data must not remove the pending BTC calibration window");
   await waitForRuntime(runtime);
 });
