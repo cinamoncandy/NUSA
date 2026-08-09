@@ -63,8 +63,6 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="모델 점수 (미보정)" value={confidence} />
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
-      <DataRow label="모델" value={ai?.modelVersion ?? "-"} />
-      <DataRow label="프롬프트" value={ai?.promptVersion ?? "-"} />
       <DataRow label="최근 분석" value={lastRun} />
       <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>보정 상태가 UNKNOWN인 동안 모델 점수는 검증된 확률이나 성과 보장을 의미하지 않습니다.</Text>
