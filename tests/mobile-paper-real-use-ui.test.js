@@ -83,7 +83,7 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
   assert.doesNotMatch(components, />ZERO ORDER AUTHORITY</);
 });
 
-test("primary mobile workspaces use intentional tablet-bounded widths", () => {
+test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
   for (const file of [
     "apps/mobile/App.tsx",
     "apps/mobile/src/settingsView.tsx",
@@ -95,4 +95,18 @@ test("primary mobile workspaces use intentional tablet-bounded widths", () => {
     const source = read(file);
     assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
   }
+
+  const app = read("apps/mobile/App.tsx");
+  const markets = read("apps/mobile/src/marketsView.tsx");
+  const portfolio = read("apps/mobile/src/portfolioView.tsx");
+  const ai = read("apps/mobile/src/aiView.tsx");
+
+  assert.match(app, /homeGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.match(app, /homeColumn: \{ flexGrow: 1, flexBasis: 440/);
+  assert.match(markets, /const wide = width >= 840/);
+  assert.match(markets, /layoutWide: \{ flexDirection: "row"/);
+  assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.match(portfolio, /detailCell: \{ flexGrow: 1, flexBasis: 420/);
+  assert.match(ai, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.match(ai, /detailCell: \{ flexGrow: 1, flexBasis: 440/);
 });
