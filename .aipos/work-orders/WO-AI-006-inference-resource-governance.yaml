@@ -1,10 +1,10 @@
 id: WO-AI-006
 title: Inference Resource Budget and Latency Governance
-status: PLANNED
+status: IN_PROGRESS
 priority: P1
-branch: agent/ai-006-inference-resource-governance
+branch: agent/ai-006-inference-resource-governance-frozen
 base_branch: main
-implementation_branch: agent/ai-006-inference-resource-governance
+implementation_branch: agent/ai-006-inference-resource-governance-frozen
 planning_branch: agent/ai-006-inference-resource-governance-plan
 architecture_impact:
   acknowledged: true
@@ -61,7 +61,9 @@ acceptance_criteria:
   - canonical model-input/evidence bytes cannot exceed policy ceiling
   - orchestration cannot start a later call after the wall-clock budget is exhausted
   - valid provider input/output/total token usage is retained as read-only evidence when available
-  - malformed negative non-integer overflow or internally inconsistent token usage fails closed
+  - optional or missing usage is represented as UNAVAILABLE/PARTIAL and never fabricated as zero aggregate consumption
+  - exact duplicate attempt reservation is state-idempotent but cannot re-authorize a provider side effect
+  - malformed negative non-integer overflow internally inconsistent or over-reservation token usage fails closed
   - required usage missing under verified-accounting policy makes resource health UNVERIFIED and prevents further calls
   - duplicate deterministic replay is idempotent and conflicting replay fails closed
   - result/projection clearly separates model probability/calibration from resource health and usage
@@ -90,9 +92,16 @@ verification:
     - provider or broker credential material
     - real order cancel transfer or withdrawal
 planning_gate:
-  status: IN_PROGRESS
+  status: MERGED
   pull_request: 360
-  base_commit: 66ca62fed422bd7186cbb5d589a8810dc2b83260
+  merge_commit: 2d1d7b1b6d79ab6498297df13373afa88fef6937
+implementation_gate:
+  status: IN_PROGRESS
+  pull_request: 364
+  branch: agent/ai-006-inference-resource-governance-frozen
+  branch_start_commit: efdafe20f2cc46d0a8de551f399e1c210ba64285
+  latest_main_required_before_merge: true
 next: >-
-  Review and merge planning PR #360 containing the read-only audit, ADR-0009, and WO-AI-006 definition.
-  Only after that planning gate is merged should a fresh implementation branch be created from then-current protected main.
+  Keep frozen canonical PR #364 immutable, pass exact-head Full CI/Coverage plus all Restricted LIVE/read-only workflows,
+  clear review threads, verify latest protected main is unchanged, and merge PR #364 only by expected head SHA.
+  WO-0051 remains HUMAN_ENVIRONMENT_ONLY throughout.
