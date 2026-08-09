@@ -8,6 +8,8 @@ import { projectAiReadOnly } from "./projection";
 export const AI_CALIBRATION_OUTCOME_DEFINITION_ID = "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M";
 export const AI_CALIBRATION_OUTCOME_DEFINITION_VERSION = "1";
 export const AI_CALIBRATION_HORIZON_MS = 5 * 60 * 1_000;
+/** The audited 5-minute outcome accepts only a narrowly bounded observation after its due time. */
+export const AI_CALIBRATION_RESOLUTION_GRACE_MS = 60_000;
 
 export interface CloudAiRuntime {
   readonly enabled: boolean;
@@ -121,7 +123,14 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     if (anchor == null || !supportsAutomaticResolution(calibration)) return;
     for (const [predictionId, pending] of pendingPredictions) {
       const prediction = pending.prediction;
-      if (prediction.targetId !== anchor.targetId || anchor.observedAt < prediction.predictedAt + prediction.horizonMs) continue;
+      const dueAt = prediction.predictedAt + prediction.horizonMs;
+      // A verified ticker also acts as trusted time evidence for expiring missed resolution windows.
+      // Late observations must never be mislabeled as the audited "after 5m" outcome.
+      if (anchor.observedAt > dueAt + AI_CALIBRATION_RESOLUTION_GRACE_MS) {
+        pendingPredictions.delete(predictionId);
+        continue;
+      }
+      if (prediction.targetId !== anchor.targetId || anchor.observedAt < dueAt) continue;
       try {
         calibrationLedger.appendOutcome(createCalibrationOutcome({
           predictionId: prediction.predictionId,
