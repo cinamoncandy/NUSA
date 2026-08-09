@@ -6,7 +6,7 @@ base_branch: main
 phase: human-environment-gate
 status: IN_PROGRESS
 source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-006 inference resource governance as verified zero-authority capability while allowing separately planned safe AI research slices."
+objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-007 N-version provider diversity and disagreement governance as verified zero-authority capability while allowing separately planned safe AI research slices."
 scope:
   - operator-authorized external read-only preflight only
   - actual independent human activation ceremony evidence
@@ -14,9 +14,9 @@ scope:
   - post-LIVE validation only after a separately authorized tiny session
   - separately planned read-only/zero-authority AI research may proceed but cannot satisfy or bypass this gate
 latest_verified_slice:
-  id: WO-AI-006
+  id: WO-AI-007
   status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-006-completion.json
+  evidence: .aipos/evidence/WO-AI-007-completion.json
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -27,15 +27,15 @@ safety:
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
 verification:
-  ai_006_planning_merge: 2d1d7b1b6d79ab6498297df13373afa88fef6937
-  ai_006_implementation_merge: 26f53749b8b81eed18844ed651b1e7a4cf8ef7f1
-  ai_006_exact_head: 439c7a81651545bb5b34a52e64e41a227bfbe426
-  ai_006_ci_run: 31315926107
-  restricted_live_readonly_workflows: PASS_4_OF_4
   ai_007_planning_merge: 7fbfff170d2eb4d62393f0fae4a1d36de8d6c5f4
+  ai_007_implementation_merge: 3df6b28d08ead38f893cd0c84bd70a31f275f8a9
+  ai_007_exact_head: 8fe07e4fc078e51297a1b1963f0415f410b8fbbf
+  ai_007_ci_run: 31321492237
+  restricted_live_readonly_workflows: PASS_4_OF_4
+  adversarial_cross_provider_conflict_observability: PASS_0_OF_5_TO_5_OF_5
 blockers:
   - ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
   - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Implement WO-AI-007 N-version provider diversity from current protected main with shared WO-AI-006 resource governance, adversarial independence/disagreement evaluation, and unchanged zero-authority safety; keep WO-0051 IN_PROGRESS.
+next_recommended_task: Run a fresh post-WO-AI-007 repository/AI capability audit from protected main and select the next lowest-scoring safe intelligence dimension; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
