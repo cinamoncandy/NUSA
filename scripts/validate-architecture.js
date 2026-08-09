@@ -185,6 +185,12 @@ if (require.main === module) {
     console.error(`Architecture validation found ${result.unresolved.length} unresolved local imports.`);
     process.exit(1);
   }
+  if (result.runtimeCycles.length > 0) {
+    for (const cycle of result.runtimeCycles) console.error(`Runtime cycle: ${cycle.join(" -> ")}`);
+  }
+  if (result.findings.length > 0) {
+    for (const item of result.findings) console.error(`${item.rule}: ${item.source} -> ${item.target} (${item.kind})`);
+  }
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
