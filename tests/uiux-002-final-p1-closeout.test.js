@@ -34,12 +34,24 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, height: 44/);
 });
 
-test("closeout does not change authority or mutation semantics", () => {
+test("closeout preserves PAPER-only execution and LIVE-none authority semantics", () => {
   const app = read("apps/mobile/App.tsx");
   const trading = read("apps/mobile/src/tradingView.tsx");
+  const ai = read("apps/mobile/src/aiView.tsx");
 
-  assert.match(app, /PAPER/);
-  assert.match(app, /READ ONLY/);
-  assert.match(trading, /ZERO MUTATION/);
-  assert.match(trading, /const readOnly = onSubmit === undefined/);
+  assert.match(app, /StatusChip label="PAPER ONLY"/);
+  assert.match(app, /StatusChip label="LIVE NONE"/);
+  assert.match(app, /PAPER 주문 경로만 활성화 · 실제 자금 실행 없음/);
+
+  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label="LIVE 금지"/);
+  assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(trading, /authority: "PAPER_ONLY"/);
+  assert.match(trading, /productionMutationAllowed: false/);
+  assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity/);
+  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
+
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /READ ONLY/);
 });
