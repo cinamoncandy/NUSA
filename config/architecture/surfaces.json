@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "invariants": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "credentialExecutionAllowed": false
+  },
+  "surfaces": [
+    {
+      "id": "desktop-main-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/main.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "PAPER_LOCAL_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-renderer-preload",
+      "kind": "ELECTRON_RENDERER_BRIDGE",
+      "path": "apps/desktop/src/preload.ts",
+      "marker": "contextBridge.exposeInMainWorld(",
+      "access": "LOCAL_PROCESS",
+      "authority": "BOUNDED_RENDERER_API",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-ai-cio-readonly-ipc",
+      "kind": "DELEGATED_READ_ONLY_IPC",
+      "path": "apps/desktop/src/aiCioIpcBridge.ts",
+      "marker": "registrar.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "READ_ONLY",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-mobile-monitor-http",
+      "kind": "LOCAL_HTTP",
+      "path": "apps/desktop/src/mobileBridge.ts",
+      "marker": "http.createServer(",
+      "access": "LOCALHOST_GET_ONLY",
+      "authority": "READ_ONLY",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "cloud-dashboard-http",
+      "kind": "CLOUD_HTTP",
+      "path": "apps/cloud/src/server.ts",
+      "marker": "http.createServer(",
+      "access": "AUTHENTICATED_GET_ONLY",
+      "authority": "READ_ONLY",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "operator-cli",
+      "kind": "OPERATOR_CLI",
+      "path": "scripts/nusa.js",
+      "marker": "process.argv.slice(2)",
+      "access": "LOCAL_OPERATOR",
+      "authority": "EVIDENCE_ONLY",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    }
+  ]
+}
