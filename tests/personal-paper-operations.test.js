@@ -175,7 +175,13 @@ test("mobile reads only the authenticated PAPER operations route after exact end
     request: async (url, init) => {
       observedUrl = String(url);
       observedAuthorization = init.headers.authorization;
-      return { ok: true, status: 200, json: async () => value };
+      return {
+        ok: true,
+        status: 200,
+        redirected: false,
+        url: `${LOOPBACK_ENDPOINT}/api/paper-operations`,
+        json: async () => value
+      };
     }
   });
   assert.equal(result.status, "READY");
