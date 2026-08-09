@@ -99,7 +99,7 @@ test("shared contracts reject literal import expressions that escape the package
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(contractFindings(result).length, 1);
-    assert.equal(contractFindings(result)[0].kind, "inline-import");
+    assert.equal(contractFindings(result)[0].kind, "type");
     assert.deepEqual(result.runtimeCycles, []);
   });
 });
@@ -112,7 +112,23 @@ test("shared contracts reject comment-obfuscated dynamic and type import express
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(contractFindings(result).length, 2);
-    assert.ok(contractFindings(result).every((finding) => finding.kind === "inline-import"));
+    assert.deepEqual(new Set(contractFindings(result).map((finding) => finding.kind)), new Set(["type", "runtime"]));
+  });
+});
+
+test("shared contracts reject workspace package-name aliases to implementation owners", () => {
+  withFixture({
+    "packages/contracts/package.json": '{"name":"@nusa/contracts"}',
+    "packages/contracts/src/public.ts": 'import type { CloudState } from "@nusa/cloud/state"; export async function load() { return import("@nusa/cloud/runtime"); } export type PublicState = CloudState;\n',
+    "apps/cloud/package.json": '{"name":"@nusa/cloud"}',
+    "apps/cloud/state.ts": "export interface CloudState { readonly id: string; }\n",
+    "apps/cloud/runtime.ts": "export const runtimeValue = 1;\n"
+  }, (result) => {
+    assert.deepEqual(result.unresolved, []);
+    const findings = contractFindings(result);
+    assert.equal(findings.length, 2);
+    assert.deepEqual(new Set(findings.map((finding) => finding.kind)), new Set(["type", "runtime"]));
+    assert.equal(findings.every((finding) => finding.target === "apps/cloud/"), true);
   });
 });
 
