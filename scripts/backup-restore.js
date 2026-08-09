@@ -13,13 +13,13 @@ const SCHEMA_VERSION = 2;
 const CATEGORIES = new Set(["CONFIG", "EVIDENCE", "LOG", "DATABASE_SNAPSHOT"]);
 const FORBIDDEN_NAME = /(^|[._-])(env|secret|token|password|credential|private[-_]?key|api[-_]?key)([._-]|$)|\.(pem|p12|pfx|key)$/i;
 const SNAPSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
-const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
+const SENSITIVE_ASSIGNMENT = /(?:^|[\s,{])["']?(?:authorization|access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)["']?\s*[:=]\s*(?:bearer\s+)?(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s,}\]]{8,})/i;
 
-function secretFindings(bytes, file) {
-  const text = bytes.toString("utf8");
-  const normalized = text.replace(/(["'])(access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)\1\s*:/gi, "$2:");
-  const findings = scanText(normalized, file);
-  if (SENSITIVE_ASSIGNMENT.test(text)) findings.push({ file, line: 0, rule: "SENSITIVE_ASSIGNMENT" });
+function secretFindings(file, label) {
+  const text = fs.readFileSync(file).toString("utf8");
+  const normalized = text.replace(/(["'])(authorization|access[_-]?key|api[_-]?key|client[_-]?secret|password|passwd|secret[_-]?key|token|credential|private[_-]?key)\1\s*:/gi, "$2:");
+  const findings = scanText(normalized, label);
+  if (SENSITIVE_ASSIGNMENT.test(text)) findings.push({ file: label, line: 0, rule: "SENSITIVE_ASSIGNMENT" });
   return findings;
 }
 
@@ -175,8 +175,7 @@ function createBackup(args) {
           continue;
         }
         assertNoSymlink(file, source);
-        const sourceBytes = fs.readFileSync(file);
-        if (secretFindings(sourceBytes, relative).length > 0) {
+        if (secretFindings(file, relative).length > 0) {
           secretExcludedCount += 1;
           continue;
         }
@@ -234,7 +233,7 @@ function readAndVerify(snapshotPath) {
     if (!isInside(snapshot, file) || !fs.existsSync(file) || !fs.lstatSync(file).isFile()) throw new Error(`missing recovery artifact: ${entry.path}`);
     if (fs.statSync(file).size !== entry.sizeBytes) throw new Error(`size mismatch: ${entry.path}`);
     if (sha256File(file) !== entry.sha256) throw new Error(`checksum mismatch: ${entry.path}`);
-    if (secretFindings(fs.readFileSync(file), entry.path).length > 0) throw new Error(`secret material detected in recovery artifact: ${entry.path}`);
+    if (secretFindings(file, entry.path).length > 0) throw new Error(`secret material detected in recovery artifact: ${entry.path}`);
   }
   return Object.freeze({ snapshot, manifest, manifestPath, manifestSha256: sha256File(manifestPath) });
 }
@@ -330,4 +329,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createBackup, readAndVerify, runDrill, parseIncludes, writeDrillLog };
+module.exports = { createBackup, readAndVerify, runDrill, parseIncludes, writeDrillLog, secretFindings };
