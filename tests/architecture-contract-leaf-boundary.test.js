@@ -99,7 +99,7 @@ test("shared contracts reject literal import expressions that escape the package
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
     assert.equal(contractFindings(result).length, 1);
-    assert.equal(contractFindings(result)[0].kind, "inline-import");
+    assert.equal(contractFindings(result)[0].kind, "type");
     assert.deepEqual(result.runtimeCycles, []);
   });
 });
@@ -111,8 +111,9 @@ test("shared contracts reject comment-obfuscated dynamic and type import express
     "packages/aipos/src/plugin.ts": "export const runtimeValue = 2;\n"
   }, (result) => {
     assert.deepEqual(result.unresolved, []);
-    assert.equal(contractFindings(result).length, 2);
-    assert.ok(contractFindings(result).every((finding) => finding.kind === "inline-import"));
+    const findings = contractFindings(result);
+    assert.equal(findings.length, 2);
+    assert.deepEqual(new Set(findings.map((finding) => finding.kind)), new Set(["type", "runtime"]));
   });
 });
 
@@ -127,7 +128,7 @@ test("shared contracts reject workspace package-name aliases to implementation o
     assert.deepEqual(result.unresolved, []);
     const findings = contractFindings(result);
     assert.equal(findings.length, 2);
-    assert.deepEqual(new Set(findings.map((finding) => finding.kind)), new Set(["type", "inline-import"]));
+    assert.deepEqual(new Set(findings.map((finding) => finding.kind)), new Set(["type", "runtime"]));
     assert.equal(findings.every((finding) => finding.target === "apps/cloud/"), true);
   });
 });
