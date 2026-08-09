@@ -26,6 +26,19 @@ const run = (script, env = {}) => spawnSync(process.execPath, [script], {
   encoding: "utf8"
 });
 
+const unavailableChecks = {
+  database: false,
+  migrations: false,
+  dashboardPersistence: false,
+  runtimeRecovery: false
+};
+const healthyChecks = {
+  database: true,
+  migrations: true,
+  dashboardPersistence: true,
+  runtimeRecovery: true
+};
+
 test("health is unauthenticated while ready is authenticated and fail-closed", async () => {
   const handle = startCloudDashboardServer({
     port: 41991,
@@ -37,18 +50,13 @@ test("health is unauthenticated while ready is authenticated and fail-closed", a
     assert.equal((await request(handle.port, "/ready")).status, 401);
     const ready = await request(handle.port, "/ready", { authorization: `Bearer ${token}` });
     assert.equal(ready.status, 503);
-    assert.deepEqual(JSON.parse(ready.body).checks, {
-      database: false,
-      migrations: false,
-      dashboardPersistence: false,
-      runtimeRecovery: false
-    });
+    assert.deepEqual(JSON.parse(ready.body).checks, unavailableChecks);
   } finally {
     await handle.stop();
   }
 });
 
-test("authenticated ready succeeds only when the initialized dashboard persistence path serves", async () => {
+test("dashboard availability alone cannot claim database migration persistence or recovery readiness", async () => {
   const handle = startCloudDashboardServer({
     port: 41992,
     tokenVerifier: createSharedSecretTokenVerifier(token),
@@ -56,11 +64,24 @@ test("authenticated ready succeeds only when the initialized dashboard persisten
   });
   try {
     const ready = await request(handle.port, "/ready", { authorization: `Bearer ${token}` });
+    assert.equal(ready.status, 503);
+    assert.deepEqual(JSON.parse(ready.body), { ok: false, checks: unavailableChecks });
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("authenticated ready succeeds only with explicit verified runtime readiness evidence", async () => {
+  const handle = startCloudDashboardServer({
+    port: 41993,
+    tokenVerifier: createSharedSecretTokenVerifier(token),
+    loadDashboard: () => ({ ok: true }),
+    readiness: () => ({ ok: true, checks: healthyChecks })
+  });
+  try {
+    const ready = await request(handle.port, "/ready", { authorization: `Bearer ${token}` });
     assert.equal(ready.status, 200);
-    assert.deepEqual(JSON.parse(ready.body), {
-      ok: true,
-      checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true }
-    });
+    assert.deepEqual(JSON.parse(ready.body), { ok: true, checks: healthyChecks });
   } finally {
     await handle.stop();
   }
@@ -68,7 +89,7 @@ test("authenticated ready succeeds only when the initialized dashboard persisten
 
 test("an explicit unhealthy readiness projection cannot be overridden by dashboard availability", async () => {
   const handle = startCloudDashboardServer({
-    port: 41993,
+    port: 41994,
     tokenVerifier: createSharedSecretTokenVerifier(token),
     loadDashboard: () => ({ ok: true }),
     readiness: () => ({ ok: false, checks: { database: true, migrations: true, dashboardPersistence: false, runtimeRecovery: true } })
@@ -84,7 +105,7 @@ test("an explicit unhealthy readiness projection cannot be overridden by dashboa
 
 test("cloud server rejects non-localhost bind attempts", () => {
   assert.throws(() => startCloudDashboardServer({
-    port: 41994,
+    port: 41995,
     host: "0.0.0.0",
     tokenVerifier: createSharedSecretTokenVerifier(token),
     loadDashboard: () => ({ ok: true })
