@@ -62,13 +62,14 @@ const payloadSchema = (role: AiAgentRole): JsonSchema => {
     return {
       type: "object",
       additionalProperties: false,
-      required: ["strategyVersionId", "decision", "rationaleClaims", "assumptions", "uncertainty", "expectedEffect", "costSensitivity", "capacitySensitivity"],
+      required: ["strategyVersionId", "decision", "rationaleClaims", "assumptions", "uncertainty", "rawProbability", "expectedEffect", "costSensitivity", "capacitySensitivity"],
       properties: {
         strategyVersionId: { type: "string" },
         decision: { type: "string", enum: ["candidate", "no_action", "insufficient_evidence"] },
         rationaleClaims: stringArraySchema(),
         assumptions: stringArraySchema(),
         uncertainty: { type: "string" },
+        rawProbability: { type: "number", minimum: 0, maximum: 1 },
         expectedEffect: { type: "string" },
         costSensitivity: { type: "string" },
         capacitySensitivity: { type: "string" }

@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T11:17:00+09:00"
+updated_at: "2026-08-09T13:20:00+09:00"
 phase: outcome-linked-ai-calibration
 status: in_progress
 objective: "Build deterministic outcome-linked AI calibration so raw model confidence is separated from empirically verified confidence while preserving zero execution authority."
 base_branch: main
-active_branch: agent/ai-004-outcome-calibration-plan-v4
-active_pull_request: null
-base_commit: 32d0468f48b0a1628ad6fd2097e87e4550795cb5
+active_branch: agent/ai-004-outcome-calibration-current-main
+active_pull_request: 256
+base_commit: 32051ac472badadd752cb7a130085e0ec485eff1
 claimed_state:
   work_order: WO-AI-004
   status: IN_PROGRESS
@@ -38,7 +38,7 @@ completed:
 in_progress:
   - id: WO-AI-004
     evidence: ".aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml"
-    summary: "Fresh post-WO-AI-003 audit selected outcome-linked calibration as the weakest safe AI dimension; implement immutable prediction/outcome linkage, weighted ECE/Brier metrics, cohort stratification, and conservative read-only confidence."
+    summary: "Canonical PR #256 implements immutable prediction/outcome linkage, bounded raw proposer probability, verified-runtime calibration identity, weighted ECE/Brier metrics, exact cohort stratification, conservative read-only confidence, and truthful mobile presentation from current main."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -50,7 +50,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-AI-004-outcome-linked-calibration.yaml
-  reason: "Current AI UI truthfully labels model score as uncalibrated; build verified outcome linkage before increasing confidence semantics, provider weight, or any other AI influence."
+  reason: "Finish canonical PR #256, proving raw proposer probability remains untrusted until exact-cohort verified outcome calibration is healthy; do not increase provider weight or AI authority."
 verification:
   required:
     - "WO-AI-004 exact-head calibration/AI tests, Full CI, isolated suite, coverage, Mobile Native when triggered, architecture/AIPOS, security, E2E/release, and all Restricted LIVE/read-only workflows PASS before merge"
@@ -64,8 +64,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #232 merged the WO-AI-004 plan; PR #244 added the deterministic Strategy Registry; PR #246 added explicit AI Phase 1 states. Current main is 32d0468f48b0a1628ad6fd2097e87e4550795cb5 and all changes preserve the WO-AI-004 zero-authority boundary."
-  current_commit: "32d0468f48b0a1628ad6fd2097e87e4550795cb5; WO-AI-004 remains IN_PROGRESS on its recorded implementation branch; no active implementation PR is recorded in AIPOS state."
+  last_result: "PR #256 is the sole canonical WO-AI-004 implementation path from latest main 32051ac472badadd752cb7a130085e0ec485eff1; stale PR #247 is closed unmerged. Exact-head verification is pending and WO-AI-004 remains IN_PROGRESS."
+  current_commit: "Base main 32051ac472badadd752cb7a130085e0ec485eff1 is integrated into active branch agent/ai-004-outcome-calibration-current-main for PR #256; completion is not claimed before Merge + post-merge PASS."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

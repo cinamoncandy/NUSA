@@ -61,6 +61,7 @@ const outputName: Readonly<Record<AiAgentRole, string>> = Object.freeze({ EVIDEN
 
 const text = (value: unknown, field: string): string => { if (typeof value !== "string" || !value.trim()) throw new Error(`${field} is required`); return value.trim(); };
 const strings = (value: unknown, field: string): readonly string[] => { if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) throw new Error(`${field} must be a string array`); return Object.freeze([...new Set(value as string[])].map((item) => item.trim()).sort()); };
+const boundedProbability = (value: unknown, field: string): number => { if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${field} must be finite and within [0,1]`); return value; };
 const observations = (value: unknown): readonly EvidenceObservation[] => {
   if (!Array.isArray(value)) throw new Error("observations must be an array");
   return Object.freeze(value.map((item) => {
@@ -73,7 +74,7 @@ const observations = (value: unknown): readonly EvidenceObservation[] => {
 };
 const allowedPayloadKeys: Readonly<Record<AiAgentRole, readonly string[]>> = Object.freeze({
   EVIDENCE_PRODUCER: ["observations", "missingEvidence", "evidenceBundleHash"],
-  STRATEGY_PROPOSER: ["strategyVersionId", "decision", "rationaleClaims", "assumptions", "uncertainty", "expectedEffect", "costSensitivity", "capacitySensitivity"],
+  STRATEGY_PROPOSER: ["strategyVersionId", "decision", "rationaleClaims", "assumptions", "uncertainty", "rawProbability", "expectedEffect", "costSensitivity", "capacitySensitivity"],
   ADVERSARIAL_CRITIC: ["reviewedProposalHash", "counterClaims", "failedAssumptions", "missingTests", "alternativeExplanations", "severity"],
   RISK_VERIFIER: ["result", "hardDenies", "warnings", "missingRequirements", "requiredEscalations", "policyReferences"]
 });
@@ -93,7 +94,7 @@ const payloadOf = (value: unknown, role: AiAgentRole): { evidenceReferences: rea
 const validateRoleOutput = (role: AiAgentRole, value: unknown): StructuredAgentOutput => {
   const { evidenceReferences, payload } = payloadOf(value, role);
   if (role === "EVIDENCE_PRODUCER") { if (typeof payload.evidenceBundleHash !== "string" || !/^[a-f0-9]{64}$/i.test(payload.evidenceBundleHash)) throw new Error("evidenceBundleHash must be sha256"); strings(payload.missingEvidence ?? [], "missingEvidence"); observations(payload.observations); }
-  if (role === "STRATEGY_PROPOSER") { if (!["candidate", "no_action", "insufficient_evidence"].includes(String(payload.decision))) throw new Error("strategy decision is invalid"); text(payload.uncertainty, "uncertainty"); strings(payload.rationaleClaims, "rationaleClaims"); strings(payload.assumptions ?? [], "assumptions"); }
+  if (role === "STRATEGY_PROPOSER") { if (!["candidate", "no_action", "insufficient_evidence"].includes(String(payload.decision))) throw new Error("strategy decision is invalid"); text(payload.uncertainty, "uncertainty"); strings(payload.rationaleClaims, "rationaleClaims"); strings(payload.assumptions ?? [], "assumptions"); boundedProbability(payload.rawProbability, "rawProbability"); }
   if (role === "ADVERSARIAL_CRITIC") { if (!["none", "low", "medium", "high", "critical"].includes(String(payload.severity))) throw new Error("critic severity is invalid"); strings(payload.counterClaims ?? [], "counterClaims"); strings(payload.failedAssumptions ?? [], "failedAssumptions"); strings(payload.missingTests ?? [], "missingTests"); strings(payload.alternativeExplanations ?? [], "alternativeExplanations"); text(payload.reviewedProposalHash, "reviewedProposalHash"); }
   if (role === "RISK_VERIFIER") { if (!["verified", "denied", "incomplete"].includes(String(payload.result))) throw new Error("risk result is invalid"); strings(payload.hardDenies ?? [], "hardDenies"); strings(payload.warnings ?? [], "warnings"); strings(payload.missingRequirements ?? [], "missingRequirements"); strings(payload.requiredEscalations ?? [], "requiredEscalations"); strings(payload.policyReferences, "policyReferences"); }
   return Object.freeze({ schemaVersion: 1, role, evidenceReferences, payload: Object.freeze({ ...payload }) });

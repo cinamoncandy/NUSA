@@ -8,7 +8,7 @@ const { buildCloudRuntimeAiEvidence } = require("../dist/apps/cloud/src/ai/cloud
 const { MultiAgentOrchestrator } = require("../dist/apps/cloud/src/ai/multiAgentOrchestrator.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
-const proposalSeed = { strategyVersionId: "cloud-paper-preview", decision: "candidate", rationaleClaims: ["grounded public market evidence"], assumptions: ["PAPER only"], uncertainty: "uncalibrated" };
+const proposalSeed = { strategyVersionId: "cloud-paper-preview", decision: "candidate", rationaleClaims: ["grounded public market evidence"], assumptions: ["PAPER only"], uncertainty: "uncalibrated", rawProbability: 0.6 };
 
 function grounded(at = 1_000) {
   return buildCloudRuntimeAiEvidence({ code: "KRW-BTC", trade_price: 100, trade_timestamp: at, signed_change_rate: 0.01, acc_trade_volume: 5 }, { mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY", p0State: "CLOSED", observedAt: at });
