@@ -70,7 +70,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-005 planning PR #345 merged at fb3097e0ed3201c2bf5c9b7f486dab154a9fe4c2; canonical implementation PR #354 merged at b4303b928e8d64417f3c07334ed3900ea3075046 after exact-head b03dd50c01dd789a3023217c018c53fc53a42ea8 CI 31306050500 PASS, Full isolated/Coverage PASS, and all four Restricted LIVE/read-only workflows PASS."
-  current_commit: "e94d21a0d6052beb37228703bdbb3e97bc53a6f9 is the exact PR #371 head before the Android runtime fix commit; physical-device evidence is still pending."
+  current_commit: "eb743f60d79939cf5bf716c48e32330ab11efd0c is the verified local Android runtime-fix commit; physical-device evidence is still pending."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
