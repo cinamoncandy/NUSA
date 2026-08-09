@@ -7,7 +7,7 @@ objective: "Preserve verified WO-AI-004 outcome calibration while keeping WO-005
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: e76a3a8a2d169f677c91cc7502a04d456018146b
+base_commit: f70ff773b1a444e8a832c593139ea87fb3d8f169
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -65,7 +65,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-004 implementation PR #256 merged at 799a1c0ea8c5aeecc236b5a84b2096a7251e1351 after exact-head f58feac8a2a4200acd734cad97db43d0abe9ef98 CI 31295456484 PASS, Mobile Native 31295456482 PASS, and four read-only/Restricted LIVE workflows PASS; final stale-outcome ledger-boundary hardening PR #268 merged at e76a3a8a2d169f677c91cc7502a04d456018146b after latest-main exact-head 1f10ea6e3d0b8e816b728cd88fc70894489d99cb CI 31296277719 PASS and four safety workflows PASS; post-merge main CI 31296534244 and Mobile Native 31296534245 PASS."
-  current_commit: "e76a3a8a2d169f677c91cc7502a04d456018146b; WO-AI-004 implementation and final hardening merged with post-merge CI and Mobile Native verification PASS"
+  current_commit: "f70ff773b1a444e8a832c593139ea87fb3d8f169; WO-AI-004 final AI hardening remains verified at e76a3a8a2d169f677c91cc7502a04d456018146b, with later recovery/architecture hardening integrated and zero AI/LIVE authority change"
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
