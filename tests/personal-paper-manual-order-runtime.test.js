@@ -40,10 +40,15 @@ test("manual PAPER order persists to the canonical SQLite account and survives l
     assert.equal(first.orders.length, 1);
     assert.equal(first.state.orders.length, 1);
     assert.equal(first.state.positions[0].market, "KRW-BTC");
+    assert.match(first.orders[0].requestFingerprint, /^[a-f0-9]{64}$/);
     const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, repository, readP0State: () => ({ openP0: false }) });
     assert.equal(restored.snapshot().orders.length, 1);
     assert.equal(restored.snapshot().orders[0].id, first.orders[0].id);
     assert.equal(restored.snapshot().processedIdempotencyKeys.includes(command().idempotencyKey), true);
+    const replay = restored.submitManualOrder(command(), context({ now: context().now + 1, observedAt: context().observedAt + 1 }));
+    assert.equal(replay.status, "DUPLICATE");
+    assert.equal(restored.snapshot().orders.length, 1);
+    assert.equal(restored.snapshot().fills.length, 1);
   } finally { db.close(); }
 });
 
@@ -57,6 +62,26 @@ test("manual PAPER exact duplicate cannot create a second fill", () => {
     assert.equal(loop.snapshot().orders.length, 1);
     assert.equal(loop.snapshot().fills.length, 1);
     assert.equal(duplicate.orders[0].id, first.orders[0].id);
+  } finally { db.close(); }
+});
+
+test("same idempotency key with a different PAPER command fails closed without mutation", () => {
+  const { db, loop } = harness();
+  try {
+    const first = loop.submitManualOrder(command(), context());
+    assert.equal(first.status, "FILLED");
+    const before = JSON.stringify(loop.snapshot());
+    for (const conflicting of [
+      command({ quantity: 0.002 }),
+      command({ side: "SELL" }),
+      command({ market: "KRW-ETH" }),
+      command({ orderType: "LIMIT", limitPrice: 51_000_000 })
+    ]) {
+      const result = loop.submitManualOrder(conflicting, context({ now: context().now + 2, observedAt: context().observedAt + 2 }));
+      assert.equal(result.status, "REJECTED");
+      assert.equal(result.reason, "PAPER_IDEMPOTENCY_CONFLICT");
+      assert.equal(JSON.stringify(loop.snapshot()), before);
+    }
   } finally { db.close(); }
 });
 
