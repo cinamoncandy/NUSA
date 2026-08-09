@@ -30,7 +30,7 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
   if (error) return <ErrorState message={error} onRetry={onRefresh} />;
   if (snapshot === null) return <View style={styles.state} testID="trading-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>PAPER 상태를 불러오는 중</Text></View>;
-  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>관찰 가능한 시장이 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>검증된 PAPER 시장 정보가 준비되면 여기에 표시됩니다.</Text></NusaCard></View>;
+  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>관찰 가능한 시장이 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>검증된 PAPER 시장 정보가 준비되면 여기에 표시됩니다.</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
 
   const model = buildTradingViewModel({
     market: { market: snapshot.account.position.market, connectionState: marketConnectionState, stale, price: snapshot.account.markPrice },
