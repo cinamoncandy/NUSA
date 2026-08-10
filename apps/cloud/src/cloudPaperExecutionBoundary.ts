@@ -65,7 +65,7 @@ export class CloudPaperExecutionBoundary {
       observedAt: context.observedAt,
       maximumMarketAgeMs: this.maximumMarketAgeMs,
       killSwitchActive: context.killSwitchActive,
-      openP0: false,
+      openP0,
       overallHealth: normalizedHealth(context.overallHealth),
       state,
       approvedBy
@@ -103,7 +103,7 @@ export class CloudPaperExecutionBoundary {
         observedAt: tick.observedAt,
         maximumMarketAgeMs: this.maximumMarketAgeMs,
         killSwitchActive: tick.killSwitchActive,
-        openP0: false,
+        openP0,
         overallHealth: normalizedHealth(tick.overallHealth),
         state
       });
