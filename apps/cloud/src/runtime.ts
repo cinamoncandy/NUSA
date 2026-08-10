@@ -5,6 +5,8 @@ import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
@@ -168,6 +170,10 @@ export function startCloudRuntime(
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteP0AlertRepository(durableRepository.database())
     : undefined;
+  const readPaperP0State = (): Readonly<{ openP0: boolean }> => {
+    if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
+    return effectiveP0Repository.readState();
+  };
   const readAiP0State = (): CloudRuntimeAiP0State => {
     if (effectiveP0Repository == null) return "UNAVAILABLE";
     try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; }
@@ -176,16 +182,26 @@ export function startCloudRuntime(
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteCloudPaperAccountRepository(durableRepository.database())
     : undefined);
+  const runtimeOwnsPaperComposition = paperExecutionLoop == null && paperAccountRepository == null;
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
     ? undefined
     : new PaperTradingExecutionLoop({
       initialCapital: config.paperInitialCapitalKrw,
       repository: effectivePaperRepository,
-      readP0State: () => {
-        if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
-        return effectiveP0Repository.readState();
-      }
+      readP0State: readPaperP0State
     }));
+  const productionPaperRiskGate = runtimeOwnsPaperComposition
+    && config.paperInitialCapitalKrw !== undefined
+    && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new CloudPaperCanonicalRiskGateway({
+      database: durableRepository.database(),
+      initialCapital: config.paperInitialCapitalKrw,
+      sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build"
+    })
+    : undefined;
+  const productionPaperBoundary = runtimeOwnsPaperComposition && effectivePaperLoop != null && productionPaperRiskGate != null
+    ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
+    : undefined;
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try {
     researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
@@ -254,7 +270,7 @@ export function startCloudRuntime(
             // AI analysis is isolated and advisory. Evidence/provider faults must never alter PAPER execution state.
           }
           if (effectivePaperLoop != null) {
-            const result = effectivePaperLoop.processTick({
+            const tick = {
               now,
               market: ticker.code,
               price: ticker.trade_price,
@@ -264,8 +280,13 @@ export function startCloudRuntime(
               tradingAllowed: dashboard.tradingAllowed,
               overallHealth: state.overallHealth,
               decisions: state.decisions
-            });
-            if (result.status === "FAILED") clearPaperProjection();
+            };
+            // Production-owned PAPER composition must never fall back around the risk boundary.
+            // Injected loops/repositories are test/custom compositions and retain their explicit caller-owned behavior.
+            const result = runtimeOwnsPaperComposition
+              ? productionPaperBoundary?.processTick(tick)
+              : effectivePaperLoop.processTick(tick);
+            if (result == null || result.status === "FAILED") clearPaperProjection();
             else projectPaperAccount();
           }
         } else if (effectivePaperLoop != null) {
