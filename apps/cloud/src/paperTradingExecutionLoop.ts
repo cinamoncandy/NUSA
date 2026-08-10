@@ -11,6 +11,48 @@ const finiteNonNegative = (value: number, name: string): void => {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 };
 
+/**
+ * Scaled-integer accounting core -- same pattern as apps/desktop/src/paperBroker.ts's (see
+ * its comment for the full rationale). `round8` alone does not fix accumulation drift: it
+ * rounds the *result* of a `number` computation to 8 decimals, but the computation itself
+ * (the multiplications and divisions inside executeOrder/markToMarket below) still runs in
+ * plain IEEE-754 doubles, so precision is already lost before round8 ever sees the value.
+ * `Number(x.toFixed(8))` and `Math.round(x * 1e8) / 1e8` round to the same value -- neither
+ * touches the arithmetic that produced x. Routing that arithmetic itself through BigInt at a
+ * fixed 1e-8 scale is what actually removes the drift; round8 stays only as the boundary
+ * conversion back to the `number` fields PaperAccountState persists.
+ */
+const QTY_SCALE = 100_000_000n; // 1e8 -- matches BTC's 8 decimal places
+const MONEY_SCALE = 100_000_000n; // 1e8 -- sub-unit precision for KRW cash/price/fee math
+const RATE_SCALE = 100_000_000n; // 1e8 -- precision for the fee-rate ratio itself
+
+function toScaledQty(value: number): bigint {
+  return BigInt(Math.round(value * Number(QTY_SCALE)));
+}
+
+function fromScaledQty(scaled: bigint): number {
+  return Number(scaled) / Number(QTY_SCALE);
+}
+
+function toScaledMoney(value: number): bigint {
+  return BigInt(Math.round(value * Number(MONEY_SCALE)));
+}
+
+function fromScaledMoney(scaled: bigint): number {
+  return Number(scaled) / Number(MONEY_SCALE);
+}
+
+/** Round-half-up scaled-integer division, exact for both signs and never subject to
+ * binary floating-point representation error. */
+function divRound(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const negative = (numerator < 0n) !== (denominator < 0n);
+  const absNumerator = numerator < 0n ? -numerator : numerator;
+  const absDenominator = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNumerator * 2n + absDenominator) / (absDenominator * 2n);
+  return negative ? -rounded : rounded;
+}
+
 export interface PaperAccountPosition {
   readonly market: string;
   readonly quantity: number;
@@ -246,24 +288,51 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index];
-  const notional = round8(quantity * price);
-  const fee = round8(notional * feeRate);
-  let cash = state.cash;
+
+  const quantityScaled = toScaledQty(quantity);
+  const priceScaled = toScaledMoney(price);
+  const feeRateScaled = BigInt(Math.round(feeRate * Number(RATE_SCALE)));
+  // Exact, unrounded quantity*price at 1e16 scale -- used for the average-price accumulator
+  // below so that step doesn't compound the separate rounding already applied to `notional`
+  // (a `number` field this function also reports) into another rounding of its own.
+  const exactNotionalScaled = quantityScaled * priceScaled;
+  const notionalScaled = divRound(exactNotionalScaled, QTY_SCALE);
+  const feeScaled = divRound(notionalScaled * feeRateScaled, RATE_SCALE);
+  const notional = fromScaledMoney(notionalScaled);
+  const fee = fromScaledMoney(feeScaled);
+
+  let cashScaled = toScaledMoney(state.cash);
   let position: PaperAccountPosition;
-  let realizedPnL = state.realizedPnL;
+  let realizedPnLScaled = toScaledMoney(state.realizedPnL);
+  const previousQuantityScaled = toScaledQty(previous.quantity);
+  const previousAveragePriceScaled = toScaledMoney(previous.averageEntryPrice);
+
   if (side === "BUY") {
-    if (notional + fee > cash) throw new Error("insufficient paper cash");
-    const nextQuantity = round8(previous.quantity + quantity);
-    position = { ...previous, quantity: nextQuantity, averageEntryPrice: round8((previous.averageEntryPrice * previous.quantity + notional + fee) / nextQuantity), markPrice: price };
-    cash = round8(cash - notional - fee);
+    if (notional + fee > state.cash) throw new Error("insufficient paper cash");
+    const nextQuantityScaled = previousQuantityScaled + quantityScaled;
+    const averageEntryPriceScaled = nextQuantityScaled === 0n
+      ? 0n
+      : divRound(previousAveragePriceScaled * previousQuantityScaled + exactNotionalScaled + feeScaled * QTY_SCALE, nextQuantityScaled);
+    cashScaled -= notionalScaled + feeScaled;
+    position = { ...previous, quantity: fromScaledQty(nextQuantityScaled), averageEntryPrice: fromScaledMoney(averageEntryPriceScaled), markPrice: price };
   } else {
     if (quantity > previous.quantity + Number.EPSILON) throw new Error("insufficient paper position");
-    const realized = round8((price - previous.averageEntryPrice) * quantity - fee);
-    const nextQuantity = round8(previous.quantity - quantity);
-    position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: price };
-    realizedPnL = round8(realizedPnL + realized);
-    cash = round8(cash + notional - fee);
+    const realizedScaled = divRound((priceScaled - previousAveragePriceScaled) * quantityScaled, QTY_SCALE) - feeScaled;
+    const nextQuantityScaled = previousQuantityScaled - quantityScaled;
+    const nextPositionRealizedScaled = toScaledMoney(previous.realizedPnL) + realizedScaled;
+    realizedPnLScaled += realizedScaled;
+    cashScaled += notionalScaled - feeScaled;
+    position = {
+      ...previous,
+      quantity: fromScaledQty(nextQuantityScaled),
+      averageEntryPrice: nextQuantityScaled === 0n ? 0 : previous.averageEntryPrice,
+      realizedPnL: fromScaledMoney(nextPositionRealizedScaled),
+      markPrice: price
+    };
   }
+  const cash = fromScaledMoney(cashScaled);
+  const realizedPnL = fromScaledMoney(realizedPnLScaled);
+
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now });
@@ -272,8 +341,16 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
 }
 
 function markToMarket(state: PaperAccountState, market: string, price: number, now: number): PaperAccountState {
-  const positions = state.positions.map((position) => position.market === market ? { ...position, markPrice: price, unrealizedPnL: round8(position.quantity * (price - position.averageEntryPrice)) } : position);
-  const unrealizedPnL = round8(positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
-  const equity = round8(state.cash + positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
-  return Object.freeze({ ...state, positions: Object.freeze(positions), equity, unrealizedPnL, updatedAt: now });
+  const priceScaled = toScaledMoney(price);
+  const positions = state.positions.map((position) => {
+    if (position.market !== market) return position;
+    const quantityScaled = toScaledQty(position.quantity);
+    const averageEntryPriceScaled = toScaledMoney(position.averageEntryPrice);
+    const unrealizedPnLScaled = divRound(quantityScaled * (priceScaled - averageEntryPriceScaled), QTY_SCALE);
+    return { ...position, markPrice: price, unrealizedPnL: fromScaledMoney(unrealizedPnLScaled) };
+  });
+  const unrealizedPnLScaled = positions.reduce((sum, position) => sum + toScaledMoney(position.unrealizedPnL), 0n);
+  const marketValueScaled = positions.reduce((sum, position) => sum + divRound(toScaledQty(position.quantity) * toScaledMoney(position.markPrice), QTY_SCALE), 0n);
+  const equityScaled = toScaledMoney(state.cash) + marketValueScaled;
+  return Object.freeze({ ...state, positions: Object.freeze(positions), equity: fromScaledMoney(equityScaled), unrealizedPnL: fromScaledMoney(unrealizedPnLScaled), updatedAt: now });
 }
