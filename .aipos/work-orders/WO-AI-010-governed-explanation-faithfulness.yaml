@@ -1,0 +1,116 @@
+id: WO-AI-010
+title: Governed Explanation Faithfulness and Claim-Evidence Verification
+status: PLANNED
+priority: P1
+branch: agent/ai-010-explanation-faithfulness-plan
+base_branch: main
+planning_branch: agent/ai-010-explanation-faithfulness-plan
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds a zero-authority explanation-verification boundary that proves human-facing claims remain faithful to governed evidence, uncertainty, disagreement, scenario and attribution state without adding execution or mutation authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - docs/NUSA_AI_EVOLUTION_PRINCIPLE.md
+    - docs/NUSA_AI_CAPABILITY_AUDIT_2026-08-11.md
+    - .aipos/architecture.md
+    - .aipos/decisions/ADR-0013-governed-explanation-faithfulness.md
+scope: PAPER_RESEARCH_ONLY
+objective: >-
+  Add deterministic, replayable claim-evidence verification so every human-facing AI explanation preserves the exact
+  governed evidence, uncertainty, calibration, provider disagreement, scenario provenance and attribution strength of
+  the underlying decision while suppressing unsupported, contradicted or materially misleading explanations and
+  granting no execution, strategy, risk, credential, mutation or LIVE authority.
+selection_rationale:
+  - Fresh post-WO-AI-009 audit scores explanation quality/faithfulness at 2/4, the lowest remaining AI dimension.
+  - WO-AI-009 raises learning/attribution beyond calibration and adds deterministic resource-aware net-benefit evaluation.
+  - Existing grounding validates evidence identity/integrity but does not prove that explanation claims are entailed by cited evidence or complete with respect to material counterevidence.
+  - Existing calibration, disagreement, scenario and attribution states provide the prerequisites for deterministic explanation-consistency checks.
+  - A governed verifier is safer than trusting model self-ratings, narrative fluency, provider majority or hidden reasoning.
+constraints:
+  - Every explanation binds to the exact governed decision and its evidence/prompt/provider/model/calibration/disagreement/scenario/attribution lineage.
+  - Claim support is explicit as SUPPORTED PARTIALLY_SUPPORTED UNSUPPORTED CONTRADICTED or UNVERIFIED.
+  - Material counterevidence omission must be detectable under policy-defined materiality rules.
+  - Observed and hypothetical evidence provenance cannot be conflated.
+  - Probability/confidence/uncertainty language cannot exceed canonical governed confidence or abstention state.
+  - Provider consensus cannot create support and provider disagreement/incomplete state cannot be hidden.
+  - UNRESOLVED or PARTIALLY_IDENTIFIED attribution cannot be narrated as proved causality.
+  - Model self-rating chain-of-thought narrative fluency or provider majority cannot establish faithfulness.
+  - Material unsupported/contradicted claims fail closed to read-only explanation suppression or abstention.
+  - Explanation verification can never increase trusted confidence or grant execution/mutation authority.
+  - Any provider-backed verification consumes an externally owned WO-AI-006 bounded resource controller.
+  - No credentials authorization headers raw secrets broker handles hidden chain-of-thought or production mutation capability may enter explanation records.
+  - No automatic model/provider weighting prompt mutation strategy mutation/promotion risk increase execution order cancel transfer withdrawal credential use production mutation or LIVE authority.
+  - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
+implementation:
+  - define immutable AiExplanationPolicy identity/version including claim classes materiality rules provenance rules consistency rules and verifier resource limits
+  - define canonical AiExplanationEnvelope and normalized AiExplanationClaim bound to exact governed lineage
+  - build deterministic claim-to-evidence reference validation and support-state evaluation
+  - add material counterevidence omission detection against the governed context
+  - enforce observed versus hypothetical provenance at claim level
+  - enforce probability confidence uncertainty and abstention consistency against canonical calibration/runtime state
+  - enforce provider disagreement/incomplete-state disclosure and prevent consensus-based support inflation
+  - enforce attribution-strength consistency so unresolved/partial attribution is not narrated as causal fact
+  - add independent deterministic verifier path where feasible and provider-backed verifier only behind WO-AI-006 shared resource governance
+  - expose secret-minimized read-only explanation-verification projection with explicit support/abstention reason codes
+  - add deterministic replay/idempotency and changed-policy/input conflict fail-closed behavior
+  - add adversarial before/after evaluation for unsupported/wrong-citation/contradiction/omission/provenance/calibration/disagreement/attribution/replay/resource/secret failures
+acceptance_criteria:
+  - explanation verification cannot run without exact decision-to-evidence and governance lineage
+  - wrong/missing/tampered evidence or lineage fails closed before explanation trust
+  - claims with no valid supporting evidence are UNSUPPORTED or UNVERIFIED rather than accepted by fluency
+  - claims contradicted by governed evidence are CONTRADICTED
+  - material counterevidence omission triggers a deterministic non-pass state
+  - hypothetical/scenario evidence cannot be described as observed/realized fact
+  - explanation confidence language cannot exceed canonical calibrated/effective confidence and must preserve abstention
+  - material provider disagreement/incomplete state cannot be hidden by a consensus narrative
+  - UNRESOLVED/PARTIALLY_IDENTIFIED attribution cannot be upgraded to causal certainty in explanation text/structure
+  - model self-rating/provider majority alone cannot establish claim support
+  - material unsupported or contradicted claims suppress the trusted human-facing explanation or force read-only abstention
+  - explanation verification never increases trusted confidence and never changes provider/model weights prompts strategies risk limits promotion execution or authority
+  - exact duplicate replay is idempotent while changed policy/input/lineage identity fails closed
+  - provider-backed verifier exhaustion/unverified resource accounting blocks later side effects and fails closed
+  - records/projections remain secret-free and contain no hidden chain-of-thought
+  - before/after reporting includes support precision unsupported-claim detection contradiction detection omission detection abstention token latency resource and failure-rate deltas
+  - synthetic fixtures are not claimed as predictive-alpha profitability or real-market causal evidence
+  - liveAuthority=NONE productionMutationAllowed=false realOrderAuthority=false realTransferAuthority=false remain proven
+  - deterministic Risk Governor P0 HALT kill switch and WO-0051 HUMAN_ENVIRONMENT_ONLY remain unchanged
+  - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
+  - implementation must not start until this planning PR exact head passes required checks and is merged
+verification:
+  required_commands:
+    - pnpm run ai:architecture
+    - pnpm run typecheck
+    - pnpm run lint
+    - pnpm run build
+    - pnpm test
+    - pnpm run coverage
+    - pnpm run architecture:check
+    - pnpm run aipos:drift
+    - pnpm run aipos:conformance
+    - pnpm run security:gate
+    - git diff --check
+  result: PENDING
+  evaluation_requirements:
+    - deterministic independent verifier where feasible
+    - claim-evidence support and contradiction evaluation
+    - material counterevidence omission detection
+    - observed versus hypothetical provenance enforcement
+    - calibration disagreement scenario and attribution consistency checks
+    - token latency resource and failure-rate before/after accounting
+  prohibited_evidence:
+    - model self-rating presented as faithfulness proof
+    - provider majority presented as claim support proof
+    - hidden chain-of-thought
+    - hypothetical scenario presented as observed or realized market evidence
+    - synthetic fixture presented as predictive-alpha profitability or real-market causal proof
+    - provider or broker credential material
+    - autonomous model/provider weighting prompt mutation strategy promotion risk increase or execution
+planning_gate:
+  status: OPEN_PENDING_EXACT_HEAD_VALIDATION
+  base_commit: 86a7aed480211d8c35b38db4bff9529be0cd0d7c
+implementation_gate:
+  status: BLOCKED_UNTIL_PLANNING_MERGED
+next: >-
+  Freeze the planning branch after PR creation, require exact-head CI/AIPOS/architecture/security and all Restricted LIVE/read-only
+  workflows to pass, merge only with unchanged latest-main ancestry and expected-head protection, then re-read protected main before any implementation.
