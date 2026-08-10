@@ -350,10 +350,45 @@ export function startCloudRuntime(
   };
 }
 
+const CRASH_CLEANUP_TIMEOUT_MS = 5_000;
+
+/**
+ * Best-effort cleanup for an uncaught exception / unhandled rejection. Deliberately does NOT
+ * call `controller.trigger()`: that path is ShutdownController's graceful-shutdown machinery,
+ * and it exits 0 when `stop()` resolves -- correct for an intentional SIGTERM/SIGINT, wrong
+ * here. server.ts's "EADDRINUSE ... must terminate the runtime" comment depends on an
+ * unhandled bind-failure surfacing as an uncaughtException with a non-zero exit, so a second
+ * runtime racing for an occupied port fails closed instead of exiting 0 and reading as a
+ * clean, healthy shutdown to anything watching the process. This path always exits 1; the
+ * only thing it changes versus letting Node's own default handler kill the process is giving
+ * `handle.stop()` a bounded chance to flush/close before that exit.
+ */
+export function crashCleanupAndExit(handle: CloudDashboardServerHandle, controller: ShutdownController, exit: (code: number) => void): void {
+  if (controller.isShuttingDown()) return; // a graceful shutdown is already in flight; let it finish and own the exit code
+  let settled = false;
+  const finish = (): void => {
+    if (settled) return;
+    settled = true;
+    exit(1);
+  };
+  const timer = setTimeout(finish, CRASH_CLEANUP_TIMEOUT_MS);
+  timer.unref?.();
+  handle.stop().then(finish, finish);
+}
+
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM"));
   process.on("SIGINT", () => controller.trigger("SIGINT"));
+  process.on("uncaughtException", (error: Error) => {
+    process.stderr.write(`[cloud-runtime] uncaught exception: ${error.message}\n`);
+    crashCleanupAndExit(handle, controller, exit);
+  });
+  process.on("unhandledRejection", (reason: unknown) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    process.stderr.write(`[cloud-runtime] unhandled rejection: ${message}\n`);
+    crashCleanupAndExit(handle, controller, exit);
+  });
   return controller;
 }
 
