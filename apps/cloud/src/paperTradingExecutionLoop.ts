@@ -6,7 +6,16 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
-const round8 = (value: number): number => Number(value.toFixed(8));
+/**
+ * Normalized rounding to 8 decimal places. Uses the same scaled-integer pattern as
+ * FixedPrecision (1e8 scale) to minimize floating-point accumulation error over
+ * repeated operations.
+ */
+const round8 = (value: number): number => {
+  if (!Number.isFinite(value)) return value;
+  const scale = 100_000_000; // 1e8
+  return Math.round(value * scale) / scale;
+};
 const finiteNonNegative = (value: number, name: string): void => {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 };
