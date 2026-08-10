@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "id": "evidence-wo-ai-009-completion",
+  "subject": {
+    "type": "work_order",
+    "id": "WO-AI-009",
+    "path": ".aipos/work-orders/WO-AI-009-governed-outcome-attribution-learning.yaml",
+    "hash": {"algorithm": "git-blob-sha1", "value": "267c0854a920024a9362b69b89523f9d60aaf258"}
+  },
+  "producer": {
+    "kind": "github-actions",
+    "id": "CI",
+    "code_revision": "b131f9bed88cd69b7c168ddf706f714f3e8899b2"
+  },
+  "configuration": {
+    "snapshot": {
+      "scope": "PAPER_RESEARCH_ONLY",
+      "planning_pr_merged": true,
+      "core_implementation_pr_merged": true,
+      "hardening_pr_merged": true,
+      "outcome_attribution_runtime": true,
+      "immutable_learning_memory": true,
+      "ambiguity_abstention": true,
+      "holdout_leakage_guard": true,
+      "shared_resource_replay": true,
+      "net_benefit_gate": true,
+      "synthetic_realized_learning_credit": false,
+      "productionMutationAllowed": false,
+      "realOrderAuthority": false,
+      "realTransferAuthority": false,
+      "liveAuthority": "NONE",
+      "core_exact_head": "40935021b08cbae43f4eb9947817e5dc20c5f481",
+      "core_ci_run": 31338389151,
+      "hardening_exact_head": "1686a9d6d35ad745170080233f12771f0d6b39fe",
+      "hardening_ci_run": 31339050722,
+      "safety_workflows_passed_each": 4,
+      "final_merge_sha": "b131f9bed88cd69b7c168ddf706f714f3e8899b2"
+    },
+    "hash": {"algorithm": "sha256", "value": "b079ecefb8940e9e464fefbd9a40dbaa9bd7d31619a347946632543a01f1565c"}
+  },
+  "observed_at": "2026-08-09T22:24:30Z",
+  "provenance": [
+    "github:pull/382",
+    "github:actions/run/31333678605",
+    "git:merge/429fc611e3324ad4ce37457eaed4dcf0ca3b50e1",
+    "github:pull/387",
+    "github:actions/run/31338389151",
+    "github:actions/run/31338389132",
+    "github:actions/run/31338389157",
+    "github:actions/run/31338389163",
+    "github:actions/run/31338389145",
+    "git:merge/ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3",
+    "github:pull/388",
+    "github:actions/run/31339050722",
+    "github:actions/run/31339050724",
+    "github:actions/run/31339050719",
+    "github:actions/run/31339050716",
+    "github:actions/run/31339050721",
+    "git:merge/b131f9bed88cd69b7c168ddf706f714f3e8899b2"
+  ],
+  "result": "PASS",
+  "assertions": [
+    {"name": "planning_pr_merged", "status": "PASS"},
+    {"name": "core_implementation_exact_head_full_ci_coverage", "status": "PASS"},
+    {"name": "hardening_exact_head_full_ci_coverage", "status": "PASS"},
+    {"name": "restricted_live_readonly_workflows_core_and_hardening", "status": "PASS"},
+    {"name": "prediction_outcome_evidence_prompt_provider_model_calibration_lineage", "status": "PASS"},
+    {"name": "ambiguity_prefers_unresolved", "status": "PASS"},
+    {"name": "provider_majority_and_model_self_rating_not_causal_proof", "status": "PASS"},
+    {"name": "holdout_leakage_rejected", "status": "PASS"},
+    {"name": "immutable_learning_memory_replay_supersession_expiry", "status": "PASS"},
+    {"name": "shared_wo_ai_006_resource_replay", "status": "PASS"},
+    {"name": "resource_exhaustion_blocks_later_side_effects", "status": "PASS"},
+    {"name": "net_benefit_gate_rejects_quality_gain_with_resource_or_safety_regression", "status": "PASS"},
+    {"name": "unavailable_token_accounting_fails_closed", "status": "PASS"},
+    {"name": "synthetic_hypothetical_replay_not_realized_learning_credit", "status": "PASS"},
+    {"name": "production_mutation_prohibited", "status": "PASS"},
+    {"name": "real_order_authority_false", "status": "PASS"},
+    {"name": "real_transfer_authority_false", "status": "PASS"},
+    {"name": "live_authority_none", "status": "PASS"},
+    {"name": "wo_0051_human_environment_gate_unchanged", "status": "PASS"}
+  ]
+}
