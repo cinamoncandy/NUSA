@@ -4,7 +4,8 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository, type PaperExecutionRiskGate } from "./paperTradingExecutionLoop";
+import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
@@ -144,6 +145,58 @@ function buildCloudRuntimeReadiness(
   }
 }
 
+/**
+ * Wires PaperTradingExecutionLoop's automated STRATEGY decisions to
+ * independentRiskGateway.ts's evaluatePreTradeRisk() (WO-0032's exposure/rate/burst/
+ * drawdown/consecutive-loss/price-deviation circuit breakers). Limits scale off the
+ * account's own initial capital rather than a hardcoded absolute won figure, since cloud's
+ * paper capital is operator-configured (NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW) and a fixed
+ * number would either be meaningless for a small account or toothless for a large one.
+ *
+ * Identity fingerprints and the seen-id dedup sets reset on every runtime start -- there is
+ * no persisted strategy/config/runtime build identity on the cloud path yet, unlike desktop's
+ * PAPER_SAFETY_FINGERPRINTS. That means STRATEGY_FINGERPRINT_MISMATCH and its siblings can
+ * never fire here; the circuit breakers that matter for an automated loop (exposure, rate,
+ * daily loss, consecutive loss, drawdown) still do.
+ */
+function buildCloudPaperRiskGate(initialCapital: number): PaperExecutionRiskGate {
+  const fingerprints = Object.freeze({
+    strategy: "cloud-paper-strategy-v1",
+    config: "cloud-paper-config-v1",
+    runtime: "cloud-paper-runtime-v1",
+    riskPolicy: "cloud-paper-risk-policy-v1"
+  });
+  const identity: RiskIdentityState = {
+    strategyFingerprint: fingerprints.strategy,
+    configFingerprint: fingerprints.config,
+    runtimeFingerprint: fingerprints.runtime,
+    riskPolicyFingerprint: fingerprints.riskPolicy,
+    seenSignalIds: new Set(),
+    seenCommandIds: new Set(),
+    seenClientOrderIds: new Set()
+  };
+  const limits: IndependentRiskLimits = {
+    maxOrderNotional: initialCapital * 0.2,
+    maxPositionNotional: initialCapital * 0.8,
+    maxOpenOrders: 20,
+    maxOrdersPerSecond: 2,
+    maxOrdersPerMinute: 30,
+    maxSameSideStreak: 10,
+    maxSymbolExposureNotional: initialCapital * 0.8,
+    maxPortfolioExposureNotional: initialCapital * 0.8,
+    maxDailyBuyNotional: initialCapital * 0.5,
+    maxDailySellNotional: initialCapital * 0.5,
+    maxDailyLoss: initialCapital * 0.1,
+    maxConsecutiveLosses: 5,
+    maxSessionDrawdownRatio: 0.25,
+    maxPriceDeviationRatio: 0.05
+  };
+  return Object.freeze({
+    fingerprints,
+    evaluate: (request: Parameters<typeof evaluatePreTradeRisk>[0]) => evaluatePreTradeRisk(request, identity, limits)
+  });
+}
+
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
@@ -184,7 +237,8 @@ export function startCloudRuntime(
       readP0State: () => {
         if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
         return effectiveP0Repository.readState();
-      }
+      },
+      riskGate: buildCloudPaperRiskGate(config.paperInitialCapitalKrw)
     }));
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try {
