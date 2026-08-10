@@ -9,6 +9,7 @@ import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAud
 import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
 import { PaperBroker, type PaperOrder } from "./paperBroker";
 import { parsePaperOrderIpc } from "./paperIpcValidation";
+import { calculatePositionQuantity, type PositionSizingInput, type PositionSizingResult } from "./positionSizing";
 import { buildPaperDashboardSections } from "./paperDashboardProjection";
 import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
 import { buildPersistedCommitteeDashboardSection } from "./committeeDashboardProjection";
@@ -1132,6 +1133,21 @@ ipcMain.handle("control:auto", (_event, enabled: unknown) => {
 ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
   return runControlCommand(() => runtime.setOrderQuantity(quantity));
+});
+
+/**
+ * Calculate position size based on risk model and constraints.
+ * Returns recommended order quantity after applying risk limits.
+ */
+ipcMain.handle("trading:calculate-position-size", (_event, input: unknown): PositionSizingResult => {
+  if (!input || typeof input !== "object") throw new Error("invalid position sizing input");
+  const sizingInput = input as PositionSizingInput;
+  try {
+    const result = calculatePositionQuantity(sizingInput);
+    return Object.freeze(result);
+  } catch (error) {
+    throw new Error(`position sizing failed: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
 });
 
 /**
