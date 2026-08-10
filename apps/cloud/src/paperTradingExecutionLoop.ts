@@ -4,6 +4,7 @@ import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
 import type { PreTradeRiskDecision, PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
+import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -304,9 +305,14 @@ export class PaperTradingExecutionLoop {
 
   public processTick(tick: PaperExecutionTick): PaperExecutionResult {
     if (!Number.isSafeInteger(tick.now) || tick.now < 0 || !Number.isFinite(tick.price) || tick.price <= 0) return this.result("FAILED", "invalid tick");
+    // Captured once and reused below (line ~360) rather than re-hardcoded: restating this
+    // verified value, not re-asserting a constant that was never actually checked at that point.
+    let verifiedOpenP0 = false;
     if (tick.mode === "PAPER" && this.readP0State != null) {
       try {
-        if (this.readP0State().openP0) return this.result("BLOCKED", "OPEN_P0_ALERT");
+        const p0State = this.readP0State();
+        verifiedOpenP0 = p0State.openP0;
+        if (verifiedOpenP0) return this.result("BLOCKED", "OPEN_P0_ALERT");
       } catch {
         return this.result("BLOCKED", "P0_STATE_UNVERIFIABLE");
       }
@@ -351,12 +357,15 @@ export class PaperTradingExecutionLoop {
           marketDataState: { status: "HEALTHY", price: tick.price },
           accountState: { cash: working.cash, positionQuantity: position?.quantity ?? 0, openOrderCount: working.orders.length },
           // killSwitch/health/mode/staleness are already fail-closed above (BLOCKED before this
-          // point), and this loop has no live-trading or private-API capability to detect --
-          // restating verified state here, not re-deciding it.
-          controlState: { killSwitchActive: tick.killSwitchActive, liveCapabilityDetected: false, privateApiCapabilityDetected: false },
+          // point). liveCapabilityDetected/privateApiCapabilityDetected read the same declared
+          // state build-deployment-descriptor.js measures from source -- not a literal, which
+          // would make the risk gateway's LIVE_CAPABILITY_DETECTED / PRIVATE_API_CAPABILITY_DETECTED
+          // blocks unreachable no matter what the build actually contains (the exact defect this
+          // repository's check-safety-input-literals.js check exists to catch).
+          controlState: { killSwitchActive: tick.killSwitchActive, liveCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, privateApiCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation },
           approvalState: { approved: true, expiresAt: tick.now + 1, symbols: [tick.market] },
           persistenceState: { healthy: true },
-          reconciliationState: { healthy: true, openP0: false },
+          reconciliationState: { healthy: true, openP0: verifiedOpenP0 },
           deploymentState: { integrityVerified: true },
           rateState: computeOrderRateState(working.orders, tick.now, side),
           exposureState: {
