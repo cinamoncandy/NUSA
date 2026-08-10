@@ -254,6 +254,31 @@ export function startCloudRuntime(
             // AI analysis is isolated and advisory. Evidence/provider faults must never alter PAPER execution state.
           }
           if (effectivePaperLoop != null) {
+            // Apply pre-trade risk enforcement to filter decisions.
+            // This ensures position exposure and daily loss limits are enforced before execution.
+            const paperSnapshot = effectivePaperLoop.snapshot();
+            const maxPositionNotional = 2_000_000_000; // 2B KRW nominal position exposure
+            const maxDailyLoss = 1_000_000_000; // 1B KRW daily realized loss limit
+            const currentPosition = paperSnapshot.positions.find(p => p.market === ticker.code)?.quantity ?? 0;
+            const currentRealizedPnL = paperSnapshot.realizedPnL;
+
+            const riskGatedDecisions = state.decisions.filter((decision) => {
+              // Non-actionable decisions pass through
+              if (decision.symbol !== ticker.code || (decision.action !== "BUY" && decision.action !== "SELL")) return true;
+
+              // Exposure check: predicted position after this decision must stay within limit
+              const predictedQuantity = decision.action === "BUY"
+                ? currentPosition + decision.allocation
+                : Math.max(0, currentPosition - decision.allocation);
+              const exposureNotional = predictedQuantity * ticker.trade_price;
+              if (exposureNotional > maxPositionNotional) return false; // Block: exceeds position notional
+
+              // Daily loss check: realized loss must not exceed limit
+              if (currentRealizedPnL < -maxDailyLoss) return false; // Block: daily loss exceeded
+
+              return true; // Allow: passes all checks
+            });
+
             const result = effectivePaperLoop.processTick({
               now,
               market: ticker.code,
@@ -263,7 +288,7 @@ export function startCloudRuntime(
               killSwitchActive: state.killSwitchActive,
               tradingAllowed: dashboard.tradingAllowed,
               overallHealth: state.overallHealth,
-              decisions: state.decisions
+              decisions: riskGatedDecisions
             });
             if (result.status === "FAILED") clearPaperProjection();
             else projectPaperAccount();
@@ -350,10 +375,44 @@ export function startCloudRuntime(
   };
 }
 
+const CRASH_CLEANUP_TIMEOUT_MS = 5_000;
+
+/**
+ * Best-effort cleanup for an uncaught exception / unhandled rejection. Deliberately does NOT
+ * reuse ShutdownController.trigger(): that path exits 0 on a successful stop(), which is correct
+ * for an intentional SIGTERM/SIGINT shutdown but wrong here -- server.ts relies on an unhandled
+ * bind-failure ('error' with no listener) surfacing as an uncaughtException with a non-zero exit
+ * so a second runtime racing for an occupied port fails closed instead of appearing healthy (see
+ * the "must terminate the runtime" comment in server.ts). This path always exits non-zero; the
+ * only thing it changes versus letting Node's default handler kill the process is giving
+ * repository.close() / handle.stop() a bounded chance to flush before that exit.
+ */
+function crashCleanupAndExit(handle: CloudDashboardServerHandle, controller: ShutdownController, exit: (code: number) => void): void {
+  if (controller.isShuttingDown()) return; // a graceful shutdown is already in flight; let it finish
+  let settled = false;
+  const finish = (): void => {
+    if (settled) return;
+    settled = true;
+    exit(1);
+  };
+  const timer = setTimeout(finish, CRASH_CLEANUP_TIMEOUT_MS);
+  timer.unref?.();
+  handle.stop().then(finish, finish);
+}
+
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM"));
   process.on("SIGINT", () => controller.trigger("SIGINT"));
+  process.on("uncaughtException", (error: Error) => {
+    process.stderr.write(`[cloud-runtime] uncaught exception: ${error.message}\n`);
+    crashCleanupAndExit(handle, controller, exit);
+  });
+  process.on("unhandledRejection", (reason: unknown) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    process.stderr.write(`[cloud-runtime] unhandled rejection: ${message}\n`);
+    crashCleanupAndExit(handle, controller, exit);
+  });
   return controller;
 }
 
