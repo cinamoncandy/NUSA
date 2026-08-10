@@ -1,10 +1,12 @@
 id: WO-AI-009
 title: Governed Outcome Attribution and Learning Memory
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
-branch: agent/ai-009-outcome-attribution-learning-runtime
+branch: agent/ai-009-attribution-evaluation-hardening
 base_branch: main
+merge_commit: b131f9bed88cd69b7c168ddf706f714f3e8899b2
 implementation_branch: agent/ai-009-outcome-attribution-learning-runtime
+hardening_branch: agent/ai-009-attribution-evaluation-hardening
 planning_branch: agent/ai-009-outcome-attribution-learning-plan
 architecture_impact:
   acknowledged: true
@@ -23,26 +25,26 @@ objective: >-
   uncertainty over post-hoc certainty, preserving exact historical evidence/outcomes, and granting no execution,
   strategy-promotion, risk, credential, model-weight, prompt-mutation, or LIVE authority.
 selection_rationale:
-  - Fresh post-WO-AI-008 audit scores learning/attribution beyond calibration at 1/4, the lowest remaining AI dimension.
-  - Grounding, outcome calibration, durable memory, resource governance, provider diversity, disagreement evaluation and governed scenarios now provide the prerequisites for evidence-linked post-decision diagnosis.
+  - Fresh post-WO-AI-008 audit scored learning/attribution beyond calibration at 1/4, the lowest remaining AI dimension.
+  - Grounding, outcome calibration, durable memory, resource governance, provider diversity, disagreement evaluation and governed scenarios provided the prerequisites for evidence-linked post-decision diagnosis.
   - Calibration measures probabilistic reliability but does not explain why an individual thesis or forecast failed.
   - Scenario and N-version evidence can support diagnosis, but neither model majority nor hypothetical replay is sufficient causal proof.
-  - A governed attribution boundary is safer than automatic self-training because it can improve measurable learning evidence without silently changing model/provider/prompt/strategy behavior.
+  - A governed attribution boundary improves measurable learning evidence without silently changing model/provider/prompt/strategy behavior.
 constraints:
   - Every attribution binds to the exact verified prediction, resolved outcome, observed evidence snapshot, prompt/schema/provider/model lineage and calibration cohort.
-  - Scenario identities/results may be referenced only with their original BASELINE/HYPOTHETICAL provenance; hypothetical outputs cannot become realized-market learning credit.
+  - Scenario identities/results retain their original BASELINE/HYPOTHETICAL provenance; hypothetical outputs cannot become realized-market learning credit.
   - Attribution policy is immutable/versioned and included in replay identity.
   - Observed evidence, resolved outcomes, historical timestamps and VERIFIED_RUNTIME classifications are immutable.
   - Attribution classes are candidate explanations, not causal facts, unless policy-defined identifiability criteria are met.
   - Attribution strength is explicit as IDENTIFIED PARTIALLY_IDENTIFIED UNRESOLVED or UNVERIFIED.
-  - Ambiguous multi-cause evidence must prefer UNRESOLVED over forced attribution.
+  - Ambiguous multi-cause evidence prefers UNRESOLVED over forced attribution.
   - Model self-evaluation self-rating majority vote or narrative plausibility cannot establish attribution.
   - Replay/ablation varies only governed analytical inputs and cannot rewrite observed history or create synthetic realized outcomes.
   - Holdout partitions and leakage checks are mandatory for benchmark claims beyond exact fixture correctness.
-  - Independent-provider disagreement and scenario sensitivity may corroborate attribution but cannot automatically produce learning credit.
-  - Learning episodes are immutable/provenance-bound and may be retrieved only as read-only advisory evidence.
+  - Independent-provider disagreement and scenario sensitivity are corroboration only and cannot automatically produce learning credit.
+  - Learning episodes are immutable/provenance-bound and retrieved only as read-only advisory evidence.
   - No automatic model/provider weighting prompt mutation strategy mutation/promotion risk increase execution order cancel transfer withdrawal credential use production mutation or LIVE authority.
-  - All new model/replay work consumes existing WO-AI-006 bounded resources; nested evaluation cannot create unlimited budgets.
+  - All provider-backed replay work consumes existing WO-AI-006 bounded resources; nested evaluation cannot create unlimited budgets.
   - WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be satisfied or bypassed by this work.
 implementation:
   - define immutable AiAttributionPolicy identity/version with allowed failure classes identifiability rules holdout policy and resource limits
@@ -50,33 +52,34 @@ implementation:
   - extract deterministic post-outcome attribution features without hidden chain-of-thought
   - implement governed candidate classes including EVIDENCE_GAP DATA_QUALITY_FAILURE MODEL_DISAGREEMENT CALIBRATION_MISS SCENARIO_SENSITIVITY_MISS REGIME_SHIFT_CANDIDATE and UNRESOLVED
   - compute explicit attribution strength IDENTIFIED PARTIALLY_IDENTIFIED UNRESOLVED UNVERIFIED
-  - add one-dimension-at-a-time replay/ablation using immutable historical baselines and WO-AI-006 shared resource governance
+  - implement one-dimension-at-a-time replay/ablation over immutable historical baselines under one externally owned WO-AI-006 resource controller
   - use WO-AI-007 disagreement and WO-AI-008 scenario evidence only as bounded corroboration under original lineage/provenance
   - add deterministic holdout partition identity and leakage detection for attribution benchmark/evaluator cases
-  - persist immutable learning episodes with content hash counterevidence scope expiry/supersession and replay identity without secrets or hidden reasoning
+  - persist immutable hash-chained learning episodes with counterevidence scope expiry/supersession and replay identity without secrets or hidden reasoning
   - expose read-only retrieval/projection of applicable lessons with exact provenance and no behavior/authority mutation
-  - prevent synthetic/hypothetical cases from entering verified realized-market learning credit
-  - add before/after adversarial regression for correct single-cause recovery ambiguity abstention irrelevant ablations provider-majority misuse scenario/calibration confusion tamper replay conflicts holdout leakage resource exhaustion and zero authority
+  - prevent synthetic/hypothetical cases and replay projections from entering verified realized-market learning credit
+  - add deterministic before/after net-benefit gating across attribution quality provider calls attempts tokens latency failure rate and safety regressions
 acceptance_criteria:
   - attribution cannot run without exact verified prediction-to-resolved-outcome linkage
   - wrong/missing/tampered evidence outcome prompt provider/model calibration or scenario lineage fails closed before learning credit
   - controlled single-cause fixtures recover the policy-defined cause deterministically
   - ambiguous multi-cause fixtures emit UNRESOLVED unless identifiability criteria are met
-  - irrelevant feature ablation does not manufacture an attribution
+  - irrelevant or multi-dimension ablation cannot manufacture attribution and is rejected before replay side effects
   - provider majority or model self-rating alone cannot establish attribution or causal credit
-  - scenario-sensitive misses can be distinguished from calibration-only misses in controlled fixtures without turning hypothetical output into realized evidence
+  - scenario-sensitive misses can be distinguished from calibration-only misses without turning hypothetical output into realized evidence
   - synthetic/hypothetical fixtures never count as realized-market learning credit
   - holdout identity is immutable and train/evaluation leakage fails the benchmark gate
   - exact duplicate replay is idempotent while changed policy/input/outcome identity fails closed
   - learning episodes are immutable provenance-bound secret-free and support explicit expiry/supersession without deleting historical audit evidence
   - lesson retrieval remains read-only advisory evidence and cannot change provider/model weights prompts strategies risk limits promotion execution or authority
-  - before/after reporting includes attribution-quality error/abstention rates plus token latency resource and failure-rate deltas
+  - one externally owned resource controller encloses replay provider side effects and resource exhaustion blocks later calls
+  - before/after reporting includes attribution quality plus provider-call attempt token latency failure-rate and safety deltas
   - any attribution gain with material safety/resource regression fails the net-benefit gate
+  - admitted attempts with unavailable token accounting fail closed rather than being reported as zero-token cost
   - predictive-alpha profitability or real-market causal improvement is not claimed from synthetic fixture results
   - liveAuthority=NONE productionMutationAllowed=false realOrderAuthority=false realTransferAuthority=false remain proven
   - deterministic Risk Governor P0 HALT kill switch and WO-0051 HUMAN_ENVIRONMENT_ONLY remain unchanged
   - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
-  - implementation must not start until this planning PR exact head passes required checks and is merged
 verification:
   required_commands:
     - pnpm run ai:architecture
@@ -93,18 +96,32 @@ verification:
   result: PASS
   planning_exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
   planning_ci_run: 31333678605
-  restricted_live_transport_run: 31333678622
-  restricted_live_activation_run: 31333678644
-  readonly_broker_run: 31333678599
-  restricted_live_capability_run: 31333678603
-  restricted_live_readonly_workflows: PASS_4_OF_4
-  evaluation_requirements:
-    - independent deterministic evaluator where feasible
-    - immutable holdout partition and leakage detection
-    - one-variable governed ablation/replay
-    - ambiguity/abstention quality measurement
-    - synthetic versus VERIFIED_RUNTIME learning-credit separation
-    - token latency resource and failure-rate before/after accounting
+  planning_merge_commit: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
+  core_exact_head: 40935021b08cbae43f4eb9947817e5dc20c5f481
+  core_ci_run: 31338389151
+  core_restricted_live_transport_run: 31338389132
+  core_restricted_live_activation_run: 31338389157
+  core_readonly_broker_run: 31338389163
+  core_restricted_live_capability_run: 31338389145
+  core_merge_commit: ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3
+  hardening_exact_head: 1686a9d6d35ad745170080233f12771f0d6b39fe
+  hardening_ci_run: 31339050722
+  hardening_restricted_live_transport_run: 31339050724
+  hardening_restricted_live_activation_run: 31339050719
+  hardening_readonly_broker_run: 31339050716
+  hardening_restricted_live_capability_run: 31339050721
+  hardening_merge_commit: b131f9bed88cd69b7c168ddf706f714f3e8899b2
+  restricted_live_readonly_workflows: PASS_4_OF_4_ON_CORE_AND_HARDENING
+  evaluation_evidence:
+    - exact verified prediction outcome evidence prompt provider model calibration and optional scenario lineage binding
+    - explicit attribution strength and ambiguity abstention
+    - provider-majority and model-self-rating causality rejection
+    - deterministic holdout partition and leakage rejection
+    - immutable hash-chained learning memory replay supersession expiry and advisory retrieval
+    - shared-resource replay exhaustion side-effect blocking
+    - deterministic net-benefit PASS/FAIL across quality resource latency failure and safety deltas
+    - unavailable token accounting fails closed for admitted attempts
+    - synthetic hypothetical and replay outputs cannot receive realized-market learning credit
   prohibited_evidence:
     - model self-rating presented as attribution proof
     - majority provider vote presented as causal proof
@@ -116,18 +133,25 @@ verification:
 planning_gate:
   status: MERGED
   pull_request: 382
-  base_commit: 8dcc2e6abad05de824ac7c183210adf2fe02c624
   exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
   merge_commit: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
 implementation_gate:
-  status: IN_PROGRESS
-  planning_pr_merged: true
+  status: MERGED
+  pull_request: 387
   branch: agent/ai-009-outcome-attribution-learning-runtime
   branch_start_commit: ab227c37f1f886efdefc8c56695b936d0d0704f7
-  latest_main_required_before_start: true
-  latest_main_required_before_merge: true
+  exact_head: 40935021b08cbae43f4eb9947817e5dc20c5f481
+  ci_run: 31338389151
+  merge_commit: ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3
+hardening_gate:
+  status: MERGED
+  pull_request: 388
+  branch: agent/ai-009-attribution-evaluation-hardening
+  branch_start_commit: ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3
+  exact_head: 1686a9d6d35ad745170080233f12771f0d6b39fe
+  ci_run: 31339050722
+  merge_commit: b131f9bed88cd69b7c168ddf706f714f3e8899b2
 next: >-
-  Implement and verify the governed outcome-attribution and immutable learning-memory slice on this branch. Preserve
-  verified prediction/outcome/evidence/prompt/provider/calibration/scenario lineage, prefer unresolved attribution over
-  post-hoc certainty, keep lesson retrieval advisory-only, and require fresh exact-head full CI/Coverage plus all
-  architecture/AIPOS/security and Restricted LIVE/read-only workflows before merge.
+  WO-AI-009 implementation and acceptance hardening are merged and exact-head verified. Bind completion evidence to this
+  final Work Order, advance the central verified AI state without altering WO-0051 HUMAN_ENVIRONMENT_ONLY, then run a fresh
+  post-WO-AI-009 capability audit before selecting any successor AI implementation slice.
