@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
+import type { PreTradeRiskDecision, PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -10,6 +11,48 @@ const round8 = (value: number): number => Number(value.toFixed(8));
 const finiteNonNegative = (value: number, name: string): void => {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 };
+
+/**
+ * Scaled-integer accounting core -- same pattern as apps/desktop/src/paperBroker.ts's (see
+ * its comment for the full rationale). `round8` alone does not fix accumulation drift: it
+ * rounds the *result* of a `number` computation to 8 decimals, but the computation itself
+ * (the multiplications and divisions inside executeOrder/markToMarket below) still runs in
+ * plain IEEE-754 doubles, so precision is already lost before round8 ever sees the value.
+ * `Number(x.toFixed(8))` and `Math.round(x * 1e8) / 1e8` round to the same value -- neither
+ * touches the arithmetic that produced x. Routing that arithmetic itself through BigInt at a
+ * fixed 1e-8 scale is what actually removes the drift; round8 stays only as the boundary
+ * conversion back to the `number` fields PaperAccountState persists.
+ */
+const QTY_SCALE = 100_000_000n; // 1e8 -- matches BTC's 8 decimal places
+const MONEY_SCALE = 100_000_000n; // 1e8 -- sub-unit precision for KRW cash/price/fee math
+const RATE_SCALE = 100_000_000n; // 1e8 -- precision for the fee-rate ratio itself
+
+function toScaledQty(value: number): bigint {
+  return BigInt(Math.round(value * Number(QTY_SCALE)));
+}
+
+function fromScaledQty(scaled: bigint): number {
+  return Number(scaled) / Number(QTY_SCALE);
+}
+
+function toScaledMoney(value: number): bigint {
+  return BigInt(Math.round(value * Number(MONEY_SCALE)));
+}
+
+function fromScaledMoney(scaled: bigint): number {
+  return Number(scaled) / Number(MONEY_SCALE);
+}
+
+/** Round-half-up scaled-integer division, exact for both signs and never subject to
+ * binary floating-point representation error. */
+function divRound(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const negative = (numerator < 0n) !== (denominator < 0n);
+  const absNumerator = numerator < 0n ? -numerator : numerator;
+  const absDenominator = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNumerator * 2n + absDenominator) / (absDenominator * 2n);
+  return negative ? -rounded : rounded;
+}
 
 export interface PaperAccountPosition {
   readonly market: string;
@@ -147,6 +190,22 @@ export interface PaperExecutionSafetyState {
   readonly openP0: boolean;
 }
 
+/**
+ * Bridges this loop's automated STRATEGY decisions to independentRiskGateway.ts's
+ * evaluatePreTradeRisk(). The loop assembles the request (it owns the account state that
+ * request needs: cash, position, order history); the caller supplies `evaluate`, which
+ * already has identity (fingerprints, seen-id dedup sets) and limits closed over -- exactly
+ * the split runtimeCommandService.ts's PaperCommandRiskGate uses on the desktop side. Before
+ * this hook existed, this loop's tick processing called `broker.execute()`-equivalent order
+ * placement directly from `state.decisions`, with only the coarse mode/killSwitch/health/P0
+ * gate above -- none of independentRiskGateway's exposure, rate, drawdown, or consecutive-loss
+ * circuit breakers ever ran on the automated cloud path.
+ */
+export interface PaperExecutionRiskGate {
+  readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
+  evaluate(request: PreTradeRiskRequest): PreTradeRiskDecision;
+}
+
 export interface PaperTradingExecutionLoopOptions {
   readonly initialCapital: number;
   readonly feeRate?: number;
@@ -155,6 +214,65 @@ export interface PaperTradingExecutionLoopOptions {
   readonly restoredState?: PaperAccountState;
   /** Durable, independently verified P0 safety state. Read on every PAPER tick before any decision or fill. */
   readonly readP0State?: () => PaperExecutionSafetyState;
+  /** Independent pre-trade risk check, run once per actionable decision before it can fill. */
+  readonly riskGate?: PaperExecutionRiskGate;
+}
+
+function tradingDayOf(epochMs: number): string {
+  return new Date(epochMs).toISOString().slice(0, 10);
+}
+
+/** Same algorithm as paperRiskState.ts's computeOrderRateState, adapted to this loop's own
+ * PaperOrderRecord (numeric `filledAt`, most-recent-first) instead of PaperBroker's PaperOrder. */
+function computeOrderRateState(
+  orders: readonly PaperOrderRecord[],
+  nowMs: number,
+  upcomingSide: "BUY" | "SELL"
+): Readonly<{ ordersInLastSecond: number; ordersInLastMinute: number; sameSideStreak: number }> {
+  let ordersInLastSecond = 0;
+  let ordersInLastMinute = 0;
+  for (const order of orders) {
+    const age = nowMs - order.filledAt;
+    if (age >= 0 && age < 1_000) ordersInLastSecond += 1;
+    if (age >= 0 && age < 60_000) ordersInLastMinute += 1;
+  }
+  let sameSideStreak = 0;
+  for (const order of orders) {
+    if (order.side !== upcomingSide) break;
+    sameSideStreak += 1;
+  }
+  return Object.freeze({ ordersInLastSecond, ordersInLastMinute, sameSideStreak });
+}
+
+function computeDailyNotional(
+  orders: readonly PaperOrderRecord[],
+  tradingDay: string
+): Readonly<{ dailyBuyNotional: number; dailySellNotional: number }> {
+  let dailyBuyNotional = 0;
+  let dailySellNotional = 0;
+  for (const order of orders) {
+    if (tradingDayOf(order.filledAt) !== tradingDay) continue;
+    const notional = order.quantity * order.price;
+    if (order.side === "BUY") dailyBuyNotional += notional; else dailySellNotional += notional;
+  }
+  return Object.freeze({ dailyBuyNotional, dailySellNotional });
+}
+
+/** This loop's orders carry no per-fill running realizedPnL (unlike PaperBroker's ledger), so
+ * a losing streak is read off order-level notional deltas instead: consecutive SELL fills
+ * whose (price - the account's average entry price at the time) implied a loss. Orders are
+ * most-recent-first, so this walks forward from the newest fill and stops at the first
+ * non-loss or non-SELL entry. */
+function computeConsecutiveLossCount(orders: readonly PaperOrderRecord[], positions: readonly PaperAccountPosition[]): number {
+  let count = 0;
+  for (const order of orders) {
+    if (order.side !== "SELL") break;
+    const position = positions.find((item) => item.market === order.market);
+    const referenceEntry = position?.averageEntryPrice ?? order.price;
+    if (order.price - referenceEntry >= 0) break;
+    count += 1;
+  }
+  return count;
 }
 
 export class PaperTradingExecutionLoop {
@@ -163,6 +281,8 @@ export class PaperTradingExecutionLoop {
   private readonly staleWindowMs: number;
   private readonly repository?: PaperAccountRepository;
   private readonly readP0State?: () => PaperExecutionSafetyState;
+  private readonly riskGate?: PaperExecutionRiskGate;
+  private sessionPeakEquity: number;
 
   public constructor(options: PaperTradingExecutionLoopOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("paper initial capital must be positive");
@@ -172,10 +292,12 @@ export class PaperTradingExecutionLoop {
     if (!Number.isSafeInteger(this.staleWindowMs) || this.staleWindowMs < 1_000) throw new Error("paper stale window is invalid");
     this.repository = options.repository;
     this.readP0State = options.readP0State;
+    this.riskGate = options.riskGate;
     const restored = options.restoredState ?? this.repository?.loadLatest();
     this.state = restored == null ? initialState(options.initialCapital) : restored;
     if (Math.abs(this.state.initialCapital - options.initialCapital) > Number.EPSILON) throw new Error("paper initial capital mismatch");
     validateState(this.state);
+    this.sessionPeakEquity = this.state.equity;
   }
 
   public snapshot(): PaperAccountState { return this.state; }
@@ -207,6 +329,54 @@ export class PaperTradingExecutionLoop {
       const quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
       const side = decision.action === "BUY" ? "BUY" : "SELL";
+
+      if (this.riskGate != null) {
+        this.sessionPeakEquity = Number.isFinite(working.equity) && working.equity > this.sessionPeakEquity ? working.equity : this.sessionPeakEquity;
+        const tradingDay = tradingDayOf(tick.now);
+        const request: PreTradeRiskRequest = {
+          schemaVersion: 1,
+          requestId: key,
+          signalId: `${tick.market}:${decision.decidedAt}`,
+          commandId: key,
+          clientOrderId: key,
+          strategyFingerprint: this.riskGate.fingerprints.strategy,
+          configFingerprint: this.riskGate.fingerprints.config,
+          runtimeFingerprint: this.riskGate.fingerprints.runtime,
+          riskPolicyFingerprint: this.riskGate.fingerprints.riskPolicy,
+          symbol: tick.market,
+          side,
+          quantity,
+          referencePrice: tick.price,
+          requestedAt: tick.now,
+          marketDataState: { status: "HEALTHY", price: tick.price },
+          accountState: { cash: working.cash, positionQuantity: position?.quantity ?? 0, openOrderCount: working.orders.length },
+          // killSwitch/health/mode/staleness are already fail-closed above (BLOCKED before this
+          // point), and this loop has no live-trading or private-API capability to detect --
+          // restating verified state here, not re-deciding it.
+          controlState: { killSwitchActive: tick.killSwitchActive, liveCapabilityDetected: false, privateApiCapabilityDetected: false },
+          approvalState: { approved: true, expiresAt: tick.now + 1, symbols: [tick.market] },
+          persistenceState: { healthy: true },
+          reconciliationState: { healthy: true, openP0: false },
+          deploymentState: { integrityVerified: true },
+          rateState: computeOrderRateState(working.orders, tick.now, side),
+          exposureState: {
+            symbolExposureNotional: (position?.quantity ?? 0) * tick.price,
+            portfolioExposureNotional: working.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0),
+            ...computeDailyNotional(working.orders, tradingDay)
+          },
+          sessionState: {
+            dailyRealizedPnL: working.realizedPnL,
+            consecutiveLossCount: computeConsecutiveLossCount(working.orders, working.positions),
+            sessionPeakEquity: this.sessionPeakEquity,
+            sessionEquity: working.equity
+          }
+        };
+        const riskDecision = this.riskGate.evaluate(request);
+        if (riskDecision.status !== "ALLOW") {
+          return this.result(riskDecision.status === "HALT" ? "BLOCKED" : "REJECTED", `risk gateway: ${riskDecision.reasonCodes.join(",") || riskDecision.status}`);
+        }
+      }
+
       let order: ReturnType<typeof executeOrder>;
       try {
         order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate);
@@ -246,24 +416,51 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index];
-  const notional = round8(quantity * price);
-  const fee = round8(notional * feeRate);
-  let cash = state.cash;
+
+  const quantityScaled = toScaledQty(quantity);
+  const priceScaled = toScaledMoney(price);
+  const feeRateScaled = BigInt(Math.round(feeRate * Number(RATE_SCALE)));
+  // Exact, unrounded quantity*price at 1e16 scale -- used for the average-price accumulator
+  // below so that step doesn't compound the separate rounding already applied to `notional`
+  // (a `number` field this function also reports) into another rounding of its own.
+  const exactNotionalScaled = quantityScaled * priceScaled;
+  const notionalScaled = divRound(exactNotionalScaled, QTY_SCALE);
+  const feeScaled = divRound(notionalScaled * feeRateScaled, RATE_SCALE);
+  const notional = fromScaledMoney(notionalScaled);
+  const fee = fromScaledMoney(feeScaled);
+
+  let cashScaled = toScaledMoney(state.cash);
   let position: PaperAccountPosition;
-  let realizedPnL = state.realizedPnL;
+  let realizedPnLScaled = toScaledMoney(state.realizedPnL);
+  const previousQuantityScaled = toScaledQty(previous.quantity);
+  const previousAveragePriceScaled = toScaledMoney(previous.averageEntryPrice);
+
   if (side === "BUY") {
-    if (notional + fee > cash) throw new Error("insufficient paper cash");
-    const nextQuantity = round8(previous.quantity + quantity);
-    position = { ...previous, quantity: nextQuantity, averageEntryPrice: round8((previous.averageEntryPrice * previous.quantity + notional + fee) / nextQuantity), markPrice: price };
-    cash = round8(cash - notional - fee);
+    if (notional + fee > state.cash) throw new Error("insufficient paper cash");
+    const nextQuantityScaled = previousQuantityScaled + quantityScaled;
+    const averageEntryPriceScaled = nextQuantityScaled === 0n
+      ? 0n
+      : divRound(previousAveragePriceScaled * previousQuantityScaled + exactNotionalScaled + feeScaled * QTY_SCALE, nextQuantityScaled);
+    cashScaled -= notionalScaled + feeScaled;
+    position = { ...previous, quantity: fromScaledQty(nextQuantityScaled), averageEntryPrice: fromScaledMoney(averageEntryPriceScaled), markPrice: price };
   } else {
     if (quantity > previous.quantity + Number.EPSILON) throw new Error("insufficient paper position");
-    const realized = round8((price - previous.averageEntryPrice) * quantity - fee);
-    const nextQuantity = round8(previous.quantity - quantity);
-    position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: price };
-    realizedPnL = round8(realizedPnL + realized);
-    cash = round8(cash + notional - fee);
+    const realizedScaled = divRound((priceScaled - previousAveragePriceScaled) * quantityScaled, QTY_SCALE) - feeScaled;
+    const nextQuantityScaled = previousQuantityScaled - quantityScaled;
+    const nextPositionRealizedScaled = toScaledMoney(previous.realizedPnL) + realizedScaled;
+    realizedPnLScaled += realizedScaled;
+    cashScaled += notionalScaled - feeScaled;
+    position = {
+      ...previous,
+      quantity: fromScaledQty(nextQuantityScaled),
+      averageEntryPrice: nextQuantityScaled === 0n ? 0 : previous.averageEntryPrice,
+      realizedPnL: fromScaledMoney(nextPositionRealizedScaled),
+      markPrice: price
+    };
   }
+  const cash = fromScaledMoney(cashScaled);
+  const realizedPnL = fromScaledMoney(realizedPnLScaled);
+
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now });
@@ -272,8 +469,16 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
 }
 
 function markToMarket(state: PaperAccountState, market: string, price: number, now: number): PaperAccountState {
-  const positions = state.positions.map((position) => position.market === market ? { ...position, markPrice: price, unrealizedPnL: round8(position.quantity * (price - position.averageEntryPrice)) } : position);
-  const unrealizedPnL = round8(positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
-  const equity = round8(state.cash + positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
-  return Object.freeze({ ...state, positions: Object.freeze(positions), equity, unrealizedPnL, updatedAt: now });
+  const priceScaled = toScaledMoney(price);
+  const positions = state.positions.map((position) => {
+    if (position.market !== market) return position;
+    const quantityScaled = toScaledQty(position.quantity);
+    const averageEntryPriceScaled = toScaledMoney(position.averageEntryPrice);
+    const unrealizedPnLScaled = divRound(quantityScaled * (priceScaled - averageEntryPriceScaled), QTY_SCALE);
+    return { ...position, markPrice: price, unrealizedPnL: fromScaledMoney(unrealizedPnLScaled) };
+  });
+  const unrealizedPnLScaled = positions.reduce((sum, position) => sum + toScaledMoney(position.unrealizedPnL), 0n);
+  const marketValueScaled = positions.reduce((sum, position) => sum + divRound(toScaledQty(position.quantity) * toScaledMoney(position.markPrice), QTY_SCALE), 0n);
+  const equityScaled = toScaledMoney(state.cash) + marketValueScaled;
+  return Object.freeze({ ...state, positions: Object.freeze(positions), equity: fromScaledMoney(equityScaled), unrealizedPnL: fromScaledMoney(unrealizedPnLScaled), updatedAt: now });
 }

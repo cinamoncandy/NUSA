@@ -51,6 +51,7 @@ import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSu
 import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
 import { evaluateStrategyRegime } from "./regimePolicy";
 import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
+import { AiRequestGovernor } from "./aiRequestGovernor";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
@@ -174,6 +175,9 @@ const aiRegimeExplainerClient: AiRegimeExplainerClient | undefined =
 // On-demand risk commentary: explains the AI CIO risk dashboard section in plain Korean.
 const aiRiskCommentaryClient: AiRiskCommentaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicRiskCommentaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// Caps and caches the six ai:* IPC handlers below so a renderer re-render or an impatient
+// user can't turn one click into an unbounded run of paid model calls. See aiRequestGovernor.ts.
+const aiRequestGovernor = new AiRequestGovernor();
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -979,30 +983,37 @@ ipcMain.handle("ai:explain-latest-signal", async () => {
   const request: SignalExplanationRequest | undefined = signal === undefined
     ? undefined
     : { market: MARKET, signal, recentPrices: strategy.getHistory(), signalHistory: strategy.getSignalHistory() };
-  const result = await explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() });
+  const result = await aiRequestGovernor.guard("ai:explain-latest-signal", request, () =>
+    explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() })
+  );
   lastAiSignalExplanation = request !== undefined && result.status === "OK" ? Object.freeze({ request, explanation: result.explanation }) : undefined;
   return result;
 });
 ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => {
   if (typeof question !== "string") throw new Error("invalid follow-up question");
-  return answerSignalFollowUp({
-    request: lastAiSignalExplanation?.request,
-    priorExplanation: lastAiSignalExplanation?.explanation,
-    question,
-    client: aiSignalExplainerClient,
-    nowMs: Date.now()
-  });
+  return aiRequestGovernor.guard(
+    "ai:ask-followup-question",
+    { question, request: lastAiSignalExplanation?.request },
+    () => answerSignalFollowUp({
+      request: lastAiSignalExplanation?.request,
+      priorExplanation: lastAiSignalExplanation?.explanation,
+      question,
+      client: aiSignalExplainerClient,
+      nowMs: Date.now()
+    })
+  );
 });
 ipcMain.handle("ai:challenger-status", () => ({
   configured: aiChallengerClient !== undefined,
   latest: aiChallengerObserver.getLatestObservation() ?? null,
   stats: aiChallengerObserver.getStats()
 }));
-ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChallengerDisagreement({
-  observation: aiChallengerObserver.getLatestObservation(),
-  client: aiDisagreementExplainerClient,
-  nowMs: Date.now()
-}));
+ipcMain.handle("ai:explain-challenger-disagreement", async () => {
+  const observation = aiChallengerObserver.getLatestObservation();
+  return aiRequestGovernor.guard("ai:explain-challenger-disagreement", observation, () =>
+    explainChallengerDisagreement({ observation, client: aiDisagreementExplainerClient, nowMs: Date.now() })
+  );
+});
 ipcMain.handle("ai:challenger-history", () => aiChallengerObserver.getHistory());
 ipcMain.handle("ai:summarize-session", async () => {
   const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
@@ -1015,7 +1026,9 @@ ipcMain.handle("ai:summarize-session", async () => {
     signalHistory: strategy.getSignalHistory(),
     challengerStats: aiChallengerObserver.getStats()
   };
-  return summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() });
+  return aiRequestGovernor.guard("ai:summarize-session", request, () =>
+    summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("ai:explain-regime", async () => {
   const signal = strategy.getLatestSignal();
@@ -1025,7 +1038,9 @@ ipcMain.handle("ai:explain-regime", async () => {
     recentPrices: strategy.getHistory(),
     decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
   };
-  return explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() });
+  return aiRequestGovernor.guard("ai:explain-regime", request, () =>
+    explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("ai:explain-risk", async () => {
   const envelope = aiCioEnvelopeSource.current();
@@ -1035,7 +1050,9 @@ ipcMain.handle("ai:explain-risk", async () => {
     risk: envelope.snapshot.risk,
     warnings: envelope.snapshot.warnings
   };
-  return explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() });
+  return aiRequestGovernor.guard("ai:explain-risk", request, () =>
+    explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
