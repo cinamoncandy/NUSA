@@ -13,7 +13,7 @@ export interface CloudPaperExecutionBoundaryOptions {
 }
 
 const normalizedHealth = (value: PaperExecutionTick["overallHealth"]): CloudPaperRiskRequest["overallHealth"] =>
-  value === "HEALTHY" ? "HEALTHY" : value === "CRITICAL" ? "CRITICAL" : "DEGRADED";
+  value === "HEALTHY" ? "HEALTHY" : value === "DOWN" ? "CRITICAL" : "DEGRADED";
 
 /**
  * Single production Cloud PAPER mutation boundary.
