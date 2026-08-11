@@ -31,6 +31,7 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   assert.match(settings, /clearPaperConnectionVerification/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /allowUnverifiedEndpoint: true/);
+  assert.match(settings, /토큰은 현재 앱 프로세스 메모리에만 존재합니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
@@ -50,8 +51,9 @@ test("AI-only authority copy does not override the global PAPER authority banner
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
   assert.doesNotMatch(app, /<AuthorityBanner/);
-  assert.match(ai, /AI ZERO AUTHORITY/);
-  assert.match(ai, /READ ONLY/);
+  assert.match(ai, /StatusChip label="ZERO AUTHORITY"/);
+  assert.match(ai, /StatusChip label="READ ONLY"/);
+  assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
 });
 
 test("verified PAPER connection is shared and invalidated when endpoint or session changes", () => {
@@ -100,18 +102,15 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
 });
 
 test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
-  for (const file of [
-    "apps/mobile/src/homeView.tsx",
-    "apps/mobile/src/settingsView.tsx",
-    "apps/mobile/src/marketsView.tsx",
-    "apps/mobile/src/tradingView.tsx",
-    "apps/mobile/src/portfolioView.tsx",
-    "apps/mobile/src/aiView.tsx"
-  ]) {
-    const source = read(file);
-    if (file === "apps/mobile/src/marketsView.tsx") assert.match(source, /uxLayout\.maxWorkspaceWidth/, `${file} must use the canonical tablet workspace bound`);
-    else assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
-  }
+  const bounded = {
+    "apps/mobile/src/homeView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
+    "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
+    "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
+    "apps/mobile/src/portfolioView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/aiView.tsx": /maxWidth: 1080/,
+  };
+  for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
   const home = read("apps/mobile/src/homeView.tsx");
   const markets = read("apps/mobile/src/marketsView.tsx");
