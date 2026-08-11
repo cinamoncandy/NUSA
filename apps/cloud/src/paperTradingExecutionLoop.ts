@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
+import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -133,6 +134,8 @@ export interface PaperExecutionTick {
   readonly tradingAllowed: boolean;
   readonly overallHealth: MobileDashboardApiInput["overallHealth"];
   readonly decisions: readonly CioDecision[];
+  /** Percentage of current deployable cash available for new BUY exposure. */
+  readonly investmentPercent?: number;
 }
 
 export interface PaperExecutionResult {
@@ -200,13 +203,24 @@ export class PaperTradingExecutionLoop {
     const nextOrders: PaperOrderRecord[] = [];
     const nextFills: PaperFillRecord[] = [];
     let working = cloneState(this.state);
+    const investmentPercent = tick.investmentPercent ?? 100;
+    if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.result("REJECTED", "invalid investment percentage");
     for (const decision of actionable.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.action.localeCompare(b.action))) {
       const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
       if (existingKeys.has(key)) return this.result("DUPLICATE", key);
       const position = working.positions.find((item) => item.market === tick.market);
-      const quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * decision.allocation / tick.price));
+      let quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * (investmentPercent / 100) * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
       const side = decision.action === "BUY" ? "BUY" : "SELL";
+      if (side === "BUY") {
+        const treasury = { totalAssets: working.cash, tradingCapital: working.cash, reserveCapital: 0, pendingDepositCapital: 0, reservations: [], reservedWithdrawalCapital: 0, deployableCapital: working.cash, activeReservations: [] };
+        const requestedAmount = quantity * tick.price * (1 + this.feeRate);
+        try {
+          guardCashInvestmentAllocation(treasury, [{ id: key, bucket: "SPOT", amount: requestedAmount }], investmentPercent);
+        } catch (error) {
+          return this.result("REJECTED", error instanceof Error ? error.message : "cash investment allocation exceeded");
+        }
+      }
       let order: ReturnType<typeof executeOrder>;
       try {
         order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate);

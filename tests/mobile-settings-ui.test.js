@@ -11,6 +11,9 @@ test("settings UI exposes only implemented preferences, Paper safety, reset, and
   assert.match(source, /settings-about/);
   assert.match(source, /settings-reset/);
   assert.match(source, /settings-session/);
+  assert.match(source, /settings-capital-allocation/);
+  assert.match(source, /실제 투자 가능 금액/);
+  assert.match(source, /보호되는 현금 금액/);
   assert.match(source, /settings-sign-out/);
   assert.match(source, /settings-loading/);
   assert.match(source, /settings-error/);
@@ -26,7 +29,7 @@ test("settings UI exposes only implemented preferences, Paper safety, reset, and
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /header-settings/);
-  assert.match(app, /utilityView === "SETTINGS" \? <SettingsView onSignOut=\{handleSignOut\}/);
+  assert.match(app, /utilityView === "SETTINGS" \? <SettingsView exchangeCash=\{account\?\.cash \?\? 0\} onSignOut=\{handleSignOut\}/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
   assert.match(app, /settingsRepository/);

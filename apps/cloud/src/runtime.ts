@@ -263,7 +263,8 @@ export function startCloudRuntime(
               killSwitchActive: state.killSwitchActive,
               tradingAllowed: dashboard.tradingAllowed,
               overallHealth: state.overallHealth,
-              decisions: state.decisions
+              decisions: state.decisions,
+              investmentPercent: config.paperInvestmentPercent
             });
             if (result.status === "FAILED") clearPaperProjection();
             else projectPaperAccount();
