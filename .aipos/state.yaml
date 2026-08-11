@@ -12,8 +12,8 @@ claimed_state:
   work_order: WO-AI-010
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-010
-  status: IN_PROGRESS
+  work_order: WO-AI-009
+  status: COMPLETED
   evidence: ".aipos/evidence/WO-AI-009-completion.json"
 latest_verified_slice:
   id: wo-ai-009-governed-outcome-attribution-learning-complete
