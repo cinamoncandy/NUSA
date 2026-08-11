@@ -8,24 +8,26 @@ NUSA mobile is a decision workspace, not a dashboard wall. The interface must ma
 
 Primary navigation is fixed to five user jobs:
 
-1. Home — situational overview and next safe action
+1. Home — situational overview, investable/protected cash and next safe action
 2. Markets — observe market truth, watchlist and chart availability
-3. PAPER — rehearse an order with explicit staged preview and confirmation
-4. Portfolio — understand equity, cash, position and P/L
+3. PAPER — rehearse an order inside the user's investment cash envelope
+4. Portfolio — understand equity, total cash, investable cash, protected cash, position and P/L
 5. AI — read-only analysis, confidence and evidence
 
 History, notifications and settings remain utilities, not primary destinations.
 
 ## Canonical implementation map
 
-- `App.tsx` — application chrome, five-job navigation, compact authority strip, utility tray, lifecycle/session orchestration only
-- `homeView.tsx` — PAPER equity, market/runtime readiness, AI confidence, next-action decision hierarchy
+- `App.tsx` — application chrome, five-job navigation, compact authority/allocation strip, utility tray, lifecycle/session orchestration only
+- `homeView.tsx` — PAPER equity, investable/protected cash, runtime readiness, AI confidence, next-action hierarchy
 - `marketsView.tsx` — market truth metrics, responsive watchlist/chart workspace
 - `watchlistView.tsx` — embedded market discovery workspace; no duplicate top-level screen heading
-- `tradingView.tsx` — PAPER staged order workflow using segmented side/order-type controls
-- `portfolioView.tsx` — metric-first equity/P&L hierarchy and position detail
+- `tradingView.tsx` — PAPER staged order workflow using the investment cash envelope and segmented side/order-type controls
+- `portfolioView.tsx` — metric-first equity/P&L plus investable/protected cash hierarchy
 - `aiView.tsx` — analysis -> confidence -> evidence -> authority hierarchy
-- `settingsView.tsx` — connection status -> connection task -> appearance -> safety -> local management
+- `settingsView.tsx` — cash allocation -> connection status/task -> appearance -> safety -> local management
+- `cloudInvestmentAllocationClient.ts` — authenticated allocation sync bound only to the currently verified PAPER endpoint/session
+- `capitalAllocationGuard.ts` — canonical investable/protected cash envelope
 - `orderHistoryView.tsx` — search + segmented filter/period/sort + execution records
 - `notificationView.tsx` — truthful unavailable-capability empty state until real event runtime exists
 - `uxPrimitives.tsx` — `ScreenHeader`, `MetricTile`, `SegmentedControl`, `InlineNotice`
@@ -41,9 +43,7 @@ Every top-level screen follows the same vertical grammar:
 4. Secondary evidence — details, metadata and explanations
 5. Recovery — error/retry or connection guidance close to the affected content
 
-Nested workspaces such as Watchlist do not repeat the parent screen title.
-
-Safety state is persistent but compact. Long authority explanations appear only where they change a decision.
+Nested workspaces such as Watchlist do not repeat the parent screen title. Safety state is persistent but compact. Long authority explanations appear only where they change a decision.
 
 ## Visual system
 
@@ -67,15 +67,34 @@ Defines one screen purpose. It may contain a compact right-side status/action bu
 For one high-signal metric/status. Financial screens place the most decision-relevant values above detailed rows.
 
 ### SegmentedControl
-For mutually exclusive local modes such as Watchlist/Chart, Buy/Sell, Market/Limit, theme, history filters or sort modes. It is not global navigation.
+For mutually exclusive local modes such as Watchlist/Chart, Buy/Sell, Market/Limit, allocation presets, theme, history filters or sort modes. It is not global navigation.
 
 ### InlineNotice
 For contextual warning, error, info or success. Use instead of a full card when the message is not a separate task.
 
+## Cash investment allocation contract
+
+The user can choose what percentage of exchange PAPER cash is eligible for new investment and what percentage stays uninvested/protected.
+
+- `investmentPercent`: 0-100%, default 100% for backward compatibility
+- `reservePercent = 100 - investmentPercent`
+- `investableCash = exchangeCash * investmentPercent / 100`
+- `reservedCash = exchangeCash - investableCash`
+- the envelope limits creation of new BUY exposure; it does not block SELL/exit behavior
+- invalid percentages fail closed
+- Settings persists the local preference and synchronizes the same value to the authenticated Cloud PAPER setting
+- Cloud sync may only use the currently configured and verified PAPER endpoint plus process-memory credential
+- endpoint/session changes during sync invalidate the operation
+- Home, PAPER, Portfolio and the compact app authority strip show the same active percentage
+- PAPER BUY validation uses `investableCash`, not total exchange cash
+- 0% therefore prevents new BUY exposure while preserving exit capability
+
+This is a capital-safety control, not a decorative preference. A UI that shows the percentage but validates orders against total cash is incorrect.
+
 ## Screen-specific contracts
 
 ### Home
-Home answers three questions in order: what is my PAPER state, is operation safe/ready, and what should I inspect next. It never becomes a dense admin dashboard.
+Home answers four questions in order: what is my PAPER state, how much cash may be invested vs protected, is operation safe/ready, and what should I inspect next. It never becomes a dense admin dashboard.
 
 ### Markets
 Markets shows connection/freshness before chart affordances. Missing candle data means no chart mode. Watchlist is embedded under the Markets screen and does not introduce a second global heading.
@@ -83,23 +102,23 @@ Markets shows connection/freshness before chart affordances. Missing candle data
 ### PAPER
 The order flow is staged:
 
-1. Market state and available balance
+1. Market state, total cash, investable cash and protected cash
 2. Side and order type
 3. Price/quantity input
-4. Preview with notional and validation
+4. Preview with notional, investment envelope and validation
 5. Explicit confirmation
 6. Result/recovery
 
-Buy/Sell and Market/Limit use the same segmented selection language used elsewhere. Confirmation must replace the normal submit affordance rather than look like an unrelated action.
+Buy/Sell and Market/Limit use the same segmented selection language used elsewhere. BUY availability is capped by the investment envelope. Confirmation must replace the normal submit affordance rather than look like an unrelated action.
 
 ### Portfolio
-Total equity is the hero value. Cash, realized P/L and unrealized P/L are second-level metrics. Position and account breakdown are supporting detail.
+Total equity is the hero value. Total exchange cash is explicitly split into investable and protected cash before P/L and position detail so the user never mistakes all cash for deployable capital.
 
 ### AI
 AI presents thesis first, then model/calibrated confidence, then evidence/counter-evidence, then diagnostics and immutable authority boundaries. Raw probability is never visually presented as a guaranteed success probability.
 
 ### Settings
-Connection health is the first state. Endpoint/token actions are one task. Theme is a segmented local preference. Safety authority is diagnostic and cannot enable LIVE behavior. Destructive/local management is visually separated from routine connection work.
+Cash allocation is a first-class capital control with preset percentages, direct numeric entry and derived currency amounts. Connection health and endpoint/token actions remain a separate task. Theme is a segmented local preference. Safety authority is diagnostic and cannot enable LIVE behavior. Destructive/local management is visually separated from routine work.
 
 ### History
 Search and filter controls precede records. Mutually exclusive filters, periods and sort orders use segmented controls. Records remain read-only.
@@ -126,7 +145,7 @@ Immutable product rules:
 - AI ZERO_AUTHORITY / read-only
 - credentials remain process-memory-only
 
-UI redesign must never weaken transport, credential, idempotency or fail-closed behavior.
+UI redesign and cash allocation must never weaken transport, credential, idempotency, canonical risk or fail-closed behavior.
 
 ## Accessibility
 
@@ -144,15 +163,15 @@ A UI/UX design is not accepted merely because it exists on a branch. Final Andro
 
 `canonical UI source HEAD == RC checkout HEAD == provenance sourceSha == installed APK source`
 
-Before Android RC assembly the workflow runs the canonical v3 source contract plus existing safety/UI regressions. Artifact name and Android version include exact source identity.
+Before Android RC assembly the workflow runs the canonical v3 source contract plus cash-allocation and existing safety/UI regressions. Artifact name and Android version include exact source identity.
 
 ## Definition of UI/UX v3 complete
 
-Implementation-complete requires all canonical routes and utilities above to use the shared hierarchy/primitives with no known legacy duplicate-heading or sub-48px actionable control regressions.
+Implementation-complete requires all canonical routes and utilities above to use the shared hierarchy/primitives, the cash allocation setting to remain enforced from Settings through PAPER BUY validation, and no known legacy duplicate-heading or sub-48px actionable control regressions.
 
 Validation-complete additionally requires:
 
-1. canonical v3 source contract PASS
+1. canonical v3 + cash-allocation source contracts PASS
 2. TypeScript/build/lint/full CI PASS
 3. Mobile Native Debug/RC PASS
 4. exact-head provenance APK produced
