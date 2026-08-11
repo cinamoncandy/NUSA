@@ -1,4 +1,4 @@
-import { authorizeDashboardReadRequest, dashboardJsonResponse, type DashboardHttpRequest, type DashboardHttpResponse, type DashboardTokenVerifier } from "./mobileDashboardHttp";
+import { dashboardJsonResponse, type DashboardHttpRequest, type DashboardHttpResponse, type DashboardPrincipal, type DashboardTokenVerifier } from "./mobileDashboardHttp";
 import type { NusaUserAccessAction, NusaUserAccessRepository } from "./operatorUserAccess";
 
 export interface OperatorUserAccessHttpDependencies {
@@ -7,6 +7,44 @@ export interface OperatorUserAccessHttpDependencies {
 }
 
 const actions = new Set<NusaUserAccessAction>(["APPROVE", "REJECT", "SUSPEND", "RESTORE"]);
+
+const bearer = (value: string | undefined): string | undefined => {
+  if (value == null) return undefined;
+  return /^Bearer\s+([^\s]+)$/i.exec(value.trim())?.[1];
+};
+
+function authorizeOperatorRequest(
+  request: DashboardHttpRequest,
+  tokenVerifier: DashboardTokenVerifier
+): { readonly ok: true; readonly principal: DashboardPrincipal } | { readonly ok: false; readonly response: DashboardHttpResponse } {
+  const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "POST") {
+    const response = dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" });
+    return Object.freeze({ ok: false, response: Object.freeze({ ...response, headers: Object.freeze({ ...response.headers, allow: "GET, POST" }) }) });
+  }
+
+  const token = bearer(request.headers.authorization ?? request.headers.Authorization);
+  if (token == null) return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
+
+  let principal: DashboardPrincipal | undefined;
+  try {
+    principal = tokenVerifier.verify(token);
+  } catch {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
+  }
+
+  if (principal == null || !principal.userId.trim()) {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
+  }
+  if (!principal.scopes.includes("users:manage")) {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
+  }
+
+  return Object.freeze({
+    ok: true,
+    principal: Object.freeze({ userId: principal.userId.trim(), scopes: Object.freeze([...principal.scopes]) })
+  });
+}
 
 function parseBody(body: string | undefined): Readonly<{ targetUserId: string; action: NusaUserAccessAction; reason?: string }> | undefined {
   if (body == null) return undefined;
@@ -26,7 +64,7 @@ export function handleOperatorUserAccessHttp(
   request: DashboardHttpRequest & { readonly body?: string },
   dependencies: OperatorUserAccessHttpDependencies
 ): DashboardHttpResponse {
-  const authorization = authorizeDashboardReadRequest(request, dependencies.tokenVerifier, "users:manage", ["GET", "POST"]);
+  const authorization = authorizeOperatorRequest(request, dependencies.tokenVerifier);
   if (!authorization.ok) return authorization.response;
 
   if (request.method.toUpperCase() === "GET") {
