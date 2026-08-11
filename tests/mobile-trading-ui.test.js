@@ -34,7 +34,6 @@ test("Trading model blocks missing price and invalid inputs", () => {
   const missingPrice = buildTradingViewModel(input({ market: { ...input().market, price: null }, draft: { ...input().draft, orderType: "MARKET" } }));
   assert.equal(missingPrice.canSubmit, false);
   assert.ok(missingPrice.blockedReasons.includes("PRICE_NOT_RECEIVED"));
-
   const invalid = buildTradingViewModel(input({ draft: { ...input().draft, priceInput: "", quantityInput: "-1" } }));
   assert.equal(invalid.canSubmit, false);
   assert.deepEqual(invalid.validationErrors, ["price is required", "quantity must be positive"]);
@@ -44,10 +43,8 @@ test("Trading model enforces balance, mode, and live mutation gates", () => {
   const insufficient = buildTradingViewModel(input({ account: { ...input().account, cash: 100 } }));
   assert.ok(insufficient.validationErrors.includes("insufficient available cash"));
   assert.equal(insufficient.canSubmit, false);
-
   const sell = buildTradingViewModel(input({ draft: { side: "SELL", orderType: "MARKET", priceInput: "", quantityInput: "3" } }));
   assert.ok(sell.validationErrors.includes("insufficient available asset"));
-
   const unsafe = buildTradingViewModel(input({ account: { ...input().account, mode: "SHADOW", liveMutationAllowed: true } }));
   assert.ok(unsafe.blockedReasons.includes("PAPER_MODE_REQUIRED"));
   assert.ok(unsafe.blockedReasons.includes("LIVE_MUTATION_DISABLED"));
@@ -61,14 +58,14 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-  assert.match(source, /eyebrow="PAPER WORKSPACE"/);
-  assert.match(source, /StatusChip label="PAPER ONLY"/);
-  assert.match(source, /StatusChip label="LIVE 금지"/);
+  assert.match(source, /<ScreenHeader eyebrow="PAPER ORDER"/);
+  assert.match(source, /statusLabel="PAPER ONLY"/);
+  assert.match(source, /LIVE 주문 권한 없음 · Production mutation 금지/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(source, /credentialSession\.isConfigured\(\)/);
   assert.match(source, /PAPER 주문 연결 필요/);
-  assert.match(source, /PAPER 주문 미리보기/);
-  assert.match(source, /PAPER 주문 확인/);
+  assert.match(source, /04 · 주문 미리보기/);
+  assert.match(source, /PAPER 주문 검토/);
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
@@ -78,17 +75,15 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.match(source, /disabled=\{!submitEnabled\}/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /NusaTextField/);
-  assert.match(source, /import \{ SegmentedControl \} from "\.\/uxPrimitives"/);
+  assert.match(source, /SegmentedControl/);
   assert.match(source, /testID="paper-side-segmented-control"/);
   assert.match(source, /testID="paper-type-segmented-control"/);
   assert.match(source, /selectedKey=\{side\}/);
   assert.match(source, /selectedKey=\{orderType\}/);
   assert.match(source, /disabled=\{submitting\}/);
-
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
-
   assert.match(app, /activeTab === "Trade"/);
   assert.match(app, /<TradingView/);
 });
