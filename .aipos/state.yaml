@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-11T13:50:00Z"
+updated_at: "2026-08-11T15:38:00Z"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record the merged WO-AI-011 planning gate without claiming runtime implementation or human/environment completion."
+objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 and its merged point-in-time/economic-usefulness planning hardening without claiming runtime implementation or human/environment completion."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+base_commit: 5427707318b516c561ebead93ce3e4f0b2128b4a
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -24,9 +24,13 @@ planning_gates:
     status: PLANNED
     merged_pr: 421
     merge_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+    hardening_prs:
+      - 425
+      - 427
+    latest_hardening_merge: 5427707318b516c561ebead93ce3e4f0b2128b4a
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation is planned and architecture-audited only; runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
+    summary: "Governed longitudinal held-out evaluation is planning/audit only; point-in-time leakage and economic-usefulness contracts are hardened, while runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -79,7 +83,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-011 planning PR #421 is merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work that cannot satisfy or bypass that gate."
+  reason: "WO-AI-011 planning plus point-in-time and economic-usefulness hardening are merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work that cannot satisfy or bypass that gate."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -90,8 +94,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-011 recovery planning PR #421 exact head b91459b880d67d63b1c24b69c003d7085f998941 passed Full CI/Coverage run 31497602616 and all four Restricted LIVE/read-only safety workflows, then merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. This is planning-only and does not authorize runtime implementation."
-  current_commit: "1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8 contains the merged WO-AI-011 planning gate; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  last_result: "WO-AI-011 recovery planning PR #421 exact head b91459b880d67d63b1c24b69c003d7085f998941 passed Full CI/Coverage run 31497602616 and all four Restricted LIVE/read-only safety workflows, then merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 then merged at 6a1bede063251222a9b808d58ba04d43249dc922, and economic-usefulness hardening PR #427 exact head 3f1c7dbd670f3b4cc122316d09a9eb5d1f9ef0b4 passed Full CI plus all four safety workflows and merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. All remain planning-only and authorize no runtime implementation."
+  current_commit: "5427707318b516c561ebead93ce3e4f0b2128b4a contains the merged WO-AI-011 planning hardening; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
