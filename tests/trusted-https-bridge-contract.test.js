@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const config = fs.readFileSync(path.join(root, 'deploy/cloudflare-tunnel/config.example.yml'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'docs/TRUSTED_HTTPS_BRIDGE.md'), 'utf8');
 const androidManifest = fs.readFileSync(path.join(root, 'apps/mobile/android/app/src/main/AndroidManifest.xml'), 'utf8');
+const androidGradle = fs.readFileSync(path.join(root, 'apps/mobile/android/app/build.gradle'), 'utf8');
 const cloudRuntimeConfig = fs.readFileSync(path.join(root, 'apps/cloud/src/cloudRuntimeConfig.ts'), 'utf8');
 
 const combined = `${config}\n${runbook}`;
@@ -24,8 +25,9 @@ test('runbook preserves the production loopback bind instead of weakening Cloud 
   assert.doesNotMatch(runbook, /NUSA_CLOUD_DASHBOARD_HOST=0\.0\.0\.0/);
 });
 
-test('Android remains cleartext-disabled and the operator endpoint is HTTPS-only', () => {
-  assert.match(androidManifest, /android:usesCleartextTraffic="false"/);
+test('Android release remains cleartext-disabled and the operator endpoint is HTTPS-only', () => {
+  assert.match(androidManifest, /android:usesCleartextTraffic="\$\{usesCleartextTraffic\}"/);
+  assert.match(androidGradle, /release\s*\{[\s\S]*?manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/);
   assert.match(runbook, /https:\/\/paper\.example\.com/);
   assert.match(runbook, /Do not add HTTP fallback/);
 });
