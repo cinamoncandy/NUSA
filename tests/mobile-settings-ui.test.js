@@ -12,11 +12,12 @@ test("settings UI exposes PAPER connection, cash allocation, appearance, safety 
   assert.match(source, /testID="settings-paper-token"/);
   assert.match(source, /testID="settings-paper-connect"/);
   assert.match(source, /testID="settings-paper-disconnect"/);
+  assert.match(source, /토큰은 현재 앱 프로세스 메모리에만 존재합니다/);
 
   assert.match(source, /testID="settings-capital-allocation"/);
   assert.match(source, /현금 투자 비중/);
   assert.match(source, /투자 가능/);
-  assert.match(source, /미투자 보호/);
+  assert.match(source, /보호 현금/);
   assert.match(source, /createCashInvestmentEnvelope/);
   assert.match(source, /testID="settings-investment-allocation-presets"/);
   assert.match(source, /testID="settings-investment-percent"/);
@@ -30,11 +31,11 @@ test("settings UI exposes PAPER connection, cash allocation, appearance, safety 
   assert.match(source, /selectedKey=\{settings\.theme\}/);
   assert.match(source, /updateTheme\(key as ThemeSetting\)/);
 
-  assert.match(source, /거래 권한/);
+  assert.match(source, /안전과 로컬 관리/);
   assert.match(source, /StatusChip label="PAPER ONLY"/);
-  assert.match(source, /DataRow label="운영 모드" value="PAPER"/);
   assert.match(source, /DataRow label="LIVE 주문" value="금지"/);
   assert.match(source, /DataRow label="Production mutation" value="금지"/);
+  assert.match(source, /LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
