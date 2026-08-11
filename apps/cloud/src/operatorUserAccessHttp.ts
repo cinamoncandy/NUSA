@@ -26,7 +26,7 @@ export function handleOperatorUserAccessHttp(
   request: DashboardHttpRequest & { readonly body?: string },
   dependencies: OperatorUserAccessHttpDependencies
 ): DashboardHttpResponse {
-  const authorization = authorizeDashboardReadRequest(request, dependencies.tokenVerifier, "users:manage", ["GET", "POST"]);
+  const authorization = authorizeDashboardReadRequest(request, dependencies.tokenVerifier, "settings:write", ["GET", "POST"]);
   if (!authorization.ok) return authorization.response;
 
   if (request.method.toUpperCase() === "GET") {
