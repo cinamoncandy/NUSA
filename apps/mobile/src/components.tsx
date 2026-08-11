@@ -85,10 +85,29 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
   return <View accessibilityRole="text" testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
 }
 
+/**
+ * NUSA monogram: an "N" built from two stable pillars and one rising diagonal.
+ * The mark intentionally uses primitive Views so the same identity remains crisp
+ * without a bundled image asset in headers, auth entry and loading states.
+ */
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
-  const widths = compact ? [22, 28, 20] : [30, 38, 26];
-  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waveMark}>{widths.map((width, index) => <View key={width + index} style={[styles.waveLine, { width, backgroundColor: index === 1 ? theme.colors.primary : theme.colors.info, opacity: 1 - index * 0.2 }]} />)}</View>;
+  const size = compact ? 28 : 38;
+  const inset = compact ? 6 : 8;
+  const stroke = compact ? 3 : 4;
+  const diagonalHeight = compact ? 22 : 30;
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.nusaMark, { width: size, height: size, borderRadius: compact ? 9 : 12, backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.borderStrong }]}
+      testID="nusa-brand-mark"
+    >
+      <View style={[styles.nusaPillar, { left: inset, top: inset, bottom: inset, width: stroke, borderRadius: stroke, backgroundColor: theme.colors.primary }]} />
+      <View style={[styles.nusaDiagonal, { left: size / 2 - stroke / 2, top: size / 2 - diagonalHeight / 2, width: stroke, height: diagonalHeight, borderRadius: stroke, backgroundColor: theme.colors.primary, transform: [{ rotate: "-38deg" }] }]} />
+      <View style={[styles.nusaPillar, { right: inset, top: inset, bottom: inset, width: stroke, borderRadius: stroke, backgroundColor: theme.colors.info }]} />
+    </View>
+  );
 }
 
 export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebrow?: string; title: string; description?: string }>) {
@@ -116,8 +135,9 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
   chipLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.35 },
-  waveMark: { gap: 4, alignItems: "flex-start", justifyContent: "center" },
-  waveLine: { height: 3, borderRadius: 9999 },
+  nusaMark: { position: "relative", overflow: "hidden", borderWidth: 1 },
+  nusaPillar: { position: "absolute" },
+  nusaDiagonal: { position: "absolute" },
   sectionHeading: { gap: 5, marginBottom: 2 },
   eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.6 },
   sectionTitle: { fontSize: 26, lineHeight: 32, fontWeight: "700", letterSpacing: -0.9 },
