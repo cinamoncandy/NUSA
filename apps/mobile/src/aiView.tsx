@@ -35,7 +35,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <NusaCard raised testID="ai-thesis-card"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={analysisTone} /></View><Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>이 분석은 주문 권한이 없는 읽기 전용 참고 정보입니다.</Text></NusaCard>
 
     <View style={styles.metricGrid}>
-      <MetricTile label="원시 모델 확률" value={rawProbability} detail="미보정 모델 출력" tone="neutral" testID="ai-raw-probability" />
+      <MetricTile label="원시 모델 확률" value={rawProbability} detail="미보정 모델 출력" tone="default" testID="ai-raw-probability" />
       <MetricTile label="검증 신뢰도" value={trustedConfidence} detail={ai?.calibrationStatus === "CALIBRATED" ? "보정 완료" : "보정되지 않음"} tone={ai?.calibrationStatus === "CALIBRATED" ? "success" : "warning"} testID="ai-trusted-confidence" />
       <MetricTile label="보정 확률" value={calibratedProbability} detail={`표본 ${ai?.calibrationSampleCount ?? 0}`} tone="info" testID="ai-calibrated-probability" />
     </View>
