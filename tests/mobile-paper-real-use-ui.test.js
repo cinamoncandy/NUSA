@@ -9,7 +9,7 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
   const app = read("apps/mobile/App.tsx");
   assert.match(app, /testID="local-entry-submit"/);
   assert.match(app, /개인 모드 시작/);
-  assert.match(app, /계정 인증이 아닙니다/);
+  assert.match(app, /개인 기기에서 PAPER 작업공간으로 진입합니다/);
   assert.match(app, /PAPER ONLY/);
   assert.match(app, /LIVE NONE/);
   assert.doesNotMatch(app, /testID="auth-email"|testID="auth-password"/);
@@ -18,9 +18,11 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
 
 test("Settings is the single PAPER endpoint and memory credential setup path", () => {
   const app = read("apps/mobile/App.tsx");
+  const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /dashboard-open-settings/);
-  assert.match(app, /설정에서 PAPER 연결/);
+  assert.match(home, /dashboard-open-settings/);
+  assert.match(home, /설정에서 PAPER 연결/);
+  assert.match(app, /<HomeView/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
   assert.match(settings, /settings-paper-connect/);
@@ -68,16 +70,10 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
   const app = read("apps/mobile/App.tsx");
   const operations = read("apps/mobile/src/personalPaperOperationsClient.ts");
   const orders = read("apps/mobile/src/personalPaperOrderClient.ts");
-
-  // The app itself now resolves the saved+verified endpoint and passes that exact endpoint to
-  // dashboard refresh; no independent environment endpoint remains in the normal user path.
   assert.doesNotMatch(app, /EXPO_PUBLIC_NUSA_MONITOR_URL/);
   assert.match(app, /const endpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(app, /endpoint == null \|\| !isPaperConnectionVerified\(endpoint\)/);
   assert.match(app, /loadPersonalPaperOperations\(\{ baseUrl: endpoint, credentialProvider: credentialSession\.credentialProvider \}\)/);
-
-  // Settings probe is the sole unverified exception; normal transports remain bound to the
-  // configured+verified endpoint and cannot select a separate caller/environment authority.
   assert.match(operations, /allowUnverifiedEndpoint === true && requested !== configured/);
   assert.match(operations, /options\.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified\(configured\)/);
   assert.match(operations, /const endpoint = new URL\(`\$\{configured\}\/api\/paper-operations`\)\.href/);
@@ -105,7 +101,7 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
 
 test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
   for (const file of [
-    "apps/mobile/App.tsx",
+    "apps/mobile/src/homeView.tsx",
     "apps/mobile/src/settingsView.tsx",
     "apps/mobile/src/marketsView.tsx",
     "apps/mobile/src/tradingView.tsx",
@@ -113,20 +109,16 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
     "apps/mobile/src/aiView.tsx"
   ]) {
     const source = read(file);
-    if (file === "apps/mobile/src/marketsView.tsx") {
-      assert.match(source, /uxLayout\.maxWorkspaceWidth/, `${file} must use the canonical tablet workspace bound`);
-    } else {
-      assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
-    }
+    if (file === "apps/mobile/src/marketsView.tsx") assert.match(source, /uxLayout\.maxWorkspaceWidth/, `${file} must use the canonical tablet workspace bound`);
+    else assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
   }
 
-  const app = read("apps/mobile/App.tsx");
+  const home = read("apps/mobile/src/homeView.tsx");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-
-  assert.match(app, /homeGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
-  assert.match(app, /homeColumn: \{ flexGrow: 1, flexBasis: 440/);
+  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
   assert.match(markets, /const wide = width >= 840/);
   assert.match(markets, /layoutWide: \{ flexDirection: "row"/);
   assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
