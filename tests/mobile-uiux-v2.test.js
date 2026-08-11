@@ -36,7 +36,7 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   const source = read("src/marketsView.tsx");
   const app = read("App.tsx");
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
-  assert.match(source, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
+  assert.match(source, /const visiblePanel(?::\s*Panel)? = chartAvailable \? panel : "WATCHLIST"/);
   assert.match(source, /\{chartAvailable \? <View/);
   assert.match(source, /visiblePanel === "WATCHLIST"/);
   assert.match(app, /rawCandles=\{null\}/);
