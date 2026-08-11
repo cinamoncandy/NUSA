@@ -1,15 +1,20 @@
 {
-  "workOrder": "WO-AI-010",
-  "status": "COMPLETED",
+  "version": 1,
+  "id": "evidence-wo-ai-010-completion",
   "result": "PASS",
-  "subject": { "type": "work_order", "id": "WO-AI-010", "path": ".aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml" },
-  "planningPullRequest": 401,
-  "planningHead": "e6e9c66eeaa2d2e34506f1246fc1cb46ac024a59",
-  "planningMerge": "83b1402caee5f06276cdbfc3f9a648e4ebd55465",
-  "implementationPullRequest": 405,
-  "implementationHead": "de7dd7b7242b362169a0f7a2383adf5cdf63b9bd",
-  "implementationMerge": "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7",
-  "focusedTests": { "file": "tests/ai-explanation-faithfulness.test.js", "passed": 5 },
-  "ci": { "test": "PASS", "verify": "PASS", "guard": "PASS", "readiness": "PASS", "rehearsal": "PASS", "testRun": "https://github.com/cinamoncandy/NUSA/actions/runs/31447764706" },
+  "observed_at": "2026-08-11T01:00:00Z",
+  "subject": { "type": "work_order", "id": "WO-AI-010", "path": ".aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml", "hash": { "algorithm": "git-blob-sha1", "value": "8a6e14000b4d28f568c842d1fd5c57795630c468" } },
+  "producer": { "kind": "github-actions", "id": "CI", "code_revision": "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7" },
+  "configuration": {
+    "snapshot": { "scope": "PAPER_RESEARCH_ONLY", "claimEvidenceVerification": true, "materialCounterevidence": true, "provenanceBoundary": true, "readOnly": true, "productionMutationAllowed": false, "realOrderAuthority": false, "realTransferAuthority": false },
+    "hash": { "algorithm": "sha256", "value": "0da7d0f9e696801147be36e132ff146b00c26a96674c3c6507378d456a60d9a8" }
+  },
+  "provenance": ["focused-adversarial-tests", "github-actions-pr-405", "restricted-read-only-workflows"],
+  "assertions": [
+    { "name": "claim-evidence-support-and-contradiction", "status": "PASS" },
+    { "name": "provenance-calibration-disagreement-attribution", "status": "PASS" },
+    { "name": "zero-authority-safety", "status": "PASS" }
+  ],
+  "implementation": { "pullRequest": 405, "head": "de7dd7b7242b362169a0f7a2383adf5cdf63b9bd", "merge": "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7", "focusedTestsPassed": 5 },
   "safety": { "liveAuthority": "NONE", "productionMutationAllowed": false, "realOrderAuthority": false, "realTransferAuthority": false, "aiAuthority": "ZERO_AUTHORITY", "wo0051": "HUMAN_ENVIRONMENT_ONLY" }
 }
