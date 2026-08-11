@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
+import { SegmentedControl } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { buildTradingViewModel, formatTradingAmount, tradingAssetCode, type TradingDraft, type TradingOrderSide, type TradingOrderType } from "./tradingViewModel";
 import type { PortfolioAccountResponse } from "./portfolioViewModel";
@@ -11,8 +12,9 @@ import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdent
 interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; }
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>PAPER 화면을 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View></View>; }
 const idempotencyKey = (): string => `paper-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-// Keep unresolved PAPER submission identities for the whole app process so tab navigation/remounts cannot rotate an ambiguous request key.
 const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
+const SIDE_ITEMS = Object.freeze([{ key: "BUY", label: "매수" }, { key: "SELL", label: "매도" }]);
+const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, { key: "LIMIT", label: "지정가" }]);
 
 export function TradingView({ snapshot, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit }: TradingViewProps) {
   const { theme } = useTheme();
@@ -60,14 +62,16 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
     }
   };
   const requestSubmit = () => { if (!submitEnabled) return; if (onSubmit) { onSubmit(draft); return; } setConfirming(true); };
+  const changeSide = (key: string) => { setSide(key as TradingOrderSide); setConfirming(false); };
+  const changeOrderType = (key: string) => { setOrderType(key as TradingOrderType); setConfirming(false); };
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="trading-screen">
     <SectionHeading eyebrow="PAPER WORKSPACE" title="PAPER" description="실제 시장 데이터와 가상 PAPER 계좌로만 주문을 연습합니다." />
     <View style={styles.statusRow}><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label={marketReady ? "시장 온라인" : "시장 대기"} tone={marketReady ? "success" : "warning"} /><StatusChip label="LIVE 금지" tone="info" /></View>
     <NusaCard raised><View style={styles.marketHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>관찰 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View><Text style={[styles.price, { color: theme.colors.text }]}>{model.currentPrice === null ? "-" : formatTradingAmount(model.currentPrice, "KRW")}</Text><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><DataRow label="시장 연결" value={marketConnectionState} tone={marketReady ? "success" : "warning"} /><DataRow label="사용 가능 현금" value={formatTradingAmount(snapshot.account.cash, "KRW")} /><DataRow label="보유 수량" value={`${snapshot.account.position.quantity} ${tradingAssetCode(model.market)}`} /></NusaCard>
     {!submitAvailable ? <NusaCard><Text style={[styles.cardTitle, { color: theme.colors.text }]}>PAPER 주문 연결 필요</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>설정에서 Cloud endpoint와 메모리 세션 토큰을 검증하면 PAPER 주문 컨트롤이 활성화됩니다.</Text></NusaCard> : <>
-      <View style={styles.segmentRow}><NusaButton disabled={submitting} label="매수" onPress={() => { setSide("BUY"); setConfirming(false); }} tone={side === "BUY" ? "primary" : "neutral"} /><NusaButton disabled={submitting} label="매도" onPress={() => { setSide("SELL"); setConfirming(false); }} tone={side === "SELL" ? "danger" : "neutral"} /></View>
-      <View style={styles.segmentRow}><NusaButton disabled={submitting} label="시장가" onPress={() => { setOrderType("MARKET"); setConfirming(false); }} tone={orderType === "MARKET" ? "primary" : "neutral"} /><NusaButton disabled={submitting} label="지정가" onPress={() => { setOrderType("LIMIT"); setConfirming(false); }} tone={orderType === "LIMIT" ? "primary" : "neutral"} /></View>
+      <View style={styles.controlGroup}><Text style={[styles.label, { color: theme.colors.textMuted }]}>주문 방향</Text><SegmentedControl disabled={submitting} items={SIDE_ITEMS} selectedKey={side} onChange={changeSide} testID="paper-side-segmented-control" /></View>
+      <View style={styles.controlGroup}><Text style={[styles.label, { color: theme.colors.textMuted }]}>주문 유형</Text><SegmentedControl disabled={submitting} items={ORDER_TYPE_ITEMS} selectedKey={orderType} onChange={changeOrderType} testID="paper-type-segmented-control" /></View>
       {orderType === "LIMIT" ? <NusaTextField autoCorrect={false} editable={!submitting} keyboardType="decimal-pad" label="가격" value={priceInput} onChangeText={(value) => { setPriceInput(value); setConfirming(false); }} placeholder="KRW 가격" returnKeyType="done" /> : null}
       <NusaTextField autoCorrect={false} editable={!submitting} keyboardType="decimal-pad" label={`수량 (${tradingAssetCode(model.market)})`} value={quantityInput} onChangeText={(value) => { setQuantityInput(value); setConfirming(false); }} placeholder="수량" returnKeyType="done" />
       <NusaCard><Text style={[styles.label, { color: theme.colors.textMuted }]}>PAPER 주문 미리보기</Text><DataRow label="예상 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} /><DataRow label="사용 가능" value={formatTradingAmount(model.availableAmount, model.availableUnit)} /></NusaCard>
@@ -78,4 +82,4 @@ export function TradingView({ snapshot, marketConnectionState, stale, error, ref
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1080, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720 }, stateTitle: { fontSize: 18, fontWeight: "700" }, stateMessage: { lineHeight: 21, fontSize: 14 }, statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" }, marketHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, market: { marginTop: 4, fontSize: 20, fontWeight: "700" }, label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 }, price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12, fontVariant: ["tabular-nums"] }, divider: { height: 1, marginVertical: 13 }, segmentRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, reason: { marginTop: 7, fontSize: 13 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32, width: "100%", maxWidth: 1080, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720 }, stateTitle: { fontSize: 18, fontWeight: "700" }, stateMessage: { lineHeight: 21, fontSize: 14 }, statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" }, marketHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, market: { marginTop: 4, fontSize: 20, fontWeight: "700" }, label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 }, price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12, fontVariant: ["tabular-nums"] }, divider: { height: 1, marginVertical: 13 }, controlGroup: { gap: 7 }, segmentRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, reason: { marginTop: 7, fontSize: 13 } });
