@@ -1,0 +1,5 @@
+import type { DashboardCredentialProvider } from "./personalPaperOperationsClient";
+export interface CloudInvestmentAllocationClient { save(investmentPercent: number): Promise<void>; }
+export function createCloudInvestmentAllocationClient(options: { readonly baseUrl: string; readonly credentialProvider: DashboardCredentialProvider; readonly request?: typeof fetch }): CloudInvestmentAllocationClient {
+  return { async save(investmentPercent: number): Promise<void> { const token = await options.credentialProvider(); if (!token?.trim()) throw new Error("Cloud settings authentication is required."); const response = await (options.request ?? fetch)(`${options.baseUrl.replace(/\/+$/, "")}/api/settings/investment-allocation`, { method: "PUT", headers: { authorization: `Bearer ${token.trim()}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ investmentPercent }) }); if (!response.ok) throw new Error(`Cloud investment allocation save failed (${response.status}).`); } };
+}

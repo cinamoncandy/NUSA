@@ -29,6 +29,7 @@ import type { CloudAiRuntime } from "./ai/runtime";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
 import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cloudRuntimeEvidence";
+import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocationSettingsRepository, type InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 
 export interface CloudRuntimeDashboardHydratorLike {
   hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void;
@@ -174,6 +175,9 @@ export function startCloudRuntime(
     if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
     return effectiveP0Repository.readState();
   };
+  const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
+    : new InMemoryInvestmentAllocationSettingsRepository();
   const readAiP0State = (): CloudRuntimeAiP0State => {
     if (effectiveP0Repository == null) return "UNAVAILABLE";
     try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; }
@@ -280,7 +284,7 @@ export function startCloudRuntime(
               tradingAllowed: dashboard.tradingAllowed,
               overallHealth: state.overallHealth,
               decisions: state.decisions,
-              investmentPercent: config.paperInvestmentPercent
+              investmentPercent: investmentAllocationSettings.get("operator")?.investmentPercent ?? config.paperInvestmentPercent
             };
             // Production-owned PAPER composition must never fall back around the risk boundary.
             // Injected loops/repositories are test/custom compositions and retain their explicit caller-owned behavior.
@@ -318,6 +322,7 @@ export function startCloudRuntime(
       if (input === undefined) throw new Error("dashboard state is not ready");
       return buildMobileDashboardResponse(input);
     },
+    investmentAllocationSettings,
     loadPaperOperations: (principal) => {
       const input = effectiveProvider.read(principal);
       if (input === undefined) throw new Error("dashboard state is not ready");

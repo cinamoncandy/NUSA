@@ -48,14 +48,17 @@ export type DashboardReadAuthorization =
 /** Shared fail-closed authorization boundary for every read-only dashboard projection. */
 export function authorizeDashboardReadRequest(
   request: DashboardHttpRequest,
-  tokenVerifier: DashboardTokenVerifier
+  tokenVerifier: DashboardTokenVerifier,
+  requiredScope = "dashboard:read",
+  allowedMethods: readonly string[] = ["GET"]
 ): DashboardReadAuthorization {
-  if (request.method.toUpperCase() !== "GET") {
+  const method = request.method.toUpperCase();
+  if (!allowedMethods.some((allowedMethod) => allowedMethod.toUpperCase() === method)) {
     return Object.freeze({
       ok: false,
       response: Object.freeze({
         ...dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" }),
-        headers: Object.freeze({ ...dashboardJsonResponse(405, {}).headers, allow: "GET" })
+        headers: Object.freeze({ ...dashboardJsonResponse(405, {}).headers, allow: allowedMethods.join(", ") })
       })
     });
   }
@@ -72,7 +75,7 @@ export function authorizeDashboardReadRequest(
   if (principal == null || !principal.userId.trim()) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
   }
-  if (!principal.scopes.includes("dashboard:read")) {
+  if (!principal.scopes.includes(requiredScope)) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
   }
 
