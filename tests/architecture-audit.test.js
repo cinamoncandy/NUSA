@@ -23,6 +23,16 @@ test("approved default architecture passes with immutable audit report", () => {
   assert.ok(Object.isFrozen(report.findings));
 });
 
+test("governed data/knowledge core compatibility module is outside the seven-stage fast path", () => {
+  const topology = createDefaultPlatformTopology();
+  const dataKnowledge = topology.modules.find((module) => module.id === "data-knowledge");
+  assert.equal(dataKnowledge.layer, "CORE");
+  assert.equal(dataKnowledge.plane, "DATA_KNOWLEDGE");
+  assert.equal(dataKnowledge.realTime, false);
+  const report = auditPlatformArchitecture(topology, 1000);
+  assert.equal(report.findings.some((item) => item.id === "UNKNOWN_CORE_STAGE:data-knowledge"), false);
+});
+
 test("fails when core dependency direction is inverted", () => {
   const topology = cloneTopology(createDefaultPlatformTopology());
   topology.modules.find((module) => module.id === "probability").dependencies.push("execution");
