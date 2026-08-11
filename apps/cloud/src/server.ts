@@ -13,6 +13,8 @@ import {
   type PersonalPaperOperationsHttpDependencies
 } from "./personalPaperOperationsHttp";
 import { operationalLog } from "./structuredOperationalLog";
+import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
+import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -31,6 +33,7 @@ export interface CloudDashboardServerOptions {
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
+  readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   /** Readiness must be supplied by the runtime from directly verified persistence/recovery signals. */
   readonly readiness?: () => CloudReadinessSnapshot;
 }
@@ -75,7 +78,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     throw new Error("cloud dashboard server must bind to localhost");
   }
 
-  const server: Server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+  const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
     try {
       if (req.url === "/health") {
@@ -87,9 +90,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      const dashboardRequest: DashboardHttpRequest = Object.freeze({
+      const body = req.method === "POST" || req.method === "PUT" ? await new Promise<string>((resolve, reject) => { let value = ""; req.setEncoding("utf8"); req.on("data", (chunk) => { value += chunk; if (value.length > 10000) reject(new Error("request body too large")); }); req.on("end", () => resolve(value)); req.on("error", reject); }) : undefined;
+      const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({
         method: req.method ?? "GET",
-        headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>)
+        headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>),
+        ...(body === undefined ? {} : { body })
       });
 
       if (req.url === "/ready") {
@@ -133,6 +138,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           tokenVerifier: options.tokenVerifier,
           loadDashboard: options.loadDashboard
         }));
+        return;
+      }
+
+      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
+        write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: options.investmentAllocationSettings }));
         return;
       }
 

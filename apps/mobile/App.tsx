@@ -24,6 +24,7 @@ import { DEFAULT_SETTINGS, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 
 const BASE_URL = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
 const AUTH_MODE = process.env.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation";
@@ -91,6 +92,7 @@ function AuthenticatedApp() {
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
   const [refreshing, setRefreshing] = useState(false);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ baseUrl: BASE_URL, credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
 
   const refresh = useCallback(async () => {
@@ -195,7 +197,7 @@ function AuthenticatedApp() {
     {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "대시보드 연결이 필요합니다."} onGoHome={goHome} />
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
-      : utilityView === "SETTINGS" ? <SettingsView exchangeCash={account?.cash ?? 0} onSignOut={handleSignOut} repository={settingsRepository} />
+      : utilityView === "SETTINGS" ? <SettingsView exchangeCash={account?.cash ?? 0} onCloudInvestmentPercentSave={investmentAllocationClient.save} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />

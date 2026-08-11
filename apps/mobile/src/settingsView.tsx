@@ -9,13 +9,14 @@ interface SettingsViewProps {
   readonly repository: SettingsRepository;
   readonly onSignOut?: () => void;
   readonly exchangeCash?: number;
+  readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>;
 }
 
 const themes: readonly ThemeSetting[] = ["SYSTEM", "LIGHT", "DARK"];
 const themeLabels: Readonly<Record<ThemeSetting, string>> = { SYSTEM: "시스템", LIGHT: "라이트", DARK: "다크" };
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
 
-export function SettingsView({ repository, onSignOut, exchangeCash = 0 }: SettingsViewProps) {
+export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave }: SettingsViewProps) {
   const { theme, setMode } = useTheme();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
@@ -38,6 +39,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0 }: Settin
     setSaving(true);
     try {
       const normalized = normalizeSettings(next);
+      if (normalized.capitalAllocation.investmentPercent !== settings?.capitalAllocation.investmentPercent && onCloudInvestmentPercentSave) await onCloudInvestmentPercentSave(normalized.capitalAllocation.investmentPercent);
       await repository.save(normalized);
       setSettings(normalized);
       setInvestmentPercentDraft(String(normalized.capitalAllocation.investmentPercent));
