@@ -1,12 +1,12 @@
-id: WO-0051
-title: Constitutional Production Transition Human/Environment Gate
-branch: main
+id: WO-AI-010
+title: Governed Explanation Faithfulness and Claim-Evidence Verification
+branch: agent/wo-ai-010-explanation-faithfulness
 pull_request: null
 base_branch: main
-phase: human-environment-gate
+phase: ai-explanation-faithfulness
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary until genuine external and independent human evidence exists; preserve completed AI-007 N-version provider diversity and disagreement governance as verified zero-authority capability while allowing separately planned safe AI research slices."
+source_work_order: .aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml
+objective: "Verify human-facing AI explanations against governed evidence without increasing authority; preserve WO-0051 as an independent HUMAN_ENVIRONMENT_ONLY gate."
 scope:
   - operator-authorized external read-only preflight only
   - actual independent human activation ceremony evidence
@@ -14,9 +14,9 @@ scope:
   - post-LIVE validation only after a separately authorized tiny session
   - separately planned read-only/zero-authority AI research may proceed but cannot satisfy or bypass this gate
 latest_verified_slice:
-  id: WO-AI-007
+  id: WO-AI-009
   status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-007-completion.json
+  evidence: .aipos/evidence/WO-AI-009-completion.json
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -38,4 +38,4 @@ blockers:
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
   - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Run a fresh post-WO-AI-007 repository/AI capability audit from protected main and select the next lowest-scoring safe intelligence dimension; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
+next_recommended_task: Complete WO-AI-010 exact-head verification and merge; keep WO-0051 IN_PROGRESS and preserve all human-only authority gates.
