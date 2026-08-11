@@ -61,6 +61,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
 }
 
 const styles = StyleSheet.create({
+  grid: { flexDirection: "row", flexWrap: "wrap" },
   content: { paddingHorizontal: 20, paddingTop: 18, gap: 24, paddingBottom: 44, width: "100%", maxWidth: 920, alignSelf: "center" },
   topline: { minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   toplineRight: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" },
