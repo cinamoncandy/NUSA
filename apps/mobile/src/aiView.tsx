@@ -61,11 +61,6 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <SectionHeading eyebrow="AI RESEARCH" title="AI 인텔리전스" description="검증된 분석, 근거, 불확실성과 보정 상태를 확인합니다." />
 
-    <View style={styles.authoritySummary} testID="ai-authority-summary">
-      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
-      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
-    </View>
-
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
@@ -81,6 +76,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="최근 분석" value={lastRun} />
       <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력입니다. 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED일 때만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
     </NusaCard>
+
+    <View style={styles.authoritySummary} testID="ai-authority-summary">
+      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
+      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
+    </View>
 
     <NusaCard testID="ai-evidence-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>근거와 반대 근거</Text><StatusChip label={`${ai?.evidenceReferences.length ?? 0} 근거`} tone="neutral" /></View>
