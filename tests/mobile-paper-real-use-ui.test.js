@@ -89,7 +89,7 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
 test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE authority", () => {
   const trading = read("apps/mobile/src/tradingView.tsx");
   const components = read("apps/mobile/src/components.tsx");
-  assert.match(trading, /PAPER 주문 확인/);
+  assert.match(trading, /PAPER 주문 검토/);
   assert.match(trading, /PAPER 주문 확정/);
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
