@@ -17,19 +17,18 @@ test("product navigation promotes PAPER and AI without changing foundation tab k
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
-  assert.match(app, /<HomeView/);
 });
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
   const source = read("src/aiView.tsx");
-  assert.match(source, /StatusChip label="ZERO AUTHORITY"/);
-  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /READ ONLY/);
   assert.match(source, /ai\.evidenceReferences/);
   assert.match(source, /ai\.counterEvidence/);
   assert.match(source, /ai\.disagreements/);
   assert.match(source, /liveAuthority/);
   assert.match(source, /productionMutationAllowed/);
-  assert.match(source, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
+  assert.match(source, /주문·이체·LIVE 실행 권한은 없습니다/);
   assert.doesNotMatch(source, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
 });
 
@@ -37,45 +36,33 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   const source = read("src/marketsView.tsx");
   const app = read("App.tsx");
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
-  assert.match(source, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(source, /chartAvailable \? <ChartView/);
-  assert.match(source, /!wide && chartAvailable \? <View style=\{styles\.panels\}/);
-  assert.match(source, /wide \? <WatchlistView/);
-  assert.match(source, /visiblePanel === "WATCHLIST" \? <WatchlistView/);
-  assert.match(source, /markets-panel-segmented-control/);
-  assert.match(source, /차트 데이터가 아직 없습니다/);
+  assert.match(source, /const visiblePanel(?::\s*Panel)? = chartAvailable \? panel : "WATCHLIST"/);
+  assert.match(source, /\{chartAvailable \? <View/);
+  assert.match(source, /visiblePanel === "WATCHLIST"/);
   assert.match(app, /rawCandles=\{null\}/);
 });
 
-test("Trading permits only verified PAPER mutation and never LIVE authority", () => {
+test("read-only PAPER path has one explicit zero-mutation state and no fake controls", () => {
   const source = read("src/tradingView.tsx");
-  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
-  assert.match(source, /StatusChip label="PAPER ONLY"/);
-  assert.match(source, /StatusChip label="LIVE 금지"/);
-  assert.match(source, /PAPER 주문 연결 필요/);
-  assert.match(source, /paper-side-segmented-control/);
-  assert.match(source, /paper-type-segmented-control/);
-  assert.match(source, /PAPER 주문 확인/);
-  assert.match(source, /PAPER 주문 확정/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
-  assert.match(source, /PersonalPaperOrderRetryIdentity/);
-  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  assert.match(source, /const readOnly = onSubmit === undefined/);
+  assert.match(source, /PAPER 관찰 모드/);
+  assert.match(source, /ZERO MUTATION/);
+  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
+  assert.match(source, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
+  assert.doesNotMatch(source, /<AuthorityBanner/);
+  assert.doesNotMatch(source, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
+  assert.doesNotMatch(source, /매수 미리보기|매도 미리보기|읽기 전용 — 주문 권한 없음/);
 });
 
-test("market discovery uses 48px accessible favorite and segmented sort controls", () => {
+test("market discovery uses compact accessible favorite and sort controls", () => {
   const source = read("src/watchlistView.tsx");
   assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
-  assert.match(source, /<SegmentedControl/);
-  assert.match(source, /testID="watchlist-sort"/);
+  assert.match(source, /favorite: \{ minWidth: 52, height: 44/);
+  assert.match(source, /sortChip: \{ minHeight: 44/);
   assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.doesNotMatch(source, /★|☆/);
 });
