@@ -30,7 +30,8 @@ latest_planning_gate:
     - 430
     - 431
     - 432
-  latest_hardening_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
+    - 433
+  latest_hardening_merge: ce1a913684d1353e6538f4a7faa716577bf64824
   implementation_started: false
   serialization: HUMAN_ENVIRONMENT_ONLY
 safety:
@@ -53,6 +54,7 @@ verification:
   ai_011_tail_risk_merge: 7d1af62388beb140850eb4a2db2097bfe6ef8022
   ai_011_portfolio_dependence_merge: 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1
   ai_011_censoring_selection_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
+  ai_011_uncertainty_validity_merge: ce1a913684d1353e6538f4a7faa716577bf64824
   restricted_live_readonly_workflows: PASS_4_OF_4_ON_EACH_MERGED_HARDENING
   ai_runtime_latest_verified: WO-AI-010
   ai_011_runtime_implementation: NOT_STARTED_SERIALIZED
@@ -61,4 +63,4 @@ blockers:
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
   - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Preserve WO-0051 HUMAN_ENVIRONMENT_ONLY; permit only repository-controlled WO-AI-011 planning/audit hardening until serialization clears. Uncertainty/effective-sample validity is the next planning-only quality gap; it cannot authorize runtime or LIVE changes.
+next_recommended_task: Preserve WO-0051 HUMAN_ENVIRONMENT_ONLY; permit only repository-controlled WO-AI-011 planning/audit hardening until serialization clears. Decision-utility/asymmetric-loss validity is the next planning-only quality gap; it cannot authorize runtime or LIVE changes.
