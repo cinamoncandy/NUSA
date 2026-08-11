@@ -15,6 +15,8 @@ export interface CloudPaperExecutionBoundaryOptions {
   readonly maximumMarketAgeMs?: number;
 }
 
+export type PaperManualOrderAllocationContext = PaperManualOrderContext & { readonly investmentPercent?: number };
+
 const normalizedHealth = (value: MobileDashboardApiInput["overallHealth"]): CloudPaperRiskRequest["overallHealth"] => value === "HEALTHY" ? "HEALTHY" : "DEGRADED";
 
 /**
@@ -30,7 +32,7 @@ export class CloudPaperExecutionBoundary {
     if (!Number.isSafeInteger(this.maximumMarketAgeMs) || this.maximumMarketAgeMs < 1_000) throw new Error("cloud PAPER maximum market age is invalid");
   }
 
-  public submitManualOrder(approvedBy: string, command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
+  public submitManualOrder(approvedBy: string, command: PersonalPaperOrderCommand, context: PaperManualOrderAllocationContext): PaperExecutionResult {
     const state = this.options.loop.snapshot();
     if (!command.idempotencyKey.trim() || command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false || !command.market.trim() || !Number.isFinite(command.quantity) || command.quantity <= 0) {
       return this.options.loop.submitManualOrder(command, context);
@@ -47,6 +49,16 @@ export class CloudPaperExecutionBoundary {
       if (!Number.isFinite(limit) || (limit ?? 0) <= 0) return this.options.loop.submitManualOrder(command, context);
       const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
       if (!marketable) return this.options.loop.submitManualOrder(command, context);
+    }
+
+    if (command.side === "BUY") {
+      const investmentPercent = context.investmentPercent ?? 100;
+      if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
+      // Conservative 0.1% fee buffer keeps the protected cash envelope intact even though the
+      // simulator's production fee is currently lower. SELL/exit paths are intentionally unaffected.
+      const requiredCash = command.quantity * context.marketPrice * 1.001;
+      const investableCash = state.cash * (investmentPercent / 100);
+      if (!Number.isFinite(requiredCash) || requiredCash > investableCash + 1e-8) return this.blocked("PAPER_INVESTMENT_ALLOCATION_EXCEEDED");
     }
 
     const openP0 = this.readOpenP0();
@@ -74,7 +86,7 @@ export class CloudPaperExecutionBoundary {
     return this.options.loop.submitManualOrder(command, context);
   }
 
-  public processTick(tick: PaperExecutionTick): PaperExecutionResult {
+  public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
     const actionable = tick.decisions
       .filter((decision) => decision.symbol === tick.market && (decision.action === "BUY" || decision.action === "SELL"))
       .sort((left, right) => left.symbol.localeCompare(right.symbol) || left.action.localeCompare(right.action));
@@ -83,10 +95,12 @@ export class CloudPaperExecutionBoundary {
     const openP0 = this.readOpenP0();
     if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
     const state = this.options.loop.snapshot();
+    const investmentPercent = tick.investmentPercent ?? 100;
+    if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
     for (const decision of actionable) {
       const side = decision.action === "BUY" ? "BUY" as const : "SELL" as const;
       const position = state.positions.find((item) => item.market === tick.market);
-      const quantity = Number((tick.quantity ?? (side === "SELL" ? position?.quantity ?? 0 : state.cash * decision.allocation / tick.price)).toFixed(8));
+      const quantity = Number((tick.quantity ?? (side === "SELL" ? position?.quantity ?? 0 : state.cash * (investmentPercent / 100) * decision.allocation / tick.price)).toFixed(8));
       if (!Number.isFinite(quantity) || quantity <= 0) return this.options.loop.processTick(tick);
       const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
       const risk = this.options.riskGate.evaluate({
