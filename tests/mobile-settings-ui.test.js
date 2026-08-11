@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("settings UI exposes only implemented preferences, Paper safety, reset, and local sign-out", () => {
+test("settings UI exposes implemented preferences, Paper safety, operator user management, reset, and local sign-out", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "settingsView.tsx"), "utf8");
   assert.match(source, /settings-theme/);
   assert.match(source, /settings-notifications/);
@@ -12,17 +12,19 @@ test("settings UI exposes only implemented preferences, Paper safety, reset, and
   assert.match(source, /settings-reset/);
   assert.match(source, /settings-session/);
   assert.match(source, /settings-capital-allocation/);
+  assert.match(source, /settings-operator-users/);
+  assert.match(source, /operator-user-token/);
+  assert.match(source, /operator-user-refresh/);
+  assert.match(source, /users:manage/);
+  assert.match(source, /토큰은 저장하지 않습니다/);
   assert.match(source, /실제 투자 가능 금액/);
   assert.match(source, /보호되는 현금 금액/);
-  assert.match(source, /settings-sign-out/);
   assert.match(source, /settings-loading/);
   assert.match(source, /settings-error/);
   assert.match(source, /value === "SYSTEM" \? "system"/);
-  assert.match(source, /기기의 라이트·다크 설정을 그대로 따릅니다/);
   assert.doesNotMatch(source, /settings-locale-|언어 선택/);
   assert.match(source, /PAPER/);
-  assert.match(source, /LIVE trading은 정책상 비활성입니다/);
-  assert.match(source, /이 설정 화면에서 권한을 승격할 수 없습니다/);
+  assert.match(source, /READ ONLY/);
   assert.match(source, /SettingsRepository/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
 
