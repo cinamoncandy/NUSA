@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-09T22:24:30Z"
+updated_at: "2026-08-11T13:50:00Z"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-009 governed outcome attribution and immutable learning memory while keeping WO-0051 at the constitutional human/environment boundary; require a fresh capability audit before selecting any successor AI implementation slice."
+objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record the merged WO-AI-011 planning gate without claiming runtime implementation or human/environment completion."
 base_branch: main
 active_branch: main
 active_pull_request: null
-base_commit: 83b1402caee5f06276cdbfc3f9a648e4ebd55465
+base_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -16,9 +16,17 @@ verified_state:
   status: COMPLETED
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
 latest_verified_slice:
-  id: wo-ai-009-governed-outcome-attribution-learning-complete
-  evidence: ".aipos/evidence/WO-AI-009-completion.json"
-  summary: "WO-AI-009 adds exact outcome-linked attribution, ambiguity abstention, immutable advisory learning memory, governed shared-resource replay/ablation, holdout leakage guards, and net-benefit evaluation under unchanged zero authority."
+  id: wo-ai-010-claim-evidence-faithfulness-complete
+  evidence: ".aipos/evidence/WO-AI-010-completion.json"
+  summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
+planning_gates:
+  - id: WO-AI-011
+    status: PLANNED
+    merged_pr: 421
+    merge_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+    implementation_started: false
+    serialization: HUMAN_ENVIRONMENT_ONLY
+    summary: "Governed longitudinal held-out evaluation is planned and architecture-audited only; runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -71,20 +79,19 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-010 is merged and evidence-verified; preserve WO-0051 as the terminal human-only mission and run a fresh post-WO-AI-010 capability audit before opening any successor AI implementation work order."
+  reason: "WO-AI-011 planning PR #421 is merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work that cannot satisfy or bypass that gate."
 verification:
   required:
-    - "Fresh post-WO-AI-009 capability audit before selecting the next AI implementation work order"
-    - "Re-rank explanation faithfulness/completeness, provider/model diversity, multi-agent disagreement quality, scenario/counterfactual reasoning, learning/attribution, provider-pool lifecycle, cost-quality optimization, calibration, grounding, resource governance, observability and evaluation quality from merged evidence"
-    - "Preserve exact WO-AI-009 outcome/evidence lineage, ambiguity abstention, learning-memory immutability, shared-resource replay, net-benefit evaluation and zero-authority contracts"
-    - "Optional public-distribution signing verification if public Windows distribution is enabled"
+    - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
+    - "Treat WO-AI-011 as PLANNED only; no runtime implementation before the human/environment serialization clears"
+    - "Preserve PAPER-only, liveAuthority=NONE, productionMutationAllowed=false, and AI ZERO_AUTHORITY boundaries"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-009 planning PR #382 merged at 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1. Core implementation PR #387 exact head 40935021b08cbae43f4eb9947817e5dc20c5f481 passed Full CI/Coverage run 31338389151 and all four Restricted LIVE/read-only workflows, then merged at ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3. Post-merge acceptance audit found replay/resource and net-benefit gaps; hardening PR #388 exact head 1686a9d6d35ad745170080233f12771f0d6b39fe passed Full CI/Coverage run 31339050722 plus all four safety workflows and merged at b131f9bed88cd69b7c168ddf706f714f3e8899b2."
-  current_commit: "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7 contains merged WO-AI-010 implementation; WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  last_result: "WO-AI-011 recovery planning PR #421 exact head b91459b880d67d63b1c24b69c003d7085f998941 passed Full CI/Coverage run 31497602616 and all four Restricted LIVE/read-only safety workflows, then merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. This is planning-only and does not authorize runtime implementation."
+  current_commit: "1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8 contains the merged WO-AI-011 planning gate; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
