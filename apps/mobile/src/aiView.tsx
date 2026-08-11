@@ -79,7 +79,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="최근 분석" value={lastRun} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증 신뢰도와 보정 확률은 보정 상태가 CALIBRATED일 때만 의미 있는 값으로 표시합니다. 원시 모델 확률은 미보정 모델 출력이며 검증된 확률이 아니고 성공 확률이나 성과 보장이 아닙니다.</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력입니다. 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED일 때만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
     </NusaCard>
 
     <NusaCard testID="ai-evidence-card">
