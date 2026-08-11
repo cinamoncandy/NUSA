@@ -13,8 +13,14 @@ objective: >-
 scope:
   - immutable temporal holdout and walk-forward partition identity
   - prediction-time causal data and future-leakage rejection
+  - separate event_time, received_time, model_available_time, prediction_time, and outcome-window clocks where applicable
+  - point-in-time data-vintage identity for revised fundamentals, macro data, filings, and backfills
+  - point-in-time universe identity including delistings, symbol changes, mergers, bankruptcies, and historical membership
+  - explicit adjusted/unadjusted market-series identity and corporate-action provenance
+  - purge or embargo policy for overlapping realized-label horizons
   - prediction/evidence/provider/model/prompt/schema/calibration/outcome lineage
   - realized outcome separation from synthetic, replay, and hypothetical results
+  - frozen benchmark, regime-label, normalization, and cost-model identities without future leakage
   - minimum sample and observation-window abstention as INSUFFICIENT_EVIDENCE
   - accuracy, Brier, calibration error, abstention, disagreement, and faithfulness metrics
   - version-separated provider/model/prompt/calibration metrics
@@ -30,6 +36,10 @@ out_of_scope:
 acceptance_criteria:
   - temporal holdout and walk-forward partitions are immutable and versioned
   - post-prediction information is rejected fail-closed
+  - ambiguous or missing causal-availability clocks fail closed
+  - revised/backfilled data cannot replace the prediction-time vintage
+  - historical universe membership cannot be reconstructed from survivors only
+  - overlapping label horizons are purged, embargoed, or rejected by frozen policy
   - every resolved result has complete prediction-to-outcome lineage
   - synthetic/replay/hypothetical outcomes cannot satisfy realized-outcome evidence
   - insufficient samples produce INSUFFICIENT_EVIDENCE
@@ -41,6 +51,11 @@ acceptance_criteria:
 required_tests:
   - temporal partition and walk-forward boundary tests
   - future-data and overlapping split rejection tests
+  - event/received/model-available/prediction clock ordering tests
+  - revised-vintage and later-backfill rejection tests
+  - survivorship, delisting, universe-membership, and corporate-action point-in-time tests
+  - overlapping realized-label purge/embargo tests
+  - benchmark, regime-label, normalization, and cost-model future-leakage tests
   - complete lineage and provenance integrity tests
   - realized versus synthetic/replay/hypothetical separation tests
   - minimum sample and observation-window abstention tests
@@ -49,6 +64,8 @@ required_tests:
   - economic-usefulness separation and declared-cost tests
   - deterministic replay and duplicate idempotency tests
   - zero-authority and no-mutation regression tests
+planning_artifacts:
+  - docs/audits/wo-ai-011-point-in-time-leakage-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
