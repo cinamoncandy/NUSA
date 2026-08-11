@@ -21,7 +21,8 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
   assert.match(home, /dashboard-open-settings/);
-  assert.match(home, /설정에서 PAPER 연결/);
+  assert.match(home, /PAPER 서버 연결이 필요합니다/);
+  assert.match(home, /설정에서 연결/);
   assert.match(app, /<HomeView/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
@@ -96,14 +97,14 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(components, /AI ZERO AUTHORITY/);
-  assert.match(components, /AI 주문 권한 없음/);
+  assert.match(components, /ZERO AUTHORITY/);
+  assert.match(components, /실제 주문 권한은 없습니다/);
   assert.doesNotMatch(components, />ZERO ORDER AUTHORITY</);
 });
 
 test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
   const bounded = {
-    "apps/mobile/src/homeView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/homeView.tsx": /maxWidth: 920/,
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
