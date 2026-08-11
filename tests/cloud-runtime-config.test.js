@@ -68,7 +68,7 @@ test("the shared-secret verifier accepts only the exact configured token with ex
   const principal = verifier.verify(VALID_TOKEN);
   assert.ok(principal);
   assert.equal(principal.userId, "operator");
-  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade"]);
+  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade", "settings:read", "settings:write"]);
   assert.equal(principal.scopes.includes("live:trade"), false);
   assert.equal(principal.scopes.includes("transfer:write"), false);
   assert.equal(principal.scopes.includes("withdraw:write"), false);
