@@ -48,7 +48,7 @@ function validateIdentity(id: string, email: string): void {
   if (!normalized || !normalized.includes("@")) throw new Error("valid email is required");
 }
 
-function nextStatus(current: NusaUserStatus, action: NusaUserAccessAction): NusaUserStatus {
+function nextStatus(_current: NusaUserStatus, action: NusaUserAccessAction): NusaUserStatus {
   switch (action) {
     case "APPROVE":
     case "RESTORE": return "ACTIVE";
