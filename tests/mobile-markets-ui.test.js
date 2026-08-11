@@ -12,8 +12,11 @@ test("Markets hides chart interaction until real candle data exists across respo
   assert.match(source, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
   assert.match(source, /\{chartAvailable && wide \? <ChartView/);
   assert.match(source, /\{chartAvailable && !wide \? <View[^>]*testID="markets-panels"/);
-  assert.match(source, /testID="markets-chart-tab"/);
+  assert.match(source, /<SegmentedControl/);
+  assert.match(source, /testID="markets-panel-segmented-control"/);
   assert.match(source, /\{wide \|\| visiblePanel === "WATCHLIST" \? <WatchlistView[\s\S]*: <ChartView/);
   assert.match(source, /layoutWide: \{ flexDirection: "row"/);
+  assert.match(source, /<ScreenHeader/);
+  assert.match(source, /<MetricTile label="현재 가격"/);
   assert.match(app, /rawCandles=\{null\}/);
 });
