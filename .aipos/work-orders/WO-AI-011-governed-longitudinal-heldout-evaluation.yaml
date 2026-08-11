@@ -40,6 +40,12 @@ scope:
   - benchmark and opportunity-cost baselines are frozen before outcome observation; post-hoc benchmark selection is prohibited
   - economic usefulness preserves timestamp/order evidence required for turnover, drawdown, implementation timing, and exposure-path claims
   - economic sensitivity analysis remains separately labeled advisory evidence and cannot overwrite the primary frozen-cost result
+  - immutable tail-event family identity covering gap moves, volatility spikes, liquidity stress, correlation spikes, limit/auction disruption, discontinuous prices, and other declared rare-event classes
+  - tail-event thresholds, lookback windows, severity bands, event clustering, and minimum effective-sample requirements are frozen before confirmatory outcome inspection
+  - rare-event dependence and clustered stress episodes cannot be counted as independent samples
+  - tail conditional loss, worst-k event behavior, downside calibration, abstention under stress, and coverage under stress are separated from ordinary-regime averages
+  - synthetic stress, replay, scenario, and hypothetical tail evidence remain separately labeled and cannot satisfy realized rare-event evidence
+  - missing or unresolved realized tail outcomes, sparse event counts, or material uncertainty in stress-event definition fail closed as INSUFFICIENT_EVIDENCE
   - deterministic replay, idempotency, and immutable read-only evidence
 out_of_scope:
   - model/provider weight changes
@@ -74,6 +80,12 @@ acceptance_criteria:
   - gross benefit, each material cost component, opportunity-cost baseline, drawdown/path-risk evidence, and net benefit are separately attributable when sufficient realized evidence exists
   - benchmark switching or hindsight-selected baseline/cost-model substitution creates an invalid or separately versioned evaluation, never an overwrite
   - path-dependent economic claims require ordered timestamped evidence; shuffled or duplicate replay evidence cannot satisfy turnover/drawdown/PnL claims
+  - tail-risk claims bind a frozen tail-event family, threshold, severity, clustering, dependence, and effective-sample identity
+  - realized clustered stress episodes are dependence-adjusted and cannot inflate effective sample size
+  - ordinary-regime averages cannot overwrite or hide tail-event degradation, abstention collapse, missingness, or coverage loss
+  - synthetic/replay/scenario/hypothetical tail evidence cannot satisfy realized rare-event acceptance criteria
+  - insufficient realized rare-event count, unresolved outcomes, or ambiguous stress classification produces INSUFFICIENT_EVIDENCE rather than a favorable tail-risk claim
+  - no tail-risk status can mutate provider/model/prompt/strategy/risk/LIVE authority
   - corruption, ambiguity, stale evidence, and lineage mismatch fail closed
   - output is read-only advisory evidence with unchanged zero authority
   - focused, architecture, security, AIPOS, and full CI checks pass
@@ -116,6 +128,14 @@ required_tests:
   - cost-model effective-time/version substitution tests
   - economic sensitivity analysis non-overwrite tests
   - predictive-correct-but-net-negative separation tests
+  - frozen tail-event family/threshold/severity identity tests
+  - rare-event clustered-dependence and effective-sample tests
+  - tail conditional loss and worst-k event deterministic aggregation tests
+  - downside calibration and stress abstention/coverage tests
+  - ordinary-average masking of tail degradation rejection tests
+  - synthetic/replay/scenario tail evidence non-substitution tests
+  - sparse or unresolved realized tail evidence INSUFFICIENT_EVIDENCE tests
+  - tail-risk zero-authority/no-mutation regression tests
   - deterministic replay and duplicate idempotency tests
   - zero-authority and no-mutation regression tests
 planning_artifacts:
@@ -123,6 +143,7 @@ planning_artifacts:
   - docs/audits/wo-ai-011-economic-usefulness-test-contract.md
   - docs/audits/wo-ai-011-statistical-validity-test-contract.md
   - docs/audits/wo-ai-011-regime-degradation-test-contract.md
+  - docs/audits/wo-ai-011-tail-risk-validity-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
