@@ -3,17 +3,19 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { cashReservePercent, DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
+import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 
 interface SettingsViewProps {
   readonly repository: SettingsRepository;
   readonly onSignOut?: () => void;
+  readonly exchangeCash?: number;
 }
 
 const themes: readonly ThemeSetting[] = ["SYSTEM", "LIGHT", "DARK"];
 const themeLabels: Readonly<Record<ThemeSetting, string>> = { SYSTEM: "시스템", LIGHT: "라이트", DARK: "다크" };
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
 
-export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
+export function SettingsView({ repository, onSignOut, exchangeCash = 0 }: SettingsViewProps) {
   const { theme, setMode } = useTheme();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
@@ -76,6 +78,7 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
 
   const reservePercent = cashReservePercent(settings.capitalAllocation.investmentPercent);
+  const cashEnvelope = createCashInvestmentEnvelope(exchangeCash, settings.capitalAllocation.investmentPercent);
 
   return <ScrollView contentContainerStyle={styles.content} testID="settings-screen">
     <View style={styles.header}><SectionHeading eyebrow="APPLICATION" title="설정" description="화면, 투자 자본, 로컬 알림, 로컬 세션을 관리합니다." /><StatusChip label="PAPER" tone="primary" /></View>
@@ -84,6 +87,8 @@ export function SettingsView({ repository, onSignOut }: SettingsViewProps) {
       <Text style={[styles.section, { color: theme.colors.text }]}>현금 투자 비중</Text>
       <DataRow label="투자" value={`${settings.capitalAllocation.investmentPercent}%`} emphasis />
       <DataRow label="현금 보유" value={`${reservePercent}%`} emphasis />
+      <DataRow label="실제 투자 가능 금액" value={`${Math.round(cashEnvelope.investableCash).toLocaleString("ko-KR")}원`} />
+      <DataRow label="보호되는 현금 금액" value={`${Math.round(cashEnvelope.reservedCash).toLocaleString("ko-KR")}원`} />
       <NusaTextField accessibilityLabel="투자 비중 퍼센트" label="투자할 현금 비중 (0~100%)" onChangeText={setInvestmentPercentDraft} placeholder="예: 60" testID="settings-investment-percent" value={investmentPercentDraft} />
       <View style={styles.allocationActions}><NusaButton disabled={saving} label={saving ? "저장 중..." : "비중 저장"} onPress={saveCapitalAllocation} testID="settings-investment-percent-save" /></View>
       <Text style={[styles.hint, { color: theme.colors.textMuted }]}>거래소에 있는 현금 중 이 비율만 신규 투자에 사용할 수 있습니다. 나머지는 현금으로 보호하며, 현금 보유 비중은 자동으로 100%에서 투자 비중을 뺀 값이 됩니다.</Text>

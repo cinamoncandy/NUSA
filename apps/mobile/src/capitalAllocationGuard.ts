@@ -24,6 +24,10 @@ export interface CashInvestmentEnvelope {
   readonly reservedCash: number;
 }
 
+export interface CashGuardedCapitalAllocation extends GuardedCapitalAllocation {
+  readonly cashEnvelope: CashInvestmentEnvelope;
+}
+
 const assertMoney = (value: number, field: string): void => {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${field} must be a finite non-negative number`);
@@ -103,4 +107,18 @@ export const guardCapitalAllocation = (
     protectedCapital,
     allocations: sortedAllocations
   });
+};
+
+/** Applies the user's cash envelope through the existing allocation guard. */
+export const guardCashInvestmentAllocation = (
+  treasury: ProtectedTreasuryState,
+  requestedAllocations: readonly CapitalAllocationRequest[],
+  investmentPercent: number
+): CashGuardedCapitalAllocation => {
+  const cashEnvelope = createCashInvestmentEnvelope(treasury.deployableCapital, investmentPercent);
+  const guarded = guardCapitalAllocation({
+    ...treasury,
+    deployableCapital: Math.min(treasury.deployableCapital, cashEnvelope.investableCash),
+  }, requestedAllocations);
+  return Object.freeze({ ...guarded, cashEnvelope });
 };
