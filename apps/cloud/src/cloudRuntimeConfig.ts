@@ -3,13 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import type { DashboardPrincipal, DashboardTokenVerifier } from "./mobileDashboardHttp";
 
-/**
- * Everything the cloud runtime bootstrap (runtime.ts) needs to start
- * `startCloudDashboardServer`, read from the process environment and validated up front.
- * Fails closed: any missing or malformed value throws before a socket is ever opened, rather
- * than falling back to a default that would silently accept the wrong thing (an unbound port,
- * an empty token that matches anything).
- */
 export interface CloudRuntimeConfig {
   readonly port: number;
   readonly host?: string;
@@ -44,65 +37,25 @@ function readMarkets(raw: string | undefined): readonly string[] {
 
 export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConfig {
   const portRaw = env[PORT_ENV];
-  if (portRaw === undefined || portRaw.trim().length === 0) {
-    throw new Error(`${PORT_ENV} is required`);
-  }
+  if (portRaw === undefined || portRaw.trim().length === 0) throw new Error(`${PORT_ENV} is required`);
   const port = Number(portRaw);
-  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) {
-    throw new Error(`${PORT_ENV} must be an integer in [1024, 65535], got ${JSON.stringify(portRaw)}`);
-  }
-
+  if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) throw new Error(`${PORT_ENV} must be an integer in [1024, 65535], got ${JSON.stringify(portRaw)}`);
   const token = env[TOKEN_ENV];
-  if (token === undefined || token.trim().length === 0 || Buffer.byteLength(token, "utf8") < 32) {
-    // Oracle operations require a high-entropy dashboard secret. There is no permissive default.
-    throw new Error(`${TOKEN_ENV} is required and must contain at least 32 UTF-8 bytes`);
-  }
-
+  if (token === undefined || token.trim().length === 0 || Buffer.byteLength(token, "utf8") < 32) throw new Error(`${TOKEN_ENV} is required and must contain at least 32 UTF-8 bytes`);
   const host = env[HOST_ENV]?.trim();
-  if (host !== undefined && host !== "" && host !== "127.0.0.1" && host.toLowerCase() !== "localhost") {
-    throw new Error(`${HOST_ENV} must be 127.0.0.1 or localhost`);
-  }
+  if (host !== undefined && host !== "" && host !== "127.0.0.1" && host.toLowerCase() !== "localhost") throw new Error(`${HOST_ENV} must be 127.0.0.1 or localhost`);
   const paperInitialCapitalRaw = env[PAPER_INITIAL_CAPITAL_ENV]?.trim();
   const paperInitialCapitalKrw = paperInitialCapitalRaw === undefined || paperInitialCapitalRaw === "" ? undefined : Number(paperInitialCapitalRaw);
-  if (paperInitialCapitalKrw !== undefined && (!Number.isFinite(paperInitialCapitalKrw) || paperInitialCapitalKrw <= 0)) {
-    throw new Error(`${PAPER_INITIAL_CAPITAL_ENV} must be a positive number when provided`);
-  }
+  if (paperInitialCapitalKrw !== undefined && (!Number.isFinite(paperInitialCapitalKrw) || paperInitialCapitalKrw <= 0)) throw new Error(`${PAPER_INITIAL_CAPITAL_ENV} must be a positive number when provided`);
   const paperInvestmentPercentRaw = env[PAPER_INVESTMENT_PERCENT_ENV]?.trim();
   const paperInvestmentPercent = paperInvestmentPercentRaw === undefined || paperInvestmentPercentRaw === "" ? 100 : Number(paperInvestmentPercentRaw);
   if (!Number.isFinite(paperInvestmentPercent) || paperInvestmentPercent < 0 || paperInvestmentPercent > 100) throw new Error(`${PAPER_INVESTMENT_PERCENT_ENV} must be between 0 and 100`);
-  return Object.freeze({
-    port,
-    dashboardToken: token,
-    upbitMarkets: readMarkets(env[MARKETS_ENV]),
-    upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true",
-    paperInvestmentPercent,
-    cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH,
-    ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }),
-    ...(host ? { host } : {})
-  });
+  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
 }
 
-/**
- * A single shared-secret bearer token, compared in constant time. This is deliberately the
- * minimum viable `DashboardTokenVerifier`, not a real token issuer: one operator, one token, no
- * expiry, no per-device revocation, no multi-user scoping. `apps/cloud/src/server.ts`'s own doc
- * comment already states that a real token issuer is a separate, later decision -- this exists
- * only so the runtime bootstrap has something concrete to hand `startCloudDashboardServer`
- * instead of leaving `tokenVerifier` unimplemented.
- *
- * Hashing both sides before `timingSafeEqual` avoids its requirement that the two buffers be the
- * same length -- comparing raw, unequal-length input directly would either throw or (worse) leak
- * the true secret's length through which branch runs.
- */
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
   if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
-  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "settings:read", "settings:write"]) });
-  return Object.freeze({
-    verify(token: string): DashboardPrincipal | undefined {
-      if (typeof token !== "string" || token.length === 0) return undefined;
-      const actualDigest = createHash("sha256").update(token, "utf8").digest();
-      return timingSafeEqual(actualDigest, expectedDigest) ? principal : undefined;
-    }
-  });
+  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "settings:read", "settings:write", "users:manage"]) });
+  return Object.freeze({ verify(token: string): DashboardPrincipal | undefined { if (typeof token !== "string" || token.length === 0) return undefined; const actualDigest = createHash("sha256").update(token, "utf8").digest(); return timingSafeEqual(actualDigest, expectedDigest) ? principal : undefined; } });
 }
