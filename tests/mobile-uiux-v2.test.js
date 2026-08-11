@@ -22,8 +22,8 @@ test("product navigation promotes PAPER and AI without changing foundation tab k
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
   const source = read("src/aiView.tsx");
-  assert.match(source, /AI ZERO AUTHORITY/);
-  assert.match(source, /READ ONLY/);
+  assert.match(source, /StatusChip label="ZERO AUTHORITY"/);
+  assert.match(source, /StatusChip label="READ ONLY"/);
   assert.match(source, /ai\.evidenceReferences/);
   assert.match(source, /ai\.counterEvidence/);
   assert.match(source, /ai\.disagreements/);
@@ -38,10 +38,12 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   const app = read("App.tsx");
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
   assert.match(source, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(source, /chartAvailable && wide \? <ChartView/);
-  assert.match(source, /chartAvailable && !wide \? <View/);
-  assert.match(source, /wide \|\| visiblePanel === "WATCHLIST" \? <WatchlistView/);
+  assert.match(source, /chartAvailable \? <ChartView/);
+  assert.match(source, /!wide && chartAvailable \? <View style=\{styles\.panels\}/);
+  assert.match(source, /wide \? <WatchlistView/);
+  assert.match(source, /visiblePanel === "WATCHLIST" \? <WatchlistView/);
   assert.match(source, /markets-panel-segmented-control/);
+  assert.match(source, /차트 데이터가 아직 없습니다/);
   assert.match(app, /rawCandles=\{null\}/);
 });
 
