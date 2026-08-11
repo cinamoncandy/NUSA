@@ -20,6 +20,12 @@ If a subordinate document appears to conflict with the canonical architecture, p
 
 Committee, governance, research, validation, Meta-AI, learning, audit, applications, and release management remain outside the synchronous market-decision spine.
 
+## Required migrations
+
+Architecture hardening that is intentionally deferred from an active serialized change must be recorded here rather than left as informal debt.
+
+- `PLUGIN_CAPABILITY_NARROWING_MIGRATION.md` — narrow plugin-visible Core authority from the current broad service-locator context to explicit capability-scoped interfaces. Classified P1; implement as a separately serialized runtime hardening change.
+
 ## Architecture review rule
 
 Every significant Work Order must identify:
