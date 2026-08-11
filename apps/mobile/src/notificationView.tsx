@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaCard, StatusChip } from "./components";
+import { StatusChip } from "./components";
 import { InlineNotice, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { SettingsRepository } from "./settings";
@@ -11,12 +11,17 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
   void repository;
 
   return <ScrollView contentContainerStyle={styles.content} testID="notifications-screen">
-    <ScreenHeader eyebrow="LOCAL NOTIFICATIONS" title="알림" description="실제로 연결된 이벤트만 표시하며, 아직 없는 기능을 있는 것처럼 만들지 않습니다." statusLabel="미연결" statusTone="neutral" />
-    <InlineNotice title="알림 이벤트 수집이 아직 연결되지 않았습니다" detail="현재 빌드는 알림 목록·배지·푸시 동작을 제공하지 않습니다. 실제 이벤트 런타임이 연결되기 전까지는 비어 있는 상태를 그대로 표시합니다." tone="info" />
-    <NusaCard testID="notifications-paper" raised><View style={styles.header}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>CAPABILITY</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 알림 범위</Text></View><StatusChip label="READ ONLY" tone="info" /></View><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="이벤트 수집" value="미연결" /><DataRow label="푸시 권한 요청" value="사용 안 함" /><DataRow label="가짜 알림" value="생성 금지" tone="success" /></NusaCard>
+    <ScreenHeader eyebrow="LOCAL NOTIFICATIONS" title="알림" description="실제로 연결된 이벤트만 표시합니다." statusLabel="미연결" statusTone="neutral" />
+    <View style={styles.emptyState} testID="notifications-empty-state">
+      <Text style={[styles.emptyEyebrow, { color: theme.colors.textMuted }]}>NO EVENT SOURCE</Text>
+      <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>아직 표시할 알림이 없습니다</Text>
+      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>현재 빌드는 알림 이벤트 수집·배지·푸시를 연결하지 않았습니다. 실제 이벤트 런타임이 준비되기 전까지 빈 상태를 그대로 유지합니다.</Text>
+      <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><StatusChip label="PUSH OFF" tone="neutral" /></View>
+    </View>
+    <InlineNotice title="가짜 알림을 만들지 않습니다" detail="이벤트 소스가 연결되기 전에는 예시 거래·가격·AI 알림을 실제 데이터처럼 표시하지 않습니다." tone="info" />
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 16, paddingBottom: 36, width: "100%", maxWidth: 1080, alignSelf: "center" }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }, eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700" } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, emptyState: { paddingVertical: 26, gap: 10 }, emptyEyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, emptyTitle: { fontSize: 27, lineHeight: 34, fontWeight: "800", letterSpacing: -0.8 }, emptyCopy: { maxWidth: 620, fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 4 } });
 
 export { MobileNotificationCenter };
