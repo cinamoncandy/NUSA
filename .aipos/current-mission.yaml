@@ -26,7 +26,8 @@ latest_planning_gate:
     - 425
     - 427
     - 428
-  latest_hardening_merge: 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339
+    - 429
+  latest_hardening_merge: 15568a00e8caeefa22a4a756fdff0565dc35d22a
   implementation_started: false
   serialization: HUMAN_ENVIRONMENT_ONLY
 safety:
@@ -44,9 +45,10 @@ verification:
   ai_011_ci_run: 31497602616
   ai_011_point_in_time_hardening_merge: 6a1bede063251222a9b808d58ba04d43249dc922
   ai_011_economic_usefulness_hardening_merge: 5427707318b516c561ebead93ce3e4f0b2128b4a
-  ai_011_statistical_validity_hardening_exact_head: bd6c8114ed8870515621b3f1e7d57a9aa4f335b1
-  ai_011_statistical_validity_ci_run: 31508526487
   ai_011_statistical_validity_hardening_merge: 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339
+  ai_011_regime_degradation_exact_head: 4b0d048fd386b514204792676b2b5a803d184c4f
+  ai_011_regime_degradation_ci_run: 31514738212
+  ai_011_regime_degradation_merge: 15568a00e8caeefa22a4a756fdff0565dc35d22a
   restricted_live_readonly_workflows: PASS_4_OF_4_ON_EACH_MERGED_HARDENING
   ai_runtime_latest_verified: WO-AI-010
   ai_011_runtime_implementation: NOT_STARTED_SERIALIZED
