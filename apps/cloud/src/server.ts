@@ -15,6 +15,8 @@ import {
 import { operationalLog } from "./structuredOperationalLog";
 import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
 import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
+import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
+import type { NusaUserAccessRepository } from "./operatorUserAccess";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -34,6 +36,7 @@ export interface CloudDashboardServerOptions {
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
+  readonly userAccessRepository?: NusaUserAccessRepository;
   /** Readiness must be supplied by the runtime from directly verified persistence/recovery signals. */
   readonly readiness?: () => CloudReadinessSnapshot;
 }
@@ -61,13 +64,10 @@ const correlationId = (req: IncomingMessage): string => {
 };
 
 /**
- * Localhost-by-default read-only dashboard transport. `/api/dashboard`,
- * `/api/paper-operations`, and `/ready` share the same GET-only Bearer +
- * `dashboard:read` authorization boundary. `/health` GET is deliberately
- * unauthenticated liveness only. Known routes reject unsupported methods;
- * unknown paths fail closed with 404.
- *
- * No token issuer, mutation route, LIVE authority, or permissive fallback is provided here.
+ * Localhost-by-default dashboard transport. Read-only projections retain their existing
+ * fail-closed authorization boundary. `/api/operator/users` is the only user-access mutation
+ * route and additionally requires `users:manage`; all state changes are recorded by the
+ * user-access repository's immutable audit ledger.
  */
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) {
@@ -105,8 +105,6 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           return;
         }
         try {
-          // A dashboard projection alone cannot prove database, migration, persistence, or recovery
-          // health. If the runtime did not provide direct readiness evidence, fail closed.
           const readiness = options.readiness?.() ?? unavailable();
           const checks = Object.freeze({
             database: readiness.checks.database === true,
@@ -141,6 +139,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
+      if (req.url === "/api/operator/users") {
+        if (options.userAccessRepository == null) {
+          write(res, dashboardJsonResponse(503, { error: "USER_ACCESS_UNAVAILABLE" }));
+          return;
+        }
+        write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: options.userAccessRepository }));
+        return;
+      }
+
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
         write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: options.investmentAllocationSettings }));
         return;
@@ -161,9 +168,6 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
   });
-  // Intentionally do not swallow the Server 'error' event. Bind/listen failures such as
-  // EADDRINUSE are startup failures and must terminate the runtime instead of leaving PAPER
-  // services running behind a falsely healthy dashboard handle.
   server.listen(options.port, host);
 
   let stopping: Promise<void> | undefined;
