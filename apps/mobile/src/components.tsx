@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
@@ -19,10 +19,22 @@ export function NusaButton({ label, onPress, disabled = false, tone = "primary",
     <Pressable
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      style={({ pressed }) => [styles.button, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, minHeight: tokens.minHeight, paddingHorizontal: tokens.horizontalPadding, opacity: disabled ? tokens.disabledOpacity : pressed ? 0.88 : 1, transform: [{ scale: pressed && !disabled ? 0.99 : 1 }] }]}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          backgroundColor: tokens.background,
+          borderColor: tokens.border,
+          borderRadius: tokens.radius,
+          minHeight: tokens.minHeight,
+          paddingHorizontal: tokens.horizontalPadding,
+          opacity: disabled ? tokens.disabledOpacity : pressed ? tokens.pressedOpacity : 1,
+          transform: [{ scale: pressed && !disabled ? 0.985 : 1 }],
+        },
+      ]}
     >
       <Text style={[styles.buttonLabel, { color: tokens.foreground, fontWeight: theme.typography.weights.bold }]}>{label}</Text>
     </Pressable>
@@ -42,16 +54,30 @@ export interface NusaTextFieldProps {
 export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
+        onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
         placeholder={placeholder}
         placeholderTextColor={tokens.placeholder}
         secureTextEntry={secureTextEntry}
-        style={[styles.field, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, color: tokens.foreground, minHeight: tokens.minHeight }]}
+        selectionColor={theme.colors.primary}
+        style={[
+          styles.field,
+          {
+            backgroundColor: tokens.background,
+            borderColor: focused ? tokens.focus : tokens.border,
+            borderRadius: tokens.radius,
+            borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth,
+            color: tokens.foreground,
+            minHeight: tokens.minHeight,
+          },
+        ]}
         testID={testID}
         value={value}
       />
@@ -100,7 +126,7 @@ const styles = StyleSheet.create({
   button: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
   buttonLabel: { fontSize: 15, letterSpacing: -0.15 },
   card: { borderWidth: 1 },
-  field: { borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
+  field: { paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
   fieldGroup: { gap: 7 },
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
