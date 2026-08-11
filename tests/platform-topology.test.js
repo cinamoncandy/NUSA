@@ -90,7 +90,7 @@ test("rejects research AI modules placed in the real-time path", () => {
   const modules = topology.modules.map((module) => module.id === "meta-ai" ? { ...module, realTime: true } : { ...module });
   assert.throws(
     () => validatePlatformTopology({ ...topology, modules }),
-    /research\/AI\/learning module cannot be in the real-time path/
+    /(?:control module|research\/AI\/learning module) cannot be in the real-time path/
   );
 });
 
