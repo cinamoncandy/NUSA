@@ -84,7 +84,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        // Fail closed unless a development build explicitly opts into Metro cleartext traffic.
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     signingConfigs {
@@ -98,7 +97,6 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            // Local Metro development requires HTTP; this override is never used by release APKs.
             manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
