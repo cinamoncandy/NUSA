@@ -5,7 +5,7 @@ phase: human-environment-gate
 status: ready
 objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 portfolio-dependence hardening as merged planning-only evidence and continue only repository-controlled evaluation planning, including censoring/selection validity, without claiming runtime implementation or human/environment completion."
 base_branch: main
-active_branch: agent/wo-ai-011-censoring-selection-validity
+active_branch: main
 active_pull_request: null
 base_commit: 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1
 claimed_state:
