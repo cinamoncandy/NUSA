@@ -3,6 +3,8 @@ import http, { type IncomingMessage, type Server, type ServerResponse } from "no
 import { authorizeDashboardReadRequest, dashboardJsonResponse, handleMobileDashboardHttp, type DashboardHttpRequest, type DashboardTokenVerifier, type MobileDashboardHttpDependencies } from "./mobileDashboardHttp";
 import { handlePersonalPaperOperationsHttp, type PersonalPaperOperationsHttpDependencies } from "./personalPaperOperationsHttp";
 import { handlePersonalPaperOrderHttp, type PersonalPaperOrderHttpDependencies } from "./personalPaperOrderHttp";
+import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
+import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 import { operationalLog } from "./structuredOperationalLog";
 
 export interface CloudReadinessSnapshot { readonly ok: boolean; readonly checks: Readonly<{ database: boolean; migrations: boolean; dashboardPersistence: boolean; runtimeRecovery: boolean }>; }
@@ -11,6 +13,7 @@ export interface CloudDashboardServerOptions {
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
   readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
+  readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly readiness?: () => CloudReadinessSnapshot;
 }
 export interface CloudDashboardServerHandle { readonly port: number; readonly host: string; stop(): Promise<void>; }
@@ -41,6 +44,16 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         if (!authorization.ok) { operationalLog("WARN", "cloud.readiness.authorization_failed", requestId, { status: authorization.response.status }); write(res, authorization.response); return; }
         try { const readiness = options.readiness?.() ?? unavailable(); const checks = Object.freeze({ database: readiness.checks.database === true, migrations: readiness.checks.migrations === true, dashboardPersistence: readiness.checks.dashboardPersistence === true, runtimeRecovery: readiness.checks.runtimeRecovery === true }); const ok = readiness.ok === true && Object.values(checks).every(Boolean); operationalLog(ok ? "INFO" : "WARN", "cloud.readiness", requestId, { ok, checks }); write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks })); }
         catch { const readiness = unavailable(); operationalLog("ERROR", "cloud.readiness", requestId, { ok: readiness.ok, checks: readiness.checks }); write(res, dashboardJsonResponse(503, readiness)); }
+        return;
+      }
+      if (req.url === "/api/settings/investment-allocation") {
+        if (options.investmentAllocationSettings == null) { write(res, dashboardJsonResponse(503, { error: "SETTINGS_UNAVAILABLE" })); return; }
+        let body: unknown = null;
+        if (["PUT", "POST"].includes((req.method ?? "GET").toUpperCase())) {
+          try { body = await readJsonBody(req); }
+          catch (error) { if (error instanceof HttpBodyError) { write(res, dashboardJsonResponse(error.status, { error: error.message })); return; } write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        write(res, handleInvestmentAllocationHttp(dashboardRequest, body, { tokenVerifier: options.tokenVerifier, repository: options.investmentAllocationSettings }));
         return;
       }
       if (req.url === "/api/paper-orders") {
