@@ -21,11 +21,12 @@ const colorPair = (design, name) => {
   return { dark: match[1], light: match[2] };
 };
 
-test("Phase 2 theme keeps the deep-ocean NUSA identity and restrained accent", () => {
+test("Phase 2 theme keeps the OBSIDIAN finance identity and restrained accent", () => {
   const design = read("designSystem.ts");
-  assert.match(design, /background: dark \? "#041019"/);
-  assert.match(design, /primary: dark \? "#49DEC9"/);
-  assert.match(design, /surfaceRaised: dark \? "#0E2331"/);
+  assert.match(design, /v5 OBSIDIAN FINANCE/);
+  assert.match(design, /background: dark \? "#050708"/);
+  assert.match(design, /primary: dark \? "#B8F2DD"/);
+  assert.match(design, /surfaceRaised: dark \? "#101415"/);
   assert.match(design, /radii: \{ sm: 8, md: 12, lg: 16, xl: 24/);
 });
 
