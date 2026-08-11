@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DataRow, NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
-import { InlineNotice, MetricTile, ScreenHeader, SegmentedControl } from "./uxPrimitives";
+import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
@@ -9,13 +9,7 @@ import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 
-interface SettingsViewProps {
-  readonly repository: SettingsRepository;
-  readonly onSignOut?: () => void;
-  readonly exchangeCash?: number;
-  readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>;
-  readonly onInvestmentPercentChanged?: (investmentPercent: number) => void;
-}
+interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
 const allocationPresets = Object.freeze([{ key: "25", label: "25%" }, { key: "50", label: "50%" }, { key: "75", label: "75%" }, { key: "100", label: "100%" }]);
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
@@ -40,8 +34,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     void repository.load().then(async (loaded) => {
       if (!active) return;
       const next = normalizeSettings(loaded ?? DEFAULT_SETTINGS);
-      setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setEndpointDraft(next.paperEndpoint); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme));
-      onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
+      setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setEndpointDraft(next.paperEndpoint); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme)); onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
       if (!next.paperEndpoint || !credentialSession.isConfigured() || !isPaperConnectionVerified(next.paperEndpoint)) return;
       const result = await loadPersonalPaperOperations({ baseUrl: next.paperEndpoint, credentialProvider: credentialSession.credentialProvider });
       if (!active) return;
@@ -67,14 +60,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   };
   const isBusyNow = () => savingRef.current || connectionInFlightRef.current;
   const updateTheme = (next: ThemeSetting) => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
-  const saveInvestmentPercent = async (raw = investmentPercentDraft) => {
-    if (!settings || isBusyNow()) return;
-    try {
-      const value = normalizeInvestmentPercent(Number(raw));
-      setInvestmentPercentDraft(String(value));
-      await persist({ ...settings, capitalAllocation: { investmentPercent: value } });
-    } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); }
-  };
+  const saveInvestmentPercent = async (raw = investmentPercentDraft) => { if (!settings || isBusyNow()) return; try { const value = normalizeInvestmentPercent(Number(raw)); setInvestmentPercentDraft(String(value)); await persist({ ...settings, capitalAllocation: { investmentPercent: value } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
   const testConnection = async () => {
     if (settings == null || isBusyNow()) return;
     connectionInFlightRef.current = true; setConnecting(true); setError(null);
@@ -101,39 +87,23 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const connectionDetail = connecting ? "저장된 endpoint와 메모리 전용 세션을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connection.reason;
   const allocation = createCashInvestmentEnvelope(exchangeCash, settings.capitalAllocation.investmentPercent);
   const selectedPreset = allocationPresets.some((item) => item.key === String(settings.capitalAllocation.investmentPercent)) ? String(settings.capitalAllocation.investmentPercent) : "";
+  const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
 
   return <ScrollView contentContainerStyle={styles.content} testID="settings-screen">
-    <ScreenHeader eyebrow="APPLICATION" title="설정" description="PAPER 연결, 투자 가능 현금 비중과 로컬 앱 상태를 관리합니다." statusLabel={connectionLabel} statusTone={connectionTone} />
+    <ScreenHeader eyebrow="APPLICATION" title="설정" description="연결, 투자 비중, 화면과 로컬 상태를 관리합니다." statusLabel={connectionLabel} statusTone={connectionTone} />
     {error ? <InlineNotice title="설정 저장 오류" detail={error} tone="danger" /> : null}
-    <InlineNotice title={connection.status === "READY" ? "PAPER 서버 연결 정상" : "PAPER 서버 연결이 필요합니다"} detail={connectionDetail} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning"} testID="settings-connection-summary" />
 
-    <NusaCard testID="settings-capital-allocation" raised>
-      <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>CASH ALLOCATION</Text><Text style={[styles.section, { color: theme.colors.text }]}>현금 투자 비중</Text></View><StatusChip label={`보호 ${allocation.reservePercent}%`} tone="info" /></View>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>거래소 PAPER 현금 중 새 매수에 사용할 최대 비중을 정합니다. 나머지 현금은 투자하지 않고 보호합니다.</Text>
-      <View style={styles.metrics}><MetricTile label="투자 가능" value={`${allocation.investmentPercent}%`} detail={money(allocation.investableCash)} tone="primary" /><MetricTile label="미투자 보호" value={`${allocation.reservePercent}%`} detail={money(allocation.reservedCash)} tone="info" /></View>
-      <Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>빠른 선택</Text>
-      <SegmentedControl disabled={busy} items={allocationPresets} selectedKey={selectedPreset} onChange={(key) => { setInvestmentPercentDraft(key); void saveInvestmentPercent(key); }} testID="settings-investment-allocation-presets" />
-      <NusaTextField autoCorrect={false} editable={!busy} keyboardType="decimal-pad" label="투자 비중 (%)" value={investmentPercentDraft} onChangeText={setInvestmentPercentDraft} placeholder="0 - 100" returnKeyType="done" testID="settings-investment-percent" />
-      <NusaButton disabled={busy} label={saving ? "저장 중..." : "투자 비중 저장"} onPress={() => void saveInvestmentPercent()} testID="settings-investment-percent-save" />
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>0%는 신규 매수를 막고 전액을 보호하며, 100%는 기존과 같이 현금 전액을 투자 가능 범위로 둡니다. 매도/청산을 막지는 않습니다.</Text>
-    </NusaCard>
+    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>01 · CONNECTION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버</Text></View><StatusChip label={connectionLabel} tone={connectionTone} /></View><InlineNotice title={connection.status === "READY" ? "연결 정상" : "연결 필요"} detail={connectionDetail} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning"} testID="settings-connection-summary" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="세션 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기기에 저장하지 않음" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>Endpoint만 로컬 설정에 저장합니다. 토큰은 현재 앱 프로세스 메모리에만 존재합니다.</Text><View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "저장하고 연결 확인"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View></View>
 
-    <NusaCard testID="settings-paper-connection" raised>
-      <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>CONNECTION</Text><Text style={[styles.section, { color: theme.colors.text }]}>PAPER 서버</Text></View><StatusChip label={connectionLabel} tone={connectionTone} /></View>
-      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />
-      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="세션 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기기에 저장하지 않음" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>Endpoint만 로컬 설정에 저장합니다. 토큰은 현재 앱 프로세스 메모리에만 존재합니다.</Text>
-      <View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "저장하고 연결 확인"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View>
-    </NusaCard>
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock} testID="settings-capital-allocation"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>02 · CASH ALLOCATION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>현금 투자 비중</Text></View><Text style={[styles.allocationPercent, { color: theme.colors.primary }]}>{allocation.investmentPercent}%</Text></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>거래소 PAPER 현금 중 신규 매수에 사용할 최대 비중입니다. 나머지는 자동으로 보호 현금으로 남깁니다.</Text><View style={[styles.allocationTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.allocationFill, { width: allocationWidth, backgroundColor: theme.colors.primary }]} /></View><View style={styles.allocationAmounts}><View><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.investableCash)}</Text></View><View style={styles.amountRight}><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>보호 현금</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.reservedCash)}</Text></View></View><SegmentedControl disabled={busy} items={allocationPresets} selectedKey={selectedPreset} onChange={(key) => { setInvestmentPercentDraft(key); void saveInvestmentPercent(key); }} testID="settings-investment-allocation-presets" /><NusaTextField autoCorrect={false} editable={!busy} keyboardType="decimal-pad" label="직접 입력 (%)" value={investmentPercentDraft} onChangeText={setInvestmentPercentDraft} placeholder="0 - 100" returnKeyType="done" testID="settings-investment-percent" /><NusaButton disabled={busy} label={saving ? "저장 중..." : "투자 비중 저장"} onPress={() => void saveInvestmentPercent()} testID="settings-investment-percent-save" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>0%는 신규 매수를 막고 전액을 보호합니다. 매도·청산에는 이 한도를 적용하지 않습니다.</Text></View>
 
-    <NusaCard><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.textMuted }]}>APPEARANCE</Text><Text style={[styles.section, { color: theme.colors.text }]}>화면 테마</Text></View></View><SegmentedControl disabled={busy} items={themeItems} selectedKey={settings.theme} onChange={(key) => updateTheme(key as ThemeSetting)} testID="settings-theme-segmented-control" /></NusaCard>
-    <NusaCard raised><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.info }]}>SAFETY</Text><Text style={[styles.section, { color: theme.colors.text }]}>거래 권한</Text></View><StatusChip label="PAPER ONLY" tone="info" /></View><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /><DataRow label="Production mutation" value="금지" tone="success" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체 권한을 이 화면에서 활성화할 수 없습니다.</Text></NusaCard>
-    <View style={styles.managementGrid}><View style={styles.managementCell}><NusaCard><Text style={[styles.cardEyebrow, { color: theme.colors.textMuted }]}>ABOUT</Text><Text style={[styles.section, { color: theme.colors.text }]}>앱 정보</Text><DataRow label="클라이언트" value="NUSA Mobile" /><DataRow label="용도" value="PAPER / Personal" /></NusaCard></View><View style={styles.managementCell}><NusaCard><Text style={[styles.cardEyebrow, { color: theme.colors.textMuted }]}>LOCAL DATA</Text><Text style={[styles.section, { color: theme.colors.text }]}>로컬 관리</Text><View style={styles.stack}><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" />{onSignOut ? <NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /> : null}</View></NusaCard></View></View>
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock}><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>03 · APPEARANCE</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>화면 테마</Text><SegmentedControl disabled={busy} items={themeItems} selectedKey={settings.theme} onChange={(key) => updateTheme(key as ThemeSetting)} testID="settings-theme-segmented-control" /></View>
+
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock}><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>04 · SAFETY & LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>안전과 로컬 관리</Text></View><StatusChip label="PAPER ONLY" tone="info" /></View><NusaCard><DataRow label="LIVE 주문" value="금지" tone="success" /><DataRow label="Production mutation" value="금지" tone="success" /><DataRow label="클라이언트" value="NUSA Mobile" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다.</Text></NusaCard><View style={styles.row}><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" />{onSignOut ? <NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /> : null}</View></View>
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 20, gap: 16, paddingBottom: 36, width: "100%", maxWidth: 1080, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, title: { fontSize: 18, fontWeight: "700" },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }, cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 4 }, section: { fontSize: 18, lineHeight: 23, fontWeight: "700", letterSpacing: -0.4 },
-  hint: { lineHeight: 20, fontSize: 13, marginTop: 10 }, row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }, stack: { gap: 8, marginTop: 10 }, metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14, marginBottom: 12 }, controlLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7, marginBottom: 7 }, managementGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 }, managementCell: { flexGrow: 1, flexBasis: 360 },
-});
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 18, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, title: { fontSize: 18, fontWeight: "700" }, sectionBlock: { gap: 12 }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, sectionTitle: { marginTop: 4, fontSize: 21, lineHeight: 27, fontWeight: "800", letterSpacing: -0.5 }, hint: { fontSize: 13, lineHeight: 20 }, row: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, divider: { height: StyleSheet.hairlineWidth }, allocationPercent: { fontSize: 22, lineHeight: 28, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationTrack: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 18 }, amountRight: { alignItems: "flex-end" }, amountLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" }, amountValue: { marginTop: 3, fontSize: 18, lineHeight: 24, fontWeight: "800", fontVariant: ["tabular-nums"] } });
