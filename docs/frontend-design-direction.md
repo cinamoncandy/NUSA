@@ -3,6 +3,9 @@
 ## Product character
 NUSA is a personal investment-intelligence workspace, not an exchange. The interface must feel calm, exact, premium, and trustworthy while making PAPER / READ ONLY / ZERO AUTHORITY impossible to misunderstand.
 
+## Platform scope
+Android is the product target for this frontend completion pass. iOS is not a release blocker and is outside the definition of done unless explicitly reintroduced later.
+
 ## Reference synthesis
 The visual direction is informed by contemporary finance and trading case studies on Behance: dense information is grouped into a small number of strong surfaces; portfolio values and market prices receive the strongest typographic hierarchy; navigation stays quiet; semantic color is reserved for status, P&L, risk, and action meaning. References are inspiration only, never copied layouts or assets.
 
@@ -32,4 +35,4 @@ The visual direction is informed by contemporary finance and trading case studie
 - Decorative brand marks are hidden from accessibility trees.
 
 ## Definition of frontend complete
-Frontend completion requires visual consistency across every reachable screen, intentional empty/loading/error/disconnected states, accessibility semantics for navigation and controls, design-system contract tests, TypeScript/lint/build success, and Android/iOS native CI success before merge.
+Frontend completion requires visual consistency across every reachable screen, intentional empty/loading/error/disconnected states, accessibility semantics for navigation and controls, design-system contract tests, TypeScript/lint/build success, exact-head CI success, Android native build success, and Android physical-device visual acceptance when human-environment evidence is available.
