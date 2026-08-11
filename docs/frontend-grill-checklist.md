@@ -2,6 +2,8 @@
 
 Status key: DONE = code-level contract complete, VERIFY = CI or physical-device evidence still required.
 
+Platform scope: Android only. iOS is intentionally not a completion blocker.
+
 - DONE — v5 Obsidian design-system contract and semantic palette.
 - DONE — shared button focus/pressed/disabled behavior.
 - DONE — shared field focus treatment.
@@ -14,6 +16,5 @@ Status key: DONE = code-level contract complete, VERIFY = CI or physical-device 
 - DONE — frontend design direction documented for future regression prevention.
 - DONE — premium UX contract test added.
 - VERIFY — exact-head full CI.
-- VERIFY — Android native build.
-- VERIFY — iOS native build.
-- VERIFY — physical-device visual acceptance (human environment only).
+- VERIFY — Android native build and installable APK artifact.
+- VERIFY — Android physical-device visual acceptance (human environment only).
