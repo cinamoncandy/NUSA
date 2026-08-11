@@ -46,6 +46,12 @@ scope:
   - tail conditional loss, worst-k event behavior, downside calibration, abstention under stress, and coverage under stress are separated from ordinary-regime averages
   - synthetic stress, replay, scenario, and hypothetical tail evidence remain separately labeled and cannot satisfy realized rare-event evidence
   - missing or unresolved realized tail outcomes, sparse event counts, or material uncertainty in stress-event definition fail closed as INSUFFICIENT_EVIDENCE
+  - immutable prediction-time eligible-cohort identity with frozen inclusion/exclusion, outcome-resolution window, censoring deadline, missingness taxonomy, denominator policy, and coverage thresholds
+  - unresolved, censored, abstained, delisted, bankrupt, stale, provider-missing, and otherwise difficult records remain represented in cohort accounting and cannot be silently dropped after outcomes are known
+  - potentially informative censoring and unknown material missingness fail closed rather than being assumed missing-at-random
+  - complete-case metrics remain explicitly denominator-labeled diagnostics and cannot replace full-cohort confirmatory evidence when missingness is material
+  - coverage, unresolved, censoring, exclusion, abstention, and outcome-resolution latency are first-class longitudinal outputs alongside predictive metrics
+  - censoring-aware estimators, weighting rules, and MNAR sensitivity analyses are immutable/versioned advisory evidence and cannot overwrite the primary frozen evaluation
   - deterministic replay, idempotency, and immutable read-only evidence
 out_of_scope:
   - model/provider weight changes
@@ -86,6 +92,14 @@ acceptance_criteria:
   - synthetic/replay/scenario/hypothetical tail evidence cannot satisfy realized rare-event acceptance criteria
   - insufficient realized rare-event count, unresolved outcomes, or ambiguous stress classification produces INSUFFICIENT_EVIDENCE rather than a favorable tail-risk claim
   - no tail-risk status can mutate provider/model/prompt/strategy/risk/LIVE authority
+  - prediction-time eligible cohort membership and denominator rules are immutable; hard, unresolved, delisted, bankrupt, stale, abstained, or provider-incomplete records cannot disappear from cohort accounting
+  - unknown or potentially informative material missingness/censoring produces INSUFFICIENT_EVIDENCE unless the frozen policy provides sufficient valid treatment and diagnostics
+  - favorable observed-only metrics cannot establish improvement when realized coverage materially falls, censoring rises, or denominator composition changes without sufficient evidence
+  - post-outcome unresolved/censored-to-excluded reclassification is rejected unless required by prediction-time frozen facts
+  - synthetic/replay/imputed/hypothetical outcomes cannot satisfy realized-outcome coverage requirements
+  - censoring-aware estimator or weighting assumption failure, including material positivity/overlap failure, produces INSUFFICIENT_EVIDENCE
+  - MNAR or other sensitivity analyses remain separately labeled and cannot overwrite the primary frozen result
+  - no censoring/coverage/selection-validity status can mutate provider/model/prompt/strategy/risk/LIVE authority or satisfy human-environment evidence
   - corruption, ambiguity, stale evidence, and lineage mismatch fail closed
   - output is read-only advisory evidence with unchanged zero authority
   - focused, architecture, security, AIPOS, and full CI checks pass
@@ -136,6 +150,16 @@ required_tests:
   - synthetic/replay/scenario tail evidence non-substitution tests
   - sparse or unresolved realized tail evidence INSUFFICIENT_EVIDENCE tests
   - tail-risk zero-authority/no-mutation regression tests
+  - prediction-time eligible cohort immutability and denominator preservation tests
+  - silent hard-case, delisting, bankruptcy, stale-data, abstention, and provider-missing drop rejection tests
+  - unresolved/censored-to-excluded post-hoc reclassification rejection tests
+  - outcome-window expiry, censoring reason, and missingness provenance integrity tests
+  - observed-only favorable metric with falling coverage rejection tests
+  - informative-censoring and unknown-missingness INSUFFICIENT_EVIDENCE tests
+  - censoring-aware estimator/weighting identity, assumption, positivity, and overlap tests when applicable
+  - MNAR sensitivity analysis non-overwrite tests
+  - synthetic/replay/imputed/hypothetical outcome coverage non-substitution tests
+  - censoring/selection-validity zero-authority and no-mutation regression tests
   - deterministic replay and duplicate idempotency tests
   - zero-authority and no-mutation regression tests
 planning_artifacts:
@@ -144,6 +168,8 @@ planning_artifacts:
   - docs/audits/wo-ai-011-statistical-validity-test-contract.md
   - docs/audits/wo-ai-011-regime-degradation-test-contract.md
   - docs/audits/wo-ai-011-tail-risk-validity-test-contract.md
+  - docs/audits/wo-ai-011-censoring-selection-validity-test-contract.md
+  - docs/audits/wo-ai-011-portfolio-dependence-validity-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
