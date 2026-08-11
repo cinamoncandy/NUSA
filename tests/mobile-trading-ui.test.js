@@ -78,6 +78,12 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.match(source, /disabled=\{!submitEnabled\}/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /NusaTextField/);
+  assert.match(source, /import \{ SegmentedControl \} from "\.\/uxPrimitives"/);
+  assert.match(source, /testID="paper-side-segmented-control"/);
+  assert.match(source, /testID="paper-type-segmented-control"/);
+  assert.match(source, /selectedKey=\{side\}/);
+  assert.match(source, /selectedKey=\{orderType\}/);
+  assert.match(source, /disabled=\{submitting\}/);
 
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
