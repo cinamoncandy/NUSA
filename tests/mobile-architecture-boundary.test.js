@@ -43,11 +43,15 @@ test("legacy mobile execution helpers remain broker-disconnected simulation code
 
 test("authentication remains separate from operator-controlled user access approval", () => {
   assert.match(authContextSource, /AuthStatus\s*=\s*"CHECKING"\s*\|\s*"SIGNED_OUT"\s*\|\s*"SIGNED_IN"/);
-  assert.doesNotMatch(authContextSource, /\bAPPROVED\b|\bPENDING\b|\bDENIED\b|\bSUSPENDED\b|\bREVOKED\b/);
+  assert.doesNotMatch(authContextSource, /\bACTIVE\b|\bPENDING\b|\bREJECTED\b|\bSUSPENDED\b/);
   assert.match(accessApprovalArchitectureSource, /successful sign-in MUST NOT imply system-use approval/i);
   assert.match(accessApprovalArchitectureSource, /server-authoritative/i);
-  for (const state of ["PENDING", "APPROVED", "DENIED", "SUSPENDED", "REVOKED"]) {
+  for (const state of ["PENDING", "ACTIVE", "REJECTED", "SUSPENDED"]) {
     assert.match(accessApprovalArchitectureSource, new RegExp(`\\b${state}\\b`));
   }
+  for (const action of ["APPROVE", "REJECT", "SUSPEND", "RESTORE"]) {
+    assert.match(accessApprovalArchitectureSource, new RegExp(`\\b${action}\\b`));
+  }
+  assert.match(accessApprovalArchitectureSource, /ACTIVE\s*->\s*REJECTED.*revok/i);
   assert.match(accessApprovalArchitectureSource, /Only an authorized human operator role may approve/i);
 });
