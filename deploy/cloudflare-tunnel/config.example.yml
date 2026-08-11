@@ -1,0 +1,16 @@
+# NUSA personal-use trusted HTTPS bridge (Cloudflare named Tunnel).
+# Copy this file OUTSIDE the repository before substituting the placeholders.
+# Do not commit the generated config or tunnel credential JSON.
+#
+# The NUSA cloud runtime remains bound to loopback. cloudflared is the only
+# process that publishes the local HTTP origin through a public TLS hostname.
+
+tunnel: __TUNNEL_UUID__
+credentials-file: __ABSOLUTE_TUNNEL_CREDENTIAL_JSON_PATH__
+
+ingress:
+  - hostname: __PUBLIC_HOSTNAME__
+    service: http://127.0.0.1:__NUSA_CLOUD_PORT__
+    originRequest:
+      connectTimeout: 10s
+  - service: http_status:404
