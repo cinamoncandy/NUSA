@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
@@ -23,14 +23,25 @@ export function NusaButton({ label, onPress, disabled = false, tone = "primary",
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      style={({ pressed }) => [styles.button, { backgroundColor: tokens.background, borderColor: tokens.border, borderRadius: tokens.radius, borderWidth: tokens.borderWidth, minHeight: tokens.minHeight, paddingHorizontal: tokens.horizontalPadding, opacity: disabled ? tokens.disabledOpacity : pressed ? tokens.pressedOpacity : 1, transform: [{ scale: pressed && !disabled ? 0.99 : 1 }] }]}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          backgroundColor: tokens.background,
+          borderColor: tokens.border,
+          borderRadius: tokens.radius,
+          minHeight: tokens.minHeight,
+          paddingHorizontal: tokens.horizontalPadding,
+          opacity: disabled ? tokens.disabledOpacity : pressed ? tokens.pressedOpacity : 1,
+          transform: [{ scale: pressed && !disabled ? 0.985 : 1 }],
+        },
+      ]}
     >
       <Text style={[styles.buttonLabel, { color: tokens.foreground, fontWeight: theme.typography.weights.bold }]}>{label}</Text>
     </Pressable>
   );
 }
 
-export interface NusaTextFieldProps extends Pick<TextInputProps, "autoCapitalize" | "autoCorrect" | "editable" | "keyboardType" | "returnKeyType"> {
+export interface NusaTextFieldProps {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
@@ -40,29 +51,33 @@ export interface NusaTextFieldProps extends Pick<TextInputProps, "autoCapitalize
   readonly testID?: string;
 }
 
-export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID, autoCapitalize, autoCorrect, editable = true, keyboardType, returnKeyType }: NusaTextFieldProps) {
+export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: focused && editable ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption, opacity: editable ? 1 : theme.interaction.disabledOpacity }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
-        accessibilityState={{ disabled: !editable }}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={autoCorrect}
-        editable={editable}
-        keyboardType={keyboardType}
         onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
         placeholder={placeholder}
         placeholderTextColor={tokens.placeholder}
-        returnKeyType={returnKeyType}
         secureTextEntry={secureTextEntry}
         selectionColor={theme.colors.primary}
-        style={[styles.field, { backgroundColor: tokens.background, borderColor: focused && editable ? tokens.focus : tokens.border, borderRadius: tokens.radius, borderWidth: focused && editable ? tokens.focusBorderWidth : tokens.borderWidth, color: tokens.foreground, minHeight: tokens.minHeight, opacity: editable ? 1 : theme.interaction.disabledOpacity }]}
+        style={[
+          styles.field,
+          {
+            backgroundColor: tokens.background,
+            borderColor: focused ? tokens.focus : tokens.border,
+            borderRadius: tokens.radius,
+            borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth,
+            color: tokens.foreground,
+            minHeight: tokens.minHeight,
+          },
+        ]}
         testID={testID}
         value={value}
       />
@@ -82,32 +97,13 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
   const { theme } = useTheme();
   const foreground = tone === "primary" ? theme.colors.primary : tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.info : theme.colors.textMuted;
   const background = tone === "primary" ? theme.colors.primarySoft : theme.colors.surfaceSunken;
-  return <View accessibilityRole="text" testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
+  return <View testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
 }
 
-/**
- * NUSA monogram: an "N" built from two stable pillars and one rising diagonal.
- * The mark intentionally uses primitive Views so the same identity remains crisp
- * without a bundled image asset in headers, auth entry and loading states.
- */
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
-  const size = compact ? 28 : 38;
-  const inset = compact ? 6 : 8;
-  const stroke = compact ? 3 : 4;
-  const diagonalHeight = compact ? 22 : 30;
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={[styles.nusaMark, { width: size, height: size, borderRadius: compact ? 9 : 12, backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.borderStrong }]}
-      testID="nusa-brand-mark"
-    >
-      <View style={[styles.nusaPillar, { left: inset, top: inset, bottom: inset, width: stroke, borderRadius: stroke, backgroundColor: theme.colors.primary }]} />
-      <View style={[styles.nusaDiagonal, { left: size / 2 - stroke / 2, top: size / 2 - diagonalHeight / 2, width: stroke, height: diagonalHeight, borderRadius: stroke, backgroundColor: theme.colors.primary, transform: [{ rotate: "-38deg" }] }]} />
-      <View style={[styles.nusaPillar, { right: inset, top: inset, bottom: inset, width: stroke, borderRadius: stroke, backgroundColor: theme.colors.info }]} />
-    </View>
-  );
+  const widths = compact ? [22, 28, 20] : [30, 38, 26];
+  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waveMark}>{widths.map((width, index) => <View key={width + index} style={[styles.waveLine, { width, backgroundColor: index === 1 ? theme.colors.primary : theme.colors.info, opacity: 1 - index * 0.2 }]} />)}</View>;
 }
 
 export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebrow?: string; title: string; description?: string }>) {
@@ -115,19 +111,19 @@ export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebr
   return <View style={styles.sectionHeading}>{eyebrow ? <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{eyebrow}</Text> : null}<Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>{description ? <Text style={[styles.sectionDescription, { color: theme.colors.textMuted }]}>{description}</Text> : null}</View>;
 }
 
-export function AuthorityBanner({ detail = "AI 분석은 읽기 전용입니다. AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다." }: Readonly<{ detail?: string }>) {
+export function AuthorityBanner({ detail = "AI와 모바일 화면은 분석·조회만 수행합니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>AI ZERO AUTHORITY</Text><StatusChip label="AI 주문 권한 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
+  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="UI 주문 경로 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
 }
 
-export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" | "info" }>) {
+export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
   const { theme } = useTheme();
-  const color = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.info : theme.colors.text;
-  return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
+  const color = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.text;
+  return <View style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  button: { alignItems: "center", justifyContent: "center" },
+  button: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
   buttonLabel: { fontSize: 15, letterSpacing: -0.15 },
   card: { borderWidth: 1 },
   field: { paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
@@ -135,9 +131,8 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
   chipLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.35 },
-  nusaMark: { position: "relative", overflow: "hidden", borderWidth: 1 },
-  nusaPillar: { position: "absolute" },
-  nusaDiagonal: { position: "absolute" },
+  waveMark: { gap: 4, alignItems: "flex-start", justifyContent: "center" },
+  waveLine: { height: 3, borderRadius: 9999 },
   sectionHeading: { gap: 5, marginBottom: 2 },
   eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.6 },
   sectionTitle: { fontSize: 26, lineHeight: 32, fontWeight: "700", letterSpacing: -0.9 },
