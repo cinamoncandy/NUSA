@@ -26,6 +26,11 @@ scope:
   - version-separated provider/model/prompt/calibration metrics
   - regime degradation detection
   - predictive quality separated from economic usefulness after declared costs, turnover, drawdown, and baselines
+  - componentized gross-to-net economic decomposition for fees, spread, slippage, implementation shortfall, turnover, financing/borrow/funding/carry, FX, market-impact/capacity, opportunity cost, and path risk when material
+  - unknown material economic cost terms fail closed rather than defaulting to zero
+  - benchmark and opportunity-cost baselines are frozen before outcome observation; post-hoc benchmark selection is prohibited
+  - economic usefulness preserves timestamp/order evidence required for turnover, drawdown, implementation timing, and exposure-path claims
+  - economic sensitivity analysis remains separately labeled advisory evidence and cannot overwrite the primary frozen-cost result
   - deterministic replay, idempotency, and immutable read-only evidence
 out_of_scope:
   - model/provider weight changes
@@ -45,6 +50,10 @@ acceptance_criteria:
   - insufficient samples produce INSUFFICIENT_EVIDENCE
   - metrics are deterministic, idempotent, and separated by identity/version/regime
   - economic usefulness is reported separately after declared cost assumptions and baselines
+  - material unknown costs cannot be treated as zero or silently imputed
+  - gross benefit, each material cost component, opportunity-cost baseline, drawdown/path-risk evidence, and net benefit are separately attributable when sufficient realized evidence exists
+  - benchmark switching or hindsight-selected baseline/cost-model substitution creates an invalid or separately versioned evaluation, never an overwrite
+  - path-dependent economic claims require ordered timestamped evidence; shuffled or duplicate replay evidence cannot satisfy turnover/drawdown/PnL claims
   - corruption, ambiguity, stale evidence, and lineage mismatch fail closed
   - output is read-only advisory evidence with unchanged zero authority
   - focused, architecture, security, AIPOS, and full CI checks pass
@@ -61,11 +70,19 @@ required_tests:
   - minimum sample and observation-window abstention tests
   - accuracy/Brier/calibration/abstention/disagreement/faithfulness metric tests
   - version and regime degradation aggregation tests
-  - economic-usefulness separation and declared-cost tests
+  - gross-to-net economic component decomposition tests
+  - unknown material fee/spread/slippage/turnover/financing cost fail-closed tests
+  - frozen benchmark and opportunity-cost anti-cherry-picking tests
+  - implementation-shortfall and timestamp-order integrity tests
+  - drawdown, turnover, and path-dependent evidence ordering tests
+  - cost-model effective-time/version substitution tests
+  - economic sensitivity analysis non-overwrite tests
+  - predictive-correct-but-net-negative separation tests
   - deterministic replay and duplicate idempotency tests
   - zero-authority and no-mutation regression tests
 planning_artifacts:
   - docs/audits/wo-ai-011-point-in-time-leakage-test-contract.md
+  - docs/audits/wo-ai-011-economic-usefulness-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
