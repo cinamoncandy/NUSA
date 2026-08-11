@@ -6,7 +6,7 @@ base_branch: main
 phase: human-environment-gate
 status: IN_PROGRESS
 source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary; preserve merged AI capabilities as verified zero-authority research/read-only features and record WO-AI-011 as planning-only."
+objective: "Hold the production transition at the human/environment boundary; preserve merged AI capabilities as verified zero-authority research/read-only features and record WO-AI-011 plus its merged planning hardening as planning-only."
 scope:
   - operator-authorized external read-only preflight only
   - actual independent human activation ceremony evidence
@@ -22,6 +22,10 @@ latest_planning_gate:
   status: PLANNED
   merged_pr: 421
   merge_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+  hardening_prs:
+    - 425
+    - 427
+  latest_hardening_merge: 5427707318b516c561ebead93ce3e4f0b2128b4a
   implementation_started: false
   serialization: HUMAN_ENVIRONMENT_ONLY
 safety:
@@ -37,7 +41,9 @@ verification:
   ai_011_planning_merge: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
   ai_011_exact_head: b91459b880d67d63b1c24b69c003d7085f998941
   ai_011_ci_run: 31497602616
-  restricted_live_readonly_workflows: PASS_4_OF_4
+  ai_011_point_in_time_hardening_merge: 6a1bede063251222a9b808d58ba04d43249dc922
+  ai_011_economic_usefulness_hardening_merge: 5427707318b516c561ebead93ce3e4f0b2128b4a
+  restricted_live_readonly_workflows: PASS_4_OF_4_ON_EACH_MERGED_HARDENING
   ai_runtime_latest_verified: WO-AI-010
   ai_011_runtime_implementation: NOT_STARTED_SERIALIZED
 blockers:
