@@ -25,6 +25,10 @@ scope:
   - accuracy, Brier, calibration error, abstention, disagreement, and faithfulness metrics
   - version-separated provider/model/prompt/calibration metrics
   - regime degradation detection
+  - immutable evaluation-family identity covering every inspected provider/model/prompt/calibration/regime/horizon/threshold/benchmark/metric candidate
+  - frozen confirmatory-versus-exploratory semantics, multiple-comparison policy, sequential-look/stopping policy, and selection history
+  - dependence-group identity and uncertainty treatment for overlapping horizons, shared timestamps/assets/events/evidence/prompts/providers/regimes, duplicate/retry/replay observations, and other correlated samples
+  - selection/tuning evidence separated from final assessment through preserved holdout, nested, or walk-forward treatment
   - predictive quality separated from economic usefulness after declared costs, turnover, drawdown, and baselines
   - componentized gross-to-net economic decomposition for fees, spread, slippage, implementation shortfall, turnover, financing/borrow/funding/carry, FX, market-impact/capacity, opportunity cost, and path risk when material
   - unknown material economic cost terms fail closed rather than defaulting to zero
@@ -49,6 +53,11 @@ acceptance_criteria:
   - synthetic/replay/hypothetical outcomes cannot satisfy realized-outcome evidence
   - insufficient samples produce INSUFFICIENT_EVIDENCE
   - metrics are deterministic, idempotent, and separated by identity/version/regime
+  - all inspected comparison candidates are bound to an immutable evaluation-family identity; post-hoc family edits create a new evaluation rather than overwriting results
+  - confirmatory claims require frozen multiple-comparison and sequential-look/stopping policies; otherwise results are EXPLORATORY or INSUFFICIENT_EVIDENCE
+  - correlated observations cannot be counted as independent; material unknown dependence produces INSUFFICIENT_EVIDENCE
+  - tuning/selection outcomes cannot be reused as unbiased final-assessment evidence without preserved nested/holdout/walk-forward separation
+  - subgroup/regime wins cannot replace aggregate evidence through hindsight selection
   - economic usefulness is reported separately after declared cost assumptions and baselines
   - material unknown costs cannot be treated as zero or silently imputed
   - gross benefit, each material cost component, opportunity-cost baseline, drawdown/path-risk evidence, and net benefit are separately attributable when sufficient realized evidence exists
@@ -70,6 +79,16 @@ required_tests:
   - minimum sample and observation-window abstention tests
   - accuracy/Brier/calibration/abstention/disagreement/faithfulness metric tests
   - version and regime degradation aggregation tests
+  - immutable comparison-family and post-hoc family-edit tests
+  - confirmatory versus exploratory labeling tests
+  - multiple-comparison correction identity and deterministic replay tests
+  - optional-stopping and repeated-look policy tests
+  - overlapping-horizon/shared-event dependence grouping tests
+  - duplicate/retry/replay effective-sample non-inflation tests
+  - provider/model/prompt correlated-independence rejection tests
+  - dependence-aware uncertainty and unknown-dependence fail-closed tests
+  - tuning/selection sample reuse rejection and nested/holdout/walk-forward separation tests
+  - subgroup/regime cherry-picking rejection tests
   - gross-to-net economic component decomposition tests
   - unknown material fee/spread/slippage/turnover/financing cost fail-closed tests
   - frozen benchmark and opportunity-cost anti-cherry-picking tests
@@ -83,6 +102,7 @@ required_tests:
 planning_artifacts:
   - docs/audits/wo-ai-011-point-in-time-leakage-test-contract.md
   - docs/audits/wo-ai-011-economic-usefulness-test-contract.md
+  - docs/audits/wo-ai-011-statistical-validity-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
