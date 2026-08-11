@@ -1,8 +1,9 @@
 id: WO-AI-010
 title: Governed Explanation Faithfulness and Claim-Evidence Verification
-status: PLANNED
+status: IN_PROGRESS
 priority: P1
-branch: agent/ai-010-explanation-faithfulness-plan
+branch: agent/wo-ai-010-explanation-faithfulness
+implementation_branch: agent/wo-ai-010-explanation-faithfulness
 base_branch: main
 planning_branch: agent/ai-010-explanation-faithfulness-plan
 architecture_impact:
@@ -107,10 +108,10 @@ verification:
     - provider or broker credential material
     - autonomous model/provider weighting prompt mutation strategy promotion risk increase or execution
 planning_gate:
-  status: OPEN_PENDING_EXACT_HEAD_VALIDATION
-  base_commit: 86a7aed480211d8c35b38db4bff9529be0cd0d7c
+  status: OPEN
+  base_commit: 83b1402caee5f06276cdbfc3f9a648e4ebd55465
 implementation_gate:
-  status: BLOCKED_UNTIL_PLANNING_MERGED
+  status: OPEN
 next: >-
-  Freeze the planning branch after PR creation, require exact-head CI/AIPOS/architecture/security and all Restricted LIVE/read-only
-  workflows to pass, merge only with unchanged latest-main ancestry and expected-head protection, then re-read protected main before any implementation.
+  Complete deterministic explanation verification, focused adversarial tests, full CI and restricted safety workflows; merge only after
+  exact-head verification. Preserve zero authority and WO-0051 HUMAN_ENVIRONMENT_ONLY.
