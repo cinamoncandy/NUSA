@@ -1,0 +1,15 @@
+{
+  "workOrder": "WO-AI-010",
+  "status": "COMPLETED",
+  "result": "PASS",
+  "subject": { "type": "work_order", "id": "WO-AI-010", "path": ".aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml" },
+  "planningPullRequest": 401,
+  "planningHead": "e6e9c66eeaa2d2e34506f1246fc1cb46ac024a59",
+  "planningMerge": "83b1402caee5f06276cdbfc3f9a648e4ebd55465",
+  "implementationPullRequest": 405,
+  "implementationHead": "de7dd7b7242b362169a0f7a2383adf5cdf63b9bd",
+  "implementationMerge": "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7",
+  "focusedTests": { "file": "tests/ai-explanation-faithfulness.test.js", "passed": 5 },
+  "ci": { "test": "PASS", "verify": "PASS", "guard": "PASS", "readiness": "PASS", "rehearsal": "PASS", "testRun": "https://github.com/cinamoncandy/NUSA/actions/runs/31447764706" },
+  "safety": { "liveAuthority": "NONE", "productionMutationAllowed": false, "realOrderAuthority": false, "realTransferAuthority": false, "aiAuthority": "ZERO_AUTHORITY", "wo0051": "HUMAN_ENVIRONMENT_ONLY" }
+}

@@ -1,6 +1,6 @@
 id: WO-AI-010
 title: Governed Explanation Faithfulness and Claim-Evidence Verification
-status: IN_PROGRESS
+status: COMPLETED
 priority: P1
 branch: agent/wo-ai-010-explanation-faithfulness
 implementation_branch: agent/wo-ai-010-explanation-faithfulness
@@ -91,7 +91,7 @@ verification:
     - pnpm run aipos:conformance
     - pnpm run security:gate
     - git diff --check
-  result: PENDING
+  result: PASS
   evaluation_requirements:
     - deterministic independent verifier where feasible
     - claim-evidence support and contradiction evaluation
@@ -113,5 +113,4 @@ planning_gate:
 implementation_gate:
   status: OPEN
 next: >-
-  Complete deterministic explanation verification, focused adversarial tests, full CI and restricted safety workflows; merge only after
-  exact-head verification. Preserve zero authority and WO-0051 HUMAN_ENVIRONMENT_ONLY.
+  Preserve WO-0051 HUMAN_ENVIRONMENT_ONLY and select the next safe AI capability only after a fresh capability audit.

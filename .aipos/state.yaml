@@ -5,21 +5,24 @@ phase: human-environment-gate
 status: ready
 objective: "Preserve verified WO-AI-009 governed outcome attribution and immutable learning memory while keeping WO-0051 at the constitutional human/environment boundary; require a fresh capability audit before selecting any successor AI implementation slice."
 base_branch: main
-active_branch: agent/wo-ai-010-explanation-faithfulness
+active_branch: main
 active_pull_request: null
 base_commit: 83b1402caee5f06276cdbfc3f9a648e4ebd55465
 claimed_state:
-  work_order: WO-AI-010
+  work_order: WO-0051
   status: IN_PROGRESS
 verified_state:
-  work_order: WO-AI-009
+  work_order: WO-AI-010
   status: COMPLETED
-  evidence: ".aipos/evidence/WO-AI-009-completion.json"
+  evidence: ".aipos/evidence/WO-AI-010-completion.json"
 latest_verified_slice:
   id: wo-ai-009-governed-outcome-attribution-learning-complete
   evidence: ".aipos/evidence/WO-AI-009-completion.json"
   summary: "WO-AI-009 adds exact outcome-linked attribution, ambiguity abstention, immutable advisory learning memory, governed shared-resource replay/ablation, holdout leakage guards, and net-benefit evaluation under unchanged zero authority."
 completed:
+  - id: WO-AI-010
+    evidence: ".aipos/evidence/WO-AI-010-completion.json"
+    summary: "Deterministic claim-evidence verification enforces support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with read-only zero authority."
   - id: WO-AI-009
     evidence: ".aipos/evidence/WO-AI-009-completion.json"
     summary: "Governed post-outcome attribution and immutable learning memory are merged and verified with exact lineage, unresolved-first ambiguity handling, advisory-only retrieval, shared WO-AI-006 replay resources, net-benefit gating, and unchanged zero authority."
@@ -54,9 +57,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-AI-010
-    evidence: ".aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml"
-    summary: "Governed claim-evidence verification implementation in progress; WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -67,8 +70,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-AI-010-governed-explanation-faithfulness.yaml
-  reason: "Implement governed claim-evidence verification after planning PR #401 merged; preserve WO-0051 HUMAN_ENVIRONMENT_ONLY."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-AI-010 is merged and evidence-verified; preserve WO-0051 as the terminal human-only mission and run a fresh post-WO-AI-010 capability audit before opening any successor AI implementation work order."
 verification:
   required:
     - "Fresh post-WO-AI-009 capability audit before selecting the next AI implementation work order"
@@ -81,7 +84,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-009 planning PR #382 merged at 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1. Core implementation PR #387 exact head 40935021b08cbae43f4eb9947817e5dc20c5f481 passed Full CI/Coverage run 31338389151 and all four Restricted LIVE/read-only workflows, then merged at ceb80e742bd8683d20ec9bbdf6d2a5ef10cf16b3. Post-merge acceptance audit found replay/resource and net-benefit gaps; hardening PR #388 exact head 1686a9d6d35ad745170080233f12771f0d6b39fe passed Full CI/Coverage run 31339050722 plus all four safety workflows and merged at b131f9bed88cd69b7c168ddf706f714f3e8899b2."
-  current_commit: "83b1402caee5f06276cdbfc3f9a648e4ebd55465 is the merged WO-AI-010 planning base; implementation is in progress with zero authority preserved."
+  current_commit: "d2c0263e98bd7e1660a7d4d56782e939a9cccdd7 contains merged WO-AI-010 implementation; WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
