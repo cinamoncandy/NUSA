@@ -1,12 +1,12 @@
 # NUSA User Access Approval Architecture
 
-**Status:** REQUIRED / PLANNED CONTROL-PLANE CAPABILITY  
+**Status:** REQUIRED / IMPLEMENTED FOUNDATION / GOVERNING  
 **Scope:** Human user admission to NUSA applications and protected APIs.  
 **Authority:** Interpreted under `NUSA_CANONICAL_ARCHITECTURE_V2.md`, the NUSA Core Architecture Principle, and the Safety Constitution.
 
 ## 1. Purpose
 
-NUSA will require explicit operator approval before a newly authenticated user may use the system.
+NUSA requires explicit operator approval before a newly authenticated ordinary user may use protected system capabilities.
 
 Authentication and system-use approval are separate decisions:
 
@@ -17,30 +17,44 @@ A successful sign-in MUST NOT imply system-use approval.
 
 ## 2. Non-negotiable invariants
 
-1. New users default to **not approved**.
+1. New ordinary users default to **not approved**.
 2. An authenticated but unapproved user may access only the minimum surfaces required to display approval status, sign out, and perform explicitly allowed account-recovery/support actions.
-3. Only an authorized human operator role may approve, deny, suspend, restore, or revoke user access.
+3. Only an authorized human operator role may approve, reject/revoke, suspend, or restore user access.
 4. A user may never approve their own access.
 5. AI, agents, models, plugins, or automated research/evolution systems have **ZERO approval authority**.
 6. Approval state is server-authoritative. Mobile/desktop clients may cache it only as non-authoritative presentation state.
 7. Missing, stale, unknown, unverifiable, or unreachable approval state fails closed for protected use.
-8. Revocation or suspension must invalidate protected use without requiring an application reinstall or local logout.
-9. Every approval-state mutation must produce durable audit evidence identifying actor, target user, action, reason, time, previous state, resulting state, and policy/version context.
+8. Rejection/revocation or suspension must invalidate protected use without requiring an application reinstall or local logout.
+9. Every approval-state mutation must produce durable audit evidence identifying actor, target user, action, reason, time, previous state, and resulting state.
 10. Application code may request or display approval state but may not locally override it.
 11. Access approval does not grant trading authority. Existing Risk, Execution, Deployment, PAPER/LIVE, credential, and operator-command gates remain independently required.
 12. Approval checks must apply server-side to protected APIs; hiding UI alone is never sufficient enforcement.
 
-## 3. Canonical state model
+## 3. Canonical persisted state model
 
-Recommended authoritative states:
+The authoritative persisted states are:
 
 - `PENDING` — authenticated identity exists but operator approval has not been granted.
-- `APPROVED` — user is currently admitted to the approved NUSA usage scope.
-- `DENIED` — operator explicitly rejected access.
-- `SUSPENDED` — previously usable access is temporarily disabled.
-- `REVOKED` — prior approval was withdrawn and must not silently reactivate.
+- `ACTIVE` — user is currently admitted to the approved NUSA usage scope.
+- `REJECTED` — access is not admitted. This state represents either an initial denial or withdrawal of a previously active user's approval; audit history distinguishes those cases.
+- `SUSPENDED` — previously usable access is temporarily disabled and may be restored.
 
-`UNKNOWN` or missing state is treated as non-approved.
+`UNKNOWN`, missing state, or an unreadable record is treated as non-approved.
+
+Canonical transition actions are:
+
+- `APPROVE` -> `ACTIVE`
+- `REJECT` -> `REJECTED`
+- `SUSPEND` -> `SUSPENDED`
+- `RESTORE` -> `ACTIVE`
+
+The semantic distinction between **initial denial** and **revocation of prior approval** is derived from immutable transition evidence:
+
+- `PENDING -> REJECTED` = initial denial;
+- `ACTIVE -> REJECTED` = approval revoked;
+- `SUSPENDED -> REJECTED` = suspended access permanently rejected/revoked.
+
+This avoids duplicating non-admitted persisted states while preserving complete governance semantics in the audit history.
 
 Transitions must be explicit, authenticated, authorized, audited, and policy-validated.
 
@@ -54,7 +68,7 @@ Owns:
 - operator approval workflow;
 - approval-state transition authorization;
 - operator role/permission checks;
-- suspension/revocation policy;
+- suspension/rejection/revocation policy;
 - approval audit requirements.
 
 ### Cross-cutting identity/security fabric
@@ -65,23 +79,23 @@ Owns:
 - operator identity;
 - session/token binding;
 - authorization claims or server-side decision lookup;
-- credential/session invalidation after suspension/revocation.
+- credential/session invalidation after suspension or rejection/revocation.
 
 ### Applications plane
 
 May:
 
 - authenticate users;
-- show `PENDING`, `DENIED`, `SUSPENDED`, `REVOKED`, or approved UI states;
+- show `PENDING`, `ACTIVE`, `REJECTED`, or `SUSPENDED` states;
 - request the current server-authoritative access decision;
 - provide an operator console only when the authenticated principal has the required operator permission.
 
 May not:
 
-- convert `SIGNED_IN` into `APPROVED` locally;
+- convert `SIGNED_IN` into `ACTIVE` locally;
 - mint approval state;
 - bypass server enforcement;
-- persist an approval decision as a permanent local authority.
+- persist an approval decision as permanent local authority.
 
 ## 5. Required request path
 
@@ -91,7 +105,7 @@ Protected user action:
 
 For trading-related actions, access approval is only an outer admission gate. The existing chain remains mandatory, for example:
 
-`Approved User -> Authenticated Command -> Policy/Mode Gate -> Portfolio/Risk -> Execution Boundary`
+`ACTIVE User -> Authenticated Command -> Policy/Mode Gate -> Portfolio/Risk -> Execution Boundary`
 
 Access approval must never replace Risk, Execution, Deployment Authority, or PAPER/LIVE promotion controls.
 
@@ -100,13 +114,13 @@ Access approval must never replace Risk, Execution, Deployment Authority, or PAP
 Minimum governed workflow:
 
 1. User authenticates or creates an account.
-2. Server establishes `PENDING` as the default admission state.
+2. Server establishes `PENDING` as the default ordinary-user admission state.
 3. Authorized operator reviews the user.
-4. Operator chooses approve or deny and supplies required reason/evidence.
+4. Operator chooses approve or reject and supplies required reason/evidence.
 5. Server records an immutable/auditable transition.
 6. On approval, subsequent protected requests may proceed to their normal capability-specific gates.
-7. Operator may later suspend or revoke access.
-8. Suspension/revocation propagates to protected API enforcement and active-session policy.
+7. Operator may later suspend, restore, or reject/revoke access.
+8. Suspension or rejection/revocation propagates to protected API enforcement and active-session policy.
 
 The operator UI is not the authority; it is a client of the server-side approval authority.
 
@@ -114,32 +128,29 @@ The operator UI is not the authority; it is a client of the server-side approval
 
 Each state mutation should record at minimum:
 
-- `decisionId`;
+- decision/audit record ID;
 - target `userId`;
 - operator `actorId`;
-- operator role/permission evidence;
 - previous state;
 - resulting state;
-- reason;
-- decision timestamp;
-- policy/version identifier;
-- request/correlation identifier;
-- optional expiration/scope where policy supports it.
+- action;
+- reason where supplied/required;
+- decision timestamp.
 
-Approval evidence must be append-oriented and reconstructable.
+Future hardening may add policy/version and request/correlation identifiers, but existing append-oriented transition evidence must remain reconstructable.
 
 ## 8. Session and cache semantics
 
-- Local clients must not treat cached `APPROVED` as permanent authority.
+- Local clients must not treat cached `ACTIVE` as permanent authority.
 - Protected requests must receive server-side enforcement even if UI state is stale.
 - Approval-state caches require an explicit freshness policy.
 - Failure to refresh a required decision must fail closed for protected use.
-- Suspension/revocation should invalidate or constrain existing sessions according to server policy.
+- Suspension or rejection/revocation should invalidate or constrain existing sessions according to server policy.
 - Offline mode must not create new protected authority.
 
 ## 9. Scope evolution
 
-Initial rollout may use one account-level `APPROVED` state.
+Initial rollout may use one account-level `ACTIVE` state.
 
 The contract should remain extensible to scoped grants such as:
 
@@ -152,55 +163,51 @@ The contract should remain extensible to scoped grants such as:
 
 Adding scopes must not weaken default-deny behavior.
 
-## 10. Current repository gap
+## 10. Authentication separation
 
-The current mobile auth context models only:
+The mobile authentication context may model session presentation such as:
 
 `CHECKING | SIGNED_OUT | SIGNED_IN`
 
-That is an authentication/session presentation model, not a complete access-admission model.
+That remains an authentication/session model, not the access-admission authority.
 
-Before this feature is considered implemented, NUSA must add a separate server-authoritative access decision rather than simply adding `APPROVED` as a locally mutable mobile flag.
+Approval must remain a separate server-authoritative decision. Adding `ACTIVE` or any approval state as a locally mutable `AuthStatus` is forbidden.
 
-## 11. Implementation migration
+## 11. Current implementation foundation
 
-### Phase A — Contract
+The merged server foundation provides:
 
-- define user access decision and transition contracts;
-- define operator role/permission contract;
-- define audit evidence schema;
-- define server-side default-deny semantics.
+- `OWNER` and `USER` roles;
+- default `PENDING` ordinary-user registration;
+- `PENDING | ACTIVE | REJECTED | SUSPENDED` persisted states;
+- `APPROVE | REJECT | SUSPEND | RESTORE` actions;
+- owner/operator authority checks;
+- owner protection from ordinary user-approval mutation;
+- in-memory and SQLite-backed registries;
+- append-oriented access audit records;
+- a server-side `isUserAllowed(...)` decision that admits only `ACTIVE`.
 
-### Phase B — Server authority
+This is the authority foundation, not the complete end-state rollout.
 
-- persist authoritative approval state;
-- implement authenticated operator transition endpoints/services;
-- enforce approval on protected APIs;
-- implement session/revocation propagation.
+## 12. Remaining implementation hardening
 
-### Phase C — Applications
+Before user-access approval is considered complete end-to-end, NUSA must prove:
 
-- add pending/denied/suspended/revoked states to user UX;
-- add approved-use transition only after server decision;
-- build operator approval console as a non-sovereign application surface.
-
-### Phase D — Guard tests
-
-Automated tests must prove:
-
-- sign-in alone cannot access protected APIs;
-- new users default to pending/non-approved;
+- all protected APIs that require admitted user access enforce the server-side gate;
+- sign-in alone cannot access protected capabilities;
 - ordinary users cannot self-approve;
 - AI/plugin code cannot approve users;
 - only authorized operator principals can mutate approval state;
 - stale/missing approval fails closed;
-- suspension/revocation blocks protected use;
+- suspension and rejection/revocation block protected use;
 - client-side tampering cannot bypass server checks;
+- active sessions cannot retain protected authority after a blocking transition beyond policy bounds;
 - approval does not bypass Risk/Execution/Deployment/PAPER-LIVE gates;
-- all approval mutations emit auditable evidence.
+- all approval mutations emit auditable evidence;
+- operator and user UX represent the authoritative server state without creating local authority.
 
-## 12. Completion rule
+## 13. Completion rule
 
-User access approval is complete only when server-side enforcement, operator authorization, audit evidence, revocation behavior, client UX, and regression tests all pass together.
+User access approval is complete only when server-side enforcement, operator authorization, audit evidence, rejection/revocation behavior, session propagation, client UX, and regression tests pass together.
 
-A UI-only approval screen is not implementation completion.
+A UI-only approval screen or a successful login is never implementation completion.
