@@ -25,6 +25,11 @@ scope:
   - accuracy, Brier, calibration error, abstention, disagreement, and faithfulness metrics
   - version-separated provider/model/prompt/calibration metrics
   - regime degradation detection
+  - immutable monitoring identity covering baseline cohort, window, cadence, permitted looks, thresholds, recovery criteria, minimum sample, dependence policy, and missingness/coverage policy
+  - point-in-time regime labels and explicit separation of model degradation from covariate shift, label shift, data-availability/coverage shift, universe change, version change, and economic-cost/benchmark change
+  - repeated degradation monitoring and change-point searches governed by the frozen repeated-look/multiple-comparison policy
+  - sparse or new regimes fail closed as INSUFFICIENT_EVIDENCE until frozen sample/window requirements are satisfied
+  - degradation and recovery remain separate immutable longitudinal evidence and cannot erase one another
   - immutable evaluation-family identity covering every inspected provider/model/prompt/calibration/regime/horizon/threshold/benchmark/metric candidate
   - frozen confirmatory-versus-exploratory semantics, multiple-comparison policy, sequential-look/stopping policy, and selection history
   - dependence-group identity and uncertainty treatment for overlapping horizons, shared timestamps/assets/events/evidence/prompts/providers/regimes, duplicate/retry/replay observations, and other correlated samples
@@ -53,6 +58,12 @@ acceptance_criteria:
   - synthetic/replay/hypothetical outcomes cannot satisfy realized-outcome evidence
   - insufficient samples produce INSUFFICIENT_EVIDENCE
   - metrics are deterministic, idempotent, and separated by identity/version/regime
+  - degradation claims bind a frozen monitoring identity; post-hoc window, threshold, break-date, metric, regime, or subgroup selection is exploratory or invalid rather than confirmatory
+  - point-in-time regime labels cannot use hindsight outcomes, revised classifications, or future realized-volatility information
+  - material changes in coverage, missingness, outcome resolution, or abstention are separately reported and cannot masquerade as model improvement/degradation
+  - model-quality degradation is separated from covariate/label/data-quality/universe/version/economic-regime changes; unresolved material attribution produces INSUFFICIENT_EVIDENCE
+  - rolling/repeated/change-point monitoring obeys the frozen repeated-look and multiple-comparison policy
+  - recovery requires separately frozen subsequent realized evidence and never overwrites prior degradation evidence
   - all inspected comparison candidates are bound to an immutable evaluation-family identity; post-hoc family edits create a new evaluation rather than overwriting results
   - confirmatory claims require frozen multiple-comparison and sequential-look/stopping policies; otherwise results are EXPLORATORY or INSUFFICIENT_EVIDENCE
   - correlated observations cannot be counted as independent; material unknown dependence produces INSUFFICIENT_EVIDENCE
@@ -79,6 +90,14 @@ required_tests:
   - minimum sample and observation-window abstention tests
   - accuracy/Brier/calibration/abstention/disagreement/faithfulness metric tests
   - version and regime degradation aggregation tests
+  - frozen monitoring-window/cadence/threshold identity tests
+  - post-hoc window/threshold/break-date selection rejection tests
+  - repeated-look/change-point multiple-testing tests
+  - point-in-time regime-label future-leakage tests
+  - sparse/new-regime INSUFFICIENT_EVIDENCE tests
+  - coverage/missingness shift and hard-case-drop rejection tests
+  - covariate/label/data-quality/model-version degradation attribution-separation tests
+  - immutable degradation/recovery history tests
   - immutable comparison-family and post-hoc family-edit tests
   - confirmatory versus exploratory labeling tests
   - multiple-comparison correction identity and deterministic replay tests
@@ -103,6 +122,7 @@ planning_artifacts:
   - docs/audits/wo-ai-011-point-in-time-leakage-test-contract.md
   - docs/audits/wo-ai-011-economic-usefulness-test-contract.md
   - docs/audits/wo-ai-011-statistical-validity-test-contract.md
+  - docs/audits/wo-ai-011-regime-degradation-test-contract.md
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
