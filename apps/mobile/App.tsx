@@ -20,7 +20,6 @@ import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSes
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
-import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
@@ -79,11 +78,7 @@ function AuthenticatedApp() {
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
-<<<<<<< HEAD
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
-=======
-  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ baseUrl: BASE_URL, credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
->>>>>>> e08cd51dae7c077f3b144de82a3893df39e4a7a9
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
@@ -159,15 +154,9 @@ function AuthenticatedApp() {
     {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
-<<<<<<< HEAD
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
-=======
-      : utilityView === "SETTINGS" ? <SettingsView exchangeCash={account?.cash ?? 0} onCloudInvestmentPercentSave={investmentAllocationClient.save} onSignOut={handleSignOut} repository={settingsRepository} />
-      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
-      : activeTab === "Trade" ? <TradingView error={readOnlyError} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
->>>>>>> e08cd51dae7c077f3b144de82a3893df39e4a7a9
       : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
