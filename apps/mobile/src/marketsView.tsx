@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
 import { WatchlistView } from "./watchlistView";
@@ -23,6 +23,8 @@ type Panel = "WATCHLIST" | "CHART";
 
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, error, refreshing, onRefresh }: MarketsViewProps) {
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= 840;
   const [panel, setPanel] = useState<Panel>("WATCHLIST");
   const chartAvailable = Array.isArray(rawCandles) && rawCandles.length > 0;
   const visiblePanel = chartAvailable ? panel : "WATCHLIST";
