@@ -23,9 +23,11 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
   assert.match(source, /minHeight: 40/);
 });
 
-test('design direction preserves read-only safety identity', () => {
+test('design direction preserves read-only safety identity and Android-only completion scope', () => {
   const source = read('docs/frontend-design-direction.md');
   assert.match(source, /PAPER \/ READ ONLY \/ ZERO AUTHORITY/);
   assert.match(source, /State completeness/);
-  assert.match(source, /Android\/iOS native CI success before merge/);
+  assert.match(source, /Android is the product target/);
+  assert.match(source, /iOS is not a release blocker/);
+  assert.match(source, /exact-head CI success, Android native build success/);
 });
