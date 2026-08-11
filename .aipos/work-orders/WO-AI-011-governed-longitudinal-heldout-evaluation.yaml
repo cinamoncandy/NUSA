@@ -1,0 +1,65 @@
+id: WO-AI-011
+title: Governed Longitudinal Held-Out Evaluation
+status: PLANNED
+phase: planning
+base_branch: main
+base_commit: e1fb37250d6348e8bd65f0c3d16cdf509d07c51a
+planning_branch: agent/wo-ai-011-planning
+planning_only: true
+implementation_started: false
+objective: >-
+  Define an immutable, temporal holdout and walk-forward evaluation boundary for
+  resolved AI predictions while preserving zero authority.
+scope:
+  - immutable temporal holdout and walk-forward partition identity
+  - prediction-time causal data and future-leakage rejection
+  - prediction/evidence/provider/model/prompt/schema/calibration/outcome lineage
+  - realized outcome separation from synthetic, replay, and hypothetical results
+  - minimum sample and observation-window abstention as INSUFFICIENT_EVIDENCE
+  - accuracy, Brier, calibration error, abstention, disagreement, and faithfulness metrics
+  - version-separated provider/model/prompt/calibration metrics
+  - regime degradation detection
+  - deterministic replay, idempotency, and immutable read-only evidence
+out_of_scope:
+  - model/provider weight changes
+  - provider replacement or prompt mutation
+  - strategy promotion or risk/position sizing changes
+  - broker order/cancel, transfer, withdrawal, or LIVE execution
+  - kill-switch or HALT release
+acceptance_criteria:
+  - temporal holdout and walk-forward partitions are immutable and versioned
+  - post-prediction information is rejected fail-closed
+  - every resolved result has complete prediction-to-outcome lineage
+  - synthetic/replay/hypothetical outcomes cannot satisfy realized-outcome evidence
+  - insufficient samples produce INSUFFICIENT_EVIDENCE
+  - metrics are deterministic, idempotent, and separated by identity/version/regime
+  - corruption, ambiguity, stale evidence, and lineage mismatch fail closed
+  - output is read-only advisory evidence with unchanged zero authority
+  - focused, architecture, security, AIPOS, and full CI checks pass
+required_tests:
+  - temporal partition and walk-forward boundary tests
+  - future-data and overlapping split rejection tests
+  - complete lineage and provenance integrity tests
+  - realized versus synthetic/replay/hypothetical separation tests
+  - minimum sample and observation-window abstention tests
+  - accuracy/Brier/calibration/abstention/disagreement/faithfulness metric tests
+  - version and regime degradation aggregation tests
+  - deterministic replay and duplicate idempotency tests
+  - zero-authority and no-mutation regression tests
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  WO-0051: HUMAN_ENVIRONMENT_ONLY
+dependencies:
+  - WO-AI-004
+  - WO-AI-005
+  - WO-AI-006
+  - WO-AI-009
+  - WO-AI-010
+completion_requires:
+  - implementation PR merged separately after planning gate
+  - exact-head Full CI, Coverage, AIPOS, architecture, security, and Restricted LIVE/read-only PASS
+  - protected main post-merge verification
