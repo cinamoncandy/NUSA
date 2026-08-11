@@ -64,9 +64,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
-      <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
       <DataRow label="검증 신뢰도" value={trustedConfidence} emphasis={ai?.calibrationStatus === "CALIBRATED"} />
       <DataRow label="보정 확률" value={calibratedProbability} />
+      <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
       <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
       <DataRow label="보정 표본" value={ai?.calibrationSampleCount == null ? "-" : String(ai.calibrationSampleCount)} />
       <DataRow label="ECE" value={metric(ai?.calibrationExpectedError)} />
@@ -74,7 +74,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="최근 분석" value={lastRun} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. 보정 상태가 CALIBRATED일 때만 별도의 검증 신뢰도를 표시합니다.</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력입니다. 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED일 때만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
     </NusaCard>
 
     <View style={styles.authoritySummary} testID="ai-authority-summary">
