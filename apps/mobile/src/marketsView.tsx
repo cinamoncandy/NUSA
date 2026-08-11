@@ -58,6 +58,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
 const styles = StyleSheet.create({
   workspace: { flex: 1 },
+  layoutWide: { flexDirection: "row" },
   content: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, paddingHorizontal: 20, paddingTop: 18 },
   segmentOuter: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 2 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
