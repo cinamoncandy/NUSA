@@ -9,6 +9,7 @@ on:
       - "apps/desktop/src/upbitWebSocket*"
       - "apps/desktop/src/liveTradingAdapter*"
       - "tests/mobile-native-structure.test.js"
+      - "tests/mobile-uiux-v3-canonical.test.js"
       - "scripts/security-backports.js"
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
@@ -155,6 +156,7 @@ jobs:
           tests/mobile-settings-ui.test.js
           tests/mobile-trading-ui.test.js
           tests/mobile-uiux-v2.test.js
+          tests/mobile-uiux-v3-canonical.test.js
           tests/uiux-002-phase2-visual-foundation.test.js
           tests/uiux-nav-chrome-closeout.test.js
       - run: chmod +x apps/mobile/android/gradlew
