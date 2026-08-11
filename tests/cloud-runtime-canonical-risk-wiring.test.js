@@ -12,8 +12,8 @@ test("startCloudRuntime constructs one canonical risk adapter and one execution 
   assert.match(source, /const runtimeOwnsPaperComposition = paperExecutionLoop == null && paperAccountRepository == null;/);
   assert.match(source, /const productionPaperRiskGate = runtimeOwnsPaperComposition/);
   assert.match(source, /new CloudPaperCanonicalRiskGateway\(/);
-  assert.match(source, /const productionPaperBoundary = runtimeOwnsPaperComposition/);
-  assert.match(source, /new CloudPaperExecutionBoundary\(/);
+  assert.match(source, /const productionPaperBoundary = runtimeOwnsPaperComposition && effectivePaperLoop != null && productionPaperRiskGate != null/);
+  assert.match(source, /new CloudPaperExecutionBoundary\(\{ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State \}\)/);
 });
 
 test("production-owned PAPER has no direct execution-loop fallback around the risk boundary", () => {

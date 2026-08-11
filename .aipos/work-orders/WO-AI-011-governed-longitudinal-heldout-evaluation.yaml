@@ -1,0 +1,194 @@
+id: WO-AI-011
+title: Governed Longitudinal Held-Out Evaluation
+status: PLANNED
+phase: planning
+base_branch: main
+base_commit: 2cf1939afd029d5ce11e517d3f3b0bb6423ecd4b
+planning_branch: agent/grill-ai-011-recovery-main
+planning_only: true
+implementation_started: false
+objective: >-
+  Define an immutable, temporal holdout and walk-forward evaluation boundary for
+  resolved AI predictions while preserving zero authority.
+scope:
+  - immutable temporal holdout and walk-forward partition identity
+  - prediction-time causal data and future-leakage rejection
+  - separate event_time, received_time, model_available_time, prediction_time, and outcome-window clocks where applicable
+  - point-in-time data-vintage identity for revised fundamentals, macro data, filings, and backfills
+  - point-in-time universe identity including delistings, symbol changes, mergers, bankruptcies, and historical membership
+  - explicit adjusted/unadjusted market-series identity and corporate-action provenance
+  - purge or embargo policy for overlapping realized-label horizons
+  - prediction/evidence/provider/model/prompt/schema/calibration/outcome lineage
+  - realized outcome separation from synthetic, replay, and hypothetical results
+  - frozen benchmark, regime-label, normalization, and cost-model identities without future leakage
+  - minimum sample and observation-window abstention as INSUFFICIENT_EVIDENCE
+  - accuracy, Brier, calibration error, abstention, disagreement, and faithfulness metrics
+  - version-separated provider/model/prompt/calibration metrics
+  - regime degradation detection
+  - immutable monitoring identity covering baseline cohort, window, cadence, permitted looks, thresholds, recovery criteria, minimum sample, dependence policy, and missingness/coverage policy
+  - point-in-time regime labels and explicit separation of model degradation from covariate shift, label shift, data-availability/coverage shift, universe change, version change, and economic-cost/benchmark change
+  - repeated degradation monitoring and change-point searches governed by the frozen repeated-look/multiple-comparison policy
+  - sparse or new regimes fail closed as INSUFFICIENT_EVIDENCE until frozen sample/window requirements are satisfied
+  - degradation and recovery remain separate immutable longitudinal evidence and cannot erase one another
+  - immutable evaluation-family identity covering every inspected provider/model/prompt/calibration/regime/horizon/threshold/benchmark/metric candidate
+  - frozen confirmatory-versus-exploratory semantics, multiple-comparison policy, sequential-look/stopping policy, and selection history
+  - dependence-group identity and uncertainty treatment for overlapping horizons, shared timestamps/assets/events/evidence/prompts/providers/regimes, duplicate/retry/replay observations, and other correlated samples
+  - selection/tuning evidence separated from final assessment through preserved holdout, nested, or walk-forward treatment
+  - predictive quality separated from economic usefulness after declared costs, turnover, drawdown, and baselines
+  - componentized gross-to-net economic decomposition for fees, spread, slippage, implementation shortfall, turnover, financing/borrow/funding/carry, FX, market-impact/capacity, opportunity cost, and path risk when material
+  - unknown material economic cost terms fail closed rather than defaulting to zero
+  - benchmark and opportunity-cost baselines are frozen before outcome observation; post-hoc benchmark selection is prohibited
+  - economic usefulness preserves timestamp/order evidence required for turnover, drawdown, implementation timing, and exposure-path claims
+  - economic sensitivity analysis remains separately labeled advisory evidence and cannot overwrite the primary frozen-cost result
+  - immutable tail-event family identity covering gap moves, volatility spikes, liquidity stress, correlation spikes, limit/auction disruption, discontinuous prices, and other declared rare-event classes
+  - tail-event thresholds, lookback windows, severity bands, event clustering, and minimum effective-sample requirements are frozen before confirmatory outcome inspection
+  - rare-event dependence and clustered stress episodes cannot be counted as independent samples
+  - tail conditional loss, worst-k event behavior, downside calibration, abstention under stress, and coverage under stress are separated from ordinary-regime averages
+  - synthetic stress, replay, scenario, and hypothetical tail evidence remain separately labeled and cannot satisfy realized rare-event evidence
+  - missing or unresolved realized tail outcomes, sparse event counts, or material uncertainty in stress-event definition fail closed as INSUFFICIENT_EVIDENCE
+  - immutable prediction-time eligible-cohort identity with frozen inclusion/exclusion, outcome-resolution window, censoring deadline, missingness taxonomy, denominator policy, and coverage thresholds
+  - unresolved, censored, abstained, delisted, bankrupt, stale, provider-missing, and otherwise difficult records remain represented in cohort accounting and cannot be silently dropped after outcomes are known
+  - potentially informative censoring and unknown material missingness fail closed rather than being assumed missing-at-random
+  - complete-case metrics remain explicitly denominator-labeled diagnostics and cannot replace full-cohort confirmatory evidence when missingness is material
+  - coverage, unresolved, censoring, exclusion, abstention, and outcome-resolution latency are first-class longitudinal outputs alongside predictive metrics
+  - censoring-aware estimators, weighting rules, and MNAR sensitivity analyses are immutable/versioned advisory evidence and cannot overwrite the primary frozen evaluation
+  - deterministic replay, idempotency, and immutable read-only evidence
+out_of_scope:
+  - model/provider weight changes
+  - provider replacement or prompt mutation
+  - strategy promotion or risk/position sizing changes
+  - broker order/cancel, transfer, withdrawal, or LIVE execution
+  - kill-switch or HALT release
+acceptance_criteria:
+  - temporal holdout and walk-forward partitions are immutable and versioned
+  - post-prediction information is rejected fail-closed
+  - ambiguous or missing causal-availability clocks fail closed
+  - revised/backfilled data cannot replace the prediction-time vintage
+  - historical universe membership cannot be reconstructed from survivors only
+  - overlapping label horizons are purged, embargoed, or rejected by frozen policy
+  - every resolved result has complete prediction-to-outcome lineage
+  - synthetic/replay/hypothetical outcomes cannot satisfy realized-outcome evidence
+  - insufficient samples produce INSUFFICIENT_EVIDENCE
+  - metrics are deterministic, idempotent, and separated by identity/version/regime
+  - degradation claims bind a frozen monitoring identity; post-hoc window, threshold, break-date, metric, regime, or subgroup selection is exploratory or invalid rather than confirmatory
+  - point-in-time regime labels cannot use hindsight outcomes, revised classifications, or future realized-volatility information
+  - material changes in coverage, missingness, outcome resolution, or abstention are separately reported and cannot masquerade as model improvement/degradation
+  - model-quality degradation is separated from covariate/label/data-quality/universe/version/economic-regime changes; unresolved material attribution produces INSUFFICIENT_EVIDENCE
+  - rolling/repeated/change-point monitoring obeys the frozen repeated-look and multiple-comparison policy
+  - recovery requires separately frozen subsequent realized evidence and never overwrites prior degradation evidence
+  - all inspected comparison candidates are bound to an immutable evaluation-family identity; post-hoc family edits create a new evaluation rather than overwriting results
+  - confirmatory claims require frozen multiple-comparison and sequential-look/stopping policies; otherwise results are EXPLORATORY or INSUFFICIENT_EVIDENCE
+  - correlated observations cannot be counted as independent; material unknown dependence produces INSUFFICIENT_EVIDENCE
+  - tuning/selection outcomes cannot be reused as unbiased final-assessment evidence without preserved nested/holdout/walk-forward separation
+  - subgroup/regime wins cannot replace aggregate evidence through hindsight selection
+  - economic usefulness is reported separately after declared cost assumptions and baselines
+  - material unknown costs cannot be treated as zero or silently imputed
+  - gross benefit, each material cost component, opportunity-cost baseline, drawdown/path-risk evidence, and net benefit are separately attributable when sufficient realized evidence exists
+  - benchmark switching or hindsight-selected baseline/cost-model substitution creates an invalid or separately versioned evaluation, never an overwrite
+  - path-dependent economic claims require ordered timestamped evidence; shuffled or duplicate replay evidence cannot satisfy turnover/drawdown/PnL claims
+  - tail-risk claims bind a frozen tail-event family, threshold, severity, clustering, dependence, and effective-sample identity
+  - realized clustered stress episodes are dependence-adjusted and cannot inflate effective sample size
+  - ordinary-regime averages cannot overwrite or hide tail-event degradation, abstention collapse, missingness, or coverage loss
+  - synthetic/replay/scenario/hypothetical tail evidence cannot satisfy realized rare-event acceptance criteria
+  - insufficient realized rare-event count, unresolved outcomes, or ambiguous stress classification produces INSUFFICIENT_EVIDENCE rather than a favorable tail-risk claim
+  - no tail-risk status can mutate provider/model/prompt/strategy/risk/LIVE authority
+  - prediction-time eligible cohort membership and denominator rules are immutable; hard, unresolved, delisted, bankrupt, stale, abstained, or provider-incomplete records cannot disappear from cohort accounting
+  - unknown or potentially informative material missingness/censoring produces INSUFFICIENT_EVIDENCE unless the frozen policy provides sufficient valid treatment and diagnostics
+  - favorable observed-only metrics cannot establish improvement when realized coverage materially falls, censoring rises, or denominator composition changes without sufficient evidence
+  - post-outcome unresolved/censored-to-excluded reclassification is rejected unless required by prediction-time frozen facts
+  - synthetic/replay/imputed/hypothetical outcomes cannot satisfy realized-outcome coverage requirements
+  - censoring-aware estimator or weighting assumption failure, including material positivity/overlap failure, produces INSUFFICIENT_EVIDENCE
+  - MNAR or other sensitivity analyses remain separately labeled and cannot overwrite the primary frozen result
+  - no censoring/coverage/selection-validity status can mutate provider/model/prompt/strategy/risk/LIVE authority or satisfy human-environment evidence
+  - corruption, ambiguity, stale evidence, and lineage mismatch fail closed
+  - output is read-only advisory evidence with unchanged zero authority
+  - focused, architecture, security, AIPOS, and full CI checks pass
+required_tests:
+  - temporal partition and walk-forward boundary tests
+  - future-data and overlapping split rejection tests
+  - event/received/model-available/prediction clock ordering tests
+  - revised-vintage and later-backfill rejection tests
+  - survivorship, delisting, universe-membership, and corporate-action point-in-time tests
+  - overlapping realized-label purge/embargo tests
+  - benchmark, regime-label, normalization, and cost-model future-leakage tests
+  - complete lineage and provenance integrity tests
+  - realized versus synthetic/replay/hypothetical separation tests
+  - minimum sample and observation-window abstention tests
+  - accuracy/Brier/calibration/abstention/disagreement/faithfulness metric tests
+  - version and regime degradation aggregation tests
+  - frozen monitoring-window/cadence/threshold identity tests
+  - post-hoc window/threshold/break-date selection rejection tests
+  - repeated-look/change-point multiple-testing tests
+  - point-in-time regime-label future-leakage tests
+  - sparse/new-regime INSUFFICIENT_EVIDENCE tests
+  - coverage/missingness shift and hard-case-drop rejection tests
+  - covariate/label/data-quality/model-version degradation attribution-separation tests
+  - immutable degradation/recovery history tests
+  - immutable comparison-family and post-hoc family-edit tests
+  - confirmatory versus exploratory labeling tests
+  - multiple-comparison correction identity and deterministic replay tests
+  - optional-stopping and repeated-look policy tests
+  - overlapping-horizon/shared-event dependence grouping tests
+  - duplicate/retry/replay effective-sample non-inflation tests
+  - provider/model/prompt correlated-independence rejection tests
+  - dependence-aware uncertainty and unknown-dependence fail-closed tests
+  - tuning/selection sample reuse rejection and nested/holdout/walk-forward separation tests
+  - subgroup/regime cherry-picking rejection tests
+  - gross-to-net economic component decomposition tests
+  - unknown material fee/spread/slippage/turnover/financing cost fail-closed tests
+  - frozen benchmark and opportunity-cost anti-cherry-picking tests
+  - implementation-shortfall and timestamp-order integrity tests
+  - drawdown, turnover, and path-dependent evidence ordering tests
+  - cost-model effective-time/version substitution tests
+  - economic sensitivity analysis non-overwrite tests
+  - predictive-correct-but-net-negative separation tests
+  - frozen tail-event family/threshold/severity identity tests
+  - rare-event clustered-dependence and effective-sample tests
+  - tail conditional loss and worst-k event deterministic aggregation tests
+  - downside calibration and stress abstention/coverage tests
+  - ordinary-average masking of tail degradation rejection tests
+  - synthetic/replay/scenario tail evidence non-substitution tests
+  - sparse or unresolved realized tail evidence INSUFFICIENT_EVIDENCE tests
+  - tail-risk zero-authority/no-mutation regression tests
+  - prediction-time eligible cohort immutability and denominator preservation tests
+  - silent hard-case, delisting, bankruptcy, stale-data, abstention, and provider-missing drop rejection tests
+  - unresolved/censored-to-excluded post-hoc reclassification rejection tests
+  - outcome-window expiry, censoring reason, and missingness provenance integrity tests
+  - observed-only favorable metric with falling coverage rejection tests
+  - informative-censoring and unknown-missingness INSUFFICIENT_EVIDENCE tests
+  - censoring-aware estimator/weighting identity, assumption, positivity, and overlap tests when applicable
+  - MNAR sensitivity analysis non-overwrite tests
+  - synthetic/replay/imputed/hypothetical outcome coverage non-substitution tests
+  - censoring/selection-validity zero-authority and no-mutation regression tests
+  - deterministic replay and duplicate idempotency tests
+  - zero-authority and no-mutation regression tests
+planning_artifacts:
+  - docs/audits/wo-ai-011-point-in-time-leakage-test-contract.md
+  - docs/audits/wo-ai-011-economic-usefulness-test-contract.md
+  - docs/audits/wo-ai-011-statistical-validity-test-contract.md
+  - docs/audits/wo-ai-011-regime-degradation-test-contract.md
+  - docs/audits/wo-ai-011-tail-risk-validity-test-contract.md
+  - docs/audits/wo-ai-011-censoring-selection-validity-test-contract.md
+  - docs/audits/wo-ai-011-portfolio-dependence-validity-test-contract.md
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  WO-0051: HUMAN_ENVIRONMENT_ONLY
+dependencies:
+  - WO-AI-004
+  - WO-AI-005
+  - WO-AI-006
+  - WO-AI-009
+  - WO-AI-010
+serialization:
+  issue_349_android_acceptance: HOLD
+  pr_371_physical_device_acceptance: HUMAN_ENVIRONMENT_ONLY
+  runtime_implementation_before_gate: prohibited
+completion_requires:
+  - planning gate merged on current protected main
+  - implementation PR merged separately only after serialization permits runtime work
+  - exact-head Full CI, Coverage, AIPOS, architecture, security, and Restricted LIVE/read-only PASS
+  - protected main post-merge verification
