@@ -5,7 +5,7 @@ const { handleOperatorUserAccessHttp } = require("../dist/apps/cloud/src/operato
 
 const verifier = {
   verify(token) {
-    if (token === "operator-token") return { userId: "operator", scopes: ["dashboard:read", "settings:write"] };
+    if (token === "operator-token") return { userId: "operator", scopes: ["dashboard:read", "users:manage"] };
     if (token === "reader-token") return { userId: "reader", scopes: ["dashboard:read"] };
     return undefined;
   }
