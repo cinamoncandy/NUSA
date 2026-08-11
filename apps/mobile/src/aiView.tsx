@@ -61,12 +61,17 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <SectionHeading eyebrow="AI RESEARCH" title="AI 인텔리전스" description="검증된 분석, 근거, 불확실성과 보정 상태를 확인합니다." />
 
+    <View style={styles.authoritySummary} testID="ai-authority-summary">
+      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
+      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
+    </View>
+
     <NusaCard raised testID="ai-thesis-card">
       <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>CURRENT ANALYSIS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>현재 분석</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={statusTone(ai?.status)} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
-      <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
       <DataRow label="검증 신뢰도" value={trustedConfidence} emphasis={ai?.calibrationStatus === "CALIBRATED"} />
       <DataRow label="보정 확률" value={calibratedProbability} />
+      <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
       <DataRow label="보정 상태" value={ai?.calibrationStatus ?? "UNKNOWN"} />
       <DataRow label="보정 표본" value={ai?.calibrationSampleCount == null ? "-" : String(ai.calibrationSampleCount)} />
       <DataRow label="ECE" value={metric(ai?.calibrationExpectedError)} />
@@ -74,13 +79,8 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <DataRow label="불확실성" value={ai?.uncertainty ?? "-"} />
       <DataRow label="비판 위험도" value={ai?.criticSeverity ?? "-"} tone={severityTone(ai?.criticSeverity ?? null)} />
       <DataRow label="최근 분석" value={lastRun} />
-      <Text style={[styles.body, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. 보정 상태가 CALIBRATED일 때만 별도의 검증 신뢰도를 표시합니다.</Text>
+      <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증 신뢰도와 보정 확률은 보정 상태가 CALIBRATED일 때만 의미 있는 값으로 표시합니다. 원시 모델 확률은 미보정 출력이며 성공 확률이나 성과 보장이 아닙니다.</Text>
     </NusaCard>
-
-    <View style={styles.authoritySummary} testID="ai-authority-summary">
-      <View style={styles.statusRow}><StatusChip label="ZERO AUTHORITY" tone="info" /><StatusChip label="READ ONLY" tone="primary" /></View>
-      <Text style={[styles.authorityCopy, { color: theme.colors.textMuted }]}>주문·이체·LIVE 실행 권한은 없습니다.</Text>
-    </View>
 
     <NusaCard testID="ai-evidence-card">
       <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>근거와 반대 근거</Text><StatusChip label={`${ai?.evidenceReferences.length ?? 0} 근거`} tone="neutral" /></View>
