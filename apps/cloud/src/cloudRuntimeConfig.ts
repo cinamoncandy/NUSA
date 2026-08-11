@@ -48,12 +48,13 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
 
 /**
  * One personal operator secret. `paper:trade` is intentionally PAPER-only application authority;
- * it does not imply broker credentials, LIVE execution, transfer, withdrawal, or production mutation.
+ * settings scopes only permit changing the PAPER cash allocation envelope. None of these scopes imply
+ * broker credentials, LIVE execution, transfer, withdrawal, or production mutation.
  */
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
   if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
-  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "paper:trade"]) });
+  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "paper:trade", "settings:read", "settings:write"]) });
   return Object.freeze({
     verify(token: string): DashboardPrincipal | undefined {
       if (typeof token !== "string" || token.length === 0) return undefined;
