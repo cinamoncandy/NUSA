@@ -17,6 +17,7 @@ test("product navigation promotes PAPER and AI without changing foundation tab k
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
+  assert.match(app, /<HomeView/);
 });
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
@@ -40,7 +41,7 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   assert.match(source, /chartAvailable && wide \? <ChartView/);
   assert.match(source, /chartAvailable && !wide \? <View/);
   assert.match(source, /wide \|\| visiblePanel === "WATCHLIST" \? <WatchlistView/);
-  assert.match(source, /testID="markets-chart-tab"/);
+  assert.match(source, /markets-panel-segmented-control/);
   assert.match(app, /rawCandles=\{null\}/);
 });
 
@@ -51,6 +52,8 @@ test("Trading permits only verified PAPER mutation and never LIVE authority", ()
   assert.match(source, /StatusChip label="PAPER ONLY"/);
   assert.match(source, /StatusChip label="LIVE 금지"/);
   assert.match(source, /PAPER 주문 연결 필요/);
+  assert.match(source, /paper-side-segmented-control/);
+  assert.match(source, /paper-type-segmented-control/);
   assert.match(source, /PAPER 주문 확인/);
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /authority: "PAPER_ONLY"/);
@@ -62,15 +65,15 @@ test("Trading permits only verified PAPER mutation and never LIVE authority", ()
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
 });
 
-test("market discovery uses compact accessible favorite and sort controls", () => {
+test("market discovery uses 48px accessible favorite and segmented sort controls", () => {
   const source = read("src/watchlistView.tsx");
   assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{ minWidth: 52, height: 44/);
-  assert.match(source, /sortChip: \{ minHeight: 44/);
+  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
+  assert.match(source, /<SegmentedControl/);
+  assert.match(source, /testID="watchlist-sort"/);
   assert.match(source, /StatusChip label="READ ONLY"/);
-  assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.doesNotMatch(source, /★|☆/);
 });
