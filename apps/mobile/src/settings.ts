@@ -9,10 +9,16 @@ export interface NotificationSettings {
   readonly orderUpdates: boolean;
 }
 
+export interface CapitalAllocationSettings {
+  /** Percentage of exchange cash that may be deployed into investments. 0-100. */
+  readonly investmentPercent: number;
+}
+
 export interface AppSettings {
   readonly theme: ThemeSetting;
   readonly locale: LocaleSetting;
   readonly notifications: NotificationSettings;
+  readonly capitalAllocation: CapitalAllocationSettings;
 }
 
 export interface EnvironmentConfiguration {
@@ -26,13 +32,29 @@ export interface SettingsRepository {
   save(settings: AppSettings): Promise<void>;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = Object.freeze({ theme: "SYSTEM", locale: "ko-KR", notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }) });
+export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
+  theme: "SYSTEM",
+  locale: "ko-KR",
+  notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }),
+  // Preserve the historical behavior until the user explicitly chooses a reserve.
+  capitalAllocation: Object.freeze({ investmentPercent: 100 }),
+});
 
 const text = (value: string, field: string): string => {
   const normalized = value.trim();
   if (!normalized) throw new Error(`${field} must not be empty`);
   return normalized;
 };
+
+export const normalizeInvestmentPercent = (value: number): number => {
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error("capitalAllocation.investmentPercent must be between 0 and 100");
+  }
+  return Math.round(value * 100) / 100;
+};
+
+export const cashReservePercent = (investmentPercent: number): number =>
+  Math.round((100 - normalizeInvestmentPercent(investmentPercent)) * 100) / 100;
 
 export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   const theme = input.theme ?? DEFAULT_SETTINGS.theme;
@@ -41,7 +63,14 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   if (!["ko-KR", "en-US"].includes(locale)) throw new Error("locale is invalid");
   const notifications = input.notifications ?? DEFAULT_SETTINGS.notifications;
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }) });
+  const capitalAllocation = input.capitalAllocation ?? DEFAULT_SETTINGS.capitalAllocation;
+  const investmentPercent = normalizeInvestmentPercent(capitalAllocation.investmentPercent);
+  return Object.freeze({
+    theme,
+    locale,
+    notifications: Object.freeze({ ...notifications }),
+    capitalAllocation: Object.freeze({ investmentPercent }),
+  });
 };
 
 export const readEnvironmentConfiguration = (environment: Record<string, string | undefined> = process.env): EnvironmentConfiguration => Object.freeze({

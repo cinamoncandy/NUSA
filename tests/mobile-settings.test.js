@@ -8,6 +8,17 @@ test("settings normalize defaults and reject unsupported theme or locale", () =>
   assert.throws(() => normalizeSettings({ locale: "ja-JP" }), /locale/);
 });
 
+test("legacy settings migrate with the historical 100 percent investment default", () => {
+  const normalized = normalizeSettings({ theme: "DARK", locale: "ko-KR", notifications: { enabled: true, riskAlerts: true, orderUpdates: true } });
+  assert.equal(normalized.capitalAllocation.investmentPercent, 100);
+});
+
+test("investment percentage rejects NaN and out-of-range values", () => {
+  for (const investmentPercent of [-0.01, 100.01, Number.NaN]) {
+    assert.throws(() => normalizeSettings({ capitalAllocation: { investmentPercent } }), /between 0 and 100/);
+  }
+});
+
 test("environment configuration uses explicit environment values and safe defaults", () => {
   assert.deepEqual(readEnvironmentConfiguration({ EXPO_PUBLIC_NUSA_API_BASE_URL: "https://paper.test", EXPO_PUBLIC_NUSA_AUTH_MODE: "foundation", EXPO_PUBLIC_NUSA_MONITOR_URL: "https://monitor.test" }), { apiBaseUrl: "https://paper.test", authMode: "foundation", monitorUrl: "https://monitor.test" });
   assert.equal(readEnvironmentConfiguration({}).authMode, "foundation");
@@ -16,7 +27,7 @@ test("environment configuration uses explicit environment values and safe defaul
 test("mock settings repository persists an immutable normalized model", async () => {
   const repository = new MockSettingsRepository();
   await repository.save({ theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true } });
-  assert.deepEqual(await repository.load(), { theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true } });
+  assert.deepEqual(await repository.load(), { theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true }, capitalAllocation: { investmentPercent: 100 } });
 });
 
 test("secure settings repository persists only encoded settings through secure storage", async () => {
@@ -25,5 +36,5 @@ test("secure settings repository persists only encoded settings through secure s
   const repository = new SecureSettingsRepository(storage);
   await repository.save({ theme: "LIGHT", locale: "ko-KR", notifications: { enabled: false, riskAlerts: true, orderUpdates: false } });
   assert.ok(values.get("nusa:app-settings") instanceof Uint8Array);
-  assert.deepEqual(await repository.load(), { theme: "LIGHT", locale: "ko-KR", notifications: { enabled: false, riskAlerts: true, orderUpdates: false } });
+  assert.deepEqual(await repository.load(), { theme: "LIGHT", locale: "ko-KR", notifications: { enabled: false, riskAlerts: true, orderUpdates: false }, capitalAllocation: { investmentPercent: 100 } });
 });

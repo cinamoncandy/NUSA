@@ -170,3 +170,19 @@ test("dashboard projection agrees with the durable paper account", () => {
   assert.equal(dashboard.paper.orders.length, 1);
   assert.equal(dashboard.paper.fills.length, 1);
 });
+
+test("paper BUY applies the configured investable cash percentage", () => {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0 });
+  const result = loop.processTick(baseTick({ investmentPercent: 60 }));
+  assert.equal(result.status, "FILLED");
+  assert.equal(result.state.cash, 700);
+  assert.equal(result.state.positions[0].quantity, 3);
+});
+
+test("paper BUY exceeding the protected cash envelope is rejected", () => {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0 });
+  const result = loop.processTick(baseTick({ investmentPercent: 60, quantity: 7 }));
+  assert.equal(result.status, "REJECTED");
+  assert.match(result.reason, /exceeds deployable capital/);
+  assert.equal(loop.snapshot().orders.length, 0);
+});
