@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-11T18:48:00Z"
+updated_at: "2026-08-11T19:45:00Z"
 phase: human-environment-gate
 status: ready
-objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 tail-risk hardening as merged planning-only evidence and continue only repository-controlled evaluation planning without claiming runtime implementation or human/environment completion."
+objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 portfolio-dependence hardening as merged planning-only evidence and continue only repository-controlled evaluation planning, including censoring/selection validity, without claiming runtime implementation or human/environment completion."
 base_branch: main
-active_branch: main
+active_branch: agent/wo-ai-011-censoring-selection-validity
 active_pull_request: null
-base_commit: 7d1af62388beb140850eb4a2db2097bfe6ef8022
+base_commit: 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1
 claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -30,10 +30,11 @@ planning_gates:
       - 428
       - 429
       - 430
-    latest_hardening_merge: 7d1af62388beb140850eb4a2db2097bfe6ef8022
+      - 431
+    latest_hardening_merge: 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, and tail-risk contracts are hardened, while runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
+    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, and portfolio-dependence/concentration contracts are hardened, while runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -86,7 +87,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-011 planning plus point-in-time, economic-usefulness, statistical-validity, regime-degradation, and tail-risk hardening are merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work that cannot satisfy or bypass that gate."
+  reason: "WO-AI-011 planning plus point-in-time, economic-usefulness, statistical-validity, regime-degradation, tail-risk, and portfolio-dependence hardening are merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work such as censoring/selection validity that cannot satisfy or bypass that gate."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -97,8 +98,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-011 recovery planning PR #421 merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 merged at 6a1bede063251222a9b808d58ba04d43249dc922. Economic-usefulness hardening PR #427 merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. Statistical-validity hardening PR #428 merged at 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339. Regime-degradation hardening PR #429 merged at 15568a00e8caeefa22a4a756fdff0565dc35d22a. Tail-risk hardening PR #430 exact head 47bde21d2756b2499648ee5415cfd5f63350bb8b passed Full CI/Coverage run 31519619346 plus all four Restricted LIVE/read-only safety workflows and merged at 7d1af62388beb140850eb4a2db2097bfe6ef8022. All remain planning-only and authorize no runtime implementation."
-  current_commit: "7d1af62388beb140850eb4a2db2097bfe6ef8022 contains merged WO-AI-011 planning hardening through tail-risk validity; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  last_result: "WO-AI-011 recovery planning PR #421 merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 merged at 6a1bede063251222a9b808d58ba04d43249dc922. Economic-usefulness hardening PR #427 merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. Statistical-validity hardening PR #428 merged at 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339. Regime-degradation hardening PR #429 merged at 15568a00e8caeefa22a4a756fdff0565dc35d22a. Tail-risk hardening PR #430 merged at 7d1af62388beb140850eb4a2db2097bfe6ef8022. Portfolio-dependence validity PR #431 exact head 6d7b0f7597f781597058d30524fcc65af5e11c58 passed Full CI/Coverage plus all four Restricted LIVE/read-only safety workflows and merged at 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1. All remain planning-only and authorize no runtime implementation."
+  current_commit: "8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1 contains merged WO-AI-011 planning hardening through portfolio-dependence/concentration validity; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
