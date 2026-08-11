@@ -116,7 +116,7 @@ export function startCloudRuntime(
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
-  const effectivePaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
+  const productionPaperBoundary = runtimeOwnsPaperComposition && effectivePaperLoop != null && productionPaperRiskGate != null
     ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
     : undefined;
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
@@ -153,8 +153,10 @@ export function startCloudRuntime(
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get("operator")?.investmentPercent ?? 100;
         const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent };
-        const result = effectivePaperBoundary?.processTick(tick) ?? effectivePaperLoop.processTick(tick);
-        if (result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
+        const result = runtimeOwnsPaperComposition
+          ? productionPaperBoundary?.processTick(tick)
+          : effectivePaperLoop.processTick(tick);
+        if (result == null || result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
       }
     } else if (effectivePaperLoop != null) clearPaperProjection();
   }, (state) => { marketConnectionState = state; if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); } }) : undefined;
@@ -183,7 +185,8 @@ export function startCloudRuntime(
     const now = Date.now();
     const investmentPercent = investmentAllocationSettings.get(principal.userId)?.investmentPercent ?? 100;
     const context = { now, marketPrice: market.price, observedAt, mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth, investmentPercent };
-    const result = effectivePaperBoundary?.submitManualOrder(principal.userId, command, context) ?? effectivePaperLoop.submitManualOrder(command, context);
+    const result = productionPaperBoundary?.submitManualOrder(principal.userId, command, context) ?? (runtimeOwnsPaperComposition ? undefined : effectivePaperLoop.submitManualOrder(command, context));
+    if (result == null) return Object.freeze({ schemaVersion: 1, status: "BLOCKED", reason: "PAPER_RISK_BOUNDARY_UNAVAILABLE", liveAuthority: "NONE", productionMutationAllowed: false });
     if (result.status === "FILLED") projectPaperAccount();
     const snapshot = loadPaperOperations(principal);
     const order = result.orders[0] == null ? undefined : buildReadOnlyOrders(result.state).find((item) => item.id === result.orders[0]!.id);
