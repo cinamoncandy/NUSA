@@ -24,7 +24,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const { theme } = useTheme();
   const [panel, setPanel] = useState<Panel>("WATCHLIST");
   const chartAvailable = Array.isArray(rawCandles) && rawCandles.length > 0;
-  const visiblePanel: Panel = chartAvailable ? panel : "WATCHLIST";
+  const visiblePanel = chartAvailable ? panel : "WATCHLIST";
 
   const segment = (value: Panel, label: string, testID: string) => {
     const selected = visiblePanel === value;
