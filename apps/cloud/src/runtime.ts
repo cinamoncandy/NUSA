@@ -32,6 +32,7 @@ import type { CloudAiRuntime } from "./ai/runtime";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
 import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cloudRuntimeEvidence";
+import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocationSettingsRepository, type InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -104,6 +105,9 @@ export function startCloudRuntime(
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
+  const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
+    : new InMemoryInvestmentAllocationSettingsRepository();
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
@@ -147,7 +151,8 @@ export function startCloudRuntime(
         aiRuntime?.schedule({ orchestrationRunId, decisionId: `${orchestrationRunId}:decision`, evaluatedAt: now, evidence: grounded.evidence, evidenceMaterializations: grounded.evidenceMaterializations, policyVersionIds: ["AI_ZERO_AUTHORITY_POLICY_V1", "NUSA_DETERMINISTIC_SAFETY_V1"], certificationIds: [], controlPlaneStateId: `cloud:${dashboard.mode}:${dashboard.killSwitchActive ? "KILL" : "ACTIVE"}:${p0State}`, contextValidForMs: 120_000 });
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
-        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions };
+        const investmentPercent = investmentAllocationSettings.get("operator")?.investmentPercent ?? 100;
+        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent };
         const result = effectivePaperBoundary?.processTick(tick) ?? effectivePaperLoop.processTick(tick);
         if (result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
       }
@@ -176,7 +181,8 @@ export function startCloudRuntime(
     if (market == null || marketConnectionState !== "CONNECTED") return Object.freeze({ schemaVersion: 1, status: "BLOCKED", reason: "PAPER_MARKET_DATA_UNAVAILABLE", liveAuthority: "NONE", productionMutationAllowed: false });
     const observedAt = Date.parse(market.observedAt);
     const now = Date.now();
-    const context = { now, marketPrice: market.price, observedAt, mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth };
+    const investmentPercent = investmentAllocationSettings.get(principal.userId)?.investmentPercent ?? 100;
+    const context = { now, marketPrice: market.price, observedAt, mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth, investmentPercent };
     const result = effectivePaperBoundary?.submitManualOrder(principal.userId, command, context) ?? effectivePaperLoop.submitManualOrder(command, context);
     if (result.status === "FILLED") projectPaperAccount();
     const snapshot = loadPaperOperations(principal);
@@ -192,7 +198,8 @@ export function startCloudRuntime(
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
-    submitPaperOrder
+    submitPaperOrder,
+    investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
   return { ...handle, stop: async () => { try { marketDataClient?.stop(); await handle.stop(); } finally { if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
