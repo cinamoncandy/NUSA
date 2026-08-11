@@ -9,7 +9,7 @@ test("Markets hides chart interaction until real candle data exists", () => {
 
   assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
   assert.match(source, /\{chartAvailable \? <View/);
-  assert.match(source, /testID="markets-chart-tab"/);
+  assert.match(source, /segment\("CHART",\s*"차트",\s*"markets-chart-tab"\)/);
   assert.match(source, /visiblePanel === "WATCHLIST"/);
   assert.match(app, /rawCandles=\{null\}/);
 });
