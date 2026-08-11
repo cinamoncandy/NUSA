@@ -113,7 +113,11 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
     "apps/mobile/src/aiView.tsx"
   ]) {
     const source = read(file);
-    assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
+    if (file === "apps/mobile/src/marketsView.tsx") {
+      assert.match(source, /uxLayout\.maxWorkspaceWidth/, `${file} must use the canonical tablet workspace bound`);
+    } else {
+      assert.match(source, /maxWidth: 1080|force-max-width-sentinel-never/, `${file} must declare the 1080 tablet workspace bound`);
+    }
   }
 
   const app = read("apps/mobile/App.tsx");
