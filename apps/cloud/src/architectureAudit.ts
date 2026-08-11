@@ -36,6 +36,7 @@ const CORE_STAGE_BY_MODULE: Readonly<Record<string, CoreStageName>> = Object.fre
 });
 
 const REQUIRED_MODULES = Object.freeze([
+  "data-knowledge",
   "market",
   "probability",
   "alpha",
@@ -43,21 +44,33 @@ const REQUIRED_MODULES = Object.freeze([
   "risk",
   "execution",
   "runtime",
+  "research",
+  "validation",
+  "learning",
+  "meta-ai",
   "committee",
   "governance",
+  "release",
   "operations-recorder",
   "operations-replay",
   "operations-audit",
   "operations-evidence",
-  "operations-monitoring"
+  "operations-monitoring",
+  "desktop",
+  "mobile"
 ]);
 
 const REQUIRED_SAFETY_RESPONSIBILITIES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  risk: Object.freeze(["kill switch"]),
+  "data-knowledge": Object.freeze(["trusted data provenance", "temporal integrity"]),
+  risk: Object.freeze(["independent runtime veto", "kill switch"]),
+  execution: Object.freeze(["single governed execution boundary"]),
   runtime: Object.freeze(["fail closed"]),
+  release: Object.freeze(["independent deployment veto"]),
   "operations-recorder": Object.freeze(["append only records"]),
   "operations-replay": Object.freeze(["read only replay"]),
-  committee: Object.freeze(["human review gate"])
+  committee: Object.freeze(["human review gate"]),
+  learning: Object.freeze(["no in-place production mutation"]),
+  "meta-ai": Object.freeze(["no self-promotion"])
 });
 
 const deepFreeze = <T>(value: T): T => {
@@ -125,7 +138,10 @@ export function auditPlatformArchitecture(topology: PlatformTopology, generatedA
       ));
     }
 
-    if (module.layer === "CORE" && module.id !== "runtime") {
+    // Only modules in the canonical seven-stage real-time plane are required to map
+    // one-to-one to CoreStageName. Other CORE compatibility-layer modules (for example
+    // the governed Data/Knowledge fabric) are intentionally outside the fast path.
+    if (module.layer === "CORE" && module.plane === "REALTIME_DECISION_EXECUTION" && module.id !== "runtime") {
       const stage = CORE_STAGE_BY_MODULE[module.id];
       const stageIndex = stage == null ? undefined : pipelineIndex.get(stage);
       if (stageIndex == null) {
@@ -133,8 +149,8 @@ export function auditPlatformArchitecture(topology: PlatformTopology, generatedA
           `UNKNOWN_CORE_STAGE:${module.id}`,
           "HIGH",
           module.id,
-          `core module ${module.id} is not represented in the approved pipeline`,
-          "Register it through an approved architecture change or move it outside Core"
+          `real-time core module ${module.id} is not represented in the approved pipeline`,
+          "Register it through an approved architecture change or move it outside the real-time decision/execution plane"
         ));
       } else {
         for (const dependencyId of module.dependencies) {
