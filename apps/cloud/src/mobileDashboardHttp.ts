@@ -13,10 +13,13 @@ export interface DashboardHttpResponse {
 
 export interface DashboardPrincipal {
   readonly userId: string;
+  readonly email?: string;
+  readonly displayName?: string;
   readonly scopes: readonly string[];
 }
 
 export interface DashboardTokenVerifier {
+  readonly ownerPrincipal?: DashboardPrincipal;
   verify(token: string): DashboardPrincipal | undefined;
 }
 
@@ -83,6 +86,8 @@ export function authorizeDashboardReadRequest(
     ok: true,
     principal: Object.freeze({
       userId: principal.userId.trim(),
+      ...(principal.email?.trim() ? { email: principal.email.trim().toLowerCase() } : {}),
+      ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {}),
       scopes: Object.freeze([...principal.scopes])
     })
   });
