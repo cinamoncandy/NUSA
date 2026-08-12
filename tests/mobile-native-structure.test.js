@@ -35,6 +35,12 @@ test("native bootstrap pins the approved React Native and platform configuration
   assert.match(fs.readFileSync(path.join(mobile, "ios", "NusaMobile.xcodeproj", "project.pbxproj"), "utf8"), /IPHONEOS_DEPLOYMENT_TARGET = 15\.0/);
 });
 
+test("Android release networking fails closed without an unresolved manifest placeholder", () => {
+  const manifest = fs.readFileSync(path.join(mobile, "android", "app", "src", "main", "AndroidManifest.xml"), "utf8");
+  assert.match(manifest, /android:usesCleartextTraffic="false"/);
+  assert.doesNotMatch(manifest, /\$\{usesCleartextTraffic\}/);
+});
+
 test("mobile foundation exposes a Home screen, theme, and five-tab navigation", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /useState<Tab>\("Home"\)/);
@@ -43,23 +49,24 @@ test("mobile foundation exposes a Home screen, theme, and five-tab navigation", 
   assert.match(app, /accessibilityRole="button"/);
 });
 
-test("mobile authentication foundation exposes a sign-in entry and environment mode", () => {
+test("fresh-install entry is explicitly local and does not impersonate account authentication", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
-  assert.match(app, /const AUTH_MODE = process\.env\.EXPO_PUBLIC_NUSA_AUTH_MODE/);
-  assert.match(app, /useState\(false\)/);
-  assert.match(app, /accessibilityLabel=\"Email\"/);
-  assert.match(app, /accessibilityLabel=\"Password\"/);
-  assert.match(app, /accessibilityLabel=\"Sign in\"/);
+  assert.match(app, /testID="local-entry-submit"/);
+  assert.match(app, /개인 모드 시작/);
+  assert.match(app, /계정 인증이 아닙니다/);
+  assert.match(app, /PAPER ONLY/);
+  assert.match(app, /LIVE NONE/);
+  assert.doesNotMatch(app, /accessibilityLabel="Email"|accessibilityLabel="Password"|testID="auth-email"|testID="auth-password"/);
 });
 
-test("authentication flow exposes Splash, Login guard, and Auth Context", () => {
+test("local entry guard still exposes Splash and Auth Context without claiming identity verification", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   const context = fs.readFileSync(path.join(mobile, "src", "authContext.ts"), "utf8");
   assert.match(app, /authStatus === "CHECKING"/);
   assert.match(app, /AuthContextProvider/);
   assert.match(app, /authStatus !== "SIGNED_IN"/);
   assert.match(context, /AuthContext/);
-  assert.match(context, /SecureStoragePort/);
+  assert.match(app, /사용자 신원을 검증하지 않으며/);
 });
 
 test("mobile release workflow validates unsigned Android and iOS candidates", () => {

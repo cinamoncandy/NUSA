@@ -53,9 +53,21 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
 }
 
+/**
+ * One personal operator secret. `paper:trade` is PAPER-only application authority,
+ * `users:manage` is operator user-admission authority, and settings scopes only
+ * control the PAPER cash allocation envelope. None imply broker credentials,
+ * LIVE execution, transfer, withdrawal, or production mutation.
+ */
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
   if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
-  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "settings:read", "settings:write", "users:manage"]) });
-  return Object.freeze({ verify(token: string): DashboardPrincipal | undefined { if (typeof token !== "string" || token.length === 0) return undefined; const actualDigest = createHash("sha256").update(token, "utf8").digest(); return timingSafeEqual(actualDigest, expectedDigest) ? principal : undefined; } });
+  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "paper:trade", "settings:read", "settings:write", "users:manage"]) });
+  return Object.freeze({
+    verify(token: string): DashboardPrincipal | undefined {
+      if (typeof token !== "string" || token.length === 0) return undefined;
+      const actualDigest = createHash("sha256").update(token, "utf8").digest();
+      return timingSafeEqual(actualDigest, expectedDigest) ? principal : undefined;
+    }
+  });
 }

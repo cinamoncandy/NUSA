@@ -1,0 +1,49 @@
+id: WO-0053
+title: "Android real-use successor"
+status: IN_PROGRESS
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: cf56112e5c1091d89f9684dcaecf433f405ca03e
+implementation_branch: agent/android-real-use-successor
+objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
+scope:
+  - "Exact-head Android debug/release candidate packaging and provenance."
+  - "Cold-start, crash recovery, navigation, responsive UI, and accessibility resilience."
+  - "Trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation."
+  - "PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport."
+  - "Existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system."
+constraints:
+  - "Do not modify, rebase, or merge PR #371."
+  - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "No live broker order/cancel/replace/withdraw/transfer or execution credential use."
+  - "Firebase remains readiness-only until an approved external project and deployment authority exist."
+acceptance:
+  repository_gates:
+    - "Focused Android/PAPER tests pass."
+    - "typecheck, lint, build, architecture, security, and diff-check pass."
+    - "Full isolated suite passes without test weakening or environment bypass."
+    - "Mobile Native Android debug and release candidate workflows pass on this exact head."
+  external_gate:
+    status: HUMAN_ENVIRONMENT_ONLY
+    required: "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence."
+verification:
+  automated_passed:
+    - "Focused mobile/PAPER/runtime suite: 69/69."
+    - "pnpm typecheck."
+    - "pnpm build."
+    - "pnpm lint."
+    - "Architecture, AI, safety, security, Firebase readiness, and diff-check."
+  blocked:
+    - "Full isolated suite: Windows symlink creation EPERM in tests/backup-restore.test.js."
+    - "Local ADB/Android SDK unavailable; physical-device acceptance cannot be asserted."
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+  automatic_live_activation: prohibited
+  automatic_completion: prohibited
+completion_rule: "Merge only after all exact-head repository gates pass and independent physical-device evidence satisfies the HUMAN_ENVIRONMENT_ONLY boundary."

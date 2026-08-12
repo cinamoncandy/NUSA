@@ -3,9 +3,22 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("PAPER read-only observation card has a distinct non-action state hook", () => {
+test("Trading permits only explicit verified PAPER mutation while LIVE remains disabled", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
-  assert.match(source, /testID="trading-readonly-state"/);
-  assert.match(source, /ZERO MUTATION/);
-  assert.doesNotMatch(source, /testID="trading-preview">\s*<View[^>]*>\s*<Text[^>]*>PAPER 관찰 모드/);
+
+  assert.match(source, /testID="trading-screen"/);
+  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label="LIVE 금지"/);
+  assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(source, /PAPER 주문 연결 필요/);
+  assert.match(source, /PAPER 주문 확인/);
+  assert.match(source, /PAPER 주문 확정/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
+  assert.match(source, /PersonalPaperOrderRetryIdentity/);
+  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
+
+  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
 });

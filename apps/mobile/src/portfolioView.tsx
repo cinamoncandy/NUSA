@@ -1,95 +1,44 @@
 import React from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaCard, StatusChip } from "./components";
+import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
+import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildPortfolioViewModel, type PortfolioAccountResponse, type PortfolioViewModel } from "./portfolioViewModel";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
-
-function money(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function signedMoney(value: number): string {
-  return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`;
-}
-
-function LoadingState({ theme }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"] }>) {
-  return <View style={styles.state} testID="portfolio-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text></View>;
-}
-
-function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"]; message: string; onRetry: () => void }>) {
-  return <View style={styles.state} testID="portfolio-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>자산 정보를 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View>;
-}
-
-export interface PortfolioViewProps {
-  readonly snapshot: PortfolioAccountResponse | null;
-  readonly error: string | null;
-  readonly refreshing: boolean;
-  readonly onRefresh: () => void;
-}
+function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
+function signedMoney(value: number): string { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }
+function pnlTone(value: number): "success" | "danger" { return value >= 0 ? "success" : "danger"; }
+function LoadingState({ theme }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"] }>) { return <View style={styles.state} testID="portfolio-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>검증된 PAPER 계정 집계를 기다리고 있습니다.</Text></View>; }
+function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"]; message: string; onRetry: () => void }>) { return <View style={styles.state} testID="portfolio-error"><View style={styles.stateInner}><InlineNotice title="자산 정보를 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
+export interface PortfolioViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
 
 function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useTheme>["theme"]) {
-  if (!model.position) return <NusaCard testID="portfolio-empty"><View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>열린 포지션 없음</Text><StatusChip label="현금 대기" tone="neutral" /></View><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 PAPER 계좌에 열린 포지션이 없습니다. 계정 전체 현금과 평가액은 위 집계 카드에서 확인할 수 있습니다.</Text></NusaCard>;
-  return <NusaCard testID="portfolio-position">
-    <View style={styles.cardHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>열린 포지션</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View>
-    <DataRow label="수량" value={String(model.position.quantity)} />
-    <DataRow label="평균 단가" value={money(model.position.averagePrice)} />
-    <DataRow label="현재 평가가" value={money(model.position.currentPrice)} />
-    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <DataRow label="미실현 손익" value={signedMoney(model.position.unrealizedPnl)} emphasis tone={model.position.unrealizedPnl >= 0 ? "success" : "danger"} />
-    <DataRow label="실현 손익" value={signedMoney(model.position.realizedPnl)} tone={model.position.realizedPnl >= 0 ? "success" : "danger"} />
-  </NusaCard>;
+  if (!model.position) return <View style={styles.emptyPosition} testID="portfolio-empty"><Text style={[styles.cardEyebrow, { color: theme.colors.textMuted }]}>POSITION</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>열린 포지션 없음</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>현재 PAPER 계좌는 현금 상태입니다.</Text></View>;
+  return <NusaCard testID="portfolio-position"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>OPEN POSITION</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View><View style={styles.positionMetrics}><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수량</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{model.position.quantity}</Text></View><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>현재 평가가</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(model.position.currentPrice)}</Text></View></View><DataRow label="평균 단가" value={money(model.position.averagePrice)} /><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><DataRow label="미실현 손익" value={signedMoney(model.position.unrealizedPnl)} emphasis tone={pnlTone(model.position.unrealizedPnl)} /><DataRow label="실현 손익" value={signedMoney(model.position.realizedPnl)} tone={pnlTone(model.position.realizedPnl)} /></NusaCard>;
 }
 
-export function PortfolioView({ snapshot, error, refreshing, onRefresh }: PortfolioViewProps) {
+export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh }: PortfolioViewProps) {
   const { theme } = useTheme();
   if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
   if (snapshot === null) return <LoadingState theme={theme} />;
-
   let model: PortfolioViewModel;
-  try {
-    model = buildPortfolioViewModel(snapshot);
-  } catch (validationError) {
-    return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />;
-  }
+  try { model = buildPortfolioViewModel(snapshot); } catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
+  const allocation = createCashInvestmentEnvelope(model.cash, investmentPercent);
+  const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <SectionHeading eyebrow="PAPER PORTFOLIO" title="자산" description="검증된 계정 전체 집계와 현재 PAPER 포지션을 구분해 표시합니다." />
-    <NusaCard testID="portfolio-summary" raised>
-      <Text style={[styles.label, { color: theme.colors.textMuted }]}>계정 총 평가자산</Text>
-      <Text style={[styles.total, { color: theme.colors.text }]}>{money(model.totalEquity)}</Text>
-      <Text style={[styles.pnl, { color: model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.totalPnl)} 계정 누적 손익</Text>
-    </NusaCard>
-    <View style={styles.metrics}>
-      <View style={styles.metricCell}><NusaCard testID="portfolio-realized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>실현 손익</Text><Text style={[styles.metric, { color: model.realizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.realizedPnl)}</Text></NusaCard></View>
-      <View style={styles.metricCell}><NusaCard testID="portfolio-unrealized-pnl"><Text style={[styles.label, { color: theme.colors.textMuted }]}>미실현 손익</Text><Text style={[styles.metric, { color: model.unrealizedPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.unrealizedPnl)}</Text></NusaCard></View>
-    </View>
-    <NusaCard testID="portfolio-allocation">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 전체 집계</Text><StatusChip label="검증됨" tone="info" /></View>
-      <DataRow label="현금" value={money(model.cash)} />
-      <DataRow label="포지션 평가액" value={money(model.assetValue)} />
-      <DataRow label="열린 주문" value={String(model.openOrderCount)} />
-      <Text style={[styles.scopeNote, { color: theme.colors.textMuted }]}>총 평가자산·현금·손익은 검증된 계정 집계값입니다.</Text>
-    </NusaCard>
-    {renderPosition(model, theme)}
+    <ScreenHeader eyebrow="PAPER PORTFOLIO" title="자산" description="총자산과 손익을 먼저 보고, 현금 배분과 포지션을 이어서 확인합니다." statusLabel={`투자 ${allocation.investmentPercent}%`} statusTone="primary" />
+    <View style={styles.hero} testID="portfolio-summary"><Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>총 평가자산</Text><Text style={[styles.heroValue, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{money(model.totalEquity)}</Text><Text style={[styles.heroPnl, { color: model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.totalPnl)} 누적 손익</Text></View>
+
+    <View style={styles.allocation} testID="portfolio-allocation-rail"><View style={styles.allocationHeader}><View><Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>현금 배분</Text><Text style={[styles.allocationValue, { color: theme.colors.text }]}>{money(model.cash)}</Text></View><Text style={[styles.allocationPercent, { color: theme.colors.primary }]}>{allocation.investmentPercent}% 투자</Text></View><View style={[styles.rail, { backgroundColor: theme.colors.surfaceRaised }]}><View style={[styles.railFill, { width: allocationWidth, backgroundColor: theme.colors.primary }]} /></View><View style={styles.allocationSplit}><View><Text style={[styles.splitLabel, { color: theme.colors.textMuted }]}>투자 가능</Text><Text style={[styles.splitValue, { color: theme.colors.text }]}>{money(allocation.investableCash)}</Text></View><View style={styles.splitRight}><Text style={[styles.splitLabel, { color: theme.colors.textMuted }]}>보호 현금</Text><Text style={[styles.splitValue, { color: theme.colors.text }]}>{money(allocation.reservedCash)}</Text></View></View></View>
+
+    <View style={styles.metricGrid}><MetricTile label="실현 손익" value={signedMoney(model.realizedPnl)} detail="확정된 PAPER 손익" tone={pnlTone(model.realizedPnl)} testID="portfolio-realized-pnl" /><MetricTile label="미실현 손익" value={signedMoney(model.unrealizedPnl)} detail="열린 포지션 평가 손익" tone={pnlTone(model.unrealizedPnl)} testID="portfolio-unrealized-pnl" /><MetricTile label="포지션 평가액" value={money(model.assetValue)} detail={`${model.openOrderCount}개 열린 주문`} tone="default" /></View>
+
+    {allocation.reservePercent > 0 ? <InlineNotice title={`${allocation.reservePercent}% 현금 보호 중`} detail={`${money(allocation.reservedCash)}는 신규 매수에 사용하지 않습니다. Settings에서 비중을 변경할 수 있습니다.`} tone="info" /> : null}
+    <View style={styles.detailGrid}><View style={styles.detailCell}>{renderPosition(model, theme)}</View><View style={styles.detailCell}><NusaCard testID="portfolio-account-breakdown"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.textMuted }]}>ACCOUNT</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>계정 세부</Text></View><StatusChip label="검증됨" tone="info" /></View><DataRow label="거래소 현금" value={money(model.cash)} /><DataRow label="신규 투자 가능" value={money(allocation.investableCash)} emphasis /><DataRow label="보호 현금" value={money(allocation.reservedCash)} tone="success" /><DataRow label="포지션 평가액" value={money(model.assetValue)} /><DataRow label="열린 주문" value={String(model.openOrderCount)} /></NusaCard></View></View>
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
-  state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 },
-  stateTitle: { fontSize: 18, fontWeight: "700" },
-  stateMessage: { lineHeight: 21, fontSize: 14 },
-  cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
-  cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
-  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
-  total: { fontSize: 34, fontWeight: "800", letterSpacing: -1.3, marginTop: 8, fontVariant: ["tabular-nums"] },
-  pnl: { fontSize: 15, fontWeight: "700", marginTop: 8, fontVariant: ["tabular-nums"] },
-  metrics: { flexDirection: "row", gap: 10 },
-  metricCell: { flex: 1 },
-  metric: { fontSize: 17, fontWeight: "700", marginTop: 8, fontVariant: ["tabular-nums"] },
-  positionMarket: { fontSize: 21, fontWeight: "700", marginTop: 5 },
-  divider: { height: 1, marginVertical: 12 },
-  scopeNote: { fontSize: 12, lineHeight: 18, marginTop: 12 },
-});
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 18, paddingBottom: 40, width: "100%", maxWidth: 1080, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 10, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, stateTitle: { fontSize: 18, fontWeight: "700" }, stateMessage: { lineHeight: 21, fontSize: 14 }, hero: { paddingVertical: 10, gap: 5 }, heroLabel: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.0 }, heroValue: { fontSize: 44, lineHeight: 50, fontWeight: "800", letterSpacing: -1.9, fontVariant: ["tabular-nums"] }, heroPnl: { fontSize: 15, lineHeight: 21, fontWeight: "700", fontVariant: ["tabular-nums"] }, allocation: { gap: 10, paddingVertical: 4 }, allocationHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }, allocationValue: { marginTop: 4, fontSize: 24, lineHeight: 30, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationPercent: { fontSize: 16, fontWeight: "800" }, rail: { height: 9, borderRadius: 999, overflow: "hidden" }, railFill: { height: "100%", borderRadius: 999 }, allocationSplit: { flexDirection: "row", justifyContent: "space-between", gap: 18 }, splitRight: { alignItems: "flex-end" }, splitLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" }, splitValue: { marginTop: 3, fontSize: 16, lineHeight: 22, fontWeight: "700", fontVariant: ["tabular-nums"] }, metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 }, detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "stretch" }, detailCell: { flexGrow: 1, flexBasis: 420 }, emptyPosition: { paddingVertical: 16, gap: 5 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }, cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, positionMarket: { fontSize: 24, lineHeight: 29, fontWeight: "800", letterSpacing: -0.6 }, positionMetrics: { flexDirection: "row", gap: 16, marginBottom: 10 }, positionMetric: { flex: 1 }, metricLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 }, positionValue: { marginTop: 5, fontSize: 18, lineHeight: 23, fontWeight: "700", fontVariant: ["tabular-nums"] }, divider: { height: StyleSheet.hairlineWidth, marginVertical: 12 } });

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
@@ -42,7 +42,7 @@ export function NusaButton({ label, onPress, disabled = false, selected = false,
   );
 }
 
-export interface NusaTextFieldProps {
+export interface NusaTextFieldProps extends Pick<TextInputProps, "autoCapitalize" | "autoCorrect" | "editable" | "keyboardType" | "returnKeyType"> {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
@@ -52,7 +52,7 @@ export interface NusaTextFieldProps {
   readonly testID?: string;
 }
 
-export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
+export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID, autoCapitalize = "sentences", autoCorrect = true, editable = true, keyboardType = "default", returnKeyType = "default" }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
   const [focused, setFocused] = useState(false);
@@ -61,6 +61,11 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
       <Text style={[styles.fieldLabel, { color: focused ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityState={{ disabled: !editable }}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        editable={editable}
+        keyboardType={keyboardType}
         onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
@@ -68,6 +73,7 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
         placeholderTextColor={tokens.placeholder}
         secureTextEntry={secureTextEntry}
         selectionColor={theme.colors.primary}
+        returnKeyType={returnKeyType}
         style={[
           styles.field,
           {
