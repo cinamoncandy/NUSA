@@ -6,7 +6,7 @@ status: ready
 objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 censoring/selection hardening as merged planning-only evidence and continue only repository-controlled evaluation planning, including uncertainty/effective-sample validity, without claiming runtime implementation or human/environment completion."
 base_branch: main
 active_branch: agent/android-real-use-successor-final
-active_pull_request: null
+active_pull_request: 449
 base_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
 claimed_state:
   work_order: WO-0053

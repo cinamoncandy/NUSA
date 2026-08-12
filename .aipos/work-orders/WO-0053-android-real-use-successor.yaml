@@ -4,8 +4,8 @@ status: IN_PROGRESS
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: cf56112e5c1091d89f9684dcaecf433f405ca03e
-implementation_branch: agent/android-real-use-successor
+base_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
+implementation_branch: agent/android-real-use-successor-final
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
