@@ -12,6 +12,7 @@ scope:
   - "Cold-start, crash recovery, navigation, responsive UI, and accessibility resilience."
   - "Trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation."
   - "PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport."
+  - "Real authenticated user identity with first-seen PENDING access, explicit operator approval, immediate suspension enforcement, and OWNER-only users:manage."
   - "Existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system."
 constraints:
   - "PR #371 is superseded and must not be merged."
@@ -21,7 +22,7 @@ constraints:
   - "Firebase remains readiness-only until an approved external project and deployment authority exist."
 architecture_impact:
   acknowledged: true
-  analysis: "This successor composes the existing mobile, cloud PAPER, allocation, approval, and read-only operations boundaries into an Android real-use path. It adds no parallel kernel, no live transport, and no new authority; the physical-device gate remains external and HUMAN_ENVIRONMENT_ONLY."
+  analysis: "This successor composes the existing mobile, cloud PAPER, allocation, approval, and read-only operations boundaries into an Android real-use path. It adds no parallel kernel, no live transport, and no new authority; the physical-device gate remains external and HUMAN_ENVIRONMENT_ONLY. PR #448 binds the existing approval repository to stable authenticated user identities without granting new LIVE authority."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -35,6 +36,7 @@ acceptance:
     - "Full CI and isolated coverage suite pass on the exact successor head."
     - "Mobile Native Android debug/release candidate workflow passes on the exact successor head."
     - "Restricted LIVE and read-only safety workflows pass on the exact successor head."
+    - "Real-user approval identity binding regression tests, Full CI/Coverage, and Restricted LIVE/read-only safety workflows pass on the exact PR #448 head."
   external_gate:
     status: HUMAN_ENVIRONMENT_ONLY
     required: "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence."
@@ -52,6 +54,17 @@ verification:
     - "Read-only Broker Credential Integration #1044 PASS."
     - "Focused mobile/PAPER/runtime suite: 69/69 PASS."
     - "typecheck, build, lint, architecture, AI, safety, security, Firebase readiness, and diff-check PASS."
+  access_approval_identity:
+    issue: 445
+    pull_request: 448
+    head_commit: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
+    merge_commit: 00727a4298413b567b6d9552c3cb656c260bc112
+    full_ci_coverage: PASS
+    restricted_live_activation: PASS
+    capability_surface_guard: PASS
+    transport_credential_readiness: PASS
+    readonly_broker_integration: PASS
+    behavior: "Stable ordinary-user identities register PENDING on first sight, APPROVE enables protected PAPER access, SUSPEND immediately blocks the same bearer, and users:manage remains OWNER-only."
   android_artifact:
     name: nusa-android-debug-6c876ea9f090895d7bf9523464607e11bde65dc7-814
     artifact_id: 9138504317
