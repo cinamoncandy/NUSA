@@ -1,21 +1,46 @@
-id: WO-0052
-title: Android Real-device Runtime Recovery
+id: WO-0051
+title: Constitutional Production Transition Human/Environment Gate
 branch: agent/issue-349-mobile-real-use-freeze
 pull_request: 371
 base_branch: main
-phase: mobile-real-device-fix
-status: VERIFYING
-source_work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
-objective: "Restore and verify the Android PAPER core flow on a real device while preserving verified AI-008/AI-009 governance truth plus the constitutional human/environment and LIVE safety boundaries."
+phase: human-environment-gate
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+objective: "Hold the production transition at the human/environment boundary while concurrently verifying WO-0052 Android PAPER real-device recovery; preserve merged AI capabilities as verified zero-authority research/read-only features and keep WO-AI-011 planning-only."
 scope:
-  - Android cold-start and relaunch verification on a real device
-  - Android PAPER navigation and order-flow verification on a real device
-  - release APK reinstall and runtime verification
-  - physical-device logcat and runtime evidence before PR merge
+  - operator-authorized external read-only preflight only
+  - actual independent human activation ceremony evidence
+  - separate constitutional human decision before any real-money LIVE transition
+  - post-LIVE validation only after a separately authorized tiny session
+  - Android cold-start, relaunch, navigation, trusted HTTPS PAPER flow, reinstall and logcat verification on a physical device
+  - separately planned read-only/zero-authority AI research may proceed but cannot satisfy or bypass this gate
 latest_verified_slice:
-  id: WO-AI-008
+  id: WO-AI-010
   status: COMPLETED
-  evidence: .aipos/evidence/WO-AI-008-completion.json
+  evidence: .aipos/evidence/WO-AI-010-completion.json
+latest_planning_gate:
+  id: WO-AI-011
+  status: PLANNED
+  merged_pr: 421
+  merge_commit: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+  hardening_prs:
+    - 425
+    - 427
+    - 428
+    - 429
+    - 430
+    - 431
+    - 432
+  latest_hardening_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
+  implementation_started: false
+  serialization: HUMAN_ENVIRONMENT_ONLY
+android_recovery:
+  id: WO-0052
+  status: VERIFYING
+  pull_request: 371
+  physical_device_runtime_evidence: PENDING
+  automated_completion: prohibited
+  merge_before_real_device_validation: prohibited
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -26,15 +51,20 @@ safety:
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
 verification:
-  ai_008_planning_merge: 91ffb97ce6d6b50355af19d61fae0f0ee522436f
-  ai_008_implementation_merge: a1cdb9d025e54fc929b82fe5f64c5548eeefc424
-  ai_008_exact_head: 93b2369456679664e205c198bbe2ee1bff2db2e2
-  ai_008_ci_run: 31325820228
-  ai_009_planning_merge: 429fc611e3324ad4ce37457eaed4dcf0ca3b50e1
-  ai_009_planning_exact_head: 20f7c18a09cdaf24c79130dcf6a137cdab636fd0
-  ai_009_planning_ci_run: 31333678605
-  restricted_live_readonly_workflows: PASS_4_OF_4
-  physical_device_runtime_evidence: PENDING
+  ai_011_planning_merge: 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8
+  ai_011_exact_head: b91459b880d67d63b1c24b69c003d7085f998941
+  ai_011_ci_run: 31497602616
+  ai_011_point_in_time_hardening_merge: 6a1bede063251222a9b808d58ba04d43249dc922
+  ai_011_economic_usefulness_hardening_merge: 5427707318b516c561ebead93ce3e4f0b2128b4a
+  ai_011_statistical_validity_hardening_merge: 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339
+  ai_011_regime_degradation_merge: 15568a00e8caeefa22a4a756fdff0565dc35d22a
+  ai_011_tail_risk_merge: 7d1af62388beb140850eb4a2db2097bfe6ef8022
+  ai_011_portfolio_dependence_merge: 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1
+  ai_011_censoring_selection_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
+  restricted_live_readonly_workflows: PASS_4_OF_4_ON_EACH_MERGED_HARDENING
+  ai_runtime_latest_verified: WO-AI-010
+  ai_011_runtime_implementation: NOT_STARTED_SERIALIZED
+  issue_349_android_rc: REBUILD_REQUIRED_AFTER_RECONCILIATION
 blockers:
   - PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED
   - PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION
@@ -42,4 +72,4 @@ blockers:
   - ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED
   - SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE
   - ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS
-next_recommended_task: Install the exact release APK produced from the synchronized PR #371 head on a physical Android device, capture logcat, and execute the full Issue #349 core flow before merge; keep all human-only LIVE authority gates intact.
+next_recommended_task: Complete repository-controlled semantic reconciliation and exact-head Android RC verification for PR #371, then require genuine physical Android acceptance. Preserve WO-0051 HUMAN_ENVIRONMENT_ONLY and WO-AI-011 planning-only; neither CI nor AI may satisfy the human/environment gate.
