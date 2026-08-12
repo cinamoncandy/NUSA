@@ -1,17 +1,18 @@
 id: WO-0053
 title: Android real-use successor
-branch: agent/android-real-use-successor
-pull_request: 442
+branch: main
+pull_request: null
 base_branch: main
 phase: android-real-use-successor
-status: IN_PROGRESS
+status: VERIFYING
 source_work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-objective: "Deliver a clean Android successor path for real PAPER use while preserving latest access-approval, Firebase-readiness, PAPER-only, and AI ZERO_AUTHORITY contracts."
+objective: "Hold the merged Android PAPER successor at physical-device verification while preserving the real-user operator approval boundary merged in PR #448, PAPER-only authority, and AI ZERO_AUTHORITY."
 scope:
   - exact-head Android debug/release candidate packaging and provenance
   - cold-start, crash recovery, navigation, responsive UI, and accessibility resilience
   - trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation
   - PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport
+  - real authenticated user identity with fail-closed PENDING approval and OWNER-only users:manage
   - existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system
 serialized_human_environment_gate:
   id: WO-0051
@@ -29,7 +30,14 @@ safety:
   aiLiveAuthority: prohibited
 verification:
   focused_mobile_paper_suite: PASS_69_OF_69
+  merged_successor_pr: 442
+  merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
+  access_approval_identity_pr: 448
+  access_approval_identity_head: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
+  access_approval_identity_merge: 00727a4298413b567b6d9552c3cb656c260bc112
+  access_approval_exact_head_ci: PASS
+  access_approval_safety_workflows: PASS_4_OF_4
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
-next_recommended_task: "Complete exact-head repository validation for PR #442, then preserve HOLD until genuine physical Android acceptance is available."
+next_recommended_task: "Preserve HOLD on WO-0053 until genuine physical Android acceptance is available; repository-controlled maintenance may continue only when it does not claim or bypass the HUMAN_ENVIRONMENT_ONLY gate."
