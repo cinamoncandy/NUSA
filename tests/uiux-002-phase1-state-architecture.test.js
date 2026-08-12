@@ -28,15 +28,17 @@ test("Markets does not expose chart navigation without verified candles", () => 
   const markets = source("marketsView.tsx");
   assert.match(markets, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
   assert.match(markets, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(markets, /\{chartAvailable && !wide \? <View[^>]*testID="markets-panels"/);
-  assert.match(markets, /chartAvailable && wide \? <ChartView/);
+  assert.match(markets, /\{chartAvailable \? <View[^>]*styles\.segmentOuter/);
+  assert.match(markets, /testID="markets-panels"/);
+  assert.match(markets, /visiblePanel === "WATCHLIST" \? <WatchlistView/);
+  assert.match(markets, /: <ChartView/);
 });
 
 test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
   const trading = source("tradingView.tsx");
   assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
-  assert.match(trading, /!submitAvailable \? <NusaCard><Text[^>]*>PAPER 주문 연결 필요<\/Text>/);
+  assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
   assert.match(trading, /StatusChip label="PAPER ONLY"/);
   assert.match(trading, /StatusChip label="LIVE 금지"/);
 });
