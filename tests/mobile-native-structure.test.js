@@ -37,8 +37,10 @@ test("native bootstrap pins the approved React Native and platform configuration
 
 test("Android release networking fails closed without an unresolved manifest placeholder", () => {
   const manifest = fs.readFileSync(path.join(mobile, "android", "app", "src", "main", "AndroidManifest.xml"), "utf8");
-  assert.match(manifest, /android:usesCleartextTraffic="false"/);
-  assert.doesNotMatch(manifest, /\$\{usesCleartextTraffic\}/);
+  const gradle = fs.readFileSync(path.join(mobile, "android", "app", "build.gradle"), "utf8");
+  assert.match(manifest, /android:usesCleartextTraffic="\$\{usesCleartextTraffic\}"/);
+  assert.match(gradle, /manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/);
+  assert.equal((gradle.match(/manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/g) ?? []).length, 2);
 });
 
 test("mobile foundation exposes a Home screen, theme, and five-tab navigation", () => {
