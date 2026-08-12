@@ -45,6 +45,39 @@ completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
     summary: "Deterministic claim-evidence verification enforces support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with read-only zero authority."
+  - id: WO-AI-009
+    evidence: ".aipos/evidence/WO-AI-009-completion.json"
+    summary: "Governed post-outcome attribution and immutable learning memory are merged and verified with exact lineage, unresolved-first ambiguity handling, advisory-only retrieval, shared WO-AI-006 replay resources, net-benefit gating, and unchanged zero authority."
+  - id: WO-AI-008
+    evidence: ".aipos/evidence/WO-AI-008-completion.json"
+    summary: "Governed scenario/counterfactual reasoning is merged and verified with immutable observed evidence, explicit BASELINE/HYPOTHETICAL provenance, one enclosing resource budget, disagreement abstention, deterministic replay, and unchanged zero authority."
+  - id: WO-AI-007
+    evidence: ".aipos/evidence/WO-AI-007-completion.json"
+    summary: "Independent OpenAI/Anthropic comparison is explicitly opt-in, bounded by one shared inference ledger, rejects correlated fake independence, and suppresses trusted confidence on disagreement without acquiring execution authority."
+  - id: WO-AI-006
+    evidence: ".aipos/evidence/WO-AI-006-completion.json"
+    summary: "Inference resources are governed by one immutable run-level budget with shared attempt accounting, truthful usage evidence, and fail-closed exhaustion under unchanged zero authority."
+  - id: WO-AI-005
+    evidence: ".aipos/evidence/WO-AI-005-completion.json"
+    summary: "Durable calibration memory survives restart, preserves exact cohort truth, expires stale pending predictions without credit, and makes corrupt or failed persistence unavailable rather than trusted."
+  - id: WO-AI-004
+    evidence: ".aipos/evidence/WO-AI-004-completion.json"
+    summary: "Outcome-linked calibration separates raw model probability from empirically supported confidence using hash-bound verified-runtime observations and fail-closed resolution windows while preserving zero authority."
+  - id: WO-AI-003
+    evidence: ".aipos/evidence/WO-AI-003-completion.json"
+    summary: "The grounded AI runtime supports an explicit real-model challenger with strict structured output, bounded timeout, usage metadata, fail-closed provider errors, and unchanged zero execution authority."
+  - id: WO-AI-002
+    evidence: ".aipos/evidence/WO-AI-002-completion.json"
+    summary: "AI model runs are grounded in digest-bound sanitized evidence and exact prompt artifacts, replay/correlation semantics are truthful, and bounded asynchronous Cloud AI exposes only fresh validated read-only results with zero execution authority."
+  - id: WO-AI-001
+    evidence: ".aipos/evidence/WO-AI-001-completion.json"
+    summary: "Provider-agnostic model inference is connected below deterministic governance with zero execution, transfer, production-mutation, or LIVE authority."
+  - id: WO-0050
+    evidence: ".aipos/evidence/WO-0050-completion.json"
+    summary: "Terminal automated safe review packet and human transition runbook completed; current real-world transition remains INCOMPLETE."
+  - id: WO-0049
+    evidence: ".aipos/evidence/WO-0049-completion.json"
+    summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
   - id: WO-0053
     evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
@@ -54,6 +87,15 @@ serialized_human_environment_gate:
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
   status: IN_PROGRESS
   reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
+blocked:
+  - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
+  - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
+  - "SEPARATE_CONSTITUTIONAL_HUMAN_DECISION_REQUIRED_BEFORE_ANY_REAL_MONEY_LIVE"
+  - "ACTUAL_POST_LIVE_EVIDENCE_REQUIRED_ONLY_IF_A_SEPARATELY_AUTHORIZED_TINY_SESSION_OCCURS"
+scope_reclassified:
+  - id: SIGNED_PRODUCTION_ARTIFACT_EXTERNAL_VERIFICATION_REQUIRED
+    status: NOT_APPLICABLE_PERSONAL_USE
+    reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
   reason: "Continue Android real-use successor validation; merge and physical-device acceptance remain blocked."
@@ -69,7 +111,6 @@ verification:
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-011 recovery planning PR #421 merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 merged at 6a1bede063251222a9b808d58ba04d43249dc922. Economic-usefulness hardening PR #427 merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. Statistical-validity hardening PR #428 merged at 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339. Regime-degradation hardening PR #429 merged at 15568a00e8caeefa22a4a756fdff0565dc35d22a. Tail-risk hardening PR #430 merged at 7d1af62388beb140850eb4a2db2097bfe6ef8022. Portfolio-dependence validity PR #431 merged at 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1. Censoring/selection-validity PR #432 merged at b6ab5c05d24e6fb921d455f8671198eea1949050. Uncertainty/effective-sample validity PR #436 merged at 84d425e6433e6e72193c80067d1e067e7cd21d57. WO-0053 Android successor reconciliation is now based on protected main. All remain planning-only and authorize no runtime implementation."
   current_commit: "Android successor reconciliation is an unmerged exact-head worktree based on protected main 974d71121d99a01029b53c04ce5c9dbe93e1da08; physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Android successor reconciliation is an unmerged exact-head worktree based on protected main 974d71121d99a01029b53c04ce5c9dbe93e1da08; physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
@@ -80,6 +121,25 @@ human_authority:
   automatic_production_transition: prohibited
   ai_live_authority: prohibited
   meta_ai_live_authority: prohibited
+constitutional_transition_review:
+  mode: EVIDENCE_AGGREGATION_ONLY
+  current_real_world_status: INCOMPLETE
+  synthetic_evidence_cannot_satisfy_real_world_gate: true
+  signed_production_artifact_verified: false
+  actual_external_readonly_preflight_completed: false
+  actual_human_activation_ceremony_completed: false
+  actual_tiny_live_session_completed: false
+  actual_post_live_validation_completed: false
+  actual_scale_governance_approval_completed: false
+  constitutional_decision_authority: false
+  deployment_authority: false
+  activation_authority: false
+  scale_up_authority: false
+  order_authorization: false
+  execution_authority: false
+  authorizes_live: false
+  mutation_performed: false
+  real_money_execution_allowed: false
 terminal_human_environment_gate:
   mode: HUMAN_ENVIRONMENT_ONLY
   automated_completion: prohibited
@@ -88,12 +148,46 @@ terminal_human_environment_gate:
   execution_transport_connected: false
   credential_execution_use: prohibited
   real_money_execution_allowed: false
+controlled_scale_up_governance:
+  mode: VALIDATION_ONLY
+  actual_human_approval_in_ci: false
+  scale_up_authority: false
+  authorizes_live: false
+post_live_validation:
+  mode: EVIDENCE_VALIDATION_ONLY
+  actual_live_session_in_ci: false
+  scale_up_authority: false
+  authorizes_live: false
+external_readonly_environment_preflight:
+  mode: OPERATOR_GATED_READ_ONLY
+  actual_external_probe_in_ci: false
+  authorizes_live: false
+tiny_bounded_live_envelope:
+  mode: POLICY_VALIDATION_ONLY
+  automatic_scale_up: prohibited
+  authorizes_live: false
 restricted_live_authority:
   default_state: DISABLED
   execution_transport_connected: false
   credential_execution_use: prohibited
   real_money_execution: prohibited
   safety_critical_unknown: fail_closed
+hard_risk_gateway:
+  authority: deterministic_hard_risk
+  learned_override: prohibited
+  unknown_semantics: fail_closed
+kill_switch:
+  mode: LATCHED
+  automatic_release: prohibited
+  release_authorizes_live: false
+capability_surface_guard:
+  mode: RESTRICTED_LIVE_CAPABILITY_SURFACE_GUARD
+  prohibited_live_permissions_enforced: true
+  unknown_permission_semantics: fail_closed
+safety_authority:
+  hard_risk_override: prohibited
+  kill_switch_override: prohibited
+  halt_override: prohibited
 continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
