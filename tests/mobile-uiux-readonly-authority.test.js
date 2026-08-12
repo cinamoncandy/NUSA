@@ -20,14 +20,15 @@ test("UIUX-002 preserves stable five-tab keys while presenting product navigatio
 
 test("mobile intelligence shell displays real AI projection and truthful scoped authority state", () => {
   const app = read("App.tsx");
+  const aiView = read("src/aiView.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(app, /ai\?\.thesis \?\? "현재 표시할 AI 분석이 없습니다\."/);
+  assert.match(aiView, /ai\?\.thesis \?\? "현재 표시할 검증된 AI 분석이 없습니다\."/);
   assert.match(components, /AI ZERO AUTHORITY/);
   assert.match(components, /AI 주문 권한 없음/);
   assert.match(components, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다/);
-  assert.match(app, /<DataRow label="LIVE 권한" value=\{snapshot\.liveAuthority\} emphasis \/>/);
-  assert.match(app, /<DataRow label="Production mutation" value=\{snapshot\.productionMutationAllowed \? "허용" : "금지"\}/);
+  assert.match(aiView, /<DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\} emphasis \/>/);
+  assert.match(aiView, /<DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-" : "금지"\}/);
   assert.doesNotMatch(components, /UI 주문 경로 없음/);
   assert.doesNotMatch(app, /94%/);
 });

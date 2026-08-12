@@ -14,7 +14,8 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
     <ScreenHeader eyebrow="LOCAL NOTIFICATIONS" title="알림" description="실제로 연결된 이벤트만 표시합니다." statusLabel="미연결" statusTone="neutral" />
     <View style={styles.emptyState} testID="notifications-empty-state">
       <Text style={[styles.emptyEyebrow, { color: theme.colors.textMuted }]}>NO EVENT SOURCE</Text>
-      <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>아직 표시할 알림이 없습니다</Text>
+      <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>알림 이벤트 수집이 아직 연결되지 않았습니다</Text>
+      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>아직 표시할 알림이 없습니다. 실제 이벤트가 연결되기 전에는 목록을 만들지 않습니다.</Text>
       <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다.</Text>
       <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" testID="notifications-paper" /><StatusChip label="미연결" tone="neutral" testID="notifications-disconnected" /><StatusChip label="READ ONLY" tone="info" /><StatusChip label="PUSH OFF" tone="neutral" /></View>
       <View style={styles.runtimeRows}><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="권한" value="읽기 전용" /><DataRow label="현재 상태" value="이벤트 수집 미연결" /></View>

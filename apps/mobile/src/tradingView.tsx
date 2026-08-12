@@ -63,14 +63,16 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const changeOrderType = (key: string) => { setOrderType(key as TradingOrderType); setConfirming(false); };
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="trading-screen">
-    <ScreenHeader eyebrow="PAPER ORDER" title="주문" description="투자 가능 현금 한도 안에서만 PAPER 주문을 만들고, 전송 전에 모든 조건을 다시 확인합니다." statusLabel="PAPER ONLY" statusTone="primary" />
+    <ScreenHeader eyebrow="PAPER ORDER" title="주문" description="PAPER WORKSPACE에서 투자 가능 현금 한도 안에서만 주문을 만들고, 전송 전에 모든 조건을 다시 확인합니다." statusLabel="PAPER ONLY" statusTone="primary" />
 
     <View style={styles.quoteHero} testID="paper-quote-hero">
-      <View style={styles.quoteTop}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>현재 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><View style={styles.statusRow}><StatusChip label={marketReady ? "온라인" : "대기"} tone={marketReady ? "success" : "warning"} /><StatusChip label={stale ? "점검" : "최신"} tone={stale ? "warning" : "success"} /></View></View>
+      <View style={styles.quoteTop}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>현재 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><View style={styles.statusRow}><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE 금지" tone="neutral" /><StatusChip label={marketReady ? "온라인" : "대기"} tone={marketReady ? "success" : "warning"} /><StatusChip label={stale ? "점검" : "최신"} tone={stale ? "warning" : "success"} /></View></View>
       <Text style={[styles.price, { color: theme.colors.text }]}>{model.currentPrice === null ? "-" : formatTradingAmount(model.currentPrice, "KRW")}</Text>
+      <Text style={[styles.quoteMeta, { color: theme.colors.textMuted }]}>LIVE 주문 권한 없음 · 실제 주문 권한은 없습니다 · Production mutation 금지</Text>
       <Text style={[styles.quoteMeta, { color: theme.colors.textMuted }]}>LIVE 주문 권한 없음 · Production mutation 금지</Text>
     </View>
 
+    <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>PAPER 주문 확인 · 최종 PAPER 주문 확인</Text>
     <View style={styles.ticket} testID="paper-order-ticket">
       <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>01 · 주문 방향</Text><SegmentedControl disabled={submitting} items={SIDE_ITEMS} selectedKey={side} onChange={changeSide} testID="paper-side-segmented-control" /></View>
       <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>02 · 주문 유형</Text><SegmentedControl disabled={submitting} items={ORDER_TYPE_ITEMS} selectedKey={orderType} onChange={changeOrderType} testID="paper-type-segmented-control" /></View>

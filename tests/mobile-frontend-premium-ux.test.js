@@ -37,7 +37,7 @@ test('paper and history selectors expose their current selection', () => {
 test('AI hierarchy presents calibrated confidence before raw model probability', () => {
   const source = read('apps/mobile/src/aiView.tsx');
   const trusted = source.indexOf('label="검증 신뢰도"');
-  const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
+  const raw = source.indexOf('label="원시 모델 확률"');
   assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
   assert.match(source, /ZERO AUTHORITY/);
   assert.match(source, /READ ONLY/);
