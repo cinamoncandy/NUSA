@@ -56,6 +56,6 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
   if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
-  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "settings:read", "settings:write", "users:manage"]) });
+  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "settings:read", "settings:write", "users:manage", "paper:trade"]) });
   return Object.freeze({ verify(token: string): DashboardPrincipal | undefined { if (typeof token !== "string" || token.length === 0) return undefined; const actualDigest = createHash("sha256").update(token, "utf8").digest(); return timingSafeEqual(actualDigest, expectedDigest) ? principal : undefined; } });
 }
