@@ -29,6 +29,7 @@ export function NusaButton({ label, onPress, disabled = false, selected = false,
         {
           backgroundColor: tokens.background,
           borderColor: tokens.border,
+          borderWidth: tokens.borderWidth,
           borderRadius: tokens.radius,
           minHeight: tokens.minHeight,
           paddingHorizontal: tokens.horizontalPadding,
@@ -58,7 +59,7 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused && editable ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityState={{ disabled: !editable }}
@@ -78,9 +79,9 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
           styles.field,
           {
             backgroundColor: tokens.background,
-            borderColor: focused ? tokens.focus : tokens.border,
+            borderColor: focused && editable ? tokens.focus : tokens.border,
             borderRadius: tokens.radius,
-            borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth,
+            borderWidth: focused && editable ? tokens.focusBorderWidth : tokens.borderWidth,
             color: tokens.foreground,
             minHeight: tokens.minHeight,
           },
@@ -126,7 +127,7 @@ export function AuthorityBanner({ detail = "AI와 모바일 화면은 분석·�
 export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
   const { theme } = useTheme();
   const color = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.text;
-  return <View style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
+  return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
 const styles = StyleSheet.create({

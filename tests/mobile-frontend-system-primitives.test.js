@@ -21,7 +21,7 @@ test("frontend design system centralizes interaction contracts", () => {
 
 test("shared button exposes disabled state and tokenized press feedback", () => {
   const source = read("src/components.tsx");
-  assert.match(source, /accessibilityState=\{\{ disabled \}\}/);
+  assert.match(source, /accessibilityState=\{\{ disabled, selected \}\}/);
   assert.match(source, /pressed \? tokens\.pressedOpacity : 1/);
   assert.match(source, /borderWidth: tokens\.borderWidth/);
 });
