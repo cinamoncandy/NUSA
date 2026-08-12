@@ -6,7 +6,7 @@ const path = require("node:path");
 const runtimePath = path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts");
 const serverPath = path.join(__dirname, "..", "apps", "cloud", "src", "server.ts");
 
-test("startCloudRuntime wires the authenticated PAPER operations loader into the actual server", () => {
+test("startCloudRuntime wires authenticated PAPER operations and orders into the actual server", () => {
   const source = fs.readFileSync(runtimePath, "utf8");
   assert.match(source, /startCloudDashboardServer\(\{/);
   assert.match(source, /const\s+loadPaperOperations\s*=\s*\(principal:\s*DashboardPrincipal\)\s*:\s*PersonalPaperOperationsSnapshot\s*=>/);
@@ -19,10 +19,19 @@ test("startCloudRuntime wires the authenticated PAPER operations loader into the
   assert.doesNotMatch(source, /loadPaperOperations:\s*\(.*\)\s*=>\s*\{[^}]*productionMutationAllowed:\s*true/s);
 });
 
-test("runtime PAPER operations remains behind the same GET-only dashboard server boundary", () => {
+test("runtime PAPER operations remains GET-only and behind server-authoritative approved access", () => {
   const source = fs.readFileSync(serverPath, "utf8");
   assert.match(source, /req\.url\s*===\s*"\/api\/paper-operations"/);
   assert.match(source, /handlePersonalPaperOperationsHttp/);
-  assert.match(source, /tokenVerifier:\s*options\.tokenVerifier/);
+  assert.match(source, /tokenVerifier:\s*accessControlledTokenVerifier/);
+  assert.match(source, /isUserAllowed\(userAccessRepository\.get\(principal\.userId\)\)/);
   assert.doesNotMatch(source, /\/api\/paper-operations[^\n]*(POST|PUT|PATCH|DELETE)/);
+});
+
+test("PAPER order submission is also behind the approved access verifier", () => {
+  const source = fs.readFileSync(serverPath, "utf8");
+  assert.match(source, /req\.url\s*===\s*"\/api\/paper-orders"/);
+  assert.match(source, /handlePersonalPaperOrderHttp/);
+  assert.match(source, /tokenVerifier:\s*accessControlledTokenVerifier/);
+  assert.doesNotMatch(source, /tokenVerifier:\s*options\.tokenVerifier[\s\S]*handlePersonalPaperOrderHttp/);
 });
