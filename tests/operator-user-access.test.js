@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { InMemoryNusaUserAccessRepository, isUserAllowed } = require("../dist/apps/cloud/src/operatorUserAccess.js");
+const { InMemoryNusaUserAccessRepository, SqliteNusaUserAccessRepository, isUserAllowed } = require("../dist/apps/cloud/src/operatorUserAccess.js");
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { handleOperatorUserAccessHttp } = require("../dist/apps/cloud/src/operatorUserAccessHttp.js");
 
 const verifier = {
@@ -26,6 +27,27 @@ test("new users are pending until the owner explicitly approves them", () => {
   assert.equal(active.status, "ACTIVE");
   assert.equal(isUserAllowed(active), true);
   assert.equal(repository.listAudit().length, 1);
+});
+
+test("owner bootstrap fails closed instead of promoting a colliding user identity", () => {
+  const repository = new InMemoryNusaUserAccessRepository();
+  repository.registerUser({ id: "operator", email: "attacker@example.com" }, 1);
+  assert.throws(() => repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 2), /owner bootstrap identity collision/);
+  assert.equal(repository.get("operator").role, "USER");
+  assert.equal(repository.get("operator").status, "PENDING");
+});
+
+test("SQLite owner bootstrap fails closed instead of promoting a colliding persisted user", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repository = new SqliteNusaUserAccessRepository(db);
+    repository.registerUser({ id: "operator", email: "attacker@example.com" }, 1);
+    assert.throws(() => repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 2), /owner bootstrap identity collision/);
+    assert.equal(repository.get("operator").role, "USER");
+    assert.equal(repository.get("operator").status, "PENDING");
+  } finally {
+    db.close();
+  }
 });
 
 test("owner can reject, suspend, and restore while every change is audited", () => {
