@@ -27,11 +27,11 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
 test('paper and history selectors expose their current selection', () => {
   const trading = read('apps/mobile/src/tradingView.tsx');
   const history = read('apps/mobile/src/orderHistoryView.tsx');
-  assert.match(trading, /selected=\{side === "BUY"\}/);
-  assert.match(trading, /selected=\{orderType === "MARKET"\}/);
-  assert.match(history, /selected=\{filter === value\}/);
-  assert.match(history, /selected=\{period === value\}/);
-  assert.match(history, /selected=\{sort === value\}/);
+  assert.match(trading, /selectedKey=\{side\}/);
+  assert.match(trading, /selectedKey=\{orderType\}/);
+  assert.match(history, /selectedKey=\{filter\}/);
+  assert.match(history, /selectedKey=\{period\}/);
+  assert.match(history, /selectedKey=\{sort\}/);
 });
 
 test('AI hierarchy presents calibrated confidence before raw model probability', () => {
