@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { CioDecision } from "./cioDecisionEngine";
@@ -55,14 +55,40 @@ export interface PaperAccountState {
   readonly processedIdempotencyKeys: readonly string[];
   readonly updatedAt: number;
 }
-export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; }
+export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; close?: () => void; }
+
+export interface PaperWriterLeaseOptions {
+  readonly now?: () => number;
+  readonly leaseDurationMs?: number;
+  readonly heartbeatIntervalMs?: number;
+  readonly ownerId?: string;
+}
 
 export class SqliteCloudPaperAccountRepository implements PaperAccountRepository {
-  public constructor(private readonly db: SqliteDatabase) {}
+  private readonly ownerId: string;
+  private readonly now: () => number;
+  private readonly leaseDurationMs: number;
+  private readonly heartbeatIntervalMs: number;
+  private readonly heartbeat?: ReturnType<typeof setInterval>;
+  private closed = false;
+  private leaseLost = false;
+  public constructor(private readonly db: SqliteDatabase, options: PaperWriterLeaseOptions = {}) {
+    this.ownerId = options.ownerId ?? randomUUID();
+    this.now = options.now ?? Date.now;
+    this.leaseDurationMs = options.leaseDurationMs ?? 30_000;
+    this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? Math.max(1_000, Math.floor(this.leaseDurationMs / 3));
+    if (!Number.isSafeInteger(this.leaseDurationMs) || this.leaseDurationMs < 1_000) throw new Error("paper writer lease duration is invalid");
+    if (!Number.isSafeInteger(this.heartbeatIntervalMs) || this.heartbeatIntervalMs < 1_000 || this.heartbeatIntervalMs >= this.leaseDurationMs) throw new Error("paper writer heartbeat interval is invalid");
+    this.acquireLease();
+    const timer = setInterval(() => this.heartbeatLease(), this.heartbeatIntervalMs);
+    timer.unref?.();
+    this.heartbeat = timer;
+  }
   public save(state: PaperAccountState): void {
     validateState(state);
     const stateJson = JSON.stringify(state);
     this.db.transaction(() => {
+      this.assertLeaseHeld();
       this.db.connection.prepare(`
         INSERT INTO cloud_paper_accounts (account_id, schema_version, updated_at, state_json, checksum, status)
         VALUES (?, ?, ?, ?, ?, 'VALID')
@@ -72,6 +98,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     });
   }
   public loadLatest(): PaperAccountState | undefined {
+    this.assertLeaseHeld();
     const row = this.db.connection.prepare("SELECT * FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'").get(ACCOUNT_ID) as Record<string, string | number | null> | undefined;
     if (row == null) return undefined;
     try {
@@ -85,7 +112,35 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       throw error;
     }
   }
-  public clear(): void { this.db.transaction(() => { this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
+  public clear(): void { this.db.transaction(() => { this.assertLeaseHeld(); this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
+  public close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.heartbeat != null) clearInterval(this.heartbeat);
+    try { this.db.transaction(() => { this.db.connection.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ? AND owner_id = ?").run(ACCOUNT_ID, this.ownerId); }); } catch { /* DB close/recovery remains fail-closed until lease expiry. */ }
+  }
+  private acquireLease(): void {
+    const now = this.now();
+    if (!Number.isSafeInteger(now) || now < 0) throw new Error("paper writer clock is invalid");
+    this.db.transaction(() => {
+      const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(ACCOUNT_ID) as { owner_id?: string; lease_until_ms?: number } | undefined;
+      if (row != null && String(row.owner_id) !== this.ownerId && Number(row.lease_until_ms) > now) throw new Error("PAPER_WRITER_ALREADY_ACTIVE");
+      this.db.connection.prepare(`
+        INSERT INTO cloud_paper_writer_leases (account_id, owner_id, lease_until_ms, heartbeat_at_ms) VALUES (?, ?, ?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET owner_id=excluded.owner_id, lease_until_ms=excluded.lease_until_ms, heartbeat_at_ms=excluded.heartbeat_at_ms
+      `).run(ACCOUNT_ID, this.ownerId, now + this.leaseDurationMs, now);
+    });
+  }
+  private heartbeatLease(): void {
+    if (this.closed || this.leaseLost) return;
+    try { this.db.transaction(() => this.assertLeaseHeld()); } catch { this.leaseLost = true; }
+  }
+  private assertLeaseHeld(): void {
+    if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST");
+    const now = this.now();
+    const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, ACCOUNT_ID, this.ownerId, now);
+    if (Number(result.changes) !== 1) { this.leaseLost = true; throw new Error("PAPER_WRITER_LEASE_LOST"); }
+  }
 }
 
 function accountChecksum(state: PaperAccountState): string { return createHash("sha256").update(JSON.stringify(state), "utf8").digest("hex"); }
