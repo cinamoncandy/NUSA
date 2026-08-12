@@ -1,4 +1,5 @@
 import { PaperBroker, type PaperOrder, type PaperRiskPolicy, type PaperSide } from "./paperBroker";
+import { applyExecutionCost } from "./executionCostModel";
 import { StrategyEngine, type StrategySignal, type TradingStrategy } from "./strategyEngine";
 import { analyzeEquityCurve, calculateExposure, calculatePerformanceMetrics, matchTrades, type EquityAnalytics, type MatchedTrade, type OpenPositionAnalysis, type PerformanceMetrics } from "./backtestAnalytics";
 
@@ -104,11 +105,11 @@ function validateExecutionCosts(costs: BacktestExecutionCosts): Required<Backtes
   return Object.freeze({ spreadBps, slippageBps });
 }
 
+// Delegates to the shared model so the backtest and the live paper runtime cannot drift apart in
+// how they price a fill. The backtest keeps its own stricter per-field bound (each leg < 10000bps)
+// in validateExecutionCosts above; this only computes the adjusted price.
 function executionPrice(side: PaperSide, marketPrice: number, costs: Required<BacktestExecutionCosts>): number {
-  const halfSpreadRate = costs.spreadBps / 20_000;
-  const slippageRate = costs.slippageBps / 10_000;
-  const adverseRate = halfSpreadRate + slippageRate;
-  return side === "BUY" ? marketPrice * (1 + adverseRate) : marketPrice * (1 - adverseRate);
+  return applyExecutionCost(side, marketPrice, costs).executedPrice;
 }
 
 function computeMaxDrawdown(equityCurve: readonly { equity: number }[]): number {

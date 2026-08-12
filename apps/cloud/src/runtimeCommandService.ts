@@ -13,6 +13,7 @@ import {
   createPersistenceRollbackFailedDiagnostic,
   type RuntimeMutationDiagnostic
 } from "./runtimeMutationDiagnostics";
+import { applyExecutionCost, validateExecutionCostModel, ZERO_EXECUTION_COST, type AppliedExecutionCost, type ExecutionCostModel } from "./executionCostModel";
 
 type ScenarioEvent = ReturnType<PaperScenarioEvidenceRecorder["bind"]>;
 
@@ -38,7 +39,7 @@ export interface PaperCommandRiskGate {
   recordOrder?(order: Readonly<{ orderId: string; status: "OPEN" | "PENDING" | "FILLED" | "CANCELLED" | "REJECTED"; nowMs?: number }>): void;
 }
 
-export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string };
+export type AutomaticResult = { outcome: "SKIPPED" | "DUPLICATE" | "FILLED" | "REJECTED"; order?: PaperOrder; error?: string; executionCost?: AppliedExecutionCost };
 export const PERSISTENCE_RECOVERY_STEPS = Object.freeze([
   "Stop the application and preserve the failed database file unchanged.",
   "Restore a known-good backup to the original database location while the application is stopped.",
@@ -57,6 +58,8 @@ interface RuntimeSnapshot {
 export class RuntimeCommandService {
   private available = true;
 
+  private readonly executionCost: ExecutionCostModel;
+
   constructor(
     private readonly broker: PaperBroker,
     private readonly control: ControlPlane,
@@ -65,8 +68,19 @@ export class RuntimeCommandService {
     private readonly riskGate: PaperCommandRiskGate,
     private readonly readiness?: () => OperationalReadinessDecision,
     private readonly evidence?: PaperScenarioEvidenceRecorder,
-    private readonly onDiagnostic?: (diagnostic: RuntimeMutationDiagnostic) => void
-  ) {}
+    private readonly onDiagnostic?: (diagnostic: RuntimeMutationDiagnostic) => void,
+    executionCost: ExecutionCostModel = ZERO_EXECUTION_COST
+  ) {
+    this.executionCost = validateExecutionCostModel(executionCost);
+  }
+
+  /**
+   * The cost model every fill on this runtime is priced against. Exposed so an operator surface
+   * can state the basis of the reported P&L instead of presenting it as if it were free of
+   * spread and slippage.
+   */
+  getExecutionCostModel(): ExecutionCostModel { return this.executionCost; }
+
   private requireRiskApproval(path: "MANUAL" | "STRATEGY" | "IPC" | "RECONNECT_REPLAY", side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; strategyId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): void {
     const decision = this.riskGate.evaluate(Object.freeze({ path, side, quantity, price, ...metadata }));
     if (decision.status !== "ALLOW") throw new Error(`paper risk ${decision.status}: ${decision.reasonCodes.join(",")}`);
@@ -82,8 +96,9 @@ export class RuntimeCommandService {
 
   manualOrder(side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): PaperOrder {
     return this.commit("manual paper order", () => {
-      this.requireRiskApproval("MANUAL", side, quantity, price, metadata);
-      const order = this.broker.execute(side, quantity, price);
+      const cost = applyExecutionCost(side, price, this.executionCost);
+      this.requireRiskApproval("MANUAL", side, quantity, cost.executedPrice, metadata);
+      const order = this.broker.execute(side, quantity, cost.executedPrice);
       this.riskGate.recordOrder?.({ orderId: order.id, status: "FILLED", nowMs: metadata.nowMs });
       this.control.record("ORDER", `manual ${side} filled`, order);
       return order;
@@ -92,8 +107,9 @@ export class RuntimeCommandService {
 
   replayOrder(side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): PaperOrder {
     return this.commit("reconnect paper order replay", () => {
-      this.requireRiskApproval("RECONNECT_REPLAY", side, quantity, price, metadata);
-      const order = this.broker.execute(side, quantity, price);
+      const cost = applyExecutionCost(side, price, this.executionCost);
+      this.requireRiskApproval("RECONNECT_REPLAY", side, quantity, cost.executedPrice, metadata);
+      const order = this.broker.execute(side, quantity, cost.executedPrice);
       this.riskGate.recordOrder?.({ orderId: order.id, status: "FILLED", nowMs: metadata.nowMs });
       this.control.record("ORDER", `reconnect replay ${side} filled`, order);
       return order;
@@ -166,7 +182,8 @@ export class RuntimeCommandService {
       const signalId = `${market}:${signal.timestamp}:${signal.type}`;
       const commandId = `strategy:${signalId}`;
       const clientOrderId = `paper:${commandId}`;
-      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, price, { ...metadata, strategyId: this.strategy.getStrategyId(), signalId, commandId, clientOrderId, nowMs: signal.timestamp }); order = this.broker.execute(signal.type, quantity, price, new Date(), { strategyId: this.strategy.getStrategyId() }); }
+      const cost = applyExecutionCost(signal.type, price, this.executionCost);
+      try { this.requireRiskApproval("STRATEGY", signal.type, quantity, cost.executedPrice, { ...metadata, strategyId: this.strategy.getStrategyId(), signalId, commandId, clientOrderId, nowMs: signal.timestamp }); order = this.broker.execute(signal.type, quantity, cost.executedPrice, new Date(), { strategyId: this.strategy.getStrategyId() }); }
       catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.control.record("RISK", message);
@@ -177,7 +194,7 @@ export class RuntimeCommandService {
       this.control.record("ORDER", `automatic ${signal.type} filled`, order);
       const orderEvidence = this.evidence?.bind({ eventId: order.id, type: "ORDER_COMPLETED", occurredAt: Date.parse(order.filledAt) });
       this.persist(orderEvidence);
-      return { outcome: "FILLED", order };
+      return { outcome: "FILLED", order, executionCost: cost };
     } catch (error) {
       this.emit(createPersistenceMutationFailedDiagnostic({ mutationName: "automatic signal" }));
       this.restoreAfterFailure(snapshot, "automatic signal");
