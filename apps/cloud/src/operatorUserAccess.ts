@@ -67,9 +67,7 @@ abstract class BaseRepository {
   }
   protected assertOwnerBootstrapSafe(existing: NusaUserRecord | undefined): void {
     if (existing == null) return;
-    if (existing.role !== "OWNER" || existing.status !== "ACTIVE") {
-      throw new Error("owner bootstrap identity collision");
-    }
+    if (existing.role !== "OWNER" || existing.status !== "ACTIVE") throw new Error("owner bootstrap identity collision");
   }
 }
 

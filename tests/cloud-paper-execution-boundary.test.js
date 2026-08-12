@@ -56,15 +56,19 @@ for (const status of ["HALT", "REJECT"]) {
   });
 }
 
-test("ALLOW is the only risk result that can reach the PAPER mutation loop", () => {
+test("ALLOW remains blocked when no explicit human strategy approval boundary exists", () => {
   const { loop, boundary, evaluations } = build("ALLOW");
+  const before = loop.snapshot();
   const result = boundary.processTick(tick);
+  const after = loop.snapshot();
   assert.equal(evaluations(), 1);
-  assert.equal(result.status, "FILLED");
-  assert.equal(loop.snapshot().orders.length, 1);
-  assert.equal(loop.snapshot().fills.length, 1);
-  assert.equal(loop.snapshot().positions.length, 1);
-  assert.ok(loop.snapshot().cash < 10_000_000);
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, "STRATEGY_APPROVAL_BOUNDARY_UNAVAILABLE");
+  assert.deepEqual(after, before);
+  assert.equal(after.orders.length, 0);
+  assert.equal(after.fills.length, 0);
+  assert.equal(after.positions.length, 0);
+  assert.equal(after.cash, 10_000_000);
 });
 
 test("P0 uncertainty fails closed before risk evaluation and before mutation", () => {

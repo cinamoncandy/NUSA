@@ -27,12 +27,18 @@ test("AI distinguishes error and loading before rendering analysis content", () 
 test("Markets does not expose chart navigation without verified candles", () => {
   const markets = source("marketsView.tsx");
   assert.match(markets, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
-  assert.match(markets, /\{chartAvailable \? <View/);
+  assert.match(markets, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
+  assert.match(markets, /\{chartAvailable \? <View[^>]*styles\.segmentOuter/);
+  assert.match(markets, /testID="markets-panels"/);
+  assert.match(markets, /visiblePanel === "WATCHLIST" \? <WatchlistView/);
+  assert.match(markets, /: <ChartView/);
 });
 
-test("PAPER hides mutation controls when submit authority is absent", () => {
+test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
   const trading = source("tradingView.tsx");
-  assert.match(trading, /const readOnly = onSubmit === undefined/);
-  assert.match(trading, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
-  assert.match(trading, /ZERO MUTATION/);
+  assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
+  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label="LIVE 금지"/);
 });

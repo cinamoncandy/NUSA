@@ -15,7 +15,7 @@ test("watchlist favorite action uses explicit text instead of unicode star glyph
   assert.doesNotMatch(source, /★|☆/);
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{[^}]*minWidth: 52, height: 44/);
+  assert.match(source, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
 test("market rows keep price change and volume scannable without a separate metadata row", () => {
@@ -29,6 +29,9 @@ test("market rows keep price change and volume scannable without a separate meta
 });
 
 test("market data remains explicitly public and read only at the screen boundary", () => {
-  assert.match(source, /eyebrow="PUBLIC MARKET DATA"/);
+  assert.match(source, /workspaceHeader/);
+  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.match(source, /readOnlyNote/);
+  assert.doesNotMatch(source, /ORDER_CREATE|LIVE_EXECUTION|productionMutationAllowed/);
   assert.match(source, /계좌·주문 권한과 연결되지 않습니다/);
 });

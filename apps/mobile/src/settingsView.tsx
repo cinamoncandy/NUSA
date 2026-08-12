@@ -1,106 +1,140 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
+import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
-import { cashReservePercent, DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
+import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
+import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
+import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
 
-interface SettingsViewProps {
-  readonly repository: SettingsRepository;
-  readonly onSignOut?: () => void;
-  readonly exchangeCash?: number;
-  readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>;
-}
-
-const themes: readonly ThemeSetting[] = ["SYSTEM", "LIGHT", "DARK"];
-const themeLabels: Readonly<Record<ThemeSetting, string>> = { SYSTEM: "시스템", LIGHT: "라이트", DARK: "다크" };
+interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; }
+const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
+const allocationPresets = Object.freeze([{ key: "25", label: "25%" }, { key: "50", label: "50%" }, { key: "75", label: "75%" }, { key: "100", label: "100%" }]);
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
-const operatorBaseUrl = process.env.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "http://127.0.0.1:41731";
+const money = (value: number): string => `₩${Math.round(value).toLocaleString("ko-KR")}`;
 const actionFor = (user: OperatorUserRecord): readonly OperatorUserAction[] => user.status === "PENDING" ? ["APPROVE", "REJECT"] : user.status === "ACTIVE" ? ["SUSPEND"] : ["RESTORE"];
 const actionLabel: Readonly<Record<OperatorUserAction, string>> = { APPROVE: "승인", REJECT: "거절", SUSPEND: "정지", RESTORE: "복구" };
 
-export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave }: SettingsViewProps) {
+export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave, onInvestmentPercentChanged }: SettingsViewProps) {
   const { theme, setMode } = useTheme();
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [endpointDraft, setEndpointDraft] = useState("");
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
+  const [connection, setConnection] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
   const [operatorToken, setOperatorToken] = useState("");
   const [operatorUsers, setOperatorUsers] = useState<readonly OperatorUserRecord[]>([]);
   const [operatorError, setOperatorError] = useState<string | null>(null);
   const [operatorBusy, setOperatorBusy] = useState(false);
+  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const savingRef = useRef(false);
+  const connectionInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
-    void repository.load().then((loaded) => {
+    void repository.load().then(async (loaded) => {
       if (!active) return;
-      const next = loaded ?? DEFAULT_SETTINGS;
-      setSettings(next);
-      setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent));
-      setMode(themePreference(next.theme));
+      const next = normalizeSettings(loaded ?? DEFAULT_SETTINGS);
+      setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setEndpointDraft(next.paperEndpoint); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme)); onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
+      if (!next.paperEndpoint || !credentialSession.isConfigured() || !isPaperConnectionVerified(next.paperEndpoint)) return;
+      const result = await loadPersonalPaperOperations({ baseUrl: next.paperEndpoint, credentialProvider: credentialSession.credentialProvider });
+      if (!active) return;
+      if (result.status !== "READY") { credentialSession.clear(); clearPaperConnectionVerification(); }
+      setConnection(result);
     }).catch((loadError) => { if (active) setError(loadError instanceof Error ? loadError.message : "Settings are unavailable."); });
     return () => { active = false; };
-  }, [repository, setMode]);
+  }, [credentialSession, onInvestmentPercentChanged, repository, setMode]);
 
+  const persist = async (next: AppSettings): Promise<boolean> => {
+    if (savingRef.current) return false;
+    savingRef.current = true; setSaving(true);
+    try {
+      const normalized = normalizeSettings(next);
+      const allocationChanged = normalized.capitalAllocation.investmentPercent !== settings?.capitalAllocation.investmentPercent;
+      if (allocationChanged && onCloudInvestmentPercentSave) await onCloudInvestmentPercentSave(normalized.capitalAllocation.investmentPercent);
+      await repository.save(normalized);
+      setConfiguredPaperEndpoint(normalized.paperEndpoint); setSettings(normalized); setEndpointDraft(normalized.paperEndpoint); setInvestmentPercentDraft(String(normalized.capitalAllocation.investmentPercent)); setError(null);
+      if (allocationChanged) onInvestmentPercentChanged?.(normalized.capitalAllocation.investmentPercent);
+      return true;
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; }
+    finally { savingRef.current = false; setSaving(false); }
+  };
+  const isBusyNow = () => savingRef.current || connectionInFlightRef.current || operatorBusy;
+  const updateTheme = (next: ThemeSetting) => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
+  const saveInvestmentPercent = async (raw = investmentPercentDraft) => { if (!settings || isBusyNow()) return; try { const value = normalizeInvestmentPercent(Number(raw)); setInvestmentPercentDraft(String(value)); await persist({ ...settings, capitalAllocation: { investmentPercent: value } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
+  const testConnection = async () => {
+    if (settings == null || isBusyNow()) return;
+    connectionInFlightRef.current = true; setConnecting(true); setError(null);
+    try {
+      if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
+      const configuredEndpoint = getConfiguredPaperEndpoint();
+      if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); return; }
+      credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress." }); credentialSession.connect(tokenDraft);
+      const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+      if (result.status === "READY") { markPaperConnectionVerified(configuredEndpoint); setTokenDraft(""); } else { credentialSession.clear(); clearPaperConnectionVerification(); }
+      setConnection(result);
+    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "PAPER credential is invalid." }); }
+    finally { connectionInFlightRef.current = false; setConnecting(false); }
+  };
+  const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER credential cleared from memory." }); };
   const refreshOperatorUsers = async (): Promise<void> => {
+    const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
+    if (!baseUrl) { setOperatorError("먼저 PAPER 서버 endpoint를 설정하세요."); return; }
     setOperatorBusy(true);
-    try { const snapshot = await loadOperatorUsers(operatorBaseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
+    try { const snapshot = await loadOperatorUsers(baseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
     catch (loadError) { setOperatorUsers([]); setOperatorError(loadError instanceof Error ? loadError.message : "사용자 목록을 불러올 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
   const applyOperatorAction = async (user: OperatorUserRecord, action: OperatorUserAction): Promise<void> => {
+    const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
+    if (!baseUrl) { setOperatorError("먼저 PAPER 서버 endpoint를 설정하세요."); return; }
     setOperatorBusy(true);
-    try { await changeOperatorUserStatus(operatorBaseUrl, operatorToken, user.id, action); const snapshot = await loadOperatorUsers(operatorBaseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
+    try { await changeOperatorUserStatus(baseUrl, operatorToken, user.id, action); const snapshot = await loadOperatorUsers(baseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
     catch (actionError) { setOperatorError(actionError instanceof Error ? actionError.message : "사용자 상태를 변경할 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
+  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
+  const signOutLocal = () => { if (!isBusyNow()) { setOperatorToken(""); onSignOut?.(); } };
 
-  const persist = async (next: AppSettings): Promise<boolean> => {
-    setSaving(true);
-    try {
-      const normalized = normalizeSettings(next);
-      if (normalized.capitalAllocation.investmentPercent !== settings?.capitalAllocation.investmentPercent && onCloudInvestmentPercentSave) await onCloudInvestmentPercentSave(normalized.capitalAllocation.investmentPercent);
-      await repository.save(normalized); setSettings(normalized); setInvestmentPercentDraft(String(normalized.capitalAllocation.investmentPercent)); setError(null); return true;
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; }
-    finally { setSaving(false); }
-  };
-  const updateTheme = (next: ThemeSetting) => { if (!settings) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
-  const updateNotification = (field: "enabled" | "riskAlerts" | "orderUpdates") => { if (settings) void persist({ ...settings, notifications: { ...settings.notifications, [field]: !settings.notifications[field] } }); };
-  const saveCapitalAllocation = () => { if (!settings) return; try { const investmentPercent = normalizeInvestmentPercent(Number(investmentPercentDraft.trim())); void persist({ ...settings, capitalAllocation: { investmentPercent } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
-  const resetSettings = () => { if (!settings) return; const previousTheme = settings.theme; setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
-
-  if (error && settings === null) return <View style={styles.state} testID="settings-error"><NusaCard><Text style={[styles.title, { color: theme.colors.danger }]}>설정을 불러올 수 없습니다</Text><Text style={[styles.message, { color: theme.colors.textMuted }]}>{error}</Text></NusaCard></View>;
+  if (error && settings === null) return <View style={styles.state} testID="settings-error"><InlineNotice title="설정을 불러올 수 없습니다" detail={error} tone="danger" /></View>;
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
-
-  const reservePercent = cashReservePercent(settings.capitalAllocation.investmentPercent);
-  const cashEnvelope = createCashInvestmentEnvelope(exchangeCash, settings.capitalAllocation.investmentPercent);
-  const pending = operatorUsers.filter((user) => user.status === "PENDING").length;
-  const active = operatorUsers.filter((user) => user.status === "ACTIVE").length;
+  const busy = saving || connecting || operatorBusy;
+  const connectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning";
+  const connectionLabel = connecting ? "확인 중" : connection.status === "READY" ? "연결됨" : "연결 필요";
+  const connectionDetail = connecting ? "저장된 endpoint와 메모리 전용 세션을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connection.reason;
+  const allocation = createCashInvestmentEnvelope(exchangeCash, settings.capitalAllocation.investmentPercent);
+  const selectedPreset = allocationPresets.some((item) => item.key === String(settings.capitalAllocation.investmentPercent)) ? String(settings.capitalAllocation.investmentPercent) : "";
+  const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
+  const pendingUsers = operatorUsers.filter((user) => user.status === "PENDING").length;
+  const activeUsers = operatorUsers.filter((user) => user.status === "ACTIVE").length;
 
   return <ScrollView contentContainerStyle={styles.content} testID="settings-screen">
-    <View style={styles.header}><SectionHeading eyebrow="APPLICATION" title="설정" description="화면, 투자 자본, 로컬 알림, 로컬 세션을 관리합니다." /><StatusChip label="PAPER" tone="primary" /></View>
-    {error ? <View style={[styles.error, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.danger }]}><Text style={{ color: theme.colors.danger }}>{error}</Text></View> : null}
+    <StatusChip label="PAPER ONLY" tone="primary" />
+    <ScreenHeader eyebrow="APPLICATION" title="설정" description="연결, 투자 비중, 사용자 승인, 화면과 로컬 상태를 관리합니다." statusLabel={connectionLabel} statusTone={connectionTone} />
+    {error ? <InlineNotice title="설정 저장 오류" detail={error} tone="danger" /> : null}
 
-    <NusaCard testID="settings-operator-users" raised>
-      <View style={styles.modeHeader}><Text style={[styles.section, { color: theme.colors.text, marginBottom: 0 }]}>운영자 사용자 관리</Text><StatusChip label="OWNER ONLY" tone="warning" /></View>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>등록 사용자 목록 조회와 승인·거절·정지·복구는 서버의 users:manage 권한으로만 실행됩니다. 토큰은 저장하지 않습니다.</Text>
-      <NusaTextField accessibilityLabel="운영자 토큰" label="운영자 토큰" onChangeText={setOperatorToken} placeholder="운영자 토큰 입력" secureTextEntry testID="operator-user-token" value={operatorToken} />
-      <View style={styles.row}><NusaButton disabled={operatorBusy} label={operatorBusy ? "불러오는 중..." : "사용자 목록 불러오기"} onPress={() => { void refreshOperatorUsers(); }} testID="operator-user-refresh" /><NusaButton label="토큰 지우기" tone="neutral" onPress={() => { setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); }} /></View>
-      {operatorError ? <Text style={[styles.hint, { color: theme.colors.danger }]} testID="operator-user-error">{operatorError}</Text> : null}
-      {operatorUsers.length > 0 ? <><DataRow label="전체 사용자" value={String(operatorUsers.length)} emphasis /><DataRow label="승인 대기" value={String(pending)} /><DataRow label="활성" value={String(active)} />{operatorUsers.map((user) => <View key={user.id} style={[styles.userCard, { borderColor: theme.colors.border }]} testID={`operator-user-${user.id}`}><View style={styles.modeHeader}><View><Text style={[styles.message, { color: theme.colors.text, fontWeight: "700" }]}>{user.displayName || user.email}</Text><Text style={[styles.hint, { color: theme.colors.textMuted, marginTop: 2 }]}>{user.email} · {user.role}</Text></View><StatusChip label={user.status} tone={user.status === "ACTIVE" ? "success" : user.status === "PENDING" ? "warning" : "danger"} /></View>{user.lastSeenAt ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>최근 활동: {new Date(user.lastSeenAt).toLocaleString("ko-KR")}</Text> : null}{user.role !== "OWNER" ? <View style={styles.row}>{actionFor(user).map((action) => <NusaButton key={action} disabled={operatorBusy} label={actionLabel[action]} onPress={() => { void applyOperatorAction(user, action); }} tone={action === "REJECT" || action === "SUSPEND" ? "danger" : "primary"} testID={`operator-user-${user.id}-${action.toLowerCase()}`} />)}</View> : null}</View>)}</> : null}
-    </NusaCard>
+    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>01 · CONNECTION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버</Text></View><StatusChip label={connectionLabel} tone={connectionTone} /></View><InlineNotice title={connection.status === "READY" ? "연결 정상" : "연결 필요"} detail={connectionDetail} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning"} testID="settings-connection-summary" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="세션 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기기에 저장하지 않음" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>Endpoint만 로컬 설정에 저장합니다. 토큰은 현재 앱 프로세스 메모리에만 존재합니다. 토큰은 앱 메모리에만 유지되며 프로세스 종료 시 삭제됩니다.</Text><View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "저장하고 연결 확인"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View></View>
 
-    <NusaCard testID="settings-capital-allocation" raised><Text style={[styles.section, { color: theme.colors.text }]}>현금 투자 비중</Text><DataRow label="투자" value={`${settings.capitalAllocation.investmentPercent}%`} emphasis /><DataRow label="현금 보유" value={`${reservePercent}%`} emphasis /><DataRow label="실제 투자 가능 금액" value={`${Math.round(cashEnvelope.investableCash).toLocaleString("ko-KR")}원`} /><DataRow label="보호되는 현금 금액" value={`${Math.round(cashEnvelope.reservedCash).toLocaleString("ko-KR")}원`} /><NusaTextField accessibilityLabel="투자 비중 퍼센트" label="투자할 현금 비중 (0~100%)" onChangeText={setInvestmentPercentDraft} placeholder="예: 60" testID="settings-investment-percent" value={investmentPercentDraft} /><View style={styles.allocationActions}><NusaButton disabled={saving} label={saving ? "저장 중..." : "비중 저장"} onPress={saveCapitalAllocation} /></View></NusaCard>
-    <NusaCard testID="settings-theme"><Text style={[styles.section, { color: theme.colors.text }]}>화면 테마</Text><View style={styles.row}>{themes.map((value) => <NusaButton key={value} disabled={saving} label={themeLabels[value]} onPress={() => updateTheme(value)} tone={settings.theme === value ? "primary" : "neutral"} />)}</View></NusaCard>
-    <NusaCard testID="settings-notifications"><Text style={[styles.section, { color: theme.colors.text }]}>알림</Text><View style={styles.settingRow}><Text style={[styles.message, { color: theme.colors.text }]}>전체 알림</Text><NusaButton disabled={saving} label={settings.notifications.enabled ? "켜짐" : "꺼짐"} onPress={() => updateNotification("enabled")} tone={settings.notifications.enabled ? "primary" : "neutral"} /></View><View style={styles.settingRow}><Text style={[styles.message, { color: theme.colors.text }]}>리스크 알림</Text><NusaButton disabled={saving} label={settings.notifications.riskAlerts ? "켜짐" : "꺼짐"} onPress={() => updateNotification("riskAlerts")} tone={settings.notifications.riskAlerts ? "primary" : "neutral"} /></View><View style={styles.settingRow}><Text style={[styles.message, { color: theme.colors.text }]}>주문 상태 업데이트</Text><NusaButton disabled={saving} label={settings.notifications.orderUpdates ? "켜짐" : "꺼짐"} onPress={() => updateNotification("orderUpdates")} tone={settings.notifications.orderUpdates ? "primary" : "neutral"} /></View></NusaCard>
-    <NusaCard testID="settings-mode" raised><View style={styles.modeHeader}><Text style={[styles.section, { color: theme.colors.text, marginBottom: 0 }]}>거래 권한</Text><StatusChip label="READ ONLY" tone="info" /></View><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /></NusaCard>
-    <NusaCard testID="settings-about"><Text style={[styles.section, { color: theme.colors.text }]}>앱 정보</Text><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="PAPER / Read Only" /></NusaCard>
-    <NusaCard testID="settings-reset"><Text style={[styles.section, { color: theme.colors.text }]}>로컬 설정 초기화</Text><NusaButton label={saving ? "저장 중..." : "설정 초기화"} disabled={saving} onPress={resetSettings} tone="danger" /></NusaCard>
-    {onSignOut ? <NusaCard testID="settings-session"><Text style={[styles.section, { color: theme.colors.text }]}>로컬 세션</Text><NusaButton label="로그아웃" onPress={onSignOut} tone="neutral" testID="settings-sign-out" /></NusaCard> : null}
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock} testID="settings-operator-users"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>02 · USER ACCESS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영자 사용자 승인</Text></View><StatusChip label="OWNER ONLY" tone="warning" /></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>등록 사용자 조회와 승인·거절·정지·복구는 서버의 users:manage 권한으로만 실행됩니다. 운영자 토큰은 저장하지 않습니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="운영자 토큰" value={operatorToken} onChangeText={setOperatorToken} placeholder="메모리에만 유지" secureTextEntry testID="operator-user-token" /><View style={styles.row}><NusaButton disabled={busy} label={operatorBusy ? "불러오는 중..." : "사용자 목록 불러오기"} onPress={() => void refreshOperatorUsers()} testID="operator-user-refresh" /><NusaButton disabled={busy && !operatorToken} label="토큰 지우기" tone="neutral" onPress={() => { setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); }} /></View>{operatorError ? <InlineNotice title="사용자 관리 오류" detail={operatorError} tone="danger" testID="operator-user-error" /> : null}{operatorUsers.length > 0 ? <><DataRow label="전체 사용자" value={String(operatorUsers.length)} emphasis /><DataRow label="승인 대기" value={String(pendingUsers)} /><DataRow label="활성" value={String(activeUsers)} />{operatorUsers.map((user) => <NusaCard key={user.id} testID={`operator-user-${user.id}`}><View style={styles.sectionHeader}><View><Text style={[styles.userName, { color: theme.colors.text }]}>{user.displayName || user.email}</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>{user.email} · {user.role}</Text></View><StatusChip label={user.status} tone={user.status === "ACTIVE" ? "success" : user.status === "PENDING" ? "warning" : "danger"} /></View>{user.lastSeenAt ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>최근 활동: {new Date(user.lastSeenAt).toLocaleString("ko-KR")}</Text> : null}{user.role !== "OWNER" ? <View style={styles.row}>{actionFor(user).map((action) => <NusaButton key={action} disabled={busy} label={actionLabel[action]} onPress={() => void applyOperatorAction(user, action)} tone={action === "REJECT" || action === "SUSPEND" ? "danger" : "primary"} testID={`operator-user-${user.id}-${action.toLowerCase()}`} />)}</View> : null}</NusaCard>)}</> : null}</View>
+
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock} testID="settings-capital-allocation"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>03 · CASH ALLOCATION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>현금 투자 비중</Text></View><Text style={[styles.allocationPercent, { color: theme.colors.primary }]}>{allocation.investmentPercent}%</Text></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>거래소 PAPER 현금 중 신규 매수에 사용할 최대 비중입니다. 나머지는 자동으로 보호 현금으로 남깁니다.</Text><View style={[styles.allocationTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.allocationFill, { width: allocationWidth, backgroundColor: theme.colors.primary }]} /></View><View style={styles.allocationAmounts}><View><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>실제 투자 가능 금액</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.investableCash)}</Text></View><View style={styles.amountRight}><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>보호되는 현금 금액</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.reservedCash)}</Text></View></View><SegmentedControl disabled={busy} items={allocationPresets} selectedKey={selectedPreset} onChange={(key) => { setInvestmentPercentDraft(key); void saveInvestmentPercent(key); }} testID="settings-investment-allocation-presets" /><NusaTextField autoCorrect={false} editable={!busy} keyboardType="decimal-pad" label="직접 입력 (%)" value={investmentPercentDraft} onChangeText={setInvestmentPercentDraft} placeholder="0 - 100" returnKeyType="done" testID="settings-investment-percent" /><NusaButton disabled={busy} label={saving ? "저장 중..." : "투자 비중 저장"} onPress={() => void saveInvestmentPercent()} testID="settings-investment-percent-save" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>0%는 신규 매수를 막고 전액을 보호합니다. 매도·청산에는 이 한도를 적용하지 않습니다.</Text></View>
+
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock} testID="settings-theme"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>04 · APPEARANCE</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>화면 테마</Text><SegmentedControl disabled={busy} items={themeItems} selectedKey={settings.theme} onChange={(key) => updateTheme(key as ThemeSetting)} testID="settings-theme-segmented-control" /></View>
+
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+    <View style={styles.sectionBlock} testID="settings-mode"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>06 · SAFETY & LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>안전과 로컬 관리</Text></View><StatusChip label="READ ONLY" tone="info" /></View><NusaCard><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /><DataRow label="Production mutation" value="금지" tone="success" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다.</Text></NusaCard><NusaCard testID="settings-about"><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="PAPER / Read Only" /></NusaCard><View style={styles.row} testID="settings-reset"><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" /></View>{onSignOut ? <View testID="settings-session"><NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /></View> : null}</View>
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, title: { fontSize: 18, fontWeight: "700" }, section: { fontSize: 18, fontWeight: "700", marginBottom: 12, letterSpacing: -0.4 }, message: { lineHeight: 21 }, hint: { lineHeight: 20, fontSize: 13, marginTop: 10 }, row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }, allocationActions: { marginTop: 10, alignItems: "flex-start" }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 12 }, modeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }, error: { padding: 12, borderRadius: 10, borderWidth: 1 }, userCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 10 }
-});
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 18, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, title: { fontSize: 18, fontWeight: "700" }, sectionBlock: { gap: 12 }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, sectionTitle: { marginTop: 4, fontSize: 21, lineHeight: 27, fontWeight: "800", letterSpacing: -0.5 }, hint: { fontSize: 13, lineHeight: 20 }, userName: { fontSize: 15, lineHeight: 21, fontWeight: "700" }, row: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, divider: { height: StyleSheet.hairlineWidth }, allocationPercent: { fontSize: 22, lineHeight: 28, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationTrack: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 18 }, amountRight: { alignItems: "flex-end" }, amountLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" }, amountValue: { marginTop: 3, fontSize: 18, lineHeight: 24, fontWeight: "800", fontVariant: ["tabular-nums"] } });

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
@@ -29,6 +29,7 @@ export function NusaButton({ label, onPress, disabled = false, selected = false,
         {
           backgroundColor: tokens.background,
           borderColor: tokens.border,
+          borderWidth: tokens.borderWidth,
           borderRadius: tokens.radius,
           minHeight: tokens.minHeight,
           paddingHorizontal: tokens.horizontalPadding,
@@ -42,7 +43,7 @@ export function NusaButton({ label, onPress, disabled = false, selected = false,
   );
 }
 
-export interface NusaTextFieldProps {
+export interface NusaTextFieldProps extends Pick<TextInputProps, "autoCapitalize" | "autoCorrect" | "editable" | "keyboardType" | "returnKeyType"> {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
@@ -52,15 +53,20 @@ export interface NusaTextFieldProps {
   readonly testID?: string;
 }
 
-export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID }: NusaTextFieldProps) {
+export function NusaTextField({ label, value, onChangeText, placeholder, secureTextEntry = false, accessibilityLabel, testID, autoCapitalize = "sentences", autoCorrect = true, editable = true, keyboardType = "default", returnKeyType = "default" }: NusaTextFieldProps) {
   const { theme } = useTheme();
   const tokens = fieldTokens(theme);
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: focused ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: focused && editable ? theme.colors.focus : theme.colors.textMuted, fontSize: theme.typography.caption }]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityState={{ disabled: !editable }}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        editable={editable}
+        keyboardType={keyboardType}
         onBlur={() => setFocused(false)}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
@@ -68,13 +74,14 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
         placeholderTextColor={tokens.placeholder}
         secureTextEntry={secureTextEntry}
         selectionColor={theme.colors.primary}
+        returnKeyType={returnKeyType}
         style={[
           styles.field,
           {
             backgroundColor: tokens.background,
-            borderColor: focused ? tokens.focus : tokens.border,
+            borderColor: focused && editable ? tokens.focus : tokens.border,
             borderRadius: tokens.radius,
-            borderWidth: focused ? tokens.focusBorderWidth : tokens.borderWidth,
+            borderWidth: focused && editable ? tokens.focusBorderWidth : tokens.borderWidth,
             color: tokens.foreground,
             minHeight: tokens.minHeight,
           },
@@ -112,15 +119,15 @@ export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebr
   return <View style={styles.sectionHeading}>{eyebrow ? <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{eyebrow}</Text> : null}<Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>{description ? <Text style={[styles.sectionDescription, { color: theme.colors.textMuted }]}>{description}</Text> : null}</View>;
 }
 
-export function AuthorityBanner({ detail = "AI와 모바일 화면은 분석·조회만 수행합니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
+export function AuthorityBanner({ detail = "AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다. AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="UI 주문 경로 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
+  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="AI ZERO AUTHORITY" tone="info" /><StatusChip label="AI 주문 권한 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
 }
 
 export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
   const { theme } = useTheme();
   const color = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.text;
-  return <View style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
+  return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
 const styles = StyleSheet.create({

@@ -9,6 +9,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
+  const home = read("src/homeView.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(provider, /useColorScheme/);
   assert.match(provider, /export type ThemePreference = ThemeMode \| "system"/);
@@ -23,13 +24,15 @@ test("system theme follows device preference and persisted settings are applied"
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
 
-test("utility navigation has an explicit close path and local settings expose real sign-out", () => {
+test("utility navigation has an explicit close path and local settings expose guarded real sign-out", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /testID="settings-sign-out"/);
+  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""\); onSignOut\?\.\(\); \} \};/);
+  assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
+  assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
@@ -38,7 +41,7 @@ test("utility navigation has an explicit close path and local settings expose re
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-connection-go-home"/);
+  assert.match(app, /testID="dashboard-open-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
@@ -49,15 +52,16 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
 
 test("Home hierarchy avoids developer-console cards while preserving verified safety state", () => {
   const app = read("App.tsx");
-  assert.match(app, /testID="account-hero-card"/);
-  assert.match(app, /testID="home-next-action"/);
-  assert.match(app, /testID="ai-card"/);
-  assert.match(app, /testID="safety-card"/);
-  assert.doesNotMatch(app, /testID="operations-card"/);
-  assert.doesNotMatch(app, /testID="research-card"/);
-  assert.doesNotMatch(app, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
-  assert.match(app, /label="LIVE 권한"/);
-  assert.match(app, /label="Production mutation"/);
+  const home = read("src/homeView.tsx");
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="home-next-action"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="safety-card"/);
+  assert.doesNotMatch(home, /testID="operations-card"/);
+  assert.doesNotMatch(home, /testID="research-card"/);
+  assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
+  assert.match(home, /label="LIVE 권한"/);
+  assert.match(home, /label="Production mutation"/);
 });
 
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {
@@ -76,10 +80,13 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
-test("recoverable local states expose retry actions", () => {
+test("recoverable states expose retry while unwired notifications stay truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const trading = read("src/tradingView.tsx");
-  assert.match(notifications, /testID="notifications-error"/);
-  assert.match(notifications, /NusaButton label="다시 시도"/);
-  assert.match(trading, /testID="trading-empty"[\s\S]*NusaButton label="다시 불러오기"/);
+  assert.match(notifications, /testID="notifications-paper"/);
+  assert.match(notifications, /StatusChip label="미연결"/);
+  assert.match(notifications, /DataRow label="현재 상태" value="이벤트 수집 미연결"/);
+  assert.match(notifications, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);
+  assert.doesNotMatch(notifications, /testID="notifications-error"|NusaButton label="다시 시도"/);
+  assert.match(trading, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
 });
