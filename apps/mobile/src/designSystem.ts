@@ -57,23 +57,23 @@ export function createTheme(mode: ThemeMode): Theme {
   return freezeTheme({
     mode,
     colors: {
-      background: dark ? "#050708" : "#F5F7F5",
-      surface: dark ? "#0A0D0E" : "#FFFFFF",
-      surfaceRaised: dark ? "#101415" : "#EEF1EF",
-      surfaceSunken: dark ? "#070A0B" : "#E7EBE8",
-      text: dark ? "#F3F5F2" : "#151A17",
-      textMuted: dark ? "#7F8984" : "#5D6862",
-      primary: dark ? "#B8F2DD" : "#176B51",
-      primarySoft: dark ? "#15251F" : "#DDF1E9",
-      onPrimary: dark ? "#07110D" : "#FFFFFF",
-      border: dark ? "#171C1A" : "#D3DAD6",
-      borderStrong: dark ? "#29312E" : "#A9B5AF",
-      success: dark ? "#65D6A2" : "#19764F",
-      warning: dark ? "#E7C46D" : "#8A6414",
-      danger: dark ? "#F27488" : "#B52B48",
-      info: dark ? "#9ABBC8" : "#426E7E",
-      onDanger: dark ? "#21080D" : "#FFFFFF",
-      focus: dark ? "#D0FAEA" : "#176B51",
+      background: dark ? "#071014" : "#F4F8F7",
+      surface: dark ? "#0B171C" : "#FFFFFF",
+      surfaceRaised: dark ? "#102229" : "#EDF5F2",
+      surfaceSunken: dark ? "#081317" : "#E7F0ED",
+      text: dark ? "#F2F8F6" : "#10201C",
+      textMuted: dark ? "#8CA19A" : "#61746D",
+      primary: dark ? "#70E0C1" : "#0C745C",
+      primarySoft: dark ? "#11332D" : "#D7F3E9",
+      onPrimary: dark ? "#06241D" : "#FFFFFF",
+      border: dark ? "#183039" : "#D2E2DD",
+      borderStrong: dark ? "#294852" : "#A8C2B9",
+      success: dark ? "#67D8A4" : "#167A50",
+      warning: dark ? "#EBCB76" : "#8E6817",
+      danger: dark ? "#FF7D91" : "#B72D49",
+      info: dark ? "#7DC5DA" : "#2E7388",
+      onDanger: dark ? "#2A0810" : "#FFFFFF",
+      focus: dark ? "#A5F0DC" : "#0C745C",
     },
     typography: {
       fontFamily: "System", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
@@ -83,9 +83,9 @@ export function createTheme(mode: ThemeMode): Theme {
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
     shadows: {
-      sm: { color: "#000000", offset: { width: 0, height: 4 }, opacity: dark ? 0.2 : 0.07, radius: 14, elevation: 2 },
-      md: { color: "#000000", offset: { width: 0, height: 14 }, opacity: dark ? 0.26 : 0.1, radius: 32, elevation: 6 },
-      focus: { color: dark ? "#D0FAEA" : "#176B51", offset: { width: 0, height: 0 }, opacity: 0.3, radius: 5, elevation: 0 },
+      sm: { color: "#000000", offset: { width: 0, height: 6 }, opacity: dark ? 0.22 : 0.06, radius: 18, elevation: 2 },
+      md: { color: "#000000", offset: { width: 0, height: 18 }, opacity: dark ? 0.3 : 0.09, radius: 36, elevation: 7 },
+      focus: { color: dark ? "#70E0C1" : "#0C745C", offset: { width: 0, height: 0 }, opacity: 0.32, radius: 6, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
@@ -102,7 +102,7 @@ export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
     disabledOpacity: theme.interaction.disabledOpacity,
     pressedOpacity: theme.interaction.pressedOpacity,
     borderWidth: theme.interaction.borderWidth,
-    radius: theme.radii.md,
+    radius: theme.radii.lg,
     minHeight: theme.interaction.controlHeight,
     horizontalPadding: theme.spacing.lg,
   });
@@ -117,13 +117,13 @@ export function fieldTokens(theme: Theme) {
     focus: theme.colors.focus,
     borderWidth: theme.interaction.borderWidth,
     focusBorderWidth: theme.interaction.focusBorderWidth,
-    radius: theme.radii.md,
+    radius: theme.radii.lg,
     minHeight: theme.interaction.controlHeight,
   });
 }
 
 export function cardTokens(theme: Theme) {
-  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 18, shadow: theme.shadows.sm });
+  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.xl, padding: 20, shadow: theme.shadows.sm });
 }
 
 export function designSystemSnapshot(theme: Theme): string {
