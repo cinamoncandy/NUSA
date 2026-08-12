@@ -15,7 +15,7 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
     <View style={styles.emptyState} testID="notifications-empty-state">
       <Text style={[styles.emptyEyebrow, { color: theme.colors.textMuted }]}>NO EVENT SOURCE</Text>
       <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>아직 표시할 알림이 없습니다</Text>
-      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>현재 빌드는 알림 이벤트 수집·배지·푸시를 연결하지 않았습니다. 실제 이벤트 런타임이 준비되기 전까지 빈 상태를 그대로 유지합니다.</Text>
+      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>알림 이벤트 수집이 아직 연결되지 않았습니다. 배지·푸시도 비활성 상태이며 실제 이벤트 런타임이 준비되기 전까지 빈 상태를 그대로 유지합니다.</Text>
       <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><StatusChip label="PUSH OFF" tone="neutral" /></View>
     </View>
     <InlineNotice title="가짜 알림을 만들지 않습니다" detail="이벤트 소스가 연결되기 전에는 예시 거래·가격·AI 알림을 실제 데이터처럼 표시하지 않습니다." tone="info" />
