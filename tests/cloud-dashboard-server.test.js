@@ -18,10 +18,16 @@ function request(port, path, headers = {}) {
 }
 
 const VALID_TOKEN = "owner-token";
+const ownerPrincipal = Object.freeze({
+  userId: "operator",
+  email: "operator@nusa.local",
+  scopes: Object.freeze(["dashboard:read", "users:manage"])
+});
 const verifier = {
+  ownerPrincipal,
   verify(token) {
     if (token !== VALID_TOKEN) return undefined;
-    return { userId: "operator", scopes: ["dashboard:read"] };
+    return ownerPrincipal;
   }
 };
 
