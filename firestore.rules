@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function activeUser() { return signedIn() && userDoc().data.status == 'ACTIVE'; }
+    function owner() { return activeUser() && userDoc().data.role == 'OWNER'; }
+    match /users/{userId} {
+      allow read: if owner();
+      allow create: if signedIn() && request.auth.uid == userId && request.resource.data.role == 'USER' && request.resource.data.status == 'PENDING';
+      allow update: if owner() && resource.data.role == 'USER' && request.resource.data.role == 'USER' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+    match /userAccessAudit/{auditId} {
+      allow read: if owner();
+      allow create: if owner() && request.resource.data.actorUserId == request.auth.uid && request.resource.data.keys().hasOnly(['actorUserId', 'targetUserId', 'action', 'previousStatus', 'newStatus', 'reason', 'createdAt']);
+      allow update, delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

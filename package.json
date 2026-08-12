@@ -46,6 +46,7 @@
     "safety:inputs": "node scripts/check-safety-input-literals.js",
     "security:gate": "node scripts/security-gate-backports.js",
     "security:artifacts": "node scripts/security-gate-backports.js --artifacts release",
+    "firebase:validate": "node scripts/validate-firebase-config.js",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "desktop": "pnpm run build && electron apps/desktop",

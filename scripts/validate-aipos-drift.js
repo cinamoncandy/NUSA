@@ -112,9 +112,7 @@ function validateRepository(root = process.cwd()) {
   const implementationBranch = scalar(workOrder, "implementation_branch");
 
   if (!workOrderId) failures.push("WORK_ORDER_ID_MISSING");
-  const allowedParallelWorkOrders = new Set(["WO-0051"]);
-  const unexpectedInProgress = stateInProgress.filter((id) => id !== workOrderId && !allowedParallelWorkOrders.has(id));
-  if (!stateInProgress.includes(workOrderId) || unexpectedInProgress.length > 0) {
+  if (stateInProgress.length !== 1 || stateInProgress[0] !== workOrderId) {
     failures.push(`STATE_WORK_ORDER_ID_DRIFT:${stateInProgress.join(",") || "none"}:${workOrderId || "none"}`);
   }
   if (!new Set(["IN_PROGRESS", "VERIFYING"]).has(workOrderStatus)) {

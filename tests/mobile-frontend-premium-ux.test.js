@@ -6,9 +6,10 @@ const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('shared controls expose focus, pressed and disabled semantics', () => {
+test('shared controls expose focus, pressed, disabled and selected semantics', () => {
   const source = read('apps/mobile/src/components.tsx');
-  assert.match(source, /accessibilityState=\{\{ disabled \}\}/);
+  assert.match(source, /selected\?: boolean/);
+  assert.match(source, /accessibilityState=\{\{ disabled, selected \}\}/);
   assert.match(source, /onFocus=\{\(\) => setFocused\(true\)\}/);
   assert.match(source, /onBlur=\{\(\) => setFocused\(false\)\}/);
   assert.match(source, /tokens\.pressedOpacity/);
@@ -21,6 +22,25 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
   assert.match(source, /accessibilityState=\{\{ selected \}\}/);
   assert.match(source, /accessibilityRole="tablist"/);
   assert.match(source, /minHeight: 40/);
+});
+
+test('paper and history selectors expose their current selection', () => {
+  const trading = read('apps/mobile/src/tradingView.tsx');
+  const history = read('apps/mobile/src/orderHistoryView.tsx');
+  assert.match(trading, /selected=\{side === "BUY"\}/);
+  assert.match(trading, /selected=\{orderType === "MARKET"\}/);
+  assert.match(history, /selected=\{filter === value\}/);
+  assert.match(history, /selected=\{period === value\}/);
+  assert.match(history, /selected=\{sort === value\}/);
+});
+
+test('AI hierarchy presents calibrated confidence before raw model probability', () => {
+  const source = read('apps/mobile/src/aiView.tsx');
+  const trusted = source.indexOf('label="검증 신뢰도"');
+  const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
+  assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
+  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /READ ONLY/);
 });
 
 test('design direction preserves read-only safety identity and Android-only completion scope', () => {
