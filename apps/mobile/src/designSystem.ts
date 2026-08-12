@@ -57,23 +57,23 @@ export function createTheme(mode: ThemeMode): Theme {
   return freezeTheme({
     mode,
     colors: {
-      background: dark ? "#071014" : "#F4F8F7",
-      surface: dark ? "#0B171C" : "#FFFFFF",
-      surfaceRaised: dark ? "#102229" : "#EDF5F2",
-      surfaceSunken: dark ? "#081317" : "#E7F0ED",
-      text: dark ? "#F2F8F6" : "#10201C",
-      textMuted: dark ? "#8CA19A" : "#61746D",
-      primary: dark ? "#70E0C1" : "#0C745C",
-      primarySoft: dark ? "#11332D" : "#D7F3E9",
-      onPrimary: dark ? "#06241D" : "#FFFFFF",
-      border: dark ? "#183039" : "#D2E2DD",
-      borderStrong: dark ? "#294852" : "#A8C2B9",
-      success: dark ? "#67D8A4" : "#167A50",
-      warning: dark ? "#EBCB76" : "#8E6817",
-      danger: dark ? "#FF7D91" : "#B72D49",
-      info: dark ? "#7DC5DA" : "#2E7388",
-      onDanger: dark ? "#2A0810" : "#FFFFFF",
-      focus: dark ? "#A5F0DC" : "#0C745C",
+      background: dark ? "#080A0F" : "#F6F7F9",
+      surface: dark ? "#0D1118" : "#FFFFFF",
+      surfaceRaised: dark ? "#131923" : "#F0F2F5",
+      surfaceSunken: dark ? "#0A0E14" : "#EAEDF1",
+      text: dark ? "#F4F6F8" : "#11151B",
+      textMuted: dark ? "#8D96A5" : "#626C7A",
+      primary: dark ? "#6D8DFF" : "#3457D5",
+      primarySoft: dark ? "#18213B" : "#E6EBFF",
+      onPrimary: "#FFFFFF",
+      border: dark ? "#1A2230" : "#DDE1E7",
+      borderStrong: dark ? "#2A3547" : "#BFC6D1",
+      success: dark ? "#55C991" : "#147A50",
+      warning: dark ? "#DDBD70" : "#8D681B",
+      danger: dark ? "#F06F7F" : "#B83249",
+      info: dark ? "#87A0F7" : "#4967C7",
+      onDanger: "#FFFFFF",
+      focus: dark ? "#93A9FF" : "#3457D5",
     },
     typography: {
       fontFamily: "System", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
@@ -83,9 +83,9 @@ export function createTheme(mode: ThemeMode): Theme {
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
     shadows: {
-      sm: { color: "#000000", offset: { width: 0, height: 6 }, opacity: dark ? 0.22 : 0.06, radius: 18, elevation: 2 },
-      md: { color: "#000000", offset: { width: 0, height: 18 }, opacity: dark ? 0.3 : 0.09, radius: 36, elevation: 7 },
-      focus: { color: dark ? "#70E0C1" : "#0C745C", offset: { width: 0, height: 0 }, opacity: 0.32, radius: 6, elevation: 0 },
+      sm: { color: "#000000", offset: { width: 0, height: 2 }, opacity: dark ? 0.08 : 0.04, radius: 8, elevation: 1 },
+      md: { color: "#000000", offset: { width: 0, height: 8 }, opacity: dark ? 0.12 : 0.07, radius: 18, elevation: 3 },
+      focus: { color: dark ? "#6D8DFF" : "#3457D5", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
@@ -98,11 +98,11 @@ export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
   return Object.freeze({
     background: tone === "danger" ? theme.colors.danger : tone === "neutral" ? theme.colors.surfaceRaised : theme.colors.primary,
     foreground: tone === "danger" ? theme.colors.onDanger : tone === "neutral" ? theme.colors.text : theme.colors.onPrimary,
-    border: tone === "neutral" ? theme.colors.borderStrong : "transparent",
+    border: tone === "neutral" ? theme.colors.border : "transparent",
     disabledOpacity: theme.interaction.disabledOpacity,
     pressedOpacity: theme.interaction.pressedOpacity,
     borderWidth: theme.interaction.borderWidth,
-    radius: theme.radii.lg,
+    radius: theme.radii.md,
     minHeight: theme.interaction.controlHeight,
     horizontalPadding: theme.spacing.lg,
   });
@@ -117,13 +117,13 @@ export function fieldTokens(theme: Theme) {
     focus: theme.colors.focus,
     borderWidth: theme.interaction.borderWidth,
     focusBorderWidth: theme.interaction.focusBorderWidth,
-    radius: theme.radii.lg,
+    radius: theme.radii.md,
     minHeight: theme.interaction.controlHeight,
   });
 }
 
 export function cardTokens(theme: Theme) {
-  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.xl, padding: 20, shadow: theme.shadows.sm });
+  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 18, shadow: theme.shadows.sm });
 }
 
 export function designSystemSnapshot(theme: Theme): string {
