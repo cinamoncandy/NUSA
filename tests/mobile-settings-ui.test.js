@@ -31,7 +31,12 @@ test("settings UI exposes implemented preferences, Paper safety, operator user m
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /header-settings/);
-  assert.match(app, /utilityView === "SETTINGS" \? <SettingsView exchangeCash=\{account\?\.cash \?\? 0\} onCloudInvestmentPercentSave=\{investmentAllocationClient\.save\} onSignOut=\{handleSignOut\}/);
+  assert.match(app, /utilityView === "SETTINGS" \? <SettingsView/);
+  assert.match(app, /exchangeCash=\{accountCash\}/);
+  assert.match(app, /onCloudInvestmentPercentSave=\{investmentAllocationClient\.save\}/);
+  assert.match(app, /onInvestmentPercentChanged=\{setInvestmentPercent\}/);
+  assert.match(app, /onSignOut=\{handleSignOut\}/);
+  assert.match(app, /repository=\{settingsRepository\}/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
   assert.match(app, /settingsRepository/);
