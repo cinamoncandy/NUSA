@@ -40,6 +40,7 @@ android {
         versionName nusaVersionName
         buildConfigField "String", "NUSA_BUILD_SHA", "\"${nusaBuildSha}\""
         buildConfigField "String", "NUSA_BUILD_NUMBER", "\"${nusaBuildNumber}\""
+        manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     buildFeatures {
         buildConfig true
@@ -58,6 +59,7 @@ android {
         }
         release {
             signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
