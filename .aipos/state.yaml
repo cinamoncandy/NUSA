@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-12T05:10:00Z"
+updated_at: "2026-08-12T05:34:00Z"
 phase: human-environment-gate
 status: ready
 objective: "Preserve verified WO-AI-010 claim-evidence faithfulness and WO-AI-011 planning-only truth while keeping WO-0051 at the constitutional human/environment boundary and concurrently verifying WO-0052 Android real-device recovery without granting LIVE or AI execution authority."
@@ -74,12 +74,15 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
   - id: WO-0052
     evidence: ".aipos/work-orders/WO-0052-android-real-device-fix.yaml"
     summary: "Android real-device recovery remains VERIFYING; repository checks may validate the exact build, but physical-device completion remains HUMAN_ENVIRONMENT_ONLY."
+serialized_human_gate:
+  id: WO-0051
+  status: IN_PROGRESS
+  evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+  mode: HUMAN_ENVIRONMENT_ONLY
+  summary: "Terminal constitutional human/environment gate remains independently IN_PROGRESS and cannot be completed by repository automation or synthetic CI."
 blocked:
   - "PHYSICAL_ANDROID_DEVICE_RUNTIME_EVIDENCE_REQUIRED"
   - "PR_371_MUST_NOT_MERGE_BEFORE_REAL_DEVICE_VALIDATION"
@@ -93,7 +96,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0052-android-real-device-fix.yaml
-  reason: "Finish semantic reconciliation, produce one exact provenance-stamped Android RC from PR #371, and verify it on a physical Android device while WO-0051 and WO-AI-011 remain independently serialized HUMAN_ENVIRONMENT_ONLY gates."
+  reason: "Finish exact-head repository validation, produce one provenance-stamped Android RC from PR #371, and verify it on a physical Android device while WO-0051 and WO-AI-011 remain independently serialized HUMAN_ENVIRONMENT_ONLY gates."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
