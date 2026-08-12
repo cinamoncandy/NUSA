@@ -11,13 +11,13 @@ function expectTabularStyle(source, styleName) {
 }
 
 test("primary financial values use stable tabular numerals outside DataRow", () => {
-  const app = read("apps/mobile/App.tsx");
+  const home = read("apps/mobile/src/homeView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const trading = read("apps/mobile/src/tradingView.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  for (const style of ["heroValue", "heroPnl"]) expectTabularStyle(app, style);
-  for (const style of ["total", "pnl", "metric"]) expectTabularStyle(portfolio, style);
+  for (const style of ["balance", "pnl", "value"]) expectTabularStyle(home, style);
+  for (const style of ["heroValue", "heroPnl", "allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
   for (const style of ["price", "change", "volumeInline"]) expectTabularStyle(watchlist, style);
 });
@@ -29,18 +29,20 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
 
   assert.match(design, /controlHeight: 48/);
   assert.match(design, /minHeight: theme\.interaction\.controlHeight/);
-  assert.match(app, /utilityButton: \{[^}]*minHeight: 44/);
-  assert.match(app, /utilityClose: \{[^}]*minHeight: 44/);
+  assert.match(app, /utilityButton: \{[^}]*minHeight: 48/);
+  assert.match(app, /utilityClose: \{[^}]*minHeight: 48/);
   assert.match(watchlist, /sortChip: \{[^}]*minHeight: 44/);
-  assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, height: 44/);
+  assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
 test("closeout does not change authority or mutation semantics", () => {
   const app = read("apps/mobile/App.tsx");
+  const ai = read("apps/mobile/src/aiView.tsx");
   const trading = read("apps/mobile/src/tradingView.tsx");
 
   assert.match(app, /PAPER/);
-  assert.match(app, /READ ONLY/);
-  assert.match(trading, /ZERO MUTATION/);
-  assert.match(trading, /const readOnly = onSubmit === undefined/);
+  assert.match(ai, /READ ONLY/);
+  assert.match(trading, /Production mutation 금지/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(trading, /liveMutationAllowed: false/);
 });
