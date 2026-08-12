@@ -9,6 +9,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
+  const home = read("src/homeView.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(provider, /useColorScheme/);
   assert.match(provider, /export type ThemePreference = ThemeMode \| "system"/);
@@ -29,7 +30,7 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) onSignOut\?\.\(\); \};/);
+  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""\); onSignOut\?\.\(\); \} \};/);
   assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
   assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
@@ -40,7 +41,7 @@ test("utility navigation has an explicit close path and local settings expose gu
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-connection-go-settings"/);
+  assert.match(app, /testID="dashboard-open-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
@@ -51,15 +52,16 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
 
 test("Home hierarchy avoids developer-console cards while preserving verified safety state", () => {
   const app = read("App.tsx");
-  assert.match(app, /testID="account-hero-card"/);
-  assert.match(app, /testID="home-next-action"/);
-  assert.match(app, /testID="ai-card"/);
-  assert.match(app, /testID="safety-card"/);
-  assert.doesNotMatch(app, /testID="operations-card"/);
-  assert.doesNotMatch(app, /testID="research-card"/);
-  assert.doesNotMatch(app, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
-  assert.match(app, /label="LIVE 권한"/);
-  assert.match(app, /label="Production mutation"/);
+  const home = read("src/homeView.tsx");
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="home-next-action"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="safety-card"/);
+  assert.doesNotMatch(home, /testID="operations-card"/);
+  assert.doesNotMatch(home, /testID="research-card"/);
+  assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
+  assert.match(home, /label="LIVE 권한"/);
+  assert.match(home, /label="Production mutation"/);
 });
 
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {

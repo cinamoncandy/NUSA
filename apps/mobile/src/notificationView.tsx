@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { StatusChip } from "./components";
+import { DataRow, StatusChip } from "./components";
 import { InlineNotice, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { SettingsRepository } from "./settings";
@@ -15,13 +15,14 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
     <View style={styles.emptyState} testID="notifications-empty-state">
       <Text style={[styles.emptyEyebrow, { color: theme.colors.textMuted }]}>NO EVENT SOURCE</Text>
       <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>아직 표시할 알림이 없습니다</Text>
-      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>현재 빌드는 알림 이벤트 수집·배지·푸시를 연결하지 않았습니다. 실제 이벤트 런타임이 준비되기 전까지 빈 상태를 그대로 유지합니다.</Text>
-      <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label="READ ONLY" tone="info" /><StatusChip label="PUSH OFF" tone="neutral" /></View>
+      <Text style={[styles.emptyCopy, { color: theme.colors.textMuted }]}>실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다.</Text>
+      <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" testID="notifications-paper" /><StatusChip label="미연결" tone="neutral" testID="notifications-disconnected" /><StatusChip label="READ ONLY" tone="info" /><StatusChip label="PUSH OFF" tone="neutral" /></View>
+      <View style={styles.runtimeRows}><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="권한" value="읽기 전용" /><DataRow label="현재 상태" value="이벤트 수집 미연결" /></View>
     </View>
     <InlineNotice title="가짜 알림을 만들지 않습니다" detail="이벤트 소스가 연결되기 전에는 예시 거래·가격·AI 알림을 실제 데이터처럼 표시하지 않습니다." tone="info" />
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, emptyState: { paddingVertical: 26, gap: 10 }, emptyEyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, emptyTitle: { fontSize: 27, lineHeight: 34, fontWeight: "800", letterSpacing: -0.8 }, emptyCopy: { maxWidth: 620, fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 4 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, emptyState: { paddingVertical: 26, gap: 10 }, emptyEyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, emptyTitle: { fontSize: 27, lineHeight: 34, fontWeight: "800", letterSpacing: -0.8 }, emptyCopy: { maxWidth: 620, fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 4 }, runtimeRows: { gap: 2, marginTop: 8 } });
 
 export { MobileNotificationCenter };

@@ -21,12 +21,19 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const aiTrustedConfidence = ai?.calibrationStatus === "CALIBRATED" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
   const allocationWidth = allocation ? `${allocation.investmentPercent}%` as `${number}%` : "0%";
+  const nextAction = snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
+    ? { title: "PAPER 상태 보기", detail: "연결·안전 상태를 확인한 뒤 다음 작업을 선택하세요.", tab: "Markets" as const }
+    : aiInsightAvailable
+      ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
+      : { title: "시장 보기", detail: "검증된 시장 데이터를 먼저 확인하세요.", tab: "Markets" as const };
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
     <View style={styles.topline}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PERSONAL PAPER</Text><View style={styles.toplineRight}><StatusChip label={snapshot?.health ?? (notConfigured ? "연결 필요" : "대기")} tone={snapshot ? healthTone(snapshot.health) : "warning"} /><StatusChip label="LIVE NONE" tone="neutral" /></View></View>
 
     {readOnlyError ? <InlineNotice title="PAPER 서버 연결 오류" detail={readOnlyError} tone="danger" /> : null}
     {notConfigured ? <View style={styles.connection} testID="dashboard-session-card"><Text style={[styles.connectionTitle, { color: theme.colors.text }]}>PAPER 서버 연결이 필요합니다</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{notConfigured}</Text><NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" /></View> : null}
+
+    <View style={styles.nextAction} testID="home-next-action"><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT ACTION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{nextAction.title}</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{nextAction.detail}</Text></View><NusaButton label={nextAction.title} onPress={() => onNavigate(nextAction.tab)} testID="home-next-action-button" tone="neutral" /></View>
 
     {snapshot ? <>
       <View style={styles.hero} testID="account-hero-card">
@@ -70,6 +77,7 @@ const styles = StyleSheet.create({
   connection: { gap: 12, paddingVertical: 12 }, connectionTitle: { fontSize: 20, lineHeight: 26, fontWeight: "800", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 },
   hero: { paddingTop: 8, paddingBottom: 4 }, balanceLabel: { fontSize: 12, lineHeight: 18, fontWeight: "600" }, balance: { marginTop: 6, fontSize: 52, lineHeight: 58, fontWeight: "800", letterSpacing: -2.6, fontVariant: ["tabular-nums"] }, heroMeta: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }, pnl: { fontSize: 16, lineHeight: 22, fontWeight: "800", fontVariant: ["tabular-nums"] }, metaText: { fontSize: 12, lineHeight: 18, fontWeight: "600" }, metaDot: { width: 3, height: 3, borderRadius: 2 },
   allocation: { gap: 13, paddingVertical: 4 }, allocationHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }, sectionTitle: { marginTop: 3, fontSize: 20, lineHeight: 26, fontWeight: "800", letterSpacing: -0.45 }, allocationRatio: { fontSize: 20, lineHeight: 26, fontWeight: "800", fontVariant: ["tabular-nums"] }, rail: { height: 6, borderRadius: 999, overflow: "hidden" }, railFill: { height: "100%", borderRadius: 999 }, allocationSplit: { flexDirection: "row", alignItems: "stretch", gap: 16 }, allocationCell: { flex: 1 }, splitDivider: { width: StyleSheet.hairlineWidth }, valueLabel: { fontSize: 11, lineHeight: 16, fontWeight: "600" }, value: { marginTop: 4, fontSize: 20, lineHeight: 27, fontWeight: "800", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
+  nextAction: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" },
   primaryActions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   insight: { gap: 14, paddingVertical: 4 }, insightHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, insightBadges: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }, thesis: { fontSize: 21, lineHeight: 31, fontWeight: "700", letterSpacing: -0.45 }, insightFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" },
   divider: { height: StyleSheet.hairlineWidth }, operations: { gap: 8 }, operationsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 4 },
