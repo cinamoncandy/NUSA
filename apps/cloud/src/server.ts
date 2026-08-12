@@ -72,16 +72,39 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ownedUserDb = new SqliteDatabase(pathname);
     userAccessRepository = new SqliteNusaUserAccessRepository(ownedUserDb);
   }
-  userAccessRepository.ensureOwner({ id: "operator", email: process.env.NUSA_OWNER_EMAIL?.trim() || "operator@nusa.local", displayName: "NUSA Owner" });
 
-  // Authentication is necessary but not sufficient: approval status is a
-  // durable server-side authorization boundary for every protected route.
+  const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
+  if (ownerPrincipal != null) {
+    if (!ownerPrincipal.userId.trim() || !ownerPrincipal.email?.trim()) throw new Error("owner principal identity is incomplete");
+    userAccessRepository.ensureOwner({
+      id: ownerPrincipal.userId.trim(),
+      email: ownerPrincipal.email.trim(),
+      ...(ownerPrincipal.displayName?.trim() ? { displayName: ownerPrincipal.displayName.trim() } : {})
+    });
+  }
+
+  // Authentication is necessary but not sufficient. First-seen authenticated
+  // ordinary identities are registered PENDING and every protected request checks
+  // the durable approval state. Suspension therefore blocks the same bearer
+  // immediately while preserving PAPER-only authority boundaries.
   const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
+    ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
       try {
         const principal = options.tokenVerifier.verify(token);
-        if (principal == null) return undefined;
-        return isUserAllowed(userAccessRepository.get(principal.userId)) ? principal : undefined;
+        if (principal == null || !principal.userId.trim()) return undefined;
+        let actor = userAccessRepository.get(principal.userId.trim());
+        if (actor == null) {
+          if (!principal.email?.trim()) return undefined;
+          actor = userAccessRepository.registerUser({
+            id: principal.userId.trim(),
+            email: principal.email.trim(),
+            ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+          });
+        }
+        if (!isUserAllowed(actor)) return undefined;
+        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
+        return principal;
       } catch {
         return undefined;
       }
