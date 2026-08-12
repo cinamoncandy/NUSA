@@ -7,19 +7,20 @@ export interface NusaButtonProps {
   readonly label: string;
   readonly onPress: () => void;
   readonly disabled?: boolean;
+  readonly selected?: boolean;
   readonly tone?: ButtonTone;
   readonly accessibilityLabel?: string;
   readonly testID?: string;
 }
 
-export function NusaButton({ label, onPress, disabled = false, tone = "primary", accessibilityLabel, testID }: NusaButtonProps) {
+export function NusaButton({ label, onPress, disabled = false, selected = false, tone = "primary", accessibilityLabel, testID }: NusaButtonProps) {
   const { theme } = useTheme();
   const tokens = buttonTokens(theme, tone);
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
       testID={testID}
