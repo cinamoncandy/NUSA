@@ -15,6 +15,7 @@ test("a complete, valid environment produces a config", () => {
   assert.equal("host" in config, false, "host must be omitted, not defaulted here -- server.ts owns that default");
   assert.deepEqual([...config.upbitMarkets], ["KRW-BTC", "KRW-ETH"]);
   assert.equal(config.upbitPublicDataEnabled, false);
+  assert.equal(config.paperInvestmentPercent, 100);
 });
 
 test("public Upbit data requires explicit enablement and accepts only bounded KRW markets", () => {
@@ -30,6 +31,14 @@ test("paper initial capital is opt-in and validated", () => {
   assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000000" }).paperInitialCapitalKrw, 1_000_000);
   for (const value of ["0", "-1", "not-a-number"]) {
     assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: value }), /NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW/);
+  }
+});
+
+test("paper investment percent defaults safely and is bounded", () => {
+  assert.equal(readCloudRuntimeConfig(VALID_ENV).paperInvestmentPercent, 100);
+  assert.equal(readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "60" }).paperInvestmentPercent, 60);
+  for (const value of ["-1", "101", "not-a-number"]) {
+    assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: value }), /NUSA_CLOUD_PAPER_INVESTMENT_PERCENT/);
   }
 });
 
@@ -63,12 +72,12 @@ test("an empty-string token fails closed", () => {
   assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_DASHBOARD_TOKEN: "   " }), /NUSA_CLOUD_DASHBOARD_TOKEN is required/);
 });
 
-test("the shared-secret verifier accepts only the exact configured token with explicit personal PAPER scopes", () => {
+test("the shared-secret verifier preserves PAPER trade and operator-management scopes without LIVE authority", () => {
   const verifier = createSharedSecretTokenVerifier(VALID_TOKEN);
   const principal = verifier.verify(VALID_TOKEN);
   assert.ok(principal);
   assert.equal(principal.userId, "operator");
-  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade", "settings:read", "settings:write"]);
+  assert.deepEqual([...principal.scopes], ["dashboard:read", "paper:trade", "settings:read", "settings:write", "users:manage"]);
   assert.equal(principal.scopes.includes("live:trade"), false);
   assert.equal(principal.scopes.includes("transfer:write"), false);
   assert.equal(principal.scopes.includes("withdraw:write"), false);
