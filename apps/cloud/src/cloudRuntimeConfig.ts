@@ -11,6 +11,7 @@ export interface CloudRuntimeConfig {
   readonly upbitPublicDataEnabled: boolean;
   readonly cloudStateDbPath: string;
   readonly paperInitialCapitalKrw?: number;
+  readonly paperInvestmentPercent: number;
 }
 
 const PORT_ENV = "NUSA_CLOUD_DASHBOARD_PORT";
@@ -20,6 +21,7 @@ const MARKETS_ENV = "NUSA_CLOUD_UPBIT_MARKETS";
 const PUBLIC_DATA_ENV = "NUSA_CLOUD_UPBIT_PUBLIC_DATA";
 const STATE_DB_ENV = "NUSA_CLOUD_STATE_DB_PATH";
 const PAPER_INITIAL_CAPITAL_ENV = "NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW";
+const PAPER_INVESTMENT_PERCENT_ENV = "NUSA_CLOUD_PAPER_INVESTMENT_PERCENT";
 export const DEFAULT_CLOUD_UPBIT_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH"]);
 export const DEFAULT_CLOUD_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
 
@@ -27,7 +29,9 @@ function readMarkets(raw: string | undefined): readonly string[] {
   const values = (raw === undefined ? DEFAULT_CLOUD_UPBIT_MARKETS : raw.split(","))
     .map((value) => value.trim().toUpperCase()).filter(Boolean);
   const markets = [...new Set(values)];
-  if (markets.length === 0 || markets.length > 5 || markets.some((market) => !/^KRW-[A-Z0-9-]+$/.test(market))) throw new Error(`${MARKETS_ENV} must contain 1-5 KRW markets`);
+  if (markets.length === 0 || markets.length > 5 || markets.some((market) => !/^KRW-[A-Z0-9-]+$/.test(market))) {
+    throw new Error(`${MARKETS_ENV} must contain 1-5 KRW markets`);
+  }
   return Object.freeze(markets);
 }
 
@@ -43,18 +47,22 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   const paperInitialCapitalRaw = env[PAPER_INITIAL_CAPITAL_ENV]?.trim();
   const paperInitialCapitalKrw = paperInitialCapitalRaw === undefined || paperInitialCapitalRaw === "" ? undefined : Number(paperInitialCapitalRaw);
   if (paperInitialCapitalKrw !== undefined && (!Number.isFinite(paperInitialCapitalKrw) || paperInitialCapitalKrw <= 0)) throw new Error(`${PAPER_INITIAL_CAPITAL_ENV} must be a positive number when provided`);
-  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
+  const paperInvestmentPercentRaw = env[PAPER_INVESTMENT_PERCENT_ENV]?.trim();
+  const paperInvestmentPercent = paperInvestmentPercentRaw === undefined || paperInvestmentPercentRaw === "" ? 100 : Number(paperInvestmentPercentRaw);
+  if (!Number.isFinite(paperInvestmentPercent) || paperInvestmentPercent < 0 || paperInvestmentPercent > 100) throw new Error(`${PAPER_INVESTMENT_PERCENT_ENV} must be between 0 and 100`);
+  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
 }
 
 /**
- * One personal operator secret. `paper:trade` is intentionally PAPER-only application authority;
- * settings scopes only permit changing the PAPER cash allocation envelope. None of these scopes imply
- * broker credentials, LIVE execution, transfer, withdrawal, or production mutation.
+ * One personal operator secret. `paper:trade` is PAPER-only application authority,
+ * `users:manage` is operator user-admission authority, and settings scopes only
+ * control the PAPER cash allocation envelope. None imply broker credentials,
+ * LIVE execution, transfer, withdrawal, or production mutation.
  */
 export function createSharedSecretTokenVerifier(sharedSecret: string): DashboardTokenVerifier {
   if (Buffer.byteLength(sharedSecret, "utf8") < 32) throw new Error("shared secret must contain at least 32 UTF-8 bytes");
   const expectedDigest = createHash("sha256").update(sharedSecret, "utf8").digest();
-  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "paper:trade", "settings:read", "settings:write"]) });
+  const principal: DashboardPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read", "paper:trade", "settings:read", "settings:write", "users:manage"]) });
   return Object.freeze({
     verify(token: string): DashboardPrincipal | undefined {
       if (typeof token !== "string" || token.length === 0) return undefined;
