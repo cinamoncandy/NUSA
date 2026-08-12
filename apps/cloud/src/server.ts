@@ -129,7 +129,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: userAccessRepository })); return; }
-      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) { write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: options.investmentAllocationSettings })); return; }
+      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
+        let payload: unknown = null;
+        if (["PUT", "POST"].includes((req.method ?? "GET").toUpperCase())) {
+          try { payload = JSON.parse(body ?? ""); }
+          catch { write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        write(res, handleInvestmentAllocationHttp(dashboardRequest, payload, { tokenVerifier: accessControlledTokenVerifier, repository: options.investmentAllocationSettings }));
+        return;
+      }
       write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
     } catch {
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
