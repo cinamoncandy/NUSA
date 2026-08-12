@@ -5,9 +5,9 @@ phase: android-real-use-successor
 status: ready
 objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 censoring/selection hardening as merged planning-only evidence and continue only repository-controlled evaluation planning, including uncertainty/effective-sample validity, without claiming runtime implementation or human/environment completion."
 base_branch: main
-active_branch: agent/android-real-use-successor
+active_branch: agent/android-real-use-successor-final
 active_pull_request: null
-base_commit: cf56112e5c1091d89f9684dcaecf433f405ca03e
+base_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
 claimed_state:
   work_order: WO-0053
   status: IN_PROGRESS
@@ -110,7 +110,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-AI-011 recovery planning PR #421 merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 merged at 6a1bede063251222a9b808d58ba04d43249dc922. Economic-usefulness hardening PR #427 merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. Statistical-validity hardening PR #428 merged at 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339. Regime-degradation hardening PR #429 merged at 15568a00e8caeefa22a4a756fdff0565dc35d22a. Tail-risk hardening PR #430 merged at 7d1af62388beb140850eb4a2db2097bfe6ef8022. Portfolio-dependence validity PR #431 merged at 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1. Censoring/selection-validity PR #432 merged at b6ab5c05d24e6fb921d455f8671198eea1949050. Uncertainty/effective-sample validity PR #436 merged at 84d425e6433e6e72193c80067d1e067e7cd21d57. WO-0053 Android successor reconciliation is now based on protected main. All remain planning-only and authorize no runtime implementation."
-  current_commit: "Android successor reconciliation is an unmerged exact-head worktree based on protected main 974d71121d99a01029b53c04ce5c9dbe93e1da08; physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Android PAPER successor wiring is validated from protected main e9dee4fb26bbb296eab2007b5269ff0ee59365e3; physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
