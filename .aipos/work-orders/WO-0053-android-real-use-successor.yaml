@@ -19,6 +19,15 @@ constraints:
   - "AI remains ZERO_AUTHORITY/read-only."
   - "No live broker order/cancel/replace/withdraw/transfer or execution credential use."
   - "Firebase remains readiness-only until an approved external project and deployment authority exist."
+architecture_impact:
+  acknowledged: true
+  analysis: "This successor composes the existing mobile, cloud PAPER, allocation, approval, and read-only operations boundaries into an Android real-use path. It adds no parallel kernel, no live transport, and no new authority; the physical-device gate remains external and HUMAN_ENVIRONMENT_ONLY."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - docs/mobile-uiux-v3.md
 acceptance:
   repository_gates:
     - "Focused Android/PAPER tests pass."

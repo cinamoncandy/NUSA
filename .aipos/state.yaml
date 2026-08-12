@@ -82,9 +82,11 @@ in_progress:
   - id: WO-0053
     evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
     summary: "Android real-use successor validation; merge and physical-device acceptance remain blocked."
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+serialized_human_environment_gate:
+  work_order: WO-0051
+  evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+  status: IN_PROGRESS
+  reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
