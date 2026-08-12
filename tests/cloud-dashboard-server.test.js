@@ -21,7 +21,7 @@ const VALID_TOKEN = "owner-token";
 const verifier = {
   verify(token) {
     if (token !== VALID_TOKEN) return undefined;
-    return { userId: "owner-1", scopes: ["dashboard:read"] };
+    return { userId: "operator", scopes: ["dashboard:read"] };
   }
 };
 
