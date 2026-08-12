@@ -16,7 +16,7 @@ import { operationalLog } from "./structuredOperationalLog";
 import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
 import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
-import { SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
+import { isUserAllowed, SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 
 export interface CloudReadinessSnapshot {
@@ -72,6 +72,20 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   }
   userAccessRepository.ensureOwner({ id: "operator", email: process.env.NUSA_OWNER_EMAIL?.trim() || "operator@nusa.local", displayName: "NUSA Owner" });
 
+  // Authentication is necessary but not sufficient: approval status is a
+  // durable server-side authorization boundary for every protected route.
+  const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
+    verify(token: string) {
+      try {
+        const principal = options.tokenVerifier.verify(token);
+        if (principal == null) return undefined;
+        return isUserAllowed(userAccessRepository.get(principal.userId)) ? principal : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+  });
+
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
     try {
@@ -85,7 +99,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
       if (req.url === "/ready") {
-        const authorization = authorizeDashboardReadRequest(dashboardRequest, options.tokenVerifier);
+        const authorization = authorizeDashboardReadRequest(dashboardRequest, accessControlledTokenVerifier);
         if (!authorization.ok) { operationalLog("WARN", "cloud.readiness.authorization_failed", requestId, { status: authorization.response.status }); write(res, authorization.response); return; }
         try {
           const readiness = options.readiness?.() ?? unavailable();
@@ -97,10 +111,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, loadDashboard: options.loadDashboard })); return; }
-      if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: userAccessRepository })); return; }
-      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) { write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: options.investmentAllocationSettings })); return; }
+      if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: userAccessRepository })); return; }
+      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) { write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: options.investmentAllocationSettings })); return; }
       write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
     } catch {
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
