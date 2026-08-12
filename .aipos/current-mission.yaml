@@ -1,7 +1,7 @@
 id: WO-0053
 title: Android real-use successor
-branch: main
-pull_request: null
+branch: agent/android-real-use-successor
+pull_request: 442
 base_branch: main
 phase: android-real-use-successor
 status: VERIFYING
