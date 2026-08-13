@@ -33,7 +33,7 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(portfolio, /portfolio-reserved-cash/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : snapshot\.account\.cash/);
-  assert.match(trading, /미투자 보호 현금/);
+  assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);
   assert.match(trading, /신규 매수 비중이 0%입니다/);
 });
 

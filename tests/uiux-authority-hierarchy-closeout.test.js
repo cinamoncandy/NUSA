@@ -19,7 +19,8 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.ok(thesisIndex >= 0);
   assert.ok(evidenceIndex > thesisIndex);
   assert.ok(authorityIndex > evidenceIndex);
-  assert.equal(occurrences(ai, "ZERO AUTHORITY"), 2);
+  assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
   assert.equal(occurrences(ai, "READ ONLY"), 1);
   assert.doesNotMatch(ai, /<AuthorityBanner/);
   assert.match(ai, /testID="ai-authority-card"/);
@@ -32,7 +33,7 @@ test("PAPER exposes mutation only after verified connection while LIVE remains f
   const trading = read("tradingView.tsx");
 
   assert.equal(occurrences(trading, 'label="PAPER ONLY"'), 1);
-  assert.equal(occurrences(trading, 'label="LIVE 금지"'), 1);
+  assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
   assert.doesNotMatch(trading, /<AuthorityBanner/);
   assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);

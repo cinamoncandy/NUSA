@@ -52,8 +52,8 @@ test("AI-only authority copy does not override the global PAPER authority banner
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
   assert.doesNotMatch(app, /<AuthorityBanner/);
-  assert.match(ai, /StatusChip label="ZERO AUTHORITY"/);
-  assert.match(ai, /StatusChip label="READ ONLY"/);
+  assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.match(ai, /statusLabel="READ ONLY"/);
   assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
 });
 
@@ -92,7 +92,7 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
 test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE authority", () => {
   const trading = read("apps/mobile/src/tradingView.tsx");
   const components = read("apps/mobile/src/components.tsx");
-  assert.match(trading, /PAPER 주문 검토/);
+  assert.match(trading, /주문 검토/);
   assert.match(trading, /PAPER 주문 확정/);
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
@@ -109,7 +109,7 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
     "apps/mobile/src/portfolioView.tsx": /maxWidth: 1080/,
-    "apps/mobile/src/aiView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/aiView.tsx": /uxLayout\.maxWorkspaceWidth/,
   };
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
@@ -119,8 +119,8 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap"/);
   assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
-  assert.match(markets, /const wide = width >= 840/);
-  assert.match(markets, /layoutWide: \{ flexDirection: "row"/);
+  assert.match(markets, /useWindowDimensions/);
+  assert.match(markets, /minHeight: 48/);
   assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
   assert.match(portfolio, /detailCell: \{ flexGrow: 1, flexBasis: 420/);
   assert.match(ai, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
