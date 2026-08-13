@@ -29,7 +29,7 @@ test("common component contracts consume Island finance theme tokens", () => {
     radius: 12, minHeight: 48, horizontalPadding: 16,
   });
   assert.equal(buttonTokens(theme, "danger").background, "#F06F7F");
-  assert.equal(buttonTokens(theme, "danger").foreground, "#FFFFFF");
+  assert.equal(buttonTokens(theme, "danger").foreground, "#11151B");
   assert.equal(buttonTokens(theme, "neutral").background, "#131923");
   assert.equal(buttonTokens(theme, "neutral").border, "#1A2230");
   assert.equal(fieldTokens(theme).background, "#0A0E14");
@@ -46,7 +46,7 @@ test("design system snapshot is deterministic", () => {
       background: "#080A0F", surface: "#0D1118", surfaceRaised: "#131923", surfaceSunken: "#0A0E14",
       text: "#F4F6F8", textMuted: "#8D96A5", primary: "#6D8DFF", primarySoft: "#18213B",
       onPrimary: "#FFFFFF", border: "#1A2230", borderStrong: "#2A3547", success: "#55C991",
-      warning: "#DDBD70", danger: "#F06F7F", info: "#87A0F7", onDanger: "#FFFFFF", focus: "#93A9FF",
+      warning: "#DDBD70", danger: "#F06F7F", info: "#87A0F7", onDanger: "#11151B", focus: "#93A9FF",
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
