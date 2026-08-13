@@ -4,8 +4,8 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: b08b4f5b7e0302fde570748a3102d515e37063b6
-implementation_branch: agent/android-real-use-successor
+base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+implementation_branch: agent/android-concept1-brand-final
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
@@ -14,6 +14,7 @@ scope:
   - "PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport."
   - "Real authenticated user identity with first-seen PENDING access, explicit operator approval, immediate suspension enforcement, and OWNER-only users:manage."
   - "Existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system."
+  - "Concept 1 peak/reflection brand geometry across mobile mark, Android launcher, monochrome, notification, and splash resources without changing authority or execution behavior."
 constraints:
   - "PR #371 is superseded and must not be merged."
   - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
@@ -71,15 +72,15 @@ verification:
     sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
     source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
   latest_protected_main:
-    commit: b08b4f5b7e0302fde570748a3102d515e37063b6
+    commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
     ci: PASS
     mobile_native: PASS
     android_rc:
-      workflow_run_id: 31658860506
-      run_number: 842
-      artifact: nusa-android-rc-b08b4f5b7e0302fde570748a3102d515e37063b6-842
-      sha256: 7af14179d550924a244f3511bd9729dc9ca072256fbe93848531b69feab9e02f
-      provenance_source_sha: b08b4f5b7e0302fde570748a3102d515e37063b6
+      workflow_run_id: 31659684774
+      run_number: 843
+      artifact: nusa-android-rc-53cf6f185f512ac24b760ca1b39cdef066ed9595-843
+      sha256: 4038de344fcbe49e730cce213e8a63850828342742537b63b7cb8eb31e8bfed2
+      provenance_source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
   blocked:
     - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."

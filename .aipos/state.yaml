@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T10:55:00+09:00"
+updated_at: "2026-08-13T11:10:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
-active_branch: agent/android-real-use-successor
+active_branch: agent/android-concept1-brand-final
 active_pull_request: null
-base_commit: b08b4f5b7e0302fde570748a3102d515e37063b6
+base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -51,15 +51,20 @@ recent_repository_evidence:
       source_sha: 398153a25258afd30b932b08a18bcca7277041e5
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
     protected_main_post_merge:
-      commit: b08b4f5b7e0302fde570748a3102d515e37063b6
+      commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
       ci: PASS
       mobile_native: PASS
       android_rc:
-        workflow_run_id: 31658860506
-        run_number: 842
-        artifact: nusa-android-rc-b08b4f5b7e0302fde570748a3102d515e37063b6-842
-        apk_sha256: 7af14179d550924a244f3511bd9729dc9ca072256fbe93848531b69feab9e02f
-        source_sha: b08b4f5b7e0302fde570748a3102d515e37063b6
+        workflow_run_id: 31659684774
+        run_number: 843
+        artifact: nusa-android-rc-53cf6f185f512ac24b760ca1b39cdef066ed9595-843
+        apk_sha256: 4038de344fcbe49e730cce213e8a63850828342742537b63b7cb8eb31e8bfed2
+        source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    concept1_brand_reconciliation:
+      status: IN_PROGRESS
+      base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      scope: "Concept 1 peak/reflection geometry, adaptive/monochrome/notification/splash resources, and mobile mark alignment; no authority or execution changes."
       physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
@@ -153,8 +158,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Protected main post-merge commit b08b4f5b7e0302fde570748a3102d515e37063b6 has Full CI, Mobile Native, Android Debug/RC, and provenance PASS. Physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main b08b4f5b7e0302fde570748a3102d515e37063b6; repository-controlled Android UI/RC gates are PASS, and only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
+  last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Protected main post-merge commit 53cf6f185f512ac24b760ca1b39cdef066ed9595 has Full CI, Mobile Native, Android Debug/RC, and provenance PASS. Concept 1 brand reconciliation is in progress; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main 53cf6f185f512ac24b760ca1b39cdef066ed9595; repository-controlled Android UI/RC gates are PASS, Concept 1 brand work is in progress, and only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
