@@ -387,4 +387,11 @@ CREATE TABLE IF NOT EXISTS research_hypothesis_events (
   hash TEXT NOT NULL UNIQUE
 );
 CREATE INDEX IF NOT EXISTS idx_research_hypothesis_events_id ON research_hypothesis_events (hypothesis_id, sequence);
+` }, { id: "015_cloud_paper_writer_lease", sql: `
+CREATE TABLE IF NOT EXISTS cloud_paper_writer_leases (
+  account_id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  lease_until_ms INTEGER NOT NULL,
+  heartbeat_at_ms INTEGER NOT NULL
+);
 ` }];
