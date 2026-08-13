@@ -114,10 +114,10 @@ export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const peakWidth = compact ? 13 : 18;
   const reflectionWidth = compact ? 22 : 31;
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.nusaSymbol, { width: size, height: size }]}>
-      <View style={[styles.symbolPeak, { borderLeftWidth: peakWidth / 2, borderRightWidth: peakWidth / 2, borderBottomWidth: compact ? 12 : 16, borderBottomColor: theme.colors.primary }]} />
-      <View style={[styles.symbolReflection, { width: reflectionWidth, backgroundColor: theme.colors.info }]} />
-      <View style={[styles.symbolReflectionLine, { width: compact ? 14 : 20, backgroundColor: theme.colors.borderStrong }]} />
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.nusaSymbol, { width: size, height: size }]}>
+      <View style={[styles.symbolPeak, { borderLeftWidth: peakWidth / 2, borderRightWidth: peakWidth / 2, borderBottomWidth: compact ? 12 : 16, borderBottomColor: theme.colors.text }]} />
+      <View style={[styles.symbolReflection, { width: reflectionWidth, backgroundColor: theme.colors.text }]} />
+      <View style={[styles.symbolReflectionLine, { width: compact ? 14 : 20, backgroundColor: theme.colors.text }]} />
     </View>
   );
 }

@@ -12,9 +12,12 @@ test("light and dark themes expose frozen semantic Island finance tokens", () =>
   assert.equal(dark.radii.md, 12);
   assert.equal(dark.icons.lg, 24);
   assert.equal(dark.colors.surfaceSunken, "#0A0E14");
-  assert.equal(dark.colors.primarySoft, "#18213B");
+  assert.equal(dark.colors.primarySoft, "#1A2029");
   assert.equal(dark.colors.borderStrong, "#2A3547");
-  assert.equal(dark.colors.info, "#87A0F7");
+  assert.equal(dark.colors.info, "#AEB7C5");
+  assert.equal(dark.colors.aiSignalStart, "#A855F7");
+  assert.equal(dark.colors.aiSignalMid, "#4F7CFF");
+  assert.equal(dark.colors.aiSignalEnd, "#2DD4BF");
   assert.equal(Object.isFrozen(dark), true);
   assert.equal(Object.isFrozen(dark.colors), true);
   assert.equal(Object.isFrozen(dark.shadows.sm.offset), true);
@@ -24,7 +27,7 @@ test("light and dark themes expose frozen semantic Island finance tokens", () =>
 test("common component contracts consume Island finance theme tokens", () => {
   const theme = createTheme("dark");
   assert.deepEqual(buttonTokens(theme), {
-    background: "#6D8DFF", foreground: "#FFFFFF", border: "transparent",
+    background: "#F4F6F8", foreground: "#080A0F", border: "transparent",
     disabledOpacity: 0.42, pressedOpacity: 0.88, borderWidth: 1,
     radius: 12, minHeight: 48, horizontalPadding: 16,
   });
@@ -33,7 +36,7 @@ test("common component contracts consume Island finance theme tokens", () => {
   assert.equal(buttonTokens(theme, "neutral").background, "#131923");
   assert.equal(buttonTokens(theme, "neutral").border, "#1A2230");
   assert.equal(fieldTokens(theme).background, "#0A0E14");
-  assert.equal(fieldTokens(theme).focus, "#93A9FF");
+  assert.equal(fieldTokens(theme).focus, "#FFFFFF");
   assert.equal(fieldTokens(theme).borderWidth, 1);
   assert.equal(fieldTokens(theme).focusBorderWidth, 2);
   assert.equal(cardTokens(theme).padding, 18);
@@ -44,9 +47,10 @@ test("design system snapshot is deterministic", () => {
     mode: "dark",
     colors: {
       background: "#080A0F", surface: "#0D1118", surfaceRaised: "#131923", surfaceSunken: "#0A0E14",
-      text: "#F4F6F8", textMuted: "#8D96A5", primary: "#6D8DFF", primarySoft: "#18213B",
-      onPrimary: "#FFFFFF", border: "#1A2230", borderStrong: "#2A3547", success: "#55C991",
-      warning: "#DDBD70", danger: "#F06F7F", info: "#87A0F7", onDanger: "#11151B", focus: "#93A9FF",
+      text: "#F4F6F8", textMuted: "#8D96A5", primary: "#F4F6F8", primarySoft: "#1A2029",
+      onPrimary: "#080A0F", aiSignalStart: "#A855F7", aiSignalMid: "#4F7CFF", aiSignalEnd: "#2DD4BF", aiSignalSoft: "#17152B",
+      border: "#1A2230", borderStrong: "#2A3547", success: "#55C991",
+      warning: "#DDBD70", danger: "#F06F7F", info: "#AEB7C5", onDanger: "#11151B", focus: "#FFFFFF",
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
