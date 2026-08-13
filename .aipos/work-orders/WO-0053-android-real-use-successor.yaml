@@ -57,6 +57,7 @@ verification:
     - "typecheck, build, lint, architecture, AI, safety, security, Firebase readiness, and diff-check PASS."
     - "PAPER writer clock/takeover hardening focused tests: 17/17 PASS; SQLite migration tests: 11/11 PASS."
     - "PAPER writer clock regression and bounded forward-jump takeover fail closed; crash-after-save takeover restores the last normal state."
+    - "Operator authorization lifecycle and identity-collision focused tests: 35/35 PASS; invalid status transitions and duplicate user identities fail closed in both repository implementations."
   access_approval_identity:
     issue: 445
     pull_request: 448
