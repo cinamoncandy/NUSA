@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T15:49:26+09:00"
+updated_at: "2026-08-13T16:09:17+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
 active_branch: agent/aipos-0053-main-final
 active_pull_request: null
-base_commit: 85df103d90f1e30b04a8ed5346e025c00190d52b
+base_commit: 7f6c6e695030ea307307b91ec92d5f9932131ef6
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -132,6 +132,18 @@ recent_repository_evidence:
     build: PASS
     safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  persistence_recovery_audit:
+    work_order: WO-0053
+    evidence: docs/audits/persistence-recovery-hardening-2026-08-13.md
+    focused_tests: PASS_41_OF_41
+    migration_recovery_tests: PASS_28_OF_29_WINDOWS_SYMLINK_PRIVILEGE_BLOCKED
+    checksum_corruption_quarantine: PASS
+    migration_checksum_and_unknown_version: PASS
+    transaction_atomicity: PASS
+    restart_recovery: PASS
+    crash_takeover: PASS
+    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -225,7 +237,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. AIPOS provenance PR #459 merged at d22885657b9c95feb52159886f4292ba526fc2e7 with Full CI and Mobile Native PASS. Android RC provenance remains bound to the last Android-changing protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-    current_commit: "Protected main 038f44e3b3eb9c94015f6b88006757e4c5df9fb5; #007 branch is based on its verified parent 85df103d90f1e30b04a8ed5346e025c00190d52b and hardens the PAPER order/risk boundary, while physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main 7f6c6e695030ea307307b91ec92d5f9932131ef6; #008 persistence/recovery audit found no P0/P1 defect. Focused persistence tests pass; one backup symlink test is blocked only by Windows EPERM before application code runs. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
