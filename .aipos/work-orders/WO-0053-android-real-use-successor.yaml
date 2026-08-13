@@ -67,6 +67,7 @@ verification:
     - "#012 rate-limit/abuse hardening: Cloud HTTP now reuses the deterministic rate-limit manager with bounded per-route identity buckets, weighted mutation requests, duplicate request-id suppression, bounded request tracking, monotonic clock handling, and fail-closed 429 responses; focused rate-limit/connectivity/Cloud HTTP suites PASS and build/typecheck PASS."
     - "#013 state-consistency hardening: durable PAPER state now reconciles order/fill/idempotency/position identity and cash/equity/unrealized-PnL invariants before restart or dashboard publication; focused consistency/recovery suite 63/63 PASS and build/typecheck PASS."
     - "#014 Firebase transition readiness: SQLite remains authoritative; Firebase rules now restrict approval statuses/actions and direct-write fields while keeping owner protection, append-only audit, deny-by-default unknown paths, no dual-write, and no cutover. Focused Firebase/operator/migration suite 21/21 PASS and static validation/typecheck PASS; Firebase CLI/Emulator is unavailable in this environment."
+    - "#015 CI regression hardening: Full CI explicitly runs the backend hardening regression set and named Firebase readiness validation in addition to the existing isolated suite and safety workflows; focused backend regression 87/87 PASS and local typecheck/lint/build/architecture/AIPOS/security/safety/diff-check PASS."
   access_approval_identity:
     issue: 445
     pull_request: 448
