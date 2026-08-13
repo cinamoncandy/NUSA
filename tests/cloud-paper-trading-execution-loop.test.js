@@ -256,6 +256,12 @@ test("dashboard projection agrees with the durable paper account", () => {
   assert.equal(dashboard.paper.fills.length, 1);
 });
 
+test("restored paper state rejects broken order/fill relationships and accounting projections", () => {
+  const order = { id: "order-1", idempotencyKey: "key-1", market, side: "BUY", quantity: 1, price: 100, fee: 0, status: "FILLED", createdAt: 1, filledAt: 1 };
+  const state = { version: 1, initialCapital: 1_000, cash: 900, equity: 1_000, realizedPnL: 0, unrealizedPnL: 0, positions: [{ market, quantity: 1, averageEntryPrice: 100, realizedPnL: 0, unrealizedPnL: 0, markPrice: 100 }], orders: [order], fills: [], processedIdempotencyKeys: ["key-1"], updatedAt: 1 };
+  assert.throws(() => new PaperTradingExecutionLoop({ initialCapital: 1_000, restoredState: state }), /paper fill identity|paper order\/fill reconciliation|paper account projection/);
+});
+
 test("paper BUY applies the configured investable cash percentage", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0 });
   const result = loop.processTick(baseTick({ investmentPercent: 60 }));

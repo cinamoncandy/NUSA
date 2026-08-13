@@ -65,6 +65,7 @@ verification:
     - "#010 security hardening: free-form operational log messages now redact complete Bearer credentials; focused security/logging/credential/AI suite 71/71 PASS and build PASS."
     - "#011 observability hardening: Cloud HTTP responses now emit secret-minimized actor references, correlation IDs, outcome status, and evidence class for dashboard, PAPER, operator, settings, readiness, rejection, and failure routes; focused observability/server suite 22/22 PASS and build PASS."
     - "#012 rate-limit/abuse hardening: Cloud HTTP now reuses the deterministic rate-limit manager with bounded per-route identity buckets, weighted mutation requests, duplicate request-id suppression, bounded request tracking, monotonic clock handling, and fail-closed 429 responses; focused rate-limit/connectivity/Cloud HTTP suites PASS and build/typecheck PASS."
+    - "#013 state-consistency hardening: durable PAPER state now reconciles order/fill/idempotency/position identity and cash/equity/unrealized-PnL invariants before restart or dashboard publication; focused consistency/recovery suite 63/63 PASS and build/typecheck PASS."
   access_approval_identity:
     issue: 445
     pull_request: 448
