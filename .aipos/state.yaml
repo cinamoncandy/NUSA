@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T11:10:00+09:00"
+updated_at: "2026-08-13T11:45:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
-active_branch: agent/android-concept1-brand-final
+active_branch: agent/aipos-0053-post-merge
 active_pull_request: null
-base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+base_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -62,9 +62,29 @@ recent_repository_evidence:
         source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
       physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
     concept1_brand_reconciliation:
-      status: IN_PROGRESS
+      pull_request: 458
+      head_commit: 9572ec4d8e52e5f1b695131fc34e610b59255097
+      merge_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+      status: MERGED_REPOSITORY_GATES_PASS
       base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
       scope: "Concept 1 peak/reflection geometry, adaptive/monochrome/notification/splash resources, and mobile mark alignment; no authority or execution changes."
+      full_ci: PASS
+      mobile_native: PASS
+      restricted_live_readonly_workflows: PASS_4_OF_4
+      focused_mobile_tests: PASS_192_OF_192
+      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    latest_protected_main_post_merge:
+      commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+      ci: PASS
+      mobile_native: PASS
+      android_persistent_preview_release: PASS
+      android_rc:
+        workflow_run_id: 31661081267
+        run_number: 845
+        artifact: nusa-android-rc-b112a7691bbfeba00b5b0dd74e6a311272e7a890-845
+        apk_sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
+        source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+        provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
       physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
@@ -158,8 +178,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Protected main post-merge commit 53cf6f185f512ac24b760ca1b39cdef066ed9595 has Full CI, Mobile Native, Android Debug/RC, and provenance PASS. Concept 1 brand reconciliation is in progress; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main 53cf6f185f512ac24b760ca1b39cdef066ed9595; repository-controlled Android UI/RC gates are PASS, Concept 1 brand work is in progress, and only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
+  last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. Protected main post-merge Full CI, Mobile Native, and Android RC provenance PASS; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; Concept 1 Android RC provenance is verified and repository-controlled gates are PASS. Only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
