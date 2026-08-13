@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T16:32:00+09:00"
+updated_at: "2026-08-13T16:46:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
 active_branch: agent/aipos-0053-main-final
 active_pull_request: null
-base_commit: 2fe0b8c9106ec6ae9be3d0eebf35c816f21cf823
+base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -154,6 +154,16 @@ recent_repository_evidence:
     p0_kill_switch_recovery: PASS
     safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  security_hardening_audit:
+    work_order: WO-0053
+    evidence: docs/audits/security-hardening-2026-08-13.md
+    focused_tests: PASS_71_OF_71
+    log_redaction: PASS_BEARER_AND_SECRET_VALUE
+    secret_scan: PASS
+    credential_persistence: PASS_FAIL_CLOSED
+    ai_zero_authority: PASS
+    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -247,7 +257,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. AIPOS provenance PR #459 merged at d22885657b9c95feb52159886f4292ba526fc2e7 with Full CI and Mobile Native PASS. Android RC provenance remains bound to the last Android-changing protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main 2fe0b8c9106ec6ae9be3d0eebf35c816f21cf823; #009 removed the injected PAPER loop direct mutation fallback and routes configured durable PAPER through the canonical risk boundary. Focused fail-closed suite 56/56 PASS. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main 61e9380cd6a4806618e6665532e6f6e5ec186121; #010 hardened operational log redaction for free-form Bearer credentials. Focused security suite 71/71 PASS. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
