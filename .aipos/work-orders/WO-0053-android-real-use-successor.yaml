@@ -4,7 +4,7 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: cf56112e5c1091d89f9684dcaecf433f405ca03e
+base_commit: b08b4f5b7e0302fde570748a3102d515e37063b6
 implementation_branch: agent/android-real-use-successor
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
@@ -70,6 +70,17 @@ verification:
     artifact_id: 9138504317
     sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
     source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
+  latest_protected_main:
+    commit: b08b4f5b7e0302fde570748a3102d515e37063b6
+    ci: PASS
+    mobile_native: PASS
+    android_rc:
+      workflow_run_id: 31658860506
+      run_number: 842
+      artifact: nusa-android-rc-b08b4f5b7e0302fde570748a3102d515e37063b6-842
+      sha256: 7af14179d550924a244f3511bd9729dc9ca072256fbe93848531b69feab9e02f
+      provenance_source_sha: b08b4f5b7e0302fde570748a3102d515e37063b6
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
   blocked:
     - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
 safety:
