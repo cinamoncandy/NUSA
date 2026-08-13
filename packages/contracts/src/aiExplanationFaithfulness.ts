@@ -145,3 +145,16 @@ export interface ExplanationFaithfulnessResult {
   readonly requestSha256: string;
   readonly resultSha256: string;
 }
+
+// Extends the shared read-only AI projection every consumer already reads, via the same
+// declaration-merging pattern aiInferenceResources.ts and aiProviderDiversity.ts use to add
+// their own fields to AiReadOnlyProjection. Every field here is optional, so no existing
+// AiReadOnlyProjection object literal anywhere in the codebase needs to change for this to
+// compile -- see projection.ts's applyExplanationFaithfulness() for where these get set.
+declare module "./aiInference" {
+  interface AiReadOnlyProjection {
+    readonly explanationFaithfulnessStrength?: ExplanationFaithfulnessStrength;
+    readonly explanationFaithfulnessReasonCodes?: readonly ExplanationFaithfulnessReasonCode[];
+    readonly explanationFaithfulnessUngroundedNumbers?: readonly number[];
+  }
+}

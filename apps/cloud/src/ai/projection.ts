@@ -2,6 +2,7 @@ import type { AiCalibrationDurabilityHealth } from "../../../../packages/contrac
 import type { AiCalibrationProfile, AiReadOnlyProjection } from "../../../../packages/contracts/src/aiInference";
 import type { AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
 import type { AiProviderComparisonResult } from "../../../../packages/contracts/src/aiProviderDiversity";
+import { evaluateExplanationFaithfulness, extractNumericFacts } from "./explanationFaithfulnessEvaluator";
 import type { AiOrchestrationResult } from "./multiAgentOrchestrator";
 
 type CalibrationBoundResult = AiOrchestrationResult & {
@@ -136,11 +137,65 @@ function applyProviderComparison(base: AiReadOnlyProjection, comparison: AiProvi
   });
 }
 
+/**
+ * Scores the STRATEGY_PROPOSER's rationale (the actual explanation this projection surfaces as
+ * `thesis`/`uncertainty`) for groundedness against the EVIDENCE_PRODUCER's own fact-typed
+ * observations, and for completeness/consistency -- see ADR-0013 and
+ * explanationFaithfulnessEvaluator.ts's module doc.
+ *
+ * Scoped deliberately to what this orchestration layer actually contains: STRATEGY_PROPOSER's
+ * `decision` field is "candidate" | "no_action" | "insufficient_evidence", a research-candidate
+ * verdict, not a BUY/SELL trade direction -- there is no live trade direction at this layer to
+ * check consistency against, so `action` is passed as the neutral "HOLD" (which the evaluator
+ * exempts from its direction-consistency check by design; see its test suite). Only
+ * groundedness and completeness are meaningful here, and that's what this wiring exercises.
+ */
+function applyExplanationFaithfulness(base: AiReadOnlyProjection, result: AiOrchestrationResult | null): AiReadOnlyProjection {
+  const proposal = result?.structuredOutputs.find((output) => output.role === "STRATEGY_PROPOSER");
+  if (proposal == null) return base;
+  const proposalPayload = proposal.payload as { rationaleClaims?: unknown; uncertainty?: unknown; rawProbability?: unknown };
+  const rationaleClaims = Array.isArray(proposalPayload.rationaleClaims) ? proposalPayload.rationaleClaims.filter((claim): claim is string => typeof claim === "string") : [];
+  const uncertainty = typeof proposalPayload.uncertainty === "string" ? proposalPayload.uncertainty : "";
+  const explanationText = [...rationaleClaims, uncertainty].join(" ").trim();
+  if (explanationText === "") return base;
+
+  const evidenceOutput = result?.structuredOutputs.find((output) => output.role === "EVIDENCE_PRODUCER");
+  const evidencePayload = evidenceOutput?.payload as { observations?: unknown } | undefined;
+  const observations = Array.isArray(evidencePayload?.observations) ? evidencePayload.observations as ReadonlyArray<Record<string, unknown>> : [];
+  const factualClaimsText = observations
+    .filter((observation) => observation.claimType === "fact")
+    .map((observation) => (typeof observation.claim === "string" ? observation.claim : ""))
+    .join(" ");
+  const numericFacts = extractNumericFacts(factualClaimsText);
+
+  const rawProbability = typeof proposalPayload.rawProbability === "number" && Number.isFinite(proposalPayload.rawProbability)
+    ? Math.min(1, Math.max(0, proposalPayload.rawProbability))
+    : 0;
+  const evaluatedAt = result?.runs.at(-1)?.completedAt ?? 0;
+
+  const faithfulness = evaluateExplanationFaithfulness({
+    schemaVersion: 1,
+    explanationId: result?.orchestrationRunId ?? "unknown",
+    explanationText,
+    evidence: { numericFacts },
+    decision: { action: "HOLD", confidence: rawProbability },
+    evaluatedAt: Number.isSafeInteger(evaluatedAt) && evaluatedAt >= 0 ? evaluatedAt : 0
+  });
+
+  return Object.freeze({
+    ...base,
+    explanationFaithfulnessStrength: faithfulness.strength,
+    explanationFaithfulnessReasonCodes: faithfulness.reasonCodes,
+    explanationFaithfulnessUngroundedNumbers: faithfulness.ungroundedNumbers
+  });
+}
+
 export function projectAiReadOnly(
   result: AiOrchestrationResult | null,
   calibrationProfile?: AiCalibrationProfile | null,
   durabilityHealth?: AiCalibrationDurabilityHealth
 ): AiReadOnlyProjection {
   const boundResult = result as CalibrationBoundResult | null;
-  return applyProviderComparison(projectPrimaryAiReadOnly(result, calibrationProfile, durabilityHealth), boundResult?.providerComparison);
+  const withProviderComparison = applyProviderComparison(projectPrimaryAiReadOnly(result, calibrationProfile, durabilityHealth), boundResult?.providerComparison);
+  return applyExplanationFaithfulness(withProviderComparison, result);
 }
