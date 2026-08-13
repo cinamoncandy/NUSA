@@ -12,6 +12,7 @@ export function verifyAiExplanation(envelope: AiExplanationEnvelope): AiExplanat
   const reasons = new Set<string>();
   const statuses: Record<string, AiExplanationSupportStatus> = {};
   const evidence = new Map(envelope.evidence.map((item) => [item.evidenceId, item]));
+  if (evidence.size !== envelope.evidence.length || new Set(envelope.claims.map((claim) => claim.claimId)).size !== envelope.claims.length) reasons.add("DUPLICATE_EVIDENCE_OR_CLAIM_ID");
   const material = new Set(envelope.policy.materialCounterEvidenceIds);
   if (envelope.schemaVersion !== 1 || envelope.policy.schemaVersion !== 1) reasons.add("UNSUPPORTED_SCHEMA");
   if (!nonEmpty(envelope.explanationId) || !finiteUnit(envelope.confidence)) reasons.add("INVALID_IDENTITY_OR_CONFIDENCE");
@@ -30,6 +31,7 @@ export function verifyAiExplanation(envelope: AiExplanationEnvelope): AiExplanat
     if (cited.some((item) => item == null)) status = "UNVERIFIED";
     if (cited.some((item) => item?.contradictsClaimIds.includes(claim.claimId))) status = "CONTRADICTED";
     if (cited.some((item) => item?.provenance !== claim.provenance)) status = "UNVERIFIED";
+    if (cited.some((item) => item != null && !item.supportsClaimIds.includes(claim.claimId))) status = "UNVERIFIED";
     if (claim.assertive && envelope.abstained) status = "UNVERIFIED";
     if (claim.assertive && envelope.confidence < envelope.policy.minimumConfidenceForAssertiveLanguage) status = "UNVERIFIED";
     if (claim.provenance === "OBSERVED" && cited.some((item) => item?.provenance === "HYPOTHETICAL")) status = "UNVERIFIED";
