@@ -53,6 +53,56 @@ const write = (res: ServerResponse, result: Readonly<{ status: number; headers: 
   res.end(result.body);
 };
 const unavailable = (): CloudReadinessSnapshot => Object.freeze({ ok: false, checks: Object.freeze({ database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false }) });
+const MAX_REQUEST_BODY_BYTES = 10_000;
+
+class RequestBodyTooLargeError extends Error {
+  public constructor() {
+    super("request body too large");
+    this.name = "RequestBodyTooLargeError";
+  }
+}
+
+function readRequestBody(req: IncomingMessage): Promise<string> {
+  const declaredLength = req.headers["content-length"];
+  if (typeof declaredLength === "string") {
+    const length = Number(declaredLength);
+    if (Number.isSafeInteger(length) && length > MAX_REQUEST_BODY_BYTES) {
+      req.resume();
+      return Promise.reject(new RequestBodyTooLargeError());
+    }
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    let value = "";
+    let byteLength = 0;
+    let settled = false;
+    const fail = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      // Continue draining without retaining data so an oversized client cannot
+      // turn the bounded body reader into an unbounded memory sink.
+      req.resume();
+      reject(error);
+    };
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => {
+      if (settled) return;
+      byteLength += Buffer.byteLength(chunk, "utf8");
+      if (byteLength > MAX_REQUEST_BODY_BYTES) {
+        fail(new RequestBodyTooLargeError());
+        return;
+      }
+      value += chunk;
+    });
+    req.on("end", () => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    });
+    req.on("error", (error) => fail(error));
+  });
+}
+
 const correlationId = (req: IncomingMessage): string => {
   const value = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -120,7 +170,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      const body = req.method === "POST" || req.method === "PUT" ? await new Promise<string>((resolve, reject) => { let value = ""; req.setEncoding("utf8"); req.on("data", (chunk) => { value += chunk; if (value.length > 10000) reject(new Error("request body too large")); }); req.on("end", () => resolve(value)); req.on("error", reject); }) : undefined;
+      const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
       if (req.url === "/ready") {
@@ -162,7 +212,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
       write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
-    } catch {
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        write(res, dashboardJsonResponse(413, { error: "REQUEST_BODY_TOO_LARGE" }));
+        return;
+      }
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
       if (!res.headersSent) write(res, dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" })); else res.destroy();
     }

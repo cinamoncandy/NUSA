@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T12:05:00+09:00"
+updated_at: "2026-08-13T15:29:10+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
 active_branch: agent/aipos-0053-main-final
 active_pull_request: null
-base_commit: d22885657b9c95feb52159886f4292ba526fc2e7
+base_commit: 85df103d90f1e30b04a8ed5346e025c00190d52b
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -110,6 +110,18 @@ recent_repository_evidence:
     build: PASS
     safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  http_input_boundary_hardening:
+    work_order: WO-0053
+    evidence: docs/audits/http-input-boundary-hardening-2026-08-13.md
+    focused_tests: PASS_21_OF_21
+    body_limit: PASS_UTF8_BYTES
+    oversized_response: PASS_413
+    typecheck: PASS
+    lint: PASS
+    build: PASS
+    architecture_security_aipos: PASS
+    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -203,7 +215,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. AIPOS provenance PR #459 merged at d22885657b9c95feb52159886f4292ba526fc2e7 with Full CI and Mobile Native PASS. Android RC provenance remains bound to the last Android-changing protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main d22885657b9c95feb52159886f4292ba526fc2e7; post-merge Full CI and Mobile Native are PASS, and the latest Android-changing RC remains provenance-bound to b112a7691bbfeba00b5b0dd74e6a311272e7a890. Only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
+    current_commit: "Protected main 85df103d90f1e30b04a8ed5346e025c00190d52b; #006 HTTP input-boundary hardening is verified on this exact base, while physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
