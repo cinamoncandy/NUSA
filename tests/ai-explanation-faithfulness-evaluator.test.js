@@ -44,9 +44,18 @@ test("a number within 0.5% relative tolerance of an evidence fact is still groun
 });
 
 test("small integers (ordinal/structural language) are never flagged as ungrounded", () => {
-  const text = "This is the first of three reasons supporting the signal; still, there is uncertainty and risk, however small.";
+  const text = "This is the 1st of 3 reasons supporting the signal; still, there is uncertainty and risk, however small.";
   const result = evaluateExplanationFaithfulness(baseRequest({ explanationText: text }));
   assert.deepEqual(result.ungroundedNumbers, []);
+});
+
+test("a small DECIMAL fraction is still checked for grounding, unlike a small integer", () => {
+  // Regression: the ordinal-integer exemption above must not also swallow a fabricated ratio
+  // like 0.95 just because its magnitude is under 10 -- only whole small integers are exempt.
+  const text = "The drawdown ratio is 0.95, extremely elevated, however this may change quickly.";
+  const result = evaluateExplanationFaithfulness(baseRequest({ explanationText: text, evidence: { numericFacts: [0.02, 0.15, 0.8] } }));
+  assert.deepEqual(result.ungroundedNumbers, [0.95]);
+  assert.ok(result.reasonCodes.includes("UNGROUNDED_NUMERIC_CLAIM"));
 });
 
 test("missing uncertainty discussion is flagged and downgrades to PARTIALLY_FAITHFUL alone", () => {

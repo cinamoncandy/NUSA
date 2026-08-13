@@ -1,4 +1,6 @@
 import type { RiskDashboardSection, DashboardStatus } from "../../cloud/src/dashboardAggregator";
+import { evaluateExplanationFaithfulness } from "../../cloud/src/ai/explanationFaithfulnessEvaluator";
+import type { ExplanationFaithfulnessReasonCode, ExplanationFaithfulnessStrength } from "../../../packages/contracts/src/aiExplanationFaithfulness";
 
 /**
  * Read-only research assistant: on demand, explains the current risk dashboard section
@@ -24,6 +26,13 @@ export interface AiRiskCommentary {
   readonly status: AiRiskCommentaryStatus;
   readonly commentary: string;
   readonly generatedAt: number;
+  /** Deterministic groundedness/completeness check against the same risk figures the
+   * commentary was generated from -- see ADR-0013. Display-only; never gates the commentary. */
+  readonly faithfulness?: Readonly<{
+    strength: ExplanationFaithfulnessStrength;
+    reasonCodes: readonly ExplanationFaithfulnessReasonCode[];
+    ungroundedNumbers: readonly number[];
+  }>;
 }
 
 const NOT_CONFIGURED_MESSAGE = "AI 리서치 어시스턴트가 설정되지 않았습니다.";
@@ -63,7 +72,27 @@ export async function explainRiskCommentary(input: Readonly<{
   }
   try {
     const commentary = await input.client.explainRisk(input.request);
-    return Object.freeze({ status: "OK", commentary, generatedAt: input.nowMs });
+    const ratios = [input.request.risk.dailyDrawdownRatio, input.request.risk.portfolioHeatRatio, input.request.risk.liquidationBufferRatio];
+    const faithfulness = evaluateExplanationFaithfulness({
+      schemaVersion: 1,
+      explanationId: `${input.request.market}:risk:${input.nowMs}`,
+      explanationText: commentary,
+      // Ratios are also included as percentages: the prompt states them as raw ratios
+      // (e.g. 0.05), but a natural-language commentary restating one as "5%" must not be
+      // flagged as ungrounded purely for choosing that representation.
+      evidence: { numericFacts: [...ratios, ...ratios.map((ratio) => ratio * 100)] },
+      // Risk commentary describes current state rather than asserting a trade direction or a
+      // stated confidence figure, so the direction/confidence-overclaim checks don't apply
+      // here -- "HOLD" (neutral) and full confidence leave both checks inert by design.
+      decision: { action: "HOLD", confidence: 1 },
+      evaluatedAt: input.nowMs
+    });
+    return Object.freeze({
+      status: "OK",
+      commentary,
+      generatedAt: input.nowMs,
+      faithfulness: Object.freeze({ strength: faithfulness.strength, reasonCodes: faithfulness.reasonCodes, ungroundedNumbers: faithfulness.ungroundedNumbers })
+    });
   } catch {
     return Object.freeze({ status: "UNAVAILABLE", commentary: UNAVAILABLE_MESSAGE, generatedAt: input.nowMs });
   }

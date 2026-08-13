@@ -110,7 +110,10 @@ export async function explainStrategySignal(input: Readonly<{
       schemaVersion: 1,
       explanationId: `${input.request.market}:${input.request.signal.type}:${input.request.signal.timestamp}`,
       explanationText: explanation,
-      evidence: { numericFacts: input.request.recentPrices },
+      // Confidence is also included as-given and as a percentage: a natural-language
+      // explanation restating "confidence 0.72" as "72%" must not be flagged as an
+      // ungrounded number just because of which representation it chose.
+      evidence: { numericFacts: [...input.request.recentPrices, input.request.signal.confidence, input.request.signal.confidence * 100] },
       decision: { action: input.request.signal.type, confidence: Math.min(1, Math.max(0, input.request.signal.confidence)) },
       evaluatedAt: input.nowMs
     });
