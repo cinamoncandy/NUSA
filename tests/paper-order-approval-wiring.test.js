@@ -53,9 +53,9 @@ test("PAPER order server requires ACTIVE approval and paper:trade scope", async 
     userAccessRepository: users,
     tokenVerifier: {
       verify(token) {
-        if (token === "pending-token") return { userId: "pending-user", scopes: ["paper:trade"] };
-        if (token === "active-token") return { userId: "active-user", scopes: ["paper:trade"] };
-        if (token === "read-only-token") return { userId: "active-user", scopes: ["dashboard:read"] };
+        if (token === "pending-token") return { userId: "pending-user", email: "pending@nusa.local", scopes: ["paper:trade"] };
+        if (token === "active-token") return { userId: "active-user", email: "active@nusa.local", scopes: ["paper:trade"] };
+        if (token === "read-only-token") return { userId: "active-user", email: "active@nusa.local", scopes: ["dashboard:read"] };
         return undefined;
       }
     },
