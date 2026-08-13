@@ -172,12 +172,38 @@ function validateState(state: PaperAccountState): void {
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
   if (state.initialCapital <= 0 || state.cash < 0 || state.equity < 0) throw new Error("paper account balance invariant failed");
   if (!Number.isSafeInteger(state.updatedAt) || state.updatedAt < 0) throw new Error("paper account updatedAt is invalid");
+  const positionMarkets = new Set<string>();
   for (const position of state.positions) {
+    if (!position.market.trim() || positionMarkets.has(position.market)) throw new Error("paper position identity is invalid");
+    positionMarkets.add(position.market);
     finiteNonNegative(position.quantity, "position.quantity"); finiteNonNegative(position.averageEntryPrice, "position.averageEntryPrice"); finiteNonNegative(position.markPrice, "position.markPrice");
+    if (![position.realizedPnL, position.unrealizedPnL].every(Number.isFinite)) throw new Error("paper position PnL is invalid");
   }
+  const orderIds = new Set<string>();
+  const idempotencyKeys = new Set<string>();
   for (const order of state.orders) {
+    if (!order.id.trim() || orderIds.has(order.id) || !order.idempotencyKey.trim() || idempotencyKeys.has(order.idempotencyKey) || !order.market.trim() || order.status !== "FILLED") throw new Error("paper order identity is invalid");
+    orderIds.add(order.id); idempotencyKeys.add(order.idempotencyKey);
+    finiteNonNegative(order.quantity, "paper order quantity"); finiteNonNegative(order.price, "paper order price"); finiteNonNegative(order.fee, "paper order fee");
+    if (order.quantity <= 0 || order.price <= 0 || !Number.isSafeInteger(order.createdAt) || !Number.isSafeInteger(order.filledAt) || order.createdAt < 0 || order.filledAt < order.createdAt) throw new Error("paper order accounting fields are invalid");
     if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
   }
+  const fillIds = new Set<string>();
+  const fillsByOrder = new Map<string, PaperFillRecord>();
+  for (const fill of state.fills) {
+    if (!fill.id.trim() || fillIds.has(fill.id) || !orderIds.has(fill.orderId) || fillsByOrder.has(fill.orderId) || !fill.market.trim()) throw new Error("paper fill identity is invalid");
+    fillIds.add(fill.id); fillsByOrder.set(fill.orderId, fill);
+    finiteNonNegative(fill.quantity, "paper fill quantity"); finiteNonNegative(fill.price, "paper fill price"); finiteNonNegative(fill.fee, "paper fill fee");
+    if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
+  }
+  for (const order of state.orders) {
+    const fill = fillsByOrder.get(order.id);
+    if (fill == null || fill.market !== order.market || fill.side !== order.side || fill.quantity !== order.quantity || fill.price !== order.price || fill.fee !== order.fee || fill.filledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
+  }
+  if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
+  const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
+  const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
+  if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
 }
 
 function manualCommandFingerprint(command: PersonalPaperOrderCommand): string {
