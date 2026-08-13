@@ -55,6 +55,8 @@ verification:
     - "Read-only Broker Credential Integration #1044 PASS."
     - "Focused mobile/PAPER/runtime suite: 69/69 PASS."
     - "typecheck, build, lint, architecture, AI, safety, security, Firebase readiness, and diff-check PASS."
+    - "PAPER writer clock/takeover hardening focused tests: 17/17 PASS; SQLite migration tests: 11/11 PASS."
+    - "PAPER writer clock regression and bounded forward-jump takeover fail closed; crash-after-save takeover restores the last normal state."
   access_approval_identity:
     issue: 445
     pull_request: 448

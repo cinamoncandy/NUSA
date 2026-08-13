@@ -50,6 +50,17 @@ recent_repository_evidence:
       apk_sha256: 7f161874507d63a015d1e21b21e8c34d7507cd274101ed0d04828ee91f0a1e31
       source_sha: 398153a25258afd30b932b08a18bcca7277041e5
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  paper_writer_clock_takeover_hardening:
+    work_order: WO-0053
+    evidence: docs/audits/paper-writer-clock-takeover-hardening-2026-08-13.md
+    focused_tests: PASS_17_OF_17
+    migration_tests: PASS_11_OF_11
+    typecheck: PASS
+    lint: PASS
+    build: PASS
+    architecture_security_aipos: PASS
+    full_isolated_suite: BLOCKED_WINDOWS_SYMLINK_PRIVILEGE
+    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
     protected_main_post_merge:
       commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
       ci: PASS

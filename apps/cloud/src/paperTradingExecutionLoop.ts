@@ -62,6 +62,10 @@ export interface PaperWriterLeaseOptions {
   readonly leaseDurationMs?: number;
   readonly heartbeatIntervalMs?: number;
   readonly ownerId?: string;
+  /** Maximum wall-clock advance accepted by an already-running writer. */
+  readonly maxClockAdvanceMs?: number;
+  /** Maximum age of a previous heartbeat accepted for takeover. */
+  readonly maxTakeoverAgeMs?: number;
 }
 
 export class SqliteCloudPaperAccountRepository implements PaperAccountRepository {
@@ -69,16 +73,23 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private readonly now: () => number;
   private readonly leaseDurationMs: number;
   private readonly heartbeatIntervalMs: number;
+  private readonly maxClockAdvanceMs: number;
+  private readonly maxTakeoverAgeMs: number;
   private readonly heartbeat?: ReturnType<typeof setInterval>;
   private closed = false;
   private leaseLost = false;
+  private lastObservedNowMs = 0;
   public constructor(private readonly db: SqliteDatabase, options: PaperWriterLeaseOptions = {}) {
     this.ownerId = options.ownerId ?? randomUUID();
     this.now = options.now ?? Date.now;
     this.leaseDurationMs = options.leaseDurationMs ?? 30_000;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? Math.max(1_000, Math.floor(this.leaseDurationMs / 3));
+    this.maxClockAdvanceMs = options.maxClockAdvanceMs ?? Math.max(this.leaseDurationMs * 2, 60_000);
+    this.maxTakeoverAgeMs = options.maxTakeoverAgeMs ?? this.leaseDurationMs * 4;
     if (!Number.isSafeInteger(this.leaseDurationMs) || this.leaseDurationMs < 1_000) throw new Error("paper writer lease duration is invalid");
     if (!Number.isSafeInteger(this.heartbeatIntervalMs) || this.heartbeatIntervalMs < 1_000 || this.heartbeatIntervalMs >= this.leaseDurationMs) throw new Error("paper writer heartbeat interval is invalid");
+    if (!Number.isSafeInteger(this.maxClockAdvanceMs) || this.maxClockAdvanceMs < this.leaseDurationMs) throw new Error("paper writer clock advance limit is invalid");
+    if (!Number.isSafeInteger(this.maxTakeoverAgeMs) || this.maxTakeoverAgeMs < this.leaseDurationMs) throw new Error("paper writer takeover age limit is invalid");
     this.acquireLease();
     const timer = setInterval(() => this.heartbeatLease(), this.heartbeatIntervalMs);
     timer.unref?.();
@@ -123,13 +134,21 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const now = this.now();
     if (!Number.isSafeInteger(now) || now < 0) throw new Error("paper writer clock is invalid");
     this.db.transaction(() => {
-      const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(ACCOUNT_ID) as { owner_id?: string; lease_until_ms?: number } | undefined;
+      const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms, heartbeat_at_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(ACCOUNT_ID) as { owner_id?: string; lease_until_ms?: number; heartbeat_at_ms?: number } | undefined;
+      if (row != null) {
+        const heartbeatAt = Number(row.heartbeat_at_ms);
+        const leaseUntil = Number(row.lease_until_ms);
+        if (!Number.isSafeInteger(heartbeatAt) || heartbeatAt < 0 || !Number.isSafeInteger(leaseUntil) || leaseUntil < heartbeatAt) throw new Error("PAPER_WRITER_LEASE_CORRUPTED");
+        if (now < heartbeatAt) throw new Error("PAPER_WRITER_CLOCK_REGRESSION");
+        if (now - heartbeatAt > this.maxTakeoverAgeMs) throw new Error("PAPER_WRITER_CLOCK_ANOMALY");
+      }
       if (row != null && String(row.owner_id) !== this.ownerId && Number(row.lease_until_ms) > now) throw new Error("PAPER_WRITER_ALREADY_ACTIVE");
       this.db.connection.prepare(`
         INSERT INTO cloud_paper_writer_leases (account_id, owner_id, lease_until_ms, heartbeat_at_ms) VALUES (?, ?, ?, ?)
         ON CONFLICT(account_id) DO UPDATE SET owner_id=excluded.owner_id, lease_until_ms=excluded.lease_until_ms, heartbeat_at_ms=excluded.heartbeat_at_ms
       `).run(ACCOUNT_ID, this.ownerId, now + this.leaseDurationMs, now);
     });
+    this.lastObservedNowMs = now;
   }
   private heartbeatLease(): void {
     if (this.closed || this.leaseLost) return;
@@ -138,8 +157,12 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private assertLeaseHeld(): void {
     if (this.closed || this.leaseLost) throw new Error("PAPER_WRITER_LEASE_LOST");
     const now = this.now();
+    if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_INVALID"); }
+    if (now < this.lastObservedNowMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_REGRESSION"); }
+    if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_ANOMALY"); }
     const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, ACCOUNT_ID, this.ownerId, now);
     if (Number(result.changes) !== 1) { this.leaseLost = true; throw new Error("PAPER_WRITER_LEASE_LOST"); }
+    this.lastObservedNowMs = now;
   }
 }
 

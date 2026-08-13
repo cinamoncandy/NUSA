@@ -185,6 +185,56 @@ test("an expired paper writer lease is recoverable after an abnormal stop", () =
   rmSync(filename, { force: true });
 });
 
+test("clock regression cannot permit a paper writer takeover", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-clock-regression-")), "paper.db");
+  let now = 1_000;
+  const firstDb = new SqliteDatabase(filename);
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb, { ownerId: "writer-a", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  now = 500;
+  const secondDb = new SqliteDatabase(filename);
+  assert.throws(() => new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "writer-b", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 }), /PAPER_WRITER_CLOCK_REGRESSION/);
+  secondDb.close();
+  firstRepository.close();
+  firstDb.close();
+  rmSync(filename, { force: true });
+});
+
+test("a large forward clock jump fails closed instead of taking over a live writer", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-clock-jump-")), "paper.db");
+  let now = 1_000;
+  const firstDb = new SqliteDatabase(filename);
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb, { ownerId: "writer-a", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  now = 100_000;
+  const secondDb = new SqliteDatabase(filename);
+  assert.throws(() => new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "writer-b", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 }), /PAPER_WRITER_CLOCK_ANOMALY/);
+  secondDb.close();
+  firstRepository.close();
+  firstDb.close();
+  rmSync(filename, { force: true });
+});
+
+test("crash after a durable save allows takeover without losing the last normal state", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-crash-recovery-")), "paper.db");
+  let now = 1_000;
+  const firstDb = new SqliteDatabase(filename);
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb, { ownerId: "writer-a", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  const first = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: firstRepository });
+  first.processTick(baseTick({ now, observedAt: now }));
+  firstDb.close();
+
+  now = 5_000;
+  const secondDb = new SqliteDatabase(filename);
+  const secondRepository = new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "writer-b", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  const second = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: secondRepository });
+  assert.equal(second.snapshot().orders.length, 1);
+  assert.equal(second.snapshot().fills.length, 1);
+  assert.equal(second.snapshot().positions[0].quantity, 5);
+  secondRepository.close();
+  secondDb.close();
+  firstRepository.close();
+  rmSync(filename, { force: true });
+});
+
 test("persistence failure does not publish a changed account", () => {
   const repository = { save() { throw new Error("disk full"); }, loadLatest() { return undefined; }, clear() {} };
   const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository });
