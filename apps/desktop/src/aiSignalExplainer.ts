@@ -1,4 +1,6 @@
 import type { StrategySignal } from "./strategyEngine";
+import { evaluateExplanationFaithfulness } from "../../cloud/src/ai/explanationFaithfulnessEvaluator";
+import type { ExplanationFaithfulnessReasonCode, ExplanationFaithfulnessStrength } from "../../../packages/contracts/src/aiExplanationFaithfulness";
 
 /**
  * Read-only research assistant: explains an already-computed strategy signal in
@@ -28,6 +30,14 @@ export interface AiSignalExplanation {
   readonly explanation: string;
   readonly signal?: Readonly<{ type: StrategySignal["type"]; reason: string; timestamp: number }>;
   readonly generatedAt: number;
+  /** Deterministic groundedness/completeness/consistency check against the same recentPrices
+   * and signal the explanation was generated from -- see ADR-0013. Present only on status "OK";
+   * this is display-only research evidence, never a gate on showing the explanation. */
+  readonly faithfulness?: Readonly<{
+    strength: ExplanationFaithfulnessStrength;
+    reasonCodes: readonly ExplanationFaithfulnessReasonCode[];
+    ungroundedNumbers: readonly number[];
+  }>;
 }
 
 const NOT_CONFIGURED_MESSAGE = "AI 리서치 어시스턴트가 설정되지 않았습니다.";
@@ -96,11 +106,20 @@ export async function explainStrategySignal(input: Readonly<{
   }
   try {
     const explanation = await input.client.explain(input.request);
+    const faithfulness = evaluateExplanationFaithfulness({
+      schemaVersion: 1,
+      explanationId: `${input.request.market}:${input.request.signal.type}:${input.request.signal.timestamp}`,
+      explanationText: explanation,
+      evidence: { numericFacts: input.request.recentPrices },
+      decision: { action: input.request.signal.type, confidence: Math.min(1, Math.max(0, input.request.signal.confidence)) },
+      evaluatedAt: input.nowMs
+    });
     return Object.freeze({
       status: "OK",
       explanation,
       signal: Object.freeze({ type: input.request.signal.type, reason: input.request.signal.reason, timestamp: input.request.signal.timestamp }),
-      generatedAt: input.nowMs
+      generatedAt: input.nowMs,
+      faithfulness: Object.freeze({ strength: faithfulness.strength, reasonCodes: faithfulness.reasonCodes, ungroundedNumbers: faithfulness.ungroundedNumbers })
     });
   } catch {
     return Object.freeze({ status: "UNAVAILABLE", explanation: UNAVAILABLE_MESSAGE, generatedAt: input.nowMs });

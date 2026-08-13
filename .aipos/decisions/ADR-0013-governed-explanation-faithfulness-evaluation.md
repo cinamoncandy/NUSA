@@ -75,9 +75,10 @@ rather than fabricating a verdict on nothing.
   paraphrased evidence that doesn't literally restate a figure), and does not itself claim to.
   Its own tests document this as a design principle (small integers 0-9 are excluded from
   grounding checks as overwhelmingly ordinal, not quantitative, language), not an oversight.
-- Remaining follow-up: the direction/certainty-language consistency checks
-  (`DIRECTION_INCONSISTENT_WITH_DECISION`, `CONFIDENCE_LANGUAGE_OVERCLAIMS`) are exercised by the
-  evaluator's own unit tests but not by this wiring, since the research-candidate layer has no
-  BUY/SELL direction to check against. A live-trade-facing explainer (e.g. desktop's
-  aiSignalExplainer, which does have a real decision direction) is a better target for exercising
-  those two codes end-to-end and remains future work.
+- **Follow-up (same day):** wired into `apps/desktop/src/aiSignalExplainer.ts`'s
+  `explainStrategySignal()`, which -- unlike the research-candidate layer above -- has a genuine
+  `BUY | SELL | HOLD` signal, a confidence figure, and real numeric evidence (`recentPrices`).
+  `AiSignalExplanation` gains an optional `faithfulness` field (present only on `status: "OK"`,
+  display-only, never gates showing the explanation) that now exercises all six reason codes end
+  to end, including `DIRECTION_INCONSISTENT_WITH_DECISION` and `CONFIDENCE_LANGUAGE_OVERCLAIMS`,
+  which the projection-layer wiring above could not reach.
