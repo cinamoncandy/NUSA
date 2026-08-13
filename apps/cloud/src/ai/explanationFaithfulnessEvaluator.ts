@@ -47,6 +47,17 @@ function assertValidRequest(request: ExplanationFaithfulnessRequest): void {
 // support a quantitative claim.
 const NUMBER_PATTERN = /-?\d{1,3}(?:,\d{3})*(?:\.\d+)?%?/g;
 
+/**
+ * Extracts the concrete numeric figures present in `text`. Used two ways by callers: on an
+ * explanation, these are the claims that need grounding; on a body of evidence text (e.g. an
+ * EVIDENCE_PRODUCER agent's fact-typed observations), these are the facts a claim can be
+ * grounded against. Same extraction rules either direction, so a number is judged by the same
+ * standard on both sides -- see projection.ts's applyExplanationFaithfulness().
+ */
+export function extractNumericFacts(text: string): readonly number[] {
+  return Object.freeze(extractClaimedNumbers(text));
+}
+
 function extractClaimedNumbers(text: string): number[] {
   const matches = text.match(NUMBER_PATTERN) ?? [];
   const values: number[] = [];

@@ -47,24 +47,37 @@ request/result SHA-256 pair for replay identity -- same evaluation of the same r
 produces a byte-identical result, proven by test.
 
 This evaluator is **read-only, zero-authority**: it never mutates a decision, never blocks
-execution, never changes `liveAuthority` or `productionMutationAllowed`, and is not itself wired
-into the live orchestration pipeline's `AiReadOnlyProjection` by this change -- that projection
-type is widely consumed and changing its shape has a large blast radius across existing tests.
-This ADR lands the governed, independently-tested evaluator as the foundational primitive;
-wiring it into `projectAiReadOnly()`'s output (so a faithfulness score becomes part of the
-read-only projection every consumer already sees) is deferred as a follow-up, matching how prior
-WO-AI capabilities landed in stages (WO-AI-009 alone took four follow-up commits: implement,
-harden, simplify, close gaps).
+execution, and never changes `liveAuthority` or `productionMutationAllowed`.
+
+**Follow-up (same day):** wired into `projectAiReadOnly()` via `applyExplanationFaithfulness()`
+in `projection.ts`. The `AiReadOnlyProjection` contract type is extended through the same
+declaration-merging pattern `aiInferenceResources.ts` and `aiProviderDiversity.ts` already use --
+every added field (`explanationFaithfulnessStrength`, `explanationFaithfulnessReasonCodes`,
+`explanationFaithfulnessUngroundedNumbers`) is optional, so no existing `AiReadOnlyProjection`
+object literal anywhere in the codebase needed to change; this avoided the blast-radius concern
+originally raised here. The wiring scores the STRATEGY_PROPOSER's `rationaleClaims`/`uncertainty`
+against the EVIDENCE_PRODUCER's own **fact-typed** observations only (not assumption/derived/
+unknown-typed claims, which must not be able to ground a number) as the numeric-fact source, and
+passes `action: "HOLD"` since this research-candidate layer's `decision` field
+(`candidate | no_action | insufficient_evidence`) has no BUY/SELL trade direction to check
+consistency against -- only groundedness and completeness are meaningful at this layer, and that
+is what the wiring exercises. An orchestration result with no rationale text at all (no
+`rationaleClaims`, empty `uncertainty`) leaves the projection's faithfulness fields `undefined`
+rather than fabricating a verdict on nothing.
 
 ## Consequences
 
-- Explanations can now be scored for groundedness/completeness/consistency deterministically and
-  replayably, closing a concrete instance of the audited 2/4 gap.
+- Explanations are now scored for groundedness/completeness deterministically and replayably as
+  part of the standard read-only AI projection every consumer already reads, closing a concrete
+  instance of the audited 2/4 gap.
 - The evaluator is intentionally simple (lexical, not semantic) -- it will not catch every real
   faithfulness violation (e.g. a fabricated *qualitative* claim with no attached number, or
   paraphrased evidence that doesn't literally restate a figure), and does not itself claim to.
   Its own tests document this as a design principle (small integers 0-9 are excluded from
   grounding checks as overwhelmingly ordinal, not quantitative, language), not an oversight.
-- Follow-up work: wire this into `projection.ts`'s `AiReadOnlyProjection` and into
-  `researchReviewAgent.ts`'s critic role so a low faithfulness score becomes visible
-  disagreement/uncertainty evidence rather than a side channel nothing reads.
+- Remaining follow-up: the direction/certainty-language consistency checks
+  (`DIRECTION_INCONSISTENT_WITH_DECISION`, `CONFIDENCE_LANGUAGE_OVERCLAIMS`) are exercised by the
+  evaluator's own unit tests but not by this wiring, since the research-candidate layer has no
+  BUY/SELL direction to check against. A live-trade-facing explainer (e.g. desktop's
+  aiSignalExplainer, which does have a real decision direction) is a better target for exercising
+  those two codes end-to-end and remains future work.
