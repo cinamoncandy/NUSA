@@ -111,12 +111,11 @@ export function startCloudRuntime(
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
   const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
-  const runtimeOwnsPaperComposition = paperExecutionLoop == null && paperAccountRepository == null;
-  const productionPaperRiskGate = runtimeOwnsPaperComposition && config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+  const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
   const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
-  const productionPaperBoundary = runtimeOwnsPaperComposition && effectivePaperLoop != null && productionPaperRiskGate != null
+  const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
     ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
     : undefined;
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
@@ -153,10 +152,13 @@ export function startCloudRuntime(
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get("operator")?.investmentPercent ?? 100;
         const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent };
-        const result = runtimeOwnsPaperComposition
-          ? productionPaperBoundary?.processTick(tick)
-          : effectivePaperLoop.processTick(tick);
-        if (result == null || result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
+        // A supplied loop is a read/recovery fixture unless it is composed behind the
+        // canonical Cloud PAPER risk boundary. Never let dependency injection create a
+        // second mutation path for strategy ticks.
+        const result = productionPaperBoundary?.processTick(tick);
+        // Missing boundary means no strategy mutation; retain a verified read projection so
+        // recovery/fixtures remain observable without turning the loop into a writer.
+        if (result != null && result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
       }
     } else if (effectivePaperLoop != null) clearPaperProjection();
   }, (state) => { marketConnectionState = state; if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); } }) : undefined;
@@ -185,7 +187,9 @@ export function startCloudRuntime(
     const now = Date.now();
     const investmentPercent = investmentAllocationSettings.get(principal.userId)?.investmentPercent ?? 100;
     const context = { now, marketPrice: market.price, observedAt, mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth, investmentPercent };
-    const result = productionPaperBoundary?.submitManualOrder(principal.userId, command, context) ?? (runtimeOwnsPaperComposition ? undefined : effectivePaperLoop.submitManualOrder(command, context));
+    // Manual mutation is available only through the canonical Cloud PAPER boundary. A
+    // caller-supplied execution loop must not become an implicit risk-gate bypass.
+    const result = productionPaperBoundary?.submitManualOrder(principal.userId, command, context);
     if (result == null) return Object.freeze({ schemaVersion: 1, status: "BLOCKED", reason: "PAPER_RISK_BOUNDARY_UNAVAILABLE", liveAuthority: "NONE", productionMutationAllowed: false });
     if (result.status === "FILLED") projectPaperAccount();
     const snapshot = loadPaperOperations(principal);
