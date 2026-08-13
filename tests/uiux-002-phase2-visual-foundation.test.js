@@ -24,7 +24,7 @@ const colorPair = (design, name) => {
 test("Phase 2 theme follows the canonical graphite identity and restrained accent", () => {
   const design = read("designSystem.ts");
   assert.match(design, /background: dark \? "#080A0F"/);
-  assert.match(design, /primary: dark \? "#6D8DFF"/);
+  assert.match(design, /primary: dark \? "#F4F6F8"/);
   assert.match(design, /surfaceRaised: dark \? "#131923"/);
   assert.match(design, /radii: \{ sm: 8, md: 12, lg: 16, xl: 24/);
 });
