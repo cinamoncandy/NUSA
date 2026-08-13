@@ -1,10 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
   authorizeDashboardReadRequest,
   dashboardJsonResponse,
   handleMobileDashboardHttp,
   type DashboardHttpRequest,
+  type DashboardHttpResponse,
+  type DashboardPrincipal,
   type DashboardTokenVerifier,
   type MobileDashboardHttpDependencies
 } from "./mobileDashboardHttp";
@@ -110,6 +112,27 @@ const correlationId = (req: IncomingMessage): string => {
   return randomUUID();
 };
 
+const actorRef = (userId: string | undefined): string | undefined => userId == null
+  ? undefined
+  : createHash("sha256").update(userId, "utf8").digest("hex").slice(0, 16);
+
+const auditHttpResponse = (
+  requestId: string,
+  request: DashboardHttpRequest,
+  route: string,
+  response: Readonly<{ status: number }>,
+  principal: DashboardPrincipal | undefined
+): void => {
+  const severity = response.status >= 500 ? "ERROR" : response.status >= 400 ? "WARN" : "INFO";
+  operationalLog(severity, `cloud.http.${route}`, requestId, {
+    actorRef: actorRef(principal?.userId) ?? "ANONYMOUS",
+    method: request.method.toUpperCase(),
+    responseStatus: response.status,
+    evidence: "HTTP_RESPONSE",
+    ...(route === "paper_order" ? { authority: "PAPER_ONLY" } : {})
+  });
+};
+
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
@@ -163,10 +186,23 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
+    let requestPrincipal: DashboardPrincipal | undefined;
+    const requestTokenVerifier: DashboardTokenVerifier = Object.freeze({
+      ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+      verify(token: string) {
+        const principal = accessControlledTokenVerifier.verify(token);
+        requestPrincipal = principal;
+        return principal;
+      }
+    });
+    const respond = (route: string, result: DashboardHttpResponse): void => {
+      auditHttpResponse(requestId, { method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>) }, route, result, requestPrincipal);
+      write(res, result);
+    };
     try {
       if (req.url === "/health") {
-        if (req.method !== "GET") { write(res, dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        write(res, dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
+        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
         return;
       }
 
@@ -174,15 +210,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
       if (req.url === "/ready") {
-        const authorization = authorizeDashboardReadRequest(dashboardRequest, accessControlledTokenVerifier);
-        if (!authorization.ok) { operationalLog("WARN", "cloud.readiness.authorization_failed", requestId, { status: authorization.response.status }); write(res, authorization.response); return; }
+        const authorization = authorizeDashboardReadRequest(dashboardRequest, requestTokenVerifier);
+        if (!authorization.ok) { respond("readiness", authorization.response); return; }
         try {
           const readiness = options.readiness?.() ?? unavailable();
           const checks = Object.freeze({ database: readiness.checks.database === true, migrations: readiness.checks.migrations === true, dashboardPersistence: readiness.checks.dashboardPersistence === true, runtimeRecovery: readiness.checks.runtimeRecovery === true });
           const ok = readiness.ok === true && Object.values(checks).every(Boolean);
           operationalLog(ok ? "INFO" : "WARN", "cloud.readiness", requestId, { ok, checks });
-          write(res, dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
-        } catch { const readiness = unavailable(); operationalLog("ERROR", "cloud.readiness", requestId, { ok: readiness.ok, checks: readiness.checks }); write(res, dashboardJsonResponse(503, readiness)); }
+          respond("readiness", dashboardJsonResponse(ok ? 200 : 503, { ok, checks }));
+        } catch { const readiness = unavailable(); operationalLog("ERROR", "cloud.readiness", requestId, { ok: readiness.ok, checks: readiness.checks }); respond("readiness", dashboardJsonResponse(503, readiness)); }
         return;
       }
 
@@ -190,35 +226,35 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         let payload: unknown = null;
         if ((req.method ?? "GET").toUpperCase() === "POST") {
           try { payload = JSON.parse(body ?? ""); }
-          catch { write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+          catch { respond("paper_order", dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
         }
-        write(res, handlePersonalPaperOrderHttp(dashboardRequest, payload, {
-          tokenVerifier: accessControlledTokenVerifier,
+        respond("paper_order", handlePersonalPaperOrderHttp(dashboardRequest, payload, {
+          tokenVerifier: requestTokenVerifier,
           submitOrder: options.submitPaperOrder ?? (() => { throw new Error("PAPER order submission not configured"); }),
           loadSnapshot: options.loadPaperOperations
         }));
         return;
       }
-      if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadDashboard: options.loadDashboard })); return; }
-      if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: userAccessRepository })); return; }
+      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
         let payload: unknown = null;
         if (["PUT", "POST"].includes((req.method ?? "GET").toUpperCase())) {
           try { payload = JSON.parse(body ?? ""); }
-          catch { write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+          catch { respond("investment_allocation", dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
         }
-        write(res, handleInvestmentAllocationHttp(dashboardRequest, payload, { tokenVerifier: accessControlledTokenVerifier, repository: options.investmentAllocationSettings }));
+        respond("investment_allocation", handleInvestmentAllocationHttp(dashboardRequest, payload, { tokenVerifier: requestTokenVerifier, repository: options.investmentAllocationSettings }));
         return;
       }
-      write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
+      respond("unknown_route", dashboardJsonResponse(404, { error: "NOT_FOUND" }));
     } catch (error) {
       if (error instanceof RequestBodyTooLargeError) {
-        write(res, dashboardJsonResponse(413, { error: "REQUEST_BODY_TOO_LARGE" }));
+        respond("request_body", dashboardJsonResponse(413, { error: "REQUEST_BODY_TOO_LARGE" }));
         return;
       }
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });
-      if (!res.headersSent) write(res, dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" })); else res.destroy();
+      if (!res.headersSent) respond("server_error", dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" })); else res.destroy();
     }
   });
   const sockets = new Set<import("node:net").Socket>();

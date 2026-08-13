@@ -164,6 +164,29 @@ test("unknown paths stay closed even with a valid dashboard token", async () => 
   }, 41804);
 });
 
+test("critical HTTP outcomes emit secret-minimized actor, correlation, and evidence audit projections", async () => {
+  let captured = "";
+  const original = process.stdout.write;
+  process.stdout.write = (chunk) => { captured += String(chunk); return true; };
+  try {
+    await withServer(async (handle) => {
+      const response = await request(handle.port, "/api/dashboard", {
+        authorization: `Bearer ${VALID_TOKEN}`,
+        "x-correlation-id": "audit-correlation-1"
+      });
+      assert.equal(response.status, 200);
+    }, 41807);
+  } finally {
+    process.stdout.write = original;
+  }
+  assert.match(captured, /"event":"cloud\.http\.dashboard"/);
+  assert.match(captured, /"correlationId":"audit-correlation-1"/);
+  assert.match(captured, /"evidence":"HTTP_RESPONSE"/);
+  assert.match(captured, /"responseStatus":200/);
+  assert.match(captured, /"actorRef":"[0-9a-f]{16}"/);
+  assert.doesNotMatch(captured, /owner-token|operator@nusa\.local/);
+});
+
 test("oversized request bodies are bounded and rejected with a precise client error", async () => {
   await withServer(async (handle) => {
     const response = await post(handle.port, "/api/paper-orders", "x".repeat(10_001));

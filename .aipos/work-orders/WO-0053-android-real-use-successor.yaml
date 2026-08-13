@@ -63,6 +63,7 @@ verification:
     - "#008 persistence/recovery audit: persistence/safety/runtime/reconciliation focused suite 41/41 PASS; migration/recovery suite 28/29 PASS with one Windows symlink privilege limitation (EPERM before application code), and no evidence-backed P0/P1 persistence defect. Checksums, corruption quarantine, transactional migrations, WAL/reopen recovery, crash/takeover, and fail-closed restart behavior remain verified."
     - "#009 runtime fail-closed hardening: supplied PAPER loops can no longer bypass the canonical Cloud risk boundary; missing-boundary ticks remain read-only and manual orders block. Focused runtime/failure suite 56/56 PASS and build PASS."
     - "#010 security hardening: free-form operational log messages now redact complete Bearer credentials; focused security/logging/credential/AI suite 71/71 PASS and build PASS."
+    - "#011 observability hardening: Cloud HTTP responses now emit secret-minimized actor references, correlation IDs, outcome status, and evidence class for dashboard, PAPER, operator, settings, readiness, rejection, and failure routes; focused observability/server suite 22/22 PASS and build PASS."
   access_approval_identity:
     issue: 445
     pull_request: 448

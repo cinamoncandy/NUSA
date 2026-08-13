@@ -23,6 +23,6 @@ test("runtime PAPER operations remains behind the same GET-only dashboard server
   const source = fs.readFileSync(serverPath, "utf8");
   assert.match(source, /req\.url\s*===\s*"\/api\/paper-operations"/);
   assert.match(source, /handlePersonalPaperOperationsHttp/);
-  assert.match(source, /tokenVerifier:\s*accessControlledTokenVerifier/);
+  assert.match(source, /tokenVerifier:\s*requestTokenVerifier/);
   assert.doesNotMatch(source, /\/api\/paper-operations[^\n]*(POST|PUT|PATCH|DELETE)/);
 });
