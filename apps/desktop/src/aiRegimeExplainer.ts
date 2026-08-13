@@ -1,4 +1,6 @@
 import type { TradingRegime, StrategyRegimeDecision } from "./regimePolicy";
+import { evaluateExplanationFaithfulness } from "../../cloud/src/ai/explanationFaithfulnessEvaluator";
+import type { ExplanationFaithfulnessReasonCode, ExplanationFaithfulnessStrength } from "../../../packages/contracts/src/aiExplanationFaithfulness";
 
 /**
  * Read-only research assistant: explains, in plain Korean, what the strategy engine's current
@@ -25,6 +27,13 @@ export interface AiRegimeExplanation {
   readonly status: AiRegimeExplanationStatus;
   readonly explanation: string;
   readonly generatedAt: number;
+  /** Deterministic groundedness/completeness check against the same regime figures the
+   * explanation was generated from -- see ADR-0013. Display-only; never gates the explanation. */
+  readonly faithfulness?: Readonly<{
+    strength: ExplanationFaithfulnessStrength;
+    reasonCodes: readonly ExplanationFaithfulnessReasonCode[];
+    ungroundedNumbers: readonly number[];
+  }>;
 }
 
 const NOT_CONFIGURED_MESSAGE = "AI 리서치 어시스턴트가 설정되지 않았습니다.";
@@ -65,7 +74,25 @@ export async function explainRegime(input: Readonly<{
   }
   try {
     const explanation = await input.client.explainRegime(input.request);
-    return Object.freeze({ status: "OK", explanation, generatedAt: input.nowMs });
+    const multipliers = [input.request.decision.risk.positionSizeMultiplier, input.request.decision.risk.maximumExposureMultiplier, input.request.decision.risk.orderFrequencyMultiplier];
+    const faithfulness = evaluateExplanationFaithfulness({
+      schemaVersion: 1,
+      explanationId: `${input.request.market}:regime:${input.request.regime}:${input.nowMs}`,
+      explanationText: explanation,
+      // Multipliers are also included as percentages for the same reason as aiRiskCommentary.ts.
+      evidence: { numericFacts: [...input.request.recentPrices, ...multipliers, ...multipliers.map((value) => value * 100)] },
+      // Regime preference is PREFERRED/NEUTRAL/FORBIDDEN, not a BUY/SELL trade direction, and
+      // carries no stated confidence figure -- "HOLD"/full confidence leave the
+      // direction/overclaim checks inert here by design, same reasoning as aiRiskCommentary.ts.
+      decision: { action: "HOLD", confidence: 1 },
+      evaluatedAt: input.nowMs
+    });
+    return Object.freeze({
+      status: "OK",
+      explanation,
+      generatedAt: input.nowMs,
+      faithfulness: Object.freeze({ strength: faithfulness.strength, reasonCodes: faithfulness.reasonCodes, ungroundedNumbers: faithfulness.ungroundedNumbers })
+    });
   } catch {
     return Object.freeze({ status: "UNAVAILABLE", explanation: UNAVAILABLE_MESSAGE, generatedAt: input.nowMs });
   }

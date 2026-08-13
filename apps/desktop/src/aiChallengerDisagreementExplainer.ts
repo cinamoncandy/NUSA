@@ -1,5 +1,7 @@
 import type { StrategySignalType } from "./strategyEngine";
 import type { AiChallengerObservation } from "./aiChallengerObserver";
+import { evaluateExplanationFaithfulness } from "../../cloud/src/ai/explanationFaithfulnessEvaluator";
+import type { ExplanationFaithfulnessReasonCode, ExplanationFaithfulnessStrength } from "../../../packages/contracts/src/aiExplanationFaithfulness";
 
 /**
  * Read-only research assistant: on demand, explains why the AI challenger's hypothetical
@@ -24,6 +26,13 @@ export interface AiDisagreementExplanation {
   readonly status: AiDisagreementExplanationStatus;
   readonly explanation: string;
   readonly generatedAt: number;
+  /** Deterministic groundedness/completeness/consistency check against the AI challenger's own
+   * signal and confidence -- see ADR-0013. Display-only; never gates the explanation. */
+  readonly faithfulness?: Readonly<{
+    strength: ExplanationFaithfulnessStrength;
+    reasonCodes: readonly ExplanationFaithfulnessReasonCode[];
+    ungroundedNumbers: readonly number[];
+  }>;
 }
 
 const NOT_CONFIGURED_MESSAGE = "AI 리서치 어시스턴트가 설정되지 않았습니다.";
@@ -60,7 +69,27 @@ export async function explainChallengerDisagreement(input: Readonly<{
       championSignal: input.observation.championSignal,
       aiSignal: input.observation.aiSignal
     });
-    return Object.freeze({ status: "OK", explanation, generatedAt: input.nowMs });
+    const confidence = Math.min(1, Math.max(0, input.observation.aiSignal.confidence));
+    const faithfulness = evaluateExplanationFaithfulness({
+      schemaVersion: 1,
+      explanationId: `${input.observation.market}:disagreement:${input.nowMs}`,
+      explanationText: explanation,
+      // No price series is available at this call site -- the AI challenger's own stated
+      // confidence (in both fraction and percent form, per aiSignalExplainer.ts's reasoning)
+      // is the only numeric fact this explanation could legitimately cite.
+      evidence: { numericFacts: [confidence, confidence * 100] },
+      // Checked against the AI CHALLENGER's own signal, not the champion's -- the explanation
+      // is describing why the challenger diverged, so its language should be consistent with
+      // what the challenger itself concluded.
+      decision: { action: input.observation.aiSignal.type, confidence },
+      evaluatedAt: input.nowMs
+    });
+    return Object.freeze({
+      status: "OK",
+      explanation,
+      generatedAt: input.nowMs,
+      faithfulness: Object.freeze({ strength: faithfulness.strength, reasonCodes: faithfulness.reasonCodes, ungroundedNumbers: faithfulness.ungroundedNumbers })
+    });
   } catch {
     return Object.freeze({ status: "UNAVAILABLE", explanation: UNAVAILABLE_MESSAGE, generatedAt: input.nowMs });
   }

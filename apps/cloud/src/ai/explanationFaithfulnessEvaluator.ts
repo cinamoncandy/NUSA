@@ -66,12 +66,14 @@ function extractClaimedNumbers(text: string): number[] {
     const cleaned = (isPercent ? match.slice(0, -1) : match).replace(/,/g, "");
     const value = Number(cleaned);
     if (!Number.isFinite(value)) continue;
-    // Small integers (0-9) are overwhelmingly ordinal/structural in natural language ("첫 번째
+    // Small INTEGERS (0-9) are overwhelmingly ordinal/structural in natural language ("첫 번째
     // 이유", "one of three signals") rather than a quantitative claim about the evidence, and
-    // flagging them produces noise without catching real fabrication. Percent figures are kept
-    // regardless of magnitude since "5%" is very often exactly the kind of claim that needs
-    // grounding.
-    if (!isPercent && Math.abs(value) < 10) continue;
+    // flagging them produces noise without catching real fabrication. This must not also
+    // exempt small fractions like a 0.95 drawdown ratio -- those are exactly the kind of
+    // concrete figure that needs grounding, so the exemption checks Number.isInteger, not just
+    // magnitude. Percent figures are kept regardless of magnitude since "5%" is very often
+    // exactly the kind of claim that needs grounding.
+    if (!isPercent && Number.isInteger(value) && Math.abs(value) < 10) continue;
     values.push(value);
   }
   return values;

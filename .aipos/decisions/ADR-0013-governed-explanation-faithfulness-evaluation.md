@@ -82,3 +82,22 @@ rather than fabricating a verdict on nothing.
   display-only, never gates showing the explanation) that now exercises all six reason codes end
   to end, including `DIRECTION_INCONSISTENT_WITH_DECISION` and `CONFIDENCE_LANGUAGE_OVERCLAIMS`,
   which the projection-layer wiring above could not reach.
+
+- **Follow-up (same day, per `docs/NUSA_AI_CAPABILITY_AUDIT_2026-08-13.md`):** wired into the
+  three remaining unwired explainers -- `aiRiskCommentary.ts` (grounded against drawdown/heat/
+  liquidation ratios, `action: "HOLD"`/confidence 1 since risk commentary asserts no trade
+  direction or stated confidence), `aiRegimeExplainer.ts` (grounded against `recentPrices` and
+  regime risk multipliers, same neutral posture), and `aiChallengerDisagreementExplainer.ts`
+  (checked against the AI challenger's *own* signal and confidence, not the champion's, since the
+  explanation describes why the challenger diverged). All numeric evidence that has a natural
+  ratio/confidence representation is passed in both raw and percentage form, so an explanation
+  restating "0.05" as "5%" is not flagged as ungrounded merely for choosing that representation
+  (`aiSignalExplainer.ts`'s confidence handling was tightened the same way in this pass).
+
+  This pass also fixed a real bug caught by its own new tests: the evaluator's small-number
+  exemption (meant only for ordinal integers like "the 1st of 3 reasons") was checking magnitude
+  alone (`Math.abs(value) < 10`), which also silently exempted small DECIMAL fractions -- a
+  fabricated `0.95` drawdown ratio was not being flagged as ungrounded. Fixed to additionally
+  require `Number.isInteger(value)`, with a dedicated regression test
+  (`tests/ai-explanation-faithfulness-evaluator.test.js`) pinning down that a small integer is
+  still exempt while a small decimal is not.
