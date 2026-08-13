@@ -1,0 +1,6 @@
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/nusa_icon_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nusa_splash</item>
+    </style>
+</resources>

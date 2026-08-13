@@ -21,17 +21,17 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
   assert.match(source, /accessibilityRole="tab"/);
   assert.match(source, /accessibilityState=\{\{ selected \}\}/);
   assert.match(source, /accessibilityRole="tablist"/);
-  assert.match(source, /minHeight: 40/);
+  assert.match(source, /segment: \{ flex: 1, minHeight: 48/);
 });
 
 test('paper and history selectors expose their current selection', () => {
   const trading = read('apps/mobile/src/tradingView.tsx');
   const history = read('apps/mobile/src/orderHistoryView.tsx');
-  assert.match(trading, /selected=\{side === "BUY"\}/);
-  assert.match(trading, /selected=\{orderType === "MARKET"\}/);
-  assert.match(history, /selected=\{filter === value\}/);
-  assert.match(history, /selected=\{period === value\}/);
-  assert.match(history, /selected=\{sort === value\}/);
+  assert.match(trading, /selectedKey=\{side\}/);
+  assert.match(trading, /selectedKey=\{orderType\}/);
+  assert.match(history, /selectedKey=\{filter\}/);
+  assert.match(history, /selectedKey=\{period\}/);
+  assert.match(history, /selectedKey=\{sort\}/);
 });
 
 test('AI hierarchy presents calibrated confidence before raw model probability', () => {
@@ -39,7 +39,7 @@ test('AI hierarchy presents calibrated confidence before raw model probability',
   const trusted = source.indexOf('label="검증 신뢰도"');
   const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
   assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
-  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
   assert.match(source, /READ ONLY/);
 });
 

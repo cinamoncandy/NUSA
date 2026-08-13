@@ -65,6 +65,10 @@ abstract class BaseRepository {
     if (target == null) throw new Error("target user not found");
     if (target.role === "OWNER") throw new Error("owner access cannot be changed through user approval");
   }
+  protected assertOwnerBootstrapSafe(existing: NusaUserRecord | undefined): void {
+    if (existing == null) return;
+    if (existing.role !== "OWNER" || existing.status !== "ACTIVE") throw new Error("owner bootstrap identity collision");
+  }
 }
 
 export class InMemoryNusaUserAccessRepository extends BaseRepository implements NusaUserAccessRepository {
@@ -73,9 +77,11 @@ export class InMemoryNusaUserAccessRepository extends BaseRepository implements 
 
   public ensureOwner(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
     validateIdentity(user.id, user.email);
-    const existing = this.users.get(user.id);
-    if (existing?.role === "OWNER") return existing;
-    const record = Object.freeze({ id: user.id.trim(), email: normalizeEmail(user.email), ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "OWNER" as const, status: "ACTIVE" as const, createdAt: existing?.createdAt ?? now, updatedAt: now, lastSeenAt: now });
+    const id = user.id.trim();
+    const existing = this.users.get(id);
+    this.assertOwnerBootstrapSafe(existing);
+    if (existing != null) return existing;
+    const record = Object.freeze({ id, email: normalizeEmail(user.email), ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "OWNER" as const, status: "ACTIVE" as const, createdAt: now, updatedAt: now, lastSeenAt: now });
     this.users.set(record.id, record);
     return record;
   }
@@ -131,8 +137,9 @@ export class SqliteNusaUserAccessRepository extends BaseRepository implements Nu
     return Object.freeze({ id: String(row.id), email: String(row.email), ...(row.display_name == null ? {} : { displayName: String(row.display_name) }), role: String(row.role) as NusaUserRole, status: String(row.status) as NusaUserStatus, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at), ...(row.last_login_at == null ? {} : { lastLoginAt: Number(row.last_login_at) }), ...(row.last_seen_at == null ? {} : { lastSeenAt: Number(row.last_seen_at) }) });
   }
   public ensureOwner(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
-    validateIdentity(user.id, user.email); const id = user.id.trim(); const email = normalizeEmail(user.email); const name = cleanName(user.displayName);
-    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at,last_seen_at) VALUES(?,?,?,'OWNER','ACTIVE',?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email, display_name=excluded.display_name, role='OWNER', status='ACTIVE', updated_at=excluded.updated_at, last_seen_at=excluded.last_seen_at`).run(id,email,name ?? null,now,now,now);
+    validateIdentity(user.id, user.email); const id = user.id.trim(); const existing = this.get(id); this.assertOwnerBootstrapSafe(existing);
+    if (existing != null) return existing;
+    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at,last_seen_at) VALUES(?,?,?,'OWNER','ACTIVE',?,?,?)`).run(id,normalizeEmail(user.email),cleanName(user.displayName) ?? null,now,now,now);
     return this.get(id)!;
   }
   public registerUser(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {

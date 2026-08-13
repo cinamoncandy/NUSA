@@ -19,7 +19,7 @@ test("startCloudRuntime constructs one canonical risk adapter and one execution 
 test("production-owned PAPER has no direct execution-loop fallback around the risk boundary", () => {
   assert.match(source, /const result = runtimeOwnsPaperComposition\s*\? productionPaperBoundary\?\.processTick\(tick\)\s*:\s*effectivePaperLoop\.processTick\(tick\);/s);
   assert.doesNotMatch(source, /productionPaperBoundary\?\.processTick\(tick\)\s*\?\?\s*effectivePaperLoop\.processTick\(tick\)/s);
-  assert.match(source, /if \(result == null \|\| result\.status === "FAILED"\) clearPaperProjection\(\);/);
+  assert.match(source, /if \(result == null \|\| result\.status === "FAILED"\) clearPaperProjection\(\); else projectPaperAccount\(\);/);
 });
 
 test("production risk composition is coupled to durable state and configured PAPER capital", () => {

@@ -28,7 +28,7 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
   assert.match(source, /ai\.disagreements/);
   assert.match(source, /liveAuthority/);
   assert.match(source, /productionMutationAllowed/);
-  assert.match(source, /주문·이체·LIVE 실행 권한은 없습니다/);
+  assert.match(source, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
   assert.doesNotMatch(source, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
 });
 
@@ -42,16 +42,18 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   assert.match(app, /rawCandles=\{null\}/);
 });
 
-test("read-only PAPER path has one explicit zero-mutation state and no fake controls", () => {
+test("PAPER submit is available only through explicit injection or a verified local PAPER session", () => {
   const source = read("src/tradingView.tsx");
-  assert.match(source, /const readOnly = onSubmit === undefined/);
-  assert.match(source, /PAPER 관찰 모드/);
-  assert.match(source, /ZERO MUTATION/);
-  assert.match(source, /매수·매도 요청을 만들거나 서버로 전송할 수 없습니다/);
-  assert.match(source, /동작하지 않는 주문 컨트롤은 표시하지 않습니다/);
-  assert.doesNotMatch(source, /<AuthorityBanner/);
-  assert.doesNotMatch(source, /<DataRow label="주문 생성"|<DataRow label="서버 전송"|<DataRow label="현재 권한"/);
-  assert.doesNotMatch(source, /매수 미리보기|매도 미리보기|읽기 전용 — 주문 권한 없음/);
+  assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
+  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(source, /liveMutationAllowed: false/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
+  assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
+  assert.match(source, /statusLabel="LIVE NONE"/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {
@@ -59,7 +61,7 @@ test("market discovery uses compact accessible favorite and sort controls", () =
   assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{ minWidth: 52, height: 44/);
+  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
   assert.match(source, /sortChip: \{ minHeight: 44/);
   assert.match(source, /StatusChip label="READ ONLY"/);
   assert.doesNotMatch(source, /PUBLIC · READ ONLY/);

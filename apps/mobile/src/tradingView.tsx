@@ -1,87 +1,98 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, NusaTextField, SectionHeading, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaTextField, StatusChip } from "./components";
+import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { buildTradingViewModel, formatTradingAmount, tradingAssetCode, type TradingDraft, type TradingOrderSide, type TradingOrderType } from "./tradingViewModel";
 import type { PortfolioAccountResponse } from "./portfolioViewModel";
+import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
+import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
+import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
+import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdentity } from "./personalPaperOrderClient";
 
-interface TradingViewProps {
-  readonly snapshot: PortfolioAccountResponse | null;
-  readonly marketConnectionState: string;
-  readonly stale: boolean;
-  readonly error: string | null;
-  readonly refreshing: boolean;
-  readonly onRefresh: () => void;
-  readonly onSubmit?: (draft: TradingDraft) => void;
-}
+interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; }
+function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><InlineNotice title="PAPER 화면을 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
+const idempotencyKey = (): string => `paper-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
+const SIDE_ITEMS = Object.freeze([{ key: "BUY", label: "매수" }, { key: "SELL", label: "매도" }]);
+const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, { key: "LIMIT", label: "지정가" }]);
 
-function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) {
-  const { theme } = useTheme();
-  return <View style={styles.state} testID="trading-error"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.danger }]}>PAPER 화면을 표시할 수 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text><NusaButton label="다시 불러오기" onPress={onRetry} /></NusaCard></View>;
-}
-
-export function TradingView({ snapshot, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit }: TradingViewProps) {
+export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit }: TradingViewProps) {
   const { theme } = useTheme();
   const [side, setSide] = useState<TradingOrderSide>("BUY");
   const [orderType, setOrderType] = useState<TradingOrderType>("MARKET");
   const [priceInput, setPriceInput] = useState("");
   const [quantityInput, setQuantityInput] = useState("");
-
+  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const configuredEndpoint = getConfiguredPaperEndpoint();
+  const builtInSubmitAvailable = Boolean(configuredEndpoint && credentialSession.isConfigured() && isPaperConnectionVerified(configuredEndpoint));
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
-  if (error) return <ErrorState message={error} onRetry={onRefresh} />;
-  if (snapshot === null) return <View style={styles.state} testID="trading-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>PAPER 상태를 불러오는 중</Text></View>;
-  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><NusaCard><Text style={[styles.stateTitle, { color: theme.colors.text }]}>관찰 가능한 시장이 없습니다</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>검증된 PAPER 시장 정보가 준비되면 여기에 표시됩니다.</Text><NusaButton label="다시 불러오기" onPress={onRefresh} /></NusaCard></View>;
 
-  const model = buildTradingViewModel({
-    market: { market: snapshot.account.position.market, connectionState: marketConnectionState, stale, price: snapshot.account.markPrice },
-    account: { mode: snapshot.mode, liveMutationAllowed: false, cash: snapshot.account.cash, assetQuantity: snapshot.account.position.quantity, market: snapshot.account.position.market },
-    draft,
-    submitAvailable: onSubmit !== undefined,
-  });
-  const priceLabel = model.currentPrice === null ? "-" : formatTradingAmount(model.currentPrice, "KRW");
-  const readOnly = onSubmit === undefined;
-  const submitEnabled = !readOnly && model.canSubmit;
-  const marketReady = model.blockedReasons.includes("MARKET_DATA_NOT_READY") === false;
+  if (error) return <ErrorState message={error} onRetry={onRefresh} />;
+  if (snapshot === null) return <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>PAPER 상태를 불러오는 중</Text></View>;
+  if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><View style={styles.stateInner}><InlineNotice title="관찰 가능한 시장이 없습니다" detail="시장 데이터가 준비되면 PAPER 주문 작업공간이 활성화됩니다." tone="warning" /><NusaButton label="다시 불러오기" onPress={onRefresh} /></View></View>;
+
+  const cashEnvelope = createCashInvestmentEnvelope(snapshot.account.cash, investmentPercent);
+  const submitAvailable = onSubmit !== undefined || builtInSubmitAvailable;
+  const modelCash = side === "BUY" ? cashEnvelope.investableCash : snapshot.account.cash;
+  const model = buildTradingViewModel({ market: { market: snapshot.account.position.market, connectionState: marketConnectionState, stale, price: snapshot.account.markPrice }, account: { mode: snapshot.mode, liveMutationAllowed: false, cash: modelCash, assetQuantity: snapshot.account.position.quantity, market: snapshot.account.position.market }, draft, submitAvailable });
+  const submitEnabled = submitAvailable && model.canSubmit && !submitting;
+  const marketReady = !model.blockedReasons.includes("MARKET_DATA_NOT_READY");
+  const allocationRatio = Math.max(0, Math.min(100, cashEnvelope.investmentPercent));
+
+  const submitBuiltIn = async () => {
+    if (!configuredEndpoint || !isPaperConnectionVerified(configuredEndpoint)) { setSubmitMessage("설정에서 PAPER endpoint와 세션을 먼저 검증하세요."); return; }
+    setSubmitting(true); setSubmitMessage(null);
+    try {
+      const quantity = Number(quantityInput);
+      const limitPrice = orderType === "LIMIT" ? Number(priceInput) : undefined;
+      const fingerprint = JSON.stringify([model.market, side, orderType, quantity, limitPrice ?? null, investmentPercent]);
+      const result = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider }, processPaperOrderRetryIdentity, fingerprint, idempotencyKey, { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) });
+      if (result.status === "READY") {
+        setSubmitMessage(result.result.status === "FILLED" ? `PAPER 체결 완료 · ${result.result.order?.id ?? ""}` : `${result.result.status}${result.result.reason ? ` · ${result.result.reason}` : ""}`);
+        if (result.result.status === "FILLED") { setQuantityInput(""); setPriceInput(""); }
+        await Promise.resolve(onRefresh());
+      } else setSubmitMessage(result.reason);
+    } finally { setSubmitting(false); setConfirming(false); }
+  };
+  const requestSubmit = () => { if (!submitEnabled) return; if (onSubmit) { onSubmit(draft); return; } setConfirming(true); };
+  const changeSide = (key: string) => { setSide(key as TradingOrderSide); setConfirming(false); };
+  const changeOrderType = (key: string) => { setOrderType(key as TradingOrderType); setConfirming(false); };
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="trading-screen">
-    <SectionHeading eyebrow="PAPER WORKSPACE" title="PAPER" description={readOnly ? "실제 시장과 PAPER 계좌 상태를 관찰합니다." : "PAPER 주문 상태를 확인하고 입력합니다."} />
-    <View style={styles.statusRow}><StatusChip label="PAPER" tone="primary" /><StatusChip label={marketReady ? "시장 온라인" : "시장 대기"} tone={marketReady ? "success" : "warning"} /></View>
-    <NusaCard testID="trading-safety" raised>
-      <View style={styles.marketHeader}><View><Text style={[styles.label, { color: theme.colors.textMuted }]}>관찰 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
-      <Text style={[styles.price, { color: theme.colors.text }]}>{priceLabel}</Text>
-      <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-      <DataRow label="시장 연결" value={marketConnectionState} tone={marketReady ? "success" : "warning"} />
-      <DataRow label="사용 가능 현금" value={formatTradingAmount(snapshot.account.cash, "KRW")} />
-      <DataRow label="보유 수량" value={`${snapshot.account.position.quantity} ${tradingAssetCode(model.market)}`} />
-    </NusaCard>
-    {readOnly ? <NusaCard testID="trading-readonly-state">
-      <View style={styles.cardHeader}><Text style={[styles.cardTitle, { color: theme.colors.text }]}>PAPER 관찰 모드</Text><StatusChip label="ZERO MUTATION" tone="info" /></View>
-      <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>이 화면은 가격과 PAPER 계좌 상태를 읽기만 하며, 매수·매도 요청을 만들거나 서버로 전송할 수 없습니다. 동작하지 않는 주문 컨트롤은 표시하지 않습니다.</Text>
-    </NusaCard> : <>
-      <View style={styles.segmentRow} testID="trading-side-tabs"><NusaButton label="매수" onPress={() => setSide("BUY")} selected={side === "BUY"} tone={side === "BUY" ? "primary" : "neutral"} testID="trading-buy" /><NusaButton label="매도" onPress={() => setSide("SELL")} selected={side === "SELL"} tone={side === "SELL" ? "danger" : "neutral"} testID="trading-sell" /></View>
-      <View style={styles.segmentRow} testID="trading-order-types"><NusaButton label="시장가" onPress={() => setOrderType("MARKET")} selected={orderType === "MARKET"} tone={orderType === "MARKET" ? "primary" : "neutral"} testID="trading-market-order" /><NusaButton label="지정가" onPress={() => setOrderType("LIMIT")} selected={orderType === "LIMIT"} tone={orderType === "LIMIT" ? "primary" : "neutral"} testID="trading-limit-order" /></View>
-      {orderType === "LIMIT" ? <NusaTextField label="가격" value={priceInput} onChangeText={setPriceInput} placeholder="KRW 가격" testID="trading-price" /> : null}
-      <NusaTextField label={`수량 (${tradingAssetCode(model.market)})`} value={quantityInput} onChangeText={setQuantityInput} placeholder="수량" testID="trading-quantity" />
-      <NusaCard testID="trading-preview"><Text style={[styles.label, { color: theme.colors.textMuted }]}>PAPER 주문 미리보기</Text><DataRow label="예상 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} /><DataRow label="사용 가능" value={formatTradingAmount(model.availableAmount, model.availableUnit)} /><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>수수료와 슬리피지는 실행 전에는 확정할 수 없습니다.</Text></NusaCard>
-      {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <NusaCard testID="trading-blockers"><Text style={[styles.label, { color: theme.colors.warning }]}>주문 차단 사유</Text>{[...model.validationErrors, ...model.blockedReasons].map((reason) => <Text key={reason} style={[styles.reason, { color: theme.colors.textMuted }]}>{reason}</Text>)}</NusaCard> : null}
-      <NusaButton label={submitEnabled ? `${side === "BUY" ? "매수" : "매도"} PAPER 주문` : "PAPER 주문 사용 불가"} disabled={!submitEnabled} onPress={() => { if (submitEnabled) onSubmit?.(draft); }} testID="trading-submit" />
-    </>}
+    <ScreenHeader eyebrow="PAPER" title="주문" description="조건을 입력하고 검토한 뒤 PAPER 주문을 확정합니다." statusLabel="LIVE NONE" statusTone="primary" />
+
+    <View style={styles.quoteHero} testID="paper-quote-hero">
+      <View style={styles.quoteTop}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>현재 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><View style={styles.statusRow}><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label={marketReady ? "온라인" : "대기"} tone={marketReady ? "success" : "warning"} />{stale ? <StatusChip label="데이터 점검" tone="warning" /> : null}</View></View>
+      <Text style={[styles.price, { color: theme.colors.text }]}>{model.currentPrice === null ? "-" : formatTradingAmount(model.currentPrice, "KRW")}</Text>
+      <Text style={[styles.quoteMeta, { color: theme.colors.textMuted }]}>실제 주문 권한 없음 · Production mutation 금지</Text>
+    </View>
+
+    <View style={styles.ticket} testID="paper-order-ticket">
+      <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>01 · 주문 조건</Text><SegmentedControl disabled={submitting} items={SIDE_ITEMS} selectedKey={side} onChange={changeSide} testID="paper-side-segmented-control" /><SegmentedControl disabled={submitting} items={ORDER_TYPE_ITEMS} selectedKey={orderType} onChange={changeOrderType} testID="paper-type-segmented-control" />{orderType === "LIMIT" ? <NusaTextField autoCorrect={false} editable={!submitting} keyboardType="decimal-pad" label="지정 가격" value={priceInput} onChangeText={(value) => { setPriceInput(value); setConfirming(false); }} placeholder="KRW 가격" returnKeyType="done" /> : null}<NusaTextField autoCorrect={false} editable={!submitting} keyboardType="decimal-pad" label={`수량 (${tradingAssetCode(model.market)})`} value={quantityInput} onChangeText={(value) => { setQuantityInput(value); setConfirming(false); }} placeholder="수량" returnKeyType="done" /></View>
+
+      {side === "BUY" ? <View style={[styles.allocationPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="paper-allocation-panel"><View style={styles.allocationTop}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>주문 가능 현금</Text><Text style={[styles.allocationValue, { color: theme.colors.text }]}>{formatTradingAmount(cashEnvelope.investableCash, "KRW")}</Text></View><Text style={[styles.allocationPercent, { color: theme.colors.primary }]}>{cashEnvelope.investmentPercent}%</Text></View><View style={[styles.allocationTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.allocationFill, { width: `${allocationRatio}%`, backgroundColor: theme.colors.primary }]} /></View><View style={styles.allocationAmounts}><Text style={[styles.smallCopy, { color: theme.colors.textMuted }]}>전체 현금 {formatTradingAmount(snapshot.account.cash, "KRW")}</Text><Text style={[styles.smallCopy, { color: theme.colors.textMuted }]}>보호 현금 {formatTradingAmount(cashEnvelope.reservedCash, "KRW")}</Text></View></View> : <InlineNotice title="보유 수량 안에서 매도합니다" detail={`현재 ${snapshot.account.position.quantity} ${tradingAssetCode(model.market)}까지 PAPER 매도를 검증합니다.`} tone="info" />}
+
+      <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>02 · 주문 검토</Text><View style={[styles.preview, { borderColor: theme.colors.border }]}><DataRow label="예상 주문 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} emphasis /><DataRow label={side === "BUY" ? "주문 가능" : "보유 가능"} value={formatTradingAmount(model.availableAmount, model.availableUnit)} />{side === "BUY" ? <DataRow label="주문 후 보호 현금" value={formatTradingAmount(cashEnvelope.reservedCash, "KRW")} tone="success" /> : null}</View></View>
+
+      {side === "BUY" && cashEnvelope.investmentPercent === 0 ? <InlineNotice title="신규 매수 비중이 0%입니다" detail="설정에서 투자 비중을 높이기 전까지 현금 전액을 보호합니다. 매도는 계속 가능합니다." tone="warning" /> : null}
+      {!submitAvailable ? <InlineNotice title="PAPER 주문 연결이 필요합니다" detail="설정에서 Cloud endpoint와 메모리 세션을 검증하면 주문을 사용할 수 있습니다." tone="warning" /> : null}
+      {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <InlineNotice title="주문 조건을 확인하세요" detail={[...model.validationErrors, ...model.blockedReasons].join(" · ")} tone="warning" /> : null}
+
+      <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>03 · 확정</Text>{!confirming ? <NusaButton label={submitEnabled ? `${side === "BUY" ? "매수" : "매도"} 주문 검토` : "PAPER 주문 사용 불가"} disabled={!submitEnabled} onPress={requestSubmit} /> : <View style={[styles.confirmPanel, { borderColor: theme.colors.primary, backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.confirmTitle, { color: theme.colors.text }]}>이 PAPER 주문을 확정할까요?</Text><Text style={[styles.confirmCopy, { color: theme.colors.textMuted }]}>{model.market} · {side === "BUY" ? "매수" : "매도"} · {orderType === "MARKET" ? "시장가" : "지정가"} · {quantityInput || "-"} {tradingAssetCode(model.market)}</Text>{side === "BUY" ? <Text style={[styles.confirmCopy, { color: theme.colors.textMuted }]}>투자 {cashEnvelope.investmentPercent}% · 보호 {cashEnvelope.reservePercent}%</Text> : null}<View style={styles.confirmActions}><NusaButton label={submitting ? "전송 중..." : "PAPER 주문 확정"} disabled={submitting} onPress={() => void submitBuiltIn()} /><NusaButton label="돌아가기" disabled={submitting} onPress={() => setConfirming(false)} tone="neutral" /></View></View>}</View>
+      {submitMessage ? <InlineNotice title="PAPER 주문 결과" detail={submitMessage} tone={submitMessage.includes("완료") ? "success" : "info"} /> : null}
+    </View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
-  state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 },
-  stateTitle: { fontSize: 18, fontWeight: "700" },
-  stateMessage: { lineHeight: 21, fontSize: 14 },
-  statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
-  marketHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  market: { marginTop: 4, fontSize: 20, fontWeight: "700" },
-  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
-  price: { fontSize: 34, fontWeight: "800", letterSpacing: -1.2, marginTop: 12, fontVariant: ["tabular-nums"] },
-  divider: { height: 1, marginVertical: 13 },
-  segmentRow: { flexDirection: "row", gap: 10 },
-  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
-  cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 },
-  reason: { marginTop: 7, fontSize: 13 },
+  content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 44, width: "100%", maxWidth: 820, alignSelf: "center" },
+  state: { flex: 1, justifyContent: "center", padding: 20, gap: 14, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, stateTitle: { fontSize: 18, fontWeight: "700" },
+  quoteHero: { paddingVertical: 6, gap: 7 }, quoteTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, market: { marginTop: 4, fontSize: 18, lineHeight: 23, fontWeight: "800" }, price: { fontSize: 38, lineHeight: 45, fontWeight: "800", letterSpacing: -1.4, fontVariant: ["tabular-nums"] }, quoteMeta: { fontSize: 11, lineHeight: 17 },
+  ticket: { gap: 24 }, ticketSection: { gap: 10 }, stepLabel: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.15 },
+  allocationPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 }, allocationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, allocationValue: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationPercent: { fontSize: 18, lineHeight: 24, fontWeight: "800" }, allocationTrack: { height: 6, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }, smallCopy: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
+  preview: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 4 }, confirmPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 }, confirmTitle: { fontSize: 19, lineHeight: 25, fontWeight: "800" }, confirmCopy: { fontSize: 13, lineHeight: 20, fontWeight: "600" }, confirmActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 4 },
 });

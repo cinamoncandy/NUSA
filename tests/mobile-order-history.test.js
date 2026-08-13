@@ -44,8 +44,13 @@ test("order history UI uses design system and remains reachable and read-only in
   assert.match(source, /order-history-loading/);
   assert.match(source, /order-history-error/);
   assert.match(source, /order-history-empty/);
-  assert.match(source, /NusaCard/);
+  assert.match(source, /ScreenHeader/);
+  assert.match(source, /InlineNotice/);
+  assert.match(source, /SegmentedControl/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
+
+  const primitives = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "uxPrimitives.tsx"), "utf8");
+  assert.match(primitives, /segment: \{ flex: 1, minHeight: 44/);
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(app, /activeTab === "More" \? <AiView/);

@@ -13,7 +13,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initialMode = "system" }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference }>) {
+export function ThemeProvider({ children, initialMode = "dark" }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference }>) {
   const colorScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialMode);
   useEffect(() => { setPreference(initialMode); }, [initialMode]);

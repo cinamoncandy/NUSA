@@ -1,5 +1,5 @@
 import { dashboardJsonResponse, type DashboardHttpRequest, type DashboardHttpResponse, type DashboardPrincipal, type DashboardTokenVerifier } from "./mobileDashboardHttp";
-import type { NusaUserAccessAction, NusaUserAccessRepository } from "./operatorUserAccess";
+import { isUserAllowed, type NusaUserAccessAction, type NusaUserAccessRepository } from "./operatorUserAccess";
 
 export interface OperatorUserAccessHttpDependencies {
   readonly tokenVerifier: DashboardTokenVerifier;
@@ -15,7 +15,8 @@ const bearer = (value: string | undefined): string | undefined => {
 
 function authorizeOperatorRequest(
   request: DashboardHttpRequest,
-  tokenVerifier: DashboardTokenVerifier
+  tokenVerifier: DashboardTokenVerifier,
+  repository: NusaUserAccessRepository
 ): { readonly ok: true; readonly principal: DashboardPrincipal } | { readonly ok: false; readonly response: DashboardHttpResponse } {
   const method = request.method.toUpperCase();
   if (method !== "GET" && method !== "POST") {
@@ -35,6 +36,10 @@ function authorizeOperatorRequest(
 
   if (principal == null || !principal.userId.trim()) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
+  }
+  const actor = repository.get(principal.userId);
+  if (actor?.role !== "OWNER" || !isUserAllowed(actor)) {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
   }
   if (!principal.scopes.includes("users:manage")) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
@@ -64,7 +69,7 @@ export function handleOperatorUserAccessHttp(
   request: DashboardHttpRequest & { readonly body?: string },
   dependencies: OperatorUserAccessHttpDependencies
 ): DashboardHttpResponse {
-  const authorization = authorizeOperatorRequest(request, dependencies.tokenVerifier);
+  const authorization = authorizeOperatorRequest(request, dependencies.tokenVerifier, dependencies.repository);
   if (!authorization.ok) return authorization.response;
 
   if (request.method.toUpperCase() === "GET") {

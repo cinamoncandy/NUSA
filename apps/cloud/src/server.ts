@@ -12,11 +12,12 @@ import {
   handlePersonalPaperOperationsHttp,
   type PersonalPaperOperationsHttpDependencies
 } from "./personalPaperOperationsHttp";
+import { handlePersonalPaperOrderHttp, type PersonalPaperOrderHttpDependencies } from "./personalPaperOrderHttp";
 import { operationalLog } from "./structuredOperationalLog";
 import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
 import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
-import { SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
+import { isUserAllowed, SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 
 export interface CloudReadinessSnapshot {
@@ -35,6 +36,7 @@ export interface CloudDashboardServerOptions {
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
+  readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly readiness?: () => CloudReadinessSnapshot;
@@ -70,7 +72,44 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ownedUserDb = new SqliteDatabase(pathname);
     userAccessRepository = new SqliteNusaUserAccessRepository(ownedUserDb);
   }
-  userAccessRepository.ensureOwner({ id: "operator", email: process.env.NUSA_OWNER_EMAIL?.trim() || "operator@nusa.local", displayName: "NUSA Owner" });
+
+  const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
+  if (ownerPrincipal != null) {
+    if (!ownerPrincipal.userId.trim() || !ownerPrincipal.email?.trim()) throw new Error("owner principal identity is incomplete");
+    userAccessRepository.ensureOwner({
+      id: ownerPrincipal.userId.trim(),
+      email: ownerPrincipal.email.trim(),
+      ...(ownerPrincipal.displayName?.trim() ? { displayName: ownerPrincipal.displayName.trim() } : {})
+    });
+  }
+
+  // Authentication is necessary but not sufficient. First-seen authenticated
+  // ordinary identities are registered PENDING and every protected request checks
+  // the durable approval state. Suspension therefore blocks the same bearer
+  // immediately while preserving PAPER-only authority boundaries.
+  const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
+    ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+    verify(token: string) {
+      try {
+        const principal = options.tokenVerifier.verify(token);
+        if (principal == null || !principal.userId.trim()) return undefined;
+        let actor = userAccessRepository.get(principal.userId.trim());
+        if (actor == null) {
+          if (!principal.email?.trim()) return undefined;
+          actor = userAccessRepository.registerUser({
+            id: principal.userId.trim(),
+            email: principal.email.trim(),
+            ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+          });
+        }
+        if (!isUserAllowed(actor)) return undefined;
+        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
+        return principal;
+      } catch {
+        return undefined;
+      }
+    }
+  });
 
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
@@ -85,7 +124,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
       if (req.url === "/ready") {
-        const authorization = authorizeDashboardReadRequest(dashboardRequest, options.tokenVerifier);
+        const authorization = authorizeDashboardReadRequest(dashboardRequest, accessControlledTokenVerifier);
         if (!authorization.ok) { operationalLog("WARN", "cloud.readiness.authorization_failed", requestId, { status: authorization.response.status }); write(res, authorization.response); return; }
         try {
           const readiness = options.readiness?.() ?? unavailable();
@@ -97,10 +136,31 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
-      if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, loadDashboard: options.loadDashboard })); return; }
-      if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: userAccessRepository })); return; }
-      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) { write(res, handleInvestmentAllocationHttp(dashboardRequest, { tokenVerifier: options.tokenVerifier, repository: options.investmentAllocationSettings })); return; }
+      if (req.url === "/api/paper-orders") {
+        let payload: unknown = null;
+        if ((req.method ?? "GET").toUpperCase() === "POST") {
+          try { payload = JSON.parse(body ?? ""); }
+          catch { write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        write(res, handlePersonalPaperOrderHttp(dashboardRequest, payload, {
+          tokenVerifier: accessControlledTokenVerifier,
+          submitOrder: options.submitPaperOrder ?? (() => { throw new Error("PAPER order submission not configured"); }),
+          loadSnapshot: options.loadPaperOperations
+        }));
+        return;
+      }
+      if (req.url === "/api/paper-operations") { write(res, handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { write(res, handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/operator/users") { write(res, handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: accessControlledTokenVerifier, repository: userAccessRepository })); return; }
+      if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
+        let payload: unknown = null;
+        if (["PUT", "POST"].includes((req.method ?? "GET").toUpperCase())) {
+          try { payload = JSON.parse(body ?? ""); }
+          catch { write(res, dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        write(res, handleInvestmentAllocationHttp(dashboardRequest, payload, { tokenVerifier: accessControlledTokenVerifier, repository: options.investmentAllocationSettings }));
+        return;
+      }
       write(res, dashboardJsonResponse(404, { error: "NOT_FOUND" }));
     } catch {
       operationalLog("ERROR", "cloud.http.unavailable", requestId, { method: req.method ?? null, path: req.url ?? null });

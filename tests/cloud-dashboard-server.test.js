@@ -18,10 +18,16 @@ function request(port, path, headers = {}) {
 }
 
 const VALID_TOKEN = "owner-token";
+const ownerPrincipal = Object.freeze({
+  userId: "operator",
+  email: "operator@nusa.local",
+  scopes: Object.freeze(["dashboard:read", "paper:trade", "users:manage"])
+});
 const verifier = {
+  ownerPrincipal,
   verify(token) {
     if (token !== VALID_TOKEN) return undefined;
-    return { userId: "owner-1", scopes: ["dashboard:read"] };
+    return ownerPrincipal;
   }
 };
 
@@ -63,10 +69,6 @@ async function withServer(run, port = 41799) {
   }
 }
 
-// Dedicated ports (41801/41802), not the 41799 the tests below share: starting and stopping a
-// real listener on the same fixed port back-to-back across separate tests is exactly the kind of
-// OS-level port-release race the pre-existing "stopped and released" test below already avoids
-// by using its own port (41800) instead of 41799.
 test("/health responds without authentication and reports liveness only", async () => {
   await withServer(async (handle) => {
     const res = await request(handle.port, "/health");
@@ -153,7 +155,6 @@ test("unknown paths stay closed even with a valid dashboard token", async () => 
 test("the server can be stopped and the port released", async () => {
   const handle = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload(), loadPaperOperations: () => paperOperationsPayload() });
   await handle.stop();
-  // stopping twice must not throw or hang
   await handle.stop();
   const second = startCloudDashboardServer({ port: 41800, tokenVerifier: verifier, loadDashboard: () => dashboardPayload(), loadPaperOperations: () => paperOperationsPayload() });
   await second.stop();

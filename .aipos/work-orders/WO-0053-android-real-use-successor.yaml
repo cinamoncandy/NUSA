@@ -1,0 +1,95 @@
+id: WO-0053
+title: "Android real-use successor"
+status: VERIFYING
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+implementation_branch: agent/aipos-0053-post-merge
+objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
+scope:
+  - "Exact-head Android debug/release candidate packaging and provenance."
+  - "Cold-start, crash recovery, navigation, responsive UI, and accessibility resilience."
+  - "Trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation."
+  - "PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport."
+  - "Real authenticated user identity with first-seen PENDING access, explicit operator approval, immediate suspension enforcement, and OWNER-only users:manage."
+  - "Existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system."
+  - "Concept 1 peak/reflection brand geometry across mobile mark, Android launcher, monochrome, notification, and splash resources without changing authority or execution behavior."
+constraints:
+  - "PR #371 is superseded and must not be merged."
+  - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "No live broker order/cancel/replace/withdraw/transfer or execution credential use."
+  - "Firebase remains readiness-only until an approved external project and deployment authority exist."
+architecture_impact:
+  acknowledged: true
+  analysis: "This successor composes the existing mobile, cloud PAPER, allocation, approval, and read-only operations boundaries into an Android real-use path. It adds no parallel kernel, no live transport, and no new authority; the physical-device gate remains external and HUMAN_ENVIRONMENT_ONLY. PR #448 binds the existing approval repository to stable authenticated user identities without granting new LIVE authority."
+  references:
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_AI_ARCHITECTURE_V1.md
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - docs/mobile-uiux-v3.md
+acceptance:
+  repository_gates:
+    - "Focused Android/PAPER tests pass."
+    - "typecheck, lint, build, architecture, security, and diff-check pass."
+    - "Full CI and isolated coverage suite pass on the exact successor head."
+    - "Mobile Native Android debug/release candidate workflow passes on the exact successor head."
+    - "Restricted LIVE and read-only safety workflows pass on the exact successor head."
+    - "Real-user approval identity binding regression tests, Full CI/Coverage, and Restricted LIVE/read-only safety workflows pass on the exact PR #448 head."
+  external_gate:
+    status: HUMAN_ENVIRONMENT_ONLY
+    required: "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence."
+verification:
+  merged_successor:
+    pull_request: 442
+    head_commit: 6c876ea9f090895d7bf9523464607e11bde65dc7
+    merge_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
+  repository_gates_passed:
+    - "CI #4335 PASS."
+    - "Mobile Native #814 PASS."
+    - "Restricted LIVE Activation Rehearsal #1054 PASS."
+    - "Restricted LIVE Capability Surface Guard #1044 PASS."
+    - "Restricted LIVE Transport Credential Readiness #1049 PASS."
+    - "Read-only Broker Credential Integration #1044 PASS."
+    - "Focused mobile/PAPER/runtime suite: 69/69 PASS."
+    - "typecheck, build, lint, architecture, AI, safety, security, Firebase readiness, and diff-check PASS."
+  access_approval_identity:
+    issue: 445
+    pull_request: 448
+    head_commit: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
+    merge_commit: 00727a4298413b567b6d9552c3cb656c260bc112
+    full_ci_coverage: PASS
+    restricted_live_activation: PASS
+    capability_surface_guard: PASS
+    transport_credential_readiness: PASS
+    readonly_broker_integration: PASS
+    behavior: "Stable ordinary-user identities register PENDING on first sight, APPROVE enables protected PAPER access, SUSPEND immediately blocks the same bearer, and users:manage remains OWNER-only."
+  android_artifact:
+    name: nusa-android-debug-6c876ea9f090895d7bf9523464607e11bde65dc7-814
+    artifact_id: 9138504317
+    sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
+    source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
+  latest_protected_main:
+    commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+    ci: PASS
+    mobile_native: PASS
+    android_rc:
+      workflow_run_id: 31661081267
+      run_number: 845
+      artifact: nusa-android-rc-b112a7691bbfeba00b5b0dd74e6a311272e7a890-845
+      sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
+      provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  blocked:
+    - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+  automatic_live_activation: prohibited
+  automatic_completion: prohibited
+completion_rule: "Repository implementation is merged and exact-head automated gates are satisfied. WO-0053 remains VERIFYING until independent physical-device evidence satisfies the HUMAN_ENVIRONMENT_ONLY boundary; that external evidence is required before Issue #349 may be closed."

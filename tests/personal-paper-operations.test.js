@@ -13,6 +13,13 @@ const {
   loadPersonalPaperOperations,
   unavailableDashboardCredentialProvider
 } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
+const {
+  clearConfiguredPaperEndpoint,
+  markPaperConnectionVerified,
+  setConfiguredPaperEndpoint
+} = require("../dist/apps/mobile/src/paperConnectionSession.js");
+
+const LOOPBACK_ENDPOINT = "http://127.0.0.1:41731";
 
 const dashboard = (overrides = {}) => ({
   apiVersion: "1",
@@ -82,6 +89,9 @@ const snapshot = (overrides = {}) => buildPersonalPaperOperationsSnapshot({
   operations: operations(overrides.operations)
 }, 1_000);
 
+test.beforeEach(() => clearConfiguredPaperEndpoint());
+test.afterEach(() => clearConfiguredPaperEndpoint());
+
 test("builds one immutable read-only PAPER operations snapshot", () => {
   const result = snapshot();
   assert.equal(result.schemaVersion, 1);
@@ -145,7 +155,7 @@ test("desktop adapter uses the same contract and freezes the view", () => {
 test("mobile performs no request without a secure credential provider", async () => {
   let calls = 0;
   const result = await loadPersonalPaperOperations({
-    baseUrl: "http://127.0.0.1:41731",
+    baseUrl: LOOPBACK_ENDPOINT,
     credentialProvider: unavailableDashboardCredentialProvider,
     request: async () => { calls += 1; throw new Error("must not call"); }
   });
@@ -153,21 +163,29 @@ test("mobile performs no request without a secure credential provider", async ()
   assert.equal(calls, 0);
 });
 
-test("mobile reads only the authenticated PAPER operations route", async () => {
-  const value = snapshot();
+test("mobile reads only the authenticated PAPER operations route after exact endpoint verification", async () => {
+  const value = { ...snapshot(), generatedAt: Date.now() };
+  setConfiguredPaperEndpoint(LOOPBACK_ENDPOINT);
+  markPaperConnectionVerified(LOOPBACK_ENDPOINT);
   let observedUrl = "";
   let observedAuthorization = "";
   const result = await loadPersonalPaperOperations({
-    baseUrl: "http://127.0.0.1:41731/",
+    baseUrl: `${LOOPBACK_ENDPOINT}/`,
     credentialProvider: async () => "secret",
     request: async (url, init) => {
       observedUrl = String(url);
       observedAuthorization = init.headers.authorization;
-      return { ok: true, status: 200, json: async () => value };
+      return {
+        ok: true,
+        status: 200,
+        redirected: false,
+        url: `${LOOPBACK_ENDPOINT}/api/paper-operations`,
+        json: async () => value
+      };
     }
   });
   assert.equal(result.status, "READY");
-  assert.equal(observedUrl, "http://127.0.0.1:41731/api/paper-operations");
+  assert.equal(observedUrl, `${LOOPBACK_ENDPOINT}/api/paper-operations`);
   assert.equal(observedAuthorization, "Bearer secret");
   assert.equal(result.snapshot.liveAuthority, "NONE");
 });

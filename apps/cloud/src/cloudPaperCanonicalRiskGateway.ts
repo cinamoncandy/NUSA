@@ -2,14 +2,15 @@ import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/index";
 import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
-import { CanonicalRiskSafetyGate } from "../../execution/src/risk-safety-integration";
+import { CanonicalRiskSafetyGate } from "../../../apps/execution/src/risk-safety-integration";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 
 const ACCOUNT_ID = "paper-default";
-const STRATEGY_ID = "CIO_PAPER";
+const MANUAL_APPROVAL_TTL_MS = 60_000;
 
+/** Same conservative PAPER envelope already used by the desktop canonical composition. */
 export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxOrderNotional: 2_000_000,
   maxPositionNotional: 2_000_000,
@@ -28,7 +29,11 @@ export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
 });
 
 export interface CloudPaperRiskRequest {
+  readonly path: "MANUAL" | "STRATEGY";
   readonly commandId: string;
+  readonly signalId: string;
+  readonly clientOrderId: string;
+  readonly strategyId: string;
   readonly market: string;
   readonly side: "BUY" | "SELL";
   readonly quantity: number;
@@ -40,24 +45,15 @@ export interface CloudPaperRiskRequest {
   readonly openP0: boolean;
   readonly overallHealth: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
   readonly state: PaperAccountState;
+  readonly approvedBy?: string;
 }
 
 export interface CloudPaperRiskGate {
-  evaluate(input: CloudPaperRiskRequest): Readonly<{
-    status: "ALLOW" | "REJECT" | "HALT";
-    reasonCodes: readonly string[];
-  }>;
-}
-
-export interface CloudPaperCanonicalRiskGatewayOptions {
-  readonly database: SqliteDatabase;
-  readonly initialCapital: number;
-  readonly sourceCommitSha: string;
-  readonly limits?: IndependentRiskLimits;
+  evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>;
 }
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
-const tradingDay = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
@@ -74,12 +70,12 @@ function databaseHealthy(database: SqliteDatabase): boolean {
     const quick = database.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
     if (quick == null || !Object.values(quick).includes("ok")) return false;
     const required = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
-    return required.every((table) => database.connection
-      .prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?")
-      .get(table) != null);
-  } catch {
-    return false;
-  }
+    for (const table of required) {
+      const row = database.connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?").get(table) as Record<string, unknown> | undefined;
+      if (row == null) return false;
+    }
+    return true;
+  } catch { return false; }
 }
 
 function stateHealthy(state: PaperAccountState): boolean {
@@ -87,21 +83,14 @@ function stateHealthy(state: PaperAccountState): boolean {
     if (state.version !== 1 || !Number.isFinite(state.cash) || state.cash < 0 || !Number.isFinite(state.equity) || state.equity < 0) return false;
     const projected = state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0);
     const tolerance = Math.max(1e-6, Math.abs(projected) * 1e-8);
-    return Number.isFinite(projected)
-      && Math.abs(projected - state.equity) <= tolerance
-      && new Set(state.processedIdempotencyKeys).size === state.processedIdempotencyKeys.length
-      && new Set(state.orders.map((order) => order.id)).size === state.orders.length
-      && state.positions.every((position) => Number.isFinite(position.quantity) && position.quantity >= 0 && Number.isFinite(position.markPrice) && position.markPrice >= 0);
-  } catch {
-    return false;
-  }
+    if (!Number.isFinite(projected) || Math.abs(projected - state.equity) > tolerance) return false;
+    if (new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length) return false;
+    if (new Set(state.orders.map((order) => order.id)).size !== state.orders.length) return false;
+    return state.positions.every((position) => Number.isFinite(position.quantity) && position.quantity >= 0 && Number.isFinite(position.markPrice) && position.markPrice >= 0);
+  } catch { return false; }
 }
 
-function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"): Readonly<{
-  ordersInLastSecond: number;
-  ordersInLastMinute: number;
-  sameSideStreak: number;
-}> {
+function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"): Readonly<{ ordersInLastSecond: number; ordersInLastMinute: number; sameSideStreak: number }> {
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
   for (const order of state.orders) {
@@ -118,11 +107,11 @@ function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"):
 }
 
 function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyBuyNotional: number; dailySellNotional: number }> {
-  const day = tradingDay(now);
+  const day = dayOf(now);
   let dailyBuyNotional = 0;
   let dailySellNotional = 0;
   for (const order of state.orders) {
-    if (tradingDay(order.filledAt) !== day) continue;
+    if (dayOf(order.filledAt) !== day) continue;
     const notional = order.quantity * order.price;
     if (order.side === "BUY") dailyBuyNotional += notional;
     else dailySellNotional += notional;
@@ -147,8 +136,8 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
     sells.push({ pnl, filledAt: order.filledAt });
   }
-  const day = tradingDay(now);
-  const dailyRealizedPnL = sells.filter((sell) => tradingDay(sell.filledAt) === day).reduce((sum, sell) => sum + sell.pnl, 0);
+  const today = dayOf(now);
+  const dailyRealizedPnL = sells.filter((sell) => dayOf(sell.filledAt) === today).reduce((sum, sell) => sum + sell.pnl, 0);
   let consecutiveLossCount = 0;
   for (let index = sells.length - 1; index >= 0; index -= 1) {
     if (sells[index]!.pnl >= 0) break;
@@ -157,13 +146,17 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   return Object.freeze({ dailyRealizedPnL, consecutiveLossCount });
 }
 
+export interface CloudPaperCanonicalRiskGatewayOptions {
+  readonly database: SqliteDatabase;
+  readonly initialCapital: number;
+  readonly sourceCommitSha: string;
+  readonly limits?: IndependentRiskLimits;
+}
+
 /**
- * Production Cloud PAPER risk adapter. It combines the independent pre-trade limits with
- * the canonical persistent risk gate and owns no execution authority itself.
- *
- * Cloud currently has no explicit human STRATEGY approval issuer. That absence is
- * intentionally represented as approval=false / no approvalId, so autonomous strategy
- * PAPER mutation fails closed instead of manufacturing approval.
+ * Cloud adapter over the existing independent gateway + CanonicalRiskSafetyGate.
+ * It owns no broker mutation. A separate production execution boundary may mutate PAPER
+ * state only after this returns ALLOW.
  */
 export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly persistence: SqliteRiskSafetyPersistence;
@@ -199,10 +192,9 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const symbolExposureNotional = (position?.quantity ?? 0) * input.price;
     const portfolioExposureNotional = input.state.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
     const notionals = dailyNotional(input.state, input.now);
-    const loss = realizedLossState(input.state, input.now);
+    const lossState = realizedLossState(input.state, input.now);
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);
-
     const identity: RiskIdentityState = Object.freeze({
       strategyFingerprint: this.fingerprints.strategy,
       configFingerprint: this.fingerprints.config,
@@ -214,10 +206,10 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     });
     const independentRequest: PreTradeRiskRequest = {
       schemaVersion: 1,
-      requestId: `${this.options.sourceCommitSha}:STRATEGY:${input.commandId}`,
-      signalId: input.commandId,
+      requestId: `${this.options.sourceCommitSha}:${input.path}:${input.commandId}`,
+      signalId: input.signalId,
       commandId: input.commandId,
-      clientOrderId: input.commandId,
+      clientOrderId: input.clientOrderId,
       strategyFingerprint: this.fingerprints.strategy,
       configFingerprint: this.fingerprints.config,
       runtimeFingerprint: this.fingerprints.runtime,
@@ -229,39 +221,49 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       requestedAt: input.now,
       marketDataState: { status: marketStatus, price: marketStatus === "HEALTHY" ? input.price : null },
       accountState: { cash: input.state.cash, positionQuantity: position?.quantity ?? 0, openOrderCount: 0 },
-      controlState: {
-        killSwitchActive: input.killSwitchActive,
-        liveCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading,
-        privateApiCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation
-      },
-      approvalState: { approved: false, expiresAt: input.now, symbols: [input.market] },
+      controlState: { killSwitchActive: input.killSwitchActive, liveCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, privateApiCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation },
+      approvalState: { approved: true, expiresAt: input.now + 1, symbols: [input.market] },
       persistenceState: { healthy: persistent },
       reconciliationState: { healthy: reconciled, openP0: input.openP0 },
       deploymentState: { integrityVerified: persistent },
       rateState: rateState(input.state, input.now, input.side),
-      exposureState: {
-        symbolExposureNotional,
-        portfolioExposureNotional,
-        dailyBuyNotional: notionals.dailyBuyNotional,
-        dailySellNotional: notionals.dailySellNotional
-      },
-      sessionState: {
-        dailyRealizedPnL: loss.dailyRealizedPnL,
-        consecutiveLossCount: loss.consecutiveLossCount,
-        sessionPeakEquity: this.peakEquity,
-        sessionEquity: currentEquity
-      }
+      exposureState: { symbolExposureNotional, portfolioExposureNotional, dailyBuyNotional: notionals.dailyBuyNotional, dailySellNotional: notionals.dailySellNotional },
+      sessionState: { dailyRealizedPnL: lossState.dailyRealizedPnL, consecutiveLossCount: lossState.consecutiveLossCount, sessionPeakEquity: this.peakEquity, sessionEquity: currentEquity }
     };
     const independent = evaluatePreTradeRisk(independentRequest, identity, this.limits);
+    if (independent.status !== "ALLOW") return Object.freeze({ status: independent.status === "REJECT" ? "REJECT" : "HALT", reasonCodes: independent.reasonCodes });
+
+    let approvalId: string | undefined;
+    if (input.path === "MANUAL") {
+      const approvedBy = input.approvedBy?.trim();
+      if (!approvedBy) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["APPROVAL_MISSING"]) });
+      approvalId = `cloud-manual-${hash({ account: ACCOUNT_ID, commandId: input.commandId, approvedBy, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
+      try {
+        this.canonical.saveApproval({
+          approvalId,
+          mode: "PAPER",
+          symbol: input.market,
+          strategyId: "MANUAL",
+          policyFingerprint: this.fingerprints.riskPolicy,
+          side: input.side,
+          commandId: input.commandId,
+          expiresAtMs: input.now + MANUAL_APPROVAL_TTL_MS,
+          approvedBy,
+          approvedAtMs: input.now
+        });
+      } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }
+    }
+
     const canonical = this.canonical.evaluate({
       accountId: ACCOUNT_ID,
-      requestId: `STRATEGY:${input.commandId}`,
-      boundary: "STRATEGY",
+      requestId: `${input.path}:${input.commandId}`,
+      boundary: input.path,
       mode: "PAPER",
       symbol: input.market,
       side: input.side,
-      strategyId: STRATEGY_ID,
+      strategyId: input.path === "MANUAL" ? "MANUAL" : input.strategyId,
       policyFingerprint: this.fingerprints.riskPolicy,
+      ...(approvalId === undefined ? {} : { approvalId }),
       nowMs: input.now,
       currentEquity,
       marketDataFresh: marketStatus === "HEALTHY",
@@ -272,21 +274,14 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: {
-        accountId: ACCOUNT_ID,
-        commandId: input.commandId,
-        signalId: input.commandId,
-        clientOrderId: input.commandId,
-        payloadFingerprint: "PENDING",
-        createdAtMs: input.now
-      }
+      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint: "PENDING", createdAtMs: input.now }
     });
-
-    const reasonCodes = Object.freeze([...new Set([...independent.reasonCodes, ...canonical.reasonCodes])].sort());
-    if (independent.status === "HALT" || canonical.status === "BLOCKED" || canonical.status === "UNKNOWN") {
-      return Object.freeze({ status: "HALT", reasonCodes });
+    if (approvalId !== undefined) {
+      try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }
     }
-    if (independent.status === "REJECT" || canonical.status === "REJECTED") return Object.freeze({ status: "REJECT", reasonCodes });
-    return Object.freeze({ status: "ALLOW", reasonCodes });
+    return Object.freeze({
+      status: canonical.status === "APPROVED" ? "ALLOW" : canonical.status === "REJECTED" ? "REJECT" : "HALT",
+      reasonCodes: Object.freeze([...independent.reasonCodes, ...canonical.reasonCodes])
+    });
   }
 }

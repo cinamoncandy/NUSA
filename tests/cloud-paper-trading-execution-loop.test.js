@@ -139,13 +139,48 @@ test("duplicate ticks are idempotent", () => {
 test("SQLite repository restores the account after restart", () => {
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-account-")), "paper.db");
   const firstDb = new SqliteDatabase(filename);
-  const first = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: new SqliteCloudPaperAccountRepository(firstDb) });
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb);
+  const first = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: firstRepository });
   first.processTick(baseTick());
+  firstRepository.close();
   firstDb.close();
   const secondDb = new SqliteDatabase(filename);
-  const second = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: new SqliteCloudPaperAccountRepository(secondDb) });
+  const secondRepository = new SqliteCloudPaperAccountRepository(secondDb);
+  const second = new PaperTradingExecutionLoop({ initialCapital: 1_000, repository: secondRepository });
   assert.equal(second.snapshot().orders.length, 1);
   assert.equal(second.snapshot().positions[0].quantity, 5);
+  secondRepository.close();
+  secondDb.close();
+  rmSync(filename, { force: true });
+});
+
+test("SQLite paper account has exactly one active writer", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-")), "paper.db");
+  const firstDb = new SqliteDatabase(filename);
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb, { ownerId: "writer-a" });
+  const blockedDb = new SqliteDatabase(filename);
+  assert.throws(() => new SqliteCloudPaperAccountRepository(blockedDb, { ownerId: "writer-b" }), /PAPER_WRITER_ALREADY_ACTIVE/);
+  blockedDb.close();
+  firstRepository.close();
+  firstDb.close();
+  const secondDb = new SqliteDatabase(filename);
+  const secondRepository = new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "writer-b" });
+  secondRepository.close();
+  secondDb.close();
+  rmSync(filename, { force: true });
+});
+
+test("an expired paper writer lease is recoverable after an abnormal stop", () => {
+  const filename = join(mkdtempSync(join(tmpdir(), "nusa-paper-writer-expiry-")), "paper.db");
+  let now = 1_000;
+  const firstDb = new SqliteDatabase(filename);
+  const firstRepository = new SqliteCloudPaperAccountRepository(firstDb, { ownerId: "writer-a", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  now = 5_000;
+  const secondDb = new SqliteDatabase(filename);
+  const secondRepository = new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "writer-b", now: () => now, leaseDurationMs: 3_000, heartbeatIntervalMs: 1_000 });
+  secondRepository.close();
+  firstRepository.close();
+  firstDb.close();
   secondDb.close();
   rmSync(filename, { force: true });
 });

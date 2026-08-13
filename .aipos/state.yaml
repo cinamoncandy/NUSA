@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-11T21:22:00Z"
-phase: human-environment-gate
+updated_at: "2026-08-13T11:45:00+09:00"
+phase: android-real-use-successor
 status: ready
-objective: "Preserve verified WO-AI-010 claim-evidence faithfulness while keeping WO-0051 at the constitutional human/environment boundary; record WO-AI-011 censoring/selection hardening as merged planning-only evidence and continue only repository-controlled evaluation planning, including uncertainty/effective-sample validity, without claiming runtime implementation or human/environment completion."
+objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
-active_branch: main
+active_branch: agent/aipos-0053-post-merge
 active_pull_request: null
-base_commit: b6ab5c05d24e6fb921d455f8671198eea1949050
+base_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
 claimed_state:
-  work_order: WO-0051
-  status: IN_PROGRESS
+  work_order: WO-0053
+  status: VERIFYING
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -19,6 +19,73 @@ latest_verified_slice:
   id: wo-ai-010-claim-evidence-faithfulness-complete
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
+recent_repository_evidence:
+  android_successor:
+    work_order: WO-0053
+    pull_request: 442
+    head_commit: 6c876ea9f090895d7bf9523464607e11bde65dc7
+    merge_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
+    repository_gates: PASS
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  access_approval_identity:
+    issue: 445
+    pull_request: 448
+    head_commit: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
+    merge_commit: 00727a4298413b567b6d9552c3cb656c260bc112
+    full_ci_coverage: PASS
+    restricted_live_readonly_workflows: PASS_4_OF_4
+    summary: "Stable authenticated ordinary-user identities register PENDING, explicit approval enables protected PAPER access, suspension blocks the same bearer immediately, and users:manage remains OWNER-only."
+  android_ui_reconciliation:
+    pull_request: 455
+    head_commit: 9e802edf1290aeed30593639d03bf3981e5ff633
+    merge_commit: 398153a25258afd30b932b08a18bcca7277041e5
+    full_ci_coverage: PASS
+    mobile_native: PASS
+    restricted_live_readonly_workflows: PASS_4_OF_4
+    focused_mobile_tests: PASS_214_OF_214
+    android_rc:
+      workflow_run_id: 31657804534
+      run_number: 841
+      artifact: nusa-android-rc-398153a25258afd30b932b08a18bcca7277041e5-841
+      apk_sha256: 7f161874507d63a015d1e21b21e8c34d7507cd274101ed0d04828ee91f0a1e31
+      source_sha: 398153a25258afd30b932b08a18bcca7277041e5
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    protected_main_post_merge:
+      commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      ci: PASS
+      mobile_native: PASS
+      android_rc:
+        workflow_run_id: 31659684774
+        run_number: 843
+        artifact: nusa-android-rc-53cf6f185f512ac24b760ca1b39cdef066ed9595-843
+        apk_sha256: 4038de344fcbe49e730cce213e8a63850828342742537b63b7cb8eb31e8bfed2
+        source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    concept1_brand_reconciliation:
+      pull_request: 458
+      head_commit: 9572ec4d8e52e5f1b695131fc34e610b59255097
+      merge_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+      status: MERGED_REPOSITORY_GATES_PASS
+      base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      scope: "Concept 1 peak/reflection geometry, adaptive/monochrome/notification/splash resources, and mobile mark alignment; no authority or execution changes."
+      full_ci: PASS
+      mobile_native: PASS
+      restricted_live_readonly_workflows: PASS_4_OF_4
+      focused_mobile_tests: PASS_192_OF_192
+      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    latest_protected_main_post_merge:
+      commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+      ci: PASS
+      mobile_native: PASS
+      android_persistent_preview_release: PASS
+      android_rc:
+        workflow_run_id: 31661081267
+        run_number: 845
+        artifact: nusa-android-rc-b112a7691bbfeba00b5b0dd74e6a311272e7a890-845
+        apk_sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
+        source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+        provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+      physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -33,9 +100,14 @@ planning_gates:
       - 431
       - 432
     latest_hardening_merge: b6ab5c05d24e6fb921d455f8671198eea1949050
+    uncertainty_effective_sample_validity:
+      planning_pr: 436
+      merge_commit: 84d425e6433e6e72193c80067d1e067e7cd21d57
+      evidence: docs/audits/wo-ai-011-uncertainty-effective-sample-validity-test-contract.md
+      runtime_implementation_started: false
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, and censoring/selection-validity contracts are hardened, while runtime implementation remains prohibited before the Issue #349 / PR #371 human-environment serialization clears."
+    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened while runtime implementation remains prohibited before human/environment serialization clears."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -74,9 +146,14 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains IN_PROGRESS; automated completion is prohibited."
+  - id: WO-0053
+    evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
+    summary: "Repository implementation and exact-head automated gates are merged/PASS; WO-0053 remains VERIFYING solely because physical Android acceptance is HUMAN_ENVIRONMENT_ONLY pending."
+serialized_human_environment_gate:
+  work_order: WO-0051
+  evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+  status: IN_PROGRESS
+  reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -87,20 +164,22 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-AI-011 planning plus point-in-time, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence, and censoring/selection-validity hardening are merged and validated, but runtime implementation remains serialized behind the Issue #349 / PR #371 HUMAN_ENVIRONMENT_ONLY gate. Continue only repository-controlled planning/audit work such as uncertainty/effective-sample validity that cannot satisfy or bypass that gate."
+  work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
+  reason: "Preserve HOLD until genuine physical Android device acceptance is available; repository-controlled maintenance may proceed only without claiming or bypassing the HUMAN_ENVIRONMENT_ONLY gate."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
     - "Treat WO-AI-011 as PLANNED only; no runtime implementation before the human/environment serialization clears"
     - "Preserve PAPER-only, liveAuthority=NONE, productionMutationAllowed=false, and AI ZERO_AUTHORITY boundaries"
+    - "Preserve real-user PENDING -> APPROVED/SUSPENDED server-side authorization and OWNER-only users:manage"
+    - "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence"
     - "Operator-authorized external read-only broker preflight"
     - "Actual independent human activation ceremony evidence"
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "WO-AI-011 recovery planning PR #421 merged at 1ab85ecc9dfbf3aef0c5be2f37d0dda7566d56d8. Point-in-time leakage hardening PR #425 merged at 6a1bede063251222a9b808d58ba04d43249dc922. Economic-usefulness hardening PR #427 merged at 5427707318b516c561ebead93ce3e4f0b2128b4a. Statistical-validity hardening PR #428 merged at 9f07c7ff5fe9c176ba08c7d31cc5bdd05c730339. Regime-degradation hardening PR #429 merged at 15568a00e8caeefa22a4a756fdff0565dc35d22a. Tail-risk hardening PR #430 merged at 7d1af62388beb140850eb4a2db2097bfe6ef8022. Portfolio-dependence validity PR #431 merged at 8dfbb31c183353908f74cf0b27d66a6e1bb5ccb1. Censoring/selection-validity PR #432 exact head 057209a2a1f5c6d212f7e6c5e8dcf0fa2e8d2faf passed Full CI/Coverage plus all four Restricted LIVE/read-only safety workflows and merged at b6ab5c05d24e6fb921d455f8671198eea1949050. All remain planning-only and authorize no runtime implementation."
-  current_commit: "b6ab5c05d24e6fb921d455f8671198eea1949050 contains merged WO-AI-011 planning hardening through censoring/selection validity; verified runtime remains WO-AI-010 and WO-0051 remains HUMAN_ENVIRONMENT_ONLY and incomplete."
+  last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. Protected main post-merge Full CI, Mobile Native, and Android RC provenance PASS; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; Concept 1 Android RC provenance is verified and repository-controlled gates are PASS. Only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
