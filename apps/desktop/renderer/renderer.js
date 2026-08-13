@@ -339,6 +339,18 @@ function renderControl(snapshot) {
   }));
 }
 
+let cachedChartAccentColor = null;
+let cachedChartAccentTheme = null;
+
+function chartAccentColor() {
+  const theme = document.documentElement.getAttribute("data-theme") || "dark";
+  if (cachedChartAccentColor !== null && cachedChartAccentTheme === theme) return cachedChartAccentColor;
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue("--color-chart-accent").trim();
+  cachedChartAccentColor = resolved || "#8f7cff";
+  cachedChartAccentTheme = theme;
+  return cachedChartAccentColor;
+}
+
 function drawChart() {
   const canvas = byId("chart");
   const context = canvas.getContext("2d");
@@ -364,7 +376,7 @@ function drawChart() {
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   });
   context.lineWidth = 2;
-  context.strokeStyle = "#8f7cff";
+  context.strokeStyle = chartAccentColor();
   context.stroke();
 }
 
