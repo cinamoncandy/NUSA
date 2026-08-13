@@ -4,36 +4,36 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { buttonTokens, cardTokens, createTheme, designSystemSnapshot, fieldTokens } = require("../dist/apps/mobile/src/designSystem.js");
 
-test("light and dark themes expose frozen semantic intelligence tokens", () => {
+test("light and dark themes expose frozen semantic Island finance tokens", () => {
   const light = createTheme("light");
   const dark = createTheme("dark");
   assert.notEqual(light.colors.background, dark.colors.background);
   assert.equal(light.spacing.lg, 16);
   assert.equal(dark.radii.md, 12);
   assert.equal(dark.icons.lg, 24);
-  assert.equal(dark.colors.surfaceSunken, "#070A0B");
-  assert.equal(dark.colors.primarySoft, "#15251F");
-  assert.equal(dark.colors.borderStrong, "#29312E");
-  assert.equal(dark.colors.info, "#9ABBC8");
+  assert.equal(dark.colors.surfaceSunken, "#081317");
+  assert.equal(dark.colors.primarySoft, "#11332D");
+  assert.equal(dark.colors.borderStrong, "#294852");
+  assert.equal(dark.colors.info, "#7DC5DA");
   assert.equal(Object.isFrozen(dark), true);
   assert.equal(Object.isFrozen(dark.colors), true);
   assert.equal(Object.isFrozen(dark.shadows.sm.offset), true);
   assert.equal(Object.isFrozen(dark.interaction), true);
 });
 
-test("common component contracts consume v5 obsidian finance theme tokens", () => {
+test("common component contracts consume Island finance theme tokens", () => {
   const theme = createTheme("dark");
   assert.deepEqual(buttonTokens(theme), {
-    background: "#B8F2DD", foreground: "#07110D", border: "transparent",
+    background: "#70E0C1", foreground: "#06241D", border: "transparent",
     disabledOpacity: 0.42, pressedOpacity: 0.88, borderWidth: 1,
-    radius: 12, minHeight: 48, horizontalPadding: 16,
+    radius: 16, minHeight: 48, horizontalPadding: 16,
   });
-  assert.equal(buttonTokens(theme, "danger").background, "#F27488");
-  assert.equal(buttonTokens(theme, "danger").foreground, "#21080D");
-  assert.equal(buttonTokens(theme, "neutral").background, "#101415");
-  assert.equal(buttonTokens(theme, "neutral").border, "#29312E");
-  assert.equal(fieldTokens(theme).background, "#070A0B");
-  assert.equal(fieldTokens(theme).focus, "#D0FAEA");
+  assert.equal(buttonTokens(theme, "danger").background, "#FF7D91");
+  assert.equal(buttonTokens(theme, "danger").foreground, "#2A0810");
+  assert.equal(buttonTokens(theme, "neutral").background, "#102229");
+  assert.equal(buttonTokens(theme, "neutral").border, "#294852");
+  assert.equal(fieldTokens(theme).background, "#081317");
+  assert.equal(fieldTokens(theme).focus, "#A5F0DC");
   assert.equal(fieldTokens(theme).borderWidth, 1);
   assert.equal(fieldTokens(theme).focusBorderWidth, 2);
   assert.equal(cardTokens(theme).padding, 18);
@@ -43,10 +43,10 @@ test("design system snapshot is deterministic", () => {
   const expected = JSON.stringify({
     mode: "dark",
     colors: {
-      background: "#050708", surface: "#0A0D0E", surfaceRaised: "#101415", surfaceSunken: "#070A0B",
-      text: "#F3F5F2", textMuted: "#7F8984", primary: "#B8F2DD", primarySoft: "#15251F",
-      onPrimary: "#07110D", border: "#171C1A", borderStrong: "#29312E", success: "#65D6A2",
-      warning: "#E7C46D", danger: "#F27488", info: "#9ABBC8", onDanger: "#21080D", focus: "#D0FAEA",
+      background: "#071014", surface: "#0B171C", surfaceRaised: "#102229", surfaceSunken: "#081317",
+      text: "#F2F8F6", textMuted: "#8CA19A", primary: "#70E0C1", primarySoft: "#11332D",
+      onPrimary: "#06241D", border: "#183039", borderStrong: "#294852", success: "#67D8A4",
+      warning: "#EBCB76", danger: "#FF7D91", info: "#7DC5DA", onDanger: "#2A0810", focus: "#A5F0DC",
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
