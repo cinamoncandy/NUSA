@@ -169,14 +169,17 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       try {
         const principal = options.tokenVerifier.verify(token);
         if (principal == null || !principal.userId.trim()) return undefined;
+        const principalEmail = principal.email?.trim().toLowerCase();
+        if (!principalEmail) return undefined;
         let actor = userAccessRepository.get(principal.userId.trim());
         if (actor == null) {
-          if (!principal.email?.trim()) return undefined;
           actor = userAccessRepository.registerUser({
             id: principal.userId.trim(),
-            email: principal.email.trim(),
+            email: principalEmail,
             ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
           });
+        } else if (actor.email !== principalEmail) {
+          return undefined;
         }
         if (!isUserAllowed(actor)) return undefined;
         try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
