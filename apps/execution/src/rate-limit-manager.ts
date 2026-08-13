@@ -9,6 +9,7 @@ export interface RateLimitBucketPolicy {
   readonly refillTokens: number;
   readonly refillIntervalMs: number;
   readonly maximumQueueDelayMs: number;
+  readonly maximumTrackedRequests?: number;
 }
 
 export interface RateLimitRequest {
@@ -35,6 +36,7 @@ function assertPolicy(policy: RateLimitBucketPolicy): void {
   if (!Number.isSafeInteger(policy.refillTokens) || policy.refillTokens <= 0) throw new Error("refillTokens must be a positive safe integer");
   if (!Number.isSafeInteger(policy.refillIntervalMs) || policy.refillIntervalMs <= 0) throw new Error("refillIntervalMs must be a positive safe integer");
   if (!Number.isSafeInteger(policy.maximumQueueDelayMs) || policy.maximumQueueDelayMs < 0) throw new Error("maximumQueueDelayMs must be a non-negative safe integer");
+  if (policy.maximumTrackedRequests !== undefined && (!Number.isSafeInteger(policy.maximumTrackedRequests) || policy.maximumTrackedRequests <= 0)) throw new Error("maximumTrackedRequests must be a positive safe integer");
 }
 
 function refill(state: RateLimitState, policy: RateLimitBucketPolicy, nowMs: number): RateLimitState {
@@ -62,6 +64,9 @@ export class DeterministicRateLimitManager {
     if (!Number.isSafeInteger(request.weight) || request.weight <= 0) throw new Error("weight must be a positive safe integer");
     const prior = this.decisions.get(request.requestId);
     if (prior != null) return prior;
+    if (this.policy.maximumTrackedRequests !== undefined && this.decisions.size >= this.policy.maximumTrackedRequests) {
+      return Object.freeze({ type: RateLimitDecisionType.BLOCK, requestId: request.requestId, remainingTokens: this.state.availableTokens, reason: "request tracking capacity exhausted" });
+    }
     this.state = refill(this.state, this.policy, request.nowMs);
 
     let decision: RateLimitDecision;

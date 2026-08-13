@@ -21,6 +21,7 @@ import type { InvestmentAllocationSettingsRepository } from "./cloudInvestmentAl
 import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
 import { isUserAllowed, SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import { BoundedHttpRateLimiter, rateLimitIdentity } from "./httpRateLimiter";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -42,6 +43,7 @@ export interface CloudDashboardServerOptions {
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly readiness?: () => CloudReadinessSnapshot;
+  readonly rateLimiter?: BoundedHttpRateLimiter;
 }
 
 export interface CloudDashboardServerHandle {
@@ -137,6 +139,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
   if (host !== "127.0.0.1" && host.toLowerCase() !== "localhost") throw new Error("cloud dashboard server must bind to localhost");
+  const rateLimiter = options.rateLimiter ?? new BoundedHttpRateLimiter();
 
   let ownedUserDb: SqliteDatabase | undefined;
   let userAccessRepository = options.userAccessRepository;
@@ -186,6 +189,19 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
+    const path = (() => { try { return new URL(req.url ?? "/", "http://localhost").pathname; } catch { return req.url ?? "/"; } })();
+    if (path !== "/health") {
+      const authorization = req.headers.authorization ?? req.headers.Authorization;
+      const bucket = `${path}|${rateLimitIdentity(typeof authorization === "string" ? authorization : undefined, req.socket.remoteAddress)}`;
+      const decision = rateLimiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);
+      if (!decision.allowed) {
+        req.resume();
+        operationalLog("WARN", "cloud.rate_limit.blocked", requestId, { path, reason: decision.reason ?? "rate limit exceeded", authority: "PAPER_ONLY" });
+        const base = dashboardJsonResponse(429, { error: "RATE_LIMITED" });
+        write(res, Object.freeze({ ...base, headers: Object.freeze({ ...base.headers, "retry-after": String(decision.retryAfterSeconds ?? 1) }) }));
+        return;
+      }
+    }
     let requestPrincipal: DashboardPrincipal | undefined;
     const requestTokenVerifier: DashboardTokenVerifier = Object.freeze({
       ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
