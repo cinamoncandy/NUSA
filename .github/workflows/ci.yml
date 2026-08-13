@@ -57,6 +57,19 @@ jobs:
         run: pnpm run typecheck
       - name: Build
         run: pnpm run build
+      - name: Backend hardening regression (WO-0053)
+        run: >-
+          node --test --test-reporter=spec
+          tests/cloud-paper-trading-execution-loop.test.js
+          tests/cloud-dashboard-persistence.test.js
+          tests/cloud-dashboard-server.test.js
+          tests/cloud-rate-limit.test.js
+          tests/firebase-config.test.js
+          tests/operator-user-access.test.js
+          tests/storage-migrations.test.js
+          tests/recovery-reconciliation.test.js
+      - name: Firebase readiness configuration
+        run: pnpm run firebase:validate
       - name: High-signal regression fast gate
         run: node --test --test-reporter=spec tests/mobile-order-history.test.js tests/mobile-watchlist.test.js tests/p8-private-readonly-runtime-session.test.js tests/p8-open-representative-position.test.js
       - name: Architecture validation
