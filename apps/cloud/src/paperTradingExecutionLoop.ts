@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
-import type { PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
+import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
@@ -259,8 +259,9 @@ export class PaperTradingExecutionLoop {
   public snapshot(): PaperAccountState { return this.state; }
 
   public submitManualOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
-    if (!command.idempotencyKey.trim() || command.authority !== "PAPER_ONLY" || command.productionMutationAllowed !== false) return this.result("FAILED", "invalid PAPER order authority");
-    if (!command.market.trim() || !Number.isFinite(command.quantity) || command.quantity <= 0) return this.result("FAILED", "invalid PAPER order command");
+    let validatedCommand: PersonalPaperOrderCommand;
+    try { validatedCommand = validatePersonalPaperOrderCommand(command); } catch { return this.result("FAILED", "invalid PAPER order command"); }
+    command = validatedCommand;
     const requestFingerprint = manualCommandFingerprint(command);
     const prior = this.state.orders.find((order) => order.idempotencyKey === command.idempotencyKey);
     if (prior != null) {

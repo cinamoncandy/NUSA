@@ -184,3 +184,20 @@ test("manual PAPER sell cannot exceed the simulated position", () => {
     assert.equal(loop.snapshot().orders.length, 0);
   } finally { db.close(); }
 });
+
+test("manual PAPER malformed side and order type fail closed before any mutation", () => {
+  const { db, loop } = harness();
+  try {
+    for (const invalid of [
+      command({ idempotencyKey: "paper-invalid-side-01", side: "TRANSFER" }),
+      command({ idempotencyKey: "paper-invalid-type-01", orderType: "STOP" })
+    ]) {
+      const result = loop.submitManualOrder(invalid, context());
+      assert.equal(result.status, "FAILED");
+      assert.equal(result.reason, "invalid PAPER order command");
+      assert.equal(loop.snapshot().orders.length, 0);
+      assert.equal(loop.snapshot().fills.length, 0);
+      assert.equal(loop.snapshot().processedIdempotencyKeys.length, 0);
+    }
+  } finally { db.close(); }
+});

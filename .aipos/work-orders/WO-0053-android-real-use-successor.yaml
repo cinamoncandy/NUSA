@@ -59,6 +59,7 @@ verification:
     - "PAPER writer clock regression and bounded forward-jump takeover fail closed; crash-after-save takeover restores the last normal state."
     - "Operator authorization lifecycle and identity-collision focused tests: 35/35 PASS; invalid status transitions and duplicate user identities fail closed in both repository implementations."
     - "HTTP input-boundary focused tests: 21/21 PASS; oversized UTF-8 request bodies are byte-bounded, drained without retention, and return 413 without invoking PAPER/auth mutation."
+    - "PAPER order/risk focused tests: 68/68 PASS; canonical execution reuses the typed order validator and malformed side/order type fails closed before mutation, while P0, kill switch, stale market, allocation, cash/position, LIMIT, and idempotency gates remain enforced."
   access_approval_identity:
     issue: 445
     pull_request: 448
