@@ -18,7 +18,7 @@ This bridge does **not** add LIVE authority. NUSA remains PAPER-only with `liveA
 1. Start the NUSA cloud runtime normally.
 2. In a second terminal, with the same `NUSA_CLOUD_DASHBOARD_PORT`, run:
 
-   `pnpm run bridge:https`
+   `node scripts/start-trusted-https-bridge.js`
 
 3. `cloudflared` prints an ephemeral `https://<random>.trycloudflare.com` URL. Copy **only** that HTTPS origin into the Android Settings PAPER endpoint field.
 4. Enter the dashboard bearer separately in the credential field and run Settings verification.
@@ -31,7 +31,7 @@ Stop the bridge process with Ctrl+C. The ephemeral public origin stops with the 
 
 ## Recovery
 
-- If the bridge process exits, restart `pnpm run bridge:https`; a quick tunnel may receive a new HTTPS URL, so update the Android endpoint before retrying.
+- If the bridge process exits, restart `node scripts/start-trusted-https-bridge.js`; a quick tunnel may receive a new HTTPS URL, so update the Android endpoint before retrying.
 - If Android reports endpoint or TLS failure, do not enable cleartext HTTP and do not bind NUSA to `0.0.0.0`. Confirm the bridge is running and use the newly printed HTTPS origin.
 - If authentication fails, rotate/re-enter the bearer separately. Never append it to query parameters, fragments, or paths.
 - Redirect/final-origin validation in the mobile client remains authoritative and fail-closed.
