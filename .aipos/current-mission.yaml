@@ -6,14 +6,13 @@ base_branch: main
 phase: android-real-use-successor
 status: VERIFYING
 source_work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-objective: "Hold the merged Android PAPER successor at physical-device verification while preserving the real-user operator approval boundary merged in PR #448, PAPER-only authority, and AI ZERO_AUTHORITY."
+objective: "Hold the merged Android PAPER successor at physical-device verification while preserving merged real-user approval and PAPER order safety boundaries, PAPER-only authority, and AI ZERO_AUTHORITY."
 scope:
   - exact-head Android debug/release candidate packaging and provenance
   - cold-start, crash recovery, navigation, responsive UI, and accessibility resilience
   - trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation
-  - PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport
+  - PAPER read/order/history/portfolio flow with preview-confirm-submit, durable idempotency, retry identity, and fail-closed transport
   - real authenticated user identity with fail-closed PENDING approval and OWNER-only users:manage
-  - existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
@@ -29,14 +28,15 @@ safety:
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
 verification:
-  focused_mobile_paper_suite: PASS_69_OF_69
   merged_successor_pr: 442
   merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
   access_approval_identity_pr: 448
-  access_approval_identity_head: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
   access_approval_identity_merge: 00727a4298413b567b6d9552c3cb656c260bc112
-  access_approval_exact_head_ci: PASS
-  access_approval_safety_workflows: PASS_4_OF_4
+  paper_idempotency_retention_pr: 453
+  paper_idempotency_retention_merge: ca46085e59ba755503e1a761ad388b2d136dbfea
+  paper_approval_http_regression_pr: 465
+  paper_approval_http_regression_merge: 9a9338309140eaec77b0ef942059b5c6109d1ef3
+  repository_gates: PASS
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
