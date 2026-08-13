@@ -69,6 +69,7 @@ verification:
     - "#014 Firebase transition readiness: SQLite remains authoritative; Firebase rules now restrict approval statuses/actions and direct-write fields while keeping owner protection, append-only audit, deny-by-default unknown paths, no dual-write, and no cutover. Focused Firebase/operator/migration suite 21/21 PASS and static validation/typecheck PASS; Firebase CLI/Emulator is unavailable in this environment."
     - "#015 CI regression hardening: Full CI explicitly runs the backend hardening regression set and named Firebase readiness validation in addition to the existing isolated suite and safety workflows; focused backend regression 87/87 PASS and local typecheck/lint/build/architecture/AIPOS/security/safety/diff-check PASS."
     - "#016 deployment readiness: release:check TECHNICAL_CHECKS_PASS; focused environment/config/health/readiness/shutdown/backup/recovery suite 102/104 with two Windows symlink-fixture EPERM environment blockers preserved; Firebase remains external-project/CLI blocked; no production signing, smoke, or physical Android claims."
+    - "#017 final backend grill: protected main 1300e286c10107dcfb93902a12a41d3add28e908 has architecture, safety, AIPOS, security, post-merge CI, and Mobile Native PASS; no new repository-controlled P0/P1 found. Physical Android, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain blockers."
   access_approval_identity:
     issue: 445
     pull_request: 448
@@ -86,7 +87,7 @@ verification:
     sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
     source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
   latest_protected_main:
-    commit: d22885657b9c95feb52159886f4292ba526fc2e7
+    commit: 1300e286c10107dcfb93902a12a41d3add28e908
     post_merge_ci: PASS
     post_merge_mobile_native: PASS
     android_persistent_preview_release: NOT_TRIGGERED_AIPOS_ONLY_SUCCESSOR
