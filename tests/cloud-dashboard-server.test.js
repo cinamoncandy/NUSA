@@ -17,6 +17,18 @@ function request(port, path, headers = {}) {
   });
 }
 
+function post(port, path, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port, path, method: "POST", headers: { ...headers, connection: "close" } }, (res) => {
+      let responseBody = "";
+      res.on("data", (chunk) => { responseBody += chunk; });
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: responseBody }));
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
 const VALID_TOKEN = "owner-token";
 const ownerPrincipal = Object.freeze({
   userId: "operator",
@@ -150,6 +162,22 @@ test("unknown paths stay closed even with a valid dashboard token", async () => 
     assert.equal(res.status, 404);
     assert.equal(JSON.parse(res.body).error, "NOT_FOUND");
   }, 41804);
+});
+
+test("oversized request bodies are bounded and rejected with a precise client error", async () => {
+  await withServer(async (handle) => {
+    const response = await post(handle.port, "/api/paper-orders", "x".repeat(10_001));
+    assert.equal(response.status, 413);
+    assert.equal(JSON.parse(response.body).error, "REQUEST_BODY_TOO_LARGE");
+  }, 41805);
+});
+
+test("multibyte request bodies use byte limits rather than character counts", async () => {
+  await withServer(async (handle) => {
+    const response = await post(handle.port, "/api/paper-orders", "가".repeat(5_001));
+    assert.equal(response.status, 413);
+    assert.equal(JSON.parse(response.body).error, "REQUEST_BODY_TOO_LARGE");
+  }, 41806);
 });
 
 test("the server can be stopped and the port released", async () => {
