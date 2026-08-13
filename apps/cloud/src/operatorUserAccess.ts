@@ -48,13 +48,12 @@ function validateIdentity(id: string, email: string): void {
   if (!normalized || !normalized.includes("@")) throw new Error("valid email is required");
 }
 
-function nextStatus(_current: NusaUserStatus, action: NusaUserAccessAction): NusaUserStatus {
-  switch (action) {
-    case "APPROVE":
-    case "RESTORE": return "ACTIVE";
-    case "REJECT": return "REJECTED";
-    case "SUSPEND": return "SUSPENDED";
-  }
+function nextStatus(current: NusaUserStatus, action: NusaUserAccessAction): NusaUserStatus {
+  if (current === "PENDING" && action === "APPROVE") return "ACTIVE";
+  if (current === "PENDING" && action === "REJECT") return "REJECTED";
+  if (current === "ACTIVE" && action === "SUSPEND") return "SUSPENDED";
+  if ((current === "REJECTED" || current === "SUSPENDED") && action === "RESTORE") return "ACTIVE";
+  throw new Error("invalid user status transition");
 }
 
 abstract class BaseRepository {
@@ -75,22 +74,37 @@ export class InMemoryNusaUserAccessRepository extends BaseRepository implements 
   private readonly users = new Map<string, NusaUserRecord>();
   private readonly audit: NusaUserAccessAuditRecord[] = [];
 
+  private assertEmailAvailable(id: string, email: string): void {
+    if ([...this.users.values()].some((user) => user.id !== id && user.email === email)) throw new Error("user identity collision");
+  }
+
   public ensureOwner(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
     validateIdentity(user.id, user.email);
     const id = user.id.trim();
+    const email = normalizeEmail(user.email);
     const existing = this.users.get(id);
     this.assertOwnerBootstrapSafe(existing);
-    if (existing != null) return existing;
-    const record = Object.freeze({ id, email: normalizeEmail(user.email), ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "OWNER" as const, status: "ACTIVE" as const, createdAt: now, updatedAt: now, lastSeenAt: now });
+    if (existing != null) {
+      if (existing.email !== email) throw new Error("user identity collision");
+      return existing;
+    }
+    this.assertEmailAvailable(id, email);
+    const record = Object.freeze({ id, email, ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "OWNER" as const, status: "ACTIVE" as const, createdAt: now, updatedAt: now, lastSeenAt: now });
     this.users.set(record.id, record);
     return record;
   }
 
   public registerUser(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
     validateIdentity(user.id, user.email);
-    const existing = this.users.get(user.id);
-    if (existing != null) return existing;
-    const record = Object.freeze({ id: user.id.trim(), email: normalizeEmail(user.email), ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "USER" as const, status: "PENDING" as const, createdAt: now, updatedAt: now });
+    const id = user.id.trim();
+    const email = normalizeEmail(user.email);
+    const existing = this.users.get(id);
+    if (existing != null) {
+      if (existing.email !== email) throw new Error("user identity collision");
+      return existing;
+    }
+    this.assertEmailAvailable(id, email);
+    const record = Object.freeze({ id, email, ...(cleanName(user.displayName) ? { displayName: cleanName(user.displayName) } : {}), role: "USER" as const, status: "PENDING" as const, createdAt: now, updatedAt: now });
     this.users.set(record.id, record);
     return record;
   }
@@ -136,15 +150,22 @@ export class SqliteNusaUserAccessRepository extends BaseRepository implements Nu
     if (row == null) return undefined;
     return Object.freeze({ id: String(row.id), email: String(row.email), ...(row.display_name == null ? {} : { displayName: String(row.display_name) }), role: String(row.role) as NusaUserRole, status: String(row.status) as NusaUserStatus, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at), ...(row.last_login_at == null ? {} : { lastLoginAt: Number(row.last_login_at) }), ...(row.last_seen_at == null ? {} : { lastSeenAt: Number(row.last_seen_at) }) });
   }
+  private assertEmailAvailable(id: string, email: string): void {
+    const collision = this.db.connection.prepare("SELECT id FROM nusa_users WHERE email=? AND id<>? LIMIT 1").get(email, id) as Record<string, unknown> | undefined;
+    if (collision != null) throw new Error("user identity collision");
+  }
   public ensureOwner(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
-    validateIdentity(user.id, user.email); const id = user.id.trim(); const existing = this.get(id); this.assertOwnerBootstrapSafe(existing);
-    if (existing != null) return existing;
-    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at,last_seen_at) VALUES(?,?,?,'OWNER','ACTIVE',?,?,?)`).run(id,normalizeEmail(user.email),cleanName(user.displayName) ?? null,now,now,now);
+    validateIdentity(user.id, user.email); const id = user.id.trim(); const email = normalizeEmail(user.email); const existing = this.get(id); this.assertOwnerBootstrapSafe(existing);
+    if (existing != null) { if (existing.email !== email) throw new Error("user identity collision"); return existing; }
+    this.assertEmailAvailable(id, email);
+    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at,last_seen_at) VALUES(?,?,?,'OWNER','ACTIVE',?,?,?)`).run(id,email,cleanName(user.displayName) ?? null,now,now,now);
     return this.get(id)!;
   }
   public registerUser(user: Readonly<{ id: string; email: string; displayName?: string }>, now = Date.now()): NusaUserRecord {
-    validateIdentity(user.id, user.email); const id=user.id.trim(); const existing=this.get(id); if(existing) return existing;
-    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at) VALUES(?,?,?,'USER','PENDING',?,?)`).run(id,normalizeEmail(user.email),cleanName(user.displayName) ?? null,now,now); return this.get(id)!;
+    validateIdentity(user.id, user.email); const id=user.id.trim(); const email = normalizeEmail(user.email); const existing=this.get(id);
+    if(existing) { if (existing.email !== email) throw new Error("user identity collision"); return existing; }
+    this.assertEmailAvailable(id, email);
+    this.db.connection.prepare(`INSERT INTO nusa_users(id,email,display_name,role,status,created_at,updated_at) VALUES(?,?,?,'USER','PENDING',?,?)`).run(id,email,cleanName(user.displayName) ?? null,now,now); return this.get(id)!;
   }
   public markLogin(userId: string, now=Date.now()): NusaUserRecord { this.db.connection.prepare("UPDATE nusa_users SET last_login_at=?, last_seen_at=?, updated_at=? WHERE id=?").run(now,now,now,userId); return this.get(userId) ?? (()=>{throw new Error("user not found")})(); }
   public markSeen(userId: string, now=Date.now()): NusaUserRecord { this.db.connection.prepare("UPDATE nusa_users SET last_seen_at=?, updated_at=? WHERE id=?").run(now,now,userId); return this.get(userId) ?? (()=>{throw new Error("user not found")})(); }

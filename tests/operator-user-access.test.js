@@ -61,6 +61,33 @@ test("owner can reject, suspend, and restore while every change is audited", () 
   assert.deepEqual(repository.listAudit().map((entry) => entry.action), ["SUSPEND", "RESTORE", "REJECT"]);
 });
 
+test("invalid approval state transitions fail closed for both repository implementations", () => {
+  for (const create of [
+    () => ({ repository: new InMemoryNusaUserAccessRepository(), close() {} }),
+    () => {
+      const db = new SqliteDatabase(":memory:");
+      return { repository: new SqliteNusaUserAccessRepository(db), close() { db.close(); } };
+    }
+  ]) {
+    const { repository, close } = create();
+    repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 1);
+    repository.registerUser({ id: "u1", email: "user@example.com" }, 2);
+    assert.throws(() => repository.changeStatus({ actorUserId: "operator", targetUserId: "u1", action: "SUSPEND" }), /invalid user status transition/);
+    assert.equal(repository.get("u1").status, "PENDING");
+    repository.changeStatus({ actorUserId: "operator", targetUserId: "u1", action: "APPROVE", now: 3 });
+    assert.throws(() => repository.changeStatus({ actorUserId: "operator", targetUserId: "u1", action: "REJECT" }), /invalid user status transition/);
+    close();
+  }
+});
+
+test("duplicate user identity emails fail closed instead of binding two accounts", () => {
+  const repository = new InMemoryNusaUserAccessRepository();
+  repository.registerUser({ id: "u1", email: "User@Example.com" }, 1);
+  assert.throws(() => repository.registerUser({ id: "u2", email: "user@example.com" }, 2), /user identity collision/);
+  assert.throws(() => repository.registerUser({ id: "u1", email: "other@example.com" }, 2), /user identity collision/);
+  assert.throws(() => repository.ensureOwner({ id: "owner", email: "user@example.com" }, 2), /user identity collision/);
+});
+
 test("non-owner and owner-self mutations fail closed", () => {
   const repository = new InMemoryNusaUserAccessRepository();
   repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 1);
