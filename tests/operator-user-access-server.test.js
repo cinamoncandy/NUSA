@@ -103,3 +103,32 @@ test("first-seen authenticated user is PENDING, approval enables access, suspens
     assert.deepEqual(actions, ["SUSPEND", "APPROVE"]);
   } finally { await handle.stop(); }
 });
+
+test("approved access is bound to the stored principal email identity", async () => {
+  const repository = new InMemoryNusaUserAccessRepository();
+  repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 1);
+  repository.registerUser({ id: "user-1", email: "user@example.com" }, 2);
+  repository.changeStatus({ actorUserId: "operator", targetUserId: "user-1", action: "APPROVE", now: 3 });
+  const mismatchedVerifier = { verify(value) { return value === "mismatch-token" ? { userId: "user-1", email: "other@example.com", scopes: ["dashboard:read"] } : undefined; } };
+  const port = 42191;
+  const handle = startCloudDashboardServer({ port, tokenVerifier: mismatchedVerifier, userAccessRepository: repository, loadDashboard() { return { ok: true }; } });
+  try {
+    const response = await request(port, "/api/dashboard", "GET", "mismatch-token");
+    assert.equal(response.status, 401);
+    assert.equal(repository.get("user-1").email, "user@example.com");
+  } finally { await handle.stop(); }
+});
+
+test("approved access fails closed when the principal omits identity email", async () => {
+  const repository = new InMemoryNusaUserAccessRepository();
+  repository.ensureOwner({ id: "operator", email: "owner@nusa.local" }, 1);
+  repository.registerUser({ id: "user-1", email: "user@example.com" }, 2);
+  repository.changeStatus({ actorUserId: "operator", targetUserId: "user-1", action: "APPROVE", now: 3 });
+  const incompleteVerifier = { verify(value) { return value === "incomplete-token" ? { userId: "user-1", scopes: ["dashboard:read"] } : undefined; } };
+  const port = 42192;
+  const handle = startCloudDashboardServer({ port, tokenVerifier: incompleteVerifier, userAccessRepository: repository, loadDashboard() { return { ok: true }; } });
+  try {
+    const response = await request(port, "/api/dashboard", "GET", "incomplete-token");
+    assert.equal(response.status, 401);
+  } finally { await handle.stop(); }
+});
