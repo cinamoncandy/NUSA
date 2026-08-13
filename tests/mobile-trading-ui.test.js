@@ -58,14 +58,16 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-  assert.match(source, /<ScreenHeader eyebrow="PAPER ORDER"/);
-  assert.match(source, /statusLabel="PAPER ONLY"/);
-  assert.match(source, /LIVE 주문 권한 없음 · Production mutation 금지/);
+  assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
+  assert.match(source, /<StatusChip label="PAPER ONLY"/);
+  assert.match(source, /statusLabel="LIVE NONE"/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(source, /credentialSession\.isConfigured\(\)/);
-  assert.match(source, /PAPER 주문 연결 필요/);
-  assert.match(source, /04 · 주문 미리보기/);
-  assert.match(source, /PAPER 주문 검토/);
+  assert.match(source, /PAPER 주문 연결이 필요합니다/);
+  assert.match(source, /02 · 주문 검토/);
+  assert.match(source, /이 PAPER 주문을 확정할까요/);
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);

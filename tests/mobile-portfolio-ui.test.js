@@ -58,11 +58,11 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.match(source, /열린 포지션 없음/);
   assert.match(source, /자산 정보를 불러오는 중/);
   assert.match(source, /RefreshControl/);
-  assert.match(source, /계정 총 평가자산/);
+  assert.match(source, /styles\.heroLabel, \{ color: theme\.colors\.textMuted \}\]\}>총 평가자산/);
   assert.match(source, /계정 전체 집계/);
   assert.match(source, /portfolio-realized-pnl/);
   assert.match(source, /portfolio-unrealized-pnl/);
-  assert.match(source, />열린 포지션</);
+  assert.match(source, />열린 포지션 없음</);
   assert.doesNotMatch(source, /대표 포지션|대표 열린 포지션/);
   assert.doesNotMatch(source, /수익률/);
   assert.match(source, /NusaButton label="다시 불러오기"/);

@@ -21,7 +21,7 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
   assert.match(source, /accessibilityRole="tab"/);
   assert.match(source, /accessibilityState=\{\{ selected \}\}/);
   assert.match(source, /accessibilityRole="tablist"/);
-  assert.match(source, /minHeight: 40/);
+  assert.match(source, /segment: \{ flex: 1, minHeight: 48/);
 });
 
 test('paper and history selectors expose their current selection', () => {
@@ -37,9 +37,9 @@ test('paper and history selectors expose their current selection', () => {
 test('AI hierarchy presents calibrated confidence before raw model probability', () => {
   const source = read('apps/mobile/src/aiView.tsx');
   const trusted = source.indexOf('label="검증 신뢰도"');
-  const raw = source.indexOf('label="원시 모델 확률"');
+  const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
   assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
-  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
   assert.match(source, /READ ONLY/);
 });
 

@@ -8,10 +8,10 @@ test("Trading permits only explicit verified PAPER mutation while LIVE remains d
 
   assert.match(source, /testID="trading-screen"/);
   assert.match(source, /StatusChip label="PAPER ONLY"/);
-  assert.match(source, /StatusChip label="LIVE 금지"/);
+  assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(source, /PAPER 주문 연결 필요/);
-  assert.match(source, /PAPER 주문 확인/);
+  assert.match(source, /PAPER 주문 연결이 필요합니다/);
+  assert.match(source, /02 · 주문 검토/);
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
