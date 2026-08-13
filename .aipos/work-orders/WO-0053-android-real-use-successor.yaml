@@ -4,7 +4,7 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 7f6c6e695030ea307307b91ec92d5f9932131ef6
+base_commit: 2fe0b8c9106ec6ae9be3d0eebf35c816f21cf823
 implementation_branch: agent/aipos-0053-main-final
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
@@ -61,6 +61,7 @@ verification:
     - "HTTP input-boundary focused tests: 21/21 PASS; oversized UTF-8 request bodies are byte-bounded, drained without retention, and return 413 without invoking PAPER/auth mutation."
     - "PAPER order/risk focused tests: 68/68 PASS; canonical execution reuses the typed order validator and malformed side/order type fails closed before mutation, while P0, kill switch, stale market, allocation, cash/position, LIMIT, and idempotency gates remain enforced."
     - "#008 persistence/recovery audit: persistence/safety/runtime/reconciliation focused suite 41/41 PASS; migration/recovery suite 28/29 PASS with one Windows symlink privilege limitation (EPERM before application code), and no evidence-backed P0/P1 persistence defect. Checksums, corruption quarantine, transactional migrations, WAL/reopen recovery, crash/takeover, and fail-closed restart behavior remain verified."
+    - "#009 runtime fail-closed hardening: supplied PAPER loops can no longer bypass the canonical Cloud risk boundary; missing-boundary ticks remain read-only and manual orders block. Focused runtime/failure suite 56/56 PASS and build PASS."
   access_approval_identity:
     issue: 445
     pull_request: 448

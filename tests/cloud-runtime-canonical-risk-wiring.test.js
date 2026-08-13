@@ -9,17 +9,18 @@ const source = fs.readFileSync(runtimePath, "utf8");
 test("startCloudRuntime constructs one canonical risk adapter and one execution boundary for runtime-owned PAPER", () => {
   assert.match(source, /import \{ CloudPaperCanonicalRiskGateway \} from "\.\/cloudPaperCanonicalRiskGateway";/);
   assert.match(source, /import \{ CloudPaperExecutionBoundary \} from "\.\/cloudPaperExecutionBoundary";/);
-  assert.match(source, /const runtimeOwnsPaperComposition = paperExecutionLoop == null && paperAccountRepository == null;/);
-  assert.match(source, /const productionPaperRiskGate = runtimeOwnsPaperComposition/);
+  assert.match(source, /const productionPaperRiskGate = config\.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository/);
   assert.match(source, /new CloudPaperCanonicalRiskGateway\(/);
-  assert.match(source, /const productionPaperBoundary = runtimeOwnsPaperComposition && effectivePaperLoop != null && productionPaperRiskGate != null/);
+  assert.match(source, /const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null/);
   assert.match(source, /new CloudPaperExecutionBoundary\(\{ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State \}\)/);
 });
 
-test("production-owned PAPER has no direct execution-loop fallback around the risk boundary", () => {
-  assert.match(source, /const result = runtimeOwnsPaperComposition\s*\? productionPaperBoundary\?\.processTick\(tick\)\s*:\s*effectivePaperLoop\.processTick\(tick\);/s);
-  assert.doesNotMatch(source, /productionPaperBoundary\?\.processTick\(tick\)\s*\?\?\s*effectivePaperLoop\.processTick\(tick\)/s);
-  assert.match(source, /if \(result == null \|\| result\.status === "FAILED"\) clearPaperProjection\(\); else projectPaperAccount\(\);/);
+test("PAPER has no direct execution-loop fallback around the risk boundary", () => {
+  assert.match(source, /const result = productionPaperBoundary\?\.processTick\(tick\);/s);
+  assert.doesNotMatch(source, /effectivePaperLoop\.processTick\(tick\)/s);
+  assert.doesNotMatch(source, /productionPaperBoundary\?\.submitManualOrder\([^;]+\)\s*\?\?/s);
+  assert.doesNotMatch(source, /effectivePaperLoop\.submitManualOrder\(command, context\)/s);
+  assert.match(source, /if \(result != null && result\.status === "FAILED"\) clearPaperProjection\(\); else projectPaperAccount\(\);/);
 });
 
 test("production risk composition is coupled to durable state and configured PAPER capital", () => {
