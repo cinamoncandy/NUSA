@@ -111,13 +111,13 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
   const size = compact ? 30 : 42;
-  const islandWidth = compact ? 17 : 24;
+  const peakWidth = compact ? 13 : 18;
+  const reflectionWidth = compact ? 22 : 31;
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.islandMark, { width: size, height: size }]}>
-      <View style={[styles.islandHalo, { width: size, height: size, borderColor: theme.colors.borderStrong }]} />
-      <View style={[styles.islandHorizon, { width: compact ? 22 : 31, backgroundColor: theme.colors.info }]} />
-      <View style={[styles.islandLand, { width: islandWidth, backgroundColor: theme.colors.primary }]} />
-      <View style={[styles.islandBeacon, { backgroundColor: theme.colors.text }]} />
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.nusaSymbol, { width: size, height: size }]}>
+      <View style={[styles.symbolPeak, { borderLeftWidth: peakWidth / 2, borderRightWidth: peakWidth / 2, borderBottomWidth: compact ? 12 : 16, borderBottomColor: theme.colors.primary }]} />
+      <View style={[styles.symbolReflection, { width: reflectionWidth, backgroundColor: theme.colors.info }]} />
+      <View style={[styles.symbolReflectionLine, { width: compact ? 14 : 20, backgroundColor: theme.colors.borderStrong }]} />
     </View>
   );
 }
@@ -147,11 +147,10 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
   chipLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.35 },
-  islandMark: { alignItems: "center", justifyContent: "center", position: "relative" },
-  islandHalo: { position: "absolute", borderWidth: 1, borderRadius: 9999, opacity: 0.72 },
-  islandHorizon: { position: "absolute", height: 2, borderRadius: 9999, bottom: "37%", opacity: 0.82 },
-  islandLand: { position: "absolute", height: 8, borderTopLeftRadius: 9999, borderTopRightRadius: 9999, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, bottom: "33%", transform: [{ skewX: "-9deg" }] },
-  islandBeacon: { position: "absolute", width: 3, height: 3, borderRadius: 9999, top: "25%", right: "27%", opacity: 0.92 },
+  nusaSymbol: { alignItems: "center", justifyContent: "center", position: "relative" },
+  symbolPeak: { position: "absolute", bottom: "43%", width: 0, height: 0, borderLeftColor: "transparent", borderRightColor: "transparent", borderStyle: "solid" },
+  symbolReflection: { position: "absolute", height: 4, borderRadius: 9999, bottom: "29%", opacity: 0.9, transform: [{ skewX: "-12deg" }] },
+  symbolReflectionLine: { position: "absolute", height: 2, borderRadius: 9999, bottom: "19%", opacity: 0.72, transform: [{ skewX: "-12deg" }] },
   sectionHeading: { gap: 6, marginBottom: 4 },
   eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.8 },
   sectionTitle: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -1 },
