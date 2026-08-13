@@ -110,8 +110,16 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
 
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
-  const widths = compact ? [22, 28, 20] : [30, 38, 26];
-  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waveMark}>{widths.map((width, index) => <View key={width + index} style={[styles.waveLine, { width, backgroundColor: index === 1 ? theme.colors.primary : theme.colors.info, opacity: 1 - index * 0.2 }]} />)}</View>;
+  const size = compact ? 30 : 42;
+  const peakWidth = compact ? 13 : 18;
+  const reflectionWidth = compact ? 22 : 31;
+  return (
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.nusaSymbol, { width: size, height: size }]}>
+      <View style={[styles.symbolPeak, { borderLeftWidth: peakWidth / 2, borderRightWidth: peakWidth / 2, borderBottomWidth: compact ? 12 : 16, borderBottomColor: theme.colors.primary }]} />
+      <View style={[styles.symbolReflection, { width: reflectionWidth, backgroundColor: theme.colors.info }]} />
+      <View style={[styles.symbolReflectionLine, { width: compact ? 14 : 20, backgroundColor: theme.colors.borderStrong }]} />
+    </View>
+  );
 }
 
 export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebrow?: string; title: string; description?: string }>) {
@@ -119,9 +127,9 @@ export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebr
   return <View style={styles.sectionHeading}>{eyebrow ? <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{eyebrow}</Text> : null}<Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>{description ? <Text style={[styles.sectionDescription, { color: theme.colors.textMuted }]}>{description}</Text> : null}</View>;
 }
 
-export function AuthorityBanner({ detail = "AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다. AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
+export function AuthorityBanner({ detail = "AI 주문 권한 없음. AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="AI ZERO AUTHORITY" tone="info" /><StatusChip label="AI 주문 권한 없음" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
+  return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="AI 읽기 전용" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
 }
 
 export function DataRow({ label, value, emphasis = false, tone = "default" }: Readonly<{ label: string; value: string; emphasis?: boolean; tone?: "default" | "success" | "warning" | "danger" }>) {
@@ -139,17 +147,19 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: "600", letterSpacing: 0.15 },
   chip: { borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
   chipLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.35 },
-  waveMark: { gap: 4, alignItems: "flex-start", justifyContent: "center" },
-  waveLine: { height: 3, borderRadius: 9999 },
-  sectionHeading: { gap: 5, marginBottom: 2 },
-  eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.6 },
-  sectionTitle: { fontSize: 26, lineHeight: 32, fontWeight: "700", letterSpacing: -0.9 },
+  nusaSymbol: { alignItems: "center", justifyContent: "center", position: "relative" },
+  symbolPeak: { position: "absolute", bottom: "43%", width: 0, height: 0, borderLeftColor: "transparent", borderRightColor: "transparent", borderStyle: "solid" },
+  symbolReflection: { position: "absolute", height: 4, borderRadius: 9999, bottom: "29%", opacity: 0.9, transform: [{ skewX: "-12deg" }] },
+  symbolReflectionLine: { position: "absolute", height: 2, borderRadius: 9999, bottom: "19%", opacity: 0.72, transform: [{ skewX: "-12deg" }] },
+  sectionHeading: { gap: 6, marginBottom: 4 },
+  eyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 1.8 },
+  sectionTitle: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -1 },
   sectionDescription: { fontSize: 14, lineHeight: 21, maxWidth: 560 },
-  authority: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
-  authorityTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  authority: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
+  authorityTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
   authorityTitle: { fontSize: 12, fontWeight: "800", letterSpacing: 1.2 },
   authorityDetail: { fontSize: 13, lineHeight: 20 },
-  dataRow: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
+  dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },

@@ -40,5 +40,5 @@ test("PAPER hides mutation controls until verified PAPER submit authority exists
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
   assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
   assert.match(trading, /StatusChip label="PAPER ONLY"/);
-  assert.match(trading, /StatusChip label="LIVE 금지"/);
+  assert.match(trading, /statusLabel="LIVE NONE"/);
 });
