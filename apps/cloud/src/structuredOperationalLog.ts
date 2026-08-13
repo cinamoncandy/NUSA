@@ -17,7 +17,9 @@ function sanitize(value: unknown, key = ""): unknown {
     return Object.freeze(Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => [childKey, sanitize(childValue, childKey)])));
   }
   if (typeof value === "string") {
-    return value.replace(/(secret|token|password|authorization|api.?key|credential)\s*[:=]\s*[^\s,}]+/gi, "$1=[REDACTED]");
+    return value
+      .replace(/\bBearer\s+[^\s,}]+/gi, "Bearer [REDACTED]")
+      .replace(/(secret|token|password|authorization|api.?key|credential)\s*[:=]\s*(?:Bearer\s+)?[^\s,}]+/gi, "$1=[REDACTED]");
   }
   return value;
 }

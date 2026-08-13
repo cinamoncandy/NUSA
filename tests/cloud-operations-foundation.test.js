@@ -182,7 +182,7 @@ test("structured operational logging redacts secret-shaped fields and values", (
   try {
     operationalLog("INFO", "oracle.test", "corr-1", {
       dashboardToken: "super-secret-value",
-      nested: { authorization: "Bearer abc", note: "token=should-not-leak" },
+      nested: { authorization: "Bearer abc", note: "token=should-not-leak", message: "request failed authorization: Bearer message-token-must-not-leak" },
       safe: "visible"
     });
   } finally {
@@ -192,6 +192,6 @@ test("structured operational logging redacts secret-shaped fields and values", (
   assert.equal(record.details.dashboardToken, "[REDACTED]");
   assert.equal(record.details.nested.authorization, "[REDACTED]");
   assert.match(record.details.nested.note, /\[REDACTED\]/);
-  assert.doesNotMatch(captured, /super-secret-value|Bearer abc|should-not-leak/);
+  assert.doesNotMatch(captured, /super-secret-value|Bearer abc|should-not-leak|message-token-must-not-leak/);
   assert.equal(record.details.safe, "visible");
 });
