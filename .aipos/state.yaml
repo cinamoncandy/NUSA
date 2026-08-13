@@ -196,6 +196,20 @@ recent_repository_evidence:
     diff_check: PASS
     safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  firebase_transition_readiness_audit:
+    work_order: WO-0053
+    evidence: docs/audits/firebase-transition-readiness-2026-08-13.md
+    focused_tests: PASS_21_OF_21
+    firestore_rules_static_validation: PASS
+    emulator: BLOCKED_FIREBASE_CLI_UNAVAILABLE
+    sqlite_authority: PRESERVED
+    dual_write: NOT_STARTED
+    cutover: NOT_AUTHORIZED
+    secret_scan: PASS
+    typecheck: PASS
+    diff_check: PASS
+    safety: PAPER_ONLY_LIVE_NONE_AI_ZERO_AUTHORITY
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -289,7 +303,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; PR #448 approval identity binding and PR #455 Android UI reconciliation are merged with exact-head gates PASS. Concept 1 brand PR #458 merged at b112a7691bbfeba00b5b0dd74e6a311272e7a890 with exact-head repository gates PASS. AIPOS provenance PR #459 merged at d22885657b9c95feb52159886f4292ba526fc2e7 with Full CI and Mobile Native PASS. Android RC provenance remains bound to the last Android-changing protected main b112a7691bbfeba00b5b0dd74e6a311272e7a890; physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main ea8d3a251614a2a82305ebc1e660fb31d6496e62; #013 reconciles durable PAPER order/fill/idempotency/position relationships and cash/equity/PnL projection invariants before restart or dashboard publication. Focused consistency/recovery suite 63/63 PASS. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  current_commit: "Protected main 2b5442dec4b3d50adfa18f67e6e21a139052ac05; #014 hardened Firebase readiness rules with finite approval statuses/actions and explicit field allowlists while preserving SQLite authority, no dual-write/cutover, and no credential storage. Focused Firebase/operator/migration suite 21/21 PASS. Firebase CLI/Emulator is unavailable in this environment. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
