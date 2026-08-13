@@ -8,7 +8,7 @@ const STORE = path.join(ROOT, "node_modules", ".pnpm");
 
 const EXPECTED = Object.freeze({
   imageSize: "1.2.1",
-  nanoid: "3.3.16"
+  nanoid: "3.3.18"
 });
 
 function resolvePackageRoots(name, version, store = STORE, rootNodeModules = path.join(ROOT, "node_modules")) {
