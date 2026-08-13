@@ -51,8 +51,9 @@ test("PAPER submit is available only through explicit injection or a verified lo
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
-  assert.match(source, /LIVE 주문 권한 없음/);
-  assert.match(source, /Production mutation 금지/);
+  assert.match(source, /statusLabel="LIVE NONE"/);
+  assert.match(source, /authority: "PAPER_ONLY"/);
+  assert.match(source, /productionMutationAllowed: false/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {

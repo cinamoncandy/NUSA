@@ -71,8 +71,8 @@ export function createTheme(mode: ThemeMode): Theme {
       success: dark ? "#55C991" : "#147A50",
       warning: dark ? "#DDBD70" : "#8D681B",
       danger: dark ? "#F06F7F" : "#B83249",
-      info: dark ? "#87A0F7" : "#4967C7",
-      onDanger: "#FFFFFF",
+      info: dark ? "#87A0F7" : "#3D57B6",
+      onDanger: dark ? "#11151B" : "#FFFFFF",
       focus: dark ? "#93A9FF" : "#3457D5",
     },
     typography: {

@@ -4,6 +4,7 @@ import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
 import { WatchlistView } from "./watchlistView";
 import type { WatchlistRepository } from "./watchlist";
+import { uxLayout } from "./uxLayout";
 
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
@@ -55,7 +56,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 }
 
 const styles = StyleSheet.create({
-  workspace: { flex: 1 },
+  workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   segmentOuter: { paddingTop: 12, paddingBottom: 2 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
   segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },

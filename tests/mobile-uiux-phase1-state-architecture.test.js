@@ -72,8 +72,8 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.match(ai, /검증 신뢰도/);
   assert.match(ai, /불확실성/);
   assert.match(ai, /보정 상태/);
-  assert.match(ai, /근거와 반대 근거/);
-  assert.match(ai, /외 \{ai\.evidenceReferences\.length - 5\}개 근거/);
+  assert.match(ai, /근거와 반대 신호/);
+  assert.match(ai, /외 \{ai\.evidenceReferences\.length - 4\}개 근거/);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /AI LIVE 권한/);
   assert.doesNotMatch(ai, /label="모델"|label="프롬프트"/);

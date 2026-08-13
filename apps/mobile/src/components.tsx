@@ -127,7 +127,7 @@ export function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebr
   return <View style={styles.sectionHeading}>{eyebrow ? <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>{eyebrow}</Text> : null}<Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>{description ? <Text style={[styles.sectionDescription, { color: theme.colors.textMuted }]}>{description}</Text> : null}</View>;
 }
 
-export function AuthorityBanner({ detail = "AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
+export function AuthorityBanner({ detail = "AI 주문 권한 없음. AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 상태 변경 권한이 없습니다. 실제 주문 권한은 없습니다." }: Readonly<{ detail?: string }>) {
   const { theme } = useTheme();
   return <View style={[styles.authority, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]} testID="zero-authority-banner"><View style={styles.authorityTop}><Text style={[styles.authorityTitle, { color: theme.colors.text }]}>ZERO AUTHORITY</Text><StatusChip label="AI 읽기 전용" tone="info" /></View><Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text></View>;
 }

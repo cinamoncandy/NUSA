@@ -52,7 +52,7 @@ test("Portfolio and AI use metric-first v3 information hierarchy", () => {
   assert.match(portfolio, /<MetricTile label="미실현 손익"/);
   assert.match(portfolio, /<MetricTile label="포지션 평가액"/);
   assert.match(ai, /<ScreenHeader/);
-  assert.match(ai, /<MetricTile label="원시 모델 확률"/);
+  assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);
   assert.match(ai, /AI ZERO AUTHORITY/);
 });

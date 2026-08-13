@@ -78,7 +78,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
 
       <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>02 · 주문 검토</Text><View style={[styles.preview, { borderColor: theme.colors.border }]}><DataRow label="예상 주문 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} emphasis /><DataRow label={side === "BUY" ? "주문 가능" : "보유 가능"} value={formatTradingAmount(model.availableAmount, model.availableUnit)} />{side === "BUY" ? <DataRow label="주문 후 보호 현금" value={formatTradingAmount(cashEnvelope.reservedCash, "KRW")} tone="success" /> : null}</View></View>
 
-      {side === "BUY" && cashEnvelope.investmentPercent === 0 ? <InlineNotice title="현재 신규 매수는 꺼져 있습니다" detail="설정에서 투자 비중을 높이기 전까지 현금 전액을 보호합니다. 매도는 계속 가능합니다." tone="warning" /> : null}
+      {side === "BUY" && cashEnvelope.investmentPercent === 0 ? <InlineNotice title="신규 매수 비중이 0%입니다" detail="설정에서 투자 비중을 높이기 전까지 현금 전액을 보호합니다. 매도는 계속 가능합니다." tone="warning" /> : null}
       {!submitAvailable ? <InlineNotice title="PAPER 주문 연결이 필요합니다" detail="설정에서 Cloud endpoint와 메모리 세션을 검증하면 주문을 사용할 수 있습니다." tone="warning" /> : null}
       {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <InlineNotice title="주문 조건을 확인하세요" detail={[...model.validationErrors, ...model.blockedReasons].join(" · ")} tone="warning" /> : null}
 
