@@ -331,8 +331,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "Protected main 1300e286c10107dcfb93902a12a41d3add28e908; #015 CI regression hardening and #016 deployment readiness are merged with exact-head required checks PASS and protected-main CI/Mobile Native PASS. #017 final backend grill found no new repository-controlled P0/P1 defect. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
-  current_commit: "Protected main 1300e286c10107dcfb93902a12a41d3add28e908; #017 final backend grill architecture/safety/AIPOS/security/post-merge gates PASS, with no new repository-controlled P0/P1 found. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
+  current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

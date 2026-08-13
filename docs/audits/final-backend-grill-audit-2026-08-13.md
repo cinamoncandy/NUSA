@@ -6,6 +6,10 @@ Protected `main`: `1300e286c10107dcfb93902a12a41d3add28e908`.
 Post-merge CI and Mobile Native both passed on this exact merge SHA after PR
 #487.
 
+The audit closeout was merged as PR #488; its protected-main merge SHA is
+`e6deab1499974275eba0ea88455c1edd56642cca`, and its post-merge CI and Mobile
+Native workflows also passed.
+
 ## Audit result
 
 The repository-controlled #004-#016 audit chain is present in AIPOS and has
