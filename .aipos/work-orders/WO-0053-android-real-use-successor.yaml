@@ -4,8 +4,8 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
-implementation_branch: agent/android-concept1-brand-final
+base_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+implementation_branch: agent/aipos-0053-post-merge
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
@@ -72,15 +72,15 @@ verification:
     sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
     source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
   latest_protected_main:
-    commit: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+    commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
     ci: PASS
     mobile_native: PASS
     android_rc:
-      workflow_run_id: 31659684774
-      run_number: 843
-      artifact: nusa-android-rc-53cf6f185f512ac24b760ca1b39cdef066ed9595-843
-      sha256: 4038de344fcbe49e730cce213e8a63850828342742537b63b7cb8eb31e8bfed2
-      provenance_source_sha: 53cf6f185f512ac24b760ca1b39cdef066ed9595
+      workflow_run_id: 31661081267
+      run_number: 845
+      artifact: nusa-android-rc-b112a7691bbfeba00b5b0dd74e6a311272e7a890-845
+      sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
+      provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
   blocked:
     - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
