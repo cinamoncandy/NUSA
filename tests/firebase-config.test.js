@@ -10,4 +10,8 @@ test("Firebase readiness is deny-by-default and secret-free", () => {
   assert.match(rules, /allow update, delete: if false/);
   assert.match(rules, /match \/\{document=\*\*\} \{ allow read, write: if false; \}/);
   assert.doesNotMatch(rules, /private_key|serviceAccount|apiKey/i);
+  assert.match(rules, /validUserStatus\(status\)/);
+  assert.match(rules, /validAuditAction\(action\)/);
+  assert.match(rules, /request\.resource\.data\.keys\(\)\.hasOnly\(\['role', 'status', 'email', 'displayName', 'createdAt', 'updatedAt'\]\)/);
+  assert.match(rules, /request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\.hasOnly\(\['status', 'updatedAt'\]\)/);
 });
