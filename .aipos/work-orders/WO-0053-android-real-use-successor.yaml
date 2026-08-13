@@ -4,8 +4,8 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
-implementation_branch: agent/aipos-0053-post-merge
+base_commit: d22885657b9c95feb52159886f4292ba526fc2e7
+implementation_branch: agent/aipos-0053-main-final
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
@@ -72,7 +72,10 @@ verification:
     sha256: c76d4f2e50907683048c2591ac323dacbe7e1457b348b0fc57c358e588ffd561
     source_head: 6c876ea9f090895d7bf9523464607e11bde65dc7
   latest_protected_main:
-    commit: b112a7691bbfeba00b5b0dd74e6a311272e7a890
+    commit: d22885657b9c95feb52159886f4292ba526fc2e7
+    post_merge_ci: PASS
+    post_merge_mobile_native: PASS
+    android_persistent_preview_release: NOT_TRIGGERED_AIPOS_ONLY_SUCCESSOR
     ci: PASS
     mobile_native: PASS
     android_rc:
