@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-12T22:58:00+09:00"
+updated_at: "2026-08-13T10:40:24+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
 base_branch: main
 active_branch: agent/android-real-use-successor
 active_pull_request: null
-base_commit: 0774db5e73f70a883e8598f4ba914958182d16af
+base_commit: 398153a25258afd30b932b08a18bcca7277041e5
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -35,6 +35,21 @@ recent_repository_evidence:
     full_ci_coverage: PASS
     restricted_live_readonly_workflows: PASS_4_OF_4
     summary: "Stable authenticated ordinary-user identities register PENDING, explicit approval enables protected PAPER access, suspension blocks the same bearer immediately, and users:manage remains OWNER-only."
+  android_ui_reconciliation:
+    pull_request: 455
+    head_commit: 9e802edf1290aeed30593639d03bf3981e5ff633
+    merge_commit: 398153a25258afd30b932b08a18bcca7277041e5
+    full_ci_coverage: PASS
+    mobile_native: PASS
+    restricted_live_readonly_workflows: PASS_4_OF_4
+    focused_mobile_tests: PASS_214_OF_214
+    android_rc:
+      workflow_run_id: 31657804534
+      run_number: 841
+      artifact: nusa-android-rc-398153a25258afd30b932b08a18bcca7277041e5-841
+      apk_sha256: 7f161874507d63a015d1e21b21e8c34d7507cd274101ed0d04828ee91f0a1e31
+      source_sha: 398153a25258afd30b932b08a18bcca7277041e5
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 planning_gates:
   - id: WO-AI-011
     status: PLANNED
@@ -128,7 +143,7 @@ verification:
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
   last_result: "WO-0053 successor PR #442 merged at e9dee4fb26bbb296eab2007b5269ff0ee59365e3 with exact-head repository gates PASS; AIPOS repository evidence was recorded on main at 0774db5e73f70a883e8598f4ba914958182d16af. Real-user operator approval identity binding PR #448 merged at 00727a4298413b567b6d9552c3cb656c260bc112 from exact head 129d5d85e5f69175dff4a56e2d0ec0fea5869042 with Full CI/Coverage and all four Restricted LIVE/read-only safety workflows PASS. Physical Android acceptance remains unsatisfied and HUMAN_ENVIRONMENT_ONLY."
-  current_commit: "Protected main 0774db5e73f70a883e8598f4ba914958182d16af; WO-0053 repository work is merged, real-user approval identity is merged, and only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
+  current_commit: "Protected main 398153a25258afd30b932b08a18bcca7277041e5; repository-controlled Android UI/RC gates are PASS, and only genuine physical-device acceptance may satisfy the remaining WO-0053 completion boundary."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
