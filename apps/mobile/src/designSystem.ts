@@ -14,6 +14,7 @@ export interface Theme {
   readonly colors: Readonly<{
     background: string; surface: string; surfaceRaised: string; surfaceSunken: string;
     text: string; textMuted: string; primary: string; primarySoft: string; onPrimary: string;
+    aiSignalStart: string; aiSignalMid: string; aiSignalEnd: string; aiSignalSoft: string;
     border: string; borderStrong: string; success: string; warning: string; danger: string;
     info: string; onDanger: string; focus: string;
   }>;
@@ -63,17 +64,22 @@ export function createTheme(mode: ThemeMode): Theme {
       surfaceSunken: dark ? "#0A0E14" : "#EAEDF1",
       text: dark ? "#F4F6F8" : "#11151B",
       textMuted: dark ? "#8D96A5" : "#626C7A",
-      primary: dark ? "#6D8DFF" : "#3457D5",
-      primarySoft: dark ? "#18213B" : "#E6EBFF",
-      onPrimary: "#FFFFFF",
+      // Brand actions stay monochrome. Chromatic signal colors are reserved for AI surfaces.
+      primary: dark ? "#F4F6F8" : "#11151B",
+      primarySoft: dark ? "#1A2029" : "#EEF1F5",
+      onPrimary: dark ? "#080A0F" : "#FFFFFF",
+      aiSignalStart: "#A855F7",
+      aiSignalMid: "#4F7CFF",
+      aiSignalEnd: "#2DD4BF",
+      aiSignalSoft: dark ? "#17152B" : "#F2EAFE",
       border: dark ? "#1A2230" : "#DDE1E7",
       borderStrong: dark ? "#2A3547" : "#BFC6D1",
       success: dark ? "#55C991" : "#147A50",
       warning: dark ? "#DDBD70" : "#8D681B",
       danger: dark ? "#F06F7F" : "#B83249",
-      info: dark ? "#87A0F7" : "#3D57B6",
+      info: dark ? "#AEB7C5" : "#4C5665",
       onDanger: dark ? "#11151B" : "#FFFFFF",
-      focus: dark ? "#93A9FF" : "#3457D5",
+      focus: dark ? "#FFFFFF" : "#11151B",
     },
     typography: {
       fontFamily: "System", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
@@ -85,7 +91,7 @@ export function createTheme(mode: ThemeMode): Theme {
     shadows: {
       sm: { color: "#000000", offset: { width: 0, height: 2 }, opacity: dark ? 0.08 : 0.04, radius: 8, elevation: 1 },
       md: { color: "#000000", offset: { width: 0, height: 8 }, opacity: dark ? 0.12 : 0.07, radius: 18, elevation: 3 },
-      focus: { color: dark ? "#6D8DFF" : "#3457D5", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
+      focus: { color: dark ? "#FFFFFF" : "#11151B", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
