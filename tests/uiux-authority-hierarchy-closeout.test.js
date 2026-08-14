@@ -27,6 +27,19 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.match(ai, /DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\}/);
   assert.match(ai, /DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-"/);
   assert.match(ai, /DataRow label="킬 스위치" value=\{killSwitchActive == null \? "-"/);
+
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §9): full order is thesis -> trusted
+  // confidence -> evidence/counter-evidence -> detail/diagnostics -> authority boundary last.
+  // The zero-authority notice/chip previously sat between evidence and diagnostics,
+  // interrupting that run; it must now come after diagnostics, immediately before the final
+  // authority card.
+  const confidenceIndex = ai.indexOf('testID="ai-trusted-confidence"');
+  const diagnosticsIndex = ai.indexOf('testID="ai-diagnostics-card"');
+  const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
+  assert.ok(confidenceIndex > thesisIndex, "trusted confidence must follow thesis");
+  assert.ok(diagnosticsIndex > evidenceIndex, "diagnostics must follow evidence/counter-evidence");
+  assert.ok(zeroAuthorityIndex > diagnosticsIndex, "authority boundary must follow detail/diagnostics, not interrupt it");
+  assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
 });
 
 test("PAPER exposes mutation only after verified connection while LIVE remains forbidden", () => {
