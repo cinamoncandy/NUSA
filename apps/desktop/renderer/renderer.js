@@ -803,7 +803,7 @@ function buildRiskGauge(categoryName, ratio) {
 function renderRiskBudgetUsage(usage) {
   if (!usage) {
     const grid = byId("risk-budget-grid");
-    if (grid) grid.innerHTML = '<p style="color: var(--color-text-muted);">위험 예산 데이터 없음</p>';
+    if (grid) grid.replaceChildren(textNode("p", "위험 예산 데이터 없음", "risk-budget-empty"));
     return;
   }
 
