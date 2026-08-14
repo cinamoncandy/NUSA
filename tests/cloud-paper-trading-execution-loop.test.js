@@ -277,3 +277,23 @@ test("paper BUY exceeding the protected cash envelope is rejected", () => {
   assert.match(result.reason, /exceeds deployable capital/);
   assert.equal(loop.snapshot().orders.length, 0);
 });
+
+test("repeated fractional buys keep the weighted entry price stable", () => {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, feeRate: 0.0005 });
+  for (let index = 0; index < 2_000; index += 1) {
+    const now = 10_000 + index;
+    const price = 100 + (index % 7) / 10;
+    const result = loop.processTick(baseTick({
+      now,
+      observedAt: now,
+      price,
+      quantity: 0.001,
+      decisions: [{ ...baseTick().decisions[0], decidedAt: now }]
+    }));
+    assert.equal(result.status, "FILLED");
+  }
+  const position = loop.snapshot().positions[0];
+  assert.ok(position.averageEntryPrice > 0);
+  assert.ok(Number.isFinite(position.averageEntryPrice));
+  assert.equal(position.averageEntryPrice, Number(position.averageEntryPrice.toFixed(8)));
+});
