@@ -1,5 +1,21 @@
 const won = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 8 });
+
+// Design token: chart accent color from CSS variable
+let cachedChartAccentColor = null;
+let cachedTheme = null;
+
+function chartAccentColor() {
+  const currentTheme = document.documentElement.getAttribute("data-theme") || "system";
+  if (cachedChartAccentColor !== null && cachedTheme === currentTheme) {
+    return cachedChartAccentColor;
+  }
+
+  const color = getComputedStyle(document.documentElement).getPropertyValue("--color-chart-accent").trim();
+  cachedChartAccentColor = color || "#8f7cff"; // fallback
+  cachedTheme = currentTheme;
+  return cachedChartAccentColor;
+}
 const byId = (id) => document.getElementById(id);
 const textNode = (tag, value, className) => {
   const node = document.createElement(tag);
@@ -364,7 +380,7 @@ function drawChart() {
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   });
   context.lineWidth = 2;
-  context.strokeStyle = "#8f7cff";
+  context.strokeStyle = chartAccentColor();
   context.stroke();
 }
 

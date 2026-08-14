@@ -35,6 +35,7 @@
   --color-buy: var(--palette-blue-soft);
   --color-sell: var(--palette-rose-soft);
   --color-focus: var(--palette-blue-soft);
+  --color-chart-accent: var(--cr-violet-400);
 
   --background: var(--color-bg);
   --foreground: var(--color-fg);
@@ -131,6 +132,7 @@
   --color-text-muted: var(--palette-slate-200);
   --color-primary: var(--palette-blue-soft);
   --color-focus: var(--palette-white);
+  --color-chart-accent: var(--cr-violet-300);
 }
 
 /*
