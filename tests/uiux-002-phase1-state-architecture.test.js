@@ -24,14 +24,19 @@ test("AI distinguishes error and loading before rendering analysis content", () 
   assert.match(ai, /READ ONLY/);
 });
 
-test("Markets does not expose chart navigation without verified candles", () => {
+test("Markets hides phone chart navigation without verified candles while tablet preserves read-only market context", () => {
   const markets = source("marketsView.tsx");
+  assert.match(markets, /const tablet = width >= 768/);
   assert.match(markets, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
   assert.match(markets, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
+  assert.match(markets, /const watchlist = <WatchlistView/);
+  assert.match(markets, /const chart = <ChartView/);
+  assert.match(markets, /tablet \? <View style=\{styles\.tabletWorkspace\} testID="markets-tablet-workspace"/);
+  assert.match(markets, /testID="markets-tablet-watchlist"/);
+  assert.match(markets, /testID="markets-tablet-chart"/);
   assert.match(markets, /\{chartAvailable \? <View[^>]*styles\.segmentOuter/);
   assert.match(markets, /testID="markets-panels"/);
-  assert.match(markets, /visiblePanel === "WATCHLIST" \? <WatchlistView/);
-  assert.match(markets, /: <ChartView/);
+  assert.match(markets, /visiblePanel === "WATCHLIST" \? watchlist : chart/);
 });
 
 test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
