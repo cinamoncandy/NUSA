@@ -5,7 +5,7 @@ import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { InMemoryUpbitCredentialSession } from "./upbitCredentialSession";
 import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
-import { clearUpbitReadOnlyState, rememberUpbitReadOnlyState } from "./upbitReadOnlySession";
+import { clearUpbitReadOnlyState, getUpbitReadOnlyState, rememberUpbitReadOnlyState } from "./upbitReadOnlySession";
 
 type ConnectionState =
   | Readonly<{ status: "DISCONNECTED"; detail: string }>
@@ -16,9 +16,15 @@ type ConnectionState =
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
   const credentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);
-  const [endpointDraft, setEndpointDraft] = useState(UPBIT_LIVE_BASE_URL);
+  const [endpointDraft, setEndpointDraft] = useState(() => getUpbitReadOnlyState().endpoint ?? UPBIT_LIVE_BASE_URL);
   const [tokenDraft, setTokenDraft] = useState("");
-  const [state, setState] = useState<ConnectionState>({ status: "DISCONNECTED", detail: "Upbit bridge credential is not configured." });
+  const [state, setState] = useState<ConnectionState>(() => {
+    const remembered = getUpbitReadOnlyState();
+    if (credentialSession.isConfigured() && remembered.snapshot) {
+      return { status: "READY", detail: `READ ONLY · ${remembered.snapshot.accounts.length} assets`, fetchedAt: remembered.snapshot.fetchedAt };
+    }
+    return { status: "DISCONNECTED", detail: "Upbit bridge credential is not configured." };
+  });
 
   const busy = state.status === "CONNECTING";
   const connected = state.status === "READY";
