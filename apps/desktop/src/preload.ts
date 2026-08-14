@@ -50,6 +50,7 @@ export interface NUSAApi {
   getPreflight(): Promise<OperationalPreflightState>;
   getA4Diagnostics(): Promise<A4RuntimeDiagnostics>;
   getControlSnapshot(): Promise<ControlSnapshot>;
+  getRiskBudgetUsage(): Promise<Readonly<Record<string, unknown>> | null>;
   startStrategy(): Promise<ControlSnapshot>;
   stopStrategy(): Promise<ControlSnapshot>;
   setAutoTrade(enabled: boolean): Promise<ControlSnapshot>;
@@ -88,6 +89,7 @@ const api: NUSAApi = {
   getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
   getA4Diagnostics: () => invokeReadWithRecovery<A4RuntimeDiagnostics>("diagnostics:a4"),
   getControlSnapshot: () => invokeReadWithRecovery("control:snapshot"),
+  getRiskBudgetUsage: () => invokeReadWithRecovery("paper:risk-budget-usage"),
   startStrategy: () => invokeMutation("control:start"),
   stopStrategy: () => invokeMutation("control:stop"),
   setAutoTrade: (enabled) => invokeMutation("control:auto", enabled),
