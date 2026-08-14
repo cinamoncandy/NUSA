@@ -48,14 +48,21 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-sorts/);
 });
 
-test("Portfolio and AI use metric-first v3 information hierarchy", () => {
+test("Portfolio uses v5 hierarchy (equity -> allocation -> position -> realized/unrealized -> detail) and AI stays metric-first", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
   assert.match(portfolio, /<ScreenHeader/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
-  assert.match(portfolio, /<MetricTile label="실현 손익"/);
-  assert.match(portfolio, /<MetricTile label="미실현 손익"/);
-  assert.match(portfolio, /<MetricTile label="포지션 평가액"/);
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §8): "avoid splitting every metric into
+  // a card" -- realized/unrealized P&L are DataRow entries, not their own MetricTile boxes.
+  assert.doesNotMatch(portfolio, /<MetricTile/);
+  assert.match(portfolio, /testID="portfolio-realized-pnl"/);
+  assert.match(portfolio, /testID="portfolio-unrealized-pnl"/);
+  const allocationIndex = portfolio.indexOf('testID="portfolio-allocation-rail"');
+  const positionIndex = portfolio.indexOf("renderPosition(model, theme)");
+  const performanceIndex = portfolio.indexOf('testID="portfolio-performance-summary"');
+  const detailIndex = portfolio.indexOf('testID="portfolio-account-breakdown"');
+  assert.ok(allocationIndex > -1 && positionIndex > allocationIndex && performanceIndex > positionIndex && detailIndex > performanceIndex, "Portfolio must render allocation -> position -> realized/unrealized -> technical detail in that order");
   assert.match(ai, /<ScreenHeader/);
   assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);
