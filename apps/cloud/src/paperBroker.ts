@@ -127,6 +127,17 @@ function isAlignedToTick(value: number, tick: number): boolean {
   return Math.abs(units - Math.round(units)) < 1e-6;
 }
 
+/** Ledger replay precision: use BigInt 1e8 scale to eliminate float accumulation drift. */
+const LEDGER_REPLAY_SCALE = 100_000_000n;
+
+function toScaledLedgerAmount(amount: number): bigint {
+  return BigInt(Math.round(amount * 100_000_000));
+}
+
+function fromScaledLedgerAmount(scaled: bigint): number {
+  return Number(scaled) / 100_000_000;
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
@@ -215,26 +226,34 @@ export class PaperBroker {
   }
 
   private projectFromLedger(initialCash: number): void {
-    let cash = initialCash;
-    let quantity = 0;
-    let averagePrice = 0;
-    let realizedPnl = 0;
+    // BigInt fixed-point ledger replay: eliminate float accumulation drift
+    let cash = toScaledLedgerAmount(initialCash);
+    let quantity = 0n;
+    let costBasis = 0n;
+    let realizedPnl = 0n;
+
     for (const entry of this.ledger) {
       if (entry.side === "BUY") {
-        cash -= entry.quantity * entry.price + entry.fee;
-        averagePrice = (averagePrice * quantity + entry.quantity * entry.price) / (quantity + entry.quantity);
-        quantity = this.normalizePositionQuantity(quantity + entry.quantity);
+        const notionalCost = toScaledLedgerAmount(entry.quantity * entry.price + entry.fee);
+        cash -= notionalCost;
+        costBasis += toScaledLedgerAmount(entry.quantity * entry.price);
+        quantity += toScaledLedgerAmount(entry.quantity);
       } else {
-        cash += entry.quantity * entry.price - entry.fee;
-        realizedPnl += (entry.price - averagePrice) * entry.quantity - entry.fee;
-        quantity = this.normalizePositionQuantity(quantity - entry.quantity);
-        if (quantity === 0) averagePrice = 0;
+        const notionalProceeds = toScaledLedgerAmount(entry.quantity * entry.price - entry.fee);
+        cash += notionalProceeds;
+        const entryPnl = toScaledLedgerAmount((entry.price - fromScaledLedgerAmount(costBasis / (quantity || 1n))) * entry.quantity - entry.fee);
+        realizedPnl += entryPnl;
+        quantity -= toScaledLedgerAmount(entry.quantity);
+        if (quantity === 0n) costBasis = 0n;
       }
     }
-    this.cash = cash;
-    this.position.quantity = quantity;
-    this.position.averagePrice = averagePrice;
-    this.position.realizedPnl = realizedPnl;
+
+    // Convert back from fixed-point once at the end
+    this.cash = fromScaledLedgerAmount(cash);
+    const finalQuantity = fromScaledLedgerAmount(quantity);
+    this.position.quantity = this.normalizePositionQuantity(finalQuantity);
+    this.position.averagePrice = finalQuantity > 0 ? fromScaledLedgerAmount(costBasis / quantity) : 0;
+    this.position.realizedPnl = fromScaledLedgerAmount(realizedPnl);
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
