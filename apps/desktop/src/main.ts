@@ -156,6 +156,8 @@ const aiSignalExplainerClient: AiSignalExplainerClient | undefined =
 // Holds the context+text of the last explanation shown to the user, so a follow-up
 // question can be answered without the renderer having to round-trip that state back.
 let lastAiSignalExplanation: Readonly<{ request: SignalExplanationRequest; explanation: string }> | undefined;
+// Risk Budget usage for UI display (11 categories, read-only)
+let lastRiskBudgetUsage: any | undefined;
 // AI "challenger" observer: on every champion signal transition, asks what an LLM would have
 // signaled and records the comparison. It has no reference to PaperBroker, the risk gate, or
 // runtime -- there is no path from here to a real or hypothetical order.
@@ -974,6 +976,7 @@ ipcMain.handle("execution:health", () => {
   return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
 });
 ipcMain.handle("paper:preflight", () => operationalPreflight);
+ipcMain.handle("paper:risk-budget-usage", () => lastRiskBudgetUsage);
 ipcMain.handle("ai:explain-latest-signal", async () => {
   const signal = strategy.getLatestSignal();
   const request: SignalExplanationRequest | undefined = signal === undefined
