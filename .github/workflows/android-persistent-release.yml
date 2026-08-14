@@ -55,3 +55,25 @@ jobs:
           else
             gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
           fi
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Distribute APK to Firebase App Distribution
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        run: |
+          firebase appdistribution:distribute NUSA-Android.apk \
+            --app "$FIREBASE_APP_ID" \
+            --testers "desporin12@gmail.com" \
+            --release-notes "NUSA Android preview from main ${GITHUB_SHA::8}"
+
+      - name: Remove Firebase credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
