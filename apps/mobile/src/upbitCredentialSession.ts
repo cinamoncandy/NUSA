@@ -7,7 +7,6 @@ export function clearUpbitCredentialSession(): void { sharedToken = null; }
 
 /**
  * Process-memory-only credential for the personal Upbit bridge.
- * The token is never persisted to AsyncStorage or bundled into the APK.
  */
 export class InMemoryUpbitCredentialSession {
   public connect(value: string): void {
