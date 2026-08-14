@@ -26,7 +26,8 @@ test("PAPER dashboard refresh is single-flight and discards stale endpoint or se
 
 test("automatic PAPER polling runs only while signed in and foregrounded and never overlaps by interval", () => {
   const app = source();
-  assert.match(app, /AppState\.addEventListener\("change", setAppState\)/);
+  assert.match(app, /AppState\.addEventListener\("change", \(nextState\) =>/);
+  assert.match(app, /dispatchRuntime\(\{ type: nextState === "active" \? "APP_FOREGROUND" : "APP_BACKGROUND" \}\)/);
   assert.match(app, /authStatus !== "SIGNED_IN" \|\| appState !== "active"/);
   assert.match(app, /PAPER_REFRESH_INTERVAL_MS = 5000/);
   assert.match(app, /timer = setTimeout\(\(\) => \{/);

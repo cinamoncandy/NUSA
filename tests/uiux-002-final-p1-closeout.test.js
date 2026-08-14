@@ -43,6 +43,6 @@ test("closeout does not change authority or mutation semantics", () => {
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
   assert.match(trading, /Production mutation 금지/);
-  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
   assert.match(trading, /liveMutationAllowed: false/);
 });
