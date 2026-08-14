@@ -46,11 +46,16 @@ test("cold start restores the saved endpoint before the first dashboard refresh"
   assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
 });
 
-test("AI-only authority copy does not override the global PAPER authority banner", () => {
+test("AI-only authority copy does not claim broader authority than the local PAPER entry disclosure", () => {
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4) removed the permanent full-width
+  // PAPER ONLY/LIVE NONE strip that used to repeat on every authenticated screen; the local
+  // entry screen's one-time disclosure badges remain, and AI's own zero-authority messaging
+  // must not read as if it grants more than that.
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
+  assert.doesNotMatch(app, /authorityStrip/);
   assert.doesNotMatch(app, /<AuthorityBanner/);
   assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
   assert.match(ai, /statusLabel="READ ONLY"/);

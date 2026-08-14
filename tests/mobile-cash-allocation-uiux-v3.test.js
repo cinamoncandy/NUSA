@@ -27,7 +27,10 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
 
   assert.match(app, /const \[investmentPercent, setInvestmentPercent\]/);
   assert.match(app, /onCloudInvestmentPercentSave=\{investmentAllocationClient\.save\}/);
-  assert.match(app, /StatusChip label=\{`투자 \$\{investmentPercent\}%`\}/);
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4): investment allocation is not a
+  // permanent global strip -- it belongs contextually in Home/Portfolio/PAPER/Settings.
+  assert.doesNotMatch(app, /StatusChip label=\{`투자 \$\{investmentPercent\}%`\}/);
+  assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /home-investable-cash/);
   assert.match(home, /home-reserved-cash/);
   assert.match(portfolio, /portfolio-investable-cash/);
