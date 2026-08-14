@@ -65,3 +65,10 @@ test("Portfolio exposes explicit disconnected/loading/ready/stale/error Upbit st
   assert.match(portfolio, /실제 잔고와 PAPER는 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /주문하기|주문 실행|출금/);
 });
+
+test("Upbit projection is cleared with local session reset boundaries", () => {
+  const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
+  const settings = fs.readFileSync(path.join(mobileSrc, "settingsView.tsx"), "utf8");
+  assert.match(app, /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/);
+  assert.match(settings, /clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/);
+});
