@@ -5,6 +5,7 @@ import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { InMemoryUpbitCredentialSession } from "./upbitCredentialSession";
 import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
+import { clearUpbitReadOnlyState, rememberUpbitReadOnlyState } from "./upbitReadOnlySession";
 
 type ConnectionState =
   | Readonly<{ status: "DISCONNECTED"; detail: string }>
@@ -27,14 +28,17 @@ export function UpbitConnectionPanel() {
   const connect = async (): Promise<void> => {
     if (busy) return;
     credentialSession.clear();
+    clearUpbitReadOnlyState();
     setState({ status: "CONNECTING", detail: "HTTPS read-only 계정 연결을 확인하고 있습니다." });
     try {
       credentialSession.connect(tokenDraft);
       const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl: endpointDraft });
+      rememberUpbitReadOnlyState(endpointDraft, snapshot);
       setTokenDraft("");
       setState({ status: "READY", detail: `READ ONLY · ${snapshot.accounts.length} assets`, fetchedAt: snapshot.fetchedAt });
     } catch (error) {
       credentialSession.clear();
+      clearUpbitReadOnlyState();
       setState({ status: "ERROR", detail: error instanceof Error ? error.message : "Upbit bridge connection failed." });
     }
   };
@@ -42,6 +46,7 @@ export function UpbitConnectionPanel() {
   const disconnect = (): void => {
     if (busy) return;
     credentialSession.clear();
+    clearUpbitReadOnlyState();
     setTokenDraft("");
     setState({ status: "DISCONNECTED", detail: "Upbit bridge credential cleared from process memory." });
   };
