@@ -851,7 +851,7 @@ async function refreshRiskBudgetUsage() {
     const usage = await window.nusa.invoke("paper:risk-budget-usage");
     renderRiskBudgetUsage(usage);
   } catch (error) {
-    console.error("Risk budget refresh failed:", error);
+    window.console?.error("Risk budget refresh failed:", error);
     renderRiskBudgetUsage(null);
   } finally {
     riskBudgetRefreshInFlight = false;
