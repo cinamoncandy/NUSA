@@ -2,9 +2,20 @@
 
 ## Node SQLite warning
 
-The persistence tests and runtime use Node's built-in `node:sqlite` module. Node 24 currently emits an experimental-feature warning when this module is loaded. The implementation is covered by file-backed restart, transaction, idempotency, and rebuild tests, but the warning remains until Node marks the API stable or the project deliberately adopts another SQLite driver.
+The persistence tests and runtime use Node's built-in `node:sqlite` module. Rechecked
+2026-08-14: as of Node 24 (the project's required minimum per `package.json`'s `engines`
+field), `node:sqlite` no longer requires the `--experimental-sqlite` flag and has been
+promoted to Stability 1.2 (Release Candidate) -- settled behind an experimental warning,
+not yet stamped fully Stable. Confirmed directly in this sandbox on Node 22.22.2 (below
+the project's required minimum, so not representative of the actual target runtime): the
+warning still fires (`ExperimentalWarning: SQLite is an experimental feature and might
+change at any time`). The implementation is covered by file-backed restart, transaction,
+idempotency, and rebuild tests, but the warning itself remains until Node marks the API
+fully Stable or the project deliberately adopts another SQLite driver.
 
-Action: track Node release notes and reassess during the versioned SQLite event/account repository work. Do not suppress the warning in tests and do not replace the driver solely to remove console output.
+Action: track Node release notes and reassess during the versioned SQLite event/account
+repository work. Do not suppress the warning in tests and do not replace the driver
+solely to remove console output.
 
 ## Deprecated transitive dependencies
 
