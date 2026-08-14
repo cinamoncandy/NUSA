@@ -104,6 +104,17 @@ export interface PaperAccountSnapshot {
   orders: readonly PaperOrder[];
 }
 
+const LEDGER_REPLAY_SCALE = 100_000_000n;
+
+function toScaledLedgerAmount(amount: number): bigint {
+  if (!Number.isFinite(amount)) throw new Error("ledger amount must be finite");
+  return BigInt(Math.round(amount * Number(LEDGER_REPLAY_SCALE)));
+}
+
+function fromScaledLedgerAmount(amount: bigint): number {
+  return Number(amount) / Number(LEDGER_REPLAY_SCALE);
+}
+
 function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 }
@@ -215,26 +226,31 @@ export class PaperBroker {
   }
 
   private projectFromLedger(initialCash: number): void {
-    let cash = initialCash;
-    let quantity = 0;
-    let averagePrice = 0;
-    let realizedPnl = 0;
+    let cash = toScaledLedgerAmount(initialCash);
+    let quantity = 0n;
+    let costBasis = 0n;
+    let realizedPnl = 0n;
     for (const entry of this.ledger) {
+      const entryQuantity = toScaledLedgerAmount(entry.quantity);
+      const entryPrice = toScaledLedgerAmount(entry.price);
+      const entryFee = toScaledLedgerAmount(entry.fee);
       if (entry.side === "BUY") {
-        cash -= entry.quantity * entry.price + entry.fee;
-        averagePrice = (averagePrice * quantity + entry.quantity * entry.price) / (quantity + entry.quantity);
-        quantity = this.normalizePositionQuantity(quantity + entry.quantity);
+        cash -= (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE + entryFee;
+        costBasis += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE;
+        quantity += entryQuantity;
       } else {
-        cash += entry.quantity * entry.price - entry.fee;
-        realizedPnl += (entry.price - averagePrice) * entry.quantity - entry.fee;
-        quantity = this.normalizePositionQuantity(quantity - entry.quantity);
-        if (quantity === 0) averagePrice = 0;
+        const averagePrice = quantity === 0n ? 0n : (costBasis * LEDGER_REPLAY_SCALE) / quantity;
+        cash += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE - entryFee;
+        realizedPnl += ((entryPrice - averagePrice) * entryQuantity) / LEDGER_REPLAY_SCALE - entryFee;
+        costBasis -= (averagePrice * entryQuantity) / LEDGER_REPLAY_SCALE;
+        quantity -= entryQuantity;
+        if (quantity === 0n) costBasis = 0n;
       }
     }
-    this.cash = cash;
-    this.position.quantity = quantity;
-    this.position.averagePrice = averagePrice;
-    this.position.realizedPnl = realizedPnl;
+    this.cash = fromScaledLedgerAmount(cash);
+    this.position.quantity = this.normalizePositionQuantity(fromScaledLedgerAmount(quantity));
+    this.position.averagePrice = this.position.quantity === 0 ? 0 : fromScaledLedgerAmount((costBasis * LEDGER_REPLAY_SCALE) / quantity);
+    this.position.realizedPnl = fromScaledLedgerAmount(realizedPnl);
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
