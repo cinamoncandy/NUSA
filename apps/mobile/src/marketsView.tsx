@@ -24,9 +24,13 @@ type Panel = "WATCHLIST" | "CHART";
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, error, refreshing, onRefresh }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+  const tablet = width >= 768;
   const [panel, setPanel] = useState<Panel>("WATCHLIST");
   const chartAvailable = Array.isArray(rawCandles) && rawCandles.length > 0;
   const visiblePanel = chartAvailable ? panel : "WATCHLIST";
+
+  const watchlist = <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} />;
+  const chart = <ChartView error={error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />;
 
   const segment = (value: Panel, label: string, testID: string) => {
     const selected = visiblePanel === value;
@@ -45,18 +49,26 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   };
 
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
-    {chartAvailable ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
-      <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
-        {segment("WATCHLIST", "시장", "markets-watchlist-tab")}
-        {segment("CHART", "차트", "markets-chart-tab")}
-      </View></View>
-    </View> : null}
-    {visiblePanel === "WATCHLIST" ? <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} /> : <ChartView error={error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />}
+    {tablet ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace">
+      <View style={styles.watchlistColumn} testID="markets-tablet-watchlist">{watchlist}</View>
+      <View style={styles.chartColumn} testID="markets-tablet-chart">{chart}</View>
+    </View> : <>
+      {chartAvailable ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
+        <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
+          {segment("WATCHLIST", "시장", "markets-watchlist-tab")}
+          {segment("CHART", "차트", "markets-chart-tab")}
+        </View></View>
+      </View> : null}
+      {visiblePanel === "WATCHLIST" ? watchlist : chart}
+    </>}
   </View>;
 }
 
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
+  tabletWorkspace: { flex: 1, flexDirection: "row", gap: 20, paddingHorizontal: 24, paddingTop: 16 },
+  watchlistColumn: { flex: 0.88, minWidth: 0 },
+  chartColumn: { flex: 1.12, minWidth: 0 },
   segmentOuter: { paddingTop: 12, paddingBottom: 2 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
   segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
