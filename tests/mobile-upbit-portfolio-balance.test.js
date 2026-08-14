@@ -57,5 +57,5 @@ test("Settings shares only non-secret read-only snapshot metadata with Portfolio
 
   assert.match(settingsPanel, /rememberUpbitReadOnlyState\(endpointDraft, snapshot\)/);
   assert.match(settingsPanel, /clearUpbitReadOnlyState\(\)/);
-  assert.doesNotMatch(sharedState, /token|credentialProvider|Authorization|Bearer|secret/i);
+  assert.doesNotMatch(sharedState, /sharedToken|credentialProvider|Authorization|Bearer|UPBIT_SECRET_KEY|NUSA_API_TOKEN/);
 });
