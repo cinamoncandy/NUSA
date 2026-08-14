@@ -24,11 +24,9 @@ test("AI distinguishes error and loading before rendering analysis content", () 
   assert.match(ai, /READ ONLY/);
 });
 
-test("Markets does not expose chart navigation without verified candles", () => {
+test("Markets keeps chart navigation reachable regardless of verified candles", () => {
   const markets = source("marketsView.tsx");
-  assert.match(markets, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
-  assert.match(markets, /const visiblePanel = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(markets, /!tabletWorkspace && chartAvailable \? <View[^>]*styles\.segmentOuter/);
+  assert.match(markets, /useState<Panel>\("CHART"\)/);
   assert.match(markets, /testID="markets-panels"/);
   assert.match(markets, /const watchlist = <WatchlistView/);
   assert.match(markets, /const chart = <ChartView/);

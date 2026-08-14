@@ -41,6 +41,8 @@ export interface ChartViewModel {
   readonly high: number | null;
   readonly low: number | null;
   readonly volume: number | null;
+  /** Same fraction shape as WatchlistMarket.changeRate (watchlist.ts), e.g. 0.0234 = +2.34%. */
+  readonly move: number | null;
 }
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -115,8 +117,8 @@ function chartBar(candle: ChartCandle, low: number, range: number): ChartBar {
   return freeze({ ...candle, up: candle.close >= candle.open, bodyTop, bodyHeight, wickTop: scale(candle.high), wickHeight: Math.max(2, scale(candle.low) - scale(candle.high)) });
 }
 
-export function buildChartViewModel(input: { readonly market: string; readonly interval: ChartInterval; readonly rawCandles: unknown[] | null; readonly currentPrice: number | null; readonly connectionState: string; readonly stale: boolean }): ChartViewModel {
-  const empty = (state: ChartState, error: string | null, candles: readonly ChartCandle[] = []): ChartViewModel => freeze({ state, market: input.market, interval: input.interval, error, candles, bars: [], currentPrice: null, priceLine: null, high: null, low: null, volume: null });
+export function buildChartViewModel(input: { readonly market: string; readonly interval: ChartInterval; readonly rawCandles: unknown[] | null; readonly currentPrice: number | null; readonly connectionState: string; readonly stale: boolean; readonly changeRate?: number | null }): ChartViewModel {
+  const empty = (state: ChartState, error: string | null, candles: readonly ChartCandle[] = []): ChartViewModel => freeze({ state, market: input.market, interval: input.interval, error, candles, bars: [], currentPrice: null, priceLine: null, high: null, low: null, volume: null, move: null });
   if (input.rawCandles === null) return empty("LOADING", null);
   if (input.connectionState !== "CONNECTED" && input.connectionState !== "HEALTHY" || input.stale) return empty("ERROR", "MARKET_DATA_NOT_READY");
   if (!finitePositive(input.currentPrice)) return empty("ERROR", "PRICE_NOT_RECEIVED");
@@ -129,9 +131,15 @@ export function buildChartViewModel(input: { readonly market: string; readonly i
   const range = Math.max(high - low, Number.EPSILON);
   const bars = candles.map((candle) => chartBar(candle, low, range));
   const priceLine = Math.min(100, Math.max(0, ((high - input.currentPrice) / range) * 100));
-  return freeze({ state: "READY", market: input.market, interval: input.interval, error: null, candles, bars: freeze(bars), currentPrice: input.currentPrice, priceLine, high, low, volume: candles.reduce((sum, candle) => sum + candle.volume, 0) });
+  const move = typeof input.changeRate === "number" && Number.isFinite(input.changeRate) ? input.changeRate : null;
+  return freeze({ state: "READY", market: input.market, interval: input.interval, error: null, candles, bars: freeze(bars), currentPrice: input.currentPrice, priceLine, high, low, volume: candles.reduce((sum, candle) => sum + candle.volume, 0), move });
 }
 
 export function formatChartPrice(value: number | null): string {
   return value === null ? "-" : `KRW ${Math.round(value).toLocaleString("en-US")}`;
+}
+
+/** Same fraction shape as WatchlistMarket.changeRate, e.g. 0.0234 = +2.34%. */
+export function formatChartMove(value: number | null): string {
+  return value === null ? "-" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
 }
