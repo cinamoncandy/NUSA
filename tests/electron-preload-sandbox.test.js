@@ -47,7 +47,7 @@ test("sandbox preload creates the restricted bridges without network or app runt
     shadowStatus: typeof exposed.shadowPilot?.status === "function"
   };
     assert.deepEqual(bridge.nusa, [
-      "activateKillSwitch", "getA4Diagnostics", "getControlSnapshot", "getPreflight", "getSnapshot", "onChartPoint", "onControl",
+      "activateKillSwitch", "getA4Diagnostics", "getControlSnapshot", "getPreflight", "getRiskBudgetUsage", "getSnapshot", "onChartPoint", "onControl",
       "onSnapshot", "onStatus", "onTicker", "placeOrder", "releaseKillSwitch", "setAutoTrade",
       "setStrategyQuantity", "startStrategy", "stopStrategy"
     ]);
