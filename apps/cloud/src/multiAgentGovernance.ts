@@ -8,6 +8,7 @@ import {
   MultiAgentGovernanceEventType,
   type AdversarialReview,
   type AgentCalibrationObservation,
+  type AgentCalibrationObservationRecord,
   type AgentCalibrationProfile,
   type AgentContextSnapshot,
   type AgentContextSnapshotInput,
@@ -156,6 +157,62 @@ export function evaluateAgentCalibration(agentId: string, evaluationWindow: stri
   const error = observations.length === 0 ? undefined : Math.round((total / observations.length) * 1_000_000) / 1_000_000;
   const status = observations.length < minimumSamples ? "insufficient-data" : error! <= maximumExpectedCalibrationError ? "calibrated" : "degraded";
   return Object.freeze({ agentId: agentId.trim(), evaluationWindow: evaluationWindow.trim(), sampleCount: observations.length, expectedCalibrationError: error, calibrationStatus: status });
+}
+
+const calibrationObservationSeed = (observation: Omit<AgentCalibrationObservationRecord, "observationHash">): Readonly<Record<string, unknown>> => ({
+  observationId: observation.observationId,
+  agentId: observation.agentId,
+  evaluationWindow: observation.evaluationWindow,
+  sourceDecisionId: observation.sourceDecisionId,
+  predictedConfidence: observation.predictedConfidence,
+  correct: observation.correct,
+  recordedAt: observation.recordedAt
+});
+
+/** Records a single durable, hash-verified calibration observation. It never creates decision weight or authority. */
+export function createAgentCalibrationObservationRecord(input: Omit<AgentCalibrationObservationRecord, "observationHash">): AgentCalibrationObservationRecord {
+  text(input.observationId, "observationId");
+  text(input.agentId, "calibration observation agentId");
+  text(input.evaluationWindow, "calibration observation evaluationWindow");
+  text(input.sourceDecisionId, "calibration observation sourceDecisionId");
+  timestamp(input.recordedAt, "calibration observation recordedAt");
+  if (!Number.isFinite(input.predictedConfidence) || input.predictedConfidence < 0 || input.predictedConfidence > 1) throw new Error("predictedConfidence must be between 0 and 1");
+  const normalized = Object.freeze({
+    observationId: input.observationId.trim(),
+    agentId: input.agentId.trim(),
+    evaluationWindow: input.evaluationWindow.trim(),
+    sourceDecisionId: input.sourceDecisionId.trim(),
+    predictedConfidence: input.predictedConfidence,
+    correct: input.correct,
+    recordedAt: input.recordedAt
+  });
+  return Object.freeze({ ...normalized, observationHash: hash(canonical(calibrationObservationSeed(normalized))) });
+}
+
+function verifyRecordedCalibrationObservation(observation: AgentCalibrationObservationRecord): AgentCalibrationObservationRecord {
+  const normalized = createAgentCalibrationObservationRecord({
+    observationId: observation.observationId,
+    agentId: observation.agentId,
+    evaluationWindow: observation.evaluationWindow,
+    sourceDecisionId: observation.sourceDecisionId,
+    predictedConfidence: observation.predictedConfidence,
+    correct: observation.correct,
+    recordedAt: observation.recordedAt
+  });
+  if (normalized.observationHash !== observation.observationHash) throw new Error("calibration observation integrity violation");
+  return normalized;
+}
+
+/**
+ * Derives an AgentCalibrationProfile from durable ledger history instead of a single
+ * caller-supplied batch. This is a read-only projection: it reuses evaluateAgentCalibration
+ * unchanged and adds no new calibration math.
+ */
+export function deriveAgentCalibrationHistory(observations: readonly AgentCalibrationObservationRecord[], agentId: string, evaluationWindow: string, minimumSamples: number, maximumExpectedCalibrationError: number): AgentCalibrationProfile {
+  const matching: AgentCalibrationObservation[] = observations
+    .filter(observation => observation.agentId === agentId && observation.evaluationWindow === evaluationWindow)
+    .map(observation => Object.freeze({ predictedConfidence: observation.predictedConfidence, correct: observation.correct }));
+  return evaluateAgentCalibration(agentId, evaluationWindow, matching, minimumSamples, maximumExpectedCalibrationError);
 }
 
 function runReasons(run: AgentRun, agent: AgentDefinition, context: AgentContextSnapshot, evaluatedAt: number): readonly string[] {
@@ -474,12 +531,14 @@ export interface MultiAgentGovernanceReplayState {
   readonly incidents: ReadonlyMap<string, MultiAgentIncident>;
   readonly containments: ReadonlyMap<string, MultiAgentContainmentResult>;
   readonly certifications: ReadonlyMap<string, MultiAgentCertification>;
+  readonly calibrationObservations: ReadonlyMap<string, readonly AgentCalibrationObservationRecord[]>;
 }
 
 export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanceRecord[]): MultiAgentGovernanceReplayState {
   let previousHash = genesis; let previousTime = -1;
   const agents = new Map<string, AgentDefinition>(); const evidence = new Map<string, AgentEvidence>(); const contexts = new Map<string, AgentContextSnapshot>(); const decisions = new Map<string, MultiAgentDecisionResult>();
   const incidents = new Map<string, MultiAgentIncident>(); const containments = new Map<string, MultiAgentContainmentResult>(); const certifications = new Map<string, MultiAgentCertification>();
+  const calibrationObservations = new Map<string, AgentCalibrationObservationRecord[]>(); const calibrationObservationIds = new Set<string>();
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index]!; const event = normalizeEvent(record.event);
     if (record.sequence !== index + 1 || record.previousHash !== previousHash || record.hash !== eventHash(record.sequence, record.previousHash, event)) throw new Error("multi-agent ledger integrity violation");
@@ -502,6 +561,15 @@ export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanc
       const decision = event.payload.decision as MultiAgentDecisionResult;
       if (decision == null || decisions.has(decision.decisionId) || decision.realOrderAuthority !== false || decision.realTransferAuthority !== false || decision.productionMutationAllowed !== false || !validHash(decision.decisionHash)) throw new Error("invalid multi-agent decision event");
       decisions.set(decision.decisionId, Object.freeze({ ...decision, vetoReasons: freeze(decision.vetoReasons), unresolvedDisagreements: freeze(decision.unresolvedDisagreements), policyReferences: freeze(decision.policyReferences) }));
+    }
+    if (event.type === MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED) {
+      const observation = verifyRecordedCalibrationObservation(event.payload.observation as AgentCalibrationObservationRecord);
+      if (calibrationObservationIds.has(observation.observationId)) throw new Error("calibration observation is immutable");
+      if (![...agents.values()].some(agent => agent.agentId === observation.agentId)) throw new Error("calibration observation references unknown agent");
+      if (!decisions.has(observation.sourceDecisionId)) throw new Error("calibration observation references unknown decision");
+      calibrationObservationIds.add(observation.observationId);
+      const existing = calibrationObservations.get(observation.agentId) ?? [];
+      calibrationObservations.set(observation.agentId, [...existing, observation]);
     }
     if (event.type === MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_OPENED) {
       const incident = verifyRecordedIncident(event.payload.incident as MultiAgentIncident);
@@ -526,7 +594,8 @@ export function replayMultiAgentGovernance(records: readonly MultiAgentGovernanc
     }
     previousHash = record.hash; previousTime = event.occurredAt;
   }
-  return Object.freeze({ hash: previousHash, agents, evidence, contexts, decisions, incidents, containments, certifications });
+  const frozenCalibrationObservations = new Map<string, readonly AgentCalibrationObservationRecord[]>([...calibrationObservations.entries()].map(([agentId, list]) => [agentId, freeze(list)]));
+  return Object.freeze({ hash: previousHash, agents, evidence, contexts, decisions, incidents, containments, certifications, calibrationObservations: frozenCalibrationObservations });
 }
 
 export function appendMultiAgentGovernanceEvent(records: readonly MultiAgentGovernanceRecord[], event: MultiAgentGovernanceEvent): readonly MultiAgentGovernanceRecord[] {

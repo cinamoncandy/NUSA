@@ -70,6 +70,35 @@ sequence, timestamps, evidence hashes, immutable evidence, context hashes, and
 authority flags. SQLite migration `007_multi_agent_governance` provides a
 transactional ledger snapshot and non-authoritative query projections.
 
+## Calibration History
+
+`evaluateAgentCalibration` was, until this increment, a pure function that only ever saw
+whatever observation batch its caller passed in for that one call -- there was no
+accumulated track record. `AgentCalibrationObservationRecord` adds a durable, ledger-recorded
+observation: `agentId`, `evaluationWindow`, `predictedConfidence`, `correct`, `recordedAt`,
+and a required `sourceDecisionId`. The `sourceDecisionId` link is mandatory, not optional --
+an observation can never be a free-floating, unauditable claim about an agent's track record.
+Replay of `AGENT_CALIBRATION_OBSERVATION_RECORDED` fails closed if `sourceDecisionId` does not
+already resolve to a decision already present in the ledger, or if `agentId` does not already
+resolve to a registered agent; a duplicate `observationId` or a tampered `observationHash` is
+likewise rejected. Accepted observations accumulate per agent in
+`MultiAgentGovernanceReplayState.calibrationObservations`.
+
+`deriveAgentCalibrationHistory` is a read-only projection over that accumulated history: it
+filters the replayed observations to one agent/evaluation-window pair and calls the existing,
+unmodified `evaluateAgentCalibration` on the result. It adds no new calibration math and does
+not duplicate the AI runtime's separate, cohort-partitioned ECE/Brier calibration system
+(`apps/cloud/src/ai/outcomeCalibration.ts`) -- that system serves a different vertical and was
+deliberately left alone rather than adapted.
+
+This increment does not decide how "correct" is determined, and it does not wire calibration
+recording or `deriveAgentCalibrationHistory` into `multiAgentOrchestrator.ts`'s live decision
+path. Outcome attribution -- judging whether a past proposal's confidence was actually correct
+-- is a separate, comparably-sized governance question (on the same scale as the AI runtime's
+outcome-attribution work) and remains future, separately-reviewed scope. Correlated-error
+*history* is likewise still absent: `assessAgentIndependence` remains a point-in-time check
+only, with no durable record of past correlated-failure occurrences.
+
 ## Incident Containment and Certification
 
 An incident is an immutable factual record. Fabricated evidence, an attempted
