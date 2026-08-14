@@ -18,13 +18,18 @@ test("App shell routes canonical Home and preserves five primary jobs", () => {
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses v3 hierarchy and keeps AI read-only", () => {
+test("Home uses v5 hierarchy (equity -> P&L -> allocation -> shortcuts -> AI insight) and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, /<ScreenHeader/);
-  assert.match(source, /<MetricTile label="시장 연결"/);
-  assert.match(source, /<MetricTile label="PAPER 준비"/);
-  assert.match(source, /<MetricTile label="AI 신뢰도"/);
-  assert.match(source, /AI READ-ONLY/);
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §5): "redundant dashboard metric cards"
+  // are removed, not just relabeled -- no MetricTile grid belongs on Home anymore.
+  assert.doesNotMatch(source, /<MetricTile/);
+  const heroIndex = source.indexOf('testID="account-hero-card"');
+  const allocationIndex = source.indexOf('testID="home-allocation-panel"');
+  const actionsIndex = source.indexOf("styles.primaryActions");
+  const aiIndex = source.indexOf('testID="ai-card"');
+  assert.ok(heroIndex > -1 && allocationIndex > heroIndex && actionsIndex > allocationIndex && aiIndex > actionsIndex, "Home must render equity -> allocation rail -> shortcuts -> AI insight in that order");
+  assert.match(source, /READ ONLY/);
   assert.match(source, /LIVE 권한/);
   assert.match(source, /Production mutation/);
 });

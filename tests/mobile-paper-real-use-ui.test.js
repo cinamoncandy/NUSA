@@ -122,7 +122,7 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.match(home, /primaryActions: \{ flexDirection: "row", gap: 10, flexWrap: "wrap"/);
   assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
