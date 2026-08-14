@@ -31,12 +31,25 @@ test("settings UI exposes PAPER connection, cash allocation, appearance, safety 
   assert.match(source, /selectedKey=\{settings\.theme\}/);
   assert.match(source, /updateTheme\(key as ThemeSetting\)/);
 
-  assert.match(source, /안전과 로컬 관리/);
-  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §10) splits "safety/authority" and
+  // "local/personal-mode management" into two distinct steps rather than one merged block,
+  // and the top-of-screen standalone "PAPER ONLY" chip is gone -- the fact is still shown,
+  // contextually, inside the safety section's DataRow instead of a redundant top chip.
+  assert.doesNotMatch(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /testID="settings-safety"/);
+  assert.match(source, /DataRow label="운영 모드" value="PAPER"/);
   assert.match(source, /DataRow label="LIVE 주문" value="금지"/);
   assert.match(source, /DataRow label="Production mutation" value="금지"/);
   assert.match(source, /LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다/);
+  assert.match(source, /testID="settings-mode"/);
+  assert.match(source, /로컬과 개인 모드 관리/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
+
+  // Exact section order: connection -> cash allocation -> appearance -> safety/authority ->
+  // local/personal-mode management -> operator user access (owner-only extension, last).
+  const order = ["settings-paper-connection", "settings-capital-allocation", "settings-theme", "settings-safety", "settings-mode", "settings-operator-users"].map((testID) => source.indexOf(`testID="${testID}"`));
+  assert.ok(order.every((index) => index > -1), "every settings section testID must be present");
+  assert.deepEqual(order, [...order].sort((left, right) => left - right), "settings sections must render in v5 order");
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(app, /createCloudInvestmentAllocationClient/);
