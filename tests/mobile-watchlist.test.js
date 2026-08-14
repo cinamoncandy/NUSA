@@ -69,7 +69,7 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
 
   const primitives = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "uxPrimitives.tsx"), "utf8");
-  assert.match(primitives, /segment: \{ flex: 1, minHeight: 44/);
+  assert.match(primitives, /segment: \{ flex: 1, minHeight: 48/);
 
   const marketsView = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   assert.match(marketsView, /WatchlistView/);
