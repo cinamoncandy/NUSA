@@ -20,6 +20,7 @@ import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSes
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
@@ -76,12 +77,21 @@ function AuthenticatedApp() {
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
+  const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
+  const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {
+    try {
+      runtimeCoordinator.dispatch(event);
+    } catch {
+      try { runtimeCoordinator.dispatch({ type: "RECOVERY_FAILED", reason: "mobile runtime state transition failed" }); } catch { /* remain blocked by the last known state */ }
+    }
+  }, [runtimeCoordinator]);
 
   useEffect(() => {
     let active = true;
@@ -97,18 +107,31 @@ function AuthenticatedApp() {
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       return Promise.resolve();
     }
+    dispatchRuntime({ type: "RECOVERY_STARTED" });
     const request = (async () => {
-      const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      let result: PersonalPaperOperationsLoadResult;
+      try {
+        result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      } catch (error) {
+        dispatchRuntime({ type: "NETWORK_OFFLINE" });
+        throw error;
+      }
       if (generation !== refreshGenerationRef.current) return;
       const currentEndpoint = getConfiguredPaperEndpoint();
       if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
       setOperations(result);
+      if (result.status === "READY") {
+        const nextVersion = runtimeCoordinator.current().lastPersistedVersion + 1;
+        dispatchRuntime({ type: "RECOVERY_MATCHED", version: nextVersion });
+      } else {
+        dispatchRuntime({ type: "RECOVERY_FAILED", reason: result.reason || "PAPER recovery is unavailable" });
+      }
     })();
     refreshInFlightRef.current = request;
     const clearIfCurrent = () => { if (refreshInFlightRef.current === request) refreshInFlightRef.current = null; };
     void request.then(clearIfCurrent, clearIfCurrent);
     return request;
-  }, [credentialSession]);
+  }, [credentialSession, dispatchRuntime, runtimeCoordinator]);
 
   const closeUtility = useCallback(() => setUtilityView(null), []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
@@ -118,7 +141,14 @@ function AuthenticatedApp() {
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
-  useEffect(() => { const subscription = AppState.addEventListener("change", setAppState); return () => subscription.remove(); }, []);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppState(nextState);
+      dispatchRuntime({ type: nextState === "active" ? "APP_FOREGROUND" : "APP_BACKGROUND" });
+      if (nextState === "active" && runtimeCoordinator.current().recovery === "READY") dispatchRuntime({ type: "RECOVERY_STARTED" });
+    });
+    return () => subscription.remove();
+  }, [dispatchRuntime, runtimeCoordinator]);
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;
@@ -143,6 +173,10 @@ function AuthenticatedApp() {
   const selectedMarket = snapshot?.markets.find((market) => market.market === CHART_MARKET) ?? null;
   const ai = snapshot?.ai ?? null;
   const accountCash = snapshot?.portfolio?.account.cash ?? 0;
+  const runtimeCanSubmit = !runtimeSnapshot.tradingBlocked
+    && runtimeSnapshot.lifecycle === "FOREGROUND"
+    && runtimeSnapshot.network === "ONLINE"
+    && runtimeSnapshot.recovery === "READY";
   const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home"));
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
@@ -156,7 +190,7 @@ function AuthenticatedApp() {
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
-      : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} stale={stale} />
+      : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
