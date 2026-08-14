@@ -42,11 +42,12 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   assert.match(app, /rawCandles=\{null\}/);
 });
 
-test("PAPER submit is available only through explicit injection or a verified local PAPER session", () => {
+test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {
   const source = read("src/tradingView.tsx");
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| builtInSubmitAvailable/);
+  assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
