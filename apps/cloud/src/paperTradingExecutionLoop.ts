@@ -8,7 +8,14 @@ import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocatio
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
+const LEDGER_ROUND_SCALE = 100_000_000n;
 const round8 = (value: number): number => Number(value.toFixed(8));
+const toScaledLedgerAmount = (value: number): bigint => BigInt(Math.round(value * Number(LEDGER_ROUND_SCALE)));
+const fromScaledLedgerAmount = (value: bigint): number => Number(value) / Number(LEDGER_ROUND_SCALE);
+function divideRound8(numerator: bigint, denominator: bigint): number {
+  if (denominator <= 0n) throw new Error("division denominator must be positive");
+  return fromScaledLedgerAmount((numerator + denominator / 2n) / denominator);
+}
 const finiteNonNegative = (value: number, name: string): void => { if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`); };
 
 export interface PaperAccountPosition {
@@ -396,7 +403,8 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   if (side === "BUY") {
     if (notional + fee > cash) throw new Error("insufficient paper cash");
     const nextQuantity = round8(previous.quantity + quantity);
-    position = { ...previous, quantity: nextQuantity, averageEntryPrice: round8((previous.averageEntryPrice * previous.quantity + notional + fee) / nextQuantity), markPrice: price };
+    const costBasis = toScaledLedgerAmount(previous.averageEntryPrice * previous.quantity + notional + fee);
+    position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: price };
     cash = round8(cash - notional - fee);
   } else {
     if (quantity > previous.quantity + Number.EPSILON) throw new Error("insufficient paper position");
