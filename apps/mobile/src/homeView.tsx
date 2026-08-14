@@ -21,11 +21,14 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const aiTrustedConfidence = ai?.calibrationStatus === "CALIBRATED" ? `${Math.round(ai.confidence * 100)}%` : "-";
   const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
   const allocationWidth = allocation ? `${allocation.investmentPercent}%` as `${number}%` : "0%";
-  const nextAction = snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
-    ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
-    : aiInsightAvailable
-      ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
-      : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
+  const nextAction = notConfigured
+    ? { title: "PAPER 연결 설정", detail: "Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요.", tab: null }
+    : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
+      ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
+      : aiInsightAvailable
+        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
+        : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
+  const runNextAction = () => { if (nextAction.tab === null) onGoSettings(); else onNavigate(nextAction.tab); };
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
     <ScreenHeader eyebrow="NUSA ISLAND" title="홈" description="자산 상태와 지금 필요한 한 가지 행동을 확인합니다." statusLabel={snapshot?.health ?? "미연결"} statusTone={snapshot ? healthTone(snapshot.health) : "neutral"} />
@@ -45,7 +48,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
       </View>
     </View> : null}
 
-    <View style={styles.nextAction} testID="home-next-action"><View style={[styles.nextActionCopy, styles.column]}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{nextAction.title}</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{nextAction.detail}</Text></View><NusaButton label={nextAction.title} onPress={() => onNavigate(nextAction.tab)} testID="home-next-action-button" /></View>
+    <View style={styles.nextAction} testID="home-next-action"><View style={[styles.nextActionCopy, styles.column]}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{nextAction.title}</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{nextAction.detail}</Text></View><NusaButton label={nextAction.title} onPress={runNextAction} testID="home-next-action-button" /></View>
 
       <View style={styles.grid}><MetricTile label="시장 연결" value={snapshot?.operations.transport ?? "UNKNOWN"} detail="PAPER 데이터 연결" tone={snapshot?.operations.transport === "ONLINE" ? "success" : "warning"} /><MetricTile label="PAPER 준비" value={snapshot?.readyForPaperOperations ? "READY" : "BLOCKED"} detail="안전 게이트" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} /><MetricTile label="AI 신뢰도" value={aiTrustedConfidence} detail="AI READ-ONLY" tone="info" /></View>
 

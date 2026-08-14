@@ -41,3 +41,17 @@ test("restore derives the portfolio from ledger instead of persisted projection 
   assert.equal(snapshot.position.averagePrice, 100);
   assert.equal(snapshot.position.realizedPnl, 0);
 });
+
+test("fixed-point ledger replay stays bounded across repeated fractional trades", () => {
+  const broker = new PaperBroker(1_000_000, "KRW-BTC", 0.0005);
+  let expectedCash = 1_000_000;
+  for (let index = 0; index < 2_000; index += 1) {
+    const price = 100 + (index % 7) / 10;
+    const quantity = 0.001 + (index % 5) / 100_000;
+    broker.execute("BUY", quantity, price, new Date(index + 1));
+    expectedCash -= quantity * price * 1.0005;
+  }
+
+  const snapshot = broker.snapshot(101);
+  assert.ok(Math.abs(snapshot.cash - expectedCash) < 1e-5);
+});

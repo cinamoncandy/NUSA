@@ -104,6 +104,17 @@ export interface PaperAccountSnapshot {
   orders: readonly PaperOrder[];
 }
 
+const LEDGER_REPLAY_SCALE = 100_000_000n;
+
+function toScaledLedgerAmount(amount: number): bigint {
+  if (!Number.isFinite(amount)) throw new Error("ledger amount must be finite");
+  return BigInt(Math.round(amount * Number(LEDGER_REPLAY_SCALE)));
+}
+
+function fromScaledLedgerAmount(amount: bigint): number {
+  return Number(amount) / Number(LEDGER_REPLAY_SCALE);
+}
+
 function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 }
@@ -125,17 +136,6 @@ function floorToStep(value: number, step: number): number {
 function isAlignedToTick(value: number, tick: number): boolean {
   const units = value / tick;
   return Math.abs(units - Math.round(units)) < 1e-6;
-}
-
-/** Ledger replay precision: use BigInt 1e8 scale to eliminate float accumulation drift. */
-const LEDGER_REPLAY_SCALE = 100_000_000n;
-
-function toScaledLedgerAmount(amount: number): bigint {
-  return BigInt(Math.round(amount * 100_000_000));
-}
-
-function fromScaledLedgerAmount(scaled: bigint): number {
-  return Number(scaled) / 100_000_000;
 }
 
 export class PaperBroker {
@@ -226,33 +226,30 @@ export class PaperBroker {
   }
 
   private projectFromLedger(initialCash: number): void {
-    // BigInt fixed-point ledger replay: eliminate float accumulation drift
     let cash = toScaledLedgerAmount(initialCash);
     let quantity = 0n;
     let costBasis = 0n;
     let realizedPnl = 0n;
-
     for (const entry of this.ledger) {
+      const entryQuantity = toScaledLedgerAmount(entry.quantity);
+      const entryPrice = toScaledLedgerAmount(entry.price);
+      const entryFee = toScaledLedgerAmount(entry.fee);
       if (entry.side === "BUY") {
-        const notionalCost = toScaledLedgerAmount(entry.quantity * entry.price + entry.fee);
-        cash -= notionalCost;
-        costBasis += toScaledLedgerAmount(entry.quantity * entry.price);
-        quantity += toScaledLedgerAmount(entry.quantity);
+        cash -= (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE + entryFee;
+        costBasis += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE;
+        quantity += entryQuantity;
       } else {
-        const notionalProceeds = toScaledLedgerAmount(entry.quantity * entry.price - entry.fee);
-        cash += notionalProceeds;
-        const entryPnl = toScaledLedgerAmount((entry.price - fromScaledLedgerAmount(costBasis / (quantity || 1n))) * entry.quantity - entry.fee);
-        realizedPnl += entryPnl;
-        quantity -= toScaledLedgerAmount(entry.quantity);
+        const averagePrice = quantity === 0n ? 0n : (costBasis * LEDGER_REPLAY_SCALE) / quantity;
+        cash += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE - entryFee;
+        realizedPnl += ((entryPrice - averagePrice) * entryQuantity) / LEDGER_REPLAY_SCALE - entryFee;
+        costBasis -= (averagePrice * entryQuantity) / LEDGER_REPLAY_SCALE;
+        quantity -= entryQuantity;
         if (quantity === 0n) costBasis = 0n;
       }
     }
-
-    // Convert back from fixed-point once at the end
     this.cash = fromScaledLedgerAmount(cash);
-    const finalQuantity = fromScaledLedgerAmount(quantity);
-    this.position.quantity = this.normalizePositionQuantity(finalQuantity);
-    this.position.averagePrice = finalQuantity > 0 ? fromScaledLedgerAmount(costBasis / quantity) : 0;
+    this.position.quantity = this.normalizePositionQuantity(fromScaledLedgerAmount(quantity));
+    this.position.averagePrice = this.position.quantity === 0 ? 0 : fromScaledLedgerAmount((costBasis * LEDGER_REPLAY_SCALE) / quantity);
     this.position.realizedPnl = fromScaledLedgerAmount(realizedPnl);
   }
 
