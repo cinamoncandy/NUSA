@@ -786,6 +786,105 @@ window.addEventListener("beforeunload", () => {
 refreshCioDashboard();
 
 /*
+ * Risk Budget Projection: 11-category usage display (read-only).
+ * Categories: symbolExposure, portfolioExposure, dailyBuyNotional, dailySellNotional,
+ *             openOrders, ordersPerSecond, ordersPerMinute, sameSideStreak,
+ *             dailyLoss, consecutiveLosses, sessionDrawdown
+ */
+let riskBudgetRefreshTimer;
+let riskBudgetRefreshInFlight = false;
+
+function buildRiskGauge(categoryName, ratio) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 100 24");
+  svg.setAttribute("class", `risk-gauge ${ratio >= 0.9 ? "danger" : ratio >= 0.7 ? "warn" : "ok"}`);
+
+  // Background
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("width", "100");
+  bg.setAttribute("height", "24");
+  bg.setAttribute("class", "risk-gauge-bg");
+  svg.appendChild(bg);
+
+  // Fill (width-based, CSS class for color)
+  const fill = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  fill.setAttribute("width", String(Math.round(ratio * 100)));
+  fill.setAttribute("height", "24");
+  fill.setAttribute("class", "risk-gauge-fill");
+  svg.appendChild(fill);
+
+  return svg;
+}
+
+function renderRiskBudgetUsage(usage) {
+  if (!usage) {
+    const grid = byId("risk-budget-grid");
+    if (grid) grid.innerHTML = '<p style="color: var(--color-text-muted);">위험 예산 데이터 없음</p>';
+    return;
+  }
+
+  const categories = [
+    { name: "symbolExposure", label: "심볼 노출" },
+    { name: "portfolioExposure", label: "포트폴리오 노출" },
+    { name: "dailyBuyNotional", label: "일일 매수 액면" },
+    { name: "dailySellNotional", label: "일일 매도 액면" },
+    { name: "openOrders", label: "미체결 주문" },
+    { name: "ordersPerSecond", label: "초당 주문" },
+    { name: "ordersPerMinute", label: "분당 주문" },
+    { name: "sameSideStreak", label: "동방향 연속" },
+    { name: "dailyLoss", label: "일일 손실" },
+    { name: "consecutiveLosses", label: "연속 손실" },
+    { name: "sessionDrawdown", label: "세션 낙폭" }
+  ];
+
+  const grid = byId("risk-budget-grid");
+  if (!grid) return;
+
+  grid.replaceChildren(...categories.map(cat => {
+    const container = document.createElement("div");
+    container.className = "risk-budget-item";
+
+    const label = document.createElement("div");
+    label.className = "risk-budget-label";
+    label.textContent = cat.label;
+
+    const ratio = usage[cat.name] ?? 0;
+    const gauge = buildRiskGauge(cat.name, ratio);
+
+    const value = document.createElement("div");
+    value.className = "risk-budget-value";
+    value.textContent = `${(ratio * 100).toFixed(0)}%`;
+
+    container.append(label, gauge, value);
+    return container;
+  }));
+}
+
+async function refreshRiskBudgetUsage() {
+  if (riskBudgetRefreshInFlight) return;
+  riskBudgetRefreshInFlight = true;
+  try {
+    const usage = await window.nusa.invoke("paper:risk-budget-usage");
+    renderRiskBudgetUsage(usage);
+  } catch (error) {
+    console.error("Risk budget refresh failed:", error);
+    renderRiskBudgetUsage(null);
+  } finally {
+    riskBudgetRefreshInFlight = false;
+    scheduleRiskBudgetRefresh();
+  }
+}
+
+function scheduleRiskBudgetRefresh() {
+  clearTimeout(riskBudgetRefreshTimer);
+  riskBudgetRefreshTimer = setTimeout(refreshRiskBudgetUsage, 10_000);
+}
+
+byId("refresh-risk-budget")?.addEventListener("click", refreshRiskBudgetUsage);
+window.addEventListener("beforeunload", () => clearTimeout(riskBudgetRefreshTimer));
+refreshRiskBudgetUsage();
+
+/*
  * WO-0034-A4O productization screens.
  *
  * Mounted last, after the dashboard is already live, so a failure here degrades to "no
