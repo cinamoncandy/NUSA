@@ -89,18 +89,26 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
   }
 }
 
+/**
+ * Shared row shape between Upbit's REST ticker response (field `market`) and its DEFAULT-format
+ * WebSocket ticker push (field `code`) -- both carry the same trade_price/signed_change_rate/
+ * acc_trade_volume_24h/timestamp fields, just under a different market-code key. Exported so
+ * upbitPublicWebSocketClient.ts can reuse the exact same validation instead of duplicating it.
+ */
+export function parseUpbitTickerRow(value: unknown, marketField: "market" | "code", index: number | string = 0): WatchlistMarket {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`Upbit ticker ${index} is invalid.`);
+  const row = value as Record<string, unknown>;
+  const market = normalizedMarket(row[marketField]);
+  const price = positiveFiniteNumber(row.trade_price, "trade price");
+  const changeRate = finiteNumber(row.signed_change_rate, "signed change rate", true);
+  const volume = finiteNumber(row.acc_trade_volume_24h, "24h trade volume");
+  const observedAt = normalizedTimestamp(row.timestamp);
+  return Object.freeze({ market, price, changeRate, volume, observedAt, source: "UPBIT_PUBLIC_TICKER" as const });
+}
+
 export function normalizeUpbitTickerPayload(raw: unknown): readonly WatchlistMarket[] {
   if (!Array.isArray(raw)) throw new Error("Upbit ticker response is invalid.");
-  return Object.freeze(raw.map((value, index) => {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`Upbit ticker ${index} is invalid.`);
-    const row = value as Record<string, unknown>;
-    const market = normalizedMarket(row.market);
-    const price = positiveFiniteNumber(row.trade_price, "trade price");
-    const changeRate = finiteNumber(row.signed_change_rate, "signed change rate", true);
-    const volume = finiteNumber(row.acc_trade_volume_24h, "24h trade volume");
-    const observedAt = normalizedTimestamp(row.timestamp);
-    return Object.freeze({ market, price, changeRate, volume, observedAt, source: "UPBIT_PUBLIC_TICKER" as const });
-  }));
+  return Object.freeze(raw.map((value, index) => parseUpbitTickerRow(value, "market", index)));
 }
 
 export async function loadUpbitPublicMarkets(options: UpbitPublicQuotationClientOptions = {}): Promise<readonly WatchlistMarket[]> {

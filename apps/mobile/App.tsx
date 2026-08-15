@@ -23,6 +23,7 @@ import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } f
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
+import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -107,6 +108,7 @@ function AuthenticatedApp() {
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const publicRefreshGenerationRef = useRef(0);
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
+  const liveMarketsKeyRef = useRef<string>("");
   const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
   const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {
     try {
@@ -197,12 +199,27 @@ function AuthenticatedApp() {
     return request;
   }, []);
 
+  // Real-time layer on top of the 30s REST poll above: a live Upbit ticker only ever updates an
+  // entry already established by that REST baseline (never invents a market on its own), so a
+  // socket outage silently degrades back to polling-only instead of losing or fabricating data.
+  const handleLiveTicker = useCallback((ticker: WatchlistMarket): void => {
+    const previous = publicMarketsRef.current;
+    if (previous.markets === null) return;
+    const index = previous.markets.findIndex((market) => market.market === ticker.market);
+    if (index === -1) return;
+    const markets = previous.markets.map((market, position) => (position === index ? ticker : market));
+    const next: PublicMarketsState = { ...previous, status: "READY", markets: Object.freeze(markets), currentPrice: ticker.market === CHART_MARKET ? ticker.price : previous.currentPrice };
+    publicMarketsRef.current = next;
+    setPublicMarkets(next);
+  }, []);
+  const liveTickerClient = useMemo(() => new UpbitPublicWebSocketClient(handleLiveTicker), [handleLiveTicker]);
+
   const closeUtility = useCallback(() => setUtilityView(null), []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
-    const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState);
+    const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
@@ -235,6 +252,20 @@ function AuthenticatedApp() {
     void refreshPublicMarkets().catch(() => undefined).finally(scheduleNext);
     return () => { cancelled = true; publicRefreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
   }, [appState, authStatus, refreshPublicMarkets]);
+
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || appState !== "active") { liveTickerClient.disconnect(); return; }
+    void liveTickerClient.connect();
+    return () => liveTickerClient.disconnect();
+  }, [appState, authStatus, liveTickerClient]);
+  useEffect(() => {
+    if (publicMarkets.markets === null) return;
+    const codes = publicMarkets.markets.map((market) => market.market).sort();
+    const key = codes.join(",");
+    if (key === liveMarketsKeyRef.current) return;
+    liveMarketsKeyRef.current = key;
+    liveTickerClient.setMarkets(codes);
+  }, [publicMarkets.markets, liveTickerClient]);
 
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 
