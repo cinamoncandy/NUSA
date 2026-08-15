@@ -10,6 +10,8 @@ test("premium UI minimum path keeps one actionable Home next step and truthful P
   const home = read("src/homeView.tsx");
   assert.match(home, /testID="home-next-action-button"/);
   assert.match(home, /<MetricTile label="PAPER 연결"/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /accessibilityLabel=\{`PAPER 상태 신호:/);
   assert.doesNotMatch(home, /primaryActions/);
 });
 
