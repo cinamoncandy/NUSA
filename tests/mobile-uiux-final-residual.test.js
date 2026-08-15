@@ -10,13 +10,13 @@ test("Home exposes one real safety-first next action from verified runtime state
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /testID="home-next-action"/);
   assert.match(home, /testID="home-next-action-button"/);
-  assert.match(home, /PAPER 상태 보기/);
-  assert.match(home, /AI 분석 보기/);
-  assert.match(home, /시장 보기/);
-  assert.match(home, /onNavigate\(nextAction\.tab\)/);
-  assert.match(home, /snapshot\?\.health !== "HEALTHY" \|\| snapshot\?\.dashboard\.killSwitchActive \|\| !snapshot\?\.readyForPaperOperations/);
+  assert.match(home, /PAPER · LIVE OFF/);
+  assert.match(home, /AI 인사이트 보기/);
+  assert.match(home, /시장 데이터 보기/);
+  assert.match(home, /onNavigate\(nextAction\.destination\)/);
+  assert.match(home, /snapshot && snapshot\.health !== "HEALTHY"/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
-  assert.match(home, /: aiInsightAvailable\s*\? \{ title: "AI 분석 보기"/s);
+  assert.match(home, /destination: "More"/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
