@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T21:56:00+09:00"
-phase: android-real-use-successor
-status: ready
-objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
+updated_at: "2026-08-16T00:40:00+09:00"
+phase: mcp-read-only-gateway
+status: in_progress
+objective: "Implement WO-0056 as an authenticated read-only MCP adapter over existing NUSA relays; preserve PAPER-only authority and leave deployment/ChatGPT connection unclaimed without evidence."
 base_branch: main
-active_branch: agent/aipos-0053-main-final
+active_branch: agent/issue-mcp-readonly-gateway
 active_pull_request: null
-base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -32,8 +32,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0053
-  status: VERIFYING
+  work_order: WO-0056
+  status: IN_PROGRESS
+  branch: agent/issue-mcp-readonly-gateway
+  base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+  scope: "Authenticated read-only MCP adapter over existing dashboard, PAPER operations, and Upbit read-only relays; no candle tool because no existing endpoint was found."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -322,9 +325,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0053
-    evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
-    summary: "Repository implementation and exact-head automated gates are merged/PASS; WO-0053 remains VERIFYING solely because physical Android acceptance is HUMAN_ENVIRONMENT_ONLY pending."
+  - id: WO-0056
+    evidence: ".aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml"
+    summary: "Read-only MCP adapter implementation is in progress; external stable HTTPS deployment and ChatGPT connection remain unverified."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -340,8 +343,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-  reason: "Preserve HOLD until genuine physical Android device acceptance is available; repository-controlled maintenance may proceed only without claiming or bypassing the HUMAN_ENVIRONMENT_ONLY gate."
+  work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
+  reason: "Implement and test the authenticated read-only MCP adapter over existing relays; do not claim external deployment or ChatGPT connection without evidence."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"

@@ -1,0 +1,23 @@
+[Unit]
+Description=NUSA Read-only MCP Gateway
+After=network-online.target nusa.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa/current
+EnvironmentFile=/etc/nusa/mcp-gateway.env
+ExecStart=/usr/bin/node /opt/nusa/current/services/nusa-mcp/server.js
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/nusa
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
