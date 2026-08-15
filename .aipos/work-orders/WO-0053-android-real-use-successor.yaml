@@ -38,6 +38,16 @@ repository_maintenance:
       apk_sha256: 963c21c86be3e367e66b9f07443c5feff748f5ece25b7a7139e813da558683f2
       provenance_source_sha: 20a99436f8639b0c70ba59865d33757b4da0d8a9
     physical_android_visual_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    build_identity_audit:
+      evidence: docs/audits/android-apk-build-identity-audit-2026-08-15.md
+      expected_head: 1adb7c635c0561b10c0a9a806adc8ede4ae26bda
+      workflow_run_id: 31888787751
+      run_number: 972
+      source_sha_verified: PASS
+      new_home_bundle_markers: PASS
+      prior_apk_comparison: PASS_OLD_MARKERS_ONLY
+      installed_package_identity: HUMAN_ENVIRONMENT_ONLY_PENDING
+      visual_acceptance: FAIL_PENDING_DEVICE_REINSTALL
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
