@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-18T14:25:00+09:00"
-phase: constitutional-production-human-environment-gate
+updated_at: "2026-08-16T00:00:00+09:00"
+phase: home-master-visual-reference
 status: in_progress
-objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
+objective: "Implement Issue #536 Home against the NUSA master visual reference without changing backend, authority, credential, or non-Home contracts."
 base_branch: main
-active_branch: main
+active_branch: agent/issue-536-home-master-reference
 active_pull_request: null
-base_commit: f875980e4ff9111ab576f1e93294fae510d07167
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -32,11 +32,12 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-0055
   status: IN_PROGRESS
-  branch: main
-  base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
-  scope: "Terminal HUMAN_ENVIRONMENT_ONLY gate for LIVE and real-money transition; non-LIVE successors may be separately registered without satisfying or weakening this gate."
+  issue: 536
+  branch: agent/issue-536-home-master-reference
+  base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+  scope: "Home-only master visual reference implementation; PR #535 remains Draft/HOLD."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -286,11 +287,8 @@ planning_gates:
       runtime_implementation_started: false
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
+    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened while runtime implementation remains prohibited before human/environment serialization clears."
 completed:
-  - id: WO-0057
-    evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
-    summary: "Desktop Cloud canonical PAPER authority migration completed in PR #552 at exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 and merged as f875980e4ff9111ab576f1e93294fae510d07167 with exact-head CI and required read-only/restricted-LIVE companion workflows PASS; PAPER-only and LIVE/real-money prohibitions remain unchanged."
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
     summary: "Deterministic claim-evidence verification enforces support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with read-only zero authority."
@@ -328,25 +326,14 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0051
-    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
-    summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
+  - id: WO-0055
+    evidence: ".aipos/work-orders/WO-0055-home-master-visual-reference.yaml"
+    summary: "Issue #536 Home master visual reference implementation is in progress; repository validation is being run and real Android screenshot acceptance remains HUMAN_ENVIRONMENT_ONLY pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
   status: IN_PROGRESS
-  mode: HUMAN_ENVIRONMENT_ONLY
-  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
-  allowed_under_gate:
-    - PAPER_ONLY
-    - READ_ONLY
-    - MOBILE_AUTH_AND_SECURE_SESSION
-    - UI_UX_AND_NON_LIVE_ARCHITECTURE
-  blocked_under_gate:
-    - LIVE_ACTIVATION
-    - REAL_MONEY_MUTATION
-    - LIVE_RISK_ENVELOPE_EXPANSION
-  reason: "WO-0051 remains mandatory for LIVE and real-money transition; non-LIVE successors cannot satisfy, weaken, or bypass it."
+  reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -357,18 +344,9 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-0057 repository work is complete. The standing WO-0051 human/environment gate remains the active serialized boundary for LIVE and real-money transition; any non-LIVE successor must be separately registered and cannot satisfy or weaken this gate."
+  work_order: .aipos/work-orders/WO-0055-home-master-visual-reference.yaml
+  reason: "Complete Home-only reference implementation and repository validation; do not claim visual acceptance or merge without a real Android screenshot comparison."
 verification:
-  wo_0057:
-    parent_pull_request: 552
-    exact_head: 03eef24c4abbba91920c0063a3e2af95088eb9d0
-    merge_commit: f875980e4ff9111ab576f1e93294fae510d07167
-    ci: PASS
-    read_only_broker_credential_integration: PASS
-    restricted_live_activation_rehearsal: PASS
-    restricted_live_transport_credential_readiness: PASS
-    restricted_live_capability_surface_guard: PASS
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
     - "Treat WO-AI-011 as PLANNED only; no runtime implementation before the human/environment serialization clears"
@@ -376,34 +354,17 @@ verification:
     - "Preserve real-user PENDING -> APPROVED/SUSPENDED server-side authorization and OWNER-only users:manage"
     - "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence"
     - "Operator-authorized external read-only broker preflight"
-    - "Actual OWNER approval evidence bound to exact code/config/scope/risk/rollback"
-    - "Separate explicit OWNER constitutional production/LIVE decision"
+    - "Actual independent human activation ceremony evidence"
+    - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate explicit OWNER approval for any later risk or scale increase"
-  last_result: "WO-0057 parent PR #552 exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 passed CI, Read-only Broker Credential Integration, and all three Restricted LIVE companion workflows, then merged to protected main as f875980e4ff9111ab576f1e93294fae510d07167. No LIVE or real-money authority was introduced."
-  current_commit: "Protected main f875980e4ff9111ab576f1e93294fae510d07167 contains the completed Desktop Cloud canonical PAPER authority cutover; this closeout branch changes AIPOS governance/evidence only."
+    - "Separate two-human governance for any later risk increase"
+  last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
+  current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
-  project_classification: PRIVATE_PERSONAL_USE
-  sole_final_human_authority: OWNER
   live_trading_mutation: prohibited
   live_authority: human_only
-  constitutional_production_decision: OWNER_ONLY
-  owner_approval_required_for:
-    - production_transition
-    - restricted_live_activation
-    - rollback
-    - risk_envelope_change
-    - scale_change
-    - constitutional_decision
-  owner_approval_bindings_required:
-    - exact_code_sha
-    - exact_configuration
-    - exact_scope
-    - exact_risk_envelope
-    - rollback_procedure
-    - timestamp
-    - explicit_approval_statement
-  absent_owner_evidence: fail_closed
+  constitutional_production_decision: human_only
+  risk_increase_approvers_required: 2
   automatic_live_activation: prohibited
   automatic_scale_up: prohibited
   automatic_production_transition: prohibited

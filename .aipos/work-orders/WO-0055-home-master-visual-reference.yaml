@@ -1,0 +1,64 @@
+id: WO-0055
+schema_version: 1
+title: "Issue #536 Home master visual reference implementation"
+status: IN_PROGRESS
+priority: 100
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/issue-536-home-master-reference
+objective: "Rebuild the Android Home composition to follow the NUSA 01 HOME master visual reference while preserving truthful PAPER data, read-only AI semantics, and all safety boundaries."
+scope:
+  - "Home header, equity/PnL hero, compact AI insight, symbolic terrain centerpiece, truthful market metrics, and quiet Home navigation coherence."
+  - "Home disconnected/error presentation remains Home and exposes only one compact operational notice."
+  - "Focused Home contract tests and reduced-motion/responsive checks."
+exclusions:
+  - "No new logo or production brand asset replacement."
+  - "No Markets, Chart, PAPER, Portfolio, or AI screen redesign beyond Home integration."
+  - "No backend, endpoint, auth, credential, API, LIVE, order, cancel, withdraw, or transfer change."
+  - "PR #535 remains Draft/HOLD and is not modified or merged."
+architecture_impact:
+  acknowledged: true
+  analysis: "This Home-only presentation change reuses the existing mobile data contracts, ThemeProvider, MotionReveal, TerrainSignal, and route contracts. It changes no backend, persistence, auth, credential, execution, or authority surface."
+  references:
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+safety_boundaries:
+  - "PAPER ONLY; liveAuthority remains NONE; productionMutationAllowed remains false."
+  - "AI remains ZERO_AUTHORITY/read-only and cannot trigger financial mutation."
+  - "Upbit public quotation remains credential-free and GET-only."
+execution_sequence:
+  - "Verify latest main and inspect existing Home, TerrainSignal, App shell, and focused UI contracts."
+  - "Implement the smallest Home-only composition change using existing tokens and primitives."
+  - "Add truthful Home disconnected, no-fake-data, terrain, one-notice, responsive, and reduced-motion contracts."
+  - "Run focused tests, typecheck, lint, build, safety/AIPOS checks, and exact-head CI after PR publication."
+  - "Generate an Android release candidate only through the canonical workflow and require real-device screenshots before visual acceptance or merge."
+verification:
+  commands:
+    - "node --test tests/mobile-uiux-min-path.test.js tests/mobile-uiux-visual-redesign.test.js tests/mobile-paper-real-use-ui.test.js"
+    - "pnpm run typecheck"
+    - "pnpm run lint"
+    - "pnpm run build"
+    - "pnpm run architecture:check"
+    - "pnpm run safety:architecture"
+    - "pnpm run ai:architecture"
+    - "pnpm run aipos:drift"
+    - "pnpm run aipos:conformance"
+    - "git diff --check"
+completion_criteria:
+  - "Home composition visibly follows the master reference: black/white hierarchy, terrain centerpiece, compact AI, truthful financial number hierarchy, and quiet navigation."
+  - "Home remains Home when PAPER is unavailable and does not show endpoint/token/port infrastructure copy."
+  - "Focused repository gates and exact-head required checks pass."
+  - "Real Android Home screenshots compared with the master reference are captured before acceptance; otherwise status remains PENDING."
+evidence:
+  - "Changed Home component/primitives/tests and validation output."
+  - "Android source/build provenance and APK SHA-256 when canonical RC workflow is available."
+  - "Real-device Home screenshots and visual acceptance decision, or explicit HUMAN_ENVIRONMENT_ONLY pending status."
+rollback:
+  - "Revert the Home-only commit; existing route, data, and authority contracts remain unchanged."
+current_status: "Implementation in progress; visual acceptance remains HUMAN_ENVIRONMENT_ONLY until a real Android install and screenshot comparison are available."
+blockers:
+  - "Real Android device installation and screenshot capture are external to repository automation."
+next_action: "Implement Home composition, then run the recorded repository verification commands."

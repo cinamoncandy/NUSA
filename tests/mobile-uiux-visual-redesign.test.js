@@ -15,12 +15,19 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses one data-bound hero signal primitive", () => {
+test("Home follows the master reference with a large truthful hero and terrain centerpiece", () => {
   const home = read("src/homeView.tsx");
   const components = read("src/components.tsx");
+  assert.match(home, /testID="home-header"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{signalReady \? 0\.9 : 0\.35\} accessibilityLabel=/);
+  assert.match(home, /testID="home-terrain-centerpiece"/);
+  assert.match(home, /<TerrainSignal size="hero" variant="symbolic"/);
+  assert.match(home, /TOTAL EQUITY/);
+  assert.match(home, /PAPER · LIVE OFF/);
+  assert.doesNotMatch(home, /<MetricTile/);
+  assert.doesNotMatch(home, /AI 신뢰도/);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
+  assert.match(components, /size === "hero"/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {

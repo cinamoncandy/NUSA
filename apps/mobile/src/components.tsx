@@ -132,17 +132,18 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
   return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
 }
 
-export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
+export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, size = "compact", accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; size?: "compact" | "hero"; accessibilityLabel?: string; testID?: string }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
   const primaryWidth = `${Math.round(42 + boundedStrength * 34)}%` as `${number}%`;
   const secondaryWidth = `${Math.round(30 + boundedStrength * 26)}%` as `${number}%`;
   const convergenceLeft = `${Math.round(44 + boundedStrength * 18)}%` as `${number}%`;
-  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={[styles.terrainSignal, size === "hero" && styles.terrainSignalHero]} testID={testID}>
     <View style={[styles.terrainHorizon, { backgroundColor: theme.colors.terrain, opacity: 0.22 }]} />
     <View style={[styles.terrainLine, { width: primaryWidth, backgroundColor: theme.colors.terrain, opacity: 0.78 }]} />
     <View style={[styles.terrainLine, styles.terrainLineHigh, { width: secondaryWidth, backgroundColor: theme.colors.aiSignalMid, opacity: 0.7 }]} />
     <View style={[styles.terrainLine, styles.terrainLineLow, { width: "42%", backgroundColor: theme.colors.aiSignalEnd, opacity: 0.58 }]} />
+    {size === "hero" ? <><View style={[styles.terrainLine, styles.terrainMeshHigh, { width: "34%", backgroundColor: theme.colors.terrain, opacity: 0.42 }]} /><View style={[styles.terrainLine, styles.terrainMeshLow, { width: "52%", backgroundColor: theme.colors.aiSignalStart, opacity: 0.32 }]} /></> : null}
     <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd }]} />
     <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd }]} />
   </View>;
@@ -203,11 +204,11 @@ const styles = StyleSheet.create({
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
-  terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
+  terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" }, terrainSignalHero: { height: 238 },
   terrainHorizon: { position: "absolute", left: 0, right: 0, top: "59%", height: StyleSheet.hairlineWidth },
   terrainLine: { position: "absolute", left: "4%", top: "50%", height: 1, transform: [{ rotate: "-7deg" }] },
   terrainLineHigh: { left: "18%", top: "32%", transform: [{ rotate: "8deg" }] },
-  terrainLineLow: { left: "28%", top: "68%", transform: [{ rotate: "-2deg" }] },
+  terrainLineLow: { left: "28%", top: "68%", transform: [{ rotate: "-2deg" }] }, terrainMeshHigh: { left: "2%", top: "43%", transform: [{ rotate: "13deg" }] }, terrainMeshLow: { left: "23%", top: "76%", transform: [{ rotate: "-10deg" }] },
   terrainConvergence: { position: "absolute", top: "47%", width: 7, height: 7, borderRadius: 4, marginLeft: -3, shadowOpacity: 0.6, shadowRadius: 10, elevation: 2 },
   terrainConvergenceHalo: { position: "absolute", top: "39%", width: 23, height: 23, borderRadius: 12, borderWidth: 1, marginLeft: -11, opacity: 0.45 },
 });
