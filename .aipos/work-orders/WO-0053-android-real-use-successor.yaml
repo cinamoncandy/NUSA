@@ -140,6 +140,15 @@ verification:
     required_gates: "CI, Mobile Native, and exact-tree restricted/read-only safety evidence PASS"
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY
     safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
+    redistribution_attempt:
+      artifact_sha256_match: PASS
+      firebase_cli_auth: UNAVAILABLE_LOCAL
+      redistribution: NOT_PERFORMED
+      notification_trigger: UNVERIFIED
+      actual_email_receipt: HUMAN_ENVIRONMENT_ONLY
+      firebase_install_access: AVAILABLE_FROM_PRIOR_PUBLISH_EVIDENCE
+      github_apk_fallback: AVAILABLE
+      reason: "Existing artifact reuse was preserved; the available canonical workflow rebuilds before distributing and no local Firebase credential/connector is available."
   blocked:
     - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
 safety:
