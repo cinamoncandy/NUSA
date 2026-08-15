@@ -6,7 +6,9 @@ This service is the repository-managed source for the NUSA server-side Upbit rea
 
 - Binds to `127.0.0.1:3000` only. Public HTTPS termination belongs to the reverse proxy.
 - Exposes unauthenticated `GET /health`.
-- Exposes authenticated `GET /api/upbit/accounts`.
+- Exposes authenticated `GET /api/v1/account/summary`.
+- Retains `GET /api/upbit/accounts` as a normalized compatibility path.
+- Validates and normalizes the provider payload server-side; PAPER state is never mixed into the response.
 - Upbit credentials stay server-side in environment variables.
 - The mobile client supplies only the NUSA bridge bearer token.
 - No order placement, cancellation, withdrawal, transfer, or other financial mutation endpoint is implemented here.
