@@ -3,6 +3,7 @@ import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from ".
 import type { AiProviderComparisonResult, AiProviderPoolPolicy } from "../../../../packages/contracts/src/aiProviderDiversity";
 import type { AiExplanationVerificationResult } from "../../../../packages/contracts/src/aiExplanationFaithfulness";
 import type { AiAttributionPolicy, AiLessonProjection, AiObservedEvidenceIdentity } from "../../../../packages/contracts/src/aiOutcomeAttribution";
+import type { AiScenarioBaseline, AiScenarioDefinition, AiScenarioPolicy, AiScenarioReasoningResult } from "../../../../packages/contracts/src/aiScenarioReasoning";
 import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
 import { SqliteAiOutcomeAttributionMemory } from "../../../../packages/storage/src/aiOutcomeAttributionMemory";
 import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
@@ -17,6 +18,33 @@ import { verifyAiExplanation } from "./explanationFaithfulnessVerifier";
 import { normalizeAiInferenceBudgetPolicy } from "./inferenceResourceLedger";
 import { aiAttributionCalibrationCohortIdentity, aiAttributionEvidenceSnapshotIdentity, GovernedOutcomeAttributionEngine } from "./outcomeAttributionLearning";
 import { projectAiReadOnly } from "./projection";
+import { ScenarioCounterfactualEvaluator, type AiScenarioRunner } from "./scenarioCounterfactualEvaluator";
+import { CLOUD_AI_SCENARIO_PRICE_SHOCK_DIMENSION, CloudAiScenarioRunner } from "./scenarioOrchestratorRunner";
+
+/**
+ * Sole opt-in scenario: a bounded -2% price shock over the same 5-minute horizon as calibration.
+ * This is an illustrative, policy-declared stress check -- never a prediction of a specific real
+ * event -- so the evaluator can compare the primary decision against one concrete hypothetical.
+ */
+const AI_SCENARIO_POLICY: AiScenarioPolicy = Object.freeze({
+  schemaVersion: 1,
+  policyId: "NUSA_AI_SCENARIO_PRICE_SHOCK_POLICY_V1",
+  policyVersion: "1",
+  allowedDimensions: Object.freeze([CLOUD_AI_SCENARIO_PRICE_SHOCK_DIMENSION]),
+  maxScenarioCount: 2,
+  maxProbabilityDeltaForRobust: 0.2,
+  inferenceBudget: Object.freeze({
+    schemaVersion: 1,
+    policyId: "NUSA_AI_SCENARIO_RESOURCE_BUDGET_V1",
+    policyVersion: "1",
+    maxModelCalls: 2,
+    maxTotalAttempts: 2,
+    maxCumulativeOutputTokens: 4096,
+    maxInputBytes: 512 * 1024,
+    maxWallClockMs: 20_000,
+    requireUsageAccounting: true
+  })
+});
 
 /**
  * Fixed policy for the runtime attribution episodes recorded automatically on calibration outcome
@@ -43,6 +71,7 @@ export type CloudAiOrchestrationResult = AiOrchestrationResult & {
   readonly providerComparison?: AiProviderComparisonResult;
   readonly explanationVerification?: AiExplanationVerificationResult;
   readonly recentLessonCount?: number;
+  readonly scenarioEvaluation?: AiScenarioReasoningResult;
 };
 
 /** How many prior structural lessons (see applicableLessons) were actually fed into this run's evidence. */
@@ -63,11 +92,13 @@ export interface CloudAiRuntime {
   latestExplanationVerification(now?: number): AiExplanationVerificationResult | null;
   /** Prior structural lessons for this exact target/outcome scope, advisory-only, never authority. */
   applicableLessons(scope: string, now?: number): readonly AiLessonProjection[];
+  latestScenarioEvaluation(now?: number): AiScenarioReasoningResult | null;
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
   calibrationDurabilityHealth(): AiCalibrationDurabilityHealth;
   isInFlight(): boolean;
   isProviderComparisonInFlight(): boolean;
+  isScenarioEvaluationInFlight(): boolean;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
@@ -88,6 +119,8 @@ export interface CloudAiRuntimeOptions {
   readonly durableCalibrationStore?: AiCalibrationDurableStore;
   /** Undefined auto-composes explicit environment N-version config; null explicitly disables it. */
   readonly nVersionEvaluator?: Pick<NVersionStrategyEvaluator, "run"> | null;
+  /** Undefined auto-composes a CloudAiScenarioRunner gated by NUSA_AI_SCENARIO_ENABLED; null explicitly disables it. */
+  readonly scenarioEvaluator?: Pick<ScenarioCounterfactualEvaluator, "run"> | null;
 }
 
 interface VerifiedMarketAnchor {
@@ -197,6 +230,22 @@ export function attributionScope(prediction: Pick<AiCalibrationPrediction, "outc
   return `${prediction.outcomeDefinitionId}:${prediction.targetId}`;
 }
 
+/**
+ * Extracts the real, already-verified market values a scenario baseline needs, straight from the
+ * same evidence bundle the primary decision uses -- never a second, independently-fetched value.
+ */
+function deriveScenarioBaselineInputs(input: AiOrchestrationInput): Readonly<Record<string, string | number | boolean>> | null {
+  const anchor = verifiedMarketAnchor(input);
+  if (anchor == null) return null;
+  const materialization = (input.evidenceMaterializations ?? []).find((item) => item.evidenceId === anchor.evidenceReference);
+  const payload = materialization?.payload;
+  if (payload == null) return null;
+  const derived: Record<string, string | number | boolean> = { "market.market": anchor.targetId, "market.price": anchor.value };
+  if (typeof payload.changeRate === "number" && Number.isFinite(payload.changeRate)) derived["market.changeRate"] = payload.changeRate;
+  if (typeof payload.volume === "number" && Number.isFinite(payload.volume)) derived["market.volume"] = payload.volume;
+  return Object.freeze(derived);
+}
+
 function supportsAutomaticResolution(calibration: CloudAiCalibrationOptions): boolean {
   return calibration.outcomeDefinitionId === AI_CALIBRATION_OUTCOME_DEFINITION_ID
     && calibration.outcomeDefinitionVersion === AI_CALIBRATION_OUTCOME_DEFINITION_VERSION
@@ -229,6 +278,12 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       ? null
       : new NVersionStrategyEvaluator(environmentPool.groups.map((group) => Object.freeze({ groupId: group.groupId, provider: group.provider })), defaultNVersionPolicy(environmentPool), { now })
     : options.nVersionEvaluator;
+  const scenarioEnabled = env.NUSA_AI_SCENARIO_ENABLED?.trim().toLowerCase() === "true";
+  const scenarioEvaluator: Pick<ScenarioCounterfactualEvaluator, "run"> | null = options.scenarioEvaluator === undefined
+    ? scenarioEnabled
+      ? new ScenarioCounterfactualEvaluator(AI_SCENARIO_POLICY, new CloudAiScenarioRunner(provider, { now }) as AiScenarioRunner, { now })
+      : null
+    : options.scenarioEvaluator;
   const pendingPredictions = new Map<string, PendingPrediction>();
   let durableStore = options.durableCalibrationStore;
   let durabilityOpenFailure = false;
@@ -247,6 +302,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const attributionEngine = new GovernedOutcomeAttributionEngine(AI_ATTRIBUTION_POLICY);
   let inFlight = false;
   let comparisonInFlight = false;
+  let scenarioInFlight = false;
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
@@ -254,6 +310,8 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   let latestRecentLessonCount = 0;
   let latestComparison: AiProviderComparisonResult | null = null;
   let latestComparisonCompletedAt: number | null = null;
+  let latestScenarioResult: AiScenarioReasoningResult | null = null;
+  let latestScenarioCompletedAt: number | null = null;
   let latestPrediction: AiCalibrationPrediction | null = durability.recovered().latestPrediction;
 
   const resolvePending = (anchor: VerifiedMarketAnchor | null): void => {
@@ -378,6 +436,34 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     });
   };
 
+  /**
+   * Runs the BASELINE scenario against a real observed intervention-free market and one bounded
+   * HYPOTHETICAL price-shock scenario, both against the exact evidence this tick already produced.
+   * Never blocks or alters the primary decision -- a robustness check, not a second opinion.
+   */
+  const scheduleScenarioEvaluation = (input: AiOrchestrationInput): void => {
+    if (scenarioEvaluator == null || scenarioInFlight) return;
+    const derivedInputs = deriveScenarioBaselineInputs(input);
+    if (derivedInputs == null) return;
+    const baseline: AiScenarioBaseline = Object.freeze({ decisionId: input.decisionId, evaluatedAt: input.evaluatedAt, evidence: input.evidence, evidenceMaterializations: input.evidenceMaterializations ?? [], derivedInputs });
+    const definitions: readonly AiScenarioDefinition[] = Object.freeze([
+      Object.freeze({ scenarioId: "baseline", kind: "BASELINE" as const, interventions: Object.freeze([]) }),
+      Object.freeze({ scenarioId: "price-shock-down-2pct", kind: "HYPOTHETICAL" as const, interventions: Object.freeze([Object.freeze({ dimension: CLOUD_AI_SCENARIO_PRICE_SHOCK_DIMENSION, value: -0.02, horizonMs: AI_CALIBRATION_HORIZON_MS })]) })
+    ]);
+    scenarioInFlight = true;
+    void scenarioEvaluator.run(`${input.orchestrationRunId}:scenario`, baseline, definitions).then((result) => {
+      const completedAt = now();
+      if (result.liveAuthority === "NONE" && result.realOrderAuthority === false && result.realTransferAuthority === false && result.productionMutationAllowed === false && Number.isSafeInteger(completedAt) && completedAt > 0) {
+        latestScenarioResult = result;
+        latestScenarioCompletedAt = completedAt;
+      }
+    }).catch(() => {
+      // Scenario robustness is advisory-only and cannot disturb the primary AI or PAPER.
+    }).finally(() => {
+      scenarioInFlight = false;
+    });
+  };
+
   const schedule = (input: AiOrchestrationInput): boolean => {
     const anchor = verifiedMarketAnchor(input);
     resolvePending(anchor);
@@ -387,6 +473,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     lastScheduledAt = scheduledAt;
     inFlight = true;
     scheduleProviderComparison(input);
+    scheduleScenarioEvaluation(input);
     void orchestrator.run(input).then((result) => {
       const completedAt = now();
       if (result.status === "COMPLETED" && zeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
@@ -395,6 +482,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
         latestRecentLessonCount = countLessonEvidence(input);
         try {
           const profileForEnvelope = currentProfile();
+          const hypotheticalScenario = latestScenarioResult?.evaluations.find((item) => item.kind === "HYPOTHETICAL" && item.status === "COMPLETED");
           const envelope = buildAiExplanationEnvelope(input, result, {
             explanationId: `${result.orchestrationRunId}:explanation`,
             observedAt: completedAt,
@@ -402,7 +490,8 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
             resourcePolicy: result.inferenceResources?.policy ?? normalizeAiInferenceBudgetPolicy(undefined),
             calibrationCohort: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.cohort : null,
             providerDisagreement: latestComparison?.comparisonState === "DISAGREEMENT",
-            confidence: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.effectiveConfidence : 0
+            confidence: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.effectiveConfidence : 0,
+            scenarioIdentity: hypotheticalScenario?.scenarioIdentity ?? null
           });
           latestExplanationVerificationResult = envelope == null ? null : verifyAiExplanation(envelope);
         } catch {
@@ -469,18 +558,26 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return latestExplanationVerificationResult;
   };
 
+  const latestScenarioEvaluation = (at = now()): AiScenarioReasoningResult | null => {
+    if (latestScenarioResult == null || latestScenarioCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
+    if (latestScenarioCompletedAt > at || at - latestScenarioCompletedAt > maximumResultAgeMs) return null;
+    return latestScenarioResult;
+  };
+
   const latest = (at = now()): CloudAiOrchestrationResult | null => {
     if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
     if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
     const providerComparison = latestProviderComparison(at);
     const explanationVerification = latestExplanationVerification(at);
+    const scenarioEvaluation = latestScenarioEvaluation(at);
     return Object.freeze({
       ...latestResult,
       calibrationProfile: currentProfile(),
       calibrationDurabilityHealth: durability.snapshot(),
       recentLessonCount: latestRecentLessonCount,
       ...(providerComparison == null ? {} : { providerComparison }),
-      ...(explanationVerification == null ? {} : { explanationVerification })
+      ...(explanationVerification == null ? {} : { explanationVerification }),
+      ...(scenarioEvaluation == null ? {} : { scenarioEvaluation })
     }) as CloudAiOrchestrationResult;
   };
 
@@ -504,11 +601,13 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     latestProviderComparison,
     latestExplanationVerification,
     applicableLessons,
+    latestScenarioEvaluation,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
     calibrationDurabilityHealth: () => durability.snapshot(),
     isInFlight: () => inFlight,
     isProviderComparisonInFlight: () => comparisonInFlight,
+    isScenarioEvaluationInFlight: () => scenarioInFlight,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
   });
