@@ -98,7 +98,9 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(components, /ZERO AUTHORITY/);
-  assert.match(components, /실제 주문 권한은 없습니다/);
+  assert.match(components, /AI는 주문, 이체, 출금 또는 운영 상태를 변경할 권한이 없습니다/);
+  assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
+  assert.doesNotMatch(components, /실제 주문 권한은 없습니다/);
   assert.doesNotMatch(components, />ZERO ORDER AUTHORITY</);
 });
 
