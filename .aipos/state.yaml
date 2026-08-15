@@ -328,7 +328,7 @@ completed:
 in_progress:
   - id: WO-0055
     evidence: ".aipos/work-orders/WO-0055-home-master-visual-reference.yaml"
-    summary: "Issue #536 Home master visual reference implementation is in progress; repository validation is being run and real Android screenshot acceptance remains HUMAN_ENVIRONMENT_ONLY pending."
+    summary: "Issue #536 Home master visual reference implementation is committed; exact-head CI/Mobile Native pass, restricted checks are unreported on the Draft PR, and real Android screenshot acceptance remains HUMAN_ENVIRONMENT_ONLY pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -345,7 +345,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0055-home-master-visual-reference.yaml
-  reason: "Complete Home-only reference implementation and repository validation; do not claim visual acceptance or merge without a real Android screenshot comparison."
+  reason: "Obtain the real Android Home screenshot comparison and separately verify required restricted checks; do not claim visual acceptance or merge while either gate is missing."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"

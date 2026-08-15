@@ -58,7 +58,7 @@ evidence:
   - "Real-device Home screenshots and visual acceptance decision, or explicit HUMAN_ENVIRONMENT_ONLY pending status."
 rollback:
   - "Revert the Home-only commit; existing route, data, and authority contracts remain unchanged."
-current_status: "Implementation committed and repository verification is in progress; visual acceptance remains HUMAN_ENVIRONMENT_ONLY until a real Android install and screenshot comparison are available."
+current_status: "Implementation committed; exact-head CI and Mobile Native passed on 896dc8f4e192fccab0a224d4df511a4d0efbc71a. Restricted checks were not reported for the Draft PR, and visual acceptance remains HUMAN_ENVIRONMENT_ONLY until a real Android install and screenshot comparison are available."
 blockers:
   - "Real Android device installation and screenshot capture are external to repository automation."
-next_action: "Re-run exact-head CI/Mobile Native and obtain the real Android Home screenshot gate; do not merge before both are satisfied."
+next_action: "Obtain the real Android Home screenshot gate and separately obtain/report restricted required checks; do not merge before those gates are satisfied."
