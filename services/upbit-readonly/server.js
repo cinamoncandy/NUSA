@@ -6,6 +6,8 @@ const http = require("node:http");
 const DEFAULT_PORT = 3000;
 const LOOPBACK_HOST = "127.0.0.1";
 const UPBIT_ACCOUNTS_URL = "https://api.upbit.com/v1/accounts";
+const ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";
+const LEGACY_ACCOUNTS_PATH = "/api/upbit/accounts";
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 function encodeJson(value) {
@@ -62,7 +64,71 @@ async function loadUpbitAccounts({ env, fetchImpl }) {
   return payload;
 }
 
-function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
+function finiteNumber(value, field) {
+  const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid Upbit " + field);
+  return parsed;
+}
+
+function currencyCode(value, field) {
+  if (typeof value !== "string" || !/^[A-Z0-9]{2,12}$/.test(value.trim().toUpperCase())) {
+    throw new Error("Invalid Upbit " + field);
+  }
+  return value.trim().toUpperCase();
+}
+
+function normalizeUpbitAccount(row) {
+  if (typeof row !== "object" || row === null || Array.isArray(row)) {
+    throw new Error("Invalid Upbit account");
+  }
+  const record = row;
+  return Object.freeze({
+    currency: currencyCode(record.currency, "currency"),
+    available: finiteNumber(record.balance, "balance"),
+    locked: finiteNumber(record.locked, "locked"),
+    avgBuyPrice: finiteNumber(record.avg_buy_price ?? 0, "average buy price"),
+    unitCurrency: currencyCode(record.unit_currency ?? "KRW", "unit currency"),
+  });
+}
+
+function normalizeUpbitAccountSummary(payload, { now = Date.now() } = {}) {
+  if (!Array.isArray(payload)) throw new Error("Invalid Upbit accounts response");
+  if (!Number.isFinite(now)) throw new Error("Invalid summary timestamp");
+
+  let available = 0;
+  let locked = 0;
+  const assets = [];
+  for (const row of payload) {
+    const item = normalizeUpbitAccount(row);
+    if (item.currency === "KRW") {
+      available += item.available;
+      locked += item.locked;
+    } else {
+      assets.push({
+        currency: item.currency,
+        available: item.available,
+        locked: item.locked,
+        avgBuyPrice: item.avgBuyPrice,
+        unitCurrency: item.unitCurrency,
+      });
+    }
+  }
+
+  return Object.freeze({
+    provider: "UPBIT",
+    mode: "READ_ONLY",
+    fetchedAt: new Date(now).toISOString(),
+    cash: Object.freeze({ currency: "KRW", available, locked }),
+    assets: Object.freeze(assets.map((asset) => Object.freeze(asset))),
+  });
+}
+
+async function loadUpbitAccountSummary({ env, fetchImpl, now = Date.now() }) {
+  const accounts = await loadUpbitAccounts({ env, fetchImpl });
+  return normalizeUpbitAccountSummary(accounts, { now });
+}
+
+function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch, now = Date.now } = {}) {
   if (typeof fetchImpl !== "function") throw new TypeError("fetchImpl must be a function");
 
   return async function handleRequest(request, response) {
@@ -73,7 +139,7 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch 
       return;
     }
 
-    if (url.pathname === "/api/upbit/accounts") {
+    if (url.pathname === ACCOUNT_SUMMARY_PATH || url.pathname === LEGACY_ACCOUNTS_PATH) {
       if (request.method !== "GET") {
         sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
         return;
@@ -93,8 +159,8 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch 
       }
 
       try {
-        const accounts = await loadUpbitAccounts({ env, fetchImpl });
-        sendJson(response, 200, accounts);
+        const summary = await loadUpbitAccountSummary({ env, fetchImpl, now: now() });
+        sendJson(response, 200, summary);
       } catch (error) {
         const name = error instanceof Error ? error.name : "UnknownError";
         console.error("upbit-readonly accounts request failed", { name });
@@ -120,9 +186,14 @@ if (require.main === module) startServer();
 module.exports = {
   LOOPBACK_HOST,
   UPBIT_ACCOUNTS_URL,
+  ACCOUNT_SUMMARY_PATH,
+  LEGACY_ACCOUNTS_PATH,
   createRequestHandler,
   createUpbitJwt,
   loadUpbitAccounts,
+  loadUpbitAccountSummary,
+  normalizeUpbitAccount,
+  normalizeUpbitAccountSummary,
   safeTokenMatch,
   startServer,
 };
