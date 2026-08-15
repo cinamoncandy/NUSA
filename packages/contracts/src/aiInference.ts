@@ -164,6 +164,9 @@ export interface AiReadOnlyProjection {
   readonly calibrationRecoveredOutcomeCount?: number;
   readonly calibrationRecoveredPendingCount?: number;
   readonly calibrationExpiredPendingCount?: number;
+  /** "NOT_EVALUATED" means no completed decision has been through WO-AI-010 verification yet. */
+  readonly explanationVerdict?: "PASS" | "ABSTAIN" | "NOT_EVALUATED";
+  readonly explanationReasonCodes?: readonly string[];
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
