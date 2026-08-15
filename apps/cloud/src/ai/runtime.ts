@@ -1,6 +1,7 @@
 import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
 import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from "../../../../packages/contracts/src/aiCalibrationDurability";
 import type { AiProviderComparisonResult, AiProviderPoolPolicy } from "../../../../packages/contracts/src/aiProviderDiversity";
+import type { AiExplanationVerificationResult } from "../../../../packages/contracts/src/aiExplanationFaithfulness";
 import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
 import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
 import { createModelProviderFromEnvironment, createNVersionProviderPoolFromEnvironment, type NVersionProviderEnvironmentPool } from "./modelProvider";
@@ -9,6 +10,9 @@ import { NVersionStrategyEvaluator, type NVersionStrategyInput } from "./nVersio
 import { createVerifiedRuntimeCalibrationPrediction } from "./calibrationBridge";
 import { createCalibrationOutcome, OutcomeCalibrationLedger, type CalibrationPolicy } from "./outcomeCalibration";
 import { CalibrationDurabilityRuntime } from "./calibrationDurabilityRuntime";
+import { buildAiExplanationEnvelope } from "./explanationEnvelopeBridge";
+import { verifyAiExplanation } from "./explanationFaithfulnessVerifier";
+import { normalizeAiInferenceBudgetPolicy } from "./inferenceResourceLedger";
 import { projectAiReadOnly } from "./projection";
 
 export const AI_CALIBRATION_OUTCOME_DEFINITION_ID = "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M";
@@ -19,6 +23,7 @@ export const AI_CALIBRATION_RESOLUTION_GRACE_MS = 60_000;
 
 export type CloudAiOrchestrationResult = AiOrchestrationResult & {
   readonly providerComparison?: AiProviderComparisonResult;
+  readonly explanationVerification?: AiExplanationVerificationResult;
 };
 
 export interface CloudAiRuntime {
@@ -28,6 +33,7 @@ export interface CloudAiRuntime {
   latest(now?: number): CloudAiOrchestrationResult | null;
   latestProjection(now?: number): AiReadOnlyProjection | null;
   latestProviderComparison(now?: number): AiProviderComparisonResult | null;
+  latestExplanationVerification(now?: number): AiExplanationVerificationResult | null;
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
   calibrationDurabilityHealth(): AiCalibrationDurabilityHealth;
@@ -198,6 +204,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
+  let latestExplanationVerificationResult: AiExplanationVerificationResult | null = null;
   let latestComparison: AiProviderComparisonResult | null = null;
   let latestComparisonCompletedAt: number | null = null;
   let latestPrediction: AiCalibrationPrediction | null = durability.recovered().latestPrediction;
@@ -281,6 +288,22 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       if (result.status === "COMPLETED" && zeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
         latestResult = result;
         latestCompletedAt = completedAt;
+        try {
+          const profileForEnvelope = currentProfile();
+          const envelope = buildAiExplanationEnvelope(input, result, {
+            explanationId: `${result.orchestrationRunId}:explanation`,
+            observedAt: completedAt,
+            providerId: provider.providerId,
+            resourcePolicy: result.inferenceResources?.policy ?? normalizeAiInferenceBudgetPolicy(undefined),
+            calibrationCohort: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.cohort : null,
+            providerDisagreement: latestComparison?.comparisonState === "DISAGREEMENT",
+            confidence: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.effectiveConfidence : 0
+          });
+          latestExplanationVerificationResult = envelope == null ? null : verifyAiExplanation(envelope);
+        } catch {
+          // Explanation verification is diagnostic-only and can never block or alter the AI result.
+          latestExplanationVerificationResult = null;
+        }
         if (anchor != null && durability.trusted()) {
           try {
             const prediction = createVerifiedRuntimeCalibrationPrediction(result, {
@@ -332,15 +355,23 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return latestComparison;
   };
 
+  const latestExplanationVerification = (at = now()): AiExplanationVerificationResult | null => {
+    if (latestExplanationVerificationResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
+    if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
+    return latestExplanationVerificationResult;
+  };
+
   const latest = (at = now()): CloudAiOrchestrationResult | null => {
     if (latestResult == null || latestCompletedAt == null || !Number.isSafeInteger(at) || at <= 0) return null;
     if (latestCompletedAt > at || at - latestCompletedAt > maximumResultAgeMs) return null;
     const providerComparison = latestProviderComparison(at);
+    const explanationVerification = latestExplanationVerification(at);
     return Object.freeze({
       ...latestResult,
       calibrationProfile: currentProfile(),
       calibrationDurabilityHealth: durability.snapshot(),
-      ...(providerComparison == null ? {} : { providerComparison })
+      ...(providerComparison == null ? {} : { providerComparison }),
+      ...(explanationVerification == null ? {} : { explanationVerification })
     }) as CloudAiOrchestrationResult;
   };
 
@@ -356,6 +387,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     latest,
     latestProjection,
     latestProviderComparison,
+    latestExplanationVerification,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
     calibrationDurabilityHealth: () => durability.snapshot(),
