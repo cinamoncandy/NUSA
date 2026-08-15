@@ -24,9 +24,9 @@ merge된 모노크롬 디자인 시스템(PR #532/#533)과 방향이 다름 — 
 | 2 | Home 화면 히어로에 `TerrainSignal` → `TerrainHero` 적용 (계좌 히어로 카드 중심 시각) | **DONE** |
 | 3 | AI 탭(`aiView.tsx`)에 `TerrainHero` 적용 | **DONE** |
 | 4 | Markets 탭에 시장 등락 분포 바 추가 — 목업의 zone map 자리에, 실제 데이터(각 마켓의 real changeRate)를 하락/보합/상승으로 집계한 `MarketBreadthBar`로 구현. `classifyPriceRegime`은 모바일 클라이언트에 연결된 적 없고 단일 마켓 기준이라 시장 전체 비율에 안 맞아서 채택 안 함; RISK/OPPORTUNITY 같은 평가성 라벨도 근거 없는 주장이라 배제 | **DONE** (범위는 계획과 다르게 조정 — 완료 기록 참고) |
-| 5 | 브랜드 색상 재조정 — 사용자가 "다해"로 전체 CTA까지 포함해 확정. 버튼/필드/포커스 등 `primary` 토큰을 목업의 퍼플 계열로 전환 | TODO (다음 순위) |
-| 6 | Portfolio 탭에 도넛형 자산배분 차트 추가 — 목업 "06 PORTFOLIO". RN에 차트 라이브러리 의존성이 없어 View 기반으로 자체 구현 필요 (SVG 없이 원형 진행률 표현은 제약이 큼 — react-native-svg 도입 여부 판단 필요) | TODO |
-| 7 | 로고/앱 아이콘 자산을 목업 방향으로 갱신 (`apps/mobile/android/.../ic_nusa_logo*.xml` 등) — `tests/mobile-design-system-v1.test.js`가 현재 모노크롬(`#FFFFFFFF`) 아이콘을 강제하고 있어, 색상 아이콘으로 바꾸려면 이 테스트의 의도적 변경이 먼저 필요 | TODO |
+| 5 | 브랜드 색상 재조정 — **재검토 결과 대규모 변경 불필요로 판단, 완료 기록 참고** | **DONE** (검토 완료, 변경 범위는 예상보다 작음) |
+| 6 | Portfolio 탭에 자산 구성 시각화 추가 — 목업의 도넛(주식/현금/채권/대체)은 NUSA의 실제 데이터 모델(암호화폐 PAPER 단일 포지션 계좌)에 대응하는 카테고리가 없어 그대로 채택 불가. 대신 실제로 존재하는 현금/포지션 구성(포지션 평가액·주문 가능 현금·보호 현금)을 `AllocationBar`(순위 4의 바 컴포넌트를 N-세그먼트로 일반화)로 시각화 | **DONE** (범위는 계획과 다르게 조정 — 완료 기록 참고) |
+| 7 | 로고/앱 아이콘 자산 검토 — **재검토 결과 변경 불필요로 판단, 완료 기록 참고** | **DONE** (검토 완료, 변경 없음) |
 | 8 | Noto Sans KR 폰트 실제 링크 — 현재 `typography.fontFamily: "System"`. 목업이 명시한 폰트를 쓰려면 .ttf 번들 + 네이티브 프로젝트(android/ios) 폰트 등록 필요, 앱 빌드 설정 변경을 동반하는 큰 작업 | TODO |
 | 9 | Order 화면("05 ORDER") 톤 — 현재 `tradingView.tsx`가 기능적으로는 이미 매수/매도, 예상 주문 금액, 안전 게이트 배지를 갖추고 있음. 색상 재조정(5번) 이후에 자연스럽게 따라올 것으로 예상 — 별도 구조 변경 불필요해 보임 (검증 필요) | TODO (5번 이후 재검토) |
 | 10 | 데스크톱 앱(`apps/desktop/renderer`)에도 동일 리브랜딩 적용 — 사용자가 "다해"로 확정 | TODO |
@@ -63,3 +63,18 @@ merge된 모노크롬 디자인 시스템(PR #532/#533)과 방향이 다름 — 
   주장하는 게 되어 NUSA의 근거 기반 원칙에 어긋남. `tests/mobile-brand-redesign-phase2.test.js`
   신설 + `mobile-watchlist.test.js`에 breadth 단위 테스트 추가. `pnpm run build`/타입체크/lint/
   262개 테스트 전부 통과 확인.
+- **순위 5, 7 (브랜드 색상 재조정 / 로고·아이콘 재검토)** — 목업 이미지의 "COLOR SYSTEM" 범례를
+  다시 읽어보니 **Purple = AI/Insight, Blue = Data/Flow, Teal = Growth, White = Primary, Gray =
+  Secondary**로 명시되어 있음. 즉 목업 스스로도 "브랜드 액션(버튼 등)은 모노크롬, 채도는
+  AI·데이터 신호 전용"이라는 원칙을 쓰고 있고, 이건 최근 merge된 현재 코드베이스의 정책과
+  이미 동일함. 로고("Primary Logo")와 앱 아이콘도 목업에서 흰색 산 정상 실루엣 단색으로
+  그려져 있어 `WaveMark`(이미 흰색 산 정상 실루엣)와 이미 일치. 따라서 버튼/CTA를 퍼플로
+  바꾸거나 로고를 유채색으로 바꾸는 건 목업을 오독한 방향이었음 — 순위 1~4, 6에서 이미 한
+  "AI/데이터 표면에 그라디언트를 크게 쓰는" 작업이 목업이 실제로 요구하는 전부였다고 결론.
+  변경 없음, 검토만 기록.
+- **순위 6 (Portfolio 자산 구성)** — `components.tsx`에 `AllocationBar`(라벨 있는 N-세그먼트
+  바 + 범례, `MarketBreadthBar`와 같은 시각 언어) 신설. `portfolioView.tsx`에서 실제 존재하는
+  세 값(포지션 평가액/주문 가능 현금/보호 현금)으로 와이어링 — 목업의 "주식 63%/현금 20%/
+  채권 10%/대체 7%"는 NUSA 도메인에 없는 카테고리라 채택하지 않음. 0 이하 값은 세그먼트에서
+  제외, 전체 합이 0이면 아예 렌더링 안 함. `tests/mobile-brand-redesign-phase2.test.js`에
+  테스트 3개 추가. `pnpm run build`/타입체크/lint/264개 테스트 전부 통과 확인.

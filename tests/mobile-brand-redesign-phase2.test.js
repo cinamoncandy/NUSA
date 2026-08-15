@@ -18,3 +18,18 @@ test("Markets shows a real change-rate breadth bar, not a modeled risk label", (
   assert.match(source, /testID="markets-breadth"/);
   assert.doesNotMatch(source, /RISK ZONE|OPPORTUNITY ZONE/);
 });
+
+test("Portfolio shows real cash/position composition, not fabricated asset classes", () => {
+  const source = read("src/portfolioView.tsx");
+  assert.match(source, /<AllocationBar testID="portfolio-composition"/);
+  assert.match(source, /value: model\.assetValue/);
+  assert.match(source, /value: allocation\.investableCash/);
+  assert.match(source, /value: allocation\.reservedCash/);
+  assert.doesNotMatch(source, /주식|채권|대체투자/);
+});
+
+test("AllocationBar skips non-positive segments and renders nothing when everything is zero", () => {
+  const components = read("src/components.tsx");
+  assert.match(components, /const positive = segments\.filter\(\(segment\) => segment\.value > 0\);/);
+  assert.match(components, /if \(total <= 0\) return null;/);
+});

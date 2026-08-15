@@ -1,6 +1,6 @@
 import React from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, StatusChip } from "./components";
+import { AllocationBar, DataRow, NusaButton, NusaCard, StatusChip } from "./components";
 import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
@@ -47,6 +47,14 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
     <UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />
 
     <View style={styles.hero} testID="portfolio-summary"><Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>총 평가자산</Text><Text style={[styles.heroValue, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{money(model.totalEquity)}</Text><Text style={[styles.heroPnl, { color: model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model.totalPnl)} 누적 손익</Text></View>
+
+    {/* Real cash/position composition -- not the mockup's stock/bond/etc. asset-class donut,
+        which has no equivalent in NUSA's PAPER crypto account model. */}
+    <AllocationBar testID="portfolio-composition" segments={[
+      { label: "포지션 평가액", value: model.assetValue, color: theme.colors.aiSignalEnd },
+      { label: "주문 가능 현금", value: allocation.investableCash, color: theme.colors.aiSignalMid },
+      { label: "보호 현금", value: allocation.reservedCash, color: theme.colors.borderStrong },
+    ]} />
 
     <View style={styles.metricGrid}><MetricTile label="실현 손익" value={signedMoney(model.realizedPnl)} detail="확정 손익" tone={pnlTone(model.realizedPnl)} testID="portfolio-realized-pnl" /><MetricTile label="미실현 손익" value={signedMoney(model.unrealizedPnl)} detail="평가 손익" tone={pnlTone(model.unrealizedPnl)} testID="portfolio-unrealized-pnl" /><MetricTile label="포지션 평가액" value={money(model.assetValue)} detail={`${model.openOrderCount}개 열린 주문`} tone="default" /></View>
 

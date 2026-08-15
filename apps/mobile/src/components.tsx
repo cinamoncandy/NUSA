@@ -200,6 +200,25 @@ export function MarketBreadthBar({ down, flat, up, total, testID }: Readonly<{ d
   </View>;
 }
 
+export interface AllocationSegment { readonly label: string; readonly value: number; readonly color: string; }
+
+/**
+ * General-purpose proportional bar + legend for any real, already-known composition (cash vs.
+ * position value, etc.) -- same visual language as MarketBreadthBar but for an arbitrary set of
+ * labeled segments instead of a fixed down/flat/up bucketing. Segments with a non-positive value
+ * are skipped entirely rather than drawn as a zero-width sliver.
+ */
+export function AllocationBar({ segments, testID }: Readonly<{ segments: readonly AllocationSegment[]; testID?: string }>) {
+  const { theme } = useTheme();
+  const positive = segments.filter((segment) => segment.value > 0);
+  const total = positive.reduce((sum, segment) => sum + segment.value, 0);
+  if (total <= 0) return null;
+  return <View testID={testID}>
+    <View style={styles.breadthBar}>{positive.map((segment) => <View key={segment.label} style={[styles.breadthSegment, { flex: segment.value, backgroundColor: segment.color }]} />)}</View>
+    <View style={styles.allocationLegend}>{positive.map((segment) => <View key={segment.label} style={styles.allocationLegendItem}><View style={[styles.allocationDot, { backgroundColor: segment.color }]} /><Text style={[styles.allocationLegendLabel, { color: theme.colors.textMuted }]}>{segment.label} {Math.round((segment.value / total) * 100)}%</Text></View>)}</View>
+  </View>;
+}
+
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
   const size = compact ? 30 : 42;
@@ -275,4 +294,8 @@ const styles = StyleSheet.create({
   breadthSegment: { height: "100%" },
   breadthLabels: { marginTop: 7, flexDirection: "row", justifyContent: "space-between", gap: 8 },
   breadthLabel: { fontSize: 11, fontWeight: "700" },
+  allocationLegend: { marginTop: 9, flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  allocationLegendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  allocationDot: { width: 8, height: 8, borderRadius: 4 },
+  allocationLegendLabel: { fontSize: 11, fontWeight: "700" },
 });
