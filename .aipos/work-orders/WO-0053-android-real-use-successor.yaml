@@ -48,6 +48,14 @@ repository_maintenance:
       prior_apk_comparison: PASS_OLD_MARKERS_ONLY
       installed_package_identity: HUMAN_ENVIRONMENT_ONLY_PENDING
       visual_acceptance: FAIL_PENDING_DEVICE_REINSTALL
+      canonical_distribution:
+        channel: GITHUB_RELEASE
+        release: nusa-android-preview
+        asset: NUSA-Android.apk
+        asset_id: 515762398
+        apk_sha256: 0d58b920d667c1e3c60514fa7e034eb522bd161b36212e68b48af72fb795a949
+        replacement_verified: PASS
+        device_installation: HUMAN_ENVIRONMENT_ONLY_PENDING
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."

@@ -46,6 +46,17 @@ The artifact identity and embedded bundle are consistent with PR #535. The obser
 
 Installed-package application ID, version, signing certificate, update result, and post-install bundle markers remain unverified because `adb` and a connected Android device are unavailable in this environment.
 
+## Distribution correction
+
+The canonical GitHub Release `nusa-android-preview` was found to point at the prior APK (`599b016482605627038398063103cd807fdc07a85060cac30663825db49fabc7`). That asset and its checksum were replaced with the verified run 972 APK.
+
+- Canonical asset: `NUSA-Android.apk`
+- Release asset ID: `515762398`
+- Release download URL: `https://github.com/cinamoncandy/NUSA/releases/download/nusa-android-preview/NUSA-Android.apk`
+- Downloaded release SHA-256 after replacement: `0d58b920d667c1e3c60514fa7e034eb522bd161b36212e68b48af72fb795a949`
+- Provenance JSON and checksum asset: uploaded and verified
+- Firebase/device installation: not changed or claimed; remains HUMAN_ENVIRONMENT_ONLY
+
 ## Gate
 
 - UI code changes: NONE for this audit.
