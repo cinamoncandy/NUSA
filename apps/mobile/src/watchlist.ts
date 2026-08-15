@@ -15,6 +15,13 @@ export interface WatchlistStorage {
 }
 import { VersionedJsonStore } from "./mobilePersistence";
 
+export interface MarketBreadth {
+  readonly down: number;
+  readonly flat: number;
+  readonly up: number;
+  readonly total: number;
+}
+
 export interface WatchlistViewModel {
   readonly state: "LOADING" | "EMPTY" | "READY" | "ERROR";
   readonly error: string | null;
@@ -23,7 +30,27 @@ export interface WatchlistViewModel {
   readonly watchlist: readonly string[];
   readonly activeMarkets: readonly WatchlistMarket[];
   readonly searchResults: readonly WatchlistMarket[];
+  /** Real change-rate distribution across every loaded public market (unaffected by the
+   * search query) -- a market-breadth snapshot, not a modeled risk assessment. */
+  readonly breadth: MarketBreadth;
 }
+
+const FLAT_CHANGE_THRESHOLD = 0.005;
+
+/** Buckets markets by their real Upbit-reported changeRate. A market with a null changeRate
+ * (not yet observed) counts as flat rather than being silently dropped, so `down+flat+up`
+ * always equals `total`. */
+export function computeMarketBreadth(markets: readonly WatchlistMarket[]): MarketBreadth {
+  let down = 0, flat = 0, up = 0;
+  for (const market of markets) {
+    if (market.changeRate !== null && market.changeRate <= -FLAT_CHANGE_THRESHOLD) down += 1;
+    else if (market.changeRate !== null && market.changeRate >= FLAT_CHANGE_THRESHOLD) up += 1;
+    else flat += 1;
+  }
+  return Object.freeze({ down, flat, up, total: markets.length });
+}
+
+const EMPTY_BREADTH: MarketBreadth = Object.freeze({ down: 0, flat: 0, up: 0, total: 0 });
 
 const WATCHLIST_KEY = "nusa:watchlist:v1";
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -83,7 +110,7 @@ function compareMarkets(left: WatchlistMarket, right: WatchlistMarket, sort: Wat
 }
 
 export function buildWatchlistViewModel(input: { readonly rawMarkets: unknown[] | null; readonly watchlist: readonly string[] | null; readonly query: string; readonly sort: WatchlistSort }): WatchlistViewModel {
-  const empty = (state: WatchlistViewModel["state"], error: string | null): WatchlistViewModel => freeze({ state, error, query: input.query, sort: input.sort, watchlist: input.watchlist ?? [], activeMarkets: [], searchResults: [] });
+  const empty = (state: WatchlistViewModel["state"], error: string | null): WatchlistViewModel => freeze({ state, error, query: input.query, sort: input.sort, watchlist: input.watchlist ?? [], activeMarkets: [], searchResults: [], breadth: EMPTY_BREADTH });
   const watchlist = input.watchlist;
   if (input.rawMarkets === null || watchlist === null) return empty("LOADING", null);
   let markets: readonly WatchlistMarket[];
@@ -93,7 +120,7 @@ export function buildWatchlistViewModel(input: { readonly rawMarkets: unknown[] 
   const searchable = markets.filter((market) => query === "" || market.market.includes(query));
   const activeMarkets = markets.filter((market) => watchlist.includes(market.market)).sort((left, right) => compareMarkets(left, right, input.sort));
   const searchResults = searchable.sort((left, right) => compareMarkets(left, right, input.sort));
-  return freeze({ state: "READY", error: null, query: input.query, sort: input.sort, watchlist: freeze([...watchlist]), activeMarkets: freeze(activeMarkets), searchResults: freeze(searchResults) });
+  return freeze({ state: "READY", error: null, query: input.query, sort: input.sort, watchlist: freeze([...watchlist]), activeMarkets: freeze(activeMarkets), searchResults: freeze(searchResults), breadth: computeMarketBreadth(markets) });
 }
 
 export const watchlistStorageKey = WATCHLIST_KEY;

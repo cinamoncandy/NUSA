@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
-import { DataRow, NusaButton, NusaCard, StatusChip } from "./components";
+import { DataRow, NusaButton, NusaCard, StatusChip, TerrainHero } from "./components";
 import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { uxLayout } from "./uxLayout";
@@ -26,6 +26,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const analysisTone = statusTone(ai?.status);
   const evidenceCount = ai?.evidenceReferences.length ?? 0;
   const counterCount = ai?.counterEvidence.length ?? 0;
+  // Real confidence when calibrated; a deliberately modest floor otherwise -- an uncalibrated
+  // or unavailable AI state should never read as visually confident.
+  const signalStrength = ai?.calibrationStatus === "CALIBRATED" ? ai.confidence : 0.3;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다. AI는 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
@@ -34,6 +37,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <View style={styles.heroTop}><View><Text style={[styles.eyebrow, { color: theme.colors.primary }]}>TODAY'S OBSERVATION</Text><Text style={[styles.heroTitle, { color: theme.colors.text }]}>현재 관찰</Text></View><StatusChip label={ai?.status ?? "UNAVAILABLE"} tone={analysisTone} /></View>
       <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
       <View style={styles.heroMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>신뢰 수준 {trustedConfidence}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {evidenceCount} · 반대 {counterCount}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>최근 분석 {lastRun}</Text></View>
+      <TerrainHero signalStrength={signalStrength} accessibilityLabel={`AI 신뢰 수준 시각화: ${trustedConfidence}`} testID="ai-signal-terrain" />
     </View>
 
     <View style={styles.metricGrid}>

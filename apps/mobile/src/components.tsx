@@ -177,6 +177,29 @@ export function TerrainHero({ signalStrength = 0.6, accessibilityLabel, testID }
   </View>;
 }
 
+/**
+ * Real change-rate distribution across every loaded public market, not a modeled risk/opportunity
+ * assessment -- labeled 하락/보합/상승 (down/flat/up) rather than borrowing risk-assessment
+ * language NUSA has no evidence to back. See watchlist.ts's computeMarketBreadth for the
+ * (threshold-based, deterministic) bucketing this renders.
+ */
+export function MarketBreadthBar({ down, flat, up, total, testID }: Readonly<{ down: number; flat: number; up: number; total: number; testID?: string }>) {
+  const { theme } = useTheme();
+  const pct = (count: number): number => (total > 0 ? Math.round((count / total) * 100) : 0);
+  return <View testID={testID}>
+    <View style={styles.breadthBar}>
+      <View style={[styles.breadthSegment, { flex: down || 0.0001, backgroundColor: theme.colors.danger }]} />
+      <View style={[styles.breadthSegment, { flex: flat || 0.0001, backgroundColor: theme.colors.borderStrong }]} />
+      <View style={[styles.breadthSegment, { flex: up || 0.0001, backgroundColor: theme.colors.aiSignalEnd }]} />
+    </View>
+    <View style={styles.breadthLabels}>
+      <Text style={[styles.breadthLabel, { color: theme.colors.danger }]}>하락 {pct(down)}%</Text>
+      <Text style={[styles.breadthLabel, { color: theme.colors.textMuted }]}>보합 {pct(flat)}%</Text>
+      <Text style={[styles.breadthLabel, { color: theme.colors.aiSignalEnd }]}>상승 {pct(up)}%</Text>
+    </View>
+  </View>;
+}
+
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
   const size = compact ? 30 : 42;
@@ -248,4 +271,8 @@ const styles = StyleSheet.create({
   heroSummitHalo: { position: "absolute", left: "50%", width: 30, height: 30, borderRadius: 15, borderWidth: 1, marginLeft: -15, opacity: 0.4 },
   heroSummitGlow: { position: "absolute", left: "50%", width: 9, height: 9, borderRadius: 5, marginLeft: -4, shadowOpacity: 0.75, shadowRadius: 14, elevation: 3 },
   heroHorizon: { position: "absolute", left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, opacity: 0.4 },
+  breadthBar: { height: 8, borderRadius: 999, overflow: "hidden", flexDirection: "row", gap: 2 },
+  breadthSegment: { height: "100%" },
+  breadthLabels: { marginTop: 7, flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  breadthLabel: { fontSize: 11, fontWeight: "700" },
 });

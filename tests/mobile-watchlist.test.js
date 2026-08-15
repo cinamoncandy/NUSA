@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { WatchlistRepository, buildWatchlistViewModel, parseWatchlistMarkets } = require("../dist/apps/mobile/src/watchlist.js");
+const { WatchlistRepository, buildWatchlistViewModel, computeMarketBreadth, parseWatchlistMarkets } = require("../dist/apps/mobile/src/watchlist.js");
 
 function memoryStorage(initial = null) {
   let value = initial;
@@ -51,6 +51,24 @@ test("watchlist view model supports search, sort and fail-closed states", () => 
   assert.equal(buildWatchlistViewModel({ rawMarkets: null, watchlist: null, query: "", sort: "MARKET" }).state, "LOADING");
   assert.equal(buildWatchlistViewModel({ rawMarkets: [], watchlist: [], query: "", sort: "MARKET" }).state, "EMPTY");
   assert.equal(buildWatchlistViewModel({ rawMarkets: [{ ...markets[0], source: "ESTIMATED" }], watchlist: [], query: "", sort: "MARKET" }).state, "ERROR");
+});
+
+test("computeMarketBreadth buckets by real changeRate, treating null as flat, and always sums to total", () => {
+  const mixed = [
+    { ...markets[0], changeRate: 0.02 },   // up
+    { ...markets[1], changeRate: -0.01 },  // down
+    { ...markets[0], market: "KRW-XRP", changeRate: 0.001 },  // flat (below threshold)
+    { ...markets[0], market: "KRW-DOGE", changeRate: null },  // flat (unobserved)
+  ];
+  const breadth = computeMarketBreadth(parseWatchlistMarkets(mixed));
+  assert.deepEqual(breadth, { down: 1, flat: 2, up: 1, total: 4 });
+  assert.equal(breadth.down + breadth.flat + breadth.up, breadth.total);
+});
+
+test("watchlist view model exposes market breadth alongside search/sort state", () => {
+  const ready = buildWatchlistViewModel({ rawMarkets: markets, watchlist: [], query: "", sort: "MARKET" });
+  assert.deepEqual(ready.breadth, { down: 1, flat: 0, up: 1, total: 2 });
+  assert.deepEqual(buildWatchlistViewModel({ rawMarkets: null, watchlist: null, query: "", sort: "MARKET" }).breadth, { down: 0, flat: 0, up: 0, total: 0 });
 });
 
 test("watchlist UI remains read-only and is wired into the markets workspace", () => {

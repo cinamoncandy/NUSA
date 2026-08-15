@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-na
 import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
 import { WatchlistView } from "./watchlistView";
-import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
+import { computeMarketBreadth, parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
+import { MarketBreadthBar } from "./components";
 import { uxLayout } from "./uxLayout";
 
 interface MarketsViewProps {
@@ -39,6 +40,12 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
     if (!Array.isArray(rawMarkets)) return null;
     try { return parseWatchlistMarkets(rawMarkets).find((item) => item.market === market)?.changeRate ?? null; } catch { return null; }
   }, [market, rawMarkets]);
+  // Real change-rate distribution across the currently loaded public catalog -- not a fetch,
+  // reuses the same parsed ticker data as changeRate above.
+  const breadth = useMemo(() => {
+    if (!Array.isArray(rawMarkets)) return null;
+    try { return computeMarketBreadth(parseWatchlistMarkets(rawMarkets)); } catch { return null; }
+  }, [rawMarkets]);
 
   const segment = (value: Panel, label: string, testID: string) => {
     const selected = panel === value;
@@ -60,6 +67,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const chart = <ChartView changeRate={changeRate} error={chartError ?? error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />;
 
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
+    {breadth && breadth.total > 0 ? <View style={[styles.breadthOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}><MarketBreadthBar down={breadth.down} flat={breadth.flat} up={breadth.up} total={breadth.total} testID="markets-breadth" /></View> : null}
     {tabletWorkspace ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace">
       <View style={styles.tabletPanel} testID="markets-tablet-watchlist">{watchlist}</View>
       <View style={styles.tabletPanel} testID="markets-tablet-chart">{chart}</View>
@@ -77,6 +85,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   segmentOuter: { paddingTop: 12, paddingBottom: 2 },
+  breadthOuter: { paddingTop: 16 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 20 },
   tabletPanel: { flex: 1, minWidth: 0 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 999 },
