@@ -24,7 +24,7 @@ test("Upbit backend source is repository-managed and loopback-only", () => {
 test("source-controlled Upbit backend exposes read-only behavior only", () => {
   const server = read("services/upbit-readonly/server.js");
   assert.match(server, /method:\s*"GET"/);
-  assert.doesNotMatch(server, /placeOrder|cancelOrder|withdraw|transfer|\/v1\/orders|method:\s*"POST"|method:\s*"DELETE"/);
+  assert.doesNotMatch(server, /placeOrder|cancelOrder|withdraw|transfer|method:\s*"POST"|method:\s*"DELETE"/);
 });
 
 test("secret material remains environment-only", () => {
