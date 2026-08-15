@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T21:56:00+09:00"
+updated_at: "2026-08-15T23:00:29+09:00"
 phase: android-real-use-successor
-status: ready
-objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
+status: verifying
+objective: "Hold Home visual rebuild PR #535 at physical Android visual acceptance while preserving PAPER-only authority, verified AI evidence, and AI ZERO_AUTHORITY."
 base_branch: main
-active_branch: agent/aipos-0053-main-final
-active_pull_request: null
-base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
+active_branch: agent/issue-210-home-visual-rebuild
+active_pull_request: 535
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -31,6 +31,19 @@ repository_maintenance:
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
+  current_follow_up:
+    pull_request: 535
+    branch: agent/issue-210-home-visual-rebuild
+    head_commit: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+    status: DRAFT_PHYSICAL_VISUAL_ACCEPTANCE_PENDING
+    scope: "Home-only visual rebuild: compact PAPER safety line, one hero/CTA, removed Home metric-card dashboard, visible bounded terrain/signal reveal; no authority or non-Home redesign."
+    automated_gates: PASS
+    android_release_candidate:
+      workflow_run_id: 31888389599
+      artifact: nusa-android-rc-20a99436f8639b0c70ba59865d33757b4da0d8a9-971
+      apk_sha256: 963c21c86be3e367e66b9f07443c5feff748f5ece25b7a7139e813da558683f2
+      provenance_source_sha: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+    physical_android_screenshot: HUMAN_ENVIRONMENT_ONLY_PENDING
 claimed_state:
   work_order: WO-0053
   status: VERIFYING
@@ -354,8 +367,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
-  current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  last_result: "PR #535 Home-only visual rebuild is implemented from main dd951890458eef43b77cd943a89e9e52d84d2500; focused Home/UI tests, typecheck, lint, build, CI, Mobile Native, Android release candidate, restricted LIVE, and read-only broker gates PASS. Physical Android before/after Home screenshots remain HUMAN_ENVIRONMENT_ONLY because adb/device are unavailable here."
+  current_commit: "PR #535 head 20a99436f8639b0c70ba59865d33757b4da0d8a9; repository gates PASS; visual acceptance and Merge remain blocked pending physical Android screenshots."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

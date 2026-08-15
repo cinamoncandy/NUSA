@@ -4,8 +4,8 @@ status: VERIFYING
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
-implementation_branch: agent/aipos-0053-main-final
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/issue-210-home-visual-rebuild
 repository_maintenance:
   issue: 210
   pull_request: 532
@@ -24,6 +24,20 @@ repository_maintenance:
     head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
+  current_follow_up:
+    pull_request: 535
+    branch: agent/issue-210-home-visual-rebuild
+    head_commit: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+    status: DRAFT_PHYSICAL_VISUAL_ACCEPTANCE_PENDING
+    scope: "Home-only visual rebuild: compact PAPER safety line, one hero/CTA, removed Home metric-card dashboard, visible bounded terrain/signal reveal; no authority or non-Home redesign."
+    repository_gates: PASS
+    android_release_candidate:
+      workflow_run_id: 31888389599
+      run_number: 971
+      artifact: nusa-android-rc-20a99436f8639b0c70ba59865d33757b4da0d8a9-971
+      apk_sha256: 963c21c86be3e367e66b9f07443c5feff748f5ece25b7a7139e813da558683f2
+      provenance_source_sha: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+    physical_android_visual_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
