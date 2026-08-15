@@ -23,10 +23,11 @@ test("public candle parser validates Upbit OHLCV and aggregates complete interva
   assert.equal(fiveMinute[0].volume, 15);
 });
 
-test("chart parser rejects non-public, malformed, and non-contiguous data", () => {
+test("chart parser rejects non-public and malformed data while tolerating sparse public candles", () => {
   assert.throws(() => parsePublicCandles(candles().map((item, index) => index === 2 ? { ...item, source: "UPBIT_PUBLIC_TICKER" } : item), "KRW-BTC"), /metadata/);
   assert.throws(() => parsePublicCandles(candles().map((item, index) => index === 2 ? { ...item, high_price: 1 } : item), "KRW-BTC"), /OHLC/);
-  assert.throws(() => parsePublicCandles(candles().map((item, index) => index === 2 ? { ...item, candle_date_time_utc: new Date(240_000).toISOString().replace(".000Z", "") } : item), "KRW-BTC"), /contiguous/);
+  const sparse = parsePublicCandles(candles().filter((_item, index) => index !== 2), "KRW-BTC");
+  assert.equal(aggregatePublicCandles(sparse, "5m").length, 1);
 });
 
 test("ready chart exposes only verified current price, high, low, volume, and price line", () => {
@@ -48,7 +49,7 @@ test("chart remains fail-closed for loading, stale, missing-price, and incomplet
   assert.equal(buildChartViewModel({ ...base, rawCandles: candles(3), interval: "5m" }).state, "EMPTY");
 });
 
-test("chart UI stays read-only while the app shell uses only the authenticated PAPER operations projection", () => {
+test("chart UI stays read-only while Markets uses public data separate from PAPER operations", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
@@ -63,6 +64,8 @@ test("chart UI stays read-only while the app shell uses only the authenticated P
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
 
   assert.match(app, /loadPersonalPaperOperations/);
+  assert.match(app, /loadUpbitPublicCandles/);
+  assert.match(app, /publicMarkets\.candles/);
   assert.match(app, /<MarketsView/);
   assert.match(workspace, /<ChartView/);
   assert.doesNotMatch(app, /\/api\/(?:candles|markets|account|status)/);

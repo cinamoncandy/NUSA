@@ -22,6 +22,9 @@ import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperCo
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
+import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
+import type { PublicCandle } from "./src/chartViewModel";
+import type { WatchlistMarket } from "./src/watchlist";
 
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
@@ -30,8 +33,21 @@ const tabLabels: Readonly<Record<Tab, string>> = { Home: "홈", Markets: "시장
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { HISTORY: "주문 이력", NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
+const PUBLIC_REFRESH_INTERVAL_MS = 30_000;
 const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
 const theme = { container: { flex: 1 } } as const;
+
+type PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";
+interface PublicMarketsState {
+  readonly status: PublicMarketsStatus;
+  readonly markets: readonly WatchlistMarket[] | null;
+  readonly candles: readonly PublicCandle[] | null;
+  readonly currentPrice: number | null;
+  readonly error: string | null;
+  readonly chartError: string | null;
+}
+
+const initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });
 
 function themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }
 
@@ -80,12 +96,17 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
+  const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
+  const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
+  const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const publicRefreshGenerationRef = useRef(0);
+  const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
   const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
   const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {
     try {
@@ -135,11 +156,53 @@ function AuthenticatedApp() {
     return request;
   }, [credentialSession, dispatchRuntime, runtimeCoordinator]);
 
+  const refreshPublicMarkets = useCallback((): Promise<void> => {
+    if (publicRefreshInFlightRef.current) return publicRefreshInFlightRef.current;
+    const generation = publicRefreshGenerationRef.current;
+    const previous = publicMarketsRef.current;
+    setPublicRefreshing(true);
+    setPublicMarkets({ ...previous, status: previous.markets === null ? "LOADING" : "STALE", error: null });
+    const request = (async () => {
+      const [tickerResult, candleResult] = await Promise.allSettled([
+        loadUpbitPublicMarkets(),
+        loadUpbitPublicCandles({ market: CHART_MARKET }),
+      ]);
+      if (generation !== publicRefreshGenerationRef.current) return;
+      const tickerError = tickerResult.status === "rejected" ? (tickerResult.reason instanceof Error ? tickerResult.reason.message : "Public ticker data is unavailable.") : null;
+      if (tickerResult.status === "rejected") {
+        const next = previous.markets === null
+          ? { ...previous, status: "ERROR" as const, error: tickerError, chartError: null }
+          : { ...previous, status: "STALE" as const, error: null, chartError: null };
+        publicMarketsRef.current = next;
+        setPublicMarkets(next);
+        return;
+      }
+      const markets = tickerResult.value;
+      const selected = markets.find((market) => market.market === CHART_MARKET) ?? null;
+      const chartError = candleResult.status === "rejected" ? (candleResult.reason instanceof Error ? candleResult.reason.message : "Public candle data is unavailable.") : null;
+      const next: PublicMarketsState = {
+        status: "READY",
+        markets,
+        candles: candleResult.status === "fulfilled" ? candleResult.value : null,
+        currentPrice: selected?.price ?? null,
+        error: null,
+        chartError,
+      };
+      publicMarketsRef.current = next;
+      setPublicMarkets(next);
+    })();
+    publicRefreshInFlightRef.current = request;
+    const clearIfCurrent = () => { if (publicRefreshInFlightRef.current === request) publicRefreshInFlightRef.current = null; setPublicRefreshing(false); };
+    void request.then(clearIfCurrent, clearIfCurrent);
+    return request;
+  }, []);
+
   const closeUtility = useCallback(() => setUtilityView(null), []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const handleSignOut = useCallback(() => {
-    refreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false);
+    refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
+    const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState);
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
@@ -162,6 +225,17 @@ function AuthenticatedApp() {
     return () => { cancelled = true; refreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
   }, [appState, authStatus, refresh]);
 
+  useEffect(() => {
+    publicRefreshGenerationRef.current += 1;
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    const generation = publicRefreshGenerationRef.current;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleNext = () => { if (cancelled || generation !== publicRefreshGenerationRef.current) return; timer = setTimeout(() => { timer = null; void refreshPublicMarkets().catch(() => undefined).finally(scheduleNext); }, PUBLIC_REFRESH_INTERVAL_MS); };
+    void refreshPublicMarkets().catch(() => undefined).finally(scheduleNext);
+    return () => { cancelled = true; publicRefreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
+  }, [appState, authStatus, refreshPublicMarkets]);
+
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
@@ -171,15 +245,15 @@ function AuthenticatedApp() {
   const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
   const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
+  const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
-  const selectedMarket = snapshot?.markets.find((market) => market.market === CHART_MARKET) ?? null;
   const ai = snapshot?.ai ?? null;
   const accountCash = snapshot?.portfolio?.account.cash ?? 0;
   const runtimeCanSubmit = !runtimeSnapshot.tradingBlocked
     && runtimeSnapshot.lifecycle === "FOREGROUND"
     && runtimeSnapshot.network === "ONLINE"
     && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home")) && activeTab !== "Portfolio";
+  const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home")) && activeTab !== "Portfolio" && activeTab !== "Markets";
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View>
@@ -193,7 +267,7 @@ function AuthenticatedApp() {
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
-      : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
+      : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
 

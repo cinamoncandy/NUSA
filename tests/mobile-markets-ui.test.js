@@ -11,7 +11,7 @@ test("Markets hides chart interaction until real candle data exists", () => {
   assert.match(source, /!tabletWorkspace && chartAvailable \? <View/);
   assert.match(source, /segment\("CHART",\s*"차트",\s*"markets-chart-tab"\)/);
   assert.match(source, /visiblePanel === "WATCHLIST"/);
-  assert.match(app, /rawCandles=\{null\}/);
+  assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
 test("Markets uses a simultaneous two-column workspace on tablets when candles are real", () => {
