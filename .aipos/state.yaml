@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T00:00:00+09:00"
+updated_at: "2026-08-15T20:45:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
@@ -15,7 +15,8 @@ repository_maintenance:
   pull_request: 528
   head_commit: 9904b94a44899a1512198ec7593db94bb9948f52
   base_commit: 3c90e6a41b7c2589cfb825d7f9a288443dfaed8e
-  status: IN_REVIEW
+  status: MERGED
+  merge_commit: 9b81b77ae50e6ab42463c14b596d6e00c0ac0ccb
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 claimed_state:
