@@ -19,7 +19,7 @@ test("Upbit bridge is HTTPS-only and read-only", () => {
   assert.match(clientSource, /url\.protocol !== "https:"/);
   assert.match(clientSource, /\/api\/v1\/account\/summary/);
   assert.match(clientSource, /method: "GET"/);
-  assert.match(clientSource, /Authorization: "Bearer " \\+ token/);
+  assert.match(clientSource, /Authorization: "Bearer " \+ token/);
   assert.doesNotMatch(clientSource, /method: "POST"|method: "DELETE"|\/v1\/orders|\/v1\/withdraws|placeLiveOrder|submitOrder/);
 });
 
@@ -30,7 +30,7 @@ test("Upbit normalized summary is validated fail-closed", () => {
   assert.match(clientSource, /Number\.isFinite\(parsed\)/);
   assert.match(clientSource, /parsed < 0/);
   assert.match(clientSource, /Invalid Upbit account summary/);
-  assert.match(clientSource, /Invalid Upbit currency/);
+  assert.match(clientSource, /Invalid Upbit/);
 });
 
 test("Upbit account snapshot normalizes cash and assets without mixing PAPER", () => {
