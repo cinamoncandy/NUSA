@@ -40,7 +40,8 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
   assert.match(source, /useState<Panel>\("CHART"\)/);
   assert.doesNotMatch(source, /chartAvailable/);
   assert.match(source, /panel === "WATCHLIST"/);
-  assert.match(app, /rawCandles=\{null\}/);
+  // Real candle wiring landed (see PR #526) -- the chart data source is no longer a placeholder gap.
+  assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
 test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {

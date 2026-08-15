@@ -14,9 +14,8 @@ test("Markets defaults to the chart and keeps it reachable even without real can
   assert.doesNotMatch(source, /chartAvailable/);
   assert.match(source, /segment\("CHART",\s*"차트",\s*"markets-chart-tab"\)/);
   assert.match(source, /panel === "WATCHLIST"/);
-  // Chart data source remains a documented, separately-scoped gap -- not silently unexplained.
-  assert.match(app, /rawCandles=\{null\}/);
-  assert.match(app, /no real candle\/OHLC fetch path exists yet/);
+  // Real candle wiring landed (see PR #526) -- the chart data source is no longer a placeholder gap.
+  assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
 test("Markets uses a simultaneous two-column workspace on tablets", () => {
