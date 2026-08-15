@@ -33,7 +33,7 @@ export interface StrategyRegimeDecision {
   readonly reason: string;
 }
 
-const DEFAULT_CONFIG: RegimeClassifierConfig = Object.freeze({
+export const DEFAULT_REGIME_CONFIG: RegimeClassifierConfig = Object.freeze({
   trendLookback: 20,
   strongTrendReturn: 0.04,
   weakTrendReturn: 0.01,
@@ -50,7 +50,7 @@ const standardDeviation = (values: readonly number[]): number => {
   return Math.sqrt(average(values.map((value) => (value - mean) ** 2)));
 };
 
-export function classifyPriceRegime(prices: readonly number[], observedAt: number, config: RegimeClassifierConfig = DEFAULT_CONFIG): TradingRegime | undefined {
+export function classifyPriceRegime(prices: readonly number[], observedAt: number, config: RegimeClassifierConfig = DEFAULT_REGIME_CONFIG): TradingRegime | undefined {
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("observedAt must be a non-negative safe integer");
   if (!Number.isSafeInteger(config.trendLookback) || config.trendLookback < 2) throw new Error("trendLookback must be at least 2");
   assertFinitePositive(config.strongTrendReturn, "strongTrendReturn");
