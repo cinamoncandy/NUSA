@@ -34,16 +34,16 @@ repository_maintenance:
   current_follow_up:
     pull_request: 535
     branch: agent/issue-210-home-visual-rebuild
-    head_commit: cabd7a83eb02df30f67f929815ccee6ca606e7ed
+    head_commit: 5b40e5fa2e76bfbe2d0bee897e31f75a67623cf1
     status: DRAFT_PHYSICAL_VISUAL_ACCEPTANCE_PENDING
     scope: "Home-only master-reference rebuild: NUSA / HOME wordmark, equity/PnL hierarchy, compact AI judgement, visible symbolic terrain/signal centerpiece, one operational CTA, and no authority or non-Home redesign."
     automated_gates: PASS
     android_release_candidate:
-      workflow_run_id: 31890492397
-      run_number: 977
-      artifact: nusa-android-rc-cabd7a83eb02df30f67f929815ccee6ca606e7ed-977
-      apk_sha256: 5615bb2ccfb0640435e10bbc2e0e1c465babf6c82764f72c24cd00309de8b0be
-      provenance_source_sha: cabd7a83eb02df30f67f929815ccee6ca606e7ed
+      workflow_run_id: 31891313411
+      run_number: 980
+      artifact: nusa-android-rc-5b40e5fa2e76bfbe2d0bee897e31f75a67623cf1-980
+      apk_sha256: dab73313681a651d999d700f935aa19d885603b19791a43ca2599906a362d28d
+      provenance_source_sha: 5b40e5fa2e76bfbe2d0bee897e31f75a67623cf1
       bundle_markers: PASS
     physical_android_screenshot: HUMAN_ENVIRONMENT_ONLY_PENDING
     build_identity_audit:
@@ -387,8 +387,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #535 Home-only master-reference rebuild is implemented from main dd951890458eef43b77cd943a89e9e52d84d2500; focused Home/UI tests, typecheck, lint, build, exact-head CI, Mobile Native, Android release candidate, restricted LIVE, and read-only broker gates PASS. APK run 977 provenance and Home bundle markers match cabd7a8. Physical Android before/after Home screenshots remain HUMAN_ENVIRONMENT_ONLY because adb/device are unavailable here."
-  current_commit: "PR #535 head cabd7a83eb02df30f67f929815ccee6ca606e7ed; repository gates PASS; visual acceptance and Merge remain blocked pending physical Android screenshots."
+  last_result: "PR #535 Home-only master-reference rebuild is implemented from main dd951890458eef43b77cd943a89e9e52d84d2500; focused Home/UI tests, typecheck, lint, build, exact-head CI run 31891313628, Mobile Native run 31891313411, and exact-head Android RC provenance PASS at 5b40e5f. Restricted LIVE and Read-only Broker latest completed PR runs remain at cabd7a8 because those workflow definitions do not support dispatch and GitHub emitted no successor pull_request run. Physical Android before/after Home screenshots remain HUMAN_ENVIRONMENT_ONLY because adb/device are unavailable here."
+  current_commit: "PR #535 head 5b40e5fa2e76bfbe2d0bee897e31f75a67623cf1; exact-head CI/Mobile Native PASS; Restricted/Read-only exact-head evidence unavailable; visual acceptance and Merge remain blocked pending physical Android screenshots and remaining exact-head required checks."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
