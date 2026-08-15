@@ -1,7 +1,7 @@
 id: WO-0055
 schema_version: 1
 title: "Issue #536 Home master visual reference implementation"
-status: IN_PROGRESS
+status: VERIFYING
 priority: 100
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
@@ -58,7 +58,7 @@ evidence:
   - "Real-device Home screenshots and visual acceptance decision, or explicit HUMAN_ENVIRONMENT_ONLY pending status."
 rollback:
   - "Revert the Home-only commit; existing route, data, and authority contracts remain unchanged."
-current_status: "Implementation in progress; visual acceptance remains HUMAN_ENVIRONMENT_ONLY until a real Android install and screenshot comparison are available."
+current_status: "Implementation committed and repository verification is in progress; visual acceptance remains HUMAN_ENVIRONMENT_ONLY until a real Android install and screenshot comparison are available."
 blockers:
   - "Real Android device installation and screenshot capture are external to repository automation."
-next_action: "Implement Home composition, then run the recorded repository verification commands."
+next_action: "Re-run exact-head CI/Mobile Native and obtain the real Android Home screenshot gate; do not merge before both are satisfied."

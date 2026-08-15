@@ -1,101 +1,41 @@
-id: WO-0051
-title: Constitutional Production Transition Human/Environment Gate
-branch: main
+id: WO-0055
+title: Issue #536 Home master visual reference implementation
+branch: agent/issue-536-home-master-reference
+pull_request: 537
 base_branch: main
-phase: constitutional-production-human-environment-gate
-status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
-mode: HUMAN_ENVIRONMENT_ONLY
-automated_completion: prohibited
-synthetic_ci_completion: prohibited
-chat_consent_as_live_authority: prohibited
-latest_completed_work_order:
-  id: WO-0058
-  title: Approved User Session Core Extraction
-  source_work_order: .aipos/work-orders/WO-0058-approved-user-session-core.yaml
-  status: COMPLETED
-  branch: agent/wo-0058-approved-user-session-core
-  pull_request: 565
-  exact_head: cdbf734cf5e62d60c3e0daf77b4ad7fca0e03335
-  merge_commit: 33e3f5d3d6d55cd0877f2ccd794a643c7e0de253
-  exact_head_ci: PASS
-  focused_session_contract: PASS
-  desktop_compatibility: PASS
-  required_companion_workflows: PASS_4_OF_4
-  authority: PAPER_ONLY
-  liveAuthority: NONE
-  productionMutationAllowed: false
-  aiAuthority: ZERO_AUTHORITY
-previous_completed_work_order:
-  id: WO-0057
-  title: Desktop Cloud Canonical PAPER Authority Migration
-  source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
-  status: COMPLETED
-  branch: agent/wo-0057-desktop-cloud-paper-authority
-  pull_request: 552
-  exact_head: 03eef24c4abbba91920c0063a3e2af95088eb9d0
-  merge_commit: f875980e4ff9111ab576f1e93294fae510d07167
-  exact_head_ci: PASS
-  read_only_broker_credential_integration: PASS
-  restricted_live_activation_rehearsal: PASS
-  restricted_live_transport_credential_readiness: PASS
-  restricted_live_capability_surface_guard: PASS
-  authority: PAPER_ONLY
-  liveAuthority: NONE
-  productionMutationAllowed: false
-  aiAuthority: ZERO_AUTHORITY
-  child_work_orders:
-    - id: WO-0057A
-      title: Desktop Cloud PAPER Session Boundary
-      source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
-      status: COMPLETED
-      branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
-      pull_request: 554
-      exact_head: d52d416b6df618c582d1a4e33288f040954e59ef
-      merge_commit: d32437bc7a6ad903ea42f3ec14cc8d3cdcd4425d
-      exact_head_ci: PASS
-      coverage: PASS
-      required_companion_workflows: PASS_4_OF_4
-preserved_previous_mission:
-  id: WO-0056
-  title: Read-only MCP gateway over existing NUSA relays
-  repository_implementation: COMPLETE
-  pull_request: 538
-  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
-  exact_head_ci: PASS
-  external_deployment: PENDING_AUTHORITY
-  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
-  note: "WO-0056 repository implementation remains closed; its external HTTPS/ChatGPT evidence may be collected separately and does not block non-LIVE successors."
-serialization:
-  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+phase: home-master-visual-reference
+status: VERIFYING
+source_work_order: .aipos/work-orders/WO-0055-home-master-visual-reference.yaml
+objective: "Implement the Issue #536 Home master visual reference without changing backend, authority, credential, or non-Home contracts; keep PR #535 Draft/HOLD."
+scope:
+  - Home header, truthful equity/PnL hierarchy, compact evidence-bound AI block, and terrain centerpiece
+  - Home disconnected/error shell remains Home with one compact operational notice
+  - phone/tablet responsive layout and reduced-motion-safe bounded reveal
+  - existing mobile data, navigation, PAPER, and AI read-only contracts remain unchanged
+  - PR #535 remains Draft/HOLD; no logo or production asset replacement
+serialized_human_environment_gate:
+  id: WO-0051
+  status: IN_PROGRESS
+  mode: HUMAN_ENVIRONMENT_ONLY
   bypass: prohibited
-  allowed_successors:
-    - PAPER_ONLY
-    - READ_ONLY
-    - MOBILE_AUTH_AND_SECURE_SESSION
-    - UI_UX_AND_NON_LIVE_ARCHITECTURE
-  blocked_successors:
-    - LIVE_ACTIVATION
-    - REAL_MONEY_MUTATION
-    - LIVE_RISK_ENVELOPE_EXPANSION
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  aiAuthority: ZERO_AUTHORITY
-active_non_live_successor:
-  id: WO-0059
-  title: Actual PAPER Runtime End-to-End Activation
-  source_work_order: .aipos/work-orders/WO-0059-actual-paper-runtime-e2e.yaml
-  status: IN_PROGRESS
-  branch: agent/wo-0059-actual-paper-runtime-e2e
-  base_commit: ad34549c06805c24a0634e8a9250157210b60121
-  authority: PAPER_ONLY
-  liveAuthority: NONE
-  productionMutationAllowed: false
-  aiAuthority: ZERO_AUTHORITY
-  runtime_evidence: PENDING_EXTERNAL_RUNTIME
-  note: "WO-0059 verifies actual Cloud PAPER operation using Upbit PUBLIC market data only. It does not satisfy, bypass, or modify WO-0051."
-next_recommended_task: "Run WO-0059 against actual Upbit PUBLIC market data and collect canonical PAPER order/fill, SQLite persistence, restart recovery, and idempotent retry evidence. CI alone cannot complete WO-0059; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+  automatedCompletion: prohibited
+  syntheticCiCompletion: prohibited
+  chatConsentAsLiveAuthority: prohibited
+  aiLiveAuthority: prohibited
+verification:
+  focused_home_ui_suite: PASS_17_OF_17
+  typecheck: PASS
+  lint: PASS
+  build: PASS
+  architecture_aipos_safety_ai_security: PASS
+  exact_head_ci: FAILED_AIPOS_CURRENT_MISSION_DRIFT_FIXED_IN_FOLLOW_UP
+  exact_head_mobile_native: PENDING
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+blockers:
+  - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
+next_recommended_task: "Preserve HOLD on WO-0053 until genuine physical Android acceptance is available; repository-controlled maintenance may continue only when it does not claim or bypass the HUMAN_ENVIRONMENT_ONLY gate."

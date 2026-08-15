@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T00:00:00+09:00"
+updated_at: "2026-08-16T00:20:00+09:00"
 phase: home-master-visual-reference
-status: in_progress
+status: verifying
 objective: "Implement Issue #536 Home against the NUSA master visual reference without changing backend, authority, credential, or non-Home contracts."
 base_branch: main
 active_branch: agent/issue-536-home-master-reference
-active_pull_request: null
+active_pull_request: 537
 base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
@@ -33,7 +33,7 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-0055
-  status: IN_PROGRESS
+  status: VERIFYING
   issue: 536
   branch: agent/issue-536-home-master-reference
   base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
