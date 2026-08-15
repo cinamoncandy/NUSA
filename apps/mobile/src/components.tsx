@@ -148,6 +148,35 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
   </View>;
 }
 
+/**
+ * Larger hero counterpart to TerrainSignal -- a layered mountain-range silhouette (haze peaks
+ * behind, bright focal peak with a glowing summit in front) instead of thin converging lines.
+ * Reuses the same border-triangle technique as WaveMark's peak and the same glow-dot/halo
+ * technique as TerrainSignal's convergence point, just at hero scale. signalStrength drives the
+ * focal peak's height (and therefore how close the summit glow sits to the top of the frame) --
+ * the visual reads as "the terrain rising to meet the signal" as conviction increases.
+ */
+export function TerrainHero({ signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
+  const { theme } = useTheme();
+  const strength = Math.max(0.2, Math.min(1, signalStrength));
+  const focalHeight = Math.round(96 + strength * 64);
+  const hazePeaks: ReadonlyArray<{ left: `${number}%`; width: number; height: number; opacity: number; color: string }> = [
+    { left: "2%", width: 64, height: 46, opacity: 0.14, color: theme.colors.terrain },
+    { left: "70%", width: 78, height: 58, opacity: 0.16, color: theme.colors.terrain },
+    { left: "16%", width: 70, height: 78, opacity: 0.32, color: theme.colors.aiSignalStart },
+    { left: "60%", width: 66, height: 68, opacity: 0.4, color: theme.colors.aiSignalMid },
+  ];
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? "NUSA 시장 지형 시각화"} style={styles.terrainHero} testID={testID}>
+    {hazePeaks.map((peak, index) => <View key={index} style={[styles.heroPeak, { left: peak.left, borderLeftWidth: peak.width / 2, borderRightWidth: peak.width / 2, borderBottomWidth: peak.height, borderBottomColor: peak.color, opacity: peak.opacity }]} />)}
+    <View style={[styles.heroPeak, styles.heroPeakFocal, { borderLeftWidth: 38, borderRightWidth: 38, borderBottomWidth: focalHeight, borderBottomColor: theme.colors.aiSignalEnd }]} />
+    <View style={[styles.heroRay, styles.heroRayLeft, { backgroundColor: theme.colors.aiSignalEnd, top: 200 - focalHeight - 30 }]} />
+    <View style={[styles.heroRay, styles.heroRayRight, { backgroundColor: theme.colors.aiSignalEnd, top: 200 - focalHeight - 30 }]} />
+    <View style={[styles.heroSummitHalo, { top: 200 - focalHeight - 16, borderColor: theme.colors.aiSignalEnd }]} />
+    <View style={[styles.heroSummitGlow, { top: 200 - focalHeight - 6, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd }]} />
+    <View style={[styles.heroHorizon, { backgroundColor: theme.colors.border }]} />
+  </View>;
+}
+
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {
   const { theme } = useTheme();
   const size = compact ? 30 : 42;
@@ -210,4 +239,13 @@ const styles = StyleSheet.create({
   terrainLineLow: { left: "28%", top: "68%", transform: [{ rotate: "-2deg" }] },
   terrainConvergence: { position: "absolute", top: "47%", width: 7, height: 7, borderRadius: 4, marginLeft: -3, shadowOpacity: 0.6, shadowRadius: 10, elevation: 2 },
   terrainConvergenceHalo: { position: "absolute", top: "39%", width: 23, height: 23, borderRadius: 12, borderWidth: 1, marginLeft: -11, opacity: 0.45 },
+  terrainHero: { height: 200, width: "100%", overflow: "hidden", position: "relative" },
+  heroPeak: { position: "absolute", bottom: 0, width: 0, height: 0, borderLeftColor: "transparent", borderRightColor: "transparent", borderStyle: "solid" },
+  heroPeakFocal: { left: "50%", marginLeft: -38 },
+  heroRay: { position: "absolute", left: "50%", width: 46, height: 1, opacity: 0.4 },
+  heroRayLeft: { marginLeft: -44, transform: [{ rotate: "18deg" }] },
+  heroRayRight: { marginLeft: -2, transform: [{ rotate: "-18deg" }] },
+  heroSummitHalo: { position: "absolute", left: "50%", width: 30, height: 30, borderRadius: 15, borderWidth: 1, marginLeft: -15, opacity: 0.4 },
+  heroSummitGlow: { position: "absolute", left: "50%", width: 9, height: 9, borderRadius: 5, marginLeft: -4, shadowOpacity: 0.75, shadowRadius: 14, elevation: 3 },
+  heroHorizon: { position: "absolute", left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, opacity: 0.4 },
 });
