@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
@@ -106,6 +106,30 @@ export function StatusChip({ label, tone = "neutral", testID }: Readonly<{ label
   const foreground = tone === "primary" ? theme.colors.primary : tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.info : theme.colors.textMuted;
   const background = tone === "primary" ? theme.colors.primarySoft : theme.colors.surfaceSunken;
   return <View testID={testID} style={[styles.chip, { backgroundColor: background, borderColor: tone === "neutral" ? theme.colors.border : foreground }]}><Text style={[styles.chipLabel, { color: foreground }]}>{label}</Text></View>;
+}
+
+export function MotionReveal({ children, testID }: Readonly<{ children: React.ReactNode; testID?: string }>) {
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(8)).current;
+
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (active) setReducedMotion(enabled); }).catch(() => { if (active) setReducedMotion(false); });
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
+    return () => { active = false; subscription.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion === null) return;
+    if (reducedMotion) { opacity.setValue(1); translateY.setValue(0); return; }
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start();
+  }, [opacity, reducedMotion, translateY]);
+
+  return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
 }
 
 export function WaveMark({ compact = false }: Readonly<{ compact?: boolean }>) {

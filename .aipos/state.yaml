@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-13T17:12:00+09:00"
+updated_at: "2026-08-15T00:00:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
@@ -8,6 +8,16 @@ base_branch: main
 active_branch: agent/aipos-0053-main-final
 active_pull_request: null
 base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
+repository_maintenance:
+  issue: 210
+  objective: "Apply the minimum-path mobile UI/UX P1 restoration without changing product authority or the WO-0053 physical-device gate."
+  branch: agent/issue-210-premium-uiux-min-path
+  pull_request: 528
+  head_commit: 9904b94a44899a1512198ec7593db94bb9948f52
+  base_commit: 3c90e6a41b7c2589cfb825d7f9a288443dfaed8e
+  status: IN_REVIEW
+  safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 claimed_state:
   work_order: WO-0053
   status: VERIFYING

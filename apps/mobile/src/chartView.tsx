@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
+import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
 
@@ -48,11 +48,10 @@ export function ChartView({ market, rawCandles, currentPrice, marketConnectionSt
   if (model.state === "ERROR") return <StateCard color={theme.colors.warning} message={model.error ?? "Market data is unavailable."} onRetry={onRefresh} testID="chart-error" title="차트 데이터 오류" />;
   if (model.state === "EMPTY") return <StateCard color={theme.colors.text} message="아직 완성된 공개 캔들 데이터가 없습니다." onRetry={onRefresh} testID="chart-empty" title="차트 데이터 없음" />;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="chart-screen">
-    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장 차트" description={model.market} /><StatusChip label="PUBLIC / READ ONLY" tone="info" /></View>
-    <View style={styles.statusRow}><StatusChip label={marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"} tone={marketConnectionState === "CONNECTED" ? "success" : "warning"} /><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
+    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장 차트" description={model.market} /><StatusChip label={stale ? "PUBLIC / STALE" : "PUBLIC / READ ONLY"} tone={stale ? "warning" : "info"} /></View>
+    <View style={styles.statusRow}><Text accessibilityRole="text" style={[styles.statusText, { color: marketConnectionState === "CONNECTED" ? theme.colors.success : theme.colors.warning }]}>{marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"}</Text></View>
     <View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View>
-    <ChartSummary model={model} />
-    <NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 각 막대 아래 거래량 표시</Text></NusaCard>
+    <MotionReveal testID="chart-data-reveal"><ChartSummary model={model} /><NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 각 막대 아래 거래량 표시</Text></NusaCard></MotionReveal>
   </ScrollView>;
 }
 
@@ -63,6 +62,7 @@ const styles = StyleSheet.create({
   stateMessage: { lineHeight: 21, marginBottom: 12, fontSize: 14 },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
+  statusText: { fontSize: 12, fontWeight: "700" },
   intervalRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
   label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
   current: { fontSize: 32, fontWeight: "800", letterSpacing: -1, marginTop: 8 },

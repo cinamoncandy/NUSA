@@ -6,6 +6,13 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
 implementation_branch: agent/aipos-0053-main-final
+repository_maintenance:
+  issue: 210
+  pull_request: 528
+  branch: agent/issue-210-premium-uiux-min-path
+  head_commit: 9904b94a44899a1512198ec7593db94bb9948f52
+  status: IN_REVIEW
+  scope: "Minimum-path mobile UI hierarchy and bounded reduced-motion state feedback only; no Android physical-gate claim and no authority change."
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
