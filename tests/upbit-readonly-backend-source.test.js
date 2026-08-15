@@ -9,7 +9,9 @@ test("Upbit backend source is repository-managed and loopback-only", () => {
   const server = read("services/upbit-readonly/server.js");
   assert.match(server, /127\.0\.0\.1/);
   assert.match(server, /\/health/);
+  assert.match(server, /\/api\/v1\/account\/summary/);
   assert.match(server, /\/api\/upbit\/accounts/);
+  assert.match(server, /normalizeUpbitAccountSummary/);
   assert.match(server, /https:\/\/api\.upbit\.com\/v1\/accounts/);
   assert.match(server, /UPBIT_ACCESS_KEY/);
   assert.match(server, /UPBIT_SECRET_KEY/);
