@@ -33,7 +33,7 @@ verification:
   lint: PASS
   build: PASS
   architecture_aipos_safety_ai_security: PASS
-  exact_head_ci: PENDING_HEAD_693F5DA
+  exact_head_ci: PENDING_HEAD_6EFB24F
   exact_head_mobile_native: PENDING
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
