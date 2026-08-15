@@ -5,7 +5,7 @@ Status: operator runbook for Issue #391. This does **not** add LIVE authority an
 ## Security invariants
 
 - NUSA Cloud stays bound to `127.0.0.1` or `localhost` only.
-- Android remote endpoints remain HTTPS-only. Do not add a cleartext exception or set `usesCleartextTraffic=true` for release.
+- Android remote endpoints remain HTTPS-only. Do not add a cleartext exception or set `usesCleartextTraffic=true` for any build variant.
 - `NUSA_CLOUD_DASHBOARD_TOKEN` is an application bearer secret. Never put it in the public hostname, URL query string, tunnel config, source tree, shell history, screenshots, or logs.
 - Tunnel credential JSON is Cloudflare infrastructure state, not a NUSA broker credential. Keep it outside the repository with OS-user-only permissions.
 - PAPER only: `liveAuthority=NONE`, `productionMutationAllowed=false`. AI remains ZERO_AUTHORITY/read-only.
