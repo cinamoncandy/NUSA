@@ -39,7 +39,7 @@ test("Markets keeps chart interaction hidden when App has no candle data", () =>
   assert.match(source, /const visiblePanel(?::\s*Panel)? = chartAvailable \? panel : "WATCHLIST"/);
   assert.match(source, /!tabletWorkspace && chartAvailable \? <View/);
   assert.match(source, /visiblePanel === "WATCHLIST"/);
-  assert.match(app, /rawCandles=\{null\}/);
+  assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
 test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {
