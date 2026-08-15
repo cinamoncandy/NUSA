@@ -37,7 +37,7 @@ repository_maintenance:
     head_commit: 5b40e5fa2e76bfbe2d0bee897e31f75a67623cf1
     status: DRAFT_PHYSICAL_VISUAL_ACCEPTANCE_PENDING
     scope: "Home-only master-reference rebuild: NUSA / HOME wordmark, equity/PnL hierarchy, compact AI judgement, visible symbolic terrain/signal centerpiece, one operational CTA, and no authority or non-Home redesign."
-    automated_gates: PASS
+    automated_gates: PARTIAL_EXACT_HEAD_REQUIRED_WORKFLOWS
     android_release_candidate:
       workflow_run_id: 31891313411
       run_number: 980
