@@ -23,6 +23,7 @@ import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } f
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
+import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -107,6 +108,7 @@ function AuthenticatedApp() {
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const publicRefreshGenerationRef = useRef(0);
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
+  const liveMarketsKeyRef = useRef<string>("");
   const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
   const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {
     try {
@@ -197,12 +199,27 @@ function AuthenticatedApp() {
     return request;
   }, []);
 
+  // Real-time layer on top of the 30s REST poll above: a live Upbit ticker only ever updates an
+  // entry already established by that REST baseline (never invents a market on its own), so a
+  // socket outage silently degrades back to polling-only instead of losing or fabricating data.
+  const handleLiveTicker = useCallback((ticker: WatchlistMarket): void => {
+    const previous = publicMarketsRef.current;
+    if (previous.markets === null) return;
+    const index = previous.markets.findIndex((market) => market.market === ticker.market);
+    if (index === -1) return;
+    const markets = previous.markets.map((market, position) => (position === index ? ticker : market));
+    const next: PublicMarketsState = { ...previous, status: "READY", markets: Object.freeze(markets), currentPrice: ticker.market === CHART_MARKET ? ticker.price : previous.currentPrice };
+    publicMarketsRef.current = next;
+    setPublicMarkets(next);
+  }, []);
+  const liveTickerClient = useMemo(() => new UpbitPublicWebSocketClient(handleLiveTicker), [handleLiveTicker]);
+
   const closeUtility = useCallback(() => setUtilityView(null), []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
-    const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState);
+    const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
@@ -236,6 +253,20 @@ function AuthenticatedApp() {
     return () => { cancelled = true; publicRefreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
   }, [appState, authStatus, refreshPublicMarkets]);
 
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || appState !== "active") { liveTickerClient.disconnect(); return; }
+    void liveTickerClient.connect();
+    return () => liveTickerClient.disconnect();
+  }, [appState, authStatus, liveTickerClient]);
+  useEffect(() => {
+    if (publicMarkets.markets === null) return;
+    const codes = publicMarkets.markets.map((market) => market.market).sort();
+    const key = codes.join(",");
+    if (key === liveMarketsKeyRef.current) return;
+    liveMarketsKeyRef.current = key;
+    liveTickerClient.setMarkets(codes);
+  }, [publicMarkets.markets, liveTickerClient]);
+
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
@@ -257,10 +288,12 @@ function AuthenticatedApp() {
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View>
-    <View style={[styles.authorityStrip, { borderBottomColor: appTheme.colors.border }]}><View style={styles.authorityStripInner}><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label={`투자 ${investmentPercent}%`} tone="info" /><StatusChip label="LIVE NONE" tone="info" /><Text style={[styles.authorityCopy, { color: appTheme.colors.textMuted }]}>실제 자금 실행 없음</Text></View></View>
-    {utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["HISTORY", "NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "HISTORY" ? "header-order-history" : view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "HISTORY" ? "이력" : view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
+    {utilityMenuOpen ?<View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["HISTORY", "NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "HISTORY" ? "header-order-history" : view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "HISTORY" ? "이력" : view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
+    {/* MarketsView's rawCandles stays null: no real candle/OHLC fetch path exists yet anywhere
+        in this client (a separately-scoped data-integration gap, not a UI decision). ChartView
+        renders its own truthful "unavailable" state rather than fabricating candle data. */}
     {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
@@ -280,7 +313,6 @@ const styles = StyleSheet.create({
   authContent: { flex: 1, justifyContent: "center", padding: 24, alignItems: "center" }, authPanel: { width: "100%", maxWidth: 640, gap: 16 }, authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }, authHeading: { fontSize: 29, fontWeight: "700", letterSpacing: -0.8 }, subtitle: { fontSize: 14, lineHeight: 21 }, entryBadges: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   header: { minHeight: 64, borderBottomWidth: 1, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 }, brand: { fontSize: 23, fontWeight: "800", letterSpacing: 1.6 }, eyebrow: { fontSize: 9, fontWeight: "800", letterSpacing: 1.7, marginTop: -1 },
   utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: 12, fontWeight: "700" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  authorityStrip: { minHeight: 38, borderBottomWidth: 1, alignItems: "center" }, authorityStripInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, minHeight: 38, flexDirection: "row", flexWrap: "wrap", gap: 7, alignItems: "center" }, authorityCopy: { fontSize: 11, fontWeight: "600", marginLeft: 2 },
   connectionState: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, connectionStateInner: { width: "100%", maxWidth: 720 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 }, meta: { fontSize: 12, lineHeight: 18 },
   navigation: { borderTopWidth: 1, alignItems: "center" }, navigationInner: { width: "100%", maxWidth: 1080, flexDirection: "row", paddingTop: 8, paddingBottom: 9, paddingHorizontal: 6 }, navItem: { flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 16, borderWidth: 1, marginHorizontal: 2 }, navIndicator: { height: 2, borderRadius: 2 }, navLabel: { fontSize: 10, fontWeight: "600", letterSpacing: 0.1 }, navLabelActive: { fontWeight: "800", letterSpacing: 0.25 },
 });

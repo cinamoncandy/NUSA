@@ -2,12 +2,14 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
-import { buildChartViewModel, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
+import { buildChartViewModel, formatChartMove, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
 
 interface ChartViewProps {
   readonly market: string;
   readonly rawCandles: unknown[] | null;
   readonly currentPrice: number | null;
+  /** Same fraction shape as WatchlistMarket.changeRate (watchlist.ts) -- real ticker data, not a new fetch. */
+  readonly changeRate?: number | null;
   readonly marketConnectionState: string;
   readonly stale: boolean;
   readonly error: string | null;
@@ -36,13 +38,14 @@ function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
 
 function ChartSummary({ model }: Readonly<{ model: ChartViewModel }>) {
   const { theme } = useTheme();
-  return <View style={styles.summary} testID="chart-summary"><View style={styles.summaryCopy}><Text style={[styles.label, { color: theme.colors.textMuted }]}>CURRENT PRICE</Text><Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text><View style={styles.summaryMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>고가 {formatChartPrice(model.high)}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>저가 {formatChartPrice(model.low)}</Text></View></View><TerrainSignal variant="market" signalStrength={Math.min(1, model.candles.length / 80)} testID="chart-data-signal" /><View style={[styles.summaryDetails, { borderTopColor: theme.colors.border }]}><DataRow label="거래량" value={model.volume?.toLocaleString("ko-KR") ?? "-"} /><Text style={[styles.dataSource, { color: theme.colors.textMuted }]}>UPBIT 공개 시세 · 읽기 전용</Text></View></View>;
+  const moveColor = model.move === null ? theme.colors.textMuted : model.move >= 0 ? theme.colors.success : theme.colors.danger;
+  return <View style={styles.summary} testID="chart-summary"><View style={styles.summaryCopy}><Text style={[styles.label, { color: theme.colors.textMuted }]}>CURRENT PRICE</Text><View style={styles.priceRow}><Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text><Text style={[styles.move, { color: moveColor }]} testID="chart-move">{formatChartMove(model.move)}</Text></View><View style={styles.summaryMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>고가 {formatChartPrice(model.high)}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>저가 {formatChartPrice(model.low)}</Text></View></View><TerrainSignal variant="market" signalStrength={Math.min(1, model.candles.length / 80)} testID="chart-data-signal" /><View style={[styles.summaryDetails, { borderTopColor: theme.colors.border }]}><DataRow label="거래량" value={model.volume?.toLocaleString("ko-KR") ?? "-"} /><Text style={[styles.dataSource, { color: theme.colors.textMuted }]}>UPBIT 공개 시세 · 읽기 전용</Text></View></View>;
 }
 
-export function ChartView({ market, rawCandles, currentPrice, marketConnectionState, stale, error, refreshing, onRefresh }: ChartViewProps) {
+export function ChartView({ market, rawCandles, currentPrice, changeRate = null, marketConnectionState, stale, error, refreshing, onRefresh }: ChartViewProps) {
   const { theme } = useTheme();
   const [interval, setInterval] = useState<ChartInterval>("1m");
-  const model = useMemo(() => buildChartViewModel({ market, interval, rawCandles, currentPrice, connectionState: marketConnectionState, stale }), [currentPrice, interval, market, marketConnectionState, rawCandles, stale]);
+  const model = useMemo(() => buildChartViewModel({ market, interval, rawCandles, currentPrice, connectionState: marketConnectionState, stale, changeRate }), [changeRate, currentPrice, interval, market, marketConnectionState, rawCandles, stale]);
   if (error) return <StateCard color={theme.colors.danger} message={error} onRetry={onRefresh} testID="chart-error" title="차트를 표시할 수 없습니다" />;
   if (model.state === "LOADING") return <View style={styles.state} testID="chart-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>차트를 불러오는 중</Text></View>;
   if (model.state === "ERROR") return <StateCard color={theme.colors.warning} message={model.error ?? "Market data is unavailable."} onRetry={onRefresh} testID="chart-error" title="차트 데이터 오류" />;
@@ -50,8 +53,9 @@ export function ChartView({ market, rawCandles, currentPrice, marketConnectionSt
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="chart-screen">
     <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title={model.market} description="가격 움직임과 실제 1분 캔들을 확인합니다." /><StatusChip label={stale ? "STALE" : "READ ONLY"} tone={stale ? "warning" : "info"} /></View>
     <View style={styles.statusRow}><Text accessibilityRole="text" style={[styles.statusText, { color: marketConnectionState === "CONNECTED" ? theme.colors.success : theme.colors.warning }]}>{marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"}</Text></View>
-    <View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View>
-    <MotionReveal testID="chart-data-reveal"><ChartSummary model={model} /><NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 실제 거래량은 하단에 표시</Text></NusaCard></MotionReveal>
+    {/* Current price and move precede the time-range controls -- what the number is doing
+        matters before how far back you can look at it. */}
+    <MotionReveal testID="chart-data-reveal"><ChartSummary model={model} /><View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View><NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 실제 거래량은 하단에 표시</Text></NusaCard></MotionReveal>
   </ScrollView>;
 }
 
@@ -67,7 +71,9 @@ const styles = StyleSheet.create({
   summary: { paddingTop: 6, gap: 8 },
   summaryCopy: { minHeight: 112, justifyContent: "center" },
   label: { fontSize: 10, fontWeight: "800", letterSpacing: 1.5 },
-  current: { fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.5, marginTop: 8, fontVariant: ["tabular-nums"] },
+  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginTop: 8 },
+  current: { fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.5, fontVariant: ["tabular-nums"] },
+  move: { fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
   summaryMeta: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 8 },
   meta: { fontSize: 12, fontWeight: "600", fontVariant: ["tabular-nums"] },
   summaryDetails: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },

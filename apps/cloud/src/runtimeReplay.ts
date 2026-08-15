@@ -13,8 +13,11 @@ export interface RuntimeReplay {
   readonly frames: readonly RuntimeReplayFrame[];
 }
 
+// structuredClone is a native, allocation-cheaper deep clone than a JSON stringify/parse round
+// trip -- no intermediate string, and it correctly handles Date/Map/Set/etc. instead of silently
+// mangling them the way JSON does.
 const cloneFreeze = <T>(value: T): T => {
-  const copy = JSON.parse(JSON.stringify(value)) as T;
+  const copy = structuredClone(value);
   const freeze = (item: unknown): void => {
     if (item && typeof item === "object" && !Object.isFrozen(item)) {
       Object.freeze(item);

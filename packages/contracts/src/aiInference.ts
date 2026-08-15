@@ -167,6 +167,11 @@ export interface AiReadOnlyProjection {
   /** "NOT_EVALUATED" means no completed decision has been through WO-AI-010 verification yet. */
   readonly explanationVerdict?: "PASS" | "ABSTAIN" | "NOT_EVALUATED";
   readonly explanationReasonCodes?: readonly string[];
+  /** Prior structural lessons (WO-AI-009 learning memory) actually fed into this decision's evidence. */
+  readonly recentLessonCount?: number;
+  /** WO-AI-008 opt-in scenario robustness check against the same evidence, when enabled. */
+  readonly scenarioRobustnessState?: "ROBUST" | "SENSITIVE" | "CONTRADICTORY" | "INCOMPLETE" | "UNVERIFIED" | "NOT_EVALUATED";
+  readonly scenarioTrustDisposition?: "NO_UPLIFT" | "REDUCE" | "ABSTAIN";
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }

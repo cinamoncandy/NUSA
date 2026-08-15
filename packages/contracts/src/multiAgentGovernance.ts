@@ -213,6 +213,22 @@ export interface AgentCalibrationProfile {
   readonly calibrationStatus: "calibrated" | "degraded" | "uncalibrated" | "insufficient-data";
 }
 
+/**
+ * A durable, ledger-recorded calibration observation. `sourceDecisionId` must reference a
+ * decision already present in the ledger at replay time -- this can never be a
+ * free-floating, unauditable claim about an agent's track record.
+ */
+export interface AgentCalibrationObservationRecord {
+  readonly observationId: string;
+  readonly agentId: string;
+  readonly evaluationWindow: string;
+  readonly sourceDecisionId: string;
+  readonly predictedConfidence: number;
+  readonly correct: boolean;
+  readonly recordedAt: number;
+  readonly observationHash: string;
+}
+
 export interface AgentIndependenceAssessment {
   readonly agentIds: readonly string[];
   readonly sharedCorrelatedGroups: readonly string[];
@@ -343,6 +359,7 @@ export enum MultiAgentGovernanceEventType {
   AGENT_SUSPENDED = "AGENT_SUSPENDED",
   AGENT_EVIDENCE_REGISTERED = "AGENT_EVIDENCE_REGISTERED",
   AGENT_CONTEXT_SNAPSHOT_CREATED = "AGENT_CONTEXT_SNAPSHOT_CREATED",
+  AGENT_CALIBRATION_OBSERVATION_RECORDED = "AGENT_CALIBRATION_OBSERVATION_RECORDED",
   AGENT_RUN_COMPLETED = "AGENT_RUN_COMPLETED",
   AGENT_RUN_FAILED = "AGENT_RUN_FAILED",
   AGENT_DISAGREEMENT_DETECTED = "AGENT_DISAGREEMENT_DETECTED",

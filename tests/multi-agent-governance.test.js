@@ -10,9 +10,11 @@ const {
 const {
   appendMultiAgentGovernanceEvent,
   assessAgentIndependence,
+  createAgentCalibrationObservationRecord,
   createAgentContextSnapshot,
   createAgentDefinition,
   createMultiAgentIncident,
+  deriveAgentCalibrationHistory,
   evaluateAgentCalibration,
   evaluateMultiAgentCertification,
   evaluateMultiAgentContainment,
@@ -31,6 +33,7 @@ const contract = (role, output) => ({ contractId: `contract-${role}`, role, requ
 const evidence = () => [{ evidenceId: "e-1", evidenceType: "market-data", sourceReference: "fixture", observedAt: 1, validUntil: 100, quality: EvidenceQuality.VERIFIED, contentDigest: digest, lineageReferences: [] }];
 const context = (agentId, suffix, overrides = {}) => createAgentContextSnapshot({ contextSnapshotId: `context-${suffix}`, agentId, evidenceIds: ["e-1"], policyVersionIds: ["policy-1"], certificationIds: ["cert-1"], controlPlaneStateId: "control-1", createdAt: 1, validUntil: 100, ...overrides });
 const run = (definition, snapshot, suffix) => ({ agentRunId: `run-${suffix}`, agentId: definition.agentId, orchestrationRunId: "orchestration-1", agentDefinitionVersion: definition.definitionVersion, modelVersionId: definition.modelVersionId, promptArtifactDigest: definition.promptArtifactDigest, contextSnapshotId: snapshot.contextSnapshotId, inputHash: digest, outputHash: "b".repeat(64), status: AgentRunStatus.COMPLETED, schemaValidationPassed: true, evidenceValidationPassed: true, startedAt: 2, completedAt: 3 });
+const calibrationObservation = (overrides = {}) => createAgentCalibrationObservationRecord({ observationId: "observation-1", agentId: "proposer", evaluationWindow: "window-1", sourceDecisionId: "decision-1", predictedConfidence: 0.9, correct: true, recordedAt: 20, ...overrides });
 
 function input(overrides = {}) {
   const producer = agent(AgentRole.EVIDENCE_PRODUCER, "evidence");
@@ -128,6 +131,52 @@ test("calibration and independence diagnostics are deterministic and do not crea
   assert.equal(assessAgentIndependence([agent(AgentRole.EVIDENCE_PRODUCER, "a", { correlatedGroupId: "same" }), agent(AgentRole.RISK_VERIFIER, "b", { correlatedGroupId: "same" })]).independent, false);
 });
 
+test("calibration observations are durable, hash-verified, and reject tampering or duplicates", () => {
+  const proposerAgent = agent(AgentRole.STRATEGY_PROPOSER, "proposer");
+  const decision = evaluateMultiAgentDecision(input());
+  const registered = appendMultiAgentGovernanceEvent([], event(MultiAgentGovernanceEventType.AGENT_REGISTERED, { agent: proposerAgent }, 1));
+  const withDecision = appendMultiAgentGovernanceEvent(registered, event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 2));
+  const observation = calibrationObservation();
+  const withObservation = appendMultiAgentGovernanceEvent(withDecision, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation }, 3));
+  const state = replayMultiAgentGovernance(withObservation);
+  assert.deepEqual(state.calibrationObservations.get("proposer").map(item => item.observationId), ["observation-1"]);
+
+  const tamperedRecords = withObservation.map((record, index) => index === withObservation.length - 1 ? { ...record, hash: "0".repeat(64) } : record);
+  assert.throws(() => replayMultiAgentGovernance(tamperedRecords), /integrity/);
+
+  assert.throws(() => appendMultiAgentGovernanceEvent(withObservation, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation }, 4)), /immutable/);
+});
+
+test("calibration observations fail closed when they reference an unknown agent or decision", () => {
+  const proposerAgent = agent(AgentRole.STRATEGY_PROPOSER, "proposer");
+  const registered = appendMultiAgentGovernanceEvent([], event(MultiAgentGovernanceEventType.AGENT_REGISTERED, { agent: proposerAgent }, 1));
+  const unknownDecision = calibrationObservation({ observationId: "observation-unknown-decision" });
+  assert.throws(() => appendMultiAgentGovernanceEvent(registered, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: unknownDecision }, 2)), /unknown decision/);
+
+  const decision = evaluateMultiAgentDecision(input());
+  const withDecision = appendMultiAgentGovernanceEvent(registered, event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 2));
+  const unknownAgent = calibrationObservation({ observationId: "observation-unknown-agent", agentId: "ghost" });
+  assert.throws(() => appendMultiAgentGovernanceEvent(withDecision, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: unknownAgent }, 3)), /unknown agent/);
+});
+
+test("calibration history accumulates across the ledger and derives the same profile as the pure evaluator", () => {
+  const proposerAgent = agent(AgentRole.STRATEGY_PROPOSER, "proposer");
+  const decision = evaluateMultiAgentDecision(input());
+  const registered = appendMultiAgentGovernanceEvent([], event(MultiAgentGovernanceEventType.AGENT_REGISTERED, { agent: proposerAgent }, 1));
+  const withDecision = appendMultiAgentGovernanceEvent(registered, event(MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, { decision }, 2));
+  const first = calibrationObservation({ observationId: "observation-a", predictedConfidence: 0.9, correct: true, recordedAt: 20 });
+  const second = calibrationObservation({ observationId: "observation-b", predictedConfidence: 0.1, correct: false, recordedAt: 21 });
+  const withFirst = appendMultiAgentGovernanceEvent(withDecision, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: first }, 3));
+  const withSecond = appendMultiAgentGovernanceEvent(withFirst, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: second }, 4));
+  const history = replayMultiAgentGovernance(withSecond).calibrationObservations.get("proposer");
+  assert.equal(history.length, 2);
+
+  const derived = deriveAgentCalibrationHistory(history, "proposer", "window-1", 2, 0.2);
+  const direct = evaluateAgentCalibration("proposer", "window-1", [{ predictedConfidence: 0.9, correct: true }, { predictedConfidence: 0.1, correct: false }], 2, 0.2);
+  assert.deepEqual(derived, direct);
+  assert.equal(derived.calibrationStatus, "calibrated");
+});
+
 test("critical multi-agent incidents recommend containment without creating runtime authority", () => {
   const critical = createMultiAgentIncident({
     incidentId: "incident-1",
@@ -182,9 +231,12 @@ test("multi-agent ledger and SQLite state replay deterministically and reject ta
   const contained = appendMultiAgentGovernanceEvent(opened, event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED, { incidentId: incident.incidentId, containment }, 6));
   const certification = evaluateMultiAgentCertification(certificationInput());
   const records = appendMultiAgentGovernanceEvent(contained, event(MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY, { certification }, 7));
+  const calibration = calibrationObservation({ agentId: "ledger" });
+  const withCalibration = appendMultiAgentGovernanceEvent(records, event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: calibration }, 8));
   assert.equal(replayMultiAgentGovernance(records).decisions.get("decision-1").decisionHash, decision.decisionHash);
   assert.equal(replayMultiAgentGovernance(records).containments.get(incident.incidentId).action, "contain");
   assert.equal(replayMultiAgentGovernance(records).certifications.get(certification.certificationId).status, "certified_zero_authority");
+  assert.deepEqual(replayMultiAgentGovernance(withCalibration).calibrationObservations.get("ledger").map(item => item.observationId), ["observation-1"]);
   assert.throws(() => replayMultiAgentGovernance([{ ...records[0], hash: "0".repeat(64) }]), /integrity/);
   const db = new SqliteDatabase(":memory:");
   try {
@@ -196,7 +248,9 @@ test("multi-agent ledger and SQLite state replay deterministically and reject ta
     store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_OPENED, { incident }, 5));
     store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_INCIDENT_CONTAINED, { incidentId: incident.incidentId, containment }, 6));
     store.append(event(MultiAgentGovernanceEventType.MULTI_AGENT_CERTIFICATION_ISSUED_ZERO_AUTHORITY, { certification }, 7));
+    store.append(event(MultiAgentGovernanceEventType.AGENT_CALIBRATION_OBSERVATION_RECORDED, { observation: calibration }, 8));
     store.verify();
+    assert.deepEqual(replayMultiAgentGovernance(store.list()).calibrationObservations.get("ledger").map(item => item.observationId), ["observation-1"]);
     db.connection.prepare("UPDATE multi_agent_governance_state SET ledger_hash=? WHERE id=1").run("0".repeat(64));
     assert.throws(() => store.verify(), /snapshot mismatch/);
   } finally { db.close(); }

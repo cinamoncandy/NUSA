@@ -164,6 +164,18 @@ function eventIdentity(
 export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStore {
   private readonly connection: DatabaseSync;
   private closed = false;
+  /**
+   * In-memory mirror of the verified chain, refreshed in full by replay() (still a genuine full
+   * disk read + hash-chain re-verification) and extended incrementally after each successful
+   * appendEvent() commit. appendPrediction/appendOutcomeAndResolve/expirePending previously each
+   * called this.replay() themselves -- an O(n) re-walk-and-reverify of the entire table on every
+   * single write to an append-only, ever-growing ledger. ensureCache() lazily warms the cache via
+   * a real replay() the first time it's needed, so correctness never depends on caller order.
+   */
+  private cacheWarmed = false;
+  private cachedPredictions = new Map<string, AiCalibrationPrediction>();
+  private cachedOutcomes = new Map<string, AiCalibrationOutcome>();
+  private cachedExpired = new Map<string, AiCalibrationPendingExpiry>();
 
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
@@ -241,6 +253,10 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
     });
 
     if (previousHash !== meta.ledgerHash) throw new Error("durable calibration ledger head mismatch");
+    this.cachedPredictions = predictions;
+    this.cachedOutcomes = outcomes;
+    this.cachedExpired = expired;
+    this.cacheWarmed = true;
     return Object.freeze({
       schemaVersion: SCHEMA_VERSION,
       predictions: Object.freeze([...predictions.values()]),
@@ -251,45 +267,53 @@ export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStor
     });
   }
 
+  /** Lazily warms the cache via a real replay() the first time it's needed. */
+  private ensureCache(): void {
+    if (!this.cacheWarmed) this.replay();
+  }
+
   public appendPrediction(prediction: AiCalibrationPrediction, recordedAt: number): void {
     const normalized = predictionPayload(prediction);
-    const replay = this.replay();
-    const prior = replay.predictions.find((item) => item.predictionId === normalized.predictionId);
+    this.ensureCache();
+    const prior = this.cachedPredictions.get(normalized.predictionId);
     if (prior != null) {
       if (prior.contentHash.toLowerCase() !== normalized.contentHash.toLowerCase()) throw new Error("conflicting durable calibration prediction replay");
       return;
     }
     this.appendEvent("PREDICTION", normalized.predictionId, normalized.contentHash, normalized as unknown as Readonly<Record<string, unknown>>, recordedAt);
+    this.cachedPredictions.set(normalized.predictionId, normalized);
   }
 
   public appendOutcomeAndResolve(outcome: AiCalibrationOutcome, recordedAt: number): void {
     const normalized = outcomePayload(outcome);
-    const replay = this.replay();
-    const prediction = replay.predictions.find((item) => item.predictionId === normalized.predictionId);
+    this.ensureCache();
+    const prediction = this.cachedPredictions.get(normalized.predictionId);
     if (prediction == null) throw new Error("durable calibration prediction is missing");
     if (prediction.contentHash.toLowerCase() !== normalized.predictionContentHash.toLowerCase()) throw new Error("durable calibration outcome prediction hash mismatch");
-    const priorOutcome = replay.outcomes.find((item) => item.predictionId === normalized.predictionId);
+    const priorOutcome = this.cachedOutcomes.get(normalized.predictionId);
     if (priorOutcome != null) {
       if (priorOutcome.contentHash.toLowerCase() !== normalized.contentHash.toLowerCase()) throw new Error("conflicting durable calibration outcome replay");
       return;
     }
-    if (replay.expiredPending.some((item) => item.predictionId === normalized.predictionId)) throw new Error("durable calibration prediction is already expired");
+    if (this.cachedExpired.has(normalized.predictionId)) throw new Error("durable calibration prediction is already expired");
     this.appendEvent("OUTCOME_RESOLVED", normalized.predictionId, normalized.predictionContentHash, normalized as unknown as Readonly<Record<string, unknown>>, recordedAt);
+    this.cachedOutcomes.set(normalized.predictionId, normalized);
   }
 
   public expirePending(expiry: AiCalibrationPendingExpiry): void {
     const normalized = expiryPayload(expiry);
-    const replay = this.replay();
-    const prediction = replay.predictions.find((item) => item.predictionId === normalized.predictionId);
+    this.ensureCache();
+    const prediction = this.cachedPredictions.get(normalized.predictionId);
     if (prediction == null) throw new Error("durable calibration prediction is missing");
     if (prediction.contentHash.toLowerCase() !== normalized.predictionContentHash.toLowerCase()) throw new Error("durable calibration expiry prediction hash mismatch");
-    if (replay.outcomes.some((item) => item.predictionId === normalized.predictionId)) throw new Error("durable calibration prediction is already resolved");
-    const prior = replay.expiredPending.find((item) => item.predictionId === normalized.predictionId);
+    if (this.cachedOutcomes.has(normalized.predictionId)) throw new Error("durable calibration prediction is already resolved");
+    const prior = this.cachedExpired.get(normalized.predictionId);
     if (prior != null) {
       if (prior.predictionContentHash !== normalized.predictionContentHash || prior.expiredAt !== normalized.expiredAt) throw new Error("conflicting durable calibration expiry replay");
       return;
     }
     this.appendEvent("PENDING_EXPIRED", normalized.predictionId, normalized.predictionContentHash, normalized as unknown as Readonly<Record<string, unknown>>, normalized.expiredAt);
+    this.cachedExpired.set(normalized.predictionId, normalized);
   }
 
   public close(): void {

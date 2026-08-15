@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { aggregatePublicCandles, buildChartViewModel, parsePublicCandles } = require("../dist/apps/mobile/src/chartViewModel.js");
+const { aggregatePublicCandles, buildChartViewModel, formatChartMove, parsePublicCandles } = require("../dist/apps/mobile/src/chartViewModel.js");
 
 function candles(count = 10) {
   return Array.from({ length: count }, (_, index) => {
@@ -41,6 +41,16 @@ test("ready chart exposes only verified current price, high, low, volume, and pr
   assert.equal(model.bars.length, 10);
 });
 
+test("chart move reuses the caller-supplied real change rate and never fabricates one", () => {
+  const withMove = buildChartViewModel({ market: "KRW-BTC", interval: "1m", rawCandles: candles(), currentPrice: 110, connectionState: "HEALTHY", stale: false, changeRate: 0.0234 });
+  assert.equal(withMove.move, 0.0234);
+  assert.equal(formatChartMove(withMove.move), "+2.34%");
+  const withoutMove = buildChartViewModel({ market: "KRW-BTC", interval: "1m", rawCandles: candles(), currentPrice: 110, connectionState: "HEALTHY", stale: false });
+  assert.equal(withoutMove.move, null);
+  assert.equal(formatChartMove(withoutMove.move), "-");
+  assert.equal(buildChartViewModel({ market: "KRW-BTC", interval: "1m", rawCandles: null, currentPrice: null, connectionState: "HEALTHY", stale: false, changeRate: 0.05 }).move, null);
+});
+
 test("chart remains fail-closed for loading, stale, missing-price, and incomplete data", () => {
   const base = { market: "KRW-BTC", interval: "1m", currentPrice: 110, connectionState: "HEALTHY", stale: false };
   assert.equal(buildChartViewModel({ ...base, rawCandles: null }).state, "LOADING");
@@ -62,6 +72,13 @@ test("chart UI stays read-only while Markets uses public data separate from PAPE
   assert.match(source, /chart-price-line/);
   assert.match(source, /chart-intervals/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
+
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §6): "current price and move" precedes
+  // the time-range controls, not the other way around.
+  const summaryIndex = source.indexOf("<ChartSummary");
+  const intervalsIndex = source.indexOf('testID="chart-intervals"');
+  assert.ok(summaryIndex > -1 && intervalsIndex > summaryIndex, "price/move summary must render before the interval controls");
+  assert.match(source, /testID="chart-move"/);
 
   assert.match(app, /loadPersonalPaperOperations/);
   assert.match(app, /loadUpbitPublicCandles/);

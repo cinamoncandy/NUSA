@@ -3,6 +3,7 @@ import type { AiCalibrationProfile, AiReadOnlyProjection } from "../../../../pac
 import type { AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
 import type { AiProviderComparisonResult } from "../../../../packages/contracts/src/aiProviderDiversity";
 import type { AiExplanationVerificationResult } from "../../../../packages/contracts/src/aiExplanationFaithfulness";
+import type { AiScenarioReasoningResult } from "../../../../packages/contracts/src/aiScenarioReasoning";
 import type { AiOrchestrationResult } from "./multiAgentOrchestrator";
 
 type CalibrationBoundResult = AiOrchestrationResult & {
@@ -10,6 +11,8 @@ type CalibrationBoundResult = AiOrchestrationResult & {
   readonly calibrationDurabilityHealth?: AiCalibrationDurabilityHealth;
   readonly providerComparison?: AiProviderComparisonResult;
   readonly explanationVerification?: AiExplanationVerificationResult;
+  readonly recentLessonCount?: number;
+  readonly scenarioEvaluation?: AiScenarioReasoningResult;
 };
 
 type DurabilityProjection = Pick<
@@ -76,11 +79,14 @@ const resourceFields = (snapshot: AiInferenceResourceSnapshot | undefined): Reso
   inferenceElapsedMs: snapshot?.elapsedMs ?? 0
 });
 
-type ExplanationProjection = Pick<AiReadOnlyProjection, "explanationVerdict" | "explanationReasonCodes">;
+type ExplanationProjection = Pick<AiReadOnlyProjection, "explanationVerdict" | "explanationReasonCodes" | "recentLessonCount" | "scenarioRobustnessState" | "scenarioTrustDisposition">;
 
-const explanationFields = (verification: AiExplanationVerificationResult | undefined): ExplanationProjection => Object.freeze({
+const explanationFields = (verification: AiExplanationVerificationResult | undefined, recentLessonCount: number | undefined, scenario: AiScenarioReasoningResult | undefined): ExplanationProjection => Object.freeze({
   explanationVerdict: verification?.verdict ?? "NOT_EVALUATED",
-  explanationReasonCodes: verification?.reasonCodes ?? Object.freeze([])
+  explanationReasonCodes: verification?.reasonCodes ?? Object.freeze([]),
+  recentLessonCount: recentLessonCount ?? 0,
+  scenarioRobustnessState: scenario?.robustnessState ?? "NOT_EVALUATED",
+  ...(scenario == null ? {} : { scenarioTrustDisposition: scenario.trustDisposition })
 });
 
 const providerFields = (comparison: AiProviderComparisonResult): ProviderProjection => Object.freeze({
@@ -106,7 +112,7 @@ function projectPrimaryAiReadOnly(
   const boundDurability = durabilityHealth ?? boundResult?.calibrationDurabilityHealth;
   const durability = durabilityFields(boundDurability);
   const resources = resourceFields(result?.inferenceResources);
-  const explanation = explanationFields(boundResult?.explanationVerification);
+  const explanation = explanationFields(boundResult?.explanationVerification, boundResult?.recentLessonCount, boundResult?.scenarioEvaluation);
   if (result == null || result.status === "UNAVAILABLE") return Object.freeze({ status: "UNAVAILABLE", thesis: null, ...emptyCalibration, ...durability, ...resources, ...explanation, evidenceReferences: [], counterEvidence: [], uncertainty: null, criticSeverity: null, disagreements: [], lastModelRun: null, modelVersion: null, promptVersion: null, liveAuthority: "NONE", productionMutationAllowed: false });
   const boundProfile = calibrationProfile === undefined ? boundResult?.calibrationProfile : calibrationProfile;
   // Corrupt/unavailable durable history cannot remain a trusted calibration source. Raw model

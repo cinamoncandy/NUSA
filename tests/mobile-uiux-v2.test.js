@@ -32,13 +32,15 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
   assert.doesNotMatch(source, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
 });
 
-test("Markets keeps chart interaction hidden when App has no candle data", () => {
+test("Markets keeps the chart reachable and truthful even when App has no candle data", () => {
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §6): the chart is not hidden until real
+  // data exists -- it defaults first and shows its own truthful unavailable state instead.
   const source = read("src/marketsView.tsx");
   const app = read("App.tsx");
-  assert.match(source, /const chartAvailable = Array\.isArray\(rawCandles\) && rawCandles\.length > 0/);
-  assert.match(source, /const visiblePanel(?::\s*Panel)? = chartAvailable \? panel : "WATCHLIST"/);
-  assert.match(source, /!tabletWorkspace && chartAvailable \? <View/);
-  assert.match(source, /visiblePanel === "WATCHLIST"/);
+  assert.match(source, /useState<Panel>\("CHART"\)/);
+  assert.doesNotMatch(source, /chartAvailable/);
+  assert.match(source, /panel === "WATCHLIST"/);
+  // Real candle wiring landed (see PR #526) -- the chart data source is no longer a placeholder gap.
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
