@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T00:00:00+09:00"
+updated_at: "2026-08-16T00:37:06+09:00"
 phase: mobile-first-cloud-migration
 status: blocked
-objective: "Hold the P0 mobile-first cloud migration at CLOUD_PROVIDER_DECISION_REQUIRED while preserving PAPER-only authority and keeping PR #535 Draft/HOLD."
+objective: "Complete the full product/architecture audit at latest main, preserve PAPER-only authority, and hold WO-0054 at CLOUD_PROVIDER_DECISION_REQUIRED while keeping PR #535 Draft/HOLD."
 base_branch: main
 active_branch: agent/p0-mobile-first-cloud-audit
 active_pull_request: null
@@ -324,7 +324,7 @@ completed:
 in_progress:
   - id: WO-0054
     evidence: ".aipos/work-orders/WO-0054-mobile-first-cloud-migration.yaml"
-    summary: "Mobile-first cloud migration audit is VERIFYING at the provider/deployment-authority gate; no product code changed and implementation remains blocked until an approved always-on provider exists."
+    summary: "Full product/architecture audit is recorded at the provider/deployment-authority gate; no product code changed and implementation remains blocked until an approved always-on provider exists."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -354,8 +354,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "P0 audit at main dd951890458eef43b77cd943a89e9e52d84d2500 found no approved deployed always-on cloud provider. apps/cloud is source-only; Firebase is readiness-only; Oracle/Cloudflare files are PC-managed deployment recipes. Mobile production endpoint remains manual. Status is BLOCKED — CLOUD DEPLOYMENT AUTHORITY REQUIRED."
-  current_commit: "P0 audit branch agent/p0-mobile-first-cloud-audit at main dd951890458eef43b77cd943a89e9e52d84d2500; no product code changed; PR #535 remains Draft/HOLD."
+  last_result: "Full product/architecture audit at main dd951890458eef43b77cd943a89e9e52d84d2500 found 4 P0, 8 P1, 3 P2, and 1 P3 findings. No approved deployed always-on cloud provider exists; the persistent Android release asset contradicts its provenance; mobile PAPER remains endpoint/PC dependent. Status is BLOCKED — CLOUD DEPLOYMENT AUTHORITY REQUIRED."
+  current_commit: "Full product architecture audit committed on agent/p0-mobile-first-cloud-audit; no product code changed; PR #535 remains Draft/HOLD."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
