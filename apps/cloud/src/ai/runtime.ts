@@ -140,6 +140,16 @@ interface PendingPrediction {
    * attribution episodes are skipped for those rather than guessed at.
    */
   readonly predictionEvidence: AiObservedEvidenceIdentity | null;
+  /**
+   * Provider-comparison/scenario results captured at prediction time, but only when they are
+   * actually correlated to this exact orchestration run (comparisonRunId/experimentId match) --
+   * never "whatever happened to be latest" at prediction time, which could belong to a different
+   * tick's evidence entirely. null means no correlated result was available yet when the
+   * prediction was made, which is the honest, common case (these run concurrently and may not
+   * have completed before the primary decision does).
+   */
+  readonly providerComparisonSnapshot: AiProviderComparisonResult | null;
+  readonly scenarioSnapshot: AiScenarioReasoningResult | null;
 }
 
 const DEFAULT_CALIBRATION: CloudAiCalibrationOptions = Object.freeze({
@@ -208,6 +218,14 @@ function zeroAuthority(result: AiOrchestrationResult): boolean {
 
 function comparisonZeroAuthority(result: AiProviderComparisonResult): boolean {
   return result.liveAuthority === "NONE" && result.realOrderAuthority === false && result.realTransferAuthority === false && result.productionMutationAllowed === false;
+}
+
+/** Both identity formats are also used by scheduleProviderComparison/scheduleScenarioEvaluation below -- kept in one place so correlation checks can never drift from the identity actually assigned. */
+function providerComparisonRunId(orchestrationRunId: string): string {
+  return `${orchestrationRunId}:nversion`;
+}
+function scenarioExperimentId(orchestrationRunId: string): string {
+  return `${orchestrationRunId}:scenario`;
 }
 
 function verifiedMarketAnchor(input: AiOrchestrationInput): VerifiedMarketAnchor | null {
@@ -295,7 +313,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     }
   }
   const durability = new CalibrationDurabilityRuntime(calibrationLedger, durableStore, now(), AI_CALIBRATION_RESOLUTION_GRACE_MS, durabilityOpenFailure);
-  for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction, predictionEvidence: null }));
+  for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction, predictionEvidence: null, providerComparisonSnapshot: null, scenarioSnapshot: null }));
   let attributionMemory: SqliteAiOutcomeAttributionMemory | null = null;
   try { attributionMemory = new SqliteAiOutcomeAttributionMemory(implicitDurabilityPath(env) ?? ":memory:"); }
   catch { attributionMemory = null; } // Learning memory is diagnostic-only and can never block AI scheduling.
@@ -346,7 +364,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
         if (!durability.persistOutcome(outcome, anchor.observedAt)) continue;
         calibrationLedger.appendOutcome(outcome);
         pendingPredictions.delete(predictionId);
-        recordAttributionEpisode(prediction, outcome, pending.predictionEvidence, anchor);
+        recordAttributionEpisode(prediction, outcome, pending.predictionEvidence, anchor, pending.providerComparisonSnapshot, pending.scenarioSnapshot);
       } catch {
         // Calibration is advisory-only. Malformed/conflicting outcomes cannot gain confidence.
       }
@@ -354,19 +372,35 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   };
 
   /**
+   * Only returns a provider-comparison/scenario result when it is actually correlated to the
+   * given orchestration run (matching comparisonRunId/experimentId) -- these evaluations run
+   * concurrently with the primary decision and may complete before, after, or not at all for any
+   * given tick, so "whatever is currently latest" can silently belong to a different tick's
+   * evidence. Correlation failure (including "hasn't completed yet") returns null, never a guess.
+   */
+  const correlatedProviderComparison = (orchestrationRunId: string): AiProviderComparisonResult | null =>
+    latestComparison != null && latestComparison.comparisonRunId === providerComparisonRunId(orchestrationRunId) ? latestComparison : null;
+  const correlatedScenarioResult = (orchestrationRunId: string): AiScenarioReasoningResult | null =>
+    latestScenarioResult != null && latestScenarioResult.experimentId === scenarioExperimentId(orchestrationRunId) ? latestScenarioResult : null;
+
+  /**
    * Turns a just-resolved prediction/outcome pair into a real, evidence-grounded attribution
    * episode and appends it to the learning-memory ledger. Every input here is data the calibration
    * path already verified (never fabricated): the prediction's own anchor evidence, the resolving
-   * ticker's evidence, and whatever calibration/provider-comparison state is actually known right
-   * now. Missing signals are left null/empty rather than guessed, so the engine correctly reports
-   * UNRESOLVED/UNVERIFIED instead of inventing a cause. This must never affect calibration,
-   * scheduling, or PAPER -- failures are swallowed, matching the calibration catch above.
+   * ticker's evidence, and whatever calibration/provider-comparison/scenario state was actually
+   * correlated to this exact prediction's own decision (see correlatedProviderComparison/
+   * correlatedScenarioResult above and their call sites in schedule()). Missing signals are left
+   * null/empty rather than guessed, so the engine correctly reports UNRESOLVED/UNVERIFIED instead
+   * of inventing a cause. This must never affect calibration, scheduling, or PAPER -- failures are
+   * swallowed, matching the calibration catch above.
    */
   const recordAttributionEpisode = (
     prediction: AiCalibrationPrediction,
     outcome: ReturnType<typeof createCalibrationOutcome>,
     predictionEvidence: AiObservedEvidenceIdentity | null,
-    anchor: VerifiedMarketAnchor
+    anchor: VerifiedMarketAnchor,
+    providerComparisonSnapshot: AiProviderComparisonResult | null,
+    scenarioSnapshot: AiScenarioReasoningResult | null
   ): void => {
     if (attributionMemory == null || predictionEvidence == null) return;
     try {
@@ -375,6 +409,17 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
         Object.freeze({ evidenceId: anchor.evidenceReference, contentDigest: anchor.contentDigest, provenance: prediction.provenance })
       ]);
       const profile = currentProfile();
+      // Scenario lineage requires the full AiAttributionScenarioLineage shape or nothing at all --
+      // partially filling it, or setting signals.scenarioRobustnessState without it, fails closed
+      // inside GovernedOutcomeAttributionEngine's own validation and the episode is simply dropped.
+      const scenarioLineage = scenarioSnapshot == null ? undefined : Object.freeze({
+        experimentId: scenarioSnapshot.experimentId,
+        policyIdentity: scenarioSnapshot.policyIdentity,
+        baselineIdentity: scenarioSnapshot.baselineIdentity,
+        resultIdentity: aiSha256(scenarioSnapshot),
+        robustnessState: scenarioSnapshot.robustnessState,
+        provenance: "HYPOTHETICAL_ANALYSIS" as const
+      });
       const episode = attributionEngine.analyze({
         episodeId: `${prediction.predictionId}:attribution`,
         prediction,
@@ -387,14 +432,15 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
           promptArtifactVersion: prediction.promptArtifactVersion,
           promptArtifactDigest: prediction.promptArtifactDigest,
           calibrationCohortIdentity: aiAttributionCalibrationCohortIdentity(prediction),
-          evidenceSnapshotIdentity: aiAttributionEvidenceSnapshotIdentity(prediction, outcome, observedEvidence)
+          evidenceSnapshotIdentity: aiAttributionEvidenceSnapshotIdentity(prediction, outcome, observedEvidence),
+          ...(scenarioLineage == null ? {} : { scenario: scenarioLineage })
         },
         signals: {
           evidenceGapEvidenceReferences: [],
           dataQualityFailureEvidenceReferences: [],
-          providerComparisonState: null,
+          providerComparisonState: providerComparisonSnapshot?.comparisonState ?? null,
           calibrationStatus: profile?.status ?? "UNKNOWN",
-          scenarioRobustnessState: null,
+          scenarioRobustnessState: scenarioSnapshot?.robustnessState ?? null,
           regimeShiftEvidenceReferences: [],
           counterEvidenceReferences: [],
           modelSelfReportedCause: null,
@@ -482,14 +528,16 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
         latestRecentLessonCount = countLessonEvidence(input);
         try {
           const profileForEnvelope = currentProfile();
-          const hypotheticalScenario = latestScenarioResult?.evaluations.find((item) => item.kind === "HYPOTHETICAL" && item.status === "COMPLETED");
+          const correlatedComparison = correlatedProviderComparison(input.orchestrationRunId);
+          const correlatedScenario = correlatedScenarioResult(input.orchestrationRunId);
+          const hypotheticalScenario = correlatedScenario?.evaluations.find((item) => item.kind === "HYPOTHETICAL" && item.status === "COMPLETED");
           const envelope = buildAiExplanationEnvelope(input, result, {
             explanationId: `${result.orchestrationRunId}:explanation`,
             observedAt: completedAt,
             providerId: provider.providerId,
             resourcePolicy: result.inferenceResources?.policy ?? normalizeAiInferenceBudgetPolicy(undefined),
             calibrationCohort: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.cohort : null,
-            providerDisagreement: latestComparison?.comparisonState === "DISAGREEMENT",
+            providerDisagreement: correlatedComparison?.comparisonState === "DISAGREEMENT",
             confidence: profileForEnvelope?.status === "CALIBRATED" ? profileForEnvelope.effectiveConfidence : 0,
             scenarioIdentity: hypotheticalScenario?.scenarioIdentity ?? null
           });
@@ -519,7 +567,9 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
             latestPrediction = calibrationLedger.appendPrediction(prediction);
             pendingPredictions.set(latestPrediction.predictionId, Object.freeze({
               prediction: latestPrediction,
-              predictionEvidence: Object.freeze({ evidenceId: anchor.evidenceReference, contentDigest: anchor.contentDigest, provenance: prediction.provenance })
+              predictionEvidence: Object.freeze({ evidenceId: anchor.evidenceReference, contentDigest: anchor.contentDigest, provenance: prediction.provenance }),
+              providerComparisonSnapshot: correlatedProviderComparison(input.orchestrationRunId),
+              scenarioSnapshot: correlatedScenarioResult(input.orchestrationRunId)
             }));
           } catch {
             // A valid zero-authority AI result may remain readable, but no durable/verified prediction means no calibration credit.
