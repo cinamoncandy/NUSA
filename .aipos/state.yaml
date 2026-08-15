@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T21:56:00+09:00"
-phase: android-real-use-successor
-status: ready
-objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
+updated_at: "2026-08-16T00:00:00+09:00"
+phase: mobile-first-cloud-migration
+status: blocked
+objective: "Hold the P0 mobile-first cloud migration at CLOUD_PROVIDER_DECISION_REQUIRED while preserving PAPER-only authority and keeping PR #535 Draft/HOLD."
 base_branch: main
-active_branch: agent/aipos-0053-main-final
+active_branch: agent/p0-mobile-first-cloud-audit
 active_pull_request: null
 base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
 repository_maintenance:
@@ -32,7 +32,7 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0053
+  work_order: WO-0054
   status: VERIFYING
 verified_state:
   work_order: WO-AI-010
@@ -322,9 +322,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0053
-    evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
-    summary: "Repository implementation and exact-head automated gates are merged/PASS; WO-0053 remains VERIFYING solely because physical Android acceptance is HUMAN_ENVIRONMENT_ONLY pending."
+  - id: WO-0054
+    evidence: ".aipos/work-orders/WO-0054-mobile-first-cloud-migration.yaml"
+    summary: "Mobile-first cloud migration audit is VERIFYING at the provider/deployment-authority gate; no product code changed and implementation remains blocked until an approved always-on provider exists."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -340,8 +340,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-  reason: "Preserve HOLD until genuine physical Android device acceptance is available; repository-controlled maintenance may proceed only without claiming or bypassing the HUMAN_ENVIRONMENT_ONLY gate."
+  work_order: .aipos/work-orders/WO-0054-mobile-first-cloud-migration.yaml
+  reason: "Blocked until an approved always-on cloud provider and deployment authority exist; PR #535 remains a separate Draft/HOLD effort."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -354,8 +354,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
-  current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  last_result: "P0 audit at main dd951890458eef43b77cd943a89e9e52d84d2500 found no approved deployed always-on cloud provider. apps/cloud is source-only; Firebase is readiness-only; Oracle/Cloudflare files are PC-managed deployment recipes. Mobile production endpoint remains manual. Status is BLOCKED — CLOUD DEPLOYMENT AUTHORITY REQUIRED."
+  current_commit: "P0 audit branch agent/p0-mobile-first-cloud-audit at main dd951890458eef43b77cd943a89e9e52d84d2500; no product code changed; PR #535 remains Draft/HOLD."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only

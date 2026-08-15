@@ -1,0 +1,49 @@
+id: WO-0054
+title: "Mobile-first always-on cloud migration"
+status: VERIFYING
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/p0-mobile-first-cloud-audit
+objective: "Remove PC runtime dependency from the Android PAPER path by reusing an approved always-on cloud backend without changing safety authority."
+scope:
+  - "Audit and connect the existing apps/cloud PAPER, dashboard, persistence, market-data, and AI read-only contracts after provider approval."
+  - "Replace production manual endpoint configuration with a canonical HTTPS origin supplied by release configuration."
+  - "Preserve server-side credentials, authentication, recovery, observability, and fail-closed behavior."
+  - "Prove Android-only operation with PC powered off."
+constraints:
+  - "No provider selection or deployment without explicit cloud deployment authority."
+  - "No PC, localhost, LAN IP, Quick Tunnel, or local cloudflared process in the production mobile path."
+  - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "No order, cancel, withdrawal, transfer, LIVE mutation, or broker secret in Android."
+blocking_reason:
+  code: CLOUD_PROVIDER_DECISION_REQUIRED
+  message: "Repository has source-only apps/cloud, Firebase readiness without a project/Hosting/Functions deployment, and PC-managed Oracle/Cloudflare bridge recipes but no approved always-on production provider or deployment authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "This audit-only successor records a provider and deployment-authority gate. It does not change the production runtime, mobile endpoint, persistence, or capability surface; implementation remains blocked until an approved always-on provider and deployment authority are supplied."
+  references:
+    - nusa.md
+    - docs/deployment/firebase-readiness.md
+    - docs/TRUSTED_HTTPS_BRIDGE.md
+    - .aipos/architecture.md
+evidence:
+  audit: docs/audits/mobile-first-cloud-p0-audit-2026-08-16.md
+  source_of_truth: nusa.md
+  firebase_readiness: docs/deployment/firebase-readiness.md
+  bridge_runbook: docs/TRUSTED_HTTPS_BRIDGE.md
+acceptance:
+  repository:
+    - "typecheck, lint, build, focused tests, CI, Mobile Native, Restricted LIVE/read-only safety checks, AIPOS drift/conformance, and secret scan pass on the successor head."
+    - "Production mobile contains no localhost, LAN, Quick Tunnel, or manual endpoint dependency."
+    - "Secrets are absent from APK, bundle, source, query strings, and mobile persistent storage."
+  external:
+    status: HUMAN_ENVIRONMENT_ONLY
+    required: "Approved always-on HTTPS deployment health plus Android-only PAPER read/action/portfolio/history/relaunch/recovery with the PC powered off."
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Remain BLOCKED until cloud provider/deployment authority is explicitly supplied and the Android-only external acceptance evidence exists."
