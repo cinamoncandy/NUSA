@@ -39,3 +39,12 @@ test("idle timeout and authentication failures fail closed", async () => {
   await assert.rejects(() => manager.refresh("session-1", "bad", 30), /authentication failed/);
   await assert.rejects(() => manager.requireUsable("session-1", 121), /expired, revoked, or untrusted/);
 });
+
+
+test("session refresh rejects clock rollback instead of moving activity backwards", async () => {
+  const { devices, manager } = setup();
+  await devices.register("phone", "Owner phone", "1234", 10);
+  await manager.create("session-1", "phone", "1234", 20);
+  await assert.rejects(() => manager.refresh("session-1", "1234", 19), /non-monotonic/);
+  assert.equal((await manager.load("session-1")).lastActivityAtMs, 20);
+});
