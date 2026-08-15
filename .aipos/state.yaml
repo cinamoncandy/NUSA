@@ -34,15 +34,17 @@ repository_maintenance:
   current_follow_up:
     pull_request: 535
     branch: agent/issue-210-home-visual-rebuild
-    head_commit: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+    head_commit: cabd7a83eb02df30f67f929815ccee6ca606e7ed
     status: DRAFT_PHYSICAL_VISUAL_ACCEPTANCE_PENDING
-    scope: "Home-only visual rebuild: compact PAPER safety line, one hero/CTA, removed Home metric-card dashboard, visible bounded terrain/signal reveal; no authority or non-Home redesign."
+    scope: "Home-only master-reference rebuild: NUSA / HOME wordmark, equity/PnL hierarchy, compact AI judgement, visible symbolic terrain/signal centerpiece, one operational CTA, and no authority or non-Home redesign."
     automated_gates: PASS
     android_release_candidate:
-      workflow_run_id: 31888389599
-      artifact: nusa-android-rc-20a99436f8639b0c70ba59865d33757b4da0d8a9-971
-      apk_sha256: 963c21c86be3e367e66b9f07443c5feff748f5ece25b7a7139e813da558683f2
-      provenance_source_sha: 20a99436f8639b0c70ba59865d33757b4da0d8a9
+      workflow_run_id: 31890492397
+      run_number: 977
+      artifact: nusa-android-rc-cabd7a83eb02df30f67f929815ccee6ca606e7ed-977
+      apk_sha256: 5615bb2ccfb0640435e10bbc2e0e1c465babf6c82764f72c24cd00309de8b0be
+      provenance_source_sha: cabd7a83eb02df30f67f929815ccee6ca606e7ed
+      bundle_markers: PASS
     physical_android_screenshot: HUMAN_ENVIRONMENT_ONLY_PENDING
     build_identity_audit:
       evidence: docs/audits/android-apk-build-identity-audit-2026-08-15.md
@@ -385,8 +387,8 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "PR #535 Home-only visual rebuild is implemented from main dd951890458eef43b77cd943a89e9e52d84d2500; focused Home/UI tests, typecheck, lint, build, CI, Mobile Native, Android release candidate, restricted LIVE, and read-only broker gates PASS. Physical Android before/after Home screenshots remain HUMAN_ENVIRONMENT_ONLY because adb/device are unavailable here."
-  current_commit: "PR #535 head 20a99436f8639b0c70ba59865d33757b4da0d8a9; repository gates PASS; visual acceptance and Merge remain blocked pending physical Android screenshots."
+  last_result: "PR #535 Home-only master-reference rebuild is implemented from main dd951890458eef43b77cd943a89e9e52d84d2500; focused Home/UI tests, typecheck, lint, build, exact-head CI, Mobile Native, Android release candidate, restricted LIVE, and read-only broker gates PASS. APK run 977 provenance and Home bundle markers match cabd7a8. Physical Android before/after Home screenshots remain HUMAN_ENVIRONMENT_ONLY because adb/device are unavailable here."
+  current_commit: "PR #535 head cabd7a83eb02df30f67f929815ccee6ca606e7ed; repository gates PASS; visual acceptance and Merge remain blocked pending physical Android screenshots."
 human_authority:
   live_trading_mutation: prohibited
   live_authority: human_only
