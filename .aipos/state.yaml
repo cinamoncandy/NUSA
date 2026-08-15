@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T21:56:00+09:00"
+updated_at: "2026-08-15T22:23:02+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
@@ -31,6 +31,27 @@ repository_maintenance:
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
+  latest_android_visual_release:
+    work_order: WO-0053
+    source_main_sha: dd951890458eef43b77cd943a89e9e52d84d2500
+    workflow: "Android Persistent Preview Release"
+    workflow_run_id: 31886705733
+    workflow_status: PASS
+    application_id: com.nusa.mobile
+    version_name: "1.0.0-dev"
+    version_code: 1
+    artifact: NUSA-Android.apk
+    artifact_sha256: 599b016482605627038398063103cd807fdc07a85060cac30663825db49fabc7
+    github_release: "nusa-android-preview"
+    github_release_url: "https://github.com/cinamoncandy/NUSA/releases/tag/nusa-android-preview"
+    firebase_app_distribution: PASS
+    firebase_release_id: 1p5g3h91ceamo
+    firebase_tester: desporin12@gmail.com
+    tester_distribution: PASS
+    notification_status: "RELEASE_DISTRIBUTED_TO_TESTER; individual email delivery not independently verified"
+    required_gates: "CI, Mobile Native, and exact-tree restricted/read-only safety evidence PASS"
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+    safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
 claimed_state:
   work_order: WO-0053
   status: VERIFYING

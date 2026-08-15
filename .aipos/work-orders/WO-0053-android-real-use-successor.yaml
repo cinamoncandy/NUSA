@@ -118,6 +118,25 @@ verification:
       sha256: c526d8add2129cc15e237a19ae8a3e62edbef2678ea028c9bee76200de74b6d0
       provenance_source_sha: b112a7691bbfeba00b5b0dd74e6a311272e7a890
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+  latest_android_visual_release:
+    source_main_sha: dd951890458eef43b77cd943a89e9e52d84d2500
+    workflow: "Android Persistent Preview Release"
+    workflow_run_id: 31886705733
+    workflow_status: PASS
+    application_id: com.nusa.mobile
+    version_name: "1.0.0-dev"
+    version_code: 1
+    artifact: NUSA-Android.apk
+    artifact_sha256: 599b016482605627038398063103cd807fdc07a85060cac30663825db49fabc7
+    github_release: "nusa-android-preview"
+    firebase_app_distribution: PASS
+    firebase_release_id: 1p5g3h91ceamo
+    firebase_tester: desporin12@gmail.com
+    tester_distribution: PASS
+    notification_status: "RELEASE_DISTRIBUTED_TO_TESTER; individual email delivery not independently verified"
+    required_gates: "CI, Mobile Native, and exact-tree restricted/read-only safety evidence PASS"
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY
+    safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   blocked:
     - "Physical Android device acceptance remains HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
 safety:
