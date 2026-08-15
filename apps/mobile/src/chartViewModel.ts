@@ -60,8 +60,8 @@ function rawTimestamp(row: Record<string, unknown>): number {
 /** Validate canonical bridge DTOs or the equivalent Upbit public candle payload. */
 export function parsePublicCandles(raw: unknown, market: string): readonly PublicCandle[] {
   if (!Array.isArray(raw)) throw new Error("candle response is invalid");
-  const expectedMarket = market.trim();
-  if (!expectedMarket) throw new Error("candle market is required");
+  const expectedMarket = market.trim().toUpperCase();
+  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(expectedMarket)) throw new Error("candle market is invalid");
   const parsed = raw.map((value, index) => {
     if (value === null || typeof value !== "object") throw new Error(`candle ${index} is invalid`);
     const row = value as Record<string, unknown>;
@@ -74,15 +74,16 @@ export function parsePublicCandles(raw: unknown, market: string): readonly Publi
     const close = rawNumber(row, "close", "trade_price");
     const volume = rawNumber(row, "volume", "candle_acc_trade_volume");
     const source = row.source ?? row.sourceType ?? "UPBIT_PUBLIC_CANDLE";
-    if (rowMarket !== expectedMarket || source !== "UPBIT_PUBLIC_CANDLE" || !Number.isSafeInteger(openTime) || !Number.isSafeInteger(closeTime) || closeTime - openTime !== ONE_MINUTE_MS) {
+    if (rowMarket.trim().toUpperCase() !== expectedMarket || source !== "UPBIT_PUBLIC_CANDLE" || !Number.isSafeInteger(openTime) || openTime % ONE_MINUTE_MS !== 0 || !Number.isSafeInteger(closeTime) || closeTime - openTime !== ONE_MINUTE_MS) {
       throw new Error(`candle ${index} metadata is invalid`);
     }
     if (![open, high, low, close].every(finitePositive) || !finiteNonNegative(volume)) throw new Error(`candle ${index} OHLCV is invalid`);
     if ((low as number) > (high as number) || (open as number) < (low as number) || (open as number) > (high as number) || (close as number) < (low as number) || (close as number) > (high as number)) throw new Error(`candle ${index} violates OHLC bounds`);
     return freeze({ market: expectedMarket, interval: "1m" as const, openTime, closeTime, open: open as number, high: high as number, low: low as number, close: close as number, volume: volume as number, source: "UPBIT_PUBLIC_CANDLE" as const });
   });
+  parsed.sort((left, right) => left.openTime - right.openTime);
   for (let index = 1; index < parsed.length; index += 1) {
-    if (parsed[index]!.openTime !== parsed[index - 1]!.closeTime) throw new Error("candle intervals are not contiguous");
+    if (parsed[index]!.openTime === parsed[index - 1]!.openTime) throw new Error("candle timestamps are duplicated");
   }
   return freeze(parsed);
 }

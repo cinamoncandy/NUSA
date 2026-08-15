@@ -14,6 +14,8 @@ interface MarketsViewProps {
   readonly currentPrice: number | null;
   readonly marketConnectionState: string;
   readonly stale: boolean;
+  readonly marketsStale: boolean;
+  readonly chartError: string | null;
   readonly error: string | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
@@ -21,7 +23,7 @@ interface MarketsViewProps {
 
 type Panel = "WATCHLIST" | "CHART";
 
-export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, error, refreshing, onRefresh }: MarketsViewProps) {
+export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, error, refreshing, onRefresh }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const [panel, setPanel] = useState<Panel>("WATCHLIST");
@@ -45,8 +47,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
     ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted, fontWeight: selected ? theme.typography.weights.bold : theme.typography.weights.semibold }]} numberOfLines={1}>{label}</Text></Pressable>;
   };
 
-  const watchlist = <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} />;
-  const chart = <ChartView error={error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />;
+  const watchlist = <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} stale={marketsStale} />;
+  const chart = <ChartView error={chartError ?? error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />;
 
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     {tabletWorkspace ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace">
