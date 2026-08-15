@@ -1,9 +1,9 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T00:37:06+09:00"
+updated_at: "2026-08-16T01:02:00+09:00"
 phase: mobile-first-cloud-migration
 status: blocked
-objective: "Complete the full product/architecture audit at latest main, preserve PAPER-only authority, and hold WO-0054 at CLOUD_PROVIDER_DECISION_REQUIRED while keeping PR #535 Draft/HOLD."
+objective: "Reconnect Android to the existing Oracle PAPER operations foundation without creating a new provider, while preserving PAPER-only authority and holding PR #535 Draft/HOLD."
 base_branch: main
 active_branch: agent/p0-mobile-first-cloud-audit
 active_pull_request: null
@@ -324,7 +324,7 @@ completed:
 in_progress:
   - id: WO-0054
     evidence: ".aipos/work-orders/WO-0054-mobile-first-cloud-migration.yaml"
-    summary: "Full product/architecture audit is recorded at the provider/deployment-authority gate; no product code changed and implementation remains blocked until an approved always-on provider exists."
+    summary: "Oracle foundation is confirmed in repository history, but implementation is blocked at existing infrastructure access and mobile auth/bootstrap evidence; no product code changed and PR #535 remains Draft/HOLD."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -341,7 +341,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0054-mobile-first-cloud-migration.yaml
-  reason: "Blocked until an approved always-on cloud provider and deployment authority exist; PR #535 remains a separate Draft/HOLD effort."
+  reason: "Blocked until Oracle host/ingress/auth deployment authority and readiness evidence exist; PR #535 remains a separate Draft/HOLD effort."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -354,7 +354,7 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "Full product/architecture audit at main dd951890458eef43b77cd943a89e9e52d84d2500 found 4 P0, 8 P1, 3 P2, and 1 P3 findings. No approved deployed always-on cloud provider exists; the persistent Android release asset contradicts its provenance; mobile PAPER remains endpoint/PC dependent. Status is BLOCKED — CLOUD DEPLOYMENT AUTHORITY REQUIRED."
+  last_result: "Oracle #237/#254 operations foundation is present in main, but no inspectable Oracle host, stable HTTPS ingress, mobile auth/bootstrap, or readiness evidence exists. Candidate nusa-api.duckdns.org resolves but /health and /ready return 502 and is not declared the Oracle PAPER origin. Android PAPER remains manual-endpoint/PC dependent. Status is BLOCKED — EXISTING CLOUD INFRASTRUCTURE ACCESS REQUIRED."
   current_commit: "Full product architecture audit committed on agent/p0-mobile-first-cloud-audit; no product code changed; PR #535 remains Draft/HOLD."
 human_authority:
   live_trading_mutation: prohibited

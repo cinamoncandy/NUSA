@@ -1,26 +1,30 @@
-# ADR-0014: Mobile-first cloud provider is an external decision
+# ADR-0014: Oracle mobile-first deployment requires infrastructure access
 
 ## Status
 
-BLOCKED — decision required
+BLOCKED — existing Oracle infrastructure access required
 
 ## Context
 
 NUSA currently has substantial `apps/cloud` source code, a loopback-only server,
-an Oracle systemd recipe, a PC-managed Cloudflare tunnel runbook, and Firebase
-readiness files. It has no repository evidence of an approved, deployed,
-always-on HTTPS backend. The Android PAPER path still requires a manually
-configured endpoint and a verified in-memory session.
+the completed Oracle operations foundation from #237/#254, a PC-managed
+Cloudflare tunnel runbook, and Firebase readiness files. The owner has selected
+the existing Oracle path for the mobile-first target, but the repository still
+has no inspectable Oracle host, canonical hostname, persistent HTTPS ingress,
+deployment attestation, or mobile authentication bootstrap. The Android PAPER
+path still requires a manually configured endpoint and a verified in-memory
+session.
 
 ## Decision
 
-Do not select a provider or convert any existing recipe into the production
-architecture implicitly. A cloud provider/deployment authority must explicitly
-choose the always-on host, domain/TLS, authentication, persistent storage,
-server-side secret store, backup/recovery, observability, and rollback plan.
+Reuse the existing Oracle operations foundation; do not create a new provider or
+server. Oracle infrastructure authority must explicitly provide the always-on
+host, stable domain/TLS ingress, mobile authentication/bootstrap, persistent
+storage, server-side secret store, backup/recovery, observability, and rollback
+evidence.
 
 Until then, the mobile-first migration is blocked with
-`CLOUD_PROVIDER_DECISION_REQUIRED`. PC/localhost/Quick Tunnel remains a
+`EXISTING_CLOUD_INFRASTRUCTURE_ACCESS_REQUIRED`. PC/localhost/Quick Tunnel remains a
 development or diagnostic path only and cannot be promoted to production.
 
 ## Safety

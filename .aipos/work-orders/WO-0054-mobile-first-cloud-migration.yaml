@@ -19,19 +19,21 @@ constraints:
   - "AI remains ZERO_AUTHORITY/read-only."
   - "No order, cancel, withdrawal, transfer, LIVE mutation, or broker secret in Android."
 blocking_reason:
-  code: CLOUD_PROVIDER_DECISION_REQUIRED
-  message: "Repository has source-only apps/cloud, Firebase readiness without a project/Hosting/Functions deployment, and PC-managed Oracle/Cloudflare bridge recipes but no approved always-on production provider or deployment authority."
+  code: EXISTING_CLOUD_INFRASTRUCTURE_ACCESS_REQUIRED
+  message: "Oracle operations foundation is merged, but no inspectable Oracle host, stable HTTPS ingress, mobile auth/bootstrap, deployment attestation, or readiness result is available. Do not use PC/Quick Tunnel as a production workaround."
 architecture_impact:
   acknowledged: true
-  analysis: "This audit-only successor records a provider and deployment-authority gate. It does not change the production runtime, mobile endpoint, persistence, or capability surface; implementation remains blocked until an approved always-on provider and deployment authority are supplied."
+  analysis: "The owner selected the existing Oracle path, so no new provider is being chosen. This audit records the remaining infrastructure-access and authentication-bootstrap gate. It does not change the production runtime, mobile endpoint, persistence, or capability surface."
   references:
     - nusa.md
     - docs/deployment/firebase-readiness.md
     - docs/TRUSTED_HTTPS_BRIDGE.md
     - .aipos/architecture.md
+    - .aipos/decisions/ADR-0014-mobile-first-cloud-provider-required.md
 evidence:
   audit: docs/audits/mobile-first-cloud-p0-audit-2026-08-16.md
   full_product_architecture_audit: docs/audits/nusa-product-architecture-audit-2026-08.md
+  oracle_android_path_audit: docs/audits/oracle-android-canonical-path-audit-2026-08-16.md
   source_of_truth: nusa.md
   firebase_readiness: docs/deployment/firebase-readiness.md
   bridge_runbook: docs/TRUSTED_HTTPS_BRIDGE.md
@@ -47,4 +49,4 @@ safety:
   live_authority: NONE
   production_mutation_allowed: false
   ai_authority: ZERO_AUTHORITY
-completion_rule: "Remain BLOCKED until cloud provider/deployment authority is explicitly supplied and the Android-only external acceptance evidence exists."
+completion_rule: "Remain BLOCKED until Oracle infrastructure/ingress/auth deployment authority is supplied, readiness is proven, and Android-only external acceptance evidence exists."
