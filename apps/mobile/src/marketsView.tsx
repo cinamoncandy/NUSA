@@ -77,10 +77,10 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   segmentOuter: { paddingTop: 12, paddingBottom: 2 },
-  tabletWorkspace: { flex: 1, flexDirection: "row", gap: 16, paddingHorizontal: 20, paddingTop: 16 },
+  tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 20 },
   tabletPanel: { flex: 1, minWidth: 0 },
-  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
-  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
+  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 999 },
+  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 999, paddingHorizontal: 12 },
   segmentAlias: { flex: 1, flexDirection: "row" },
   segmentLabel: { fontSize: 13, letterSpacing: -0.15 },
 });

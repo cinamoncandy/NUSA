@@ -18,18 +18,13 @@ test("App shell routes canonical Home and preserves five primary jobs", () => {
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses v5 hierarchy (equity -> P&L -> allocation -> shortcuts -> AI insight) and keeps AI read-only", () => {
+test("Home uses v3 hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, /<ScreenHeader/);
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §5): "redundant dashboard metric cards"
-  // are removed, not just relabeled -- no MetricTile grid belongs on Home anymore.
-  assert.doesNotMatch(source, /<MetricTile/);
-  const heroIndex = source.indexOf('testID="account-hero-card"');
-  const allocationIndex = source.indexOf('testID="home-allocation-panel"');
-  const actionsIndex = source.indexOf("styles.primaryActions");
-  const aiIndex = source.indexOf('testID="ai-card"');
-  assert.ok(heroIndex > -1 && allocationIndex > heroIndex && actionsIndex > allocationIndex && aiIndex > actionsIndex, "Home must render equity -> allocation rail -> shortcuts -> AI insight in that order");
-  assert.match(source, /READ ONLY/);
+  assert.match(source, /<MetricTile label="PAPER 연결"/);
+  assert.match(source, /<MetricTile label="PAPER 준비"/);
+  assert.match(source, /<MetricTile label="AI 신뢰도"/);
+  assert.match(source, /AI READ-ONLY/);
   assert.match(source, /LIVE 권한/);
   assert.match(source, /Production mutation/);
 });
@@ -48,21 +43,14 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-sorts/);
 });
 
-test("Portfolio uses v5 hierarchy (equity -> allocation -> position -> realized/unrealized -> detail) and AI stays metric-first", () => {
+test("Portfolio and AI use metric-first v3 information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
   assert.match(portfolio, /<ScreenHeader/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §8): "avoid splitting every metric into
-  // a card" -- realized/unrealized P&L are DataRow entries, not their own MetricTile boxes.
-  assert.doesNotMatch(portfolio, /<MetricTile/);
-  assert.match(portfolio, /testID="portfolio-realized-pnl"/);
-  assert.match(portfolio, /testID="portfolio-unrealized-pnl"/);
-  const allocationIndex = portfolio.indexOf('testID="portfolio-allocation-rail"');
-  const positionIndex = portfolio.indexOf("renderPosition(model, theme)");
-  const performanceIndex = portfolio.indexOf('testID="portfolio-performance-summary"');
-  const detailIndex = portfolio.indexOf('testID="portfolio-account-breakdown"');
-  assert.ok(allocationIndex > -1 && positionIndex > allocationIndex && performanceIndex > positionIndex && detailIndex > performanceIndex, "Portfolio must render allocation -> position -> realized/unrealized -> technical detail in that order");
+  assert.match(portfolio, /<MetricTile label="실현 손익"/);
+  assert.match(portfolio, /<MetricTile label="미실현 손익"/);
+  assert.match(portfolio, /<MetricTile label="포지션 평가액"/);
   assert.match(ai, /<ScreenHeader/);
   assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);

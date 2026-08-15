@@ -15,6 +15,7 @@ export interface Theme {
     background: string; surface: string; surfaceRaised: string; surfaceSunken: string;
     text: string; textMuted: string; primary: string; primarySoft: string; onPrimary: string;
     aiSignalStart: string; aiSignalMid: string; aiSignalEnd: string; aiSignalSoft: string;
+    terrain: string; chartUp: string; chartDown: string; navSurface: string;
     border: string; borderStrong: string; success: string; warning: string; danger: string;
     info: string; onDanger: string; focus: string;
   }>;
@@ -58,42 +59,44 @@ export function createTheme(mode: ThemeMode): Theme {
   return freezeTheme({
     mode,
     colors: {
-      // OBSIDIAN FINANCE (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §2): near-black
-      // graphite, not blue-black; warm off-white text; one cold-mint accent for selection
-      // and primary action.
-      background: dark ? "#0B0C0D" : "#F7F5F1",
-      surface: dark ? "#121415" : "#FFFFFF",
-      surfaceRaised: dark ? "#191C1D" : "#F1EFE9",
-      surfaceSunken: dark ? "#08090A" : "#EAEDF1",
-      text: dark ? "#F4F0E8" : "#15170F",
-      textMuted: dark ? "#8B978F" : "#5E6B62",
-      primary: dark ? "#7FE8C6" : "#0C7A56",
-      primarySoft: dark ? "#16221D" : "#E3F5EC",
-      onPrimary: dark ? "#08120E" : "#FFFFFF",
-      aiSignalStart: "#A855F7",
-      aiSignalMid: "#4F7CFF",
-      aiSignalEnd: "#2DD4BF",
-      aiSignalSoft: dark ? "#17152B" : "#F2EAFE",
-      border: dark ? "#1E2321" : "#DEDAD1",
-      borderStrong: dark ? "#2C332F" : "#C3BFB4",
-      success: dark ? "#55C991" : "#147A50",
-      warning: dark ? "#DDBD70" : "#8D681B",
-      danger: dark ? "#F06F7F" : "#B83249",
-      info: dark ? "#AEB7C5" : "#4C5665",
+      background: dark ? "#05070D" : "#F6F7F9",
+      surface: dark ? "#0A0F19" : "#FFFFFF",
+      surfaceRaised: dark ? "#101827" : "#F0F2F5",
+      surfaceSunken: dark ? "#070B13" : "#EAEDF1",
+      text: dark ? "#F4F6F8" : "#11151B",
+      textMuted: dark ? "#8D96A5" : "#626C7A",
+      // Brand actions stay monochrome. Chromatic signal colors are reserved for AI surfaces.
+      primary: dark ? "#E8F3FF" : "#11151B",
+      primarySoft: dark ? "#10233A" : "#EEF1F5",
+      onPrimary: dark ? "#05070D" : "#FFFFFF",
+      aiSignalStart: "#B56BFF",
+      aiSignalMid: "#5B8CFF",
+      aiSignalEnd: "#49D7C3",
+      aiSignalSoft: dark ? "#151632" : "#F2EAFE",
+      terrain: dark ? "#DCEBFF" : "#23334A",
+      chartUp: dark ? "#48D6C0" : "#147A50",
+      chartDown: dark ? "#F17A94" : "#B83249",
+      navSurface: dark ? "#080D17" : "#FFFFFF",
+      border: dark ? "#182337" : "#DDE1E7",
+      borderStrong: dark ? "#30445F" : "#BFC6D1",
+      success: dark ? "#48D6C0" : "#147A50",
+      warning: dark ? "#E5C06C" : "#8D681B",
+      danger: dark ? "#F17A94" : "#B83249",
+      info: dark ? "#8FA9C7" : "#4C5665",
       onDanger: dark ? "#11151B" : "#FFFFFF",
-      focus: dark ? "#7FE8C6" : "#0C7A56",
+      focus: dark ? "#FFFFFF" : "#11151B",
     },
     typography: {
       fontFamily: "System", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
-      title: 20, heading: 28, display: 36, hero: 42, lineHeight: 1.5,
+      title: 21, heading: 30, display: 40, hero: 50, lineHeight: 1.5,
       weights: { regular: "400", medium: "500", semibold: "600", bold: "700" },
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
     shadows: {
-      sm: { color: "#000000", offset: { width: 0, height: 1 }, opacity: dark ? 0.05 : 0.03, radius: 6, elevation: 1 },
-      md: { color: "#000000", offset: { width: 0, height: 6 }, opacity: dark ? 0.08 : 0.05, radius: 14, elevation: 2 },
-      focus: { color: dark ? "#7FE8C6" : "#0E8F68", offset: { width: 0, height: 0 }, opacity: 0.28, radius: 4, elevation: 0 },
+      sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
+      md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
+      focus: { color: dark ? "#FFFFFF" : "#11151B", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
@@ -131,7 +134,7 @@ export function fieldTokens(theme: Theme) {
 }
 
 export function cardTokens(theme: Theme) {
-  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 18, shadow: theme.shadows.sm });
+  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 20, shadow: theme.shadows.sm });
 }
 
 export function designSystemSnapshot(theme: Theme): string {

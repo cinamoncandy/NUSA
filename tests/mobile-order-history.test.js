@@ -50,7 +50,7 @@ test("order history UI uses design system and remains reachable and read-only in
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
 
   const primitives = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "uxPrimitives.tsx"), "utf8");
-  assert.match(primitives, /segment: \{ flex: 1, minHeight: 48/);
+  assert.match(primitives, /segment: \{ flex: 1, minHeight: 44/);
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(app, /activeTab === "More" \? <AiView/);

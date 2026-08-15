@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DataRow, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
+import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, formatChartMove, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
 
@@ -27,7 +27,7 @@ function StateCard({ title, message, color, onRetry, testID }: Readonly<{ title:
 function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
   const { theme } = useTheme();
   const maxVolume = Math.max(...model.candles.map((candle) => candle.volume), Number.EPSILON);
-  return <View style={[styles.plot, { backgroundColor: theme.colors.surfaceSunken }]} testID="chart-candles">
+  return <View style={[styles.plot, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">
     {model.priceLine === null ? null : <View testID="chart-price-line" style={[styles.priceLine, { backgroundColor: theme.colors.warning, top: `${model.priceLine}%` }]} />}
     <View style={styles.candleRow}>{model.bars.map((bar) => <View key={`${bar.openTime}-${bar.interval}`} style={styles.candleColumn} testID="chart-candle">
       <View style={[styles.wick, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} />
@@ -39,7 +39,7 @@ function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
 function ChartSummary({ model }: Readonly<{ model: ChartViewModel }>) {
   const { theme } = useTheme();
   const moveColor = model.move === null ? theme.colors.textMuted : model.move >= 0 ? theme.colors.success : theme.colors.danger;
-  return <NusaCard testID="chart-summary" raised><Text style={[styles.label, { color: theme.colors.textMuted }]}>UPBIT 공개 시세</Text><View style={styles.priceRow}><Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text><Text style={[styles.move, { color: moveColor }]} testID="chart-move">{formatChartMove(model.move)}</Text></View><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><DataRow label="고가" value={formatChartPrice(model.high)} /><DataRow label="저가" value={formatChartPrice(model.low)} /><DataRow label="거래량" value={model.volume?.toLocaleString("ko-KR") ?? "-"} /></NusaCard>;
+  return <View style={styles.summary} testID="chart-summary"><View style={styles.summaryCopy}><Text style={[styles.label, { color: theme.colors.textMuted }]}>CURRENT PRICE</Text><View style={styles.priceRow}><Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text><Text style={[styles.move, { color: moveColor }]} testID="chart-move">{formatChartMove(model.move)}</Text></View><View style={styles.summaryMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>고가 {formatChartPrice(model.high)}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>저가 {formatChartPrice(model.low)}</Text></View></View><TerrainSignal variant="market" signalStrength={Math.min(1, model.candles.length / 80)} testID="chart-data-signal" /><View style={[styles.summaryDetails, { borderTopColor: theme.colors.border }]}><DataRow label="거래량" value={model.volume?.toLocaleString("ko-KR") ?? "-"} /><Text style={[styles.dataSource, { color: theme.colors.textMuted }]}>UPBIT 공개 시세 · 읽기 전용</Text></View></View>;
 }
 
 export function ChartView({ market, rawCandles, currentPrice, changeRate = null, marketConnectionState, stale, error, refreshing, onRefresh }: ChartViewProps) {
@@ -51,28 +51,34 @@ export function ChartView({ market, rawCandles, currentPrice, changeRate = null,
   if (model.state === "ERROR") return <StateCard color={theme.colors.warning} message={model.error ?? "Market data is unavailable."} onRetry={onRefresh} testID="chart-error" title="차트 데이터 오류" />;
   if (model.state === "EMPTY") return <StateCard color={theme.colors.text} message="아직 완성된 공개 캔들 데이터가 없습니다." onRetry={onRefresh} testID="chart-empty" title="차트 데이터 없음" />;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="chart-screen">
-    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title="시장 차트" description={model.market} /><StatusChip label="PUBLIC / READ ONLY" tone="info" /></View>
-    <View style={styles.statusRow}><StatusChip label={marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"} tone={marketConnectionState === "CONNECTED" ? "success" : "warning"} /><StatusChip label={stale ? "데이터 점검" : "최신"} tone={stale ? "warning" : "success"} /></View>
-    <ChartSummary model={model} />
-    <View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View>
-    <NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 각 막대 아래 거래량 표시</Text></NusaCard>
+    <View style={styles.titleRow}><SectionHeading eyebrow="PUBLIC MARKET DATA" title={model.market} description="가격 움직임과 실제 1분 캔들을 확인합니다." /><StatusChip label={stale ? "STALE" : "READ ONLY"} tone={stale ? "warning" : "info"} /></View>
+    <View style={styles.statusRow}><Text accessibilityRole="text" style={[styles.statusText, { color: marketConnectionState === "CONNECTED" ? theme.colors.success : theme.colors.warning }]}>{marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"}</Text></View>
+    {/* Current price and move precede the time-range controls -- what the number is doing
+        matters before how far back you can look at it. */}
+    <MotionReveal testID="chart-data-reveal"><ChartSummary model={model} /><View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View><NusaCard testID="chart-plot-card"><CandlePlot model={model} /><Text style={[styles.legend, { color: theme.colors.textMuted }]}>캔들 {model.candles.length}개 · 실제 거래량은 하단에 표시</Text></NusaCard></MotionReveal>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, gap: 14, paddingBottom: 32 },
+  content: { paddingHorizontal: 20, paddingTop: 18, gap: 16, paddingBottom: 32, maxWidth: 1080, width: "100%", alignSelf: "center" },
   state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 },
   stateTitle: { fontSize: 18, fontWeight: "700" },
   stateMessage: { lineHeight: 21, marginBottom: 12, fontSize: 14 },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
+  statusText: { fontSize: 12, fontWeight: "700" },
   intervalRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
-  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.7 },
+  summary: { paddingTop: 6, gap: 8 },
+  summaryCopy: { minHeight: 112, justifyContent: "center" },
+  label: { fontSize: 10, fontWeight: "800", letterSpacing: 1.5 },
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginTop: 8 },
-  current: { fontSize: 32, fontWeight: "800", letterSpacing: -1, fontVariant: ["tabular-nums"] },
+  current: { fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.5, fontVariant: ["tabular-nums"] },
   move: { fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  divider: { height: 1, marginVertical: 12 },
-  plot: { height: 230, position: "relative", overflow: "hidden", borderRadius: 10, padding: 8 },
+  summaryMeta: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 8 },
+  meta: { fontSize: 12, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  summaryDetails: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  dataSource: { fontSize: 11, fontWeight: "600" },
+  plot: { height: 300, position: "relative", overflow: "hidden", borderRadius: 14, padding: 8, borderWidth: 1 },
   candleRow: { flex: 1, flexDirection: "row", alignItems: "stretch", gap: 2, paddingBottom: 32 },
   candleColumn: { flex: 1, position: "relative", minWidth: 3 },
   wick: { position: "absolute", width: 1, left: "50%" },

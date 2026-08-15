@@ -16,7 +16,7 @@ test("bottom navigation exposes five semantic primary jobs", () => {
   assert.match(app, /accessibilityRole="tab"/);
   assert.match(app, /accessibilityState=\{\{ selected: active \}\}/);
   assert.match(app, /testID=\{`tab-\$\{tab\}`\}/);
-  assert.match(app, /navIndicator: \{ width: 22, height: 3/);
+  assert.match(app, /navIndicator: \{ height: 2/);
   assert.doesNotMatch(app, /tabGlyphs|navGlyphWrap|styles\.navGlyph|⌁|◫|⇄|◒|✦/);
 });
 

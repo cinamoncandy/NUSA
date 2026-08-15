@@ -65,7 +65,7 @@ test("chart UI stays read-only while Markets uses public data separate from PAPE
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
 
-  assert.match(source, /PUBLIC \/ READ ONLY/);
+  assert.match(source, /label=\{stale \? "STALE" : "READ ONLY"\}/);
   assert.match(source, /chart-loading/);
   assert.match(source, /chart-empty/);
   assert.match(source, /chart-error/);
