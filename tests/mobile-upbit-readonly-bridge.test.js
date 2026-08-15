@@ -21,6 +21,10 @@ test("Upbit bridge is HTTPS-only and read-only", () => {
   assert.match(clientSource, /method: "GET"/);
   assert.match(clientSource, /Authorization: "Bearer " \+ token/);
   assert.doesNotMatch(clientSource, /method: "POST"|method: "DELETE"|\/v1\/orders|\/v1\/withdraws|placeLiveOrder|submitOrder/);
+  assert.match(clientSource, /loadUpbitLiveOrders/);
+  assert.match(clientSource, /\/api\/v1\/orders\/open/);
+  assert.match(clientSource, /\/api\/v1\/orders\/history/);
+  assert.match(clientSource, /method: "GET"/);
 });
 
 test("Upbit normalized summary is validated fail-closed", () => {
