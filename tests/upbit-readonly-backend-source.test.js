@@ -12,6 +12,9 @@ test("Upbit backend source is repository-managed and loopback-only", () => {
   assert.match(server, /\/api\/v1\/account\/summary/);
   assert.match(server, /\/api\/upbit\/accounts/);
   assert.match(server, /normalizeUpbitAccountSummary/);
+  assert.match(server, /\/api\/v1\/orders\/open/);
+  assert.match(server, /\/api\/v1\/orders\/history/);
+  assert.match(server, /normalizeUpbitOrder/);
   assert.match(server, /https:\/\/api\.upbit\.com\/v1\/accounts/);
   assert.match(server, /UPBIT_ACCESS_KEY/);
   assert.match(server, /UPBIT_SECRET_KEY/);
