@@ -124,3 +124,26 @@ test("log lines are emitted for a normal shutdown, error lines for a failed one"
   assert.ok(errorLines.some((l) => l.includes("disk full")));
   assert.equal(logLines.some((l) => l.includes("stopped")), false, "a failed stop must not log the success message");
 });
+
+
+test("uncaught runtime faults request fail-closed exit(1)", async () => {
+  const { registerGracefulShutdown } = require("../dist/apps/cloud/src/runtime.js");
+  const exit = fakeExit();
+  const before = new Set([
+    ...process.listeners("SIGTERM"),
+    ...process.listeners("SIGINT"),
+    ...process.listeners("uncaughtException"),
+    ...process.listeners("unhandledRejection")
+  ]);
+  registerGracefulShutdown({ stop: async () => {} }, exit);
+  const crashHandler = process.listeners("uncaughtException").find((listener) => !before.has(listener));
+  assert.ok(crashHandler);
+  crashHandler(new Error("boom"));
+  assert.deepEqual(exit.calls, [1]);
+
+  for (const event of ["SIGTERM", "SIGINT", "uncaughtException", "unhandledRejection"]) {
+    for (const listener of process.listeners(event)) {
+      if (!before.has(listener)) process.removeListener(event, listener);
+    }
+  }
+});
