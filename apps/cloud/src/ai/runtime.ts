@@ -2,7 +2,9 @@ import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type
 import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from "../../../../packages/contracts/src/aiCalibrationDurability";
 import type { AiProviderComparisonResult, AiProviderPoolPolicy } from "../../../../packages/contracts/src/aiProviderDiversity";
 import type { AiExplanationVerificationResult } from "../../../../packages/contracts/src/aiExplanationFaithfulness";
+import type { AiAttributionPolicy, AiLessonProjection, AiObservedEvidenceIdentity } from "../../../../packages/contracts/src/aiOutcomeAttribution";
 import { SqliteAiCalibrationDurableStore } from "../../../../packages/storage/src/aiCalibrationDurability";
+import { SqliteAiOutcomeAttributionMemory } from "../../../../packages/storage/src/aiOutcomeAttributionMemory";
 import { DEFAULT_CLOUD_STATE_DB_PATH } from "../cloudRuntimeConfig";
 import { createModelProviderFromEnvironment, createNVersionProviderPoolFromEnvironment, type NVersionProviderEnvironmentPool } from "./modelProvider";
 import { MultiAgentOrchestrator, type AiOrchestrationInput, type AiOrchestrationResult } from "./multiAgentOrchestrator";
@@ -13,7 +15,23 @@ import { CalibrationDurabilityRuntime } from "./calibrationDurabilityRuntime";
 import { buildAiExplanationEnvelope } from "./explanationEnvelopeBridge";
 import { verifyAiExplanation } from "./explanationFaithfulnessVerifier";
 import { normalizeAiInferenceBudgetPolicy } from "./inferenceResourceLedger";
+import { aiAttributionCalibrationCohortIdentity, aiAttributionEvidenceSnapshotIdentity, GovernedOutcomeAttributionEngine } from "./outcomeAttributionLearning";
 import { projectAiReadOnly } from "./projection";
+
+/**
+ * Fixed policy for the runtime attribution episodes recorded automatically on calibration outcome
+ * resolution (see resolvePending). holdoutPercent/holdoutSalt are inert here -- this runtime path
+ * never calls assignAiAttributionPartition; only the offline research benchmark path partitions.
+ */
+const AI_ATTRIBUTION_POLICY: AiAttributionPolicy = Object.freeze({
+  schemaVersion: 1,
+  policyId: "NUSA_AI_ATTRIBUTION_POLICY_V1",
+  policyVersion: "1",
+  allowedCauses: Object.freeze(["EVIDENCE_GAP", "DATA_QUALITY_FAILURE", "MODEL_DISAGREEMENT", "CALIBRATION_MISS", "SCENARIO_SENSITIVITY_MISS", "REGIME_SHIFT_CANDIDATE", "UNRESOLVED"] as const),
+  holdoutSalt: "nusa-cloud-ai-runtime-attribution-v1",
+  holdoutPercent: 1,
+  defaultEpisodeTtlMs: 24 * 60 * 60 * 1_000
+});
 
 export const AI_CALIBRATION_OUTCOME_DEFINITION_ID = "UPBIT_PUBLIC_PRICE_HIGHER_AFTER_5M";
 export const AI_CALIBRATION_OUTCOME_DEFINITION_VERSION = "1";
@@ -24,7 +42,16 @@ export const AI_CALIBRATION_RESOLUTION_GRACE_MS = 60_000;
 export type CloudAiOrchestrationResult = AiOrchestrationResult & {
   readonly providerComparison?: AiProviderComparisonResult;
   readonly explanationVerification?: AiExplanationVerificationResult;
+  readonly recentLessonCount?: number;
 };
+
+/** How many prior structural lessons (see applicableLessons) were actually fed into this run's evidence. */
+export const NUSA_AI_LEARNING_MEMORY_SOURCE = "nusa-ai-outcome-attribution-memory";
+function countLessonEvidence(input: AiOrchestrationInput): number {
+  const item = (input.evidenceMaterializations ?? []).find((candidate) => input.evidence.some((evidence) => evidence.evidenceId === candidate.evidenceId && evidence.sourceReference === NUSA_AI_LEARNING_MEMORY_SOURCE));
+  const lessons = item?.payload.lessons;
+  return Array.isArray(lessons) ? lessons.length : 0;
+}
 
 export interface CloudAiRuntime {
   readonly enabled: boolean;
@@ -34,6 +61,8 @@ export interface CloudAiRuntime {
   latestProjection(now?: number): AiReadOnlyProjection | null;
   latestProviderComparison(now?: number): AiProviderComparisonResult | null;
   latestExplanationVerification(now?: number): AiExplanationVerificationResult | null;
+  /** Prior structural lessons for this exact target/outcome scope, advisory-only, never authority. */
+  applicableLessons(scope: string, now?: number): readonly AiLessonProjection[];
   latestCalibrationPrediction(): AiCalibrationPrediction | null;
   calibrationProfile(): AiCalibrationProfile | null;
   calibrationDurabilityHealth(): AiCalibrationDurabilityHealth;
@@ -66,10 +95,18 @@ interface VerifiedMarketAnchor {
   readonly value: number;
   readonly observedAt: number;
   readonly evidenceReference: string;
+  readonly contentDigest: string;
 }
 
 interface PendingPrediction {
   readonly prediction: AiCalibrationPrediction;
+  /**
+   * The exact verified evidence identity the prediction was anchored to, captured at schedule
+   * time. Recovered predictions (loaded from durable storage after a restart) never have this --
+   * the durable store retains the prediction/outcome, not the original evidence bundle -- so
+   * attribution episodes are skipped for those rather than guessed at.
+   */
+  readonly predictionEvidence: AiObservedEvidenceIdentity | null;
 }
 
 const DEFAULT_CALIBRATION: CloudAiCalibrationOptions = Object.freeze({
@@ -150,9 +187,14 @@ function verifiedMarketAnchor(input: AiOrchestrationInput): VerifiedMarketAnchor
     if (payload.source !== "UPBIT_PUBLIC_TICKER" || typeof payload.market !== "string" || !payload.market.trim() || typeof payload.price !== "number" || !Number.isFinite(payload.price) || payload.price <= 0 || typeof payload.observedAt !== "string") continue;
     const observedAt = Date.parse(payload.observedAt);
     if (!Number.isSafeInteger(observedAt) || observedAt <= 0 || observedAt !== evidence.observedAt) continue;
-    return Object.freeze({ targetId: payload.market.trim(), value: payload.price, observedAt, evidenceReference: evidence.evidenceId });
+    return Object.freeze({ targetId: payload.market.trim(), value: payload.price, observedAt, evidenceReference: evidence.evidenceId, contentDigest: evidence.contentDigest });
   }
   return null;
+}
+
+/** The same scope key is used to record an episode and to look up applicable lessons for it. */
+export function attributionScope(prediction: Pick<AiCalibrationPrediction, "outcomeDefinitionId" | "targetId">): string {
+  return `${prediction.outcomeDefinitionId}:${prediction.targetId}`;
 }
 
 function supportsAutomaticResolution(calibration: CloudAiCalibrationOptions): boolean {
@@ -198,13 +240,18 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     }
   }
   const durability = new CalibrationDurabilityRuntime(calibrationLedger, durableStore, now(), AI_CALIBRATION_RESOLUTION_GRACE_MS, durabilityOpenFailure);
-  for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction }));
+  for (const prediction of durability.recovered().pendingPredictions) pendingPredictions.set(prediction.predictionId, Object.freeze({ prediction, predictionEvidence: null }));
+  let attributionMemory: SqliteAiOutcomeAttributionMemory | null = null;
+  try { attributionMemory = new SqliteAiOutcomeAttributionMemory(implicitDurabilityPath(env) ?? ":memory:"); }
+  catch { attributionMemory = null; } // Learning memory is diagnostic-only and can never block AI scheduling.
+  const attributionEngine = new GovernedOutcomeAttributionEngine(AI_ATTRIBUTION_POLICY);
   let inFlight = false;
   let comparisonInFlight = false;
   let lastScheduledAt = Number.NEGATIVE_INFINITY;
   let latestResult: AiOrchestrationResult | null = null;
   let latestCompletedAt: number | null = null;
   let latestExplanationVerificationResult: AiExplanationVerificationResult | null = null;
+  let latestRecentLessonCount = 0;
   let latestComparison: AiProviderComparisonResult | null = null;
   let latestComparisonCompletedAt: number | null = null;
   let latestPrediction: AiCalibrationPrediction | null = durability.recovered().latestPrediction;
@@ -241,9 +288,66 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
         if (!durability.persistOutcome(outcome, anchor.observedAt)) continue;
         calibrationLedger.appendOutcome(outcome);
         pendingPredictions.delete(predictionId);
+        recordAttributionEpisode(prediction, outcome, pending.predictionEvidence, anchor);
       } catch {
         // Calibration is advisory-only. Malformed/conflicting outcomes cannot gain confidence.
       }
+    }
+  };
+
+  /**
+   * Turns a just-resolved prediction/outcome pair into a real, evidence-grounded attribution
+   * episode and appends it to the learning-memory ledger. Every input here is data the calibration
+   * path already verified (never fabricated): the prediction's own anchor evidence, the resolving
+   * ticker's evidence, and whatever calibration/provider-comparison state is actually known right
+   * now. Missing signals are left null/empty rather than guessed, so the engine correctly reports
+   * UNRESOLVED/UNVERIFIED instead of inventing a cause. This must never affect calibration,
+   * scheduling, or PAPER -- failures are swallowed, matching the calibration catch above.
+   */
+  const recordAttributionEpisode = (
+    prediction: AiCalibrationPrediction,
+    outcome: ReturnType<typeof createCalibrationOutcome>,
+    predictionEvidence: AiObservedEvidenceIdentity | null,
+    anchor: VerifiedMarketAnchor
+  ): void => {
+    if (attributionMemory == null || predictionEvidence == null) return;
+    try {
+      const observedEvidence: readonly AiObservedEvidenceIdentity[] = Object.freeze([
+        predictionEvidence,
+        Object.freeze({ evidenceId: anchor.evidenceReference, contentDigest: anchor.contentDigest, provenance: prediction.provenance })
+      ]);
+      const profile = currentProfile();
+      const episode = attributionEngine.analyze({
+        episodeId: `${prediction.predictionId}:attribution`,
+        prediction,
+        outcome,
+        observedEvidence,
+        lineage: {
+          providerId: prediction.providerId,
+          modelVersionId: prediction.modelVersionId,
+          promptArtifactId: prediction.promptArtifactId,
+          promptArtifactVersion: prediction.promptArtifactVersion,
+          promptArtifactDigest: prediction.promptArtifactDigest,
+          calibrationCohortIdentity: aiAttributionCalibrationCohortIdentity(prediction),
+          evidenceSnapshotIdentity: aiAttributionEvidenceSnapshotIdentity(prediction, outcome, observedEvidence)
+        },
+        signals: {
+          evidenceGapEvidenceReferences: [],
+          dataQualityFailureEvidenceReferences: [],
+          providerComparisonState: null,
+          calibrationStatus: profile?.status ?? "UNKNOWN",
+          scenarioRobustnessState: null,
+          regimeShiftEvidenceReferences: [],
+          counterEvidenceReferences: [],
+          modelSelfReportedCause: null,
+          providerMajorityCause: null
+        },
+        scope: attributionScope(prediction),
+        createdAt: outcome.resolvedAt
+      });
+      attributionMemory.appendEpisode(episode);
+    } catch {
+      // Attribution is diagnostic/advisory-only. A malformed or conflicting episode is dropped.
     }
   };
 
@@ -288,6 +392,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       if (result.status === "COMPLETED" && zeroAuthority(result) && Number.isSafeInteger(completedAt) && completedAt > 0) {
         latestResult = result;
         latestCompletedAt = completedAt;
+        latestRecentLessonCount = countLessonEvidence(input);
         try {
           const profileForEnvelope = currentProfile();
           const envelope = buildAiExplanationEnvelope(input, result, {
@@ -323,7 +428,10 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
               return;
             }
             latestPrediction = calibrationLedger.appendPrediction(prediction);
-            pendingPredictions.set(latestPrediction.predictionId, Object.freeze({ prediction: latestPrediction }));
+            pendingPredictions.set(latestPrediction.predictionId, Object.freeze({
+              prediction: latestPrediction,
+              predictionEvidence: Object.freeze({ evidenceId: anchor.evidenceReference, contentDigest: anchor.contentDigest, provenance: prediction.provenance })
+            }));
           } catch {
             // A valid zero-authority AI result may remain readable, but no durable/verified prediction means no calibration credit.
             latestPrediction = null;
@@ -370,6 +478,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       ...latestResult,
       calibrationProfile: currentProfile(),
       calibrationDurabilityHealth: durability.snapshot(),
+      recentLessonCount: latestRecentLessonCount,
       ...(providerComparison == null ? {} : { providerComparison }),
       ...(explanationVerification == null ? {} : { explanationVerification })
     }) as CloudAiOrchestrationResult;
@@ -380,6 +489,12 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return result == null ? null : projectAiReadOnly(result);
   };
 
+  const applicableLessons = (scope: string, at = now()): readonly AiLessonProjection[] => {
+    if (attributionMemory == null) return Object.freeze([]);
+    try { return attributionMemory.applicableLessons(scope, at); }
+    catch { return Object.freeze([]); } // Learning memory is diagnostic-only and never blocks scheduling.
+  };
+
   return Object.freeze({
     enabled,
     orchestrator,
@@ -388,6 +503,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     latestProjection,
     latestProviderComparison,
     latestExplanationVerification,
+    applicableLessons,
     latestCalibrationPrediction: () => latestPrediction,
     calibrationProfile: currentProfile,
     calibrationDurabilityHealth: () => durability.snapshot(),
