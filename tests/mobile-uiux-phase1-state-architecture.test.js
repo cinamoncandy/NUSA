@@ -56,12 +56,12 @@ test("Home hierarchy avoids developer-console cards while preserving verified sa
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="home-next-action"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="safety-card"/);
+  assert.match(home, /testID="home-status-summary"/);
   assert.doesNotMatch(home, /testID="operations-card"/);
   assert.doesNotMatch(home, /testID="research-card"/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
-  assert.match(home, /label="LIVE 권한"/);
-  assert.match(home, /label="Production mutation"/);
+  assert.doesNotMatch(home, /label="LIVE 권한"/);
+  assert.doesNotMatch(home, /label="Production mutation"/);
 });
 
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {

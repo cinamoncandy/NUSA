@@ -19,7 +19,9 @@ test("Home uses one data-bound hero signal primitive", () => {
   const home = read("src/homeView.tsx");
   const components = read("src/components.tsx");
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{signalReady \? 0\.9 : 0\.35\} accessibilityLabel=/);
+  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{signalReady \? 0\.95 : 0\.38\} accessibilityLabel=/);
+  assert.match(home, /testID="home-signal-reveal"/);
+  assert.match(home, /PAPER · LIVE OFF/);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
 
