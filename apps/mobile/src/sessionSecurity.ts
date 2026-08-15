@@ -1,4 +1,4 @@
-import { createSecureSession, isSecureSessionUsable, revokeSecureSession, type SecureSession, type SessionPolicy } from "./secureSession";
+import { createSecureSession, isSecureSessionUsable, revokeSecureSession, touchSecureSession, type SecureSession, type SessionPolicy } from "./secureSession";
 import { MobileBiometricAuthentication, type SecureStoragePort } from "./mobileSecurity";
 import { TrustedDeviceManager } from "./trustedDeviceManagement";
 
@@ -29,7 +29,7 @@ export class MobileSessionManager {
   public async refresh(sessionId: string, pin: string, nowMs: number): Promise<SecureSession> {
     const current = await this.requireUsable(sessionId, nowMs);
     await this.authentication.reauthenticateSession(pin, nowMs);
-    const refreshed = Object.freeze({ ...current, lastActivityAtMs: nowMs });
+    const refreshed = touchSecureSession(current, nowMs, this.policy);
     await this.save(refreshed); return refreshed;
   }
 

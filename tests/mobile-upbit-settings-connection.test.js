@@ -29,6 +29,7 @@ test("Upbit settings connection remains HTTPS-only and process-memory-only", () 
   assert.match(credential, /let sharedToken: string \| null = null/);
   assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);
   assert.match(client, /url\.protocol !== "https:"/);
-  assert.match(client, /\/api\/upbit\/accounts/);
-  assert.doesNotMatch(panel + client, /placeOrder|cancelOrder|withdraw|\/v1\/orders/);
+  assert.match(client, /\/api\/v1\/account\/summary/);
+  assert.doesNotMatch(panel + client, /placeOrder|cancelOrder|withdraw/);
+  assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
 });

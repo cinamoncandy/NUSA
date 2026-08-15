@@ -5,6 +5,8 @@ import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { InMemoryUpbitCredentialSession } from "./upbitCredentialSession";
 import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
+import { normalizeUpbitReadOnlySnapshot } from "./upbitReadOnlyAccountModel";
+import { getUpbitReadOnlyState, setUpbitReadOnlyState, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 
 type ConnectionState =
   | Readonly<{ status: "DISCONNECTED"; detail: string }>
@@ -27,15 +29,20 @@ export function UpbitConnectionPanel() {
   const connect = async (): Promise<void> => {
     if (busy) return;
     credentialSession.clear();
+    setUpbitReadOnlyState({ status: "LOADING", snapshot: getUpbitReadOnlyState().snapshot, error: null });
     setState({ status: "CONNECTING", detail: "HTTPS read-only 계정 연결을 확인하고 있습니다." });
     try {
       credentialSession.connect(tokenDraft);
       const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl: endpointDraft });
       setTokenDraft("");
+      setUpbitReadOnlyState({ status: "READY", snapshot: normalizeUpbitReadOnlySnapshot(snapshot), error: null });
       setState({ status: "READY", detail: `READ ONLY · ${snapshot.accounts.length} assets`, fetchedAt: snapshot.fetchedAt });
     } catch (error) {
       credentialSession.clear();
-      setState({ status: "ERROR", detail: error instanceof Error ? error.message : "Upbit bridge connection failed." });
+      const detail = error instanceof Error ? error.message : "Upbit bridge connection failed.";
+      const previous = getUpbitReadOnlyState().snapshot;
+      setUpbitReadOnlyState({ status: previous ? "STALE" : "ERROR", snapshot: previous, error: detail });
+      setState({ status: "ERROR", detail });
     }
   };
 
@@ -43,6 +50,7 @@ export function UpbitConnectionPanel() {
     if (busy) return;
     credentialSession.clear();
     setTokenDraft("");
+    resetUpbitReadOnlyState();
     setState({ status: "DISCONNECTED", detail: "Upbit bridge credential cleared from process memory." });
   };
 

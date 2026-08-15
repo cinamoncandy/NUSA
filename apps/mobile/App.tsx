@@ -21,6 +21,7 @@ import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllo
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
+import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 
 const tabs = ["Home", "Markets", "Trade", "Portfolio", "More"] as const;
 type Tab = (typeof tabs)[number];
@@ -71,6 +72,7 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
 function AuthenticatedApp() {
   const { status: authStatus, signIn, signOut } = useAuth();
   const { theme: appTheme } = useTheme();
+  const upbitState = useUpbitReadOnlyState();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
@@ -137,7 +139,7 @@ function AuthenticatedApp() {
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const handleSignOut = useCallback(() => {
-    refreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); setRefreshing(false);
+    refreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false);
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
@@ -177,7 +179,7 @@ function AuthenticatedApp() {
     && runtimeSnapshot.lifecycle === "FOREGROUND"
     && runtimeSnapshot.network === "ONLINE"
     && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home"));
+  const requiresDashboardConnection = notConfigured !== null && (utilityView === "HISTORY" || (utilityView === null && activeTab !== "Home")) && activeTab !== "Portfolio";
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View>
@@ -191,7 +193,7 @@ function AuthenticatedApp() {
       : utilityView === "HISTORY" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
-      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
+      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView error={readOnlyError} currentPrice={selectedMarket?.price ?? null} market={CHART_MARKET} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={null} rawMarkets={snapshot == null ? null : [...snapshot.markets]} refreshing={refreshing} repository={watchlistRepository} stale={stale} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
