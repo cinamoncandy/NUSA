@@ -22,7 +22,7 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   const settings = read("apps/mobile/src/settingsView.tsx");
   assert.match(home, /home-next-action-button/);
   assert.match(home, /PAPER 연결 설정/);
-  assert.match(home, /Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요/);
+  assert.match(home, /읽기 전용 endpoint와 메모리 세션을 확인합니다/);
   assert.match(app, /<HomeView/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
@@ -120,7 +120,7 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(home, /contentTablet: \{ maxWidth: 1120/);
-  assert.match(home, /balanceTablet: \{ fontSize: 82/);
+  assert.match(home, /balanceTablet: \{ fontSize: 92/);
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
   assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);

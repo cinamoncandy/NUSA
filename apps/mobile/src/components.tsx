@@ -132,13 +132,13 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
   return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
 }
 
-export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
+export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID, hero = false }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string; hero?: boolean }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
   const primaryWidth = `${Math.round(42 + boundedStrength * 34)}%` as `${number}%`;
   const secondaryWidth = `${Math.round(30 + boundedStrength * 26)}%` as `${number}%`;
   const convergenceLeft = `${Math.round(44 + boundedStrength * 18)}%` as `${number}%`;
-  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={[styles.terrainSignal, hero && styles.terrainSignalHero]} testID={testID}>
     <View style={[styles.terrainHorizon, { backgroundColor: theme.colors.terrain, opacity: 0.22 }]} />
     <View style={[styles.terrainLine, { width: primaryWidth, backgroundColor: theme.colors.terrain, opacity: 0.78 }]} />
     <View style={[styles.terrainLine, styles.terrainLineHigh, { width: secondaryWidth, backgroundColor: theme.colors.aiSignalMid, opacity: 0.7 }]} />
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
-  terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
+  terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" }, terrainSignalHero: { height: 190 },
   terrainHorizon: { position: "absolute", left: 0, right: 0, top: "59%", height: StyleSheet.hairlineWidth },
   terrainLine: { position: "absolute", left: "4%", top: "50%", height: 1, transform: [{ rotate: "-7deg" }] },
   terrainLineHigh: { left: "18%", top: "32%", transform: [{ rotate: "8deg" }] },

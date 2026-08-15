@@ -25,6 +25,19 @@ test("Home uses one data-bound hero signal primitive", () => {
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
 
+test("Home follows the master reference composition instead of the old dashboard", () => {
+  const home = read("src/homeView.tsx");
+  assert.match(home, /NUSA \/ HOME/);
+  assert.match(home, /TOTAL EQUITY/);
+  assert.match(home, /AI SIGNAL/);
+  assert.match(home, /PAPER 연결 필요/);
+  assert.match(home, /tone="neutral"/);
+  assert.match(home, /testID="home-signal-trace"[^>]*hero/);
+  assert.doesNotMatch(home, /PAPER ONLY/);
+  assert.doesNotMatch(home, /<MetricTile/);
+  assert.doesNotMatch(home, /home-allocation-panel/);
+});
+
 test("Markets rows use list rhythm instead of repeated cards", () => {
   const watchlist = read("src/watchlistView.tsx");
   assert.match(watchlist, /marketRow: \{ borderBottomWidth: StyleSheet\.hairlineWidth/);
