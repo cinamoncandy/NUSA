@@ -19,7 +19,7 @@
 | 순위 | 항목 | 영향 | 리스크 | 상태 |
 |---|---|---|---|---|
 | 1 | SQLite 해시체인 스토어들이 매 append/조회마다 genesis부터 전체 replay+재검증을 함 | 높음 (장기 실행 시스템의 핵심 쓰기·읽기 경로) | 높음 | **DONE** (커밋 참고) |
-| 2 | 모바일 리스트 화면 중 order-history 외에 무한정 커질 수 있는 리스트(포지션, 워치리스트 등)가 `ScrollView`+`.map()`으로 전체 렌더링되는지 재확인. order-history는 이미 페이지네이션 확인됨(문제없음) | 낮음~중간 (실사용 규모에서 대부분 작을 가능성) | 낮음 | TODO |
+| 2 | 모바일 리스트 화면 중 order-history 외에 무한정 커질 수 있는 리스트가 `ScrollView`+`.map()`으로 전체 렌더링되는지 재확인 | 낮음~중간 | 낮음 | **DONE** — `watchlistView.tsx`의 "전체 결과"(검색어 없으면 Upbit 전체 공개 마켓, 수백 개까지 가능)가 실제로 무제한 렌더링 중이었음. `FlatList`로 전환(가상화), 저장한 시장 섹션은 헤더에 유지(사용자 선택으로 이미 bounded). `portfolioView.tsx`(포지션, 소수개)는 문제 아님으로 확인 |
 | 3 | `apps/desktop/src/backtestEngine.ts` / `walkForwardEngine.ts` / `parameterStability.ts`의 실제 반복 복잡도 프로파일링 — 큰 과거 데이터셋에서 체감 지연이 있는지 확인 후 필요시 최적화 | 중간 (온디맨드 실행이라 상시 부하는 아니지만 사용자 체감 지연 직결) | 낮음~중간 (측정 먼저, 성급한 최적화 금지) | TODO |
 | — | `JSON.parse(JSON.stringify())` 딥클론 → `structuredClone()` 교체 (`apps/cloud/src/runtimeEventBus.ts`, `apps/cloud/src/runtimeReplay.ts`) | 매 런타임 이벤트/리플레이 | 낮음 | **DONE** (커밋 `93bd697`) |
 
