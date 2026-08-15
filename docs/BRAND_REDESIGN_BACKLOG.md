@@ -22,14 +22,14 @@ merge된 모노크롬 디자인 시스템(PR #532/#533)과 방향이 다름 — 
 |---|---|---|
 | 1 | `TerrainHero` — 레이어드 산맥 실루엣 + 정상 글로우 컴포넌트 신설 (`components.tsx`) | **DONE** |
 | 2 | Home 화면 히어로에 `TerrainSignal` → `TerrainHero` 적용 (계좌 히어로 카드 중심 시각) | **DONE** |
-| 3 | AI 탭(`aiView.tsx`)에 `TerrainHero` 적용 — 목업의 "02 AI SIGNAL" 화면처럼 분석 진행/신뢰도를 시각적으로 표현 | TODO |
-| 4 | Markets 탭에 위험/중립/기회 구간(RISK/NEUTRAL/OPPORTUNITY ZONE) 바 추가 — 목업 "03 MARKETS"의 zone map. 실제 데이터: `classifyPriceRegime`/`evaluateStrategyRegime`이 이미 이 3분류에 대응하는 `preference`(PREFERRED/NEUTRAL/FORBIDDEN)를 갖고 있어 재사용 가능할 듯 (검증 필요) | TODO |
-| 5 | 브랜드 색상 재조정 결정 — 현재 "브랜드 액션은 모노크롬, 채도는 AI 전용"(최근 merge된 정책)과 목업의 "퍼플/블루/틸이 브랜드 정체성 자체" 사이의 실제 적용 범위를 사용자와 확정. 지금은 히어로 시각 요소에만 그라디언트를 썼고 버튼/CTA는 그대로 모노크롬 — 전체 CTA까지 바꿀지는 미결정 | TODO (사용자 확인 필요) |
+| 3 | AI 탭(`aiView.tsx`)에 `TerrainHero` 적용 | **DONE** |
+| 4 | Markets 탭에 시장 등락 분포 바 추가 — 목업의 zone map 자리에, 실제 데이터(각 마켓의 real changeRate)를 하락/보합/상승으로 집계한 `MarketBreadthBar`로 구현. `classifyPriceRegime`은 모바일 클라이언트에 연결된 적 없고 단일 마켓 기준이라 시장 전체 비율에 안 맞아서 채택 안 함; RISK/OPPORTUNITY 같은 평가성 라벨도 근거 없는 주장이라 배제 | **DONE** (범위는 계획과 다르게 조정 — 완료 기록 참고) |
+| 5 | 브랜드 색상 재조정 — 사용자가 "다해"로 전체 CTA까지 포함해 확정. 버튼/필드/포커스 등 `primary` 토큰을 목업의 퍼플 계열로 전환 | TODO (다음 순위) |
 | 6 | Portfolio 탭에 도넛형 자산배분 차트 추가 — 목업 "06 PORTFOLIO". RN에 차트 라이브러리 의존성이 없어 View 기반으로 자체 구현 필요 (SVG 없이 원형 진행률 표현은 제약이 큼 — react-native-svg 도입 여부 판단 필요) | TODO |
 | 7 | 로고/앱 아이콘 자산을 목업 방향으로 갱신 (`apps/mobile/android/.../ic_nusa_logo*.xml` 등) — `tests/mobile-design-system-v1.test.js`가 현재 모노크롬(`#FFFFFFFF`) 아이콘을 강제하고 있어, 색상 아이콘으로 바꾸려면 이 테스트의 의도적 변경이 먼저 필요 | TODO |
 | 8 | Noto Sans KR 폰트 실제 링크 — 현재 `typography.fontFamily: "System"`. 목업이 명시한 폰트를 쓰려면 .ttf 번들 + 네이티브 프로젝트(android/ios) 폰트 등록 필요, 앱 빌드 설정 변경을 동반하는 큰 작업 | TODO |
 | 9 | Order 화면("05 ORDER") 톤 — 현재 `tradingView.tsx`가 기능적으로는 이미 매수/매도, 예상 주문 금액, 안전 게이트 배지를 갖추고 있음. 색상 재조정(5번) 이후에 자연스럽게 따라올 것으로 예상 — 별도 구조 변경 불필요해 보임 (검증 필요) | TODO (5번 이후 재검토) |
-| 10 | 데스크톱 앱(`apps/desktop/renderer`)에도 동일 리브랜딩 적용 여부 — 목업은 모바일 6화면만 보여줬음, 데스크톱 반영 여부는 사용자 확인 필요 | TODO (사용자 확인 필요) |
+| 10 | 데스크톱 앱(`apps/desktop/renderer`)에도 동일 리브랜딩 적용 — 사용자가 "다해"로 확정 | TODO |
 
 ## 진행 방식 (다음 세션이 이어받을 때)
 
@@ -53,3 +53,13 @@ merge된 모노크롬 디자인 시스템(PR #532/#533)과 방향이 다름 — 
   의존성 없이 구현. `homeView.tsx`의 계좌 히어로 카드에서 기존 `TerrainSignal`을 교체.
   `tests/mobile-uiux-visual-redesign.test.js`의 관련 단언을 갱신, `pnpm run build`/mobile
   typecheck/lint/258개 테스트 전부 통과 확인.
+- **순위 3~4 (AI 탭 지형 시각화 + Markets 등락 분포)** — `aiView.tsx`의 관찰 히어로 카드에
+  `TerrainHero` 추가, `signalStrength`는 `CALIBRATED`일 때만 실제 confidence, 그 외엔 0.3 고정
+  (미보정/불가용 상태가 과도하게 확신 있어 보이지 않도록). `watchlist.ts`에 `computeMarketBreadth`
+  (real changeRate를 하락/보합/상승으로 임계값 버킷팅, null은 보합 처리, `down+flat+up===total`
+  불변식) + `WatchlistViewModel.breadth` 필드 추가. `components.tsx`에 `MarketBreadthBar` 신설,
+  `marketsView.tsx`에 와이어링 — 이미 파싱해둔 티커 데이터 재사용, 새 fetch 없음. 목업의
+  "RISK/NEUTRAL/OPPORTUNITY ZONE" 문구는 채택하지 않음 — 실제로 계산되지 않는 위험 평가를
+  주장하는 게 되어 NUSA의 근거 기반 원칙에 어긋남. `tests/mobile-brand-redesign-phase2.test.js`
+  신설 + `mobile-watchlist.test.js`에 breadth 단위 테스트 추가. `pnpm run build`/타입체크/lint/
+  262개 테스트 전부 통과 확인.
