@@ -33,6 +33,8 @@ test("Home follows the master reference composition instead of the old dashboard
   assert.match(home, /PAPER 연결 필요/);
   assert.match(home, /tone="neutral"/);
   assert.match(home, /testID="home-signal-trace"[^>]*hero/);
+  assert.match(home, /signalStage: \{ height: 216/);
+  assert.match(components, /terrainSignalHero: \{ height: 190/);
   assert.doesNotMatch(home, /PAPER ONLY/);
   assert.doesNotMatch(home, /<MetricTile/);
   assert.doesNotMatch(home, /home-allocation-panel/);
