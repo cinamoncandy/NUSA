@@ -106,6 +106,18 @@ function eventIdentity(sequence: number, episode: AiAttributionEpisode, previous
 export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
   private readonly connection: DatabaseSync;
   private closed = false;
+  /**
+   * In-memory mirror of the verified chain, keyed by episodeId, refreshed by replay() (which
+   * still always does a genuine full disk read + hash-chain re-verification) and extended
+   * incrementally by appendEpisode() right after each successful commit. appendEpisode() and
+   * applicableLessons() read from this cache instead of re-walking and re-verifying the entire
+   * table on every call -- on this append-only, ever-growing ledger that was an O(n)-per-call
+   * cost paid on every single market tick (applicableLessons is called once per tick from
+   * apps/cloud/src/runtime.ts). Single-writer-per-process is already this store's existing trust
+   * boundary (same as every other SQLite store in this codebase), so this introduces no new
+   * assumption -- it only avoids re-proving what this same process already proved.
+   */
+  private cachedEpisodes = new Map<string, AiAttributionEpisode>();
 
   public constructor(filename = ":memory:") {
     this.connection = new DatabaseSync(filename);
@@ -159,20 +171,20 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
       previousHash = storedEventHash;
     });
     if (previousHash !== meta.ledgerHash) throw new Error("learning memory ledger head mismatch");
+    this.cachedEpisodes = new Map(episodes.map((episode) => [episode.episodeId, episode]));
     return Object.freeze({ schemaVersion: 1, episodes: Object.freeze(episodes), eventCount: episodes.length, headHash: previousHash });
   }
 
   public appendEpisode(value: AiAttributionEpisode): void {
     this.assertOpen();
     const episode = verifyEpisode(value);
-    const replay = this.replay();
-    const prior = replay.episodes.find((item) => item.episodeId === episode.episodeId);
+    const prior = this.cachedEpisodes.get(episode.episodeId);
     if (prior != null) {
       if (prior.contentHash !== episode.contentHash) throw new Error("conflicting learning memory replay");
       return;
     }
     if (episode.supersedesEpisodeId != null) {
-      const target = replay.episodes.find((item) => item.episodeId === episode.supersedesEpisodeId);
+      const target = this.cachedEpisodes.get(episode.supersedesEpisodeId);
       if (target == null) throw new Error("learning memory supersession target is missing");
       if (target.scope !== episode.scope) throw new Error("learning memory supersession scope mismatch");
       if (episode.createdAt <= target.createdAt) throw new Error("learning memory supersession chronology is invalid");
@@ -193,14 +205,15 @@ export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
       try { this.connection.exec("ROLLBACK"); } catch { /* ignore rollback failure */ }
       throw error;
     }
+    this.cachedEpisodes.set(episode.episodeId, episode);
   }
 
   public applicableLessons(scopeValue: string, nowValue: number): readonly AiLessonProjection[] {
     const scope = requiredText(scopeValue, "scope");
     const now = safeInteger(nowValue, "now");
-    const replay = this.replay();
-    const superseded = new Set(replay.episodes.flatMap((episode) => episode.supersedesEpisodeId == null ? [] : [episode.supersedesEpisodeId]));
-    return Object.freeze(replay.episodes
+    const episodes = [...this.cachedEpisodes.values()];
+    const superseded = new Set(episodes.flatMap((episode) => episode.supersedesEpisodeId == null ? [] : [episode.supersedesEpisodeId]));
+    return Object.freeze(episodes
       .filter((episode) => episode.scope === scope && episode.createdAt <= now && now < episode.expiresAt && !superseded.has(episode.episodeId))
       .map((episode): AiLessonProjection => Object.freeze({
         episodeId: episode.episodeId,
