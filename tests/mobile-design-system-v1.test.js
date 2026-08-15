@@ -8,10 +8,10 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("mobile v1 keeps brand actions monochrome and reserves chromatic colors for AI signals", () => {
   const source = read("apps/mobile/src/designSystem.ts");
-  assert.match(source, /primary: dark \? "#F4F6F8" : "#11151B"/);
-  assert.match(source, /aiSignalStart: "#A855F7"/);
-  assert.match(source, /aiSignalMid: "#4F7CFF"/);
-  assert.match(source, /aiSignalEnd: "#2DD4BF"/);
+  assert.match(source, /primary: dark \? "#E8F3FF" : "#11151B"/);
+  assert.match(source, /aiSignalStart: "#B56BFF"/);
+  assert.match(source, /aiSignalMid: "#5B8CFF"/);
+  assert.match(source, /aiSignalEnd: "#49D7C3"/);
   assert.match(source, /aiSignalSoft/);
 });
 

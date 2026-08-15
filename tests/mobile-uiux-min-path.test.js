@@ -29,7 +29,6 @@ test("functional motion is bounded and reduced-motion aware", () => {
 
 test("Chart preserves public/read-only and stale state semantics after hierarchy simplification", () => {
   const chart = read("src/chartView.tsx");
-  assert.match(chart, /PUBLIC \/ READ ONLY/);
-  assert.match(chart, /PUBLIC \/ STALE/);
+  assert.match(chart, /label=\{stale \? "STALE" : "READ ONLY"\}/);
   assert.match(chart, /accessibilityRole="text"/);
 });
