@@ -8,15 +8,26 @@ const LOOPBACK_HOST = "127.0.0.1";
 const UPBIT_ACCOUNTS_URL = "https://api.upbit.com/v1/accounts";
 const ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";
 const LEGACY_ACCOUNTS_PATH = "/api/upbit/accounts";
+const ORDERS_OPEN_URL = "https://api.upbit.com/v1/orders/open";
+const ORDERS_HISTORY_URL = "https://api.upbit.com/v1/orders";
+const ORDER_URL = "https://api.upbit.com/v1/order";
+const ORDERS_OPEN_PATH = "/api/v1/orders/open";
+const ORDERS_HISTORY_PATH = "/api/v1/orders/history";
+const ORDER_DETAIL_PREFIX = "/api/v1/orders/";
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 function encodeJson(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
 
-function createUpbitJwt(accessKey, secretKey) {
+function createUpbitJwt(accessKey, secretKey, query = "") {
   const header = encodeJson({ alg: "HS512", typ: "JWT" });
-  const payload = encodeJson({ access_key: accessKey, nonce: crypto.randomUUID() });
+  const payloadData = { access_key: accessKey, nonce: crypto.randomUUID() };
+  if (query) {
+    payloadData.query_hash = crypto.createHash("sha512").update(query).digest("hex");
+    payloadData.query_hash_alg = "SHA512";
+  }
+  const payload = encodeJson(payloadData);
   const unsigned = `${header}.${payload}`;
   const signature = crypto.createHmac("sha512", secretKey).update(unsigned).digest("base64url");
   return `${unsigned}.${signature}`;
@@ -128,6 +139,101 @@ async function loadUpbitAccountSummary({ env, fetchImpl, now = Date.now() }) {
   return normalizeUpbitAccountSummary(accounts, { now });
 }
 
+function optionalNumber(value, field) {
+  if (value === null || value === undefined || value === "") return null;
+  return finiteNumber(value, field);
+}
+
+function orderUuid(value) {
+  if (typeof value !== "string" || !/^[0-9a-f-]{20,64}$/i.test(value)) {
+    throw new Error("Invalid Upbit order uuid");
+  }
+  return value;
+}
+
+function orderMarket(value) {
+  if (typeof value !== "string" || !/^[A-Z0-9]+-[A-Z0-9]+$/.test(value.trim().toUpperCase())) {
+    throw new Error("Invalid Upbit order market");
+  }
+  return value.trim().toUpperCase();
+}
+
+function normalizeUpbitOrder(row) {
+  if (typeof row !== "object" || row === null || Array.isArray(row)) {
+    throw new Error("Invalid Upbit order");
+  }
+  const record = row;
+  const uuid = orderUuid(record.uuid);
+  const rawSide = typeof record.side === "string" ? record.side.trim().toLowerCase() : "";
+  const rawType = typeof record.ord_type === "string" ? record.ord_type.trim().toLowerCase() : "";
+  const rawState = typeof record.state === "string" ? record.state.trim().toLowerCase() : "";
+  const side = rawSide === "bid" ? "BUY" : rawSide === "ask" ? "SELL" : null;
+  const ordType = rawType === "limit" ? "LIMIT" : rawType === "market" ? "MARKET" : rawType === "price" ? "MARKET" : rawType === "best" ? "BEST" : null;
+  if (!side || !ordType) throw new Error("Invalid Upbit order side or type");
+  const volume = finiteNumber(record.volume, "order volume");
+  const executedVolume = finiteNumber(record.executed_volume ?? 0, "executed volume");
+  if (executedVolume > volume) throw new Error("Invalid Upbit executed volume");
+  const remainingVolume = finiteNumber(record.remaining_volume ?? (volume - executedVolume), "remaining volume");
+  if (remainingVolume > volume || executedVolume + remainingVolume > volume) {
+    throw new Error("Invalid Upbit order volume reconciliation");
+  }
+  const price = optionalNumber(record.price, "order price");
+  const rawStatus = rawState === "wait" || rawState === "watch"
+    ? (executedVolume > 0 ? "PARTIAL" : "OPEN")
+    : rawState === "done" ? "DONE"
+      : rawState === "cancel" ? "CANCELLED"
+        : rawState === "reject" ? "REJECTED" : null;
+  if (!rawStatus) throw new Error("Invalid Upbit order state");
+  if (typeof record.created_at !== "string" || !Number.isFinite(Date.parse(record.created_at))) {
+    throw new Error("Invalid Upbit order timestamp");
+  }
+  return Object.freeze({
+    uuid,
+    market: orderMarket(record.market),
+    side,
+    ordType,
+    price,
+    volume,
+    executedVolume,
+    remainingVolume,
+    state: rawStatus,
+    createdAt: new Date(record.created_at).toISOString(),
+  });
+}
+
+async function loadUpbitOrders({ env, fetchImpl, scope = "open", uuid }) {
+  const accessKey = requiredEnv(env, "UPBIT_ACCESS_KEY");
+  const secretKey = requiredEnv(env, "UPBIT_SECRET_KEY");
+  let url;
+  let query = "";
+  if (scope === "open") {
+    url = ORDERS_OPEN_URL;
+    query = "states%5B%5D=wait&states%5B%5D=watch";
+  } else if (scope === "history") {
+    url = ORDERS_HISTORY_URL;
+    query = "state=done&limit=100";
+  } else if (scope === "detail") {
+    url = ORDER_URL;
+    query = "uuid=" + encodeURIComponent(orderUuid(uuid));
+  } else {
+    throw new Error("Invalid order query scope");
+  }
+  const jwt = createUpbitJwt(accessKey, secretKey, query);
+  const upstream = await fetchImpl(url + "?" + query, {
+    method: "GET",
+    headers: {
+      authorization: "Bearer " + jwt,
+      accept: "application/json",
+    },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+  if (!upstream.ok) throw new Error("Upbit order request failed");
+  const payload = await upstream.json();
+  if (scope === "detail") return normalizeUpbitOrder(payload);
+  if (!Array.isArray(payload)) throw new Error("Upbit orders response was not an array");
+  return Object.freeze(payload.map(normalizeUpbitOrder));
+}
+
 function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch, now = Date.now } = {}) {
   if (typeof fetchImpl !== "function") throw new TypeError("fetchImpl must be a function");
 
@@ -169,6 +275,49 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch,
       return;
     }
 
+    let orderScope = null;
+    let orderUuidValue = null;
+    if (url.pathname === ORDERS_OPEN_PATH) orderScope = "open";
+    else if (url.pathname === ORDERS_HISTORY_PATH) orderScope = "history";
+    else if (url.pathname.startsWith(ORDER_DETAIL_PREFIX)) {
+      orderScope = "detail";
+      orderUuidValue = url.pathname.slice(ORDER_DETAIL_PREFIX.length);
+    }
+    if (orderScope) {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
+        return;
+      }
+      let bridgeToken;
+      try {
+        bridgeToken = requiredEnv(env, "NUSA_API_TOKEN");
+      } catch {
+        sendJson(response, 503, { ok: false, error: "SERVICE_NOT_CONFIGURED" });
+        return;
+      }
+      if (!safeTokenMatch(request.headers.authorization, bridgeToken)) {
+        sendJson(response, 401, { ok: false, error: "UNAUTHORIZED" });
+        return;
+      }
+      if (orderScope === "detail") {
+        try {
+          orderUuid(orderUuidValue);
+        } catch {
+          sendJson(response, 400, { ok: false, error: "INVALID_ORDER_UUID" });
+          return;
+        }
+      }
+      try {
+        const orders = await loadUpbitOrders({ env, fetchImpl, scope: orderScope, uuid: orderUuidValue });
+        sendJson(response, 200, orders);
+      } catch (error) {
+        const name = error instanceof Error ? error.name : "UnknownError";
+        console.error("upbit-readonly orders request failed", { name });
+        sendJson(response, 502, { ok: false, error: "UPSTREAM_FAILURE" });
+      }
+      return;
+    }
+
     sendJson(response, 404, { ok: false, error: "NOT_FOUND" });
   };
 }
@@ -188,12 +337,20 @@ module.exports = {
   UPBIT_ACCOUNTS_URL,
   ACCOUNT_SUMMARY_PATH,
   LEGACY_ACCOUNTS_PATH,
+  ORDERS_OPEN_URL,
+  ORDERS_HISTORY_URL,
+  ORDER_URL,
+  ORDERS_OPEN_PATH,
+  ORDERS_HISTORY_PATH,
+  ORDER_DETAIL_PREFIX,
   createRequestHandler,
   createUpbitJwt,
   loadUpbitAccounts,
   loadUpbitAccountSummary,
+  loadUpbitOrders,
   normalizeUpbitAccount,
   normalizeUpbitAccountSummary,
+  normalizeUpbitOrder,
   safeTokenMatch,
   startServer,
 };
