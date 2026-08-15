@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T01:02:00+09:00"
+updated_at: "2026-08-16T00:44:07+09:00"
 phase: mobile-first-cloud-migration
 status: blocked
 objective: "Reconnect Android to the existing Oracle PAPER operations foundation without creating a new provider, while preserving PAPER-only authority and holding PR #535 Draft/HOLD."
 base_branch: main
 active_branch: agent/p0-mobile-first-cloud-audit
 active_pull_request: null
-base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -354,7 +354,7 @@ verification:
     - "Separate constitutional human production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
     - "Separate two-human governance for any later risk increase"
-  last_result: "Oracle #237/#254 operations foundation is present in main, but no inspectable Oracle host, stable HTTPS ingress, mobile auth/bootstrap, or readiness evidence exists. Candidate nusa-api.duckdns.org resolves but /health and /ready return 502 and is not declared the Oracle PAPER origin. Android PAPER remains manual-endpoint/PC dependent. Status is BLOCKED — EXISTING CLOUD INFRASTRUCTURE ACCESS REQUIRED."
+  last_result: "Recovery plan preserves existing Oracle/PAPER/Upbit/Android/Firebase assets and classifies the DAG: A Oracle discovery PASS; B stable HTTPS ingress BLOCKED; C–F blocked by ingress/auth; G partially automatable; H–I pending. No product code changed. Status is BLOCKED — CLOUD INFRASTRUCTURE AUTHORITY REQUIRED."
   current_commit: "Full product architecture audit committed on agent/p0-mobile-first-cloud-audit; no product code changed; PR #535 remains Draft/HOLD."
 human_authority:
   live_trading_mutation: prohibited

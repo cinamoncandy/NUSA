@@ -34,6 +34,7 @@ evidence:
   audit: docs/audits/mobile-first-cloud-p0-audit-2026-08-16.md
   full_product_architecture_audit: docs/audits/nusa-product-architecture-audit-2026-08.md
   oracle_android_path_audit: docs/audits/oracle-android-canonical-path-audit-2026-08-16.md
+  recovery_plan: docs/audits/product-architecture-recovery-plan-2026-08-16.md
   source_of_truth: nusa.md
   firebase_readiness: docs/deployment/firebase-readiness.md
   bridge_runbook: docs/TRUSTED_HTTPS_BRIDGE.md
