@@ -1,4 +1,4 @@
-import { classifyPriceRegime, type TradingRegime } from "./regimePolicy";
+import { classifyPriceRegime, DEFAULT_REGIME_CONFIG, type TradingRegime } from "./regimePolicy";
 
 export type StrategySignalType = "BUY" | "SELL" | "HOLD";
 
@@ -110,7 +110,13 @@ export class StrategyEngine {
     if (!Number.isSafeInteger(tick.timestamp) || tick.timestamp < 0) throw new Error("tick timestamp must be a non-negative integer");
     const tickKey = `${tick.market}:${tick.timestamp}:${tick.price}`;
     if (tickKey === this.lastTickKey && this.latestSignal !== undefined) return this.latestSignal;
-    const regime = classifyPriceRegime(this.prices.concat(tick.price), tick.timestamp);
+    // classifyPriceRegime only ever reads its own trailing trendLookback+1 window
+    // (see regimePolicy.ts), so copying the full up-to-maxHistory price buffer on every
+    // tick just to have it re-sliced down internally was pure waste. Pre-trim to the
+    // window it actually needs -- this.prices.slice(-N).concat(tick) has length
+    // min(N, prices.length)+1, identical to what classifyPriceRegime would itself slice
+    // out of the full array, so behavior is unchanged.
+    const regime = classifyPriceRegime(this.prices.slice(-DEFAULT_REGIME_CONFIG.trendLookback).concat(tick.price), tick.timestamp);
     const signal = this.running
       ? this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity })
       : { type: "HOLD" as const, reason: "strategy-stopped", confidence: 0, timestamp: tick.timestamp };
