@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T20:45:00+09:00"
+updated_at: "2026-08-15T21:56:00+09:00"
 phase: android-real-use-successor
 status: ready
 objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
@@ -10,21 +10,27 @@ active_pull_request: null
 base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
 repository_maintenance:
   issue: 210
-  objective: "Apply the minimum-path mobile UI/UX P1 restoration without changing product authority or the WO-0053 physical-device gate."
-  branch: agent/issue-210-premium-uiux-min-path
-  pull_request: 528
-  head_commit: 9904b94a44899a1512198ec7593db94bb9948f52
-  base_commit: 3c90e6a41b7c2589cfb825d7f9a288443dfaed8e
+  objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
+  branch: agent/issue-210-visual-redesign
+  pull_request: 532
+  head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
+  base_commit: 616d7a5737c49f79fcf4cba3e7d3fcad7b72fdb7
   status: MERGED
-  merge_commit: 9b81b77ae50e6ab42463c14b596d6e00c0ac0ccb
+  merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-  latest_follow_up:
+  previous_follow_up:
     pull_request: 530
     head_commit: a83dc5864fb50a0f122b07e21242a81ff30b323d
     merge_commit: 1b744111da16b320cbd52af25cd44114df9c8435
     status: MERGED
     scope: "Truthful Home signal trace derived from PAPER readiness state; stable logo asset and authority boundaries unchanged."
+  latest_follow_up:
+    pull_request: 532
+    head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
+    merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
+    status: MERGED
+    scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-0053
   status: VERIFYING

@@ -8,17 +8,22 @@ base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
 implementation_branch: agent/aipos-0053-main-final
 repository_maintenance:
   issue: 210
-  pull_request: 528
-  branch: agent/issue-210-premium-uiux-min-path
-  head_commit: 9904b94a44899a1512198ec7593db94bb9948f52
+  pull_request: 532
+  branch: agent/issue-210-visual-redesign
+  head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
   status: MERGED
-  merge_commit: 9b81b77ae50e6ab42463c14b596d6e00c0ac0ccb
-  scope: "Minimum-path mobile UI hierarchy and bounded reduced-motion state feedback only; no Android physical-gate claim and no authority change."
-  latest_follow_up:
+  merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
+  scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
+  previous_follow_up:
     pull_request: 530
     head_commit: a83dc5864fb50a0f122b07e21242a81ff30b323d
     merge_commit: 1b744111da16b320cbd52af25cd44114df9c8435
     scope: "Truthful Home signal trace; no Android physical-gate claim and no authority change."
+  latest_follow_up:
+    pull_request: 532
+    head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
+    merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
+    scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
