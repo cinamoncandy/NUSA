@@ -14,6 +14,11 @@ repository_maintenance:
   status: MERGED
   merge_commit: 9b81b77ae50e6ab42463c14b596d6e00c0ac0ccb
   scope: "Minimum-path mobile UI hierarchy and bounded reduced-motion state feedback only; no Android physical-gate claim and no authority change."
+  latest_follow_up:
+    pull_request: 530
+    head_commit: a83dc5864fb50a0f122b07e21242a81ff30b323d
+    merge_commit: 1b744111da16b320cbd52af25cd44114df9c8435
+    scope: "Truthful Home signal trace; no Android physical-gate claim and no authority change."
 objective: "Deliver a clean Android successor path for real PAPER use while preserving the latest safety, access-approval, Firebase-readiness, and zero-authority contracts."
 scope:
   - "Exact-head Android debug/release candidate packaging and provenance."
