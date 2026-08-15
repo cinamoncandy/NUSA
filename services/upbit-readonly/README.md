@@ -8,6 +8,8 @@ This service is the repository-managed source for the NUSA server-side Upbit rea
 - Exposes unauthenticated `GET /health`.
 - Exposes authenticated `GET /api/v1/account/summary`.
 - Retains `GET /api/upbit/accounts` as a normalized compatibility path.
+- Exposes read-only `GET /api/v1/orders/open`, `GET /api/v1/orders/history`, and `GET /api/v1/orders/:uuid` query routes.
+- Order query responses are normalized to stable NUSA fields and never expose BUY/SELL/CANCEL controls.
 - Validates and normalizes the provider payload server-side; PAPER state is never mixed into the response.
 - Upbit credentials stay server-side in environment variables.
 - The mobile client supplies only the NUSA bridge bearer token.
