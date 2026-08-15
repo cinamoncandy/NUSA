@@ -214,7 +214,20 @@ export function startCloudRuntime(
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
-  process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT")); return controller;
+  process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT"));
+
+  // Unrecoverable runtime faults must terminate the process so supervisors can restart
+  // from a fail-closed state instead of serving potentially stale mutation paths.
+  process.on("uncaughtException", (error) => {
+    console.error("[cloud-runtime-crash] uncaught exception", error instanceof Error ? error.message : "unknown error");
+    exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("[cloud-runtime-crash] unhandled rejection", reason instanceof Error ? reason.message : "unknown error");
+    exit(1);
+  });
+
+  return controller;
 }
 function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
 if (require.main === module) main();
