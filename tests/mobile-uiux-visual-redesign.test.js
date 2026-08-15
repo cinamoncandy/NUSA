@@ -27,6 +27,7 @@ test("Home uses one data-bound hero signal primitive", () => {
 
 test("Home follows the master reference composition instead of the old dashboard", () => {
   const home = read("src/homeView.tsx");
+  const components = read("src/components.tsx");
   assert.match(home, /NUSA \/ HOME/);
   assert.match(home, /TOTAL EQUITY/);
   assert.match(home, /AI SIGNAL/);
