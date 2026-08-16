@@ -87,7 +87,7 @@ test("chart UI stays read-only while Markets uses public data separate from PAPE
   assert.match(workspace, /<ChartView/);
   assert.doesNotMatch(app, /\/api\/(?:candles|markets|account|status)/);
   assert.match(client, /\/api\/paper-operations/);
-  assert.match(client, /authorization:\s*`Bearer/);
-  assert.match(client, /unavailableDashboardCredentialProvider/);
+  assert.match(client, /authorizationHeader|authorization:\s*requestAuthorization/);
+  assert.match(client, /sessionProvider/);
   assert.doesNotMatch(client, /EXPO_PUBLIC_.*TOKEN|hardcoded.*token|Bearer\s+[A-Za-z0-9._-]{16,}/i);
 });

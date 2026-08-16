@@ -41,7 +41,7 @@ test("Bottom navigation uses a restrained active rail without changing route con
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\]/);
 });
 
 test("visual redesign keeps the authority boundary unchanged", () => {

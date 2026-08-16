@@ -86,7 +86,7 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
-  assert.match(app, /activeTab === "Paper"/);
+  assert.match(app, /activeTab === "Trade"/);
   assert.match(app, /<TradingView/);
 });
 

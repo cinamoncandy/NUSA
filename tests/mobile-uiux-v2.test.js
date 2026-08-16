@@ -6,14 +6,14 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through six-tab restructuring", () => {
+test("product navigation promotes PAPER and AI through stable product tabs", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\] as const/);
+  assert.match(app, /Trade: "PAPER"/);
+  assert.match(app, /More: "AI"/);
+  assert.match(app, /activeTab === "More" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
-  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
+  assert.match(app, /utilityView === "HISTORY" \? <OrderHistoryView/);
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
@@ -48,7 +48,7 @@ test("PAPER submit remains unavailable until a scoped mobile session exists", ()
   const source = read("src/tradingView.tsx");
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(source, /const builtInSubmitAvailable = false/);
-  assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| \(builtInSubmitAvailable && sessionProvider !== undefined\)\)/);
   assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);

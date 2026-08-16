@@ -23,7 +23,7 @@ test("PAPER transport uses canonical endpoint state and an unavailable mobile se
   const operations = read("apps/mobile/src/personalPaperOperationsClient.ts");
   assert.match(app, /tryReadCanonicalNusaOrigin/);
   assert.match(app, /setConfiguredPaperEndpoint\(canonicalOrigin\)/);
-  assert.match(app, /unavailableDashboardCredentialProvider/);
+  assert.match(app, /mobileSession/);
   assert.match(operations, /NUSA Cloud mobile session is unavailable/);
   assert.doesNotMatch(app, /settings\.paperEndpoint/);
 });

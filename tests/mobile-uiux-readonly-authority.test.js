@@ -33,7 +33,7 @@ test("PAPER surface stays PAPER-only and fails closed without a mobile session",
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.match(trading, /PAPER 주문 작업공간/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(trading, /unavailableDashboardCredentialProvider/);
+  assert.match(trading, /sessionProvider/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.doesNotMatch(trading, /authority:\s*"LIVE"|productionMutationAllowed:\s*true/);
 });
