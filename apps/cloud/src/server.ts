@@ -22,6 +22,8 @@ import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
 import { isUserAllowed, SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { BoundedHttpRateLimiter, rateLimitIdentity } from "./httpRateLimiter";
+import { handleMobileAuthHttp } from "./mobileAuthHttp";
+import type { MobileSessionAuthority } from "./mobileAuth";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -44,6 +46,7 @@ export interface CloudDashboardServerOptions {
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly readiness?: () => CloudReadinessSnapshot;
   readonly rateLimiter?: BoundedHttpRateLimiter;
+  readonly mobileAuth?: Readonly<{ authority: MobileSessionAuthority }>;
 }
 
 export interface CloudDashboardServerHandle {
@@ -168,7 +171,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     verify(token: string) {
       try {
         const principal = options.tokenVerifier.verify(token);
-        if (principal == null || !principal.userId.trim()) return undefined;
+        if (principal == null || principal.authDomain === "MOBILE" || !principal.userId.trim()) return undefined;
         const principalEmail = principal.email?.trim().toLowerCase();
         if (!principalEmail) return undefined;
         let actor = userAccessRepository.get(principal.userId.trim());
@@ -187,6 +190,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       } catch {
         return undefined;
       }
+    }
+  });
+  const mobileTokenVerifier = options.mobileAuth?.authority.tokenVerifier();
+  const requestTokenVerifierBase: DashboardTokenVerifier = Object.freeze({
+    ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+    verify(token: string) {
+      const mobilePrincipal = mobileTokenVerifier?.verify(token);
+      return mobilePrincipal ?? accessControlledTokenVerifier.verify(token);
     }
   });
 
@@ -209,7 +220,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     const requestTokenVerifier: DashboardTokenVerifier = Object.freeze({
       ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
       verify(token: string) {
-        const principal = accessControlledTokenVerifier.verify(token);
+        const principal = requestTokenVerifierBase.verify(token);
         requestPrincipal = principal;
         return principal;
       }
@@ -227,6 +238,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
+
+      if (options.mobileAuth != null && (req.url === "/api/mobile/session/bootstrap" || req.url === "/api/mobile/session/refresh" || req.url === "/api/mobile/session/revoke")) {
+        respond("mobile_auth", handleMobileAuthHttp(dashboardRequest, req.url, { authority: options.mobileAuth.authority }));
+        return;
+      }
 
       if (req.url === "/ready") {
         const authorization = authorizeDashboardReadRequest(dashboardRequest, requestTokenVerifier);

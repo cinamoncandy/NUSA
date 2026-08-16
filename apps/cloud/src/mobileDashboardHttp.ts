@@ -16,6 +16,8 @@ export interface DashboardPrincipal {
   readonly email?: string;
   readonly displayName?: string;
   readonly scopes: readonly string[];
+  readonly authDomain?: "OPERATOR" | "MOBILE";
+  readonly sessionId?: string;
 }
 
 export interface DashboardTokenVerifier {
@@ -67,14 +69,19 @@ function authorizeScope(
   try { principal = tokenVerifier.verify(token); }
   catch { return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) }); }
   if (principal == null || !principal.userId.trim()) return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
-  if (!principal.scopes.includes(scope)) return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
+  const requiredScope = principal.authDomain === "MOBILE"
+    ? scope === "dashboard:read" ? "paper:read" : "paper:simulate"
+    : scope;
+  if (!principal.scopes.includes(requiredScope)) return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
   return Object.freeze({
     ok: true,
     principal: Object.freeze({
       userId: principal.userId.trim(),
       ...(principal.email?.trim() ? { email: principal.email.trim().toLowerCase() } : {}),
       ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {}),
-      scopes: Object.freeze([...principal.scopes])
+      scopes: Object.freeze([...principal.scopes]),
+      ...(principal.authDomain ? { authDomain: principal.authDomain } : {}),
+      ...(principal.sessionId?.trim() ? { sessionId: principal.sessionId.trim() } : {})
     })
   });
 }

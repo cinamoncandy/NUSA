@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { DashboardPrincipal, DashboardTokenVerifier } from "./mobileDashboardHttp";
+import type { MobileEnrollmentRecord } from "./mobileAuth";
 
 export interface CloudRuntimeConfig {
   readonly port: number;
@@ -12,6 +13,7 @@ export interface CloudRuntimeConfig {
   readonly cloudStateDbPath: string;
   readonly paperInitialCapitalKrw?: number;
   readonly paperInvestmentPercent: number;
+  readonly mobileEnrollments: readonly MobileEnrollmentRecord[];
 }
 
 interface ConfiguredUserIdentity {
@@ -33,6 +35,7 @@ const PUBLIC_DATA_ENV = "NUSA_CLOUD_UPBIT_PUBLIC_DATA";
 const STATE_DB_ENV = "NUSA_CLOUD_STATE_DB_PATH";
 const PAPER_INITIAL_CAPITAL_ENV = "NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW";
 const PAPER_INVESTMENT_PERCENT_ENV = "NUSA_CLOUD_PAPER_INVESTMENT_PERCENT";
+export const MOBILE_ENROLLMENTS_ENV = "NUSA_CLOUD_MOBILE_ENROLLMENTS_JSON";
 export const DEFAULT_CLOUD_UPBIT_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH"]);
 export const DEFAULT_CLOUD_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
 
@@ -93,6 +96,30 @@ function readConfiguredUsers(sharedSecret: string, env: NodeJS.ProcessEnv, owner
   return Object.freeze(users);
 }
 
+function readMobileEnrollments(env: NodeJS.ProcessEnv): readonly MobileEnrollmentRecord[] {
+  const raw = env[MOBILE_ENROLLMENTS_ENV]?.trim();
+  if (!raw) return Object.freeze([]);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error(`${MOBILE_ENROLLMENTS_ENV} must be valid JSON`); }
+  if (!Array.isArray(parsed) || parsed.length > 1000) throw new Error(`${MOBILE_ENROLLMENTS_ENV} must be an array with at most 1000 records`);
+  const seen = new Set<string>();
+  const records: MobileEnrollmentRecord[] = [];
+  for (const item of parsed) {
+    if (item == null || typeof item !== "object") throw new Error(`${MOBILE_ENROLLMENTS_ENV} contains an invalid record`);
+    const value = item as Record<string, unknown>;
+    const proofHash = typeof value.proofHash === "string" ? value.proofHash.trim().toLowerCase() : "";
+    const userId = typeof value.userId === "string" ? value.userId.trim() : "";
+    const email = typeof value.email === "string" ? value.email.trim().toLowerCase() : "";
+    const displayName = typeof value.displayName === "string" ? value.displayName.trim() : undefined;
+    const expiresAtMs = typeof value.expiresAtMs === "number" ? value.expiresAtMs : Number(value.expiresAtMs);
+    const deviceIdHash = typeof value.deviceIdHash === "string" ? value.deviceIdHash.trim().toLowerCase() : undefined;
+    if (!/^[a-f0-9]{64}$/.test(proofHash) || seen.has(proofHash) || !userId || !email.includes("@") || !Number.isSafeInteger(expiresAtMs) || expiresAtMs <= 0 || (deviceIdHash !== undefined && !/^[a-f0-9]{64}$/.test(deviceIdHash))) throw new Error(`${MOBILE_ENROLLMENTS_ENV} contains an invalid record`);
+    seen.add(proofHash);
+    records.push(Object.freeze({ proofHash, userId, email, ...(displayName ? { displayName } : {}), expiresAtMs, ...(deviceIdHash ? { deviceIdHash } : {}) }));
+  }
+  return Object.freeze(records);
+}
+
 export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConfig {
   const portRaw = env[PORT_ENV];
   if (portRaw === undefined || portRaw.trim().length === 0) throw new Error(`${PORT_ENV} is required`);
@@ -110,7 +137,7 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   if (!Number.isFinite(paperInvestmentPercent) || paperInvestmentPercent < 0 || paperInvestmentPercent > 100) throw new Error(`${PAPER_INVESTMENT_PERCENT_ENV} must be between 0 and 100`);
   const owner = resolveOwnerIdentity(token, env);
   readConfiguredUsers(token, env, owner);
-  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
+  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, mobileEnrollments: readMobileEnrollments(env), ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
 }
 
 /**

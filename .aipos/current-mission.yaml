@@ -1,23 +1,17 @@
-id: WO-0057
-title: Android real-use successor
-branch: agent/p0-mobile-zero-config-auth
-pull_request: 540
+id: WO-0058
+title: Mobile-specific Cloud auth bootstrap foundation
+branch: agent/p0-mobile-auth-bootstrap
+pull_request: null
 base_branch: main
-phase: mobile-zero-config-auth
+phase: mobile-auth-bootstrap
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0057-mobile-zero-config-auth.yaml
-objective: "Remove production Android infrastructure inputs, enforce canonical HTTPS release origin, and preserve fail-closed mobile authentication until a real Cloud bootstrap exists."
+source_work_order: .aipos/work-orders/WO-0058-mobile-auth-bootstrap.yaml
+objective: "Issue short-lived mobile-scoped Cloud sessions from an approved one-time enrollment proof without reusing operator/dashboard credentials."
 scope:
-  - canonical HTTPS origin auto-selection and release fail-closed validation
-  - production Settings without endpoint, port, tunnel, or dashboard bearer inputs
-  - legacy endpoint/bearer migration and Home-preserving Cloud failure UX
-  - mobile auth bootstrap boundary without anonymous or master-bearer fallback
-  - existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system
-serialized_human_environment_gate:
-  id: WO-0051
-  status: IN_PROGRESS
-  mode: HUMAN_ENVIRONMENT_ONLY
-  bypass: prohibited
+  - dedicated bootstrap, refresh, and revoke contracts
+  - opaque short-lived token storage by digest only
+  - mobile scope isolation from operator/admin and LIVE mutation routes
+  - secure Android session provider for later #540 integration
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -28,20 +22,18 @@ safety:
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
 verification:
-  focused_mobile_paper_suite: PASS_299_OF_299
-  exact_head: 6d5957f73dd19d843f7a7ecc98865c64029063b5
-  exact_head_ci_dispatch: PASS_31920904311
-  mobile_native_pr_check: NOT_CREATED_BY_GITHUB
-  merged_successor_pr: 442
-  merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
-  access_approval_identity_pr: 448
-  access_approval_identity_head: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
-  access_approval_identity_merge: 00727a4298413b567b6d9552c3cb656c260bc112
-  access_approval_exact_head_ci: PASS
-  access_approval_safety_workflows: PASS_4_OF_4
+  existing_auth: "operator shared-secret + durable user approval; local secure session primitives"
+  mobile_auth_bootstrap: PASS
+  mobile_session_client: PASS
+  operator_mobile_separation: PASS
+  focused_tests: PASS
+  typecheck: PASS
+  lint: PASS
+  build: PASS
+  full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
+  - ORACLE_MOBILE_AUTH_PROVISIONING_REQUIRED
+  - STABLE_DNS_INGRESS_AUTHORITY_REQUIRED
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
-  - MOBILE_AUTH_BOOTSTRAP_FOUNDATION_MISSING
-  - DNS_INGRESS_AUTHORITY_REQUIRED
-next_recommended_task: "Implement or connect an approved server-side mobile identity/bootstrap provider; do not use dashboard bearer or anonymous unlimited access."
+next_recommended_task: "Integrate MobileSessionProvider with #540 canonical-origin clients, then perform Oracle provisioning and real Android verification; do not reuse dashboard bearer or add anonymous access."
