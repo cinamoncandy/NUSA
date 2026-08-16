@@ -54,9 +54,8 @@ test("order history UI uses design system and remains reachable and read-only in
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
   assert.doesNotMatch(app, /<MoreView/);
-  assert.match(app, /header-order-history/);
-  assert.doesNotMatch(app, /utilityView === "HISTORY" \? <OrderHistoryView/);
   assert.match(app, /rawOrders=\{snapshot\?\.orders \?\? null\}/);
   assert.match(app, /loadPersonalPaperOperations/);
   assert.doesNotMatch(app, /\/api\/account/);
