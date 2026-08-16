@@ -6,7 +6,7 @@ status: in_progress
 objective: "Build a dedicated short-lived mobile Cloud auth bootstrap without reusing operator/dashboard credentials, while preserving PAPER-only authority and AI ZERO_AUTHORITY."
 base_branch: main
 active_branch: agent/p0-mobile-auth-bootstrap
-active_pull_request: null
+active_pull_request: 541
 base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210

@@ -1,7 +1,7 @@
 id: WO-0058
 title: Mobile-specific Cloud auth bootstrap foundation
 branch: agent/p0-mobile-auth-bootstrap
-pull_request: null
+pull_request: 541
 base_branch: main
 phase: mobile-auth-bootstrap
 status: IN_PROGRESS
@@ -31,6 +31,8 @@ verification:
   lint: PASS
   build: PASS
   full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
+  exact_head_ci: PASS
+  exact_head: 85ac6365adb977d6b6abf9753d06467a9e48e3be
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - ORACLE_MOBILE_AUTH_PROVISIONING_REQUIRED

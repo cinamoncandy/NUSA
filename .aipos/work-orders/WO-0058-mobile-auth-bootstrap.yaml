@@ -6,6 +6,7 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 implementation_branch: agent/p0-mobile-auth-bootstrap
+pull_request: 541
 objective: "Provide a server-side mobile enrollment/bootstrap authority and short-lived scoped session provider without reusing the operator/dashboard bearer."
 scope:
   - "Dedicated mobile bootstrap, refresh, and revoke contracts with normalized errors."
@@ -53,6 +54,8 @@ verification:
     build: PASS
     architecture_safety: PASS
     full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
+    exact_head_ci: PASS
+    exact_head: 85ac6365adb977d6b6abf9753d06467a9e48e3be
     external_oracle_loopback: PENDING
     real_android: HUMAN_ENVIRONMENT_ONLY_PENDING
 safety:
