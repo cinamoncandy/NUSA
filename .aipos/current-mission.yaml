@@ -1,17 +1,17 @@
-id: WO-0059
-title: Zero-config canonical origin and mobile auth integration
-branch: agent/p0-zero-config-auth-integration
-pull_request: 542
+id: WO-0060
+title: Production Home mobile UI/UX implementation
+branch: agent/issue-543-a-mobile-uiux
+pull_request: 543
 base_branch: main
-phase: zero-config-auth-integration
+phase: mobile-uiux-implementation
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0059-zero-config-auth-integration.yaml
-objective: "Combine #540 canonical origin and #541 mobile session transport without operator credential fallback."
+source_work_order: .aipos/work-orders/WO-0060-mobile-uiux-implementation.yaml
+objective: "Apply the approved NUSA Home visual composition in the production React Native render path without changing runtime authority or auth architecture."
 scope:
-  - dedicated bootstrap, refresh, and revoke contracts
-  - opaque short-lived token storage by digest only
-  - mobile scope isolation from operator/admin and LIVE mutation routes
-  - protected clients use mobile session provider
+  - production Home composition and truthful state presentation
+  - reusable existing TerrainSignal visual primitive
+  - responsive phone/tablet layout and reduced-motion-safe reveal
+  - focused production render-contract tests
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -23,20 +23,14 @@ safety:
   aiLiveAuthority: prohibited
 verification:
   existing_auth: "operator shared-secret + durable user approval; local secure session primitives"
-  mobile_auth_bootstrap: PASS
-  mobile_session_client: PASS
-  protected_client_session_boundary: PASS
+  production_render_path: PASS
   focused_tests: PASS
   typecheck: PASS
   lint: PASS
   build: PASS
-  full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
   exact_head_ci: PASS
-  exact_head: 509b777491c181e286a1c0c2136c00397a627140
+  exact_head: f6440840b223d712e64fc0b8e928123d82e07469
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
-  - APP_SESSION_WIRING_REQUIRES_APPROVED_SECURE_STORAGE_AND_ENROLLMENT_PROOF
-  - ORACLE_LOOPBACK_ACCESS_REQUIRED
-  - STABLE_DNS_INGRESS_AUTHORITY_REQUIRED
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
-next_recommended_task: "Provision approved mobile identity/secure storage in Oracle, then run integrated protected-client and real Android verification."
+next_recommended_task: "Obtain exact APK provenance and install it on a real Android device for Home screenshot visual acceptance."
