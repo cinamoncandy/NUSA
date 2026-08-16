@@ -8,6 +8,14 @@ base_branch: main
 implementation_branch: agent/issue-543-a-mobile-uiux
 pull_request: 543
 objective: "Replace the production Home composition with the approved NUSA visual language while preserving real data, navigation, authentication, and all safety boundaries."
+architecture_impact:
+  acknowledged: true
+  analysis: "This is a presentation-only change in the existing React Native Home render path. It reuses current theme tokens, TerrainSignal, data contracts, navigation, and session wiring; it introduces no parallel runtime, transport, authority, or persistence architecture."
+  references:
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - apps/mobile/App.tsx
+    - apps/mobile/src/homeView.tsx
 scope:
   - "Production Home header, equity hero, AI insight, terrain/signal map, metrics, and quiet navigation composition."
   - "Truthful loading, empty, disconnected, and error states using existing runtime data contracts."
