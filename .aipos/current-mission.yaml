@@ -1,7 +1,7 @@
 id: WO-0057
 title: Android real-use successor
 branch: agent/p0-mobile-zero-config-auth
-pull_request: null
+pull_request: 540
 base_branch: main
 phase: mobile-zero-config-auth
 status: IN_PROGRESS
@@ -29,6 +29,9 @@ safety:
   aiLiveAuthority: prohibited
 verification:
   focused_mobile_paper_suite: PASS_299_OF_299
+  exact_head: 8e2e83da1cf6a03282472322d10626614d7137cd
+  exact_head_ci_dispatch: PASS_31920635192
+  mobile_native_pr_check: NOT_CREATED_BY_GITHUB
   merged_successor_pr: 442
   merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
   access_approval_identity_pr: 448
