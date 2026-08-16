@@ -98,7 +98,8 @@ function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
-  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
+  // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional
+  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
@@ -133,8 +134,11 @@ function AuthenticatedApp() {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
+    // Public data only mode: PAPER server is optional. App works with public market data alone.
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
-      setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
+      // Emit a read-only mode signal but continue operation with public markets only
+      dispatchRuntime({ type: "NETWORK_OFFLINE" });
+      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });
       return Promise.resolve();
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
@@ -225,7 +229,8 @@ function AuthenticatedApp() {
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
+    // Revert to public data only mode on sign out
+    setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {
@@ -279,7 +284,8 @@ function AuthenticatedApp() {
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
-  const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
+  // PAPER server is now optional; app works with public market data alone
+  const isPaperConnected = getConfiguredPaperEndpoint() !== null && isPaperConnectionVerified(getConfiguredPaperEndpoint());
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
   const stale = snapshot == null || snapshot.health !== "HEALTHY";
@@ -289,7 +295,8 @@ function AuthenticatedApp() {
     && runtimeSnapshot.lifecycle === "FOREGROUND"
     && runtimeSnapshot.network === "ONLINE"
     && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && (utilityView === null && activeTab !== "Home" && activeTab !== "Markets") && activeTab !== "Portfolio";
+  // PAPER features (Paper tab, Orders, AI) require server connection; others work with public data only
+  const requiresPaperConnection = !isPaperConnected && (utilityView === null && (activeTab === "Paper" || activeTab === "Order" || activeTab === "AiSignal"));
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View>
@@ -299,7 +306,7 @@ function AuthenticatedApp() {
     {/* MarketsView's rawCandles stays null: no real candle/OHLC fetch path exists yet anywhere
         in this client (a separately-scoped data-integration gap, not a UI decision). ChartView
         renders its own truthful "unavailable" state rather than fabricating candle data. */}
-    {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
+    {requiresPaperConnection ? <DashboardConnectionRequired reason="PAPER 서버 연결이 필요합니다. Settings에서 endpoint와 토큰을 검증하세요." onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
@@ -307,7 +314,7 @@ function AuthenticatedApp() {
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
+      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={isPaperConnected ? null : "PAPER 서버 미연결 — Settings에서 선택적으로 연결하세요."} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
 
     <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner}>{tabs.map((tab) => { const active = utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, { borderColor: active ? appTheme.colors.neonBlue : "transparent", backgroundColor: active ? appTheme.colors.neonGlow : "transparent", shadowColor: active ? appTheme.colors.neonBlue : "transparent", shadowOpacity: active ? 0.3 : 0, shadowRadius: active ? 8 : 0, elevation: active ? 2 : 0 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : "transparent", width: active ? 30 : 12, shadowColor: active ? appTheme.colors.aiSignalEnd : "transparent", shadowOpacity: active ? 0.6 : 0, shadowRadius: active ? 6 : 0, elevation: active ? 1 : 0 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.neonTeal : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
   </SafeAreaView>;

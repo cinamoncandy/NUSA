@@ -38,11 +38,13 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /signOut\(\)/);
 });
 
-test("not-configured dashboard state is distinct from runtime errors", () => {
+test("PAPER server connection is optional; Home and Markets work with public data alone", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
   assert.match(app, /testID="dashboard-open-settings"/);
-  assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
+  // PAPER connection is optional; requiresPaperConnection guards PAPER-only tabs
+  assert.match(app, /const isPaperConnected = getConfiguredPaperEndpoint\(\) !== null/);
+  assert.match(app, /const requiresPaperConnection = !isPaperConnected && \(.*activeTab === "Paper" \|\| activeTab === "Order" \|\| activeTab === "AiSignal"\)/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
   assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
