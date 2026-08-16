@@ -1,0 +1,35 @@
+id: WO-0060
+schema_version: 1
+title: "Implement approved NUSA mobile Home UI/UX in production render path"
+status: IN_PROGRESS
+priority: 80
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: agent/issue-543-a-mobile-uiux
+pull_request: 543
+objective: "Replace the production Home composition with the approved NUSA visual language while preserving real data, navigation, authentication, and all safety boundaries."
+scope:
+  - "Production Home header, equity hero, AI insight, terrain/signal map, metrics, and quiet navigation composition."
+  - "Truthful loading, empty, disconnected, and error states using existing runtime data contracts."
+  - "Responsive phone/tablet layout and reduced-motion-safe bounded reveal."
+  - "Focused render-contract tests proving the production Home path uses the new composition."
+exclusions:
+  - "No auth, Oracle, enrollment, bootstrap, secure-storage, or #542 runtime changes."
+  - "No fake financial, market, AI, or confidence data."
+  - "No LIVE order/cancel/withdraw/transfer or AI authority."
+  - "No logo asset replacement and no Markets/PAPER/Portfolio/AI redesign."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification:
+  production_render_path: PASS
+  focused_tests: PASS
+  typecheck: PASS
+  lint: PASS
+  build: PASS
+  exact_head_ci: PASS
+  mobile_native: PASS
+  real_device_install: HUMAN_ENVIRONMENT_ONLY_PENDING
+  real_device_screenshot: HUMAN_ENVIRONMENT_ONLY_PENDING
+completion_rule: "Do not claim visual acceptance or completion until the exact APK is installed on a real Android device and the approved Home visual match is evidenced."
