@@ -215,8 +215,8 @@ export function startCloudRuntime(
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
     submitPaperOrder,
-    investmentAllocationSettings,
-    mobileAuth: { authority: mobileSessionAuthority }
+    mobileAuth: { authority: mobileSessionAuthority },
+    investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
   return { ...handle, stop: async () => { try { marketDataClient?.stop(); await handle.stop(); } finally { effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
