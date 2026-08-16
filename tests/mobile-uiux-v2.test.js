@@ -14,8 +14,8 @@ test("product navigation promotes PAPER and AI through six-tab restructuring", (
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
-  assert.match(app, /header-notifications/);
-  assert.match(app, /header-settings/);
+  assert.match(app, /testID=\{view === "NOTIFICATIONS" \? "header-notifications" : "header-settings"\}/);
+  assert.match(app, /header-tools-tray/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
 });
 
