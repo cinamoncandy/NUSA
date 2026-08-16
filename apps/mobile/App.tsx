@@ -59,7 +59,12 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
     void settingsRepository.load().then((stored) => {
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
-      setConfiguredPaperEndpoint(settings.paperEndpoint);
+      let endpoint = settings.paperEndpoint;
+      // Development: auto-connect to local PAPER server if no endpoint configured
+      if (!endpoint && __DEV__) {
+        endpoint = "http://127.0.0.1:8000";
+      }
+      setConfiguredPaperEndpoint(endpoint);
       setMode(themePreference(settings.theme));
     }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
     return () => { active = false; };

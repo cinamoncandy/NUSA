@@ -39,11 +39,14 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
 test("cold start restores the saved endpoint before the first dashboard refresh", () => {
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
+  assert.match(app, /let endpoint = settings\.paperEndpoint/);
   assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
+  // Development: auto-connect to local PAPER server if no endpoint configured
+  assert.match(app, /if\s*\(\s*!endpoint\s*&&\s*__DEV__\s*\)/);
+  assert.match(app, /endpoint\s*=\s*"http:\/\/127\.0\.0\.1:8000"/);
+  assert.match(app, /setConfiguredPaperEndpoint\(endpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
 });
 
 test("AI-only authority copy does not claim broader authority than the local PAPER entry disclosure", () => {
