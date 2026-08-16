@@ -32,7 +32,7 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   assert.match(settings, /clearPaperConnectionVerification/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /allowUnverifiedEndpoint: true/);
-  assert.match(settings, /토큰은 현재 앱 프로세스 메모리에만 존재합니다/);
+  assert.match(settings, /토큰은 현재 프로세스 메모리에만 유지됩니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 

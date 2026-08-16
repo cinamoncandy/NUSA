@@ -12,7 +12,7 @@ test("settings UI exposes PAPER connection, cash allocation, appearance, safety 
   assert.match(source, /testID="settings-paper-token"/);
   assert.match(source, /testID="settings-paper-connect"/);
   assert.match(source, /testID="settings-paper-disconnect"/);
-  assert.match(source, /토큰은 현재 앱 프로세스 메모리에만 존재합니다/);
+  assert.match(source, /토큰은 현재 프로세스 메모리에만 유지됩니다/);
 
   assert.match(source, /testID="settings-capital-allocation"/);
   assert.match(source, /현금 투자 비중/);

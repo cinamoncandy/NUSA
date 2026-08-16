@@ -63,7 +63,7 @@ test("dashboard credential flow remains memory-only and Settings-owned", () => {
   assert.match(settings, /InMemoryDashboardCredentialSession/);
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /토큰은 앱 메모리에만 유지/);
+  assert.match(settings, /토큰은 현재 프로세스 메모리에만 유지/);
   assert.match(settings, /testID="settings-paper-connect"/);
   assert.match(settings, /testID="settings-paper-disconnect"/);
   assert.match(app, /getConfiguredPaperEndpoint/);

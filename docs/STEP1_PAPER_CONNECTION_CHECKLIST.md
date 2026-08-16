@@ -6,7 +6,7 @@ This checklist tracks the setup and verification of local PAPER server connectio
 ## Phase 1: Environment Setup ✓
 
 - [x] **Environment file created**: `.env.cloud.local`
-  - Location: `/home/user/NUSA/.env.cloud.local`
+  - Location: `./.env.cloud.local` (in repository root)
   - Contents verified with required variables:
     - `NUSA_DASHBOARD_TOKEN=dev-test-token-12345`
     - `NUSA_PAPER_INITIAL_CAPITAL_KRW=1000000`
@@ -45,7 +45,6 @@ This checklist tracks the setup and verification of local PAPER server connectio
 ### Start Command
 ```bash
 # From repository root
-cd /home/user/NUSA
 npm run cloud:runtime
 ```
 
