@@ -44,16 +44,16 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
-test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {
+test("PAPER submit remains unavailable until a scoped mobile session exists", () => {
   const source = read("src/tradingView.tsx");
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
-  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(source, /const builtInSubmitAvailable = false/);
   assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
   assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
-  assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
+  assert.match(source, /NUSA Cloud 세션을 사용할 수 없습니다/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);

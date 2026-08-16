@@ -7,12 +7,12 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
-interface HomeViewProps { readonly snapshot: Snapshot | null; readonly investmentPercent: number; readonly readOnlyError: string | null; readonly notConfigured: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onGoSettings: () => void; readonly onNavigate: (destination: HomeDestination) => void; }
+export type HomeDestination = "Markets" | "Trade" | "Portfolio" | "More";
+interface HomeViewProps { readonly snapshot: Snapshot | null; readonly investmentPercent: number; readonly readOnlyError: string | null; readonly notConfigured: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onNavigate: (destination: HomeDestination) => void; }
 function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function healthTone(health: string | undefined): "success" | "warning" | "danger" { return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning"; }
 
-export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfigured, refreshing, onRefresh, onGoSettings, onNavigate }: HomeViewProps) {
+export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfigured, refreshing, onRefresh, onNavigate }: HomeViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
@@ -25,19 +25,19 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const allocationWidth = allocation ? `${allocation.investmentPercent}%` as `${number}%` : "0%";
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const nextAction = notConfigured
-    ? { title: "PAPER 연결 설정", detail: "Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요.", tab: null }
+    ? { title: "시장 보기", detail: "NUSA Cloud를 사용할 수 없어 공개 시장 데이터만 표시합니다.", tab: "Markets" as const }
     : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
       ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
       : aiInsightAvailable
-        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "AiSignal" as const }
+        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
         : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
-  const runNextAction = () => { if (nextAction.tab === null) onGoSettings(); else onNavigate(nextAction.tab); };
+  const runNextAction = () => { if (nextAction.tab === "Markets") onNavigate("Markets"); else onNavigate(nextAction.tab); };
 
   return <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
     <ScreenHeader eyebrow="NUSA ISLAND" title="홈" description="자산 상태와 지금 필요한 한 가지 행동을 확인합니다." statusLabel={snapshot?.health ?? "미연결"} statusTone={snapshot ? healthTone(snapshot.health) : "neutral"} />
     <View style={styles.topline}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text><View style={styles.toplineRight}><StatusChip label={snapshot?.health ?? (notConfigured ? "연결 필요" : "대기")} tone={snapshot ? healthTone(snapshot.health) : "warning"} /><StatusChip label="LIVE NONE" tone="neutral" /></View></View>
     {readOnlyError ? <InlineNotice title="PAPER 서버 연결 오류" detail={readOnlyError} tone="danger" /> : null}
-    {notConfigured ? <View style={styles.connection} testID="dashboard-session-card"><Text style={[styles.connectionTitle, { color: theme.colors.text }]}>PAPER 서버 연결이 필요합니다</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{notConfigured}</Text><NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" /></View> : null}
+    {notConfigured ? <InlineNotice title="NUSA Cloud 연결 불가" detail="PAPER 상태는 사용할 수 없지만 Home과 공개 시장 데이터는 계속 표시됩니다." tone="warning" testID="home-cloud-unavailable" /> : null}
 
     <View style={[styles.dashboard, tablet && styles.dashboardTablet]}>
       <View style={styles.primaryColumn}>
@@ -48,7 +48,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
       </View>
 
       {snapshot ? <View style={[styles.secondaryColumn, tablet && styles.secondaryColumnTablet]}>
-        <View style={styles.insight} testID="ai-card"><View style={styles.insightHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>AI INSIGHT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>오늘의 분석</Text></View><View style={styles.insightBadges}><StatusChip label="READ ONLY" tone="info" />{ai?.calibrationStatus === "CALIBRATED" ? <StatusChip label={aiTrustedConfidence} tone="info" /> : null}</View></View><Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={tablet ? 6 : 4}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text><View style={styles.insightFooter}><Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `근거 ${ai?.evidenceReferences.length ?? 0}개` : "검증된 근거 없음"}</Text><NusaButton label="AI 보기" onPress={() => onNavigate("AiSignal")} tone="neutral" /></View></View>
+        <View style={styles.insight} testID="ai-card"><View style={styles.insightHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>AI INSIGHT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>오늘의 분석</Text></View><View style={styles.insightBadges}><StatusChip label="READ ONLY" tone="info" />{ai?.calibrationStatus === "CALIBRATED" ? <StatusChip label={aiTrustedConfidence} tone="info" /> : null}</View></View><Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={tablet ? 6 : 4}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text><View style={styles.insightFooter}><Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `근거 ${ai?.evidenceReferences.length ?? 0}개` : "검증된 근거 없음"}</Text><NusaButton label="AI 보기" onPress={() => onNavigate("More")} tone="neutral" /></View></View>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><View style={styles.operations} testID="safety-card"><View style={styles.operationsHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영 상태</Text></View><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={snapshot.operations.runtimeState} tone={healthTone(snapshot.operations.runtimeState)} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></View>
       </View> : null}
     </View>

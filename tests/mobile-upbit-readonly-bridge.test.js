@@ -75,6 +75,6 @@ test("Portfolio exposes explicit disconnected/loading/ready/stale/error Upbit st
 test("Upbit projection is cleared with local session reset boundaries", () => {
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const settings = fs.readFileSync(path.join(mobileSrc, "settingsView.tsx"), "utf8");
-  assert.match(app, /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/);
-  assert.match(settings, /clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/);
+  assert.match(app, /clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/);
+  assert.match(settings, /resetUpbitReadOnlyState\(\)/);
 });

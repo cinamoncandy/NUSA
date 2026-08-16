@@ -45,12 +45,12 @@ export async function submitPersonalPaperOrder(options: PersonalPaperOrderClient
   // PAPER order authority is bound only to the Settings-configured, process-locally verified
   // endpoint. The legacy caller baseUrl is intentionally not an authority input.
   const configured = getConfiguredPaperEndpoint();
-  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
-  if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before an order credential can be used." });
+  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud origin is unavailable." });
+  if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud origin is not trusted." });
   if (!isSecureEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER credential will not be sent over insecure remote HTTP." });
 
   const token = await options.credentialProvider();
-  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
   const requestToken = token.trim();
   const endpoint = new URL(`${configured}/api/paper-orders`).href;
   const controller = new AbortController(); let timeoutHandle: ReturnType<typeof setTimeout> | undefined;

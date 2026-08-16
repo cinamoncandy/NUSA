@@ -19,8 +19,8 @@ test("system theme follows device preference and persisted settings are applied"
   assert.match(app, /<ThemeProvider initialMode="system">/);
   assert.match(settings, /value === "SYSTEM" \? "system"/);
   assert.match(settings, /Promise<boolean>/);
-  assert.match(settings, /const previousTheme = settings\.theme/);
-  assert.match(settings, /if \(!saved\) setMode\(themePreference\(previousTheme\)\)/);
+  assert.match(settings, /const previous = settings\.theme/);
+  assert.match(settings, /if \(!saved\) setMode\(themePreference\(previous\)\)/);
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
 
@@ -30,19 +30,16 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""\); onSignOut\?\.\(\); \} \};/);
-  assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
-  assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
+  assert.match(settings, /<NusaButton disabled=\{saving\} label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
-  assert.match(app, /credentialSession\.clear\(\)/);
+  assert.doesNotMatch(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
 });
 
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
-  assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-open-settings"/);
-  assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
+  assert.match(app, /const requiresDashboardConnection = false/);
+  assert.match(read("src/homeView.tsx"), /home-cloud-unavailable/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
   assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);

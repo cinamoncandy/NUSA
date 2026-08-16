@@ -8,9 +8,9 @@ export interface CloudInvestmentAllocationClient {
 
 const context = async (credentialProvider: DashboardCredentialProvider): Promise<{ endpoint: string; token: string; target: string }> => {
   const endpoint = getConfiguredPaperEndpoint();
-  if (!endpoint || !isPaperConnectionVerified(endpoint)) throw new Error("Verify the PAPER connection before using investment allocation.");
+  if (!endpoint || !isPaperConnectionVerified(endpoint)) throw new Error("NUSA Cloud origin is unavailable.");
   const token = await credentialProvider();
-  if (!token?.trim()) throw new Error("Cloud settings authentication is required.");
+  if (!token?.trim()) throw new Error("NUSA Cloud mobile session is unavailable.");
   return { endpoint, token: token.trim(), target: new URL("/api/settings/investment-allocation", `${endpoint}/`).href };
 };
 const assertStable = (endpoint: string): void => { if (getConfiguredPaperEndpoint() !== endpoint || !isPaperConnectionVerified(endpoint)) throw new Error("PAPER connection changed while investment allocation was being synchronized."); };

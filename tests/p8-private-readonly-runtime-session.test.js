@@ -157,7 +157,7 @@ test("mobile source keeps read projections separate while exposing only explicit
   const readClient = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   const orderClient = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOrderClient.ts"), "utf8");
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "runtime.ts"), "utf8");
-  assert.match(app, /InMemoryDashboardCredentialSession/); assert.match(app, /snapshot\?\.portfolio/); assert.match(app, /snapshot\?\.orders/); assert.match(app, /publicMarkets\.markets/); assert.doesNotMatch(app, /snapshot\.markets/);
+  assert.match(app, /unavailableDashboardCredentialProvider/); assert.match(app, /snapshot\?\.portfolio/); assert.match(app, /snapshot\?\.orders/); assert.match(app, /publicMarkets\.markets/); assert.doesNotMatch(app, /snapshot\.markets/);
   assert.match(readClient, /\/api\/paper-operations/); assert.doesNotMatch(readClient, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/);
   assert.match(orderClient, /\/api\/paper-orders/); assert.match(orderClient, /method:\s*["']POST["']/); assert.match(orderClient, /authority:\s*"PAPER_ONLY"|PersonalPaperOrderCommand/); assert.doesNotMatch(orderClient, /\/api\/(?:live|withdraw|transfer)/i);
   assert.doesNotMatch(session, /AsyncStorage|Keychain|SecureStore|console\.|process\.env/); assert.doesNotMatch(app, /withdraw|\/api\/(?:live|withdraw|transfer)/i);

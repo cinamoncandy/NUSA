@@ -10,11 +10,11 @@ test("API client builds typed GET requests and returns response data", async () 
 });
 
 test("API client retries retriable HTTP failures with a bounded policy", async () => {
-  const client = new ApiClient({ maxRetries: 2, retryDelayMs: 1, transport: createMockTransport([{ status: 503, data: {} }, { status: 503, data: {} }, { status: 200, data: { ok: true } }]) });
+  const client = new ApiClient({ baseUrl: "https://nusa.example", maxRetries: 2, retryDelayMs: 1, transport: createMockTransport([{ status: 503, data: {} }, { status: 503, data: {} }, { status: 200, data: { ok: true } }]) });
   assert.deepEqual((await client.get("/health")).data, { ok: true });
 });
 
 test("API client exposes typed non-retriable errors", async () => {
-  const client = new ApiClient({ maxRetries: 2, retryDelayMs: 1, transport: createMockTransport([{ status: 400, data: { error: "bad request" } }]) });
+  const client = new ApiClient({ baseUrl: "https://nusa.example", maxRetries: 2, retryDelayMs: 1, transport: createMockTransport([{ status: 400, data: { error: "bad request" } }]) });
   await assert.rejects(() => client.get("/bad"), (error) => error instanceof ApiClientError && error.code === "HTTP_ERROR" && error.status === 400 && !error.retriable);
 });

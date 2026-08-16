@@ -1,18 +1,17 @@
-id: WO-0053
+id: WO-0057
 title: Android real-use successor
-branch: agent/android-real-use-successor
-pull_request: 442
+branch: agent/p0-mobile-zero-config-auth
+pull_request: null
 base_branch: main
-phase: android-real-use-successor
-status: VERIFYING
-source_work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-objective: "Hold the merged Android PAPER successor at physical-device verification while preserving the real-user operator approval boundary merged in PR #448, PAPER-only authority, and AI ZERO_AUTHORITY."
+phase: mobile-zero-config-auth
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0057-mobile-zero-config-auth.yaml
+objective: "Remove production Android infrastructure inputs, enforce canonical HTTPS release origin, and preserve fail-closed mobile authentication until a real Cloud bootstrap exists."
 scope:
-  - exact-head Android debug/release candidate packaging and provenance
-  - cold-start, crash recovery, navigation, responsive UI, and accessibility resilience
-  - trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation
-  - PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport
-  - real authenticated user identity with fail-closed PENDING approval and OWNER-only users:manage
+  - canonical HTTPS origin auto-selection and release fail-closed validation
+  - production Settings without endpoint, port, tunnel, or dashboard bearer inputs
+  - legacy endpoint/bearer migration and Home-preserving Cloud failure UX
+  - mobile auth bootstrap boundary without anonymous or master-bearer fallback
   - existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system
 serialized_human_environment_gate:
   id: WO-0051
@@ -29,7 +28,7 @@ safety:
   chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
 verification:
-  focused_mobile_paper_suite: PASS_69_OF_69
+  focused_mobile_paper_suite: PASS_299_OF_299
   merged_successor_pr: 442
   merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
   access_approval_identity_pr: 448
@@ -40,4 +39,6 @@ verification:
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
-next_recommended_task: "Preserve HOLD on WO-0053 until genuine physical Android acceptance is available; repository-controlled maintenance may continue only when it does not claim or bypass the HUMAN_ENVIRONMENT_ONLY gate."
+  - MOBILE_AUTH_BOOTSTRAP_FOUNDATION_MISSING
+  - DNS_INGRESS_AUTHORITY_REQUIRED
+next_recommended_task: "Implement or connect an approved server-side mobile identity/bootstrap provider; do not use dashboard bearer or anonymous unlimited access."

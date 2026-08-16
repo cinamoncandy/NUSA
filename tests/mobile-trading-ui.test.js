@@ -64,8 +64,8 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(source, /credentialSession\.isConfigured\(\)/);
-  assert.match(source, /PAPER 주문 연결이 필요합니다/);
+  assert.match(source, /const builtInSubmitAvailable = false/);
+  assert.match(source, /PAPER 주문을 사용할 수 없습니다/);
   assert.match(source, /02 · 주문 검토/);
   assert.match(source, /이 PAPER 주문을 확정할까요/);
   assert.match(source, /PAPER 주문 확정/);

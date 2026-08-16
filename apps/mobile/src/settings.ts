@@ -1,4 +1,5 @@
 import type { SecureStoragePort } from "./mobileSecurity";
+import { readCanonicalNusaOrigin } from "./canonicalOrigin";
 
 export type ThemeSetting = "LIGHT" | "DARK" | "SYSTEM";
 export type LocaleSetting = "ko-KR" | "en-US";
@@ -9,8 +10,6 @@ export interface AppSettings {
   readonly locale: LocaleSetting;
   readonly notifications: NotificationSettings;
   readonly capitalAllocation: CapitalAllocationSettings;
-  /** Explicit personal Cloud/PAPER endpoint. Empty means not configured; there is no magic localhost fallback. */
-  readonly paperEndpoint: string;
 }
 export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonly authMode: string; readonly monitorUrl: string; }
 export interface SettingsRepository { load(): Promise<AppSettings | null>; save(settings: AppSettings): Promise<void>; }
@@ -19,22 +18,9 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   theme: "SYSTEM",
   locale: "ko-KR",
   notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }),
-  capitalAllocation: Object.freeze({ investmentPercent: 100 }),
-  paperEndpoint: ""
+  capitalAllocation: Object.freeze({ investmentPercent: 100 })
 });
 const text = (value: string, field: string): string => { const normalized = value.trim(); if (!normalized) throw new Error(`${field} must not be empty`); return normalized; };
-const normalizeEndpoint = (value: string | undefined): string => {
-  const normalized = value?.trim() ?? "";
-  if (!normalized) return "";
-  let url: URL;
-  try { url = new URL(normalized); } catch { throw new Error("paperEndpoint is invalid"); }
-  if (url.username || url.password) throw new Error("paperEndpoint must not contain credentials");
-  const host = url.hostname.toLowerCase();
-  const secure = url.protocol === "https:" || (url.protocol === "http:" && (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]"));
-  if (!secure) throw new Error("paperEndpoint must use HTTPS unless loopback-only");
-  return normalized.replace(/\/+$/, "");
-};
-
 export const normalizeInvestmentPercent = (value: number): number => {
   if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("capitalAllocation.investmentPercent must be between 0 and 100");
   return Math.round(value * 100) / 100;
@@ -50,12 +36,12 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
   const capitalAllocation = input.capitalAllocation ?? DEFAULT_SETTINGS.capitalAllocation;
   const investmentPercent = normalizeInvestmentPercent(capitalAllocation.investmentPercent);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: normalizeEndpoint(input.paperEndpoint) });
+  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }) });
 };
 
 /** Environment configuration is fail-closed: endpoint variables must be explicitly supplied by the caller. */
 export const readEnvironmentConfiguration = (environment: Record<string, string | undefined> = process.env): EnvironmentConfiguration => Object.freeze({
-  apiBaseUrl: text(environment.EXPO_PUBLIC_NUSA_API_BASE_URL ?? "", "apiBaseUrl"),
+  apiBaseUrl: readCanonicalNusaOrigin(environment),
   authMode: text(environment.EXPO_PUBLIC_NUSA_AUTH_MODE ?? "foundation", "authMode"),
   monitorUrl: text(environment.EXPO_PUBLIC_NUSA_MONITOR_URL ?? "", "monitorUrl")
 });
