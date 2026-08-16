@@ -52,6 +52,7 @@ test("design system snapshot is deterministic", () => {
       terrain: "#DCEBFF", chartUp: "#48D6C0", chartDown: "#F17A94", navSurface: "#080D17",
       border: "#182337", borderStrong: "#30445F", success: "#48D6C0",
       warning: "#E5C06C", danger: "#F17A94", info: "#8FA9C7", onDanger: "#11151B", focus: "#FFFFFF",
+      neonPurple: "#B56BFF", neonBlue: "#5B8CFF", neonTeal: "#49D7C3", neonGlow: "rgba(181, 107, 255, 0.2)",
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
