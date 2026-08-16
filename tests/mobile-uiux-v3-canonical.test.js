@@ -21,10 +21,9 @@ test("App shell routes canonical Home and preserves product jobs", () => {
 test("Home uses v3 hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, /<ScreenHeader/);
-  assert.match(source, /<MetricTile label="PAPER 연결"/);
-  assert.match(source, /<MetricTile label="PAPER 준비"/);
-  assert.match(source, /<MetricTile label="AI 신뢰도"/);
-  assert.match(source, /AI READ-ONLY/);
+  assert.match(source, /testID="home-signal-map"/);
+  assert.match(source, /PAPER · LIVE OFF/);
+  assert.match(source, /AI INSIGHT/);
   assert.match(source, /LIVE 권한/);
   assert.match(source, /Production mutation/);
 });
