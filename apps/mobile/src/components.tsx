@@ -132,13 +132,13 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
   return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
 }
 
-export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
+export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID, height }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string; height?: number }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
   const primaryWidth = `${Math.round(42 + boundedStrength * 34)}%` as `${number}%`;
   const secondaryWidth = `${Math.round(30 + boundedStrength * 26)}%` as `${number}%`;
   const convergenceLeft = `${Math.round(44 + boundedStrength * 18)}%` as `${number}%`;
-  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={[styles.terrainSignal, height ? { height } : null]} testID={testID}>
     <View style={[styles.terrainHorizon, { backgroundColor: theme.colors.terrain, opacity: 0.22 }]} />
     <View style={[styles.terrainLine, { width: primaryWidth, backgroundColor: theme.colors.terrain, opacity: 0.78 }]} />
     <View style={[styles.terrainLine, styles.terrainLineHigh, { width: secondaryWidth, backgroundColor: theme.colors.aiSignalMid, opacity: 0.7 }]} />
