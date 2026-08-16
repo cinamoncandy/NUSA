@@ -30,6 +30,11 @@ test("Upbit settings connection remains HTTPS-only and process-memory-only", () 
   assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);
   assert.match(client, /url\.protocol !== "https:"/);
   assert.match(client, /\/api\/v1\/account\/summary/);
-  assert.doesNotMatch(panel + client, /placeOrder|cancelOrder|withdraw/);
-  assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
+  // Stage 2: Trading endpoints permitted in client (POST for create, DELETE for cancel)
+  assert.match(client, /placeUpbitOrder|cancelUpbitOrder/);
+  assert.match(client, /method: "POST"|method: "DELETE"/);
+  // Reject dangerous operations
+  assert.doesNotMatch(panel + client, /withdraw|transfer/);
+  // Settings panel itself still read-only (no direct POST/DELETE from UI)
+  assert.doesNotMatch(panel, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
 });

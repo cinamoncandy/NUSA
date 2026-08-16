@@ -14,17 +14,23 @@ test("Upbit bridge credential stays process-memory-only", () => {
   assert.doesNotMatch(credentialSource, /AsyncStorage|SecureStorage|setItem\s*\(|writeFile|writeFileSync|UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
 });
 
-test("Upbit bridge is HTTPS-only and read-only", () => {
+test("Upbit bridge is HTTPS-only with read-only and trading endpoints", () => {
   assert.match(clientSource, /https:\/\/nusa-api\.duckdns\.org/);
   assert.match(clientSource, /url\.protocol !== "https:"/);
   assert.match(clientSource, /\/api\/v1\/account\/summary/);
   assert.match(clientSource, /method: "GET"/);
   assert.match(clientSource, /Authorization: "Bearer " \+ token/);
-  assert.doesNotMatch(clientSource, /method: "POST"|method: "DELETE"|\/v1\/withdraws|placeLiveOrder|submitOrder|cancelOrder/);
+  // Stage 2: Trading endpoints (POST for create, DELETE for cancel)
+  assert.match(clientSource, /placeUpbitOrder/);
+  assert.match(clientSource, /cancelUpbitOrder/);
+  assert.match(clientSource, /method: "POST"/);
+  assert.match(clientSource, /method: "DELETE"/);
+  assert.match(clientSource, /\/api\/v1\/orders\/create/);
+  // Reject dangerous operations (not used in bridge)
+  assert.doesNotMatch(clientSource, /\/v1\/withdraws|placeLiveOrder|submitOrder/);
   assert.match(clientSource, /loadUpbitLiveOrders/);
   assert.match(clientSource, /\/api\/v1\/orders\/open/);
   assert.match(clientSource, /\/api\/v1\/orders\/history/);
-  assert.match(clientSource, /method: "GET"/);
 });
 
 test("Upbit normalized summary is validated fail-closed", () => {

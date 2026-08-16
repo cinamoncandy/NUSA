@@ -1,187 +1,264 @@
-FAILED_TEST_FILE tests/mobile-upbit-readonly-bridge.test.js
-✔ Upbit bridge credential stays process-memory-only (1.061073ms)
-✔ Upbit bridge is HTTPS-only and read-only (0.312298ms)
-✔ Upbit normalized summary is validated fail-closed (0.167235ms)
-✔ Upbit account snapshot normalizes cash and assets without mixing PAPER (1.06609ms)
-✔ Upbit empty and zero balances remain a valid read-only snapshot (0.251958ms)
-✔ Portfolio exposes explicit disconnected/loading/ready/stale/error Upbit states (0.418276ms)
-✖ Upbit projection is cleared with local session reset boundaries (1.922124ms)
-ℹ tests 7
+FAILED_TEST_FILE tests/mobile-upbit-settings-connection.test.js
+✔ settings mounts a dedicated Upbit read-only connection panel (1.126244ms)
+✖ Upbit settings connection remains HTTPS-only and process-memory-only (3.14997ms)
+ℹ tests 2
 ℹ suites 0
-ℹ pass 6
+ℹ pass 1
 ℹ fail 1
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 75.4315
+ℹ duration_ms 66.826895
 
 ✖ failing tests:
 
-test at tests/mobile-upbit-readonly-bridge.test.js:75:1
-✖ Upbit projection is cleared with local session reset boundaries (1.922124ms)
-  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/. Input:
+test at tests/mobile-upbit-settings-connection.test.js:14:1
+✖ Upbit settings connection remains HTTPS-only and process-memory-only (3.14997ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /method:\s*"(?:POST|PUT|PATCH|DELETE)"/. Input:
   
-  'import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";\n' +
-    'import AsyncStorage from "@react-native-async-storage/async-storage";\n' +
-    'import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";\n' +
-    'import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";\n' +
-    'import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";\n' +
-    'import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";\n' +
-    'import { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";\n' +
-    'import { HomeView, type HomeDestination } from "./src/homeView";\n' +
-    'import { PortfolioView } from "./src/portfolioView";\n' +
-    'import { TradingView } from "./src/tradingView";\n' +
-    'import { MarketsView } from "./src/marketsView";\n' +
-    'import { AiView } from "./src/aiView";\n' +
-    'import { NotificationView } from "./src/notificationView";\n' +
-    'import { SettingsView } from "./src/settingsView";\n' +
-    'import { OrderHistoryView } from "./src/orderHistoryView";\n' +
-    'import { WatchlistRepository } from "./src/watchlist";\n' +
-    'import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";\n' +
-    'import { VersionedSettingsRepository } from "./src/persistenceRepositories";\n' +
-    'import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";\n' +
-    'import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";\n' +
-    'import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";\n' +
-    'import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";\n' +
-    'import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";\n' +
-    'import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\n' +
-    'import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";\n' +
-    'import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";\n' +
-    'import { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";\n' +
-    'import { loadUpbitLiveAccounts } from "./src/upbitLiveClient";\n' +
-    'import { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";\n' +
-    'import { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\n' +
-    'import type { PublicCandle } from "./src/chartViewModel";\n' +
-    'import type { WatchlistMarket } from "./src/watchlist";\n' +
+  'import type { UpbitCredentialProvider } from "./upbitCredentialSession";\n' +
     '\n' +
-    'const tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;\n' +
-    'type Tab = (typeof tabs)[number];\n' +
-    'type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;\n' +
-    'const tabLabels: Readonly<Record<Tab, string>> = { Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO" };\n' +
-    'const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };\n' +
-    'const CHART_MARKET = "KRW-BTC";\n' +
-    'const PAPER_REFRESH_INTERVAL_MS = 5000;\n' +
-    'const PUBLIC_REFRESH_INTERVAL_MS = 30_000;\n' +
-    'const UPBIT_READONLY_REFRESH_INTERVAL_MS = 10_000;\n' +
-    'const settingsRepository = new VersionedSettingsRepository(AsyncStorage);\n' +
-    'const theme = { container: { flex: 1 } } as const;\n' +
-    '\n' +
-    'type PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";\n' +
-    'interface PublicMarketsState {\n' +
-    '  readonly status: PublicMarketsStatus;\n' +
-    '  readonly markets: readonly WatchlistMarket[] | null;\n' +
-    '  readonly candles: readonly PublicCandle[] | null;\n' +
-    '  readonly currentPrice: number | null;\n' +
-    '  readonly error: string | null;\n' +
-    '  readonly chartError: string | null;\n' +
+    'export interface UpbitAccount {\n' +
+    '  readonly currency: string;\n' +
+    '  readonly balance: number;\n' +
+    '  readonly locked: number;\n' +
+    '  readonly avgBuyPrice: number;\n' +
+    '  readonly unitCurrency: string;\n' +
     '}\n' +
     '\n' +
-    'const initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });\n' +
-    '\n' +
-    'function themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }\n' +
-    '\n' +
-    'function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode }>) {\n' +
-    '  const { setMode } = useTheme();\n' +
-    '  useEffect(() => {\n' +
-    '    let active = true;\n' +
-    '    void settingsRepository.load().then((stored) => {\n' +
-    '      if (!active) return;\n' +
-    '      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);\n' +
-    '      let endpoint = settings.paperEndpoint;\n' +
-    '      // Development: auto-connect to local PAPER server if no endpoint configured\n' +
-    '      if (!endpoint && __DEV__) {\n' +
-    '        endpoint = "http://127.0.0.1:8000";\n' +
-    '      }\n' +
-    '      setConfiguredPaperEndpoint(endpoint);\n' +
-    '      setMode(themePreference(settings.theme));\n' +
-    '    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });\n' +
-    '    return () => { active = false; };\n' +
-    '  }, [setMode]);\n' +
-    '  return <>{children}</>;\n' +
+    'export interface UpbitLiveSnapshot {\n' +
+    '  readonly accounts: readonly UpbitAccount[];\n' +
+    '  readonly krwBalance: number;\n' +
+    '  readonly fetchedAt: number;\n' +
     '}\n' +
     '\n' +
-    'function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {\n' +
-    '  const { theme: appTheme } = useTheme();\n' +
-    '  return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>\n' +
-    '    <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>\n' +
-    '    <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>\n' +
-    '    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>\n' +
-    '    <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />\n' +
-    '  </NusaCard></View></View>;\n' +
-    '}\n' +
+    'const DEFAULT_BASE_URL = "https://nusa-api.duckdns.org";\n' +
+    'const ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";\n' +
     '\n' +
-    'export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }\n' +
+    'const normalizeBaseUrl = (value: string): string => {\n' +
+    '  const normalized = value.trim().replace(/\\/+$/, "");\n' +
+    '  const url = new URL(normalized);\n' +
+    '  if (url.protocol !== "https:") throw new Error("Upbit bridge must use HTTPS.");\n' +
+    '  if (url.username || url.password) throw new Error("Upbit bridge URL must not contain credentials.");\n' +
+    '  return normalized;\n' +
+    '};\n' +
     '\n' +
-    'function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {\n' +
-    '  const [status, setStatus] = useState<AuthStatus>("CHECKING");\n' +
-    '  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);\n' +
-    '  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);\n' +
-    '  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;\n' +
-    '}\n' +
+    'const finite = (value: unknown, field: string): number => {\n' +
+    '  const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;\n' +
+    '  if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid Upbit " + field + ".");\n' +
+    '  return parsed;\n' +
+    '};\n' +
     '\n' +
-    'function AuthenticatedApp() {\n' +
-    '  const { status: authStatus, signIn, signOut } = useAuth();\n' +
-    '  const { theme: appTheme } = useTheme();\n' +
-    '  const upbitState = useUpbitReadOnlyState();\n' +
-    '  const [activeTab, setActiveTab] = useState<Tab>("Home");\n' +
-    '  const [utilityView, setUtilityView] = useState<UtilityView>(null);\n' +
-    '  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);\n' +
-    '  // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional\n' +
-    '  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });\n' +
-    '  const [refreshing, setRefreshing] = useState(false);\n' +
-    '  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);\n' +
-    '  const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());\n' +
-    '  const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());\n' +
-    '  const [publicRefreshing, setPublicRefreshing] = useState(false);\n' +
-    '  const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);\n' +
-    '  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);\n' +
-    '  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);\n' +
-    '  const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);\n' +
-    '  const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);\n' +
-    '  const refreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
-    '  const refreshGenerationRef = useRef(0);\n' +
-    '  const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
-    '  const publicRefreshGenerationRef = useRef(0);\n' +
-    '  const upbitRefreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
-    '  const upbitRefreshGenerationRef = useRef(0);\n' +
-    '  const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());\n' +
-    '  const liveMarketsKeyRef = useRef<string>("");\n' +
-    '  const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);\n' +
-    '  const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {\n' +
-    '    try {\n' +
-    '      runtimeCoordinator.dispatch(event);\n' +
-    '    } catch {\n' +
-    '      try { runtimeCoordinator.dispatch({ type: "RECOVERY_FAILED", reason: "mobile runtime state transition failed" }); } catch { /* remain blocked by the last known state */ }\n' +
+    'const currency = (value: unknown, field: string): string => {\n' +
+    '  if (typeof value !== "string" || !/^[A-Z0-9]{2,12}$/.test(value.trim().toUpperCase())) {\n' +
+    '    throw new Error("Invalid Upbit " + field + ".");\n' +
+    '  }\n' +
+    '  return value.trim().toUpperCase();\n' +
+    '};\n' +
+    '\n' +
+    'const normalizedSummary = (value: unknown): UpbitLiveSnapshot => {\n' +
+    '  if (typeof value !== "object" || value === null || Array.isArray(value)) {\n' +
+    '    throw new Error("Invalid Upbit account summary.");\n' +
+    '  }\n' +
+    '  const summary = value as Record<string, unknown>;\n' +
+    '  if (summary.provider !== "UPBIT" || summary.mode !== "READ_ONLY") {\n' +
+    '    throw new Error("Invalid Upbit account summary.");\n' +
+    '  }\n' +
+    '  if (typeof summary.fetchedAt !== "string" || !Number.isFinite(Date.parse(summary.fetchedAt))) {\n' +
+    '    throw new Error("Invalid Upbit fetched timestamp.");\n' +
+    '  }\n' +
+    '  if (typeof summary.cash !== "object" || summary.cash === null || Array.isArray(summary.cash)) {\n' +
+    '    throw new Error("Invalid Upbit cash summary.");\n' +
+    '  }\n' +
+    '  const cash = summary.cash as Record<string, unknown>;\n' +
+    '  if (currency(cash.currency, "cash currency") !== "KRW") throw new Error("Invalid Upbit cash currency.");\n' +
+    '  const cashAccount: UpbitAccount = Object.freeze({\n' +
+    '    currency: "KRW",\n' +
+    '    balance: finite(cash.available, "cash available"),\n' +
+    '    locked: finite(cash.locked, "cash locked"),\n' +
+    '    avgBuyPrice: 0,\n' +
+    '    unitCurrency: "KRW",\n' +
+    '  });\n' +
+    '  if (!Array.isArray(summary.assets)) throw new Error("Invalid Upbit assets.");\n' +
+    '  const assets = summary.assets.map((value) => {\n' +
+    '    if (typeof value !== "object" || value === null || Array.isArray(value)) {\n' +
+    '      throw new Error("Invalid Upbit asset.");\n' +
     '    }\n' +
-    '  }, [runtimeCoordinator]);\n' +
+    '    const asset = value as Record<string, unknown>;\n' +
+    '    return Object.freeze({\n' +
+    '      currency: currency(asset.currency, "asset currency"),\n' +
+    '      balance: finite(asset.available, "asset available"),\n' +
+    '      locked: finite(asset.locked, "asset locked"),\n' +
+    '      avgBuyPrice: finite(asset.avgBuyPrice, "asset average buy price"),\n' +
+    '      unitCurrency: currency(asset.unitCurrency, "asset unit currency"),\n' +
+    '    });\n' +
+    '  });\n' +
+    '  const accounts = Object.freeze([cashAccount, ...assets]);\n' +
+    '  return Object.freeze({\n' +
+    '    accounts,\n' +
+    '    krwBalance: cashAccount.balance,\n' +
+    '    fetchedAt: Date.parse(summary.fetchedAt),\n' +
+    '  });\n' +
+    '};\n' +
     '\n' +
-    '  useEffect(() => {\n' +
-    '    let active = true;\n' +
-    '    void settingsRepository.load().then((stored) => { if (active) setInvestmentPercent(normalizeSettings(stored ?? DEFAULT_SETTINGS).capitalAllocation.investmentPercent); }).catch(() => { if (active) setInvestmentPercent(DEFAULT_SETTINGS.capitalAllocation.investmentPercent); });\n' +
-    '    return () => { active = false; };\n' +
-    '  }, []);\n' +
+    'export async function loadUpbitLiveAccounts(options: Readonly<{\n' +
+    '  credentialProvider: UpbitCredentialProvider;\n' +
+    '  baseUrl?: string;\n' +
+    '}>): Promise<UpbitLiveSnapshot> {\n' +
+    '  const token = (await options.credentialProvider())?.trim() ?? "";\n' +
+    '  if (!token) throw new Error("Upbit bridge credential is required.");\n' +
+    '  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n' +
+    '  const response = await fetch(baseUrl + ACCOUNT_SUMMARY_PATH, {\n' +
+    '    method: "GET",\n' +
+    '    headers: { Authorization: "Bearer " + token, Accept: "application/json" },\n' +
+    '  });\n' +
+    '  const payload = await response.json().catch(() => null) as unknown;\n' +
+    '  if (!response.ok) {\n' +
+    '    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"\n' +
+    '      ? String((payload as Record<string, unknown>).error)\n' +
+    '      : "HTTP_" + response.status;\n' +
+    '    throw new Error(message);\n' +
+    '  }\n' +
+    '  return normalizedSummary(payload);\n' +
+    '}\n' +
     '\n' +
-    '  const refresh = useCallback((): Promise<void> => {\n' +
-    '    if (refreshInFlightRef.current) return refreshInFlightRef.current;\n' +
-    '    const generation = refreshGenerationRef.current;\n' +
-    '    const endpoint = getConfiguredPaperEndpoint();\n' +
-    '    // Public data only mode: PAPER server is optional. App works with public market data alone.\n' +
-    '    if (endpoint == null || !isPaperConnectionVerified(endpoint)) {\n' +
-    '      // Emit a read-only mode signal but continue operation with public markets only\n' +
-    '      dispatchRuntime({ type: "NETWORK_OFFLINE" });\n' +
-    '      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapsh'... 23192 more characters
+    '\n' +
+    'export type UpbitReadOnlyOrderState = "OPEN" | "PARTIAL" | "DONE" | "CANCELLED" | "REJECTED";\n' +
+    'export interface UpbitReadOnlyOrder {\n' +
+    '  readonly uuid: string;\n' +
+    '  readonly market: string;\n' +
+    '  readonly side: "BUY" | "SELL";\n' +
+    '  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n' +
+    '  readonly price: number | null;\n' +
+    '  readonly volume: number;\n' +
+    '  readonly executedVolume: number;\n' +
+    '  readonly remainingVolume: number;\n' +
+    '  readonly state: UpbitReadOnlyOrderState;\n' +
+    '  readonly createdAt: string;\n' +
+    '}\n' +
+    '\n' +
+    '/** Order creation request for LIVE or PAPER trading */\n' +
+    'export interface UpbitOrderRequest {\n' +
+    '  readonly market: string;\n' +
+    '  readonly side: "BUY" | "SELL";\n' +
+    '  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n' +
+    '  readonly price?: number; // Required for LIMIT orders, ignored for MARKET\n' +
+    '  readonly volume: number;\n' +
+    '  readonly mode: "PAPER" | "LIVE"; // Explicit mode selection\n' +
+    '}\n' +
+    '\n' +
+    'export interface UpbitOrderResponse {\n' +
+    '  readonly uuid: string;\n' +
+    '  readonly market: string;\n' +
+    '  readonly side: "BUY" | "SELL";\n' +
+    '  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n' +
+    '  readonly price: number | null;\n' +
+    '  readonly volume: number;\n' +
+    '  readonly state: string;\n' +
+    '  readonly createdAt: string;\n' +
+    '}\n' +
+    '\n' +
+    'const ORDER_OPEN_PATH = "/api/v1/orders/open";\n' +
+    'const ORDER_HISTORY_PATH = "/api/v1/orders/history";\n' +
+    'const ORDER_DETAIL_PREFIX = "/api/v1/orders/";\n' +
+    'const ORDER_CREATE_PATH = "/api/v1/orders/create";\n' +
+    'const ORDER_CANCEL_PREFIX = "/api/v1/orders/";\n' +
+    '\n' +
+    'const normalizedOrder = (value: unknown): UpbitReadOnlyOrder => {\n' +
+    '  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Invalid Upbit order.");\n' +
+    '  const order = value as Record<string, unknown>;\n' +
+    '  if (typeof order.uuid !== "string" || !/^[0-9a-f-]{20,64}$/i.test(order.uuid)) throw new Error("Invalid Upbit order uuid.");\n' +
+    '  if (typeof order.market !== "string" || !/^[A-Z0-9]+-[A-Z0-9]+$/.test(order.market)) throw new Error("Invalid Upbit order market.");\n' +
+    '  if (order.side !== "BUY" && order.side !== "SELL") throw new Error("Invalid Upbit order side.");\n' +
+    '  if (order.ordType !== "LIMIT" && order.ordType !== "MARKET" && order.ordType !== "BEST") throw new Error("Invalid Upbit order type.");\n' +
+    '  const price = order.price === null ? null : finite(order.price, "order price");\n' +
+    '  const volume = finite(order.volume, "order volume");\n' +
+    '  const executedVolume = finite(order.executedVolume, "executed volume");\n' +
+    '  const remainingVolume = finite(order.remainingVolume, "remaining volume");\n' +
+    '  if (executedVolume > volume || remainingVolume > volume || executedVolume + remainingVolume > volume) {\n' +
+    '    throw new Error("Invalid Upbit order volume reconciliation.");\n' +
+    '  }\n' +
+    '  if (order.state !== "OPEN" && order.state !== "PARTIAL" && order.state !== "DONE" && order.state !== "CANCELLED" && order.state !== "REJECTED") {\n' +
+    '    throw new Error("Invalid Upbit order state.");\n' +
+    '  }\n' +
+    '  if (typeof order.createdAt !== "string" || !Number.isFinite(Date.parse(order.createdAt))) throw new Error("Invalid Upbit order timestamp.");\n' +
+    '  return Object.freeze({\n' +
+    '    uuid: order.uuid,\n' +
+    '    market: order.market,\n' +
+    '    side: order.side,\n' +
+    '    ordType: order.ordType,\n' +
+    '    price,\n' +
+    '    volume,\n' +
+    '    executedVolume,\n' +
+    '    remainingVolume,\n' +
+    '    state: order.state,\n' +
+    '    createdAt: new Date(order.createdAt).toISOString(),\n' +
+    '  });\n' +
+    '};\n' +
+    '\n' +
+    'export async function loadUpbitLiveOrders(options: Readonly<{\n' +
+    '  credentialProvider: UpbitCredentialProvider;\n' +
+    '  scope: "open" | "history" | "detail";\n' +
+    '  uuid?: string;\n' +
+    '  baseUrl?: string;\n' +
+    '}>): Promise<readonly UpbitReadOnlyOrder[]> {\n' +
+    '  const token = (await options.credentialProvider())?.trim() ?? "";\n' +
+    '  if (!token) throw new Error("Upbit bridge credential is required.");\n' +
+    '  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n' +
+    '  const path = options.scope === "open"\n' +
+    '    ? ORDER_OPEN_PATH\n' +
+    '    : options.scope === "history"\n' +
+    '      ? ORDER_HISTORY_PATH\n' +
+    '      : ORDER_DETAIL_PREFIX + (options.uuid ?? "");\n' +
+    '  if (options.scope === "detail" && !/^[0-9a-f-]{20,64}$/i.test(options.uuid ?? "")) {\n' +
+    '    throw new Error("Invalid Upbit order uuid.");\n' +
+    '  }\n' +
+    '  const response = await fetch(baseUrl + path, {\n' +
+    '    method: "GET",\n' +
+    '    headers: { Authorization: "Bearer " + token, Accept: "application/json" },\n' +
+    '  });\n' +
+    '  const payload = await response.json().catch(() => null) as unknown;\n' +
+    '  if (!response.ok) {\n' +
+    '    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"\n' +
+    '      ? String((payload as Record<string, unknown>).error)\n' +
+    '      : "HTTP_" + response.status;\n' +
+    '    throw new Error(message);\n' +
+    '  }\n' +
+    '  if (options.scope === "detail") return Object.freeze([normalizedOrder(payload)]);\n' +
+    '  if (!Array.isArray(payload)) throw new Error("Invalid Upbit orders response.");\n' +
+    '  return Object.freeze(payload.map(normalizedOrder));\n' +
+    '}\n' +
+    '\n' +
+    '/** Create a new order (PAPER or LIVE). Requires explicit mode selection. */\n' +
+    'export async function placeUpbitOrder(options: Readonly<{\n' +
+    '  credentialProvider: UpbitCredentialProvider;\n' +
+    '  order: UpbitOrderRequest;\n' +
+    '  baseUrl?: string;\n' +
+    '}>): Promise<UpbitOrderResponse> {\n' +
+    '  const token = (await options.credentialProvider())?.trim() ?? "";\n' +
+    '  if (!token) throw new Error("Upbit bridge credential is required.");\n' +
+    '  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n' +
+    '\n' +
+    '  // Validate order parameters\n' +
+    '  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(options.order.market)) throw new Error("Invalid market format.");\n' +
+    '  if (options.order.side !== "BUY" && options.order.side !== "SELL") throw new Error("Invalid order side.");\n' +
+    '  if (options.order.ordType !== "LIMIT" && options.order.ordType !== "MARKET" && options.order.ordType !== "BEST") {\n' +
+    '    throw new Error("Invalid order type.");\n' +
+    '  }\n' +
+    '  if (!Number.isFinite(options.order.volume) || options.order.volume <= 0) throw new Error("Invalid order volume.");\n' +
+    '  if (options.ord'... 4254 more characters
   
-      at TestContext.<anonymous> (/home/user/NUSA/tests/mobile-upbit-readonly-bridge.test.js:78:10)
+      at TestContext.<anonymous> (/home/user/NUSA/tests/mobile-upbit-settings-connection.test.js:34:10)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1382:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
       at Test.postRun (node:internal/test_runner/test:1522:19)
       at Test.run (node:internal/test_runner/test:1447:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
     generatedMessage: true,
     code: 'ERR_ASSERTION',
-    actual: 'import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";\nimport AsyncStorage from "@react-native-async-storage/async-storage";\nimport { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";\nimport { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";\nimport { AuthContext, useAuth, type AuthStatus } from "./src/authContext";\nimport { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";\nimport { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";\nimport { HomeView, type HomeDestination } from "./src/homeView";\nimport { PortfolioView } from "./src/portfolioView";\nimport { TradingView } from "./src/tradingView";\nimport { MarketsView } from "./src/marketsView";\nimport { AiView } from "./src/aiView";\nimport { NotificationView } from "./src/notificationView";\nimport { SettingsView } from "./src/settingsView";\nimport { OrderHistoryView } from "./src/orderHistoryView";\nimport { WatchlistRepository } from "./src/watchlist";\nimport { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";\nimport { VersionedSettingsRepository } from "./src/persistenceRepositories";\nimport { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";\nimport { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";\nimport { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";\nimport { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";\nimport { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";\nimport { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\nimport { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";\nimport { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";\nimport { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";\nimport { loadUpbitLiveAccounts } from "./src/upbitLiveClient";\nimport { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";\nimport { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\nimport type { PublicCandle } from "./src/chartViewModel";\nimport type { WatchlistMarket } from "./src/watchlist";\n\nconst tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;\ntype Tab = (typeof tabs)[number];\ntype UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;\nconst tabLabels: Readonly<Record<Tab, string>> = { Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO" };\nconst utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };\nconst CHART_MARKET = "KRW-BTC";\nconst PAPER_REFRESH_INTERVAL_MS = 5000;\nconst PUBLIC_REFRESH_INTERVAL_MS = 30_000;\nconst UPBIT_READONLY_REFRESH_INTERVAL_MS = 10_000;\nconst settingsRepository = new VersionedSettingsRepository(AsyncStorage);\nconst theme = { container: { flex: 1 } } as const;\n\ntype PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";\ninterface PublicMarketsState {\n  readonly status: PublicMarketsStatus;\n  readonly markets: readonly WatchlistMarket[] | null;\n  readonly candles: readonly PublicCandle[] | null;\n  readonly currentPrice: number | null;\n  readonly error: string | null;\n  readonly chartError: string | null;\n}\n\nconst initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });\n\nfunction themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }\n\nfunction PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode }>) {\n  const { setMode } = useTheme();\n  useEffect(() => {\n    let active = true;\n    void settingsRepository.load().then((stored) => {\n      if (!active) return;\n      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);\n      let endpoint = settings.paperEndpoint;\n      // Development: auto-connect to local PAPER server if no endpoint configured\n      if (!endpoint && __DEV__) {\n        endpoint = "http://127.0.0.1:8000";\n      }\n      setConfiguredPaperEndpoint(endpoint);\n      setMode(themePreference(settings.theme));\n    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });\n    return () => { active = false; };\n  }, [setMode]);\n  return <>{children}</>;\n}\n\nfunction DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {\n  const { theme: appTheme } = useTheme();\n  return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>\n    <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>\n    <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>\n    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>\n    <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />\n  </NusaCard></View></View>;\n}\n\nexport default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }\n\nfunction AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {\n  const [status, setStatus] = useState<AuthStatus>("CHECKING");\n  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);\n  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);\n  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;\n}\n\nfunction AuthenticatedApp() {\n  const { status: authStatus, signIn, signOut } = useAuth();\n  const { theme: appTheme } = useTheme();\n  const upbitState = useUpbitReadOnlyState();\n  const [activeTab, setActiveTab] = useState<Tab>("Home");\n  const [utilityView, setUtilityView] = useState<UtilityView>(null);\n  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);\n  // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional\n  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });\n  const [refreshing, setRefreshing] = useState(false);\n  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);\n  const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());\n  const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());\n  const [publicRefreshing, setPublicRefreshing] = useState(false);\n  const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);\n  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);\n  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);\n  const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);\n  const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);\n  const refreshInFlightRef = useRef<Promise<void> | null>(null);\n  const refreshGenerationRef = useRef(0);\n  const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);\n  const publicRefreshGenerationRef = useRef(0);\n  const upbitRefreshInFlightRef = useRef<Promise<void> | null>(null);\n  const upbitRefreshGenerationRef = useRef(0);\n  const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());\n  const liveMarketsKeyRef = useRef<string>("");\n  const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);\n  const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {\n    try {\n      runtimeCoordinator.dispatch(event);\n    } catch {\n      try { runtimeCoordinator.dispatch({ type: "RECOVERY_FAILED", reason: "mobile runtime state transition failed" }); } catch { /* remain blocked by the last known state */ }\n    }\n  }, [runtimeCoordinator]);\n\n  useEffect(() => {\n    let active = true;\n    void settingsRepository.load().then((stored) => { if (active) setInvestmentPercent(normalizeSettings(stored ?? DEFAULT_SETTINGS).capitalAllocation.investmentPercent); }).catch(() => { if (active) setInvestmentPercent(DEFAULT_SETTINGS.capitalAllocation.investmentPercent); });\n    return () => { active = false; };\n  }, []);\n\n  const refresh = useCallback((): Promise<void> => {\n    if (refreshInFlightRef.current) return refreshInFlightRef.current;\n    const generation = refreshGenerationRef.current;\n    const endpoint = getConfiguredPaperEndpoint();\n    // Public data only mode: PAPER server is optional. App works with public market data alone.\n    if (endpoint == null || !isPaperConnectionVerified(endpoint)) {\n      // Emit a read-only mode signal but continue operation with public markets only\n      dispatchRuntime({ type: "NETWORK_OFFLINE" });\n      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapsh'... 23192 more characters,
-    expected: /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/,
-    operator: 'match',
+    actual: 'import type { UpbitCredentialProvider } from "./upbitCredentialSession";\n\nexport interface UpbitAccount {\n  readonly currency: string;\n  readonly balance: number;\n  readonly locked: number;\n  readonly avgBuyPrice: number;\n  readonly unitCurrency: string;\n}\n\nexport interface UpbitLiveSnapshot {\n  readonly accounts: readonly UpbitAccount[];\n  readonly krwBalance: number;\n  readonly fetchedAt: number;\n}\n\nconst DEFAULT_BASE_URL = "https://nusa-api.duckdns.org";\nconst ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";\n\nconst normalizeBaseUrl = (value: string): string => {\n  const normalized = value.trim().replace(/\\/+$/, "");\n  const url = new URL(normalized);\n  if (url.protocol !== "https:") throw new Error("Upbit bridge must use HTTPS.");\n  if (url.username || url.password) throw new Error("Upbit bridge URL must not contain credentials.");\n  return normalized;\n};\n\nconst finite = (value: unknown, field: string): number => {\n  const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;\n  if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid Upbit " + field + ".");\n  return parsed;\n};\n\nconst currency = (value: unknown, field: string): string => {\n  if (typeof value !== "string" || !/^[A-Z0-9]{2,12}$/.test(value.trim().toUpperCase())) {\n    throw new Error("Invalid Upbit " + field + ".");\n  }\n  return value.trim().toUpperCase();\n};\n\nconst normalizedSummary = (value: unknown): UpbitLiveSnapshot => {\n  if (typeof value !== "object" || value === null || Array.isArray(value)) {\n    throw new Error("Invalid Upbit account summary.");\n  }\n  const summary = value as Record<string, unknown>;\n  if (summary.provider !== "UPBIT" || summary.mode !== "READ_ONLY") {\n    throw new Error("Invalid Upbit account summary.");\n  }\n  if (typeof summary.fetchedAt !== "string" || !Number.isFinite(Date.parse(summary.fetchedAt))) {\n    throw new Error("Invalid Upbit fetched timestamp.");\n  }\n  if (typeof summary.cash !== "object" || summary.cash === null || Array.isArray(summary.cash)) {\n    throw new Error("Invalid Upbit cash summary.");\n  }\n  const cash = summary.cash as Record<string, unknown>;\n  if (currency(cash.currency, "cash currency") !== "KRW") throw new Error("Invalid Upbit cash currency.");\n  const cashAccount: UpbitAccount = Object.freeze({\n    currency: "KRW",\n    balance: finite(cash.available, "cash available"),\n    locked: finite(cash.locked, "cash locked"),\n    avgBuyPrice: 0,\n    unitCurrency: "KRW",\n  });\n  if (!Array.isArray(summary.assets)) throw new Error("Invalid Upbit assets.");\n  const assets = summary.assets.map((value) => {\n    if (typeof value !== "object" || value === null || Array.isArray(value)) {\n      throw new Error("Invalid Upbit asset.");\n    }\n    const asset = value as Record<string, unknown>;\n    return Object.freeze({\n      currency: currency(asset.currency, "asset currency"),\n      balance: finite(asset.available, "asset available"),\n      locked: finite(asset.locked, "asset locked"),\n      avgBuyPrice: finite(asset.avgBuyPrice, "asset average buy price"),\n      unitCurrency: currency(asset.unitCurrency, "asset unit currency"),\n    });\n  });\n  const accounts = Object.freeze([cashAccount, ...assets]);\n  return Object.freeze({\n    accounts,\n    krwBalance: cashAccount.balance,\n    fetchedAt: Date.parse(summary.fetchedAt),\n  });\n};\n\nexport async function loadUpbitLiveAccounts(options: Readonly<{\n  credentialProvider: UpbitCredentialProvider;\n  baseUrl?: string;\n}>): Promise<UpbitLiveSnapshot> {\n  const token = (await options.credentialProvider())?.trim() ?? "";\n  if (!token) throw new Error("Upbit bridge credential is required.");\n  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n  const response = await fetch(baseUrl + ACCOUNT_SUMMARY_PATH, {\n    method: "GET",\n    headers: { Authorization: "Bearer " + token, Accept: "application/json" },\n  });\n  const payload = await response.json().catch(() => null) as unknown;\n  if (!response.ok) {\n    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"\n      ? String((payload as Record<string, unknown>).error)\n      : "HTTP_" + response.status;\n    throw new Error(message);\n  }\n  return normalizedSummary(payload);\n}\n\n\nexport type UpbitReadOnlyOrderState = "OPEN" | "PARTIAL" | "DONE" | "CANCELLED" | "REJECTED";\nexport interface UpbitReadOnlyOrder {\n  readonly uuid: string;\n  readonly market: string;\n  readonly side: "BUY" | "SELL";\n  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n  readonly price: number | null;\n  readonly volume: number;\n  readonly executedVolume: number;\n  readonly remainingVolume: number;\n  readonly state: UpbitReadOnlyOrderState;\n  readonly createdAt: string;\n}\n\n/** Order creation request for LIVE or PAPER trading */\nexport interface UpbitOrderRequest {\n  readonly market: string;\n  readonly side: "BUY" | "SELL";\n  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n  readonly price?: number; // Required for LIMIT orders, ignored for MARKET\n  readonly volume: number;\n  readonly mode: "PAPER" | "LIVE"; // Explicit mode selection\n}\n\nexport interface UpbitOrderResponse {\n  readonly uuid: string;\n  readonly market: string;\n  readonly side: "BUY" | "SELL";\n  readonly ordType: "LIMIT" | "MARKET" | "BEST";\n  readonly price: number | null;\n  readonly volume: number;\n  readonly state: string;\n  readonly createdAt: string;\n}\n\nconst ORDER_OPEN_PATH = "/api/v1/orders/open";\nconst ORDER_HISTORY_PATH = "/api/v1/orders/history";\nconst ORDER_DETAIL_PREFIX = "/api/v1/orders/";\nconst ORDER_CREATE_PATH = "/api/v1/orders/create";\nconst ORDER_CANCEL_PREFIX = "/api/v1/orders/";\n\nconst normalizedOrder = (value: unknown): UpbitReadOnlyOrder => {\n  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Invalid Upbit order.");\n  const order = value as Record<string, unknown>;\n  if (typeof order.uuid !== "string" || !/^[0-9a-f-]{20,64}$/i.test(order.uuid)) throw new Error("Invalid Upbit order uuid.");\n  if (typeof order.market !== "string" || !/^[A-Z0-9]+-[A-Z0-9]+$/.test(order.market)) throw new Error("Invalid Upbit order market.");\n  if (order.side !== "BUY" && order.side !== "SELL") throw new Error("Invalid Upbit order side.");\n  if (order.ordType !== "LIMIT" && order.ordType !== "MARKET" && order.ordType !== "BEST") throw new Error("Invalid Upbit order type.");\n  const price = order.price === null ? null : finite(order.price, "order price");\n  const volume = finite(order.volume, "order volume");\n  const executedVolume = finite(order.executedVolume, "executed volume");\n  const remainingVolume = finite(order.remainingVolume, "remaining volume");\n  if (executedVolume > volume || remainingVolume > volume || executedVolume + remainingVolume > volume) {\n    throw new Error("Invalid Upbit order volume reconciliation.");\n  }\n  if (order.state !== "OPEN" && order.state !== "PARTIAL" && order.state !== "DONE" && order.state !== "CANCELLED" && order.state !== "REJECTED") {\n    throw new Error("Invalid Upbit order state.");\n  }\n  if (typeof order.createdAt !== "string" || !Number.isFinite(Date.parse(order.createdAt))) throw new Error("Invalid Upbit order timestamp.");\n  return Object.freeze({\n    uuid: order.uuid,\n    market: order.market,\n    side: order.side,\n    ordType: order.ordType,\n    price,\n    volume,\n    executedVolume,\n    remainingVolume,\n    state: order.state,\n    createdAt: new Date(order.createdAt).toISOString(),\n  });\n};\n\nexport async function loadUpbitLiveOrders(options: Readonly<{\n  credentialProvider: UpbitCredentialProvider;\n  scope: "open" | "history" | "detail";\n  uuid?: string;\n  baseUrl?: string;\n}>): Promise<readonly UpbitReadOnlyOrder[]> {\n  const token = (await options.credentialProvider())?.trim() ?? "";\n  if (!token) throw new Error("Upbit bridge credential is required.");\n  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n  const path = options.scope === "open"\n    ? ORDER_OPEN_PATH\n    : options.scope === "history"\n      ? ORDER_HISTORY_PATH\n      : ORDER_DETAIL_PREFIX + (options.uuid ?? "");\n  if (options.scope === "detail" && !/^[0-9a-f-]{20,64}$/i.test(options.uuid ?? "")) {\n    throw new Error("Invalid Upbit order uuid.");\n  }\n  const response = await fetch(baseUrl + path, {\n    method: "GET",\n    headers: { Authorization: "Bearer " + token, Accept: "application/json" },\n  });\n  const payload = await response.json().catch(() => null) as unknown;\n  if (!response.ok) {\n    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"\n      ? String((payload as Record<string, unknown>).error)\n      : "HTTP_" + response.status;\n    throw new Error(message);\n  }\n  if (options.scope === "detail") return Object.freeze([normalizedOrder(payload)]);\n  if (!Array.isArray(payload)) throw new Error("Invalid Upbit orders response.");\n  return Object.freeze(payload.map(normalizedOrder));\n}\n\n/** Create a new order (PAPER or LIVE). Requires explicit mode selection. */\nexport async function placeUpbitOrder(options: Readonly<{\n  credentialProvider: UpbitCredentialProvider;\n  order: UpbitOrderRequest;\n  baseUrl?: string;\n}>): Promise<UpbitOrderResponse> {\n  const token = (await options.credentialProvider())?.trim() ?? "";\n  if (!token) throw new Error("Upbit bridge credential is required.");\n  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);\n\n  // Validate order parameters\n  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(options.order.market)) throw new Error("Invalid market format.");\n  if (options.order.side !== "BUY" && options.order.side !== "SELL") throw new Error("Invalid order side.");\n  if (options.order.ordType !== "LIMIT" && options.order.ordType !== "MARKET" && options.order.ordType !== "BEST") {\n    throw new Error("Invalid order type.");\n  }\n  if (!Number.isFinite(options.order.volume) || options.order.volume <= 0) throw new Error("Invalid order volume.");\n  if (options.ord'... 4254 more characters,
+    expected: /method:\s*"(?:POST|PUT|PATCH|DELETE)"/,
+    operator: 'doesNotMatch',
     diff: 'simple'
   }

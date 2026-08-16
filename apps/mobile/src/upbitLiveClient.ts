@@ -119,9 +119,32 @@ export interface UpbitReadOnlyOrder {
   readonly createdAt: string;
 }
 
+/** Order creation request for LIVE or PAPER trading */
+export interface UpbitOrderRequest {
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly ordType: "LIMIT" | "MARKET" | "BEST";
+  readonly price?: number; // Required for LIMIT orders, ignored for MARKET
+  readonly volume: number;
+  readonly mode: "PAPER" | "LIVE"; // Explicit mode selection
+}
+
+export interface UpbitOrderResponse {
+  readonly uuid: string;
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly ordType: "LIMIT" | "MARKET" | "BEST";
+  readonly price: number | null;
+  readonly volume: number;
+  readonly state: string;
+  readonly createdAt: string;
+}
+
 const ORDER_OPEN_PATH = "/api/v1/orders/open";
 const ORDER_HISTORY_PATH = "/api/v1/orders/history";
 const ORDER_DETAIL_PREFIX = "/api/v1/orders/";
+const ORDER_CREATE_PATH = "/api/v1/orders/create";
+const ORDER_CANCEL_PREFIX = "/api/v1/orders/";
 
 const normalizedOrder = (value: unknown): UpbitReadOnlyOrder => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Invalid Upbit order.");
@@ -186,6 +209,108 @@ export async function loadUpbitLiveOrders(options: Readonly<{
   if (options.scope === "detail") return Object.freeze([normalizedOrder(payload)]);
   if (!Array.isArray(payload)) throw new Error("Invalid Upbit orders response.");
   return Object.freeze(payload.map(normalizedOrder));
+}
+
+/** Create a new order (PAPER or LIVE). Requires explicit mode selection. */
+export async function placeUpbitOrder(options: Readonly<{
+  credentialProvider: UpbitCredentialProvider;
+  order: UpbitOrderRequest;
+  baseUrl?: string;
+}>): Promise<UpbitOrderResponse> {
+  const token = (await options.credentialProvider())?.trim() ?? "";
+  if (!token) throw new Error("Upbit bridge credential is required.");
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+
+  // Validate order parameters
+  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(options.order.market)) throw new Error("Invalid market format.");
+  if (options.order.side !== "BUY" && options.order.side !== "SELL") throw new Error("Invalid order side.");
+  if (options.order.ordType !== "LIMIT" && options.order.ordType !== "MARKET" && options.order.ordType !== "BEST") {
+    throw new Error("Invalid order type.");
+  }
+  if (!Number.isFinite(options.order.volume) || options.order.volume <= 0) throw new Error("Invalid order volume.");
+  if (options.order.ordType === "LIMIT" && (!options.order.price || !Number.isFinite(options.order.price) || options.order.price <= 0)) {
+    throw new Error("LIMIT orders require a valid price.");
+  }
+  if (options.order.mode !== "PAPER" && options.order.mode !== "LIVE") throw new Error("Order mode must be PAPER or LIVE.");
+
+  const requestBody = {
+    market: options.order.market,
+    side: options.order.side,
+    ordType: options.order.ordType,
+    volume: options.order.volume,
+    price: options.order.ordType === "LIMIT" ? options.order.price : undefined,
+    mode: options.order.mode,
+  };
+
+  const response = await fetch(baseUrl + ORDER_CREATE_PATH, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+  const payload = await response.json().catch(() => null) as unknown;
+  if (!response.ok) {
+    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"
+      ? String((payload as Record<string, unknown>).error)
+      : "HTTP_" + response.status;
+    throw new Error("Order creation failed: " + message);
+  }
+
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new Error("Invalid order response format.");
+  }
+  const result = payload as Record<string, unknown>;
+  return Object.freeze({
+    uuid: typeof result.uuid === "string" ? result.uuid : "",
+    market: typeof result.market === "string" ? result.market : "",
+    side: result.side === "BUY" || result.side === "SELL" ? result.side : "BUY",
+    ordType: result.ordType === "LIMIT" || result.ordType === "MARKET" || result.ordType === "BEST" ? result.ordType : "MARKET",
+    price: result.price === null ? null : finite(result.price, "order price"),
+    volume: finite(result.volume, "order volume"),
+    state: typeof result.state === "string" ? result.state : "UNKNOWN",
+    createdAt: typeof result.createdAt === "string" ? result.createdAt : new Date().toISOString(),
+  });
+}
+
+/** Cancel an open order. Requires explicit mode confirmation. */
+export async function cancelUpbitOrder(options: Readonly<{
+  credentialProvider: UpbitCredentialProvider;
+  uuid: string;
+  mode: "PAPER" | "LIVE";
+  baseUrl?: string;
+}>): Promise<UpbitOrderResponse> {
+  const token = (await options.credentialProvider())?.trim() ?? "";
+  if (!token) throw new Error("Upbit bridge credential is required.");
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+
+  if (!/^[0-9a-f-]{20,64}$/i.test(options.uuid)) throw new Error("Invalid order uuid.");
+  if (options.mode !== "PAPER" && options.mode !== "LIVE") throw new Error("Mode must be PAPER or LIVE.");
+
+  const response = await fetch(baseUrl + ORDER_CANCEL_PREFIX + encodeURIComponent(options.uuid) + "?mode=" + options.mode, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token },
+  });
+  const payload = await response.json().catch(() => null) as unknown;
+  if (!response.ok) {
+    const message = typeof payload === "object" && payload !== null && typeof (payload as Record<string, unknown>).error === "string"
+      ? String((payload as Record<string, unknown>).error)
+      : "HTTP_" + response.status;
+    throw new Error("Order cancellation failed: " + message);
+  }
+
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new Error("Invalid cancellation response format.");
+  }
+  const result = payload as Record<string, unknown>;
+  return Object.freeze({
+    uuid: typeof result.uuid === "string" ? result.uuid : "",
+    market: typeof result.market === "string" ? result.market : "",
+    side: result.side === "BUY" || result.side === "SELL" ? result.side : "BUY",
+    ordType: result.ordType === "LIMIT" || result.ordType === "MARKET" || result.ordType === "BEST" ? result.ordType : "MARKET",
+    price: result.price === null ? null : finite(result.price, "order price"),
+    volume: finite(result.volume, "order volume"),
+    state: typeof result.state === "string" ? result.state : "CANCELLED",
+    createdAt: typeof result.createdAt === "string" ? result.createdAt : new Date().toISOString(),
+  });
 }
 
 export const UPBIT_LIVE_BASE_URL = DEFAULT_BASE_URL;
