@@ -24,6 +24,10 @@ import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRunt
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
+import { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";
+import { loadUpbitLiveAccounts } from "./src/upbitLiveClient";
+import { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";
+import { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -35,6 +39,7 @@ const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NO
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
 const PUBLIC_REFRESH_INTERVAL_MS = 30_000;
+const UPBIT_READONLY_REFRESH_INTERVAL_MS = 10_000;
 const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
 const theme = { container: { flex: 1 } } as const;
 
@@ -109,10 +114,13 @@ function AuthenticatedApp() {
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
+  const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const publicRefreshGenerationRef = useRef(0);
+  const upbitRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const upbitRefreshGenerationRef = useRef(0);
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
   const liveMarketsKeyRef = useRef<string>("");
   const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
@@ -208,6 +216,29 @@ function AuthenticatedApp() {
     return request;
   }, []);
 
+  const refreshUpbitReadOnlyAccount = useCallback((): Promise<void> => {
+    if (upbitRefreshInFlightRef.current) return upbitRefreshInFlightRef.current;
+    const generation = upbitRefreshGenerationRef.current;
+    const previous = getUpbitReadOnlyState();
+    if (previous.status === "DISCONNECTED") return Promise.resolve();
+    const request = (async () => {
+      try {
+        setUpbitReadOnlyState({ ...previous, status: "LOADING" });
+        const snapshot = await loadUpbitLiveAccounts({ credentialProvider: upbitCredentialSession.credentialProvider });
+        if (generation !== upbitRefreshGenerationRef.current) return;
+        setUpbitReadOnlyState({ status: "READY", snapshot: normalizeUpbitReadOnlySnapshot(snapshot), error: null });
+      } catch (error) {
+        if (generation !== upbitRefreshGenerationRef.current) return;
+        const detail = error instanceof Error ? error.message : "Upbit account refresh failed.";
+        setUpbitReadOnlyState({ status: previous.snapshot ? "STALE" : "ERROR", snapshot: previous.snapshot, error: detail });
+      }
+    })();
+    upbitRefreshInFlightRef.current = request;
+    const clearIfCurrent = () => { if (upbitRefreshInFlightRef.current === request) upbitRefreshInFlightRef.current = null; };
+    void request.then(clearIfCurrent, clearIfCurrent);
+    return request;
+  }, [upbitCredentialSession]);
+
   // Real-time layer on top of the 30s REST poll above: a live Upbit ticker only ever updates an
   // entry already established by that REST baseline (never invents a market on its own), so a
   // socket outage silently degrades back to polling-only instead of losing or fabricating data.
@@ -227,11 +258,11 @@ function AuthenticatedApp() {
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const handleSignOut = useCallback(() => {
-    refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
+    refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; upbitRefreshGenerationRef.current += 1; credentialSession.clear(); upbitCredentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
     // Revert to public data only mode on sign out
     setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
-  }, [credentialSession, signOut]);
+  }, [credentialSession, upbitCredentialSession, signOut]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -276,6 +307,18 @@ function AuthenticatedApp() {
     liveMarketsKeyRef.current = key;
     liveTickerClient.setMarkets(codes);
   }, [publicMarkets.markets, liveTickerClient]);
+
+  // Auto-refresh Upbit read-only account when connected (Stage 1: asset inquiry only)
+  useEffect(() => {
+    upbitRefreshGenerationRef.current += 1;
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    const generation = upbitRefreshGenerationRef.current;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleNext = () => { if (cancelled || generation !== upbitRefreshGenerationRef.current) return; timer = setTimeout(() => { timer = null; void refreshUpbitReadOnlyAccount().catch(() => undefined).finally(scheduleNext); }, UPBIT_READONLY_REFRESH_INTERVAL_MS); };
+    void refreshUpbitReadOnlyAccount().catch(() => undefined).finally(scheduleNext);
+    return () => { cancelled = true; upbitRefreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
+  }, [appState, authStatus, refreshUpbitReadOnlyAccount]);
 
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 

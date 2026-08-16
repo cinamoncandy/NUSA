@@ -1,0 +1,187 @@
+FAILED_TEST_FILE tests/mobile-upbit-readonly-bridge.test.js
+✔ Upbit bridge credential stays process-memory-only (1.061073ms)
+✔ Upbit bridge is HTTPS-only and read-only (0.312298ms)
+✔ Upbit normalized summary is validated fail-closed (0.167235ms)
+✔ Upbit account snapshot normalizes cash and assets without mixing PAPER (1.06609ms)
+✔ Upbit empty and zero balances remain a valid read-only snapshot (0.251958ms)
+✔ Portfolio exposes explicit disconnected/loading/ready/stale/error Upbit states (0.418276ms)
+✖ Upbit projection is cleared with local session reset boundaries (1.922124ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75.4315
+
+✖ failing tests:
+
+test at tests/mobile-upbit-readonly-bridge.test.js:75:1
+✖ Upbit projection is cleared with local session reset boundaries (1.922124ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/. Input:
+  
+  'import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";\n' +
+    'import AsyncStorage from "@react-native-async-storage/async-storage";\n' +
+    'import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";\n' +
+    'import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";\n' +
+    'import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";\n' +
+    'import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";\n' +
+    'import { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";\n' +
+    'import { HomeView, type HomeDestination } from "./src/homeView";\n' +
+    'import { PortfolioView } from "./src/portfolioView";\n' +
+    'import { TradingView } from "./src/tradingView";\n' +
+    'import { MarketsView } from "./src/marketsView";\n' +
+    'import { AiView } from "./src/aiView";\n' +
+    'import { NotificationView } from "./src/notificationView";\n' +
+    'import { SettingsView } from "./src/settingsView";\n' +
+    'import { OrderHistoryView } from "./src/orderHistoryView";\n' +
+    'import { WatchlistRepository } from "./src/watchlist";\n' +
+    'import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";\n' +
+    'import { VersionedSettingsRepository } from "./src/persistenceRepositories";\n' +
+    'import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";\n' +
+    'import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";\n' +
+    'import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";\n' +
+    'import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";\n' +
+    'import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";\n' +
+    'import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\n' +
+    'import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";\n' +
+    'import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";\n' +
+    'import { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";\n' +
+    'import { loadUpbitLiveAccounts } from "./src/upbitLiveClient";\n' +
+    'import { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";\n' +
+    'import { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\n' +
+    'import type { PublicCandle } from "./src/chartViewModel";\n' +
+    'import type { WatchlistMarket } from "./src/watchlist";\n' +
+    '\n' +
+    'const tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;\n' +
+    'type Tab = (typeof tabs)[number];\n' +
+    'type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;\n' +
+    'const tabLabels: Readonly<Record<Tab, string>> = { Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO" };\n' +
+    'const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };\n' +
+    'const CHART_MARKET = "KRW-BTC";\n' +
+    'const PAPER_REFRESH_INTERVAL_MS = 5000;\n' +
+    'const PUBLIC_REFRESH_INTERVAL_MS = 30_000;\n' +
+    'const UPBIT_READONLY_REFRESH_INTERVAL_MS = 10_000;\n' +
+    'const settingsRepository = new VersionedSettingsRepository(AsyncStorage);\n' +
+    'const theme = { container: { flex: 1 } } as const;\n' +
+    '\n' +
+    'type PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";\n' +
+    'interface PublicMarketsState {\n' +
+    '  readonly status: PublicMarketsStatus;\n' +
+    '  readonly markets: readonly WatchlistMarket[] | null;\n' +
+    '  readonly candles: readonly PublicCandle[] | null;\n' +
+    '  readonly currentPrice: number | null;\n' +
+    '  readonly error: string | null;\n' +
+    '  readonly chartError: string | null;\n' +
+    '}\n' +
+    '\n' +
+    'const initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });\n' +
+    '\n' +
+    'function themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }\n' +
+    '\n' +
+    'function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode }>) {\n' +
+    '  const { setMode } = useTheme();\n' +
+    '  useEffect(() => {\n' +
+    '    let active = true;\n' +
+    '    void settingsRepository.load().then((stored) => {\n' +
+    '      if (!active) return;\n' +
+    '      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);\n' +
+    '      let endpoint = settings.paperEndpoint;\n' +
+    '      // Development: auto-connect to local PAPER server if no endpoint configured\n' +
+    '      if (!endpoint && __DEV__) {\n' +
+    '        endpoint = "http://127.0.0.1:8000";\n' +
+    '      }\n' +
+    '      setConfiguredPaperEndpoint(endpoint);\n' +
+    '      setMode(themePreference(settings.theme));\n' +
+    '    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });\n' +
+    '    return () => { active = false; };\n' +
+    '  }, [setMode]);\n' +
+    '  return <>{children}</>;\n' +
+    '}\n' +
+    '\n' +
+    'function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {\n' +
+    '  const { theme: appTheme } = useTheme();\n' +
+    '  return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>\n' +
+    '    <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>\n' +
+    '    <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>\n' +
+    '    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>\n' +
+    '    <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />\n' +
+    '  </NusaCard></View></View>;\n' +
+    '}\n' +
+    '\n' +
+    'export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }\n' +
+    '\n' +
+    'function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {\n' +
+    '  const [status, setStatus] = useState<AuthStatus>("CHECKING");\n' +
+    '  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);\n' +
+    '  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);\n' +
+    '  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;\n' +
+    '}\n' +
+    '\n' +
+    'function AuthenticatedApp() {\n' +
+    '  const { status: authStatus, signIn, signOut } = useAuth();\n' +
+    '  const { theme: appTheme } = useTheme();\n' +
+    '  const upbitState = useUpbitReadOnlyState();\n' +
+    '  const [activeTab, setActiveTab] = useState<Tab>("Home");\n' +
+    '  const [utilityView, setUtilityView] = useState<UtilityView>(null);\n' +
+    '  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);\n' +
+    '  // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional\n' +
+    '  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });\n' +
+    '  const [refreshing, setRefreshing] = useState(false);\n' +
+    '  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);\n' +
+    '  const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());\n' +
+    '  const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());\n' +
+    '  const [publicRefreshing, setPublicRefreshing] = useState(false);\n' +
+    '  const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);\n' +
+    '  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);\n' +
+    '  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);\n' +
+    '  const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);\n' +
+    '  const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);\n' +
+    '  const refreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
+    '  const refreshGenerationRef = useRef(0);\n' +
+    '  const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
+    '  const publicRefreshGenerationRef = useRef(0);\n' +
+    '  const upbitRefreshInFlightRef = useRef<Promise<void> | null>(null);\n' +
+    '  const upbitRefreshGenerationRef = useRef(0);\n' +
+    '  const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());\n' +
+    '  const liveMarketsKeyRef = useRef<string>("");\n' +
+    '  const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);\n' +
+    '  const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {\n' +
+    '    try {\n' +
+    '      runtimeCoordinator.dispatch(event);\n' +
+    '    } catch {\n' +
+    '      try { runtimeCoordinator.dispatch({ type: "RECOVERY_FAILED", reason: "mobile runtime state transition failed" }); } catch { /* remain blocked by the last known state */ }\n' +
+    '    }\n' +
+    '  }, [runtimeCoordinator]);\n' +
+    '\n' +
+    '  useEffect(() => {\n' +
+    '    let active = true;\n' +
+    '    void settingsRepository.load().then((stored) => { if (active) setInvestmentPercent(normalizeSettings(stored ?? DEFAULT_SETTINGS).capitalAllocation.investmentPercent); }).catch(() => { if (active) setInvestmentPercent(DEFAULT_SETTINGS.capitalAllocation.investmentPercent); });\n' +
+    '    return () => { active = false; };\n' +
+    '  }, []);\n' +
+    '\n' +
+    '  const refresh = useCallback((): Promise<void> => {\n' +
+    '    if (refreshInFlightRef.current) return refreshInFlightRef.current;\n' +
+    '    const generation = refreshGenerationRef.current;\n' +
+    '    const endpoint = getConfiguredPaperEndpoint();\n' +
+    '    // Public data only mode: PAPER server is optional. App works with public market data alone.\n' +
+    '    if (endpoint == null || !isPaperConnectionVerified(endpoint)) {\n' +
+    '      // Emit a read-only mode signal but continue operation with public markets only\n' +
+    '      dispatchRuntime({ type: "NETWORK_OFFLINE" });\n' +
+    '      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapsh'... 23192 more characters
+  
+      at TestContext.<anonymous> (/home/user/NUSA/tests/mobile-upbit-readonly-bridge.test.js:78:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";\nimport AsyncStorage from "@react-native-async-storage/async-storage";\nimport { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";\nimport { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";\nimport { AuthContext, useAuth, type AuthStatus } from "./src/authContext";\nimport { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";\nimport { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";\nimport { HomeView, type HomeDestination } from "./src/homeView";\nimport { PortfolioView } from "./src/portfolioView";\nimport { TradingView } from "./src/tradingView";\nimport { MarketsView } from "./src/marketsView";\nimport { AiView } from "./src/aiView";\nimport { NotificationView } from "./src/notificationView";\nimport { SettingsView } from "./src/settingsView";\nimport { OrderHistoryView } from "./src/orderHistoryView";\nimport { WatchlistRepository } from "./src/watchlist";\nimport { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";\nimport { VersionedSettingsRepository } from "./src/persistenceRepositories";\nimport { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";\nimport { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";\nimport { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";\nimport { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";\nimport { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";\nimport { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\nimport { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";\nimport { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";\nimport { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";\nimport { loadUpbitLiveAccounts } from "./src/upbitLiveClient";\nimport { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";\nimport { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";\nimport type { PublicCandle } from "./src/chartViewModel";\nimport type { WatchlistMarket } from "./src/watchlist";\n\nconst tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;\ntype Tab = (typeof tabs)[number];\ntype UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;\nconst tabLabels: Readonly<Record<Tab, string>> = { Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO" };\nconst utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };\nconst CHART_MARKET = "KRW-BTC";\nconst PAPER_REFRESH_INTERVAL_MS = 5000;\nconst PUBLIC_REFRESH_INTERVAL_MS = 30_000;\nconst UPBIT_READONLY_REFRESH_INTERVAL_MS = 10_000;\nconst settingsRepository = new VersionedSettingsRepository(AsyncStorage);\nconst theme = { container: { flex: 1 } } as const;\n\ntype PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";\ninterface PublicMarketsState {\n  readonly status: PublicMarketsStatus;\n  readonly markets: readonly WatchlistMarket[] | null;\n  readonly candles: readonly PublicCandle[] | null;\n  readonly currentPrice: number | null;\n  readonly error: string | null;\n  readonly chartError: string | null;\n}\n\nconst initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });\n\nfunction themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }\n\nfunction PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode }>) {\n  const { setMode } = useTheme();\n  useEffect(() => {\n    let active = true;\n    void settingsRepository.load().then((stored) => {\n      if (!active) return;\n      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);\n      let endpoint = settings.paperEndpoint;\n      // Development: auto-connect to local PAPER server if no endpoint configured\n      if (!endpoint && __DEV__) {\n        endpoint = "http://127.0.0.1:8000";\n      }\n      setConfiguredPaperEndpoint(endpoint);\n      setMode(themePreference(settings.theme));\n    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });\n    return () => { active = false; };\n  }, [setMode]);\n  return <>{children}</>;\n}\n\nfunction DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {\n  const { theme: appTheme } = useTheme();\n  return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>\n    <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>\n    <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>\n    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>\n    <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />\n  </NusaCard></View></View>;\n}\n\nexport default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }\n\nfunction AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {\n  const [status, setStatus] = useState<AuthStatus>("CHECKING");\n  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);\n  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);\n  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;\n}\n\nfunction AuthenticatedApp() {\n  const { status: authStatus, signIn, signOut } = useAuth();\n  const { theme: appTheme } = useTheme();\n  const upbitState = useUpbitReadOnlyState();\n  const [activeTab, setActiveTab] = useState<Tab>("Home");\n  const [utilityView, setUtilityView] = useState<UtilityView>(null);\n  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);\n  // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional\n  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });\n  const [refreshing, setRefreshing] = useState(false);\n  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);\n  const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());\n  const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());\n  const [publicRefreshing, setPublicRefreshing] = useState(false);\n  const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);\n  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);\n  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);\n  const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);\n  const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);\n  const refreshInFlightRef = useRef<Promise<void> | null>(null);\n  const refreshGenerationRef = useRef(0);\n  const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);\n  const publicRefreshGenerationRef = useRef(0);\n  const upbitRefreshInFlightRef = useRef<Promise<void> | null>(null);\n  const upbitRefreshGenerationRef = useRef(0);\n  const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());\n  const liveMarketsKeyRef = useRef<string>("");\n  const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);\n  const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {\n    try {\n      runtimeCoordinator.dispatch(event);\n    } catch {\n      try { runtimeCoordinator.dispatch({ type: "RECOVERY_FAILED", reason: "mobile runtime state transition failed" }); } catch { /* remain blocked by the last known state */ }\n    }\n  }, [runtimeCoordinator]);\n\n  useEffect(() => {\n    let active = true;\n    void settingsRepository.load().then((stored) => { if (active) setInvestmentPercent(normalizeSettings(stored ?? DEFAULT_SETTINGS).capitalAllocation.investmentPercent); }).catch(() => { if (active) setInvestmentPercent(DEFAULT_SETTINGS.capitalAllocation.investmentPercent); });\n    return () => { active = false; };\n  }, []);\n\n  const refresh = useCallback((): Promise<void> => {\n    if (refreshInFlightRef.current) return refreshInFlightRef.current;\n    const generation = refreshGenerationRef.current;\n    const endpoint = getConfiguredPaperEndpoint();\n    // Public data only mode: PAPER server is optional. App works with public market data alone.\n    if (endpoint == null || !isPaperConnectionVerified(endpoint)) {\n      // Emit a read-only mode signal but continue operation with public markets only\n      dispatchRuntime({ type: "NETWORK_OFFLINE" });\n      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapsh'... 23192 more characters,
+    expected: /credentialSession\.clear\(\); clearPaperConnectionVerification\(\); resetUpbitReadOnlyState\(\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
