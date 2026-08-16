@@ -1,0 +1,57 @@
+id: WO-0057
+title: "Android zero-config origin and mobile auth bootstrap"
+status: IN_PROGRESS
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/p0-mobile-zero-config-auth
+objective: "Remove production endpoint, port, tunnel, and dashboard-bearer inputs from Android; require a canonical HTTPS origin at release packaging; preserve fail-closed PAPER-only and AI zero-authority boundaries."
+scope:
+  - "Build-provided canonical HTTPS origin with loopback and Quick Tunnel rejection."
+  - "Legacy endpoint and bearer settings are ignored and not persisted."
+  - "Production Settings exposes automatic NUSA Cloud status only."
+  - "Home remains Home when Cloud/mobile session data is unavailable."
+  - "Production clients use no dashboard master bearer; missing mobile session remains unavailable."
+  - "Release packaging fails closed unless NUSA_PUBLIC_API_ORIGIN supplies a stable HTTPS origin."
+constraints:
+  - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "No LIVE order/cancel/withdraw/transfer or broker mutation."
+  - "No user PC, localhost, LAN, Quick Tunnel, or manual endpoint dependency."
+  - "Do not invent anonymous auth or embed a dashboard/operator bearer."
+architecture_impact:
+  acknowledged: true
+  analysis: "This removes a production configuration leak and centralizes origin selection at build/runtime boundaries. A usable Cloud mobile bootstrap endpoint is not present in the current Cloud auth foundation, so the implementation must report that blocker rather than simulate authentication."
+  references:
+    - apps/mobile/src/canonicalOrigin.ts
+    - apps/mobile/src/settings.ts
+    - apps/mobile/src/settingsView.tsx
+    - apps/cloud/src/mobileDashboardHttp.ts
+    - apps/cloud/src/cloudRuntimeConfig.ts
+acceptance:
+  repository_gates:
+    - "Canonical origin focused tests pass."
+    - "Settings and false-confidence tests are replaced with zero-config contract tests."
+    - "typecheck, lint, build, architecture, security, and AIPOS checks pass."
+    - "Exact-head CI and Mobile Native pass after publication."
+  external_gate:
+    status: BLOCKED
+    required: "Cloud mobile auth bootstrap/identity provider, stable HTTPS origin/ingress, and real Android verification."
+verification:
+  current:
+    canonical_origin: PASS
+    release_fail_closed: PASS
+    production_settings_inputs: REMOVED
+    legacy_settings_migration: PASS
+    home_on_cloud_failure: PASS
+    focused_mobile_ui_paper_tests: PASS_299_OF_299
+    typecheck: PASS
+    lint: PASS
+    build: PASS
+    mobile_auth_bootstrap: BLOCKED_FOUNDATION_MISSING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Do not claim Android zero-config product acceptance until a real mobile session bootstrap is deployed and a PC-off Android E2E proves Cloud/PAPER access."

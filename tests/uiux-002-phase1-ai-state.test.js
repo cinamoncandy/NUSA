@@ -36,7 +36,7 @@ test("Markets hides chart navigation without verified candles", () => {
 
 test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
   const trading = source("tradingView.tsx");
-  assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(trading, /const builtInSubmitAvailable = false/);
   assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
   assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
   assert.match(trading, /StatusChip label="PAPER ONLY"/);

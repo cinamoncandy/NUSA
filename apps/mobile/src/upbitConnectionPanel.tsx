@@ -14,6 +14,7 @@ type ConnectionState =
   | Readonly<{ status: "READY"; detail: string; fetchedAt: number }>
   | Readonly<{ status: "ERROR"; detail: string }>;
 
+/** Developer/diagnostic-only bridge. Production Settings must never mount this panel. */
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
   const credentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);

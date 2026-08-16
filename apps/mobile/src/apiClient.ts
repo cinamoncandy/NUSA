@@ -37,7 +37,7 @@ export class ApiClientError extends Error {
   }
 }
 
-const DEFAULT_BASE_URL = process.env.EXPO_PUBLIC_NUSA_API_BASE_URL ?? "http://127.0.0.1:41731";
+import { readCanonicalNusaOrigin } from "./canonicalOrigin";
 const assertPositive = (value: number, field: string): number => {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${field} must be a positive safe integer`);
   return value;
@@ -73,7 +73,7 @@ export class ApiClient {
   private readonly transport: ApiTransport;
 
   public constructor(options: ApiClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+    this.baseUrl = (options.baseUrl ?? readCanonicalNusaOrigin()).replace(/\/$/, "");
     this.timeoutMs = assertPositive(options.timeoutMs ?? 5000, "timeoutMs");
     this.maxRetries = options.maxRetries === undefined ? 2 : assertRetries(options.maxRetries);
     this.retryDelayMs = assertPositive(options.retryDelayMs ?? 100, "retryDelayMs");

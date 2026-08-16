@@ -37,6 +37,11 @@ jobs:
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Require canonical HTTPS origin for persistent release packaging
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_PUBLIC_API_ORIGIN }}
+          NUSA_BUILD_SHA: ${{ github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: ./gradlew :app:assembleRelease

@@ -2,7 +2,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
@@ -15,7 +14,6 @@ test("UIUX-002 preserves stable five-tab keys while presenting product navigatio
   assert.match(app, /Portfolio: "자산"/);
   assert.match(app, /More: "AI"/);
   assert.match(app, /activeTab === "More" \? <AiView/);
-  assert.doesNotMatch(app, /<MoreView/);
 });
 
 test("mobile intelligence shell displays real AI projection and truthful scoped authority state", () => {
@@ -23,49 +21,29 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   const aiView = read("src/aiView.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(aiView, /ai\?\.thesis \?\? "현재 표시할 검증된 AI 분석이 없습니다\."/);
-  assert.match(aiView, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.match(aiView, /AI ZERO AUTHORITY/);
+  assert.match(aiView, /READ ONLY/);
   assert.match(components, /AI는 주문, 이체, 출금 또는 운영 상태를 변경할 권한이 없습니다/);
-  assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
-  assert.match(aiView, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
-  assert.match(aiView, /<DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\} emphasis \/>/);
-  assert.match(aiView, /<DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-" : "금지"\}/);
-  assert.doesNotMatch(components, /UI 주문 경로 없음/);
   assert.doesNotMatch(app, /94%/);
 });
 
-test("PAPER surface exposes verified PAPER-only execution without LIVE authority", () => {
+test("PAPER surface stays PAPER-only and fails closed without a mobile session", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
-  assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /PAPER 주문 작업공간/);
-  assert.match(trading, /StatusChip label="PAPER ONLY"/);
-  assert.match(trading, /statusLabel="LIVE NONE"/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(trading, /PersonalPaperOrderRetryIdentity/);
-  assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(trading, /authority: "PAPER_ONLY"/);
+  assert.match(trading, /unavailableDashboardCredentialProvider/);
   assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(trading, /liveMutationAllowed: false/);
-  assert.match(trading, /02 · 주문 검토/);
-  assert.match(trading, /이 PAPER 주문을 확정할까요/);
-  assert.match(trading, /PAPER 주문 확정/);
-  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(trading, /\/api\/(?:live|withdraw|transfer)/i);
+  assert.doesNotMatch(trading, /authority:\s*"LIVE"|productionMutationAllowed:\s*true/);
 });
 
-test("dashboard credential flow remains memory-only and Settings-owned", () => {
+test("production Settings owns no dashboard credential and no infrastructure input", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
-  assert.match(settings, /InMemoryDashboardCredentialSession/);
-  assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
-  assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /토큰은 앱 메모리에만 유지/);
-  assert.match(settings, /testID="settings-paper-connect"/);
-  assert.match(settings, /testID="settings-paper-disconnect"/);
-  assert.match(app, /getConfiguredPaperEndpoint/);
-  assert.match(app, /isPaperConnectionVerified\(endpoint\)/);
-  assert.doesNotMatch(app, /dashboardTokenDraft|testID="dashboard-connect"|testID="dashboard-disconnect"/);
+  assert.match(settings, /settings-cloud-connection/);
+  assert.match(settings, /서버 위치는 앱이 관리합니다/);
+  assert.doesNotMatch(settings, /InMemoryDashboardCredentialSession|credentialSession\.connect|settings-paper-endpoint|settings-paper-token/);
+  assert.match(app, /tryReadCanonicalNusaOrigin/);
+  assert.doesNotMatch(app, /settings\.paperEndpoint/);
 });

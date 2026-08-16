@@ -54,8 +54,8 @@ test("mobile foundation exposes a Home screen, theme, and five-tab navigation", 
 test("fresh-install entry is explicitly local and does not impersonate account authentication", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /testID="local-entry-submit"/);
-  assert.match(app, /개인 모드 시작/);
-  assert.match(app, /계정 인증이 아닙니다/);
+  assert.match(app, /NUSA 열기/);
+  assert.match(app, /Cloud 모바일 세션 bootstrap이 연결되지 않았습니다/);
   assert.match(app, /PAPER ONLY/);
   assert.match(app, /LIVE NONE/);
   assert.doesNotMatch(app, /accessibilityLabel="Email"|accessibilityLabel="Password"|testID="auth-email"|testID="auth-password"/);
@@ -68,7 +68,7 @@ test("local entry guard still exposes Splash and Auth Context without claiming i
   assert.match(app, /AuthContextProvider/);
   assert.match(app, /authStatus !== "SIGNED_IN"/);
   assert.match(context, /AuthContext/);
-  assert.match(app, /사용자 신원을 검증하지 않으며/);
+  assert.match(app, /운영 자격 증명은 이 기기에 입력하거나 저장하지 않습니다/);
 });
 
 test("mobile release workflow validates unsigned Android and iOS candidates", () => {

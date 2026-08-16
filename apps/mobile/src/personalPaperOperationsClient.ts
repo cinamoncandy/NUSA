@@ -42,21 +42,21 @@ function readTimeoutMs(value: number | undefined): number {
 /** Uses only the explicitly saved endpoint. Normal reads require that exact endpoint to be verified before credential access. */
 export async function loadPersonalPaperOperations(options: PersonalPaperOperationsClientOptions): Promise<PersonalPaperOperationsLoadResult> {
   const configured = getConfiguredPaperEndpoint();
-  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
+  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud origin is unavailable." });
 
   // Only the Settings connection probe may name a requested endpoint, and it must be the exact
   // configured endpoint. Normal reads intentionally ignore caller/env base URLs and use the
   // configured+verified Settings endpoint below so credentials can never be redirected by env.
   const requested = normalizeEndpoint(options.baseUrl);
   if (options.allowUnverifiedEndpoint === true && requested !== configured) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint does not match the configured connection." });
-  if (options.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before credentials can be used." });
+  if (options.allowUnverifiedEndpoint !== true && !isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud origin is not trusted." });
   if (!isSecureDashboardEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "Dashboard credential will not be sent over insecure remote HTTP." });
 
   let timeoutMs: number;
   try { timeoutMs = readTimeoutMs(options.timeoutMs); }
   catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations timeout is invalid." }); }
   const token = await options.credentialProvider();
-  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
   const requestToken = token.trim();
 
   const endpoint = new URL(`${configured}/api/paper-operations`).href;

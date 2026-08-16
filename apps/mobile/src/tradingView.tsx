@@ -6,9 +6,9 @@ import { useTheme } from "./ThemeProvider";
 import { buildTradingViewModel, formatTradingAmount, tradingAssetCode, type TradingDraft, type TradingOrderSide, type TradingOrderType } from "./tradingViewModel";
 import type { PortfolioAccountResponse } from "./portfolioViewModel";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
-import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdentity } from "./personalPaperOrderClient";
+import { unavailableDashboardCredentialProvider } from "./personalPaperOperationsClient";
 
 interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; }
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><InlineNotice title="PAPER 화면을 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
@@ -26,9 +26,8 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const configuredEndpoint = getConfiguredPaperEndpoint();
-  const builtInSubmitAvailable = Boolean(configuredEndpoint && credentialSession.isConfigured() && isPaperConnectionVerified(configuredEndpoint));
+  const builtInSubmitAvailable = false;
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
 
   if (error) return <ErrorState message={error} onRetry={onRefresh} />;
@@ -44,13 +43,13 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const allocationRatio = Math.max(0, Math.min(100, cashEnvelope.investmentPercent));
 
   const submitBuiltIn = async () => {
-    if (!configuredEndpoint || !isPaperConnectionVerified(configuredEndpoint)) { setSubmitMessage("설정에서 PAPER endpoint와 세션을 먼저 검증하세요."); return; }
+    if (!configuredEndpoint || !isPaperConnectionVerified(configuredEndpoint)) { setSubmitMessage("NUSA Cloud 세션을 사용할 수 없습니다."); return; }
     setSubmitting(true); setSubmitMessage(null);
     try {
       const quantity = Number(quantityInput);
       const limitPrice = orderType === "LIMIT" ? Number(priceInput) : undefined;
       const fingerprint = JSON.stringify([model.market, side, orderType, quantity, limitPrice ?? null, investmentPercent]);
-      const result = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider }, processPaperOrderRetryIdentity, fingerprint, idempotencyKey, { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) });
+      const result = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: configuredEndpoint, credentialProvider: unavailableDashboardCredentialProvider }, processPaperOrderRetryIdentity, fingerprint, idempotencyKey, { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) });
       if (result.status === "READY") {
         setSubmitMessage(result.result.status === "FILLED" ? `PAPER 체결 완료 · ${result.result.order?.id ?? ""}` : `${result.result.status}${result.result.reason ? ` · ${result.result.reason}` : ""}`);
         if (result.result.status === "FILLED") { setQuantityInput(""); setPriceInput(""); }
@@ -79,7 +78,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
       <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>02 · 주문 검토</Text><View style={[styles.preview, { borderColor: theme.colors.border }]}><DataRow label="예상 주문 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} emphasis /><DataRow label={side === "BUY" ? "주문 가능" : "보유 가능"} value={formatTradingAmount(model.availableAmount, model.availableUnit)} />{side === "BUY" ? <DataRow label="주문 후 보호 현금" value={formatTradingAmount(cashEnvelope.reservedCash, "KRW")} tone="success" /> : null}</View></View>
 
       {side === "BUY" && cashEnvelope.investmentPercent === 0 ? <InlineNotice title="신규 매수 비중이 0%입니다" detail="설정에서 투자 비중을 높이기 전까지 현금 전액을 보호합니다. 매도는 계속 가능합니다." tone="warning" /> : null}
-      {!submitAvailable ? <InlineNotice title="PAPER 주문 연결이 필요합니다" detail="설정에서 Cloud endpoint와 메모리 세션을 검증하면 주문을 사용할 수 있습니다." tone="warning" /> : null}
+      {!submitAvailable ? <InlineNotice title="PAPER 주문을 사용할 수 없습니다" detail="NUSA Cloud 모바일 세션이 준비되면 PAPER 권한 범위에서만 사용할 수 있습니다." tone="warning" /> : null}
       {!runtimeCanSubmit ? <InlineNotice title="PAPER 주문이 잠시 차단되었습니다" detail="네트워크 또는 복구 상태를 확인하는 동안 신규 주문을 fail-closed로 막습니다." tone="warning" testID="paper-runtime-blocked" /> : null}
       {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <InlineNotice title="주문 조건을 확인하세요" detail={[...model.validationErrors, ...model.blockedReasons].join(" · ")} tone="warning" /> : null}
 
