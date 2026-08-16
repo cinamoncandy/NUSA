@@ -29,7 +29,7 @@ verification:
   lint: PASS
   build: PASS
   exact_head_ci: PASS
-  exact_head: f6440840b223d712e64fc0b8e928123d82e07469
+  exact_head: e5e4b3e42943a34ea9ef254885534b24a8fa4765
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED

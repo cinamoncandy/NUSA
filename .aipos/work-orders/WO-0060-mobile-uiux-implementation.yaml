@@ -36,7 +36,8 @@ verification:
   typecheck: PASS
   lint: PASS
   build: PASS
-  exact_head_ci: PASS
+  exact_head_ci: PENDING_AFTER_HOME_REFERENCE_PASS
+  exact_head: e5e4b3e42943a34ea9ef254885534b24a8fa4765
   mobile_native: PASS
   real_device_install: HUMAN_ENVIRONMENT_ONLY_PENDING
   real_device_screenshot: HUMAN_ENVIRONMENT_ONLY_PENDING
