@@ -28,6 +28,9 @@ import { InMemoryUpbitCredentialSession } from "./src/upbitCredentialSession";
 import { loadUpbitLiveAccounts } from "./src/upbitLiveClient";
 import { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel";
 import { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
+import { UpbitTradingManager } from "./src/upbitTradingManager";
+import { UpbitTradingConfirmationModal, type TradingConfirmationRequest } from "./src/upbitTradingConfirmationModal";
+import { createTradingSignal, extractTradingSignalFromThesis, executeTradingSignal, confirmAndExecuteTradingSignal, type TradingSignalEvent } from "./src/upbitTradingSignalDispatcher";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -115,6 +118,18 @@ function AuthenticatedApp() {
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const upbitCredentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);
+
+  // Initialize trading manager (PAPER mode by default; LIVE mode gated by user settings)
+  const tradingManager = useMemo(() => {
+    const manager = new UpbitTradingManager(
+      upbitCredentialSession.credentialProvider,
+      "PAPER", // Default to PAPER mode for learning
+      { dailyLossLimitKRW: 500_000, maxOrderAmountKRW: 5_000_000, rateLimitOrdersPerSecond: 1, minOrderIntervalMs: 5_000 },
+      "https://nusa-api.duckdns.org"
+    );
+    tradingManagerRef.current = manager;
+    return manager;
+  }, [upbitCredentialSession]);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -124,6 +139,14 @@ function AuthenticatedApp() {
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
   const liveMarketsKeyRef = useRef<string>("");
   const runtimeCoordinator = useMemo(() => new MobileRuntimeCoordinator({ load: () => undefined, save: setRuntimeSnapshot }), []);
+
+  // Stage 3: Trading signal handling and confirmation
+  const [tradingConfirmationVisible, setTradingConfirmationVisible] = useState(false);
+  const [tradingConfirmationRequest, setTradingConfirmationRequest] = useState<TradingConfirmationRequest | null>(null);
+  const [tradingConfirmationLoading, setTradingConfirmationLoading] = useState(false);
+  const [tradingConfirmationError, setTradingConfirmationError] = useState<string | null>(null);
+  const tradingManagerRef = useRef<UpbitTradingManager | null>(null);
+  const pendingTradingSignalRef = useRef<TradingSignalEvent | null>(null);
   const dispatchRuntime = useCallback((event: MobileRuntimeEvent): void => {
     try {
       runtimeCoordinator.dispatch(event);
@@ -264,6 +287,70 @@ function AuthenticatedApp() {
     setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, upbitCredentialSession, signOut]);
 
+  // Stage 3: Handle trading signals from AI
+  const handleTradingSignal = useCallback(async (signal: TradingSignalEvent) => {
+    if (!tradingManagerRef.current) return;
+
+    const result = await executeTradingSignal(signal, tradingManagerRef.current);
+
+    if (result.requiresConfirmation) {
+      // LIVE mode: show confirmation modal
+      const estimatedKRW = signal.ordType === "LIMIT" && signal.price
+        ? signal.price * signal.volume
+        : signal.volume * 50_000_000;
+
+      pendingTradingSignalRef.current = signal;
+      setTradingConfirmationRequest({
+        market: signal.market,
+        side: signal.side,
+        ordType: signal.ordType,
+        volume: signal.volume,
+        price: signal.price,
+        estimatedKRW,
+        mode: "LIVE",
+      });
+      setTradingConfirmationVisible(true);
+    } else if (!result.success) {
+      // Auto-execution failed
+      setTradingConfirmationError(result.error || "Unknown error");
+    }
+  }, []);
+
+  const handleTradingConfirmationConfirm = useCallback(async () => {
+    if (!tradingManagerRef.current || !pendingTradingSignalRef.current) return;
+
+    setTradingConfirmationLoading(true);
+    setTradingConfirmationError(null);
+
+    try {
+      const result = await confirmAndExecuteTradingSignal(
+        pendingTradingSignalRef.current,
+        tradingManagerRef.current
+      );
+
+      if (result.success) {
+        setTradingConfirmationVisible(false);
+        setTradingConfirmationRequest(null);
+        pendingTradingSignalRef.current = null;
+      } else {
+        setTradingConfirmationError(result.error || "Execution failed");
+      }
+    } catch (error) {
+      setTradingConfirmationError(
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    } finally {
+      setTradingConfirmationLoading(false);
+    }
+  }, []);
+
+  const handleTradingConfirmationCancel = useCallback(() => {
+    setTradingConfirmationVisible(false);
+    setTradingConfirmationRequest(null);
+    setTradingConfirmationError(null);
+    pendingTradingSignalRef.current = null;
+  }, []);
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       setAppState(nextState);
@@ -360,6 +447,15 @@ function AuthenticatedApp() {
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={isPaperConnected ? null : "PAPER 서버 미연결 — Settings에서 선택적으로 연결하세요."} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
 
     <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner}>{tabs.map((tab) => { const active = utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, { borderColor: active ? appTheme.colors.neonBlue : "transparent", backgroundColor: active ? appTheme.colors.neonGlow : "transparent", shadowColor: active ? appTheme.colors.neonBlue : "transparent", shadowOpacity: active ? 0.3 : 0, shadowRadius: active ? 8 : 0, elevation: active ? 2 : 0 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : "transparent", width: active ? 30 : 12, shadowColor: active ? appTheme.colors.aiSignalEnd : "transparent", shadowOpacity: active ? 0.6 : 0, shadowRadius: active ? 6 : 0, elevation: active ? 1 : 0 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.neonTeal : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
+
+    <UpbitTradingConfirmationModal
+      visible={tradingConfirmationVisible}
+      request={tradingConfirmationRequest}
+      loading={tradingConfirmationLoading}
+      error={tradingConfirmationError}
+      onConfirm={handleTradingConfirmationConfirm}
+      onCancel={handleTradingConfirmationCancel}
+    />
   </SafeAreaView>;
 }
 
