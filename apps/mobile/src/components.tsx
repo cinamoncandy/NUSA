@@ -93,10 +93,10 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
   );
 }
 
-export function NusaCard({ children, testID, raised = false }: Readonly<{ children: React.ReactNode; testID?: string; raised?: boolean }>) {
+export function NusaCard({ children, testID, raised = false, neon = false }: Readonly<{ children: React.ReactNode; testID?: string; raised?: boolean; neon?: boolean }>) {
   const { theme } = useTheme();
   const tokens = cardTokens(theme);
-  return <View style={[styles.card, { backgroundColor: raised ? theme.colors.surfaceRaised : tokens.background, borderColor: raised ? theme.colors.borderStrong : tokens.border, borderRadius: tokens.radius, padding: tokens.padding, shadowColor: tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: raised ? Math.min(tokens.shadow.opacity + 0.05, 1) : tokens.shadow.opacity, shadowRadius: raised ? tokens.shadow.radius + 4 : tokens.shadow.radius, elevation: raised ? tokens.shadow.elevation + 1 : tokens.shadow.elevation }]} testID={testID}>{children}</View>;
+  return <View style={[styles.card, { backgroundColor: raised ? theme.colors.surfaceRaised : tokens.background, borderColor: neon ? theme.colors.neonBlue : (raised ? theme.colors.borderStrong : tokens.border), borderRadius: tokens.radius, padding: tokens.padding, shadowColor: neon ? theme.colors.neonBlue : tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: neon ? 0.4 : (raised ? Math.min(tokens.shadow.opacity + 0.05, 1) : tokens.shadow.opacity), shadowRadius: neon ? 16 : (raised ? tokens.shadow.radius + 4 : tokens.shadow.radius), elevation: neon ? 3 : (raised ? tokens.shadow.elevation + 1 : tokens.shadow.elevation), borderWidth: neon ? 1.5 : 1 }]} testID={testID}>{children}</View>;
 }
 
 export type StatusTone = "primary" | "success" | "warning" | "danger" | "info" | "neutral";

@@ -18,6 +18,7 @@ export interface Theme {
     terrain: string; chartUp: string; chartDown: string; navSurface: string;
     border: string; borderStrong: string; success: string; warning: string; danger: string;
     info: string; onDanger: string; focus: string;
+    neonPurple: string; neonBlue: string; neonTeal: string; neonGlow: string;
   }>;
   readonly typography: Readonly<{
     fontFamily: string; monoFamily: string; micro: number; caption: number; body: number;
@@ -26,7 +27,7 @@ export interface Theme {
   }>;
   readonly spacing: Readonly<{ zero: 0; xs: 4; sm: 8; md: 12; lg: 16; xl: 24; xxl: 32; huge: 48; }>;
   readonly radii: Readonly<{ sm: 8; md: 12; lg: 16; xl: 24; full: 9999; }>;
-  readonly shadows: Readonly<{ sm: ShadowToken; md: ShadowToken; focus: ShadowToken }>;
+  readonly shadows: Readonly<{ sm: ShadowToken; md: ShadowToken; focus: ShadowToken; glow: ShadowToken; }>;
   readonly icons: Readonly<{ sm: 16; md: 20; lg: 24; xl: 32 }>;
   readonly interaction: Readonly<{
     touchTarget: 48; controlHeight: 48; borderWidth: 1; focusBorderWidth: 2;
@@ -85,9 +86,14 @@ export function createTheme(mode: ThemeMode): Theme {
       info: dark ? "#8FA9C7" : "#4C5665",
       onDanger: dark ? "#11151B" : "#FFFFFF",
       focus: dark ? "#FFFFFF" : "#11151B",
+      // Neon colors for enhanced visual redesign
+      neonPurple: "#B56BFF",
+      neonBlue: "#5B8CFF",
+      neonTeal: "#49D7C3",
+      neonGlow: dark ? "rgba(181, 107, 255, 0.2)" : "rgba(181, 107, 255, 0.1)",
     },
     typography: {
-      fontFamily: "System", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
+      fontFamily: "Noto Sans KR", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
       title: 21, heading: 30, display: 40, hero: 50, lineHeight: 1.5,
       weights: { regular: "400", medium: "500", semibold: "600", bold: "700" },
     },
@@ -97,6 +103,7 @@ export function createTheme(mode: ThemeMode): Theme {
       sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
       md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
       focus: { color: dark ? "#FFFFFF" : "#11151B", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
+      glow: { color: "#B56BFF", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
