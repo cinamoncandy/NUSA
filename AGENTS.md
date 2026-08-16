@@ -75,6 +75,18 @@ Before changing code:
 - Update project-state documentation when architecture, scope, or next tasks change.
 - PR descriptions must include safety boundaries and real validation status.
 
+## Claude Code session reliability
+
+To prevent reports of completion that do not match actual remote state:
+
+- **Verification is mandatory**: Every completion report must include actual evidence via `git log`, `git status`, or CI confirmation. Never claim "done" without proof.
+- **Evidence format**: Show terminal output showing the last 3-5 lines of test results or `git log origin/BRANCH -3 --oneline` and `git status` side-by-side in the report.
+- **Infinite loop detection**: If the same confirmation question repeats (unchanged) twice in a row despite different input, treat the session as stuck. Do not attempt a third iteration. Instead: identify the root cause, explain why it blocked, and suggest a restart.
+- **Device-specific roles**:
+  - PC-based work (diagnosis, debugging, test verification): highest priority. Terminal logs reveal root causes faster.
+  - Mobile-only approvals (merge/cancel decisions, lightweight interaction): acceptable.
+  - If diagnosis requires terminal access but only mobile is available, defer to GitHub web UI for accurate branch/PR/CI state before relying on Claude Code reports.
+
 ## Definition of done
 
 A task is complete only when:
@@ -84,7 +96,8 @@ A task is complete only when:
 - validation status is truthful,
 - safety boundaries are preserved,
 - documentation and AIPOS state are updated,
-- no known critical issue is hidden.
+- no known critical issue is hidden,
+- **completion is verified with actual git/CI evidence, not assumptions**.
 
 ## Current priority
 
