@@ -7,7 +7,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "Trade" | "Portfolio" | "More";
+export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
 interface HomeViewProps { readonly snapshot: Snapshot | null; readonly investmentPercent: number; readonly readOnlyError: string | null; readonly notConfigured: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onGoSettings: () => void; readonly onNavigate: (destination: HomeDestination) => void; }
 function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function healthTone(health: string | undefined): "success" | "warning" | "danger" { return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning"; }
@@ -29,7 +29,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
     : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
       ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
       : aiInsightAvailable
-        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
+        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "AiSignal" as const }
         : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
   const runNextAction = () => { if (nextAction.tab === null) onGoSettings(); else onNavigate(nextAction.tab); };
 
