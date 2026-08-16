@@ -1,7 +1,7 @@
 id: WO-0059
 title: Zero-config canonical origin and mobile auth integration
 branch: agent/p0-zero-config-auth-integration
-pull_request: null
+pull_request: 542
 base_branch: main
 phase: zero-config-auth-integration
 status: IN_PROGRESS
@@ -32,7 +32,7 @@ verification:
   build: PASS
   full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
   exact_head_ci: PASS
-  exact_head: PENDING
+  exact_head: 509b777491c181e286a1c0c2136c00397a627140
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - APP_SESSION_WIRING_REQUIRES_APPROVED_SECURE_STORAGE_AND_ENROLLMENT_PROOF
