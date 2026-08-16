@@ -6,7 +6,7 @@ status: in_progress
 objective: "Remove production Android infrastructure inputs, require canonical HTTPS release origin, and hold mobile Cloud access fail-closed until approved auth bootstrap exists."
 base_branch: main
 active_branch: agent/p0-mobile-zero-config-auth
-active_pull_request: null
+active_pull_request: 540
 base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
 repository_maintenance:
   issue: 210
