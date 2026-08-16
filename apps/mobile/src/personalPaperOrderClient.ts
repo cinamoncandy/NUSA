@@ -4,10 +4,10 @@ import {
   type PersonalPaperOrderCommand,
   type PersonalPaperOrderCommandResult
 } from "../../../packages/contracts/src/personalPaperOrderCommand";
-import type { DashboardCredentialProvider } from "./personalPaperOperationsClient";
+import type { DashboardCredentialProvider, MobileSessionAccess } from "./personalPaperOperationsClient";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 
-export interface PersonalPaperOrderClientOptions { readonly baseUrl: string; readonly credentialProvider: DashboardCredentialProvider; readonly request?: typeof fetch; readonly timeoutMs?: number; }
+export interface PersonalPaperOrderClientOptions { readonly baseUrl: string; readonly credentialProvider?: DashboardCredentialProvider; readonly sessionProvider?: MobileSessionAccess; readonly request?: typeof fetch; readonly timeoutMs?: number; }
 export type PersonalPaperOrderSubmitResult = { readonly status: "READY"; readonly result: PersonalPaperOrderCommandResult } | { readonly status: "NOT_CONFIGURED"; readonly reason: string } | { readonly status: "UNAVAILABLE"; readonly reason: string };
 export type PersonalPaperOrderDraftCommand = Omit<PersonalPaperOrderCommand, "idempotencyKey">;
 
@@ -49,22 +49,28 @@ export async function submitPersonalPaperOrder(options: PersonalPaperOrderClient
   if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud origin is not trusted." });
   if (!isSecureEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER credential will not be sent over insecure remote HTTP." });
 
-  const token = await options.credentialProvider();
-  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
-  const requestToken = token.trim();
+  let requestAuthorization: string;
+  try {
+    requestAuthorization = options.sessionProvider
+      ? await options.sessionProvider.authorizationHeader()
+      : `Bearer ${(await options.credentialProvider?.() ?? "").trim()}`;
+  } catch { return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." }); }
+  if (!/^Bearer\s+\S+$/.test(requestAuthorization)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
   const endpoint = new URL(`${configured}/api/paper-orders`).href;
   const controller = new AbortController(); let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const operation = (async () => {
-      const response = await (options.request ?? fetch)(endpoint, { method: "POST", redirect: "error", signal: controller.signal, headers: { authorization: `Bearer ${requestToken}`, accept: "application/json", "content-type": "application/json", "idempotency-key": validated.idempotencyKey }, body: JSON.stringify(validated) });
+      const response = await (options.request ?? fetch)(endpoint, { method: "POST", redirect: "error", signal: controller.signal, headers: { authorization: requestAuthorization, accept: "application/json", "content-type": "application/json", "idempotency-key": validated.idempotencyKey }, body: JSON.stringify(validated) });
       if (response.redirected === true) throw new Error("PAPER order redirect is prohibited.");
       if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER order final endpoint changed.");
       const payload: unknown = await response.json().catch(() => null); return { response, payload };
     })();
     const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { controller.abort(); reject(new Error("PAPER order request timed out.")); }, timeoutMs); });
     const { response, payload } = await Promise.race([operation, timeout]);
-    const currentToken = await options.credentialProvider();
-    const connectionStillCurrent = getConfiguredPaperEndpoint() === configured && isPaperConnectionVerified(configured) && currentToken != null && currentToken.trim() === requestToken;
+    const currentAuthorization = options.sessionProvider
+      ? await options.sessionProvider.authorizationHeader().catch(() => "")
+      : `Bearer ${(await options.credentialProvider?.() ?? "").trim()}`;
+    const connectionStillCurrent = getConfiguredPaperEndpoint() === configured && isPaperConnectionVerified(configured) && currentAuthorization === requestAuthorization;
     if (!connectionStillCurrent) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the order request was in flight." });
     if (!response.ok) { const reason = payload != null && typeof payload === "object" && "error" in payload ? String((payload as { readonly error?: unknown }).error ?? "") : ""; return Object.freeze({ status: "UNAVAILABLE", reason: reason || `PAPER order unavailable (${response.status}).` }); }
     return Object.freeze({ status: "READY", result: validatePersonalPaperOrderCommandResult(payload as PersonalPaperOrderCommandResult, validated, Date.now()) });

@@ -8,16 +8,16 @@ import type { PortfolioAccountResponse } from "./portfolioViewModel";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdentity } from "./personalPaperOrderClient";
-import { unavailableDashboardCredentialProvider } from "./personalPaperOperationsClient";
+import type { MobileSessionAccess } from "./personalPaperOperationsClient";
 
-interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; }
+interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; readonly sessionProvider?: MobileSessionAccess; }
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><InlineNotice title="PAPER 화면을 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
 const idempotencyKey = (): string => `paper-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
 const SIDE_ITEMS = Object.freeze([{ key: "BUY", label: "매수" }, { key: "SELL", label: "매도" }]);
 const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, { key: "LIMIT", label: "지정가" }]);
 
-export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit, runtimeCanSubmit = true }: TradingViewProps) {
+export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit, runtimeCanSubmit = true, sessionProvider }: TradingViewProps) {
   const { theme } = useTheme();
   const [side, setSide] = useState<TradingOrderSide>("BUY");
   const [orderType, setOrderType] = useState<TradingOrderType>("MARKET");
@@ -35,7 +35,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   if (snapshot.account.available === false || !snapshot.account.position.market.trim()) return <View style={styles.state} testID="trading-empty"><View style={styles.stateInner}><InlineNotice title="관찰 가능한 시장이 없습니다" detail="시장 데이터가 준비되면 PAPER 주문 작업공간이 활성화됩니다." tone="warning" /><NusaButton label="다시 불러오기" onPress={onRefresh} /></View></View>;
 
   const cashEnvelope = createCashInvestmentEnvelope(snapshot.account.cash, investmentPercent);
-  const submitAvailable = runtimeCanSubmit && (onSubmit !== undefined || builtInSubmitAvailable);
+  const submitAvailable = runtimeCanSubmit && (onSubmit !== undefined || (builtInSubmitAvailable && sessionProvider !== undefined));
   const modelCash = side === "BUY" ? cashEnvelope.investableCash : snapshot.account.cash;
   const model = buildTradingViewModel({ market: { market: snapshot.account.position.market, connectionState: marketConnectionState, stale, price: snapshot.account.markPrice }, account: { mode: snapshot.mode, liveMutationAllowed: false, cash: modelCash, assetQuantity: snapshot.account.position.quantity, market: snapshot.account.position.market }, draft, submitAvailable });
   const submitEnabled = submitAvailable && model.canSubmit && !submitting;
@@ -57,7 +57,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
       const quantity = Number(quantityInput);
       const limitPrice = orderType === "LIMIT" ? Number(priceInput) : undefined;
       const fingerprint = JSON.stringify([model.market, side, orderType, quantity, limitPrice ?? null, investmentPercent]);
-      const result = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: configuredEndpoint, credentialProvider: unavailableDashboardCredentialProvider }, processPaperOrderRetryIdentity, fingerprint, idempotencyKey, { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) });
+      const result = await submitPersonalPaperOrderWithRetryIdentity({ baseUrl: configuredEndpoint, sessionProvider }, processPaperOrderRetryIdentity, fingerprint, idempotencyKey, { schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false, market: model.market, side, orderType, quantity, ...(limitPrice === undefined ? {} : { limitPrice }) });
       if (result.status === "READY") {
         setSubmitMessage(result.result.status === "FILLED" ? `PAPER 체결 완료 · ${result.result.order?.id ?? ""}` : `${result.result.status}${result.result.reason ? ` · ${result.result.reason}` : ""}`);
         if (result.result.status === "FILLED") { setQuantityInput(""); setPriceInput(""); }

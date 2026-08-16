@@ -115,3 +115,20 @@ test("PAPER read timeout is bounded before credential-bearing transport", async 
     assert.equal(requests, 0);
   } finally { cleanup(session); }
 });
+
+test("production PAPER read accepts only the mobile session authorization provider", async () => {
+  const session = setup();
+  try {
+    let observedAuthorization = null;
+    const result = await loadPersonalPaperOperations({
+      baseUrl: ENDPOINT,
+      sessionProvider: { authorizationHeader: async () => `Bearer ${SESSION_FIXTURE}` },
+      request: async (_url, init) => {
+        observedAuthorization = init?.headers?.authorization ?? null;
+        return { ok: false, status: 503, redirected: false, url: `${ENDPOINT}/api/paper-operations`, json: async () => ({}) };
+      }
+    });
+    assert.equal(result.status, "UNAVAILABLE");
+    assert.equal(observedAuthorization, `Bearer ${SESSION_FIXTURE}`);
+  } finally { cleanup(session); }
+});

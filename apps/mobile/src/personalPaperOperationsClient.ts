@@ -5,6 +5,7 @@ import {
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 
 export type DashboardCredentialProvider = () => Promise<string | null>;
+export interface MobileSessionAccess { readonly authorizationHeader: () => Promise<string>; }
 
 export type PersonalPaperOperationsLoadResult =
   | { readonly status: "READY"; readonly snapshot: PersonalPaperOperationsSnapshot }
@@ -13,7 +14,9 @@ export type PersonalPaperOperationsLoadResult =
 
 export interface PersonalPaperOperationsClientOptions {
   readonly baseUrl: string;
-  readonly credentialProvider: DashboardCredentialProvider;
+  /** @deprecated Production callers must use sessionProvider. Retained for legacy test fixtures only. */
+  readonly credentialProvider?: DashboardCredentialProvider;
+  readonly sessionProvider?: MobileSessionAccess;
   readonly request?: typeof fetch;
   readonly timeoutMs?: number;
   /** Settings-only connection probe. Normal reads must never opt out of verified endpoint binding. */
@@ -55,9 +58,13 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   let timeoutMs: number;
   try { timeoutMs = readTimeoutMs(options.timeoutMs); }
   catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations timeout is invalid." }); }
-  const token = await options.credentialProvider();
-  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
-  const requestToken = token.trim();
+  let requestAuthorization: string;
+  try {
+    requestAuthorization = options.sessionProvider
+      ? await options.sessionProvider.authorizationHeader()
+      : `Bearer ${(await options.credentialProvider?.() ?? "").trim()}`;
+  } catch { return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." }); }
+  if (!/^Bearer\s+\S+$/.test(requestAuthorization)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "NUSA Cloud mobile session is unavailable." });
 
   const endpoint = new URL(`${configured}/api/paper-operations`).href;
   const controller = new AbortController();
@@ -68,7 +75,7 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
         method: "GET",
         redirect: "error",
         signal: controller.signal,
-        headers: { authorization: `Bearer ${requestToken}`, accept: "application/json" }
+        headers: { authorization: requestAuthorization, accept: "application/json" }
       });
       if (response.redirected === true) throw new Error("PAPER operations redirect is prohibited.");
       if (typeof response.url === "string" && response.url && new URL(response.url).href !== endpoint) throw new Error("PAPER operations final endpoint changed.");
@@ -78,10 +85,12 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     const response = await Promise.race([operation, timeout]);
     if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
     const payload: unknown = await response.json();
-    const currentToken = await options.credentialProvider();
+    const currentAuthorization = options.sessionProvider
+      ? await options.sessionProvider.authorizationHeader().catch(() => "")
+      : `Bearer ${(await options.credentialProvider?.() ?? "").trim()}`;
     const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
     const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
-    if (!endpointStillCurrent || !verificationStillCurrent || currentToken == null || currentToken.trim() !== requestToken) {
+    if (!endpointStillCurrent || !verificationStillCurrent || currentAuthorization !== requestAuthorization) {
       return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight." });
     }
     try { return Object.freeze({ status: "READY", snapshot: validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot) }); }

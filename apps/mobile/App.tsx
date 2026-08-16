@@ -19,7 +19,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { tryReadCanonicalNusaOrigin } from "./src/canonicalOrigin";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
-import { loadPersonalPaperOperations, unavailableDashboardCredentialProvider, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
@@ -78,7 +78,7 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
 }
 
 function AuthenticatedApp() {
-  const { status: authStatus, signIn, signOut } = useAuth();
+  const { status: authStatus, signIn, signOut, mobileSession } = useAuth();
   const { theme: appTheme } = useTheme();
   const upbitState = useUpbitReadOnlyState();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
@@ -91,7 +91,7 @@ function AuthenticatedApp() {
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
-  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: unavailableDashboardCredentialProvider }), []);
+  const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ sessionProvider: mobileSession }), [mobileSession]);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
@@ -125,7 +125,7 @@ function AuthenticatedApp() {
     const request = (async () => {
       let result: PersonalPaperOperationsLoadResult;
       try {
-        result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: unavailableDashboardCredentialProvider });
+        result = await loadPersonalPaperOperations({ baseUrl: endpoint, sessionProvider: mobileSession });
       } catch (error) {
         dispatchRuntime({ type: "NETWORK_OFFLINE" });
         throw error;
@@ -145,7 +145,7 @@ function AuthenticatedApp() {
     const clearIfCurrent = () => { if (refreshInFlightRef.current === request) refreshInFlightRef.current = null; };
     void request.then(clearIfCurrent, clearIfCurrent);
     return request;
-  }, [dispatchRuntime, runtimeCoordinator]);
+  }, [dispatchRuntime, mobileSession, runtimeCoordinator]);
 
   const refreshPublicMarkets = useCallback((): Promise<void> => {
     if (publicRefreshInFlightRef.current) return publicRefreshInFlightRef.current;
@@ -259,7 +259,7 @@ function AuthenticatedApp() {
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
-      : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
+      : activeTab === "Trade" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} sessionProvider={mobileSession} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "More" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onNavigate={navigateHome} />}

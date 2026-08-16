@@ -1,11 +1,13 @@
 import { createContext, useContext } from "react";
 import type { SecureStoragePort } from "./mobileSecurity";
+import type { MobileSessionAccess } from "./personalPaperOperationsClient";
 
 export type AuthStatus = "CHECKING" | "SIGNED_OUT" | "SIGNED_IN";
 
 export interface AuthContextValue {
   readonly status: AuthStatus;
   readonly secureStorage?: SecureStoragePort;
+  readonly mobileSession?: MobileSessionAccess;
   readonly signIn: () => void;
   readonly signOut: () => void;
 }

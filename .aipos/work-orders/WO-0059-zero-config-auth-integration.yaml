@@ -1,0 +1,41 @@
+id: WO-0059
+schema_version: 1
+title: "Integrate canonical origin with mobile session clients"
+status: IN_PROGRESS
+priority: 100
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: agent/p0-zero-config-auth-integration
+objective: "Combine #540 canonical-origin fail-closed routing with #541 mobile session authorization without operator credential fallback."
+architecture_impact:
+  acknowledged: true
+  decision: .aipos/decisions/ADR-0015-zero-config-auth-integration.md
+  analysis: "Reuses the existing canonical-origin and mobile-session foundations, changing only protected-client credential selection; no parallel runtime or authority is introduced."
+  references:
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - .aipos/decisions/ADR-0015-zero-config-auth-integration.md
+scope:
+  - "Use MobileSessionAccess for protected PAPER read/order and investment allocation clients."
+  - "Keep public Upbit quotation independent from mobile auth."
+  - "Add integration contract tests and preserve legacy migration/security gates."
+exclusions:
+  - "No dashboard bearer, fixed enrollment proof, AsyncStorage session fallback, or new identity provider."
+  - "No LIVE order/cancel/withdraw/transfer or AI authority."
+  - "No #535/#536 UI redesign changes."
+verification:
+  canonical_origin_contract: PASS
+  mobile_session_client: PASS
+  protected_client_session_boundary: PASS
+  focused_tests: PASS
+  typecheck: PASS
+  lint: PASS
+  build: PASS
+  oracle_loopback: BLOCKED_ORACLE_ACCESS_REQUIRED
+  real_android: HUMAN_ENVIRONMENT_ONLY_PENDING
+  exact_head_ci: PENDING
+blockers:
+  - "APP_SESSION_WIRING_REQUIRES_APPROVED_SECURE_STORAGE_AND_ENROLLMENT_PROOF"
+  - "ORACLE_LOOPBACK_ACCESS_REQUIRED"
+  - "STABLE_DNS_INGRESS_AUTHORITY_REQUIRED"
+completion_rule: "Do not claim Android zero-config or product acceptance until an approved session is provisioned and real Android protected PAPER access succeeds with PC off."

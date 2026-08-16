@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T03:00:00+09:00"
-phase: mobile-auth-bootstrap
+updated_at: "2026-08-16T12:30:00+09:00"
+phase: zero-config-auth-integration
 status: in_progress
-objective: "Build a dedicated short-lived mobile Cloud auth bootstrap without reusing operator/dashboard credentials, while preserving PAPER-only authority and AI ZERO_AUTHORITY."
+objective: "Combine canonical origin and mobile session transport without reusing operator/dashboard credentials, while preserving PAPER-only authority and AI ZERO_AUTHORITY."
 base_branch: main
-active_branch: agent/p0-mobile-auth-bootstrap
-active_pull_request: 541
-base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+active_branch: agent/p0-zero-config-auth-integration
+active_pull_request: null
+base_commit: b782bc61c622b00054e497acb482660953978d6e
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -32,9 +32,9 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0058
+  work_order: WO-0059
   status: IN_PROGRESS
-  evidence: .aipos/work-orders/WO-0058-mobile-auth-bootstrap.yaml
+  evidence: .aipos/work-orders/WO-0059-zero-config-auth-integration.yaml
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -323,9 +323,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0058
-    evidence: .aipos/work-orders/WO-0058-mobile-auth-bootstrap.yaml
-    summary: "Dedicated mobile enrollment/session foundation is active; operator bearer and LIVE authority remain excluded."
+  - id: WO-0059
+    evidence: .aipos/work-orders/WO-0059-zero-config-auth-integration.yaml
+    summary: "Canonical origin and mobile session transport are being integrated; operator bearer and LIVE authority remain excluded."
 held_successors:
   - id: WO-0053
     evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
@@ -346,8 +346,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0058-mobile-auth-bootstrap.yaml
-  reason: "Implement the server-side mobile auth bootstrap foundation before #540 integration or external Android acceptance."
+  work_order: .aipos/work-orders/WO-0059-zero-config-auth-integration.yaml
+  reason: "Complete protected-client integration, then provision Oracle enrollment and perform external Android acceptance."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
