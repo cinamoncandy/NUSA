@@ -49,7 +49,7 @@ test("PAPER exposes mutation only after verified connection while LIVE remains f
   assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
   assert.doesNotMatch(trading, /<AuthorityBanner/);
   assert.match(trading, /const builtInSubmitAvailable = false/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| \(builtInSubmitAvailable && sessionProvider !== undefined\)\)/);
   assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
   assert.match(trading, /testID="paper-order-ticket"/);
   assert.match(trading, /const requestSubmit = \(\) =>/);

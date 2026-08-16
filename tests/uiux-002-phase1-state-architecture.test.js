@@ -35,7 +35,7 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
 test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
   const trading = source("tradingView.tsx");
   assert.match(trading, /const builtInSubmitAvailable = false/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| \(builtInSubmitAvailable && sessionProvider !== undefined\)\)/);
   assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
   assert.match(trading, /StatusChip label="PAPER ONLY"/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
