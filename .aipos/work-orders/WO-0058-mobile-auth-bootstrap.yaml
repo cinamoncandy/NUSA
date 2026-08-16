@@ -55,7 +55,7 @@ verification:
     architecture_safety: PASS
     full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
     exact_head_ci: PASS
-    exact_head: 85ac6365adb977d6b6abf9753d06467a9e48e3be
+    exact_head: 6d91c2b4e6dc71f6a2ae11b0b58a7bd82a09eadb
     external_oracle_loopback: PENDING
     real_android: HUMAN_ENVIRONMENT_ONLY_PENDING
 safety:
