@@ -33,6 +33,7 @@ import { AI_CALIBRATION_OUTCOME_DEFINITION_ID, attributionScope, createCloudAiRu
 import { projectAiReadOnly } from "./ai/projection";
 import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cloudRuntimeEvidence";
 import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocationSettingsRepository, type InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
+import { InMemoryMobileEnrollmentRepository, InMemoryMobileSessionRepository, MobileSessionAuthority, SqliteMobileEnrollmentRepository, SqliteMobileSessionRepository } from "./mobileAuth";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -103,6 +104,13 @@ export function startCloudRuntime(
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
+  const mobileEnrollmentRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteMobileEnrollmentRepository(durableRepository.database(), config.mobileEnrollments)
+    : new InMemoryMobileEnrollmentRepository(config.mobileEnrollments);
+  const mobileSessionRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqliteMobileSessionRepository(durableRepository.database())
+    : new InMemoryMobileSessionRepository();
+  const mobileSessionAuthority = new MobileSessionAuthority(mobileEnrollmentRepository, mobileSessionRepository);
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
   const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
@@ -207,7 +215,8 @@ export function startCloudRuntime(
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
     submitPaperOrder,
-    investmentAllocationSettings
+    investmentAllocationSettings,
+    mobileAuth: { authority: mobileSessionAuthority }
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
   return { ...handle, stop: async () => { try { marketDataClient?.stop(); await handle.stop(); } finally { effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };

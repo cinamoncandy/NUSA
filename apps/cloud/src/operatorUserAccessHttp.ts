@@ -37,6 +37,9 @@ function authorizeOperatorRequest(
   if (principal == null || !principal.userId.trim()) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
   }
+  if (principal.authDomain === "MOBILE") {
+    return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
+  }
   const actor = repository.get(principal.userId);
   if (actor?.role !== "OWNER" || !isUserAllowed(actor)) {
     return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });

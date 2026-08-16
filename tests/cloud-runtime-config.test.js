@@ -86,6 +86,14 @@ test("identity registry rejects duplicate owner/user identity and weak user toke
   assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_USER_IDENTITIES_JSON: JSON.stringify([{ token: "short", userId: "user-1", email: "user@example.com" }]) }), /at least 32 UTF-8 bytes/);
 });
 
+test("mobile enrollment configuration accepts only server-side proof digests", () => {
+  const config = readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_MOBILE_ENROLLMENTS_JSON: JSON.stringify([{ proofHash: "a".repeat(64), userId: "mobile-1", email: "mobile@example.com", expiresAtMs: 9_000 }]) });
+  assert.equal(config.mobileEnrollments.length, 1);
+  assert.equal(config.mobileEnrollments[0].proofHash, "a".repeat(64));
+  assert.equal("proof" in config.mobileEnrollments[0], false);
+  assert.throws(() => readCloudRuntimeConfig({ ...VALID_ENV, NUSA_CLOUD_MOBILE_ENROLLMENTS_JSON: JSON.stringify([{ proof: "raw-proof", userId: "mobile-1", email: "mobile@example.com", expiresAtMs: 9_000 }]) }), /NUSA_CLOUD_MOBILE_ENROLLMENTS_JSON/);
+});
+
 test("the verifier rejects a wrong token, a prefix, and a suffix", () => {
   const verifier = createSharedSecretTokenVerifier(VALID_TOKEN, VALID_ENV);
   assert.equal(verifier.verify("wrong-secret"), undefined);

@@ -1,0 +1,62 @@
+id: WO-0058
+title: "Mobile-specific Cloud auth bootstrap foundation"
+status: IN_PROGRESS
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/p0-mobile-auth-bootstrap
+objective: "Provide a server-side mobile enrollment/bootstrap authority and short-lived scoped session provider without reusing the operator/dashboard bearer."
+scope:
+  - "Dedicated mobile bootstrap, refresh, and revoke contracts with normalized errors."
+  - "Opaque short-lived access and rotating refresh tokens with server-side digest storage."
+  - "One-time enrollment proof bound to an approved NUSA identity and device."
+  - "Mobile scopes limited to PAPER, portfolio/history, AI, and approved broker read-only access."
+  - "Mobile tokens cannot authorize operator/admin or LIVE mutation routes."
+  - "Android secure-storage session provider reusable by #540 canonical-origin clients."
+constraints:
+  - "PAPER ONLY; liveAuthority=NONE; productionMutationAllowed=false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "No LIVE order/cancel/withdraw/transfer or broker mutation."
+  - "No dashboard bearer reuse, anonymous unlimited access, or long-lived mobile token."
+  - "No new identity provider; reuse existing NUSA identity, approval, and secure-storage foundations."
+architecture_impact:
+  acknowledged: true
+  analysis: "The existing operator shared-secret verifier and durable approval repository remain intact. This decision adds a separate mobile auth domain and token authority, with explicit scope mapping at protected Cloud boundaries and no new execution authority."
+  references:
+    - .aipos/decisions/ADR-0014-mobile-auth-bootstrap.md
+    - apps/cloud/src/mobileDashboardHttp.ts
+    - apps/cloud/src/cloudRuntimeConfig.ts
+    - apps/cloud/src/operatorUserAccess.ts
+    - apps/mobile/src/mobileSecurity.ts
+    - apps/mobile/src/sessionSecurity.ts
+acceptance:
+  repository_gates:
+    - "Server auth tests cover issue, invalid/reused proof, expiry, audience, scope, refresh rotation, revoke, and operator isolation."
+    - "Mobile tests cover secure persistence, bootstrap, refresh, expiry, revoke/logout, and protected credential provisioning."
+    - "typecheck, lint, build, architecture, security, AI, AIPOS, Restricted LIVE, and read-only broker checks pass."
+    - "Exact-head CI and applicable Mobile Native checks pass after publication."
+  external_gate:
+    status: BLOCKED
+    required: "Oracle loopback deployment with provisioned enrollment/identity configuration and real Android integration; stable DNS/TLS remains a separate blocker."
+verification:
+  current:
+    existing_auth: "operator shared-secret + durable user approval; local secure session primitives"
+    operator_mobile_separation: PASS
+    bootstrap: PASS
+    short_lived_session: PASS
+    refresh_revoke: PASS
+    mobile_secure_storage: PASS
+    focused_tests: PASS
+    typecheck: PASS
+    lint: PASS
+    build: PASS
+    architecture_safety: PASS
+    full_suite: BLOCKED_BY_WINDOWS_SYMLINK_PERMISSION_IN_BACKUP_RESTORE_TEST
+    external_oracle_loopback: PENDING
+    real_android: HUMAN_ENVIRONMENT_ONLY_PENDING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Do not claim Android zero-config acceptance until a real mobile bootstrap is deployed, protected PAPER access succeeds, and PC-off Android E2E is verified."
