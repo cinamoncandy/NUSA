@@ -25,7 +25,7 @@ Corrected all environment variable names to match the cloud runtime config schem
 
 ```env
 NUSA_CLOUD_DASHBOARD_PORT=8000
-NUSA_CLOUD_DASHBOARD_TOKEN=VKinXDT7YQCBEzIoKaSDfkweRhhJbuu5EvACot0BhdY=
+NUSA_CLOUD_DASHBOARD_TOKEN=dev-test-token-12345
 NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW=1000000
 NUSA_CLOUD_STATE_DB_PATH=/tmp/nusa-cloud-dev.db
 NUSA_CLOUD_UPBIT_PUBLIC_DATA=true
@@ -57,7 +57,7 @@ NODE_ENV=development
 
 All endpoints require Bearer token authentication:
 ```
-Authorization: Bearer VKinXDT7YQCBEzIoKaSDfkweRhhJbuu5EvACot0BhdY=
+Authorization: Bearer dev-test-token-12345
 ```
 
 | Endpoint | Method | Purpose |

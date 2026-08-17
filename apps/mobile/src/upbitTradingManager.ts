@@ -8,11 +8,21 @@ import { placeUpbitOrder, cancelUpbitOrder } from "./upbitLiveClient";
  * Safety boundaries:
  * - PAPER mode: AI can auto-execute orders for learning
  * - LIVE mode: Always requires human confirmation before execution
- * - All modes: Daily loss limit, order amount cap, rate limiting
+ * - Order amount cap, rate limiting, and minimum interval are enforced on every order
+ * - Daily loss limit is a KILL SWITCH IN NAME ONLY today: recordDailyLoss() below is the
+ *   only writer of dailyLossKRW, and no caller in this codebase invokes it. Nothing
+ *   populates realized loss from order fills, so the check at validateOrderPlacement's
+ *   safety check 1 can never trip. Real-money exposure from repeated LIVE losses is
+ *   currently bounded only by per-order human confirmation, not by this limit. Wiring
+ *   this correctly needs cost-basis position tracking (entry price, quantity, realized
+ *   P&L on each closing fill) that does not exist in this class -- see
+ *   apps/cloud/src/paperTradingExecutionLoop.ts for the shape of that logic in the
+ *   (separate, cloud-side) PAPER engine; it cannot be reused as-is because this class
+ *   has no persisted position store and placeUpbitOrder's response carries no fill price.
  */
 
 export interface TradingSafetyConfig {
-  readonly dailyLossLimitKRW: number;        // Kill switch: stop LIVE orders if daily loss exceeds this
+  readonly dailyLossLimitKRW: number;        // NOT YET ENFORCED -- see class doc above; recordDailyLoss() is never called
   readonly maxOrderAmountKRW: number;        // Maximum KRW per single order
   readonly rateLimitOrdersPerSecond: number; // Maximum orders per 5 seconds
   readonly minOrderIntervalMs: number;       // Minimum milliseconds between orders
