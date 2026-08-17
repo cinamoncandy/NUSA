@@ -24,6 +24,17 @@ test("ThemeProvider recomputes and propagates the shared theme whenever the desi
   assert.match(provider, /ThemeContext\.Provider value=\{value\}/);
 });
 
+test("persisted legacy preset cannot silently pin an upgraded install to the old visual generation", () => {
+  const provider = read("apps/mobile/src/ThemeProvider.tsx");
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_KEY = "nusa:design-preset-schema"/);
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION = "2"/);
+  assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "master"/);
+  assert.match(provider, /storedSchema !== DESIGN_PRESET_SCHEMA_VERSION/);
+  assert.match(provider, /setPresetState\(CURRENT_DEFAULT_PRESET\)/);
+  assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET\)/);
+  assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_SCHEMA_KEY, DESIGN_PRESET_SCHEMA_VERSION\)/);
+});
+
 test("master and classic presets are intentionally and visibly distinct", () => {
   const design = read("apps/mobile/src/designSystem.ts");
   assert.match(design, /classic: Object\.freeze/);
