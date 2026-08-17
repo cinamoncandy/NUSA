@@ -1,22 +1,22 @@
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { UpbitTicker } from "./upbitWebSocket";
+import {
+  CHART_NORMALIZATION_V1,
+  CHART_NORMALIZATION_V1_FINGERPRINT,
+  normalizeChartChangeRate
+} from "./chartSignalNormalization";
 
 export const DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS = 30_000;
-export const UPBIT_CHART_NORMALIZATION_POLICY = Object.freeze({
-  id: "CHART_NORMALIZATION_V1",
-  referenceMove: 0.03,
-  deadZone: 0.002,
-  maximumScore: 1
-});
+/** Compatibility export; the policy now belongs to the exchange-agnostic chart normalization module. */
+export const UPBIT_CHART_NORMALIZATION_POLICY = CHART_NORMALIZATION_V1;
 const MAX_QUOTE_TURNOVER_FOR_FULL_CONFIDENCE = 1_000_000_000;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
+/** Compatibility wrapper for callers that previously imported normalization from the Upbit adapter. */
 export function normalizeUpbitChartChangeRate(rawChangeRate: number): number {
-  if (!Number.isFinite(rawChangeRate)) throw new Error("signed change rate must be finite");
-  if (Math.abs(rawChangeRate) <= UPBIT_CHART_NORMALIZATION_POLICY.deadZone) return 0;
-  return round4(clamp(rawChangeRate / UPBIT_CHART_NORMALIZATION_POLICY.referenceMove, -UPBIT_CHART_NORMALIZATION_POLICY.maximumScore, UPBIT_CHART_NORMALIZATION_POLICY.maximumScore));
+  return normalizeChartChangeRate(rawChangeRate, CHART_NORMALIZATION_V1);
 }
 
 export interface UpbitTickerObservationOptions {
@@ -48,6 +48,8 @@ export function upbitTickerToIntelligenceObservation(
     market: ticker.code,
     sentiment: normalizedScore,
     rawChangeRate: signedChangeRate,
+    normalizationPolicyId: CHART_NORMALIZATION_V1.id,
+    normalizationPolicyFingerprint: CHART_NORMALIZATION_V1_FINGERPRINT,
     confidence,
     observedAt: ticker.trade_timestamp,
     expiresAt: ticker.trade_timestamp + staleWindowMs,
