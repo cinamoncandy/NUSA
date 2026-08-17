@@ -20,6 +20,8 @@ test("maps an Upbit ticker to stable, bounded, market-scoped intelligence eviden
     market: "KRW-BTC",
     sentiment: 0.41,
     rawChangeRate: 0.0123,
+    normalizationPolicyId: "CHART_NORMALIZATION_V1",
+    normalizationPolicyFingerprint: "13ff413b000defa68fd77a25b3e5b079caeecc783dda7f16cc7dd0e18f71295f",
     confidence: 0.25,
     observedAt: 9000,
     expiresAt: 11000,
@@ -42,6 +44,8 @@ test("normalizes realistic exchange returns with a dead-zone and preserves raw e
     const observation = upbitTickerToIntelligenceObservation(ticker({ signed_change_rate: raw }), { now: 9000 });
     assert.equal(observation.rawChangeRate, raw);
     assert.equal(observation.sentiment, normalized);
+    assert.equal(observation.normalizationPolicyId, "CHART_NORMALIZATION_V1");
+    assert.match(observation.normalizationPolicyFingerprint, /^[a-f0-9]{64}$/);
   }
 });
 
