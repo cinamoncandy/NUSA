@@ -3,16 +3,27 @@ title: Read-only MCP gateway over existing NUSA relays
 branch: agent/issue-mcp-readonly-gateway
 pull_request: 538
 base_branch: main
-phase: mcp-read-only-gateway
-status: IN_PROGRESS
+phase: mcp-read-only-gateway-external-verification
+status: VERIFYING_EXTERNAL_HUMAN_ENVIRONMENT_ONLY
 source_work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
-objective: "Expose only existing NUSA read-only API projections through an authenticated MCP gateway without adding backend domain logic or mutation authority."
+objective: "Preserve the merged authenticated read-only MCP gateway as repository-complete while keeping stable HTTPS deployment and actual ChatGPT connection unclaimed until external evidence exists."
+repository_completion:
+  pull_request: 538
+  head_commit: fffed2c3e37ca6acd4e61646c4419f932e2773c3
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  merged: true
+  exact_head_ci: PASS
+  read_only_broker: PASS
+  restricted_live_activation: PASS
+  restricted_live_capability: PASS
+  restricted_live_transport: PASS
+  repository_implementation: COMPLETE
 scope:
-  - existing apps/cloud read-only dashboard and PAPER projections
-  - existing services/upbit-readonly GET relay
-  - authenticated MCP protocol adapter with normalized bounded outputs
-  - mutation blocking, secret sanitization, timeout/rate-limit/audit contracts
-  - external deployment and ChatGPT connection remain separate evidence gates
+  - merged existing apps/cloud read-only dashboard and PAPER projections
+  - merged existing services/upbit-readonly GET relay integration
+  - merged authenticated MCP protocol adapter with normalized bounded outputs
+  - merged mutation blocking, secret sanitization, timeout/rate-limit/audit contracts
+  - external stable HTTPS deployment and ChatGPT connection remain separate human-environment evidence gates
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
@@ -43,10 +54,10 @@ verification:
   lint: PASS
   build: PASS
   security_aipos_safety: PASS
-  local_full_isolated_suite: BLOCKED_WINDOWS_SYMLINK_EPERM_UNRELATED
-  exact_head_ci: PENDING
+  exact_head_ci: PASS
+  repository_merge: PASS
   external_deployment: PENDING_AUTHORITY
   chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
-  - STABLE_HTTPS_MCP_DEPLOYMENT_AND_CHATGPT_CONNECTION_EVIDENCE_REQUIRED
-next_recommended_task: "Continue WO-0056 external evidence without claiming deployment or ChatGPT connectivity; PAPER, read-only, mobile-auth, and other non-LIVE successors are permitted under their own fail-closed contracts."
+  - STABLE_HTTPS_MCP_DEPLOYMENT_AND_CHATGPT_CONNECTION_EVIDENCE_REQUIRED_FOR_EXTERNAL_CLOSEOUT_ONLY
+next_recommended_task: "Do not reopen WO-0056 repository implementation. Preserve its merged read-only gateway and collect external HTTPS/ChatGPT evidence only when human environment authority is available. PAPER, read-only, mobile-auth, UI/UX, and other non-LIVE successors may proceed under independent fail-closed contracts; LIVE and real-money transitions remain blocked by WO-0051."
