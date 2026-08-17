@@ -3,12 +3,14 @@ import type { UpbitOrderRequest } from "./upbitLiveClient";
 import { UpbitTradingManager, type TradingDecision } from "./upbitTradingManager";
 
 /**
- * Stage 3: AI auto-execution signal dispatcher
+ * Order dispatcher.
  *
- * Coordinates between AI trading signals and the UpbitTradingManager.
- * Handles mode-specific execution paths:
- * - PAPER: Auto-execute immediately (AI learns via simulation)
- * - LIVE: Require human confirmation before execution (human guard)
+ * Every order originates from a human. AiReadOnlyProjection carries analysis --
+ * thesis, calibrated confidence, evidence, counter-evidence, uncertainty -- and
+ * deliberately carries no trade direction, because AI holds no order authority
+ * (ADR-0004). There is therefore no structured signal to derive a side from, and
+ * deriving one from the thesis text would manufacture an authority the contract
+ * withholds. `origin` records that boundary in the type.
  *
  * Safety boundaries:
  * - All orders go through UpbitTradingManager validation
@@ -23,8 +25,8 @@ export interface TradingSignalEvent {
   readonly ordType: "LIMIT" | "MARKET" | "BEST";
   readonly price?: number;
   readonly volume: number;
-  readonly confidence: number; // 0.0 - 1.0
-  readonly reasoning: string;
+  /** Only a human may originate an order. AI analysis never reaches this type. */
+  readonly origin: "HUMAN";
   readonly timestamp: number;
 }
 
@@ -154,113 +156,4 @@ export async function confirmAndExecuteTradingSignal(
       error: error instanceof Error ? error.message : "Order execution failed",
     };
   }
-}
-
-/**
- * Creates a trading signal from AI prediction data.
- * Validates that the signal meets minimum confidence and market conditions.
- */
-export function createTradingSignal(options: {
-  readonly market: string;
-  readonly side: "BUY" | "SELL";
-  readonly ordType: "LIMIT" | "MARKET" | "BEST";
-  readonly price?: number;
-  readonly volume: number;
-  readonly confidence: number;
-  readonly reasoning: string;
-}): TradingSignalEvent | null {
-  // Minimum confidence threshold for executing signals
-  const MIN_CONFIDENCE = 0.65;
-
-  if (options.confidence < MIN_CONFIDENCE) {
-    return null; // Signal confidence below threshold
-  }
-
-  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(options.market)) {
-    return null; // Invalid market format
-  }
-
-  if (options.volume <= 0 || !Number.isFinite(options.volume)) {
-    return null; // Invalid volume
-  }
-
-  if (
-    options.ordType === "LIMIT" &&
-    (!options.price || options.price <= 0 || !Number.isFinite(options.price))
-  ) {
-    return null; // LIMIT orders require valid price
-  }
-
-  return {
-    signalId: `signal-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    market: options.market,
-    side: options.side,
-    ordType: options.ordType,
-    price: options.price,
-    volume: options.volume,
-    confidence: options.confidence,
-    reasoning: options.reasoning,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Extracts trading intent from AI thesis.
- * Parses natural language AI observation to detect trading signals.
- *
- * Pattern matching for common trading signals:
- * - "매수" / "BUY" / "LONG"
- * - "매도" / "SELL" / "SHORT"
- * - Market mentions (KRW-BTC, BTC/KRW, etc.)
- * - Confidence indicators (확실, 강함, 가능성 높음)
- */
-export function extractTradingSignalFromThesis(
-  thesis: string | null
-): {
-  side: "BUY" | "SELL" | null;
-  confidence: number;
-  reasoning: string;
-} {
-  if (!thesis) {
-    return { side: null, confidence: 0, reasoning: "No AI thesis available" };
-  }
-
-  const lower = thesis.toLowerCase();
-
-  // Detect direction
-  let side: "BUY" | "SELL" | null = null;
-  let confidence = 0.5; // Base confidence
-
-  const buyPatterns =
-    /매수|buy|long|상승|상승세|매수신호|매수신호 강함|강한 상승/i;
-  const sellPatterns =
-    /매도|sell|short|하락|하락세|매도신호|매도신호 강함|강한 하락/i;
-
-  if (buyPatterns.test(lower)) {
-    side = "BUY";
-    confidence += 0.15;
-  } else if (sellPatterns.test(lower)) {
-    side = "SELL";
-    confidence += 0.15;
-  }
-
-  // Adjust confidence based on confidence keywords
-  if (
-    /확실|강함|강력|가능성 높음|매우 높음|강세/i.test(lower)
-  ) {
-    confidence = Math.min(0.85, confidence + 0.2);
-  } else if (
-    /약함|약세|주의|가능성 낮음|낮음/i.test(lower)
-  ) {
-    confidence = Math.max(0.4, confidence - 0.15);
-  }
-
-  // Clamp confidence to valid range
-  confidence = Math.max(0, Math.min(1, confidence));
-
-  return {
-    side,
-    confidence,
-    reasoning: thesis.substring(0, 200),
-  };
 }

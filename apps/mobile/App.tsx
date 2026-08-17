@@ -30,7 +30,7 @@ import { normalizeUpbitReadOnlySnapshot } from "./src/upbitReadOnlyAccountModel"
 import { getUpbitReadOnlyState, setUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { UpbitTradingManager } from "./src/upbitTradingManager";
 import { UpbitTradingConfirmationModal, type TradingConfirmationRequest } from "./src/upbitTradingConfirmationModal";
-import { createTradingSignal, extractTradingSignalFromThesis, executeTradingSignal, confirmAndExecuteTradingSignal, type TradingSignalEvent } from "./src/upbitTradingSignalDispatcher";
+import { executeTradingSignal, confirmAndExecuteTradingSignal, type TradingSignalEvent } from "./src/upbitTradingSignalDispatcher";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -287,7 +287,7 @@ function AuthenticatedApp() {
     setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, upbitCredentialSession, signOut]);
 
-  // Stage 3: Handle trading signals from AI
+  // Dispatches a human-originated order. AI analysis never reaches this path.
   const handleTradingSignal = useCallback(async (signal: TradingSignalEvent) => {
     if (!tradingManagerRef.current) return;
 
