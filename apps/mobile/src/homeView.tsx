@@ -7,7 +7,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "Trade" | "Portfolio" | "More";
+export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
 interface HomeViewProps { readonly snapshot: Snapshot | null; readonly investmentPercent: number; readonly readOnlyError: string | null; readonly notConfigured: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onGoSettings: () => void; readonly onNavigate: (destination: HomeDestination) => void; }
 function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function healthTone(health: string | undefined): "success" | "warning" | "danger" { return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning"; }
@@ -29,7 +29,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
     : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
       ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
       : aiInsightAvailable
-        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "More" as const }
+        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "AiSignal" as const }
         : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
   const runNextAction = () => { if (nextAction.tab === null) onGoSettings(); else onNavigate(nextAction.tab); };
 
@@ -48,7 +48,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
       </View>
 
       {snapshot ? <View style={[styles.secondaryColumn, tablet && styles.secondaryColumnTablet]}>
-        <View style={styles.insight} testID="ai-card"><View style={styles.insightHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>AI INSIGHT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>오늘의 분석</Text></View><View style={styles.insightBadges}><StatusChip label="READ ONLY" tone="info" />{ai?.calibrationStatus === "CALIBRATED" ? <StatusChip label={aiTrustedConfidence} tone="info" /> : null}</View></View><Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={tablet ? 6 : 4}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text><View style={styles.insightFooter}><Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `근거 ${ai?.evidenceReferences.length ?? 0}개` : "검증된 근거 없음"}</Text><NusaButton label="AI 보기" onPress={() => onNavigate("More")} tone="neutral" /></View></View>
+        <View style={styles.insight} testID="ai-card"><View style={styles.insightHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>AI INSIGHT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>오늘의 분석</Text></View><View style={styles.insightBadges}><StatusChip label="READ ONLY" tone="info" />{ai?.calibrationStatus === "CALIBRATED" ? <StatusChip label={aiTrustedConfidence} tone="info" /> : null}</View></View><Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={tablet ? 6 : 4}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text><View style={styles.insightFooter}><Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `근거 ${ai?.evidenceReferences.length ?? 0}개` : "검증된 근거 없음"}</Text><NusaButton label="AI 보기" onPress={() => onNavigate("AiSignal")} tone="neutral" /></View></View>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><View style={styles.operations} testID="safety-card"><View style={styles.operationsHeader}><View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영 상태</Text></View><StatusChip label={snapshot.health} tone={healthTone(snapshot.health)} /></View><DataRow label="PAPER 런타임" value={snapshot.operations.runtimeState} tone={healthTone(snapshot.operations.runtimeState)} /><DataRow label="킬 스위치" value={snapshot.dashboard.killSwitchActive ? "활성" : "비활성"} tone={snapshot.dashboard.killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={snapshot.liveAuthority} /><DataRow label="Production mutation" value={snapshot.productionMutationAllowed ? "허용" : "금지"} tone={snapshot.productionMutationAllowed ? "danger" : "success"} /></View>
       </View> : null}
     </View>

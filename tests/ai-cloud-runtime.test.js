@@ -101,7 +101,7 @@ test("Cloud ticker schedules bounded AI evidence without awaiting it and AI faul
     onTicker = tickerCallback; onConnectionState = stateCallback;
     return { subscribe() {}, start() {}, stop() {} };
   };
-  const aiRuntime = { enabled: true, orchestrator: null, schedule(value) { scheduled = value; throw new Error("AI scheduler fault must be isolated"); }, latest() { latestReads += 1; return null; }, isInFlight() { return false; }, liveAuthority: "NONE", productionMutationAllowed: false };
+  const aiRuntime = { enabled: true, orchestrator: null, schedule(value) { scheduled = value; throw new Error("AI scheduler fault must be isolated"); }, latest() { latestReads += 1; return null; }, applicableLessons() { return []; }, isInFlight() { return false; }, liveAuthority: "NONE", productionMutationAllowed: false };
   const handle = startCloudRuntime(env, undefined, undefined, marketFactory, undefined, undefined, undefined, undefined, undefined, undefined, aiRuntime);
   try {
     onConnectionState("CONNECTED");

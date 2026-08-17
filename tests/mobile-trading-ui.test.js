@@ -86,6 +86,21 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
-  assert.match(app, /activeTab === "Trade"/);
+  assert.match(app, /activeTab === "Paper"/);
   assert.match(app, /<TradingView/);
+});
+
+test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {
+  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §7): SELL previously only got an
+  // InlineNotice while BUY got a full allocation panel; SELL now gets an equivalent
+  // contextual panel bounded by holdings, not cash (capitalAllocationGuard.ts's reservePercent
+  // correctly never applies to SELL). BUY's "after order" figure was previously a static
+  // reservedCash value that never actually changed with the order.
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  assert.match(source, /testID="paper-holdings-panel"/);
+  assert.match(source, /매도 가능 수량/);
+  assert.match(source, /positionQuantity > 0 && Number\.isFinite\(sellQuantity\) && sellQuantity > 0/);
+  assert.match(source, /const remainingInvestableCash = model\.estimatedNotional === null \? cashEnvelope\.investableCash : Math\.max\(0, cashEnvelope\.investableCash - model\.estimatedNotional\)/);
+  assert.match(source, /label="주문 후 투자 가능 현금" value=\{formatTradingAmount\(remainingInvestableCash,/);
+  assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
 });

@@ -588,6 +588,18 @@ function createWindow(): void {
     }
   });
   window.loadFile(resolveRendererIndexPath(__dirname));
+  if (productionPolicy.devToolsEnabled) {
+    // Chromium's disk cache keys renderer assets by URL, not by the app's build state, so a
+    // plain reload of a file:// window can still serve a stale copy of edited CSS/JS -- the
+    // single most common "I changed the design but the window still shows the old one" report
+    // in dev. Dev-only (gated on the same flag DevTools itself uses): bind F5/Ctrl+R/Cmd+R to
+    // reloadIgnoringCache() instead of leaving Electron's default (uncached-reload-less) behavior.
+    window.webContents.on("before-input-event", (_event, input) => {
+      if (input.type !== "keyDown") return;
+      const isReloadKey = input.key === "F5" || ((input.control || input.meta) && input.key.toLowerCase() === "r");
+      if (isReloadKey) window?.webContents.reloadIgnoringCache();
+    });
+  }
   window.webContents.on("did-finish-load", () => {
     console.info(formatDesktopStartupDiagnostic(createRendererLoadFinishedDiagnostic()));
     rendererHealthy = true;

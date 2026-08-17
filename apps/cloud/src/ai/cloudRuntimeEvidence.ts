@@ -1,5 +1,6 @@
 import { EvidenceQuality, type AgentEvidence } from "../../../../packages/contracts/src/multiAgentGovernance";
 import { aiSha256, type AiEvidenceMaterialization } from "../../../../packages/contracts/src/aiInference";
+import type { AiLessonProjection } from "../../../../packages/contracts/src/aiOutcomeAttribution";
 import type { UpbitTicker } from "../upbitWebSocket";
 
 export type CloudRuntimeAiP0State = "OPEN" | "CLOSED" | "UNVERIFIABLE" | "UNAVAILABLE";
@@ -31,7 +32,7 @@ function validTimestamp(value: number, name: string): number {
   return value;
 }
 
-export function buildCloudRuntimeAiEvidence(ticker: UpbitTicker, safety: CloudRuntimeAiSafetyInput): CloudRuntimeAiEvidenceBundle {
+export function buildCloudRuntimeAiEvidence(ticker: UpbitTicker, safety: CloudRuntimeAiSafetyInput, lessons: readonly AiLessonProjection[] = []): CloudRuntimeAiEvidenceBundle {
   if (!ticker.code.trim()) throw new Error("AI market code is required");
   finite(ticker.trade_price, "AI market price");
   if (ticker.trade_price <= 0) throw new Error("AI market price must be positive");
@@ -61,14 +62,29 @@ export function buildCloudRuntimeAiEvidence(ticker: UpbitTicker, safety: CloudRu
   const safetyDigest = aiSha256(safetyPayload);
   const marketEvidenceId = `market:${ticker.code}:${marketObservedAt}:${marketDigest.slice(0, 16)}`;
   const safetyEvidenceId = `safety:${safetyObservedAt}:${safetyDigest.slice(0, 16)}`;
-  const evidence = Object.freeze([
+  const evidence: AgentEvidence[] = [
     Object.freeze({ evidenceId: marketEvidenceId, evidenceType: "market-data" as const, sourceReference: "upbit-public-ticker", observedAt: marketObservedAt, validUntil: marketObservedAt + TTL_MS, quality: EvidenceQuality.VERIFIED, contentDigest: marketDigest, lineageReferences: Object.freeze([]) }),
     Object.freeze({ evidenceId: safetyEvidenceId, evidenceType: "risk-state" as const, sourceReference: "nusa-deterministic-safety-state", observedAt: safetyObservedAt, validUntil: safetyObservedAt + TTL_MS, quality: EvidenceQuality.VERIFIED, contentDigest: safetyDigest, lineageReferences: Object.freeze([]) })
-  ] satisfies readonly AgentEvidence[]);
-  const evidenceMaterializations = Object.freeze([
+  ];
+  const evidenceMaterializations: AiEvidenceMaterialization[] = [
     Object.freeze({ evidenceId: marketEvidenceId, contentDigest: marketDigest, payload: marketPayload }),
     Object.freeze({ evidenceId: safetyEvidenceId, contentDigest: safetyDigest, payload: safetyPayload })
-  ] satisfies readonly AiEvidenceMaterialization[]);
-  const identityHash = aiSha256({ evidence, evidenceMaterializations });
-  return Object.freeze({ evidence, evidenceMaterializations, identityHash });
+  ];
+  // Real prior structural lessons (WO-AI-009 learning memory), never fabricated: each entry is
+  // exactly the advisory-only projection applicableLessons() already returns. Omitted entirely
+  // when there are none, so an empty scope never adds a hollow evidence item.
+  if (lessons.length > 0) {
+    const lessonsPayload = Object.freeze({
+      lessons: lessons.map((lesson) => Object.freeze({ episodeId: lesson.episodeId, strength: lesson.strength, primaryCause: lesson.primaryCause, reasonCodes: lesson.reasonCodes, scope: lesson.scope, createdAt: lesson.createdAt, expiresAt: lesson.expiresAt, realizedLearningCreditAllowed: lesson.realizedLearningCreditAllowed })),
+      source: "NUSA_AI_OUTCOME_ATTRIBUTION_MEMORY" as const
+    });
+    const lessonsDigest = aiSha256(lessonsPayload);
+    const lessonsEvidenceId = `lessons:${marketObservedAt}:${lessonsDigest.slice(0, 16)}`;
+    evidence.push(Object.freeze({ evidenceId: lessonsEvidenceId, evidenceType: "derived-calculation" as const, sourceReference: "nusa-ai-outcome-attribution-memory", observedAt: marketObservedAt, validUntil: marketObservedAt + TTL_MS, quality: EvidenceQuality.VERIFIED, contentDigest: lessonsDigest, lineageReferences: Object.freeze([]) }));
+    evidenceMaterializations.push(Object.freeze({ evidenceId: lessonsEvidenceId, contentDigest: lessonsDigest, payload: lessonsPayload }));
+  }
+  const frozenEvidence = Object.freeze(evidence);
+  const frozenMaterializations = Object.freeze(evidenceMaterializations);
+  const identityHash = aiSha256({ evidence: frozenEvidence, evidenceMaterializations: frozenMaterializations });
+  return Object.freeze({ evidence: frozenEvidence, evidenceMaterializations: frozenMaterializations, identityHash });
 }

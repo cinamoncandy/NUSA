@@ -6,12 +6,12 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("App shell routes canonical Home and preserves five primary jobs", () => {
+test("App shell routes canonical Home and preserves six primary jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\]/);
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
   assert.match(app, /<HomeView/);
-  assert.match(app, /activeTab === "Trade"/);
+  assert.match(app, /activeTab === "Paper"/);
   assert.match(app, /<TradingView/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /StatusChip label="PAPER ONLY"/);

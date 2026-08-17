@@ -6,15 +6,16 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 preserves stable five-tab keys while presenting product navigation", () => {
+test("UIUX-002 preserves stable six-tab keys while presenting product navigation", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Trade", "Portfolio", "More"\] as const/);
-  assert.match(app, /Home: "홈"/);
-  assert.match(app, /Markets: "시장"/);
-  assert.match(app, /Trade: "PAPER"/);
-  assert.match(app, /Portfolio: "자산"/);
-  assert.match(app, /More: "AI"/);
-  assert.match(app, /activeTab === "More" \? <AiView/);
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
+  assert.match(app, /Home: "HOME"/);
+  assert.match(app, /AiSignal: "AI SIGNAL"/);
+  assert.match(app, /Markets: "MARKETS"/);
+  assert.match(app, /Paper: "PAPER"/);
+  assert.match(app, /Order: "ORDER"/);
+  assert.match(app, /Portfolio: "PORTFOLIO"/);
+  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
 
