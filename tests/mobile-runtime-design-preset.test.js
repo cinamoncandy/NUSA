@@ -33,3 +33,15 @@ test("master and classic presets are visually distinct without screen-specific e
   assert.match(design, /heroRadius: 22/);
   assert.match(design, /heroRadius: 20/);
 });
+
+test("screen composition is preset-owned so information architecture can change without redefining a screen", () => {
+  const composition = read("apps/mobile/src/screenComposition.ts");
+  assert.match(composition, /Readonly<Record<DesignPresetName, ScreenCompositionManifest>>/);
+  assert.match(composition, /primary: \["hero", "nextAction", "metrics", "allocation"\]/);
+  assert.match(composition, /primary: \["hero", "metrics", "nextAction", "allocation"\]/);
+  assert.match(composition, /secondary: \["aiInsight", "safety"\]/);
+  assert.match(composition, /secondary: \["safety", "aiInsight"\]/);
+  assert.match(composition, /desktopLayout: "split"/);
+  assert.match(composition, /desktopLayout: "stacked"/);
+  assert.match(composition, /getScreenComposition\(preset: DesignPresetName\)/);
+});
