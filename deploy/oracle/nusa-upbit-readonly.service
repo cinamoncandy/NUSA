@@ -1,0 +1,23 @@
+[Unit]
+Description=NUSA Upbit Read-only Relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa/current/services/upbit-readonly
+EnvironmentFile=/etc/nusa/upbit-readonly.env
+ExecStart=/usr/bin/node /opt/nusa/current/services/upbit-readonly/server.js
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/nusa
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
