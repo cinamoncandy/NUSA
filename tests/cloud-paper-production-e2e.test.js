@@ -8,6 +8,15 @@ const { SqliteCloudPaperAccountRepository, PaperTradingExecutionLoop } = require
 const { CloudPaperCanonicalRiskGateway } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 
+function productionBoundary(initialCapital = 100_000) {
+  const db = new SqliteDatabase(":memory:");
+  const repository = new SqliteCloudPaperAccountRepository(db, { now: () => 10_000 });
+  const loop = new PaperTradingExecutionLoop({ initialCapital, feeRate: 0.001, repository, readP0State: () => ({ openP0: false }) });
+  const risk = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital, sourceCommitSha: "a".repeat(40) });
+  const boundary = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0: false }) });
+  return { db, repository, loop, boundary };
+}
+
 test("production PAPER path connects realistic Upbit evidence through canonical risk to SQLite fill", () => {
   const now = 10_000;
   const db = new SqliteDatabase(":memory:");
@@ -35,4 +44,23 @@ test("production PAPER path connects realistic Upbit evidence through canonical 
   assert.equal(restored.snapshot().liveAuthority, undefined);
   repository.close();
   db.close();
+});
+
+test("production PAPER boundary fails closed for weak, stale, duplicate, kill-switch, allocation, and non-PAPER inputs", () => {
+  const makeTick = ({ decisionOverrides = {}, ...overrides } = {}) => ({ now: 10_000, market: "KRW-BTC", price: 50_000, observedAt: 10_000, mode: "PAPER", killSwitchActive: false, tradingAllowed: true, overallHealth: "HEALTHY", decisions: [{ symbol: "KRW-BTC", action: "BUY", confidence: 1, risk: "LOW", allocation: 0.1, leverage: 1, score: 1, reasons: ["fixture"], decidedAt: 9_999, ...decisionOverrides }], investmentPercent: 100, ...overrides });
+
+  const weakProvider = new InMemoryCloudDashboardStateProvider();
+  new CloudRuntimeDashboardHydrator({ now: () => 10_000 }).hydrate(weakProvider, [upbitTickerToIntelligenceObservation({ type: "ticker", code: "KRW-BTC", trade_price: 50_000, trade_timestamp: 10_000, signed_change_rate: 0.002, acc_trade_price_24h: 1_000_000_000 }, { now: 10_000 })]);
+  assert.equal(weakProvider.read({ userId: "operator", scopes: ["dashboard:read"] }).decisions[0].action, "WAIT");
+
+  const first = productionBoundary();
+  const tick = makeTick();
+  assert.equal(first.boundary.processTick(tick).status, "FILLED");
+  assert.notEqual(first.boundary.processTick(tick).status, "FILLED");
+  assert.notEqual(first.boundary.processTick(makeTick({ observedAt: 1_000 })).status, "FILLED");
+  assert.equal(first.boundary.processTick(makeTick({ killSwitchActive: true, decisionOverrides: { decidedAt: 9_997 } })).status, "BLOCKED");
+  assert.notEqual(first.boundary.processTick(makeTick({ investmentPercent: 0, decisionOverrides: { decidedAt: 9_996 } })).status, "FILLED");
+  assert.equal(first.boundary.processTick(makeTick({ mode: "LIVE", decisionOverrides: { decidedAt: 9_995 } })).status, "BLOCKED");
+  first.repository.close();
+  first.db.close();
 });
