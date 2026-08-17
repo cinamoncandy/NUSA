@@ -24,21 +24,24 @@ test("ThemeProvider recomputes and propagates the shared theme whenever the desi
   assert.match(provider, /ThemeContext\.Provider value=\{value\}/);
 });
 
-test("master and classic presets are visually distinct without screen-specific edits", () => {
+test("master and classic presets are intentionally and visibly distinct", () => {
   const design = read("apps/mobile/src/designSystem.ts");
   assert.match(design, /classic: Object\.freeze/);
   assert.match(design, /master: Object\.freeze/);
   assert.match(design, /background: "#05070D"/);
-  assert.match(design, /background: "#020308"/);
+  assert.match(design, /background: "#0A0B0E"/);
+  assert.match(design, /background: "#F1EEE6"/);
   assert.match(design, /heroRadius: 22/);
-  assert.match(design, /heroRadius: 20/);
+  assert.match(design, /heroRadius: 8/);
+  assert.match(design, /radii: Object\.freeze\(\{ sm: 3, md: 5, lg: 8, xl: 12/);
+  assert.match(design, /hero: 58/);
 });
 
 test("screen composition is preset-owned so information architecture can change without redefining a screen", () => {
   const composition = read("apps/mobile/src/screenComposition.ts");
   assert.match(composition, /Readonly<Record<DesignPresetName, ScreenCompositionManifest>>/);
   assert.match(composition, /primary: \["hero", "nextAction", "metrics", "allocation"\]/);
-  assert.match(composition, /primary: \["hero", "metrics", "nextAction", "allocation"\]/);
+  assert.match(composition, /primary: \["hero", "allocation", "metrics", "nextAction"\]/);
   assert.match(composition, /secondary: \["aiInsight", "safety"\]/);
   assert.match(composition, /secondary: \["safety", "aiInsight"\]/);
   assert.match(composition, /desktopLayout: "split"/);
