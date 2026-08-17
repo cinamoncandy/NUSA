@@ -1,29 +1,31 @@
-id: WO-0056
-title: Read-only MCP gateway over existing NUSA relays
-branch: agent/issue-mcp-readonly-gateway
-pull_request: 538
+id: WO-0057
+title: Desktop Cloud canonical PAPER authority migration
+branch: agent/wo-0057-desktop-cloud-paper-authority
+pull_request: 552
 base_branch: main
-phase: mcp-read-only-gateway-external-verification
-status: VERIFYING_EXTERNAL_HUMAN_ENVIRONMENT_ONLY
-source_work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
-objective: "Preserve the merged authenticated read-only MCP gateway as repository-complete while keeping stable HTTPS deployment and actual ChatGPT connection unclaimed until external evidence exists."
-repository_completion:
-  pull_request: 538
-  head_commit: fffed2c3e37ca6acd4e61646c4419f932e2773c3
-  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
-  merged: true
-  exact_head_ci: PASS
-  read_only_broker: PASS
-  restricted_live_activation: PASS
-  restricted_live_capability: PASS
-  restricted_live_transport: PASS
+base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
+phase: desktop-cloud-paper-authority-migration
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+objective: "Move Desktop manual PAPER command and account truth to the existing authenticated Cloud canonical PAPER runtime with one writer, one account truth, no implicit local fallback, and no LIVE authority."
+predecessor_external_verification:
+  id: WO-0056
+  status: VERIFYING_EXTERNAL_HUMAN_ENVIRONMENT_ONLY
   repository_implementation: COMPLETE
+  pull_request: 538
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  pending:
+    - STABLE_HTTPS_MCP_DEPLOYMENT
+    - ACTUAL_CHATGPT_CONNECTION_EVIDENCE
+  serialization: PARKED_EXTERNAL_EVIDENCE_ONLY
 scope:
-  - merged existing apps/cloud read-only dashboard and PAPER projections
-  - merged existing services/upbit-readonly GET relay integration
-  - merged authenticated MCP protocol adapter with normalized bounded outputs
-  - merged mutation blocking, secret sanitization, timeout/rate-limit/audit contracts
-  - external stable HTTPS deployment and ChatGPT connection remain separate human-environment evidence gates
+  - reuse existing Cloud stable-user bearer principal and paper:trade scope
+  - process-memory-only Desktop Cloud PAPER access session
+  - Desktop manual PAPER write through Cloud /api/paper-orders
+  - Desktop PAPER account/order/fill truth through Cloud /api/paper-operations
+  - packaged Desktop Cloud canonical bootstrap and renderer bridge
+  - block legacy local manual PAPER IPC under Cloud canonical Desktop authority
+  - automatic Desktop strategy execution remains disabled until successor migration
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
@@ -40,24 +42,26 @@ serialized_human_environment_gate:
     - REAL_MONEY_MUTATION
     - LIVE_RISK_ENVELOPE_EXPANSION
 safety:
+  canonicalPaperWriter: CLOUD_ONLY
+  desktopLocalFallback: prohibited
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  automatedCompletion: prohibited
-  syntheticCiCompletion: prohibited
-  chatConsentAsLiveAuthority: prohibited
   aiLiveAuthority: prohibited
+  credentialPersistence: prohibited
 verification:
-  focused_mcp_suite: PASS_5_OF_5
-  typecheck: PASS
-  lint: PASS
-  build: PASS
-  security_aipos_safety: PASS
-  exact_head_ci: PASS
-  repository_merge: PASS
-  external_deployment: PENDING_AUTHORITY
-  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
-blockers:
-  - STABLE_HTTPS_MCP_DEPLOYMENT_AND_CHATGPT_CONNECTION_EVIDENCE_REQUIRED_FOR_EXTERNAL_CLOSEOUT_ONLY
-next_recommended_task: "Do not reopen WO-0056 repository implementation. Preserve its merged read-only gateway and collect external HTTPS/ChatGPT evidence only when human environment authority is available. PAPER, read-only, mobile-auth, UI/UX, and other non-LIVE successors may proceed under independent fail-closed contracts; LIVE and real-money transitions remain blocked by WO-0051."
+  auth_contract: RESOLVED_EXISTING_STABLE_USER_PAPER_TRADE
+  focused_cloud_client: IN_PROGRESS
+  desktop_surface_cutover: IN_PROGRESS
+  production_e2e: PENDING
+  typecheck: PENDING_EXACT_HEAD
+  lint: PENDING_EXACT_HEAD
+  build: PENDING_EXACT_HEAD
+  coverage: PENDING_EXACT_HEAD
+  architecture: PENDING_EXACT_HEAD
+  aipos: PENDING_EXACT_HEAD
+  safety: PENDING_EXACT_HEAD
+  repository_merge: PENDING
+blockers: []
+next_recommended_task: "Finish Cloud-only Desktop manual PAPER surface and no-fallback evidence, run exact-head full CI/coverage/architecture/AIPOS/safety plus required restricted workflows, synchronize main, and merge only when every gate passes."
