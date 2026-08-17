@@ -2,7 +2,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const required = ["dist/apps/desktop/src/main.js", "dist/apps/desktop/src/preload.js", "apps/desktop/renderer/index.html"];
+const expectedDesktopMain = "dist/apps/desktop/src/cloudMain.js";
+const required = [
+  expectedDesktopMain,
+  "dist/apps/desktop/src/main.js",
+  "dist/apps/desktop/src/preload.js",
+  "apps/desktop/renderer/index.html",
+  "apps/desktop/src/cloudMain.ts"
+];
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
 if (missing.length) {
   console.error(`Release readiness failed: missing ${missing.join(", ")}`);
@@ -11,10 +18,35 @@ if (missing.length) {
 
 const byteSize = (file) => fs.statSync(path.join(root, file)).size;
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-if (packageJson.private !== true || packageJson.main !== "dist/apps/desktop/src/main.js" || packageJson.build?.win?.target !== "nsis" || packageJson.build?.win?.signAndEditExecutable !== false) {
+if (
+  packageJson.private !== true ||
+  packageJson.main !== expectedDesktopMain ||
+  packageJson.build?.extraMetadata?.main !== expectedDesktopMain ||
+  packageJson.build?.win?.target !== "nsis" ||
+  packageJson.build?.win?.signAndEditExecutable !== false
+) {
   console.error("Release readiness failed: Windows NSIS package contract changed");
   process.exit(1);
 }
+
+const cloudMainSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloudMain.ts"), "utf8");
+const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
+const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
+if (
+  activateIndex < 0 ||
+  registerIndex <= activateIndex ||
+  legacyImportIndex <= registerIndex
+) {
+  console.error("Release readiness failed: Cloud Desktop authority bootstrap order changed");
+  process.exit(1);
+}
+
+if (/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource)) {
+  console.error("Release readiness failed: Cloud Desktop bootstrap contains a credential literal");
+  process.exit(1);
+}
+
 if (JSON.stringify(packageJson).includes("electron-updater")) {
   console.error("Release readiness failed: auto-update dependency is not permitted");
   process.exit(1);
@@ -22,9 +54,12 @@ if (JSON.stringify(packageJson).includes("electron-updater")) {
 
 console.log(JSON.stringify({
   status: "TECHNICAL_CHECKS_PASS",
-  mainBundleBytes: byteSize("dist/apps/desktop/src/main.js"),
+  canonicalMain: expectedDesktopMain,
+  canonicalMainBundleBytes: byteSize(expectedDesktopMain),
+  legacyMainBundleBytes: byteSize("dist/apps/desktop/src/main.js"),
   preloadBundleBytes: byteSize("dist/apps/desktop/src/preload.js"),
   rendererHtmlBytes: byteSize("apps/desktop/renderer/index.html"),
+  bootstrapOrder: "AUTHORITY_THEN_CLOUD_IPC_THEN_LEGACY_RUNTIME",
   packageTarget: "nsis",
   autoUpdate: "DISABLED",
   runtimeMetrics: "NOT_EVALUATED"
