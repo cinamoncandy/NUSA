@@ -8,7 +8,9 @@ const failures = [];
 const required = (condition, message) => { if (!condition) failures.push(message); };
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
-required(packageJson.main === "dist/apps/desktop/src/main.js", "root main must point at compiled desktop main");
+const expectedDesktopMain = "dist/apps/desktop/src/cloudMain.js";
+required(packageJson.main === expectedDesktopMain, "root main must point at the Cloud canonical Desktop bootstrap");
+required(build?.extraMetadata?.main === expectedDesktopMain, "packaged extraMetadata main must match the Cloud canonical Desktop bootstrap");
 required(packageJson.dependencies?.ws === "8.21.0", "runtime WebSocket dependency must be production-scoped and pinned");
 required(build?.appId === "com.nusa.trader", "appId is missing or changed");
 required(build?.productName === "NUSA", "productName is missing or changed");
@@ -32,6 +34,19 @@ required(/nodeIntegration:\s*false/.test(mainSource), "nodeIntegration must rema
 required(/sandbox:\s*true/.test(mainSource), "preload sandbox must remain enabled");
 required(/RISK_GATE_NOT_CONFIGURED/.test(mainSource), "paper risk gate must fail closed when unconfigured");
 required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(mainSource), "main source must not hardcode a private credential or API key literal");
+
+const cloudMainPath = path.join(root, "apps/desktop/src/cloudMain.ts");
+required(fs.existsSync(cloudMainPath), "Cloud canonical Desktop bootstrap source is missing");
+if (fs.existsSync(cloudMainPath)) {
+  const cloudMainSource = fs.readFileSync(cloudMainPath, "utf8");
+  const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
+  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+  const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
+  required(activateIndex >= 0, "Cloud Desktop bootstrap must activate canonical authority");
+  required(registerIndex > activateIndex, "Cloud PAPER IPC must register after canonical authority activation");
+  required(legacyImportIndex > registerIndex, "legacy Desktop runtime must load only after Cloud PAPER authority and IPC registration");
+  required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource), "Cloud Desktop bootstrap must not hardcode a private credential or API key literal");
+}
 
 const result = Object.freeze({
   status: failures.length === 0 ? "PASS" : "FAIL",
