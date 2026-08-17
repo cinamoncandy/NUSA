@@ -10,6 +10,8 @@ const { CloudPaperClient } = require("../dist/apps/desktop/src/cloudPaperClient.
 const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/desktopCloudPaperAuthority.js");
 
 const ACCESS_VALUE = "p".repeat(40);
+const ORDER_RATE_WINDOW_MS = 1_000;
+const ORDER_RATE_WINDOW_SAFETY_MS = 25;
 
 async function allocatePort() {
   const server = net.createServer();
@@ -93,6 +95,13 @@ async function waitForClosedPort(port, timeoutMs = 5_000) {
   throw new Error("Cloud PAPER server did not stop");
 }
 
+async function waitPastCanonicalOrderRateWindow(filledAt) {
+  const filledAtMs = typeof filledAt === "number" ? filledAt : Date.parse(filledAt);
+  assert.ok(Number.isFinite(filledAtMs), "canonical PAPER fill timestamp must be valid");
+  const remaining = filledAtMs + ORDER_RATE_WINDOW_MS + ORDER_RATE_WINDOW_SAFETY_MS - Date.now();
+  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+}
+
 test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority, survives restart, and never falls back locally", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-desktop-cloud-paper-e2e-"));
   const databasePath = path.join(directory, "cloud.sqlite");
@@ -159,6 +168,11 @@ test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority,
     assert.equal(restored.account.position.quantity, beforeRestart.position.quantity);
     assert.equal(restoredOperations.orders.length, 1);
     assert.equal(restoredOperations.orders[0].id, buy.order.id);
+
+    // The canonical risk gateway is server-clocked and allows at most one order per rolling
+    // second. Bind this E2E to the persisted server fill timestamp instead of weakening the
+    // production limit or pretending the Desktop request clock controls risk time.
+    await waitPastCanonicalOrderRateWindow(buy.order.filledAt);
 
     const seller = new DesktopCloudPaperAuthority({
       client: restartedConnection.client,
