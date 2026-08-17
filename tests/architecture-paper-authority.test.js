@@ -25,7 +25,7 @@ const validPaperSurfaces = () => [
 ];
 
 test("repository architecture surfaces declare one Cloud canonical PAPER writer and one canonical ingress", () => {
-  const result = validateArchitectureSurfaces(path.resolve(__dirname, ".."));
+  const result = validateArchitectureSurfaces(path.resolve(__dirname, ".."), { requirePaperAuthorityTopology: true });
   assert.equal(result.ok, true, result.failures.join("\n"));
 });
 
