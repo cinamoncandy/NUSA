@@ -64,7 +64,7 @@ jobs:
           printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION_CODE}'"
           printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
 
-          RESOURCES="$(${AAPT} dump resources "$APK")"
+          RESOURCES="$(${AAPT} dump --values resources "$APK")"
           printf '%s\n' "$RESOURCES" | grep -F "$EXPECTED_SHA"
 
           printf 'source_sha=%s\nversion_name=%s\nversion_code=%s\n' \
