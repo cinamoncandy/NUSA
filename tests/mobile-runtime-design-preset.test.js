@@ -14,12 +14,14 @@ test("design system exposes runtime-switchable named presets", () => {
   assert.match(design, /preset: theme\.preset/);
 });
 
-test("ThemeProvider recomputes the shared theme whenever the design preset changes", () => {
+test("ThemeProvider recomputes and propagates the shared theme whenever the design preset changes", () => {
   const provider = read("apps/mobile/src/ThemeProvider.tsx");
   assert.match(provider, /readonly setPreset: \(preset: DesignPresetName\) => void/);
-  assert.match(provider, /const \[preset, setPreset\] = useState<DesignPresetName>\(initialPreset\)/);
+  assert.match(provider, /const \[preset, setPresetState\] = useState<DesignPresetName>\(initialPreset\)/);
+  assert.match(provider, /setPresetState\(next\)/);
   assert.match(provider, /createTheme\(mode, preset\)/);
-  assert.match(provider, /\[mode, preset\]/);
+  assert.match(provider, /useMemo\(\(\) => createTheme\(mode, preset\), \[mode, preset\]\)/);
+  assert.match(provider, /ThemeContext\.Provider value=\{value\}/);
 });
 
 test("master and classic presets are visually distinct without screen-specific edits", () => {
