@@ -178,6 +178,46 @@ export function DataRow({ label, value, emphasis = false, tone = "default", test
   return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow} testID={testID}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
+export interface BottomNavigationItem {
+  readonly key: string;
+  readonly label: string;
+  readonly testID?: string;
+}
+
+export function BottomNavigation({ items, activeKey, onSelect, testID }: Readonly<{ items: readonly BottomNavigationItem[]; activeKey: string; onSelect: (key: string) => void; testID?: string }>) {
+  const { theme } = useTheme();
+  return <View accessibilityRole="tablist" style={[styles.bottomNavigation, { backgroundColor: theme.colors.navSurface, borderTopColor: theme.colors.border }]} testID={testID}>
+    <View style={styles.bottomNavigationInner}>
+      {items.map((item) => {
+        const active = item.key === activeKey;
+        return <Pressable key={item.key} accessibilityLabel={item.label} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => onSelect(item.key)} style={({ pressed }) => [styles.bottomNavigationItem, { borderColor: active ? theme.colors.neonBlue : "transparent", backgroundColor: active ? theme.colors.neonGlow : "transparent", borderRadius: theme.radii.lg, minHeight: theme.interaction.touchTarget + theme.spacing.xs, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID={item.testID ?? `tab-${item.key}`}>
+          <View style={[styles.bottomNavigationIndicator, { backgroundColor: active ? theme.colors.aiSignalEnd : "transparent", width: active ? theme.spacing.xxl : theme.spacing.md }]} />
+          <Text style={[styles.bottomNavigationLabel, { color: active ? theme.colors.neonTeal : theme.colors.textMuted, fontWeight: active ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{item.label}</Text>
+        </Pressable>;
+      })}
+    </View>
+  </View>;
+}
+
+export function AIInsight({ thesis, evidenceCount, confidence, onPress, testID }: Readonly<{ thesis: string | null; evidenceCount: number; confidence?: string; onPress: () => void; testID?: string }>) {
+  const { theme } = useTheme();
+  const available = Boolean(thesis?.trim()) && evidenceCount > 0;
+  return <NusaCard testID={testID}>
+    <View style={styles.insightHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>AI INSIGHT</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>오늘의 분석</Text></View><View style={styles.insightBadges}><StatusChip label="READ ONLY" tone="info" />{confidence ? <StatusChip label={confidence} tone="info" /> : null}</View></View>
+    <Text style={[styles.insightThesis, { color: available ? theme.colors.text : theme.colors.textMuted }]}>{thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
+    <View style={styles.insightFooter}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>{available ? `근거 ${evidenceCount}개` : "검증된 근거 없음"}</Text><NusaButton label="AI 보기" onPress={onPress} tone="neutral" /></View>
+  </NusaCard>;
+}
+
+export function SafetyNotice({ health, runtimeState, killSwitchActive, liveAuthority, productionMutationAllowed, testID }: Readonly<{ health: string; runtimeState: string; killSwitchActive: boolean; liveAuthority: string; productionMutationAllowed: boolean; testID?: string }>) {
+  const { theme } = useTheme();
+  const healthToneValue: StatusTone = health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning";
+  return <NusaCard testID={testID}>
+    <View style={styles.safetyHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>RISK / SAFETY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영 상태</Text></View><StatusChip label={health} tone={healthToneValue} /></View>
+    <DataRow label="PAPER 런타임" value={runtimeState} tone={healthToneValue} /><DataRow label="킬 스위치" value={killSwitchActive ? "활성" : "비활성"} tone={killSwitchActive ? "danger" : "success"} /><DataRow label="LIVE 권한" value={liveAuthority} /><DataRow label="Production mutation" value={productionMutationAllowed ? "허용" : "금지"} tone={productionMutationAllowed ? "danger" : "success"} />
+  </NusaCard>;
+}
+
 const styles = StyleSheet.create({
   button: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
   buttonLabel: { fontSize: 15, letterSpacing: -0.15 },
@@ -203,6 +243,17 @@ const styles = StyleSheet.create({
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
+  bottomNavigation: { borderTopWidth: 1, alignItems: "center" },
+  bottomNavigationInner: { width: "100%", maxWidth: 1080, flexDirection: "row", paddingTop: 8, paddingBottom: 9, paddingHorizontal: 6 },
+  bottomNavigationItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, marginHorizontal: 2 },
+  bottomNavigationIndicator: { height: 2, borderRadius: 2 },
+  bottomNavigationLabel: { fontSize: 10, letterSpacing: 0.1 },
+  insightHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+  insightBadges: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" },
+  insightThesis: { fontSize: 17, lineHeight: 25, fontWeight: "700" },
+  insightFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" },
+  safetyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 4 },
+  meta: { fontSize: 12, lineHeight: 18 },
   terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
   terrainHorizon: { position: "absolute", left: 0, right: 0, top: "59%", height: StyleSheet.hairlineWidth },
   terrainLine: { position: "absolute", left: "4%", top: "50%", height: 1, transform: [{ rotate: "-7deg" }] },

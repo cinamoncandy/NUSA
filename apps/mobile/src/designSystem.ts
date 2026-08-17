@@ -33,6 +33,9 @@ export interface Theme {
     touchTarget: 48; controlHeight: 48; borderWidth: 1; focusBorderWidth: 2;
     pressedOpacity: 0.88; disabledOpacity: 0.42;
   }>;
+  readonly layout: Readonly<{
+    screenPadding: 20; sectionGap: 22; cardPadding: 20; heroRadius: 22;
+  }>;
 }
 
 const interaction = Object.freeze({
@@ -53,6 +56,7 @@ const freezeTheme = (theme: Theme): Theme => Object.freeze({
   shadows: Object.freeze(Object.fromEntries(Object.entries(theme.shadows).map(([key, value]) => [key, Object.freeze({ ...value, offset: Object.freeze({ ...value.offset }) })])) as Theme["shadows"]),
   icons: Object.freeze({ ...theme.icons }),
   interaction: Object.freeze({ ...theme.interaction }),
+  layout: Object.freeze({ ...theme.layout }),
 });
 
 export function createTheme(mode: ThemeMode): Theme {
@@ -107,6 +111,7 @@ export function createTheme(mode: ThemeMode): Theme {
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
+    layout: { screenPadding: 20, sectionGap: 22, cardPadding: 20, heroRadius: 22 },
   });
 }
 
@@ -141,7 +146,7 @@ export function fieldTokens(theme: Theme) {
 }
 
 export function cardTokens(theme: Theme) {
-  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 20, shadow: theme.shadows.sm });
+  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: theme.layout.cardPadding, shadow: theme.shadows.sm });
 }
 
 export function designSystemSnapshot(theme: Theme): string {
