@@ -39,8 +39,40 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
-      - run: ./gradlew :app:assembleRelease
+      - name: Build exact-source release APK
+        env:
+          NUSA_BUILD_SHA: ${{ github.sha }}
+          NUSA_BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
+      - name: Verify APK source provenance
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          APK="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+
+          EXPECTED_SHORT_SHA="${EXPECTED_SHA:0:8}"
+          EXPECTED_VERSION_NAME="1.0.${EXPECTED_RUN_NUMBER}-${EXPECTED_SHORT_SHA}"
+          EXPECTED_VERSION_CODE="$EXPECTED_RUN_NUMBER"
+
+          BADGING="$(aapt dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION_CODE}'"
+          printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
+
+          unzip -p "$APK" classes.dex > "$RUNNER_TEMP/nusa-classes.dex"
+          strings "$RUNNER_TEMP/nusa-classes.dex" | grep -Fx "$EXPECTED_SHA"
+
+          if strings "$RUNNER_TEMP/nusa-classes.dex" | grep -Fx "dev"; then
+            echo "ERROR: development provenance marker found in release APK" >&2
+            exit 1
+          fi
+
+          printf 'source_sha=%s\nversion_name=%s\nversion_code=%s\n' \
+            "$EXPECTED_SHA" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" \
+            > NUSA-Android.provenance.txt
       - name: Prepare persistent APK assets
         run: |
           cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk NUSA-Android.apk
@@ -50,10 +82,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view nusa-android-preview >/dev/null 2>&1; then
-            gh release upload nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 --clobber
+            gh release upload nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --clobber
             gh release edit nusa-android-preview --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
           else
-            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
+            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
           fi
       - name: Prepare Firebase credentials
         env:
@@ -72,7 +104,7 @@ jobs:
           firebase appdistribution:distribute NUSA-Android.apk \
             --app "$FIREBASE_APP_ID" \
             --testers "desporin12@gmail.com" \
-            --release-notes "NUSA Android preview from main ${GITHUB_SHA::8}"
+            --release-notes "NUSA Android preview from ${GITHUB_SHA::8}; exact source provenance verified"
 
       - name: Remove Firebase credentials
         if: always()
