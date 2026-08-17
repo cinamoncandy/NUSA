@@ -6,13 +6,23 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
+function rgbSpread(hex) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const channels = [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
+  return Math.max(...channels) - Math.min(...channels);
+}
+
 test("mobile v1 keeps brand actions monochrome across design presets and reserves chromatic colors for AI signals", () => {
   const source = read("apps/mobile/src/designSystem.ts");
 
-  // Design presets may change the visual system without weakening the brand-action
-  // contract: primary actions remain monochrome in every shipped preset.
-  assert.match(source, /classic: Object\.freeze\([\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master: Object\.freeze\([\s\S]*?primary: "#FFFFFF"[\s\S]*?primary: "#11131A"/);
+  // Every shipped preset owns one dark and one light primary action color. Keep
+  // those action colors near-neutral so redesigns can evolve without coupling
+  // this policy test to a specific hex literal.
+  const presetPrimaries = [...source.matchAll(/primary: "(#[0-9A-F]{6})"/g)].map((match) => match[1]);
+  assert.equal(presetPrimaries.length, 4);
+  for (const primary of presetPrimaries) {
+    assert.ok(rgbSpread(primary) <= 28, `brand primary must remain near-neutral: ${primary}`);
+  }
   assert.match(source, /primary: palette\.primary/);
 
   // Chromatic accents remain explicitly named signal tokens rather than becoming
