@@ -56,19 +56,29 @@ for (const status of ["HALT", "REJECT"]) {
   });
 }
 
-test("ALLOW remains blocked when no explicit human strategy approval boundary exists", () => {
+test("canonical ALLOW executes an approved PAPER-only CIO strategy tick", () => {
   const { loop, boundary, evaluations } = build("ALLOW");
-  const before = loop.snapshot();
   const result = boundary.processTick(tick);
   const after = loop.snapshot();
   assert.equal(evaluations(), 1);
+  assert.equal(result.status, "FILLED");
+  assert.equal(after.orders.length, 1);
+  assert.equal(after.fills.length, 1);
+  assert.equal(after.positions.length, 1);
+  assert.equal(after.positions[0].market, "KRW-BTC");
+  assert.equal(after.positions[0].quantity, 0.02);
+  assert.equal(after.cash, 9_000_000);
+});
+
+test("automatic strategy approval rejects non-spot or high-risk CIO mutations before risk evaluation", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const unsafe = Object.freeze({ ...decision, leverage: 2, risk: "HIGH" });
+  const before = loop.snapshot();
+  const result = boundary.processTick(Object.freeze({ ...tick, decisions: Object.freeze([unsafe]) }));
   assert.equal(result.status, "BLOCKED");
-  assert.equal(result.reason, "STRATEGY_APPROVAL_BOUNDARY_UNAVAILABLE");
-  assert.deepEqual(after, before);
-  assert.equal(after.orders.length, 0);
-  assert.equal(after.fills.length, 0);
-  assert.equal(after.positions.length, 0);
-  assert.equal(after.cash, 10_000_000);
+  assert.equal(result.reason, "STRATEGY_APPROVAL_REJECTED");
+  assert.equal(evaluations(), 0);
+  assert.deepEqual(loop.snapshot(), before);
 });
 
 test("P0 uncertainty fails closed before risk evaluation and before mutation", () => {

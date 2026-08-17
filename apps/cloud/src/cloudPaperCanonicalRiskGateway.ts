@@ -233,17 +233,18 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const independent = evaluatePreTradeRisk(independentRequest, identity, this.limits);
     if (independent.status !== "ALLOW") return Object.freeze({ status: independent.status === "REJECT" ? "REJECT" : "HALT", reasonCodes: independent.reasonCodes });
 
+    const strategyId = input.path === "MANUAL" ? "MANUAL" : input.strategyId.trim();
+    const approvedBy = input.path === "MANUAL" ? input.approvedBy?.trim() : "CIO_PAPER";
+    if (!approvedBy || !strategyId) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["APPROVAL_MISSING"]) });
     let approvalId: string | undefined;
-    if (input.path === "MANUAL") {
-      const approvedBy = input.approvedBy?.trim();
-      if (!approvedBy) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["APPROVAL_MISSING"]) });
-      approvalId = `cloud-manual-${hash({ account: ACCOUNT_ID, commandId: input.commandId, approvedBy, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
+    {
+      approvalId = `cloud-paper-${hash({ account: ACCOUNT_ID, commandId: input.commandId, approvedBy, strategyId, market: input.market, side: input.side, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
       try {
         this.canonical.saveApproval({
           approvalId,
           mode: "PAPER",
           symbol: input.market,
-          strategyId: "MANUAL",
+          strategyId,
           policyFingerprint: this.fingerprints.riskPolicy,
           side: input.side,
           commandId: input.commandId,
@@ -261,7 +262,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       mode: "PAPER",
       symbol: input.market,
       side: input.side,
-      strategyId: input.path === "MANUAL" ? "MANUAL" : input.strategyId,
+      strategyId,
       policyFingerprint: this.fingerprints.riskPolicy,
       ...(approvalId === undefined ? {} : { approvalId }),
       nowMs: input.now,
