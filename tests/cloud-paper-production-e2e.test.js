@@ -282,8 +282,17 @@ test("production PAPER path fails closed for stale data, kill switch, P0 uncerta
     assert.equal(nonPaper.status, "BLOCKED");
     assert.deepEqual(harness.loop.snapshot(), baseline);
 
+    // Production runtime always re-projects the executed PAPER account after a tick.
+    // Preserve that boundary here so a blocked planned allocation cannot masquerade as
+    // an executed position when the next CIO decision is hydrated.
+    harness.provider.set(harness.loop.applyToDashboard(dashboard, harness.now()));
+    const projectedTruth = harness.provider.read(principal);
+    assert.ok(projectedTruth);
+    assert.equal(projectedTruth.portfolio.allocations.length, 0);
+
     harness.advance(2_000);
     const freshDashboard = harness.hydrate(0.03, 50_000);
+    assert.equal(freshDashboard.decisions[0].action, "BUY");
     const first = harness.boundary.processTick(harness.tick(freshDashboard, 50_000));
     assert.equal(first.status, "FILLED");
     const afterFirst = structuredClone(harness.loop.snapshot());
