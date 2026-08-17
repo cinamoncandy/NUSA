@@ -17,6 +17,12 @@ scope:
   - "Desktop Cloud PAPER order submission through canonical PAPER authority"
   - "Desktop IPC cutover to main-process authenticated Cloud PAPER client"
   - "Preserve existing PAPER safety, risk, audit, persistence, and fail-closed contracts"
+architecture_impact:
+  acknowledged: true
+  analysis: "This governance-only registration records the canonical PAPER authority migration and its session-boundary predecessor. It does not change runtime composition, grant LIVE or production authority, or alter Risk Governor and fail-closed contracts."
+  references:
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
 blocked:
   - "LIVE broker activation"
   - "real-money order/cancel"
