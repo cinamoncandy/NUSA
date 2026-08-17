@@ -6,13 +6,22 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("mobile v1 keeps brand actions monochrome and reserves chromatic colors for AI signals", () => {
+test("mobile v1 keeps brand actions monochrome across design presets and reserves chromatic colors for AI signals", () => {
   const source = read("apps/mobile/src/designSystem.ts");
-  assert.match(source, /primary: dark \? "#E8F3FF" : "#11151B"/);
-  assert.match(source, /aiSignalStart: "#B56BFF"/);
-  assert.match(source, /aiSignalMid: "#5B8CFF"/);
-  assert.match(source, /aiSignalEnd: "#49D7C3"/);
+
+  // Design presets may change the visual system without weakening the brand-action
+  // contract: primary actions remain monochrome in every shipped preset.
+  assert.match(source, /classic: Object\.freeze\([\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
+  assert.match(source, /master: Object\.freeze\([\s\S]*?primary: "#FFFFFF"[\s\S]*?primary: "#11131A"/);
+  assert.match(source, /primary: palette\.primary/);
+
+  // Chromatic accents remain explicitly named signal tokens rather than becoming
+  // the generic primary action color.
+  assert.match(source, /aiSignalStart: "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalMid: "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalEnd: "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
+  assert.doesNotMatch(source, /primary: "#(?:9B6CFF|5B8CFF|36D8CB)"/);
 });
 
 test("APEX mobile and Android assets remain monochrome", () => {
