@@ -96,7 +96,7 @@ export function UpbitTradingConfirmationModal({
               <View
                 style={[
                   styles.errorBox,
-                  { backgroundColor: theme.colors.dangerSoft },
+                  { backgroundColor: theme.colors.surfaceSunken },
                 ]}
               >
                 <Text style={[styles.errorText, { color: theme.colors.danger }]}>
@@ -217,7 +217,7 @@ export function UpbitTradingConfirmationModal({
               <View
                 style={[
                   styles.warningBox,
-                  { backgroundColor: theme.colors.warningSoft },
+                  { backgroundColor: theme.colors.surfaceSunken },
                 ]}
               >
                 <Text
@@ -278,7 +278,7 @@ export function UpbitTradingConfirmationModal({
                   <Text
                     style={[
                       styles.buttonText,
-                      { color: theme.colors.primaryMuted },
+                      { color: theme.colors.textMuted },
                     ]}
                   >
                     처리 중...
