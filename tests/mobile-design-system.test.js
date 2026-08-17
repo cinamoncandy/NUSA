@@ -15,6 +15,7 @@ test("light and dark themes expose frozen semantic preset tokens", () => {
   assert.notEqual(light.colors.background, dark.colors.background);
   assert.notEqual(classic.colors.background, dark.colors.background);
   assert.notEqual(classic.layout.cardPadding, dark.layout.cardPadding);
+  assert.notEqual(classic.radii.md, dark.radii.md);
   assert.ok(light.spacing.lg > 0);
   assert.ok(dark.radii.md >= 0);
   assert.ok(dark.icons.lg > 0);
