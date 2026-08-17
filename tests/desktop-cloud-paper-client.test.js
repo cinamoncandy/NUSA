@@ -4,7 +4,7 @@ const { CloudPaperAccessSession } = require("../dist/apps/desktop/src/cloudPaper
 const { CloudPaperClient } = require("../dist/apps/desktop/src/cloudPaperClient.js");
 const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 
-const TOKEN = "desktop-cloud-paper-access-token-00000001";
+const ACCESS_VALUE = "x".repeat(40);
 
 const dashboard = (generatedAt) => ({
   apiVersion: "1",
@@ -69,12 +69,12 @@ const blockedResult = (submitted) => ({
 
 test("Desktop Cloud PAPER access is process-memory-only and never exposes the bearer in snapshots", () => {
   const session = new CloudPaperAccessSession();
-  assert.throws(() => session.connect("http://192.168.1.5:41731", TOKEN), /insecure remote HTTP/i);
-  assert.throws(() => session.connect("https://user:pass@paper.example.test", TOKEN), /credentials in URLs/i);
-  const snapshot = session.connect("https://paper.example.test/", TOKEN);
+  assert.throws(() => session.connect("http://192.168.1.5:41731", ACCESS_VALUE), /insecure remote HTTP/i);
+  assert.throws(() => session.connect("https://user:pass@paper.example.test", ACCESS_VALUE), /credentials in URLs/i);
+  const snapshot = session.connect("https://paper.example.test/", ACCESS_VALUE);
   assert.equal(snapshot.configured, true);
   assert.equal(snapshot.endpoint, "https://paper.example.test");
-  assert.equal(JSON.stringify(snapshot).includes(TOKEN), false);
+  assert.equal(JSON.stringify(snapshot).includes(ACCESS_VALUE), false);
   assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "token"), false);
 });
 
@@ -91,7 +91,7 @@ test("Desktop Cloud PAPER client performs no network request without an access s
 
 test("Desktop reads only the canonical Cloud PAPER operations route with the existing bearer contract", async () => {
   const session = new CloudPaperAccessSession();
-  session.connect("https://paper.example.test", TOKEN);
+  session.connect("https://paper.example.test", ACCESS_VALUE);
   const value = operationsSnapshot();
   let observedUrl = "";
   let observedInit;
@@ -110,12 +110,12 @@ test("Desktop reads only the canonical Cloud PAPER operations route with the exi
   assert.equal(observedUrl, "https://paper.example.test/api/paper-operations");
   assert.equal(observedInit.method, "GET");
   assert.equal(observedInit.redirect, "error");
-  assert.equal(observedInit.headers.authorization, `Bearer ${TOKEN}`);
+  assert.equal(observedInit.headers.authorization, `Bearer ${ACCESS_VALUE}`);
 });
 
 test("Desktop writes only to canonical Cloud PAPER orders with the submitted idempotency identity", async () => {
   const session = new CloudPaperAccessSession();
-  session.connect("http://127.0.0.1:41731", TOKEN);
+  session.connect("http://127.0.0.1:41731", ACCESS_VALUE);
   const submitted = command();
   let observedUrl = "";
   let observedInit;
@@ -134,14 +134,14 @@ test("Desktop writes only to canonical Cloud PAPER orders with the submitted ide
   assert.equal(observedUrl, "http://127.0.0.1:41731/api/paper-orders");
   assert.equal(observedInit.method, "POST");
   assert.equal(observedInit.redirect, "error");
-  assert.equal(observedInit.headers.authorization, `Bearer ${TOKEN}`);
+  assert.equal(observedInit.headers.authorization, `Bearer ${ACCESS_VALUE}`);
   assert.equal(observedInit.headers["idempotency-key"], submitted.idempotencyKey);
   assert.deepEqual(JSON.parse(observedInit.body), submitted);
 });
 
 test("Desktop fails closed when the Cloud PAPER session changes while a request is in flight", async () => {
   const session = new CloudPaperAccessSession();
-  session.connect("https://paper.example.test", TOKEN);
+  session.connect("https://paper.example.test", ACCESS_VALUE);
   const client = new CloudPaperClient({
     session,
     request: async () => {
@@ -157,7 +157,7 @@ test("Desktop fails closed when the Cloud PAPER session changes while a request 
 
 test("Desktop rejects Cloud PAPER redirects instead of following credentials to another endpoint", async () => {
   const session = new CloudPaperAccessSession();
-  session.connect("https://paper.example.test", TOKEN);
+  session.connect("https://paper.example.test", ACCESS_VALUE);
   const client = new CloudPaperClient({
     session,
     request: async () => ({ ok: true, status: 200, redirected: true, url: "https://other.example.test/api/paper-operations", json: async () => operationsSnapshot() })
