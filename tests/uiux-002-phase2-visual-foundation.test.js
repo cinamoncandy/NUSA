@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createTheme } = require("../dist/apps/mobile/src/designSystem.js");
 
 const src = path.resolve(__dirname, "../apps/mobile/src");
 const read = (file) => fs.readFileSync(path.join(src, file), "utf8");
@@ -15,19 +16,24 @@ const contrast = (left, right) => {
   const b = relativeLuminance(right);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 };
-const colorPair = (design, name) => {
-  const match = design.match(new RegExp(`${name}: dark \\? "(#[0-9A-F]{6})" : "(#[0-9A-F]{6})"`, "i"));
-  assert.ok(match, `${name} must have explicit light and dark colors`);
-  return { dark: match[1], light: match[2] };
-};
 
 test("Phase 2 theme follows the canonical graphite identity and restrained accent", () => {
-  const design = read("designSystem.ts");
-  assert.match(design, /background: dark \? "#05070D"/);
-  assert.match(design, /primary: dark \? "#E8F3FF"/);
-  assert.match(design, /surfaceRaised: dark \? "#101827"/);
-  assert.match(design, /terrain: dark \? "#DCEBFF"/);
-  assert.match(design, /radii: \{ sm: 8, md: 12, lg: 16, xl: 24/);
+  const classic = createTheme("dark", "classic");
+  const master = createTheme("dark", "master");
+  const defaultDark = createTheme("dark");
+
+  assert.equal(classic.colors.background, "#05070D");
+  assert.equal(classic.colors.primary, "#E8F3FF");
+  assert.equal(classic.colors.surfaceRaised, "#101827");
+  assert.equal(classic.radii.lg, 16);
+  assert.equal(classic.radii.xl, 24);
+  assert.equal(master.preset, "master");
+  assert.equal(defaultDark.preset, "master");
+  assert.notEqual(master.colors.background, classic.colors.background);
+  assert.notEqual(master.colors.surfaceRaised, classic.colors.surfaceRaised);
+  assert.equal(master.colors.terrain, "#DCEBFF");
+  assert.equal(master.colors.aiSignalStart, "#9B6CFF");
+  assert.equal(master.colors.aiSignalEnd, "#36D8CB");
 });
 
 test("financial values use stable tabular numerals and touch targets remain accessible", () => {
@@ -40,30 +46,31 @@ test("financial values use stable tabular numerals and touch targets remain acce
 });
 
 test("danger button foreground keeps WCAG AA contrast in both themes", () => {
-  const design = read("designSystem.ts");
-  const danger = colorPair(design, "danger");
-  const onDanger = colorPair(design, "onDanger");
-  assert.ok(contrast(danger.dark, onDanger.dark) >= 4.5, "dark danger button contrast must meet WCAG AA");
-  assert.ok(contrast(danger.light, onDanger.light) >= 4.5, "light danger button contrast must meet WCAG AA");
+  for (const preset of ["classic", "master"]) {
+    for (const mode of ["dark", "light"]) {
+      const theme = createTheme(mode, preset);
+      assert.ok(contrast(theme.colors.danger, theme.colors.onDanger) >= 4.5, `${preset} ${mode} danger button contrast must meet WCAG AA`);
+    }
+  }
 });
 
 test("status chip foregrounds remain readable in both themes", () => {
-  const design = read("designSystem.ts");
-  const surfaceSunken = colorPair(design, "surfaceSunken");
-  const primarySoft = colorPair(design, "primarySoft");
-  const toneColors = {
-    primary: colorPair(design, "primary"),
-    success: colorPair(design, "success"),
-    warning: colorPair(design, "warning"),
-    danger: colorPair(design, "danger"),
-    info: colorPair(design, "info"),
-    neutral: colorPair(design, "textMuted"),
-  };
-  for (const mode of ["dark", "light"]) {
-    for (const [tone, foreground] of Object.entries(toneColors)) {
-      const background = tone === "primary" ? primarySoft[mode] : surfaceSunken[mode];
-      const minimum = tone === "warning" && mode === "light" ? 3 : 4.5;
-      assert.ok(contrast(foreground[mode], background) >= minimum, `${mode} ${tone} status chip contrast must remain readable`);
+  for (const preset of ["classic", "master"]) {
+    for (const mode of ["dark", "light"]) {
+      const theme = createTheme(mode, preset);
+      const toneColors = {
+        primary: theme.colors.primary,
+        success: theme.colors.success,
+        warning: theme.colors.warning,
+        danger: theme.colors.danger,
+        info: theme.colors.info,
+        neutral: theme.colors.textMuted,
+      };
+      for (const [tone, foreground] of Object.entries(toneColors)) {
+        const background = tone === "primary" ? theme.colors.primarySoft : theme.colors.surfaceSunken;
+        const minimum = tone === "warning" && mode === "light" ? 3 : 4.5;
+        assert.ok(contrast(foreground, background) >= minimum, `${preset} ${mode} ${tone} status chip contrast must remain readable`);
+      }
     }
   }
 });
