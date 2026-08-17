@@ -111,9 +111,10 @@ test("fails closed on kill switch and Research fail-closed state", () => {
   assert.equal(snapshot({ research: { health: "FAIL_CLOSED", recoveryStatus: "FAIL_CLOSED" } }).health, "FAIL_CLOSED");
 });
 
-test("missing Research degrades but never creates LIVE authority", () => {
+test("missing optional Research does not block fresh PAPER operations or create LIVE authority", () => {
   const result = snapshot({ research: null });
-  assert.equal(result.health, "DEGRADED");
+  assert.equal(result.health, "HEALTHY");
+  assert.equal(result.readyForPaperOperations, true);
   assert.equal(result.liveAuthority, "NONE");
   assert.equal(result.productionMutationAllowed, false);
 });

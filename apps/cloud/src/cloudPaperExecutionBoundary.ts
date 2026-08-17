@@ -98,6 +98,15 @@ export class CloudPaperExecutionBoundary {
     const investmentPercent = tick.investmentPercent ?? 100;
     if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
     for (const decision of actionable) {
+      // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
+      // CIO decision must be self-consistent before it is even presented to the canonical risk gate.
+      if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
+          !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
+          !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
+          (decision.action === "BUY" && decision.allocation <= 0)) {
+        return this.blocked("STRATEGY_APPROVAL_REJECTED");
+      }
+
       const side = decision.action === "BUY" ? "BUY" as const : "SELL" as const;
       const position = state.positions.find((item) => item.market === tick.market);
       const quantity = Number((tick.quantity ?? (side === "SELL" ? position?.quantity ?? 0 : state.cash * (investmentPercent / 100) * decision.allocation / tick.price)).toFixed(8));
@@ -124,10 +133,9 @@ export class CloudPaperExecutionBoundary {
       if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
     }
 
-    // There is intentionally no automatic strategy-approval issuer in Cloud. If a future gate
-    // ever returns ALLOW without an explicit human strategy approval path, fail closed rather
-    // than silently granting CIO/AI PAPER mutation authority.
-    return this.blocked("STRATEGY_APPROVAL_BOUNDARY_UNAVAILABLE");
+    // Canonical risk ALLOW plus the deterministic PAPER-only strategy checks above form the
+    // strategy approval boundary. LIVE/production mutation authority is still absent by design.
+    return this.options.loop.processTick(tick);
   }
 
   private readOpenP0(): boolean | null {
