@@ -94,20 +94,20 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
   master: Object.freeze({
     name: "master" as const,
     dark: Object.freeze({
-      background: "#020308", surface: "#080B12", surfaceRaised: "#0E1320", surfaceSunken: "#05070C",
-      text: "#F7F8FB", textMuted: "#8A93A3", primary: "#FFFFFF", primarySoft: "#151126", onPrimary: "#05060A",
-      navSurface: "#05070C", border: "#171D2A", borderStrong: "#313A50", info: "#96A5BE", focus: "#FFFFFF",
-      neonGlow: "rgba(123, 92, 255, 0.28)",
+      background: "#0A0B0E", surface: "#101216", surfaceRaised: "#16191F", surfaceSunken: "#0D0F12",
+      text: "#F2EFE6", textMuted: "#9DA2AA", primary: "#F2EFE6", primarySoft: "#24211B", onPrimary: "#0A0B0E",
+      navSurface: "#0D0F12", border: "#292D34", borderStrong: "#4A505A", info: "#B4BAC4", focus: "#F2EFE6",
+      neonGlow: "rgba(155, 108, 255, 0.14)",
     }),
     light: Object.freeze({
-      background: "#F7F8FA", surface: "#FFFFFF", surfaceRaised: "#F1F3F7", surfaceSunken: "#ECEFF4",
-      text: "#0C1017", textMuted: "#626C7A", primary: "#11131A", primarySoft: "#F0ECFF", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#D9DEE8", borderStrong: "#B9C1D0", info: "#566176", focus: "#11131A",
-      neonGlow: "rgba(123, 92, 255, 0.12)",
+      background: "#F1EEE6", surface: "#FAF8F2", surfaceRaised: "#E8E4DA", surfaceSunken: "#E2DDD1",
+      text: "#17181B", textMuted: "#59606A", primary: "#17181B", primarySoft: "#E5DFD1", onPrimary: "#FAF8F2",
+      navSurface: "#F7F4EC", border: "#CDC6B9", borderStrong: "#8F887C", info: "#4D5560", focus: "#17181B",
+      neonGlow: "rgba(155, 108, 255, 0.08)",
     }),
-    typography: Object.freeze({ micro: 10, caption: 12, body: 15, title: 22, heading: 32, display: 42, hero: 54 }),
-    layout: Object.freeze({ screenPadding: 18, sectionGap: 18, cardPadding: 18, heroRadius: 20 }),
-    radii: Object.freeze({ sm: 8, md: 12, lg: 18, xl: 26, full: 9999 as const }),
+    typography: Object.freeze({ micro: 9, caption: 11, body: 14, title: 20, heading: 29, display: 40, hero: 58 }),
+    layout: Object.freeze({ screenPadding: 14, sectionGap: 12, cardPadding: 16, heroRadius: 8 }),
+    radii: Object.freeze({ sm: 3, md: 5, lg: 8, xl: 12, full: 9999 as const }),
   }),
 });
 
