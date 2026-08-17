@@ -1,7 +1,7 @@
 id: WO-0056
 schema_version: 1
 title: "Read-only MCP gateway over existing NUSA relays"
-status: IN_PROGRESS
+status: VERIFYING
 priority: 90
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
@@ -58,8 +58,23 @@ completion_criteria:
   - "Mutation methods and unknown routes fail closed."
   - "Secrets are absent from client-visible responses, logs, source fixtures, and build artifacts."
   - "Exact-head required checks pass."
-  - "External deployment and ChatGPT calls are separately evidenced; absent evidence leaves status PENDING."
+  - "External deployment and ChatGPT calls are separately evidenced; absent evidence leaves external closeout PENDING."
+repository_completion:
+  pull_request: 538
+  head_commit: fffed2c3e37ca6acd4e61646c4419f932e2773c3
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  merged: true
+  exact_head_ci: PASS
+  read_only_broker: PASS
+  restricted_live_activation: PASS
+  restricted_live_capability: PASS
+  restricted_live_transport: PASS
+  implementation: COMPLETE
+external_verification:
+  stable_https_deployment: PENDING_AUTHORITY
+  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
+  scope: "External evidence only; it must not reopen or invalidate the merged repository implementation."
 blockers:
-  - "Stable Oracle/HTTPS deployment origin and ChatGPT connector access require external authority/evidence."
-current_status: "Repository MCP adapter and focused tests pass; local full isolated coverage is blocked only by the pre-existing Windows symlink privilege fixture, while external stable HTTPS deployment and ChatGPT connection remain unverified."
-next_action: "Commit, publish a separate PR, run exact-head CI and required safety checks, then obtain external deployment and ChatGPT read evidence without claiming either prematurely."
+  - "Stable Oracle/HTTPS deployment origin and ChatGPT connector access require external human authority/evidence for external closeout only."
+current_status: "Repository implementation is merged and exact-head CI/safety checks passed. WO-0056 remains VERIFYING only for stable HTTPS deployment and actual ChatGPT connection evidence, which are human-environment-only and do not serialize permitted non-LIVE successors."
+next_action: "Do not reopen repository implementation. Obtain external deployment and ChatGPT read evidence only when human authority/environment is available; otherwise keep those evidence gates pending while permitted non-LIVE successors continue under independent fail-closed contracts."
