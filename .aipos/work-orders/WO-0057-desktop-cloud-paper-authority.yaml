@@ -1,0 +1,40 @@
+id: WO-0057
+title: "Desktop Cloud Canonical PAPER Authority Migration"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
+implementation_branch: agent/wo-0057-desktop-cloud-paper-authority
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary without introducing LIVE or real-money authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Desktop Cloud PAPER read projection"
+  - "Desktop Cloud PAPER order submission through canonical PAPER authority"
+  - "Desktop IPC cutover to main-process authenticated Cloud PAPER client"
+  - "Preserve existing PAPER safety, risk, audit, persistence, and fail-closed contracts"
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "withdrawal/transfer"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+children:
+  - id: WO-0057A
+    status: READY
+    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Merge + exact-head required checks PASS after canonical Desktop Cloud PAPER read/write cutover is complete. WO-0057A must first provide the approved Desktop session boundary."
