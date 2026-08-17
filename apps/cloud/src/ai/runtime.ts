@@ -303,7 +303,11 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
       maxCumulativeOutputTokens: 24_576,
       maxInputBytes: 1024 * 1024,
       maxWallClockMs: 90_000,
-      requireUsageAccounting: true
+      // Left at the DEFAULT_AI_INFERENCE_BUDGET_POLICY value (false). This
+      // orchestration budget exists to fix output-token/timeout truncation, not to
+      // add a usage-accounting requirement -- that's an independent decision this
+      // change never intended to make.
+      requireUsageAccounting: false
     })
   });
   const environmentPool = options.nVersionEvaluator === undefined ? createNVersionProviderPoolFromEnvironment(env) : null;
