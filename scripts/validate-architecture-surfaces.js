@@ -2,16 +2,40 @@ const { existsSync, readFileSync, readdirSync, statSync } = require("node:fs");
 const { join, relative } = require("node:path");
 
 const MANIFEST_PATH = "config/architecture/surfaces.json";
+const PAPER_AUTHORITY_BINDINGS = Object.freeze({
+  desktopLocalSimulation: Object.freeze({
+    path: "apps/desktop/src/main.ts",
+    marker: "new PaperBroker(",
+    authority: "LOCAL_PAPER_SIMULATION"
+  }),
+  cloudCanonicalWriter: Object.freeze({
+    path: "apps/cloud/src/runtime.ts",
+    marker: "new CloudPaperExecutionBoundary(",
+    authority: "CANONICAL_PAPER_WRITER"
+  }),
+  cloudCommandIngress: Object.freeze({
+    path: "apps/cloud/src/server.ts",
+    marker: "req.url === \"/api/paper-orders\"",
+    authority: "CANONICAL_PAPER_COMMAND_INGRESS"
+  })
+});
 const DISCOVERY_RULES = Object.freeze([
   { marker: "ipcMain.handle(", roots: ["apps/desktop/src"] },
   { marker: "contextBridge.exposeInMainWorld(", roots: ["apps/desktop/src"] },
   { marker: "registrar.handle(", roots: ["apps/desktop/src"] },
   { marker: "http.createServer(", roots: ["apps/desktop/src", "apps/cloud/src"] },
+  { marker: PAPER_AUTHORITY_BINDINGS.desktopLocalSimulation.marker, paths: [PAPER_AUTHORITY_BINDINGS.desktopLocalSimulation.path] },
+  { marker: PAPER_AUTHORITY_BINDINGS.cloudCanonicalWriter.marker, paths: [PAPER_AUTHORITY_BINDINGS.cloudCanonicalWriter.path] },
+  { marker: PAPER_AUTHORITY_BINDINGS.cloudCommandIngress.marker, paths: [PAPER_AUTHORITY_BINDINGS.cloudCommandIngress.path] },
   { marker: "process.argv.slice(2)", paths: ["scripts/nusa.js"] }
 ]);
 
 function normalize(path) {
   return path.replaceAll("\\", "/");
+}
+
+function normalizedSurfacePath(surface) {
+  return typeof surface?.path === "string" ? normalize(surface.path) : "";
 }
 
 function sourceFiles(root, relativeRoot) {
@@ -72,7 +96,47 @@ function loadManifest(root, failures) {
   }
 }
 
-function validateArchitectureSurfaces(root = process.cwd()) {
+function validatePaperAuthorityTopology(surfaces, failures) {
+  const canonicalWriters = surfaces.filter((surface) => surface?.authority === "CANONICAL_PAPER_WRITER");
+  if (canonicalWriters.length !== 1) {
+    failures.push(`ARCH_SURFACE_CANONICAL_PAPER_WRITER_COUNT:${canonicalWriters.length}`);
+  } else {
+    const path = normalizedSurfacePath(canonicalWriters[0]);
+    if (!path.startsWith("apps/cloud/")) failures.push(`ARCH_SURFACE_CANONICAL_PAPER_WRITER_SCOPE:${path || "unknown"}`);
+  }
+
+  const canonicalIngress = surfaces.filter((surface) => surface?.authority === "CANONICAL_PAPER_COMMAND_INGRESS");
+  if (canonicalIngress.length !== 1) {
+    failures.push(`ARCH_SURFACE_CANONICAL_PAPER_INGRESS_COUNT:${canonicalIngress.length}`);
+  } else {
+    const path = normalizedSurfacePath(canonicalIngress[0]);
+    if (!path.startsWith("apps/cloud/")) failures.push(`ARCH_SURFACE_CANONICAL_PAPER_INGRESS_SCOPE:${path || "unknown"}`);
+  }
+
+  for (const surface of surfaces) {
+    const path = normalizedSurfacePath(surface);
+    const authority = typeof surface?.authority === "string" ? surface.authority : "";
+    if ((path.startsWith("apps/desktop/") || path.startsWith("apps/mobile/")) && authority.startsWith("CANONICAL_PAPER_")) {
+      failures.push(`ARCH_SURFACE_CLIENT_CANONICAL_PAPER_AUTHORITY:${path || "unknown"}:${authority}`);
+    }
+  }
+
+  for (const [name, expected] of Object.entries(PAPER_AUTHORITY_BINDINGS)) {
+    const matches = surfaces.filter((surface) => normalizedSurfacePath(surface) === expected.path && surface?.marker === expected.marker);
+    if (matches.length !== 1) {
+      failures.push(`ARCH_SURFACE_PAPER_AUTHORITY_BINDING_COUNT:${name}:${matches.length}`);
+      continue;
+    }
+    if (matches[0].authority !== expected.authority) {
+      failures.push(`ARCH_SURFACE_PAPER_AUTHORITY_BINDING_DRIFT:${name}:${matches[0].authority ?? "missing"}`);
+    }
+    if (matches[0].liveAuthority !== "NONE" || matches[0].productionMutationAllowed !== false || matches[0].credentialExecutionAllowed !== false) {
+      failures.push(`ARCH_SURFACE_PAPER_AUTHORITY_SAFETY_DRIFT:${name}`);
+    }
+  }
+}
+
+function validateArchitectureSurfaces(root = process.cwd(), options = {}) {
   const failures = [];
   const manifest = loadManifest(root, failures);
   if (manifest.version !== 1) failures.push("ARCH_SURFACE_MANIFEST_VERSION_INVALID");
@@ -82,6 +146,7 @@ function validateArchitectureSurfaces(root = process.cwd()) {
 
   const surfaces = Array.isArray(manifest.surfaces) ? manifest.surfaces : [];
   if (!Array.isArray(manifest.surfaces)) failures.push("ARCH_SURFACE_LIST_INVALID");
+  if (options.requirePaperAuthorityTopology === true) validatePaperAuthorityTopology(surfaces, failures);
   const ids = new Set();
   const bindings = new Set();
   const registered = new Map();
@@ -142,7 +207,7 @@ function validateArchitectureSurfaces(root = process.cwd()) {
 }
 
 if (require.main === module) {
-  const result = validateArchitectureSurfaces();
+  const result = validateArchitectureSurfaces(process.cwd(), { requirePaperAuthorityTopology: true });
   if (!result.ok) {
     console.error("Architecture surface governance validation FAILED");
     for (const failure of result.failures) console.error(`- ${failure}`);
@@ -151,4 +216,4 @@ if (require.main === module) {
   console.log(`Architecture surface governance validation PASS (${result.discovered.length} governed owners)`);
 }
 
-module.exports = { DISCOVERY_RULES, MANIFEST_PATH, discoverSurfaceOwners, validateArchitectureSurfaces };
+module.exports = { DISCOVERY_RULES, MANIFEST_PATH, PAPER_AUTHORITY_BINDINGS, discoverSurfaceOwners, validateArchitectureSurfaces, validatePaperAuthorityTopology };
