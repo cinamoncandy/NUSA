@@ -2,15 +2,25 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createTheme } = require("../dist/apps/mobile/src/designSystem.js");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile", file), "utf8");
 
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
-  const design = read("src/designSystem.ts");
+  const classic = createTheme("dark", "classic");
+  const master = createTheme("dark", "master");
   const primitives = read("src/uxPrimitives.tsx");
-  assert.match(design, /background: dark \? "#05070D"/);
-  assert.match(design, /navSurface: dark \? "#080D17"/);
-  assert.match(design, /chartUp: dark \? "#48D6C0"/);
+
+  assert.equal(classic.preset, "classic");
+  assert.equal(master.preset, "master");
+  assert.notEqual(master.colors.background, classic.colors.background);
+  assert.notEqual(master.colors.surface, classic.colors.surface);
+  assert.notEqual(master.colors.navSurface, classic.colors.navSurface);
+  assert.notEqual(master.typography.hero, classic.typography.hero);
+  assert.notEqual(master.typography.heading, classic.typography.heading);
+  assert.notEqual(master.layout.screenPadding, classic.layout.screenPadding);
+  assert.notEqual(master.layout.sectionGap, classic.layout.sectionGap);
+  assert.equal(master.colors.chartUp, "#36D8CB");
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
