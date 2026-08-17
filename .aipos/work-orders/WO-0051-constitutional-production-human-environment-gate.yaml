@@ -7,6 +7,38 @@ base_branch: main
 base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
 implementation_branch: main
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
+constitutional_authority:
+  project_classification: PRIVATE_PERSONAL_USE
+  sole_final_human_authority: OWNER
+  owner_approval_required_for:
+    - production_transition
+    - restricted_live_activation
+    - rollback
+    - risk_envelope_change
+    - scale_change
+    - constitutional_decision
+  approval_evidence_required:
+    - exact_code_sha
+    - exact_configuration
+    - exact_scope
+    - exact_risk_envelope
+    - rollback_procedure
+    - timestamp
+    - explicit_owner_approval_statement
+  absent_evidence: fail_closed
+serialization_scope:
+  blocked:
+    - "LIVE broker activation or execution-transport connection"
+    - "real-money order, cancel, withdrawal, or transfer authority"
+    - "productionMutationAllowed=true or liveAuthority != NONE"
+    - "tiny LIVE ceremony, LIVE session, or LIVE risk-envelope expansion"
+  allowed_under_gate:
+    - "PAPER-only implementation and execution"
+    - "read-only backend, MCP, broker, and dashboard integrations"
+    - "mobile authentication, secure session, and secure storage infrastructure"
+    - "UI/UX, tests, audits, and non-LIVE architecture work"
+    - "deployment and operations that preserve liveAuthority=NONE and productionMutationAllowed=false"
+  invariant: "Allowed work must remain fail-closed, read-only or PAPER-only, and must not satisfy, weaken, or bypass the human LIVE transition gate."
 product_scope:
   classification: PRIVATE_PERSONAL_USE
   evidence: "Product scope explicitly changed to private/personal use; no public Windows binary distribution."
@@ -40,7 +72,7 @@ source_of_truth:
     - docs/release/constitutional-human-transition-runbook.md
 architecture_impact:
   acknowledged: true
-  analysis: "WO-0051 remains a terminal human/environment gate. P7 durable Cloud P0 fill-boundary enforcement and P8 Private Read-only Runtime Session are complete and exact-head tested. Private mobile read-only operations use memory-only credentials, require HTTPS for non-loopback bearer transport, expose verified PAPER portfolio/order/public-ticker projections, and preserve durable P0 HALTED/FAIL_CLOSED behavior without granting LIVE or production authority."
+  analysis: "WO-0051 remains a terminal human/environment gate for LIVE and real-money transition only. PAPER, read-only, mobile-auth, secure-session, UI/UX, and non-LIVE architecture work may proceed when their own safety contracts hold. P7 durable Cloud P0 fill-boundary enforcement and P8 Private Read-only Runtime Session are complete and exact-head tested."
   references:
     - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
     - docs/NUSA_AI_ARCHITECTURE_V1.md
@@ -50,19 +82,19 @@ architecture_impact:
 requirements:
   - "If public Windows distribution is enabled, obtain an exact production artifact with independently verified signing evidence bound to the sealed release candidate."
   - "Configure operator-controlled read-only broker credentials with no execution/withdraw permissions and run the external read-only preflight only after explicit operator authorization."
-  - "Conduct the real activation ceremony with the required distinct human requester and two distinct human approvers bound to exact code/config/scope/rollback evidence."
+  - "Obtain explicit OWNER approval for any production/LIVE transition, bound to exact code/config/scope/risk-envelope/rollback evidence and timestamp; AI and automation cannot approve or infer OWNER consent."
   - "Any actual tiny Restricted LIVE session requires a separate explicit constitutional human decision and remains bounded by the approved tiny envelope."
   - "After any separately authorized tiny session, require closed execution transport plus clean order/fill/position/cash reconciliation, hard-risk, HALT, audit, and post-trade evidence."
-  - "Any risk increase requires a new exact proposal plus separate two-human scale-governance approval."
+  - "Any risk or scale increase requires a new exact proposal plus explicit OWNER approval bound to the changed envelope and rollback evidence."
   - "Assemble only EXTERNAL_HUMAN_VERIFIED evidence into the constitutional transition packet; SYNTHETIC_CI evidence cannot satisfy the gate."
   - "The final production/LIVE decision remains human-only even when the packet becomes READY_FOR_CONSTITUTIONAL_HUMAN_REVIEW."
   - "Never store raw credentials, private keys, bearer tokens, raw signatures, account balances, executable authorization tokens, or full order payloads in AIPOS evidence."
 acceptance:
   - "If public Windows distribution is enabled, signed production artifact evidence is genuine and independently verified."
   - "Actual external read-only preflight receipt exists and is bound to exact code/config/release/envelope identity."
-  - "Actual human ceremony evidence exists with required independent human approvals."
+  - "Actual OWNER approval evidence exists with all required exact bindings."
   - "If a separately authorized tiny LIVE session occurs, its post-LIVE evidence validates cleanly before any progression."
-  - "Any scale change has its own exact two-human governance evidence."
+  - "Any scale change has its own exact OWNER approval evidence."
   - "Constitutional transition packet uses EXTERNAL_HUMAN_VERIFIED provenance for every required slot and becomes eligible for human review."
   - "A separate constitutional human decision explicitly authorizes any production/LIVE transition; automation never infers it."
 safety:
