@@ -12,11 +12,12 @@ const ticker = (overrides = {}) => ({
   ...overrides
 });
 
-test("maps an Upbit ticker to stable, bounded intelligence evidence", () => {
+test("maps an Upbit ticker to stable, bounded, market-scoped intelligence evidence", () => {
   const observation = upbitTickerToIntelligenceObservation(ticker(), { now: 10_000, staleWindowMs: 2_000 });
   assert.deepEqual(observation, {
     id: "KRW-BTC:9000",
     source: "CHART",
+    market: "KRW-BTC",
     sentiment: 0.0123,
     confidence: 0.25,
     observedAt: 9000,
