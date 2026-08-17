@@ -34,6 +34,10 @@ function normalize(path) {
   return path.replaceAll("\\", "/");
 }
 
+function normalizedSurfacePath(surface) {
+  return typeof surface?.path === "string" ? normalize(surface.path) : "";
+}
+
 function sourceFiles(root, relativeRoot) {
   const absoluteRoot = join(root, relativeRoot);
   if (!existsSync(absoluteRoot)) return [];
@@ -97,7 +101,7 @@ function validatePaperAuthorityTopology(surfaces, failures) {
   if (canonicalWriters.length !== 1) {
     failures.push(`ARCH_SURFACE_CANONICAL_PAPER_WRITER_COUNT:${canonicalWriters.length}`);
   } else {
-    const path = normalize(canonicalWriters[0].path ?? "");
+    const path = normalizedSurfacePath(canonicalWriters[0]);
     if (!path.startsWith("apps/cloud/")) failures.push(`ARCH_SURFACE_CANONICAL_PAPER_WRITER_SCOPE:${path || "unknown"}`);
   }
 
@@ -105,12 +109,12 @@ function validatePaperAuthorityTopology(surfaces, failures) {
   if (canonicalIngress.length !== 1) {
     failures.push(`ARCH_SURFACE_CANONICAL_PAPER_INGRESS_COUNT:${canonicalIngress.length}`);
   } else {
-    const path = normalize(canonicalIngress[0].path ?? "");
+    const path = normalizedSurfacePath(canonicalIngress[0]);
     if (!path.startsWith("apps/cloud/")) failures.push(`ARCH_SURFACE_CANONICAL_PAPER_INGRESS_SCOPE:${path || "unknown"}`);
   }
 
   for (const surface of surfaces) {
-    const path = normalize(typeof surface?.path === "string" ? surface.path : "");
+    const path = normalizedSurfacePath(surface);
     const authority = typeof surface?.authority === "string" ? surface.authority : "";
     if ((path.startsWith("apps/desktop/") || path.startsWith("apps/mobile/")) && authority.startsWith("CANONICAL_PAPER_")) {
       failures.push(`ARCH_SURFACE_CLIENT_CANONICAL_PAPER_AUTHORITY:${path || "unknown"}:${authority}`);
@@ -118,7 +122,7 @@ function validatePaperAuthorityTopology(surfaces, failures) {
   }
 
   for (const [name, expected] of Object.entries(PAPER_AUTHORITY_BINDINGS)) {
-    const matches = surfaces.filter((surface) => normalize(surface?.path ?? "") === expected.path && surface?.marker === expected.marker);
+    const matches = surfaces.filter((surface) => normalizedSurfacePath(surface) === expected.path && surface?.marker === expected.marker);
     if (matches.length !== 1) {
       failures.push(`ARCH_SURFACE_PAPER_AUTHORITY_BINDING_COUNT:${name}:${matches.length}`);
       continue;
@@ -132,7 +136,7 @@ function validatePaperAuthorityTopology(surfaces, failures) {
   }
 }
 
-function validateArchitectureSurfaces(root = process.cwd()) {
+function validateArchitectureSurfaces(root = process.cwd(), options = {}) {
   const failures = [];
   const manifest = loadManifest(root, failures);
   if (manifest.version !== 1) failures.push("ARCH_SURFACE_MANIFEST_VERSION_INVALID");
@@ -142,7 +146,7 @@ function validateArchitectureSurfaces(root = process.cwd()) {
 
   const surfaces = Array.isArray(manifest.surfaces) ? manifest.surfaces : [];
   if (!Array.isArray(manifest.surfaces)) failures.push("ARCH_SURFACE_LIST_INVALID");
-  validatePaperAuthorityTopology(surfaces, failures);
+  if (options.requirePaperAuthorityTopology === true) validatePaperAuthorityTopology(surfaces, failures);
   const ids = new Set();
   const bindings = new Set();
   const registered = new Map();
@@ -203,7 +207,7 @@ function validateArchitectureSurfaces(root = process.cwd()) {
 }
 
 if (require.main === module) {
-  const result = validateArchitectureSurfaces();
+  const result = validateArchitectureSurfaces(process.cwd(), { requirePaperAuthorityTopology: true });
   if (!result.ok) {
     console.error("Architecture surface governance validation FAILED");
     for (const failure of result.failures) console.error(`- ${failure}`);
