@@ -32,6 +32,7 @@ export function upbitTickerToIntelligenceObservation(
   return Object.freeze({
     id: `${ticker.code}:${ticker.trade_timestamp}`,
     source: "CHART" as const,
+    market: ticker.code,
     sentiment: round4(clamp(signedChangeRate, -1, 1)),
     confidence,
     observedAt: ticker.trade_timestamp,
