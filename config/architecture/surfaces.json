@@ -18,6 +18,17 @@
       "credentialExecutionAllowed": false
     },
     {
+      "id": "desktop-cloud-paper-client-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/desktopCloudPaperIpc.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS_TO_AUTHENTICATED_CLOUD_PAPER",
+      "authority": "PAPER_CLIENT_COMMAND_QUERY_BRIDGE",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
       "id": "desktop-local-paper-simulation",
       "kind": "LOCAL_PAPER_SIMULATION_WRITER",
       "path": "apps/desktop/src/main.ts",
