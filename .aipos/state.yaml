@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-16T00:40:00+09:00"
-phase: mcp-read-only-gateway
+updated_at: "2026-08-17T23:18:00+09:00"
+phase: desktop-cloud-paper-authority-migration
 status: in_progress
-objective: "Implement WO-0056 as an authenticated read-only MCP adapter over existing NUSA relays; preserve PAPER-only authority and leave deployment/ChatGPT connection unclaimed without evidence."
+objective: "Move Desktop manual PAPER command and account truth to the existing authenticated Cloud canonical PAPER runtime with one writer, one account truth, no implicit local fallback, and no LIVE authority."
 base_branch: main
-active_branch: agent/issue-mcp-readonly-gateway
-active_pull_request: 538
-base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+active_branch: agent/wo-0057-desktop-cloud-paper-authority
+active_pull_request: 552
+base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -32,11 +32,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0056
+  work_order: WO-0057
   status: IN_PROGRESS
-  branch: agent/issue-mcp-readonly-gateway
-  base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
-  scope: "Authenticated read-only MCP adapter over existing dashboard, PAPER operations, and Upbit read-only relays; no candle tool because no existing endpoint was found."
+  branch: agent/wo-0057-desktop-cloud-paper-authority
+  base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
+  scope: "Desktop manual PAPER write/read migration to the existing authenticated Cloud canonical PAPER runtime; local simulation remains explicit only and automatic strategy execution remains deferred."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -325,9 +325,9 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0056
-    evidence: ".aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml"
-    summary: "Read-only MCP adapter implementation is in progress; external stable HTTPS deployment and ChatGPT connection remain unverified."
+  - id: WO-0057
+    evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
+    summary: "Desktop manual PAPER migration is in progress using the existing Cloud stable-user paper:trade contract; WO-0056 external HTTPS/ChatGPT verification remains parked and non-serializing."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -354,8 +354,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
-  reason: "Continue the authenticated read-only MCP adapter and external evidence work without claiming deployment or ChatGPT connection; non-LIVE successors remain eligible under independent fail-closed contracts."
+  work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+  reason: "Finish Desktop Cloud-only manual PAPER read/write cutover, no-fallback production E2E, exact-head verification, main synchronization, and merge before any automatic strategy migration."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
