@@ -6,6 +6,9 @@ import { createTheme, type DesignPresetName, type Theme, type ThemeMode } from "
 export type ThemePreference = ThemeMode | "system";
 
 const DESIGN_PRESET_STORAGE_KEY = "nusa:design-preset";
+const DESIGN_PRESET_SCHEMA_KEY = "nusa:design-preset-schema";
+const DESIGN_PRESET_SCHEMA_VERSION = "2";
+const CURRENT_DEFAULT_PRESET: DesignPresetName = "master";
 const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "classic" || value === "master";
 
 interface ThemeContextValue {
@@ -19,7 +22,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initialMode = "dark", initialPreset = "master" }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference; initialPreset?: DesignPresetName }>) {
+export function ThemeProvider({ children, initialMode = "dark", initialPreset = CURRENT_DEFAULT_PRESET }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference; initialPreset?: DesignPresetName }>) {
   const colorScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialMode);
   const [preset, setPresetState] = useState<DesignPresetName>(initialPreset);
@@ -28,15 +31,30 @@ export function ThemeProvider({ children, initialMode = "dark", initialPreset = 
   useEffect(() => { setPresetState(initialPreset); }, [initialPreset]);
   useEffect(() => {
     let active = true;
-    void AsyncStorage.getItem(DESIGN_PRESET_STORAGE_KEY).then((stored) => {
-      if (active && isDesignPresetName(stored)) setPresetState(stored);
+    void Promise.all([
+      AsyncStorage.getItem(DESIGN_PRESET_STORAGE_KEY),
+      AsyncStorage.getItem(DESIGN_PRESET_SCHEMA_KEY),
+    ]).then(([storedPreset, storedSchema]) => {
+      if (!active) return;
+      if (storedSchema !== DESIGN_PRESET_SCHEMA_VERSION) {
+        setPresetState(CURRENT_DEFAULT_PRESET);
+        void Promise.all([
+          AsyncStorage.setItem(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET),
+          AsyncStorage.setItem(DESIGN_PRESET_SCHEMA_KEY, DESIGN_PRESET_SCHEMA_VERSION),
+        ]).catch(() => undefined);
+        return;
+      }
+      if (isDesignPresetName(storedPreset)) setPresetState(storedPreset);
     }).catch(() => undefined);
     return () => { active = false; };
   }, []);
 
   const setPreset = useCallback((next: DesignPresetName): void => {
     setPresetState(next);
-    void AsyncStorage.setItem(DESIGN_PRESET_STORAGE_KEY, next).catch(() => undefined);
+    void Promise.all([
+      AsyncStorage.setItem(DESIGN_PRESET_STORAGE_KEY, next),
+      AsyncStorage.setItem(DESIGN_PRESET_SCHEMA_KEY, DESIGN_PRESET_SCHEMA_VERSION),
+    ]).catch(() => undefined);
   }, []);
 
   const mode: ThemeMode = preference === "system" ? (colorScheme === "light" ? "light" : "dark") : preference;
