@@ -18,6 +18,16 @@ serialized_human_environment_gate:
   status: IN_PROGRESS
   mode: HUMAN_ENVIRONMENT_ONLY
   bypass: prohibited
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_successors:
+    - PAPER_ONLY
+    - READ_ONLY
+    - MOBILE_AUTH_AND_SECURE_SESSION
+    - UI_UX_AND_NON_LIVE_ARCHITECTURE
+  blocked_successors:
+    - LIVE_ACTIVATION
+    - REAL_MONEY_MUTATION
+    - LIVE_RISK_ENVELOPE_EXPANSION
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -39,4 +49,4 @@ verification:
   chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
 blockers:
   - STABLE_HTTPS_MCP_DEPLOYMENT_AND_CHATGPT_CONNECTION_EVIDENCE_REQUIRED
-next_recommended_task: "Implement and test the repository-local read-only MCP adapter; do not claim deployment or ChatGPT connectivity."
+next_recommended_task: "Continue WO-0056 external evidence without claiming deployment or ChatGPT connectivity; PAPER, read-only, mobile-auth, and other non-LIVE successors are permitted under their own fail-closed contracts."
