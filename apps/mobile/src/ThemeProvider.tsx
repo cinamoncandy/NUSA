@@ -1,8 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
 import { createTheme, type DesignPresetName, type Theme, type ThemeMode } from "./designSystem";
 
 export type ThemePreference = ThemeMode | "system";
+
+const DESIGN_PRESET_STORAGE_KEY = "nusa:design-preset";
+const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "classic" || value === "master";
 
 interface ThemeContextValue {
   readonly mode: ThemeMode;
@@ -18,12 +22,26 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children, initialMode = "dark", initialPreset = "master" }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference; initialPreset?: DesignPresetName }>) {
   const colorScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialMode);
-  const [preset, setPreset] = useState<DesignPresetName>(initialPreset);
+  const [preset, setPresetState] = useState<DesignPresetName>(initialPreset);
+
   useEffect(() => { setPreference(initialMode); }, [initialMode]);
-  useEffect(() => { setPreset(initialPreset); }, [initialPreset]);
+  useEffect(() => { setPresetState(initialPreset); }, [initialPreset]);
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(DESIGN_PRESET_STORAGE_KEY).then((stored) => {
+      if (active && isDesignPresetName(stored)) setPresetState(stored);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const setPreset = useCallback((next: DesignPresetName): void => {
+    setPresetState(next);
+    void AsyncStorage.setItem(DESIGN_PRESET_STORAGE_KEY, next).catch(() => undefined);
+  }, []);
+
   const mode: ThemeMode = preference === "system" ? (colorScheme === "light" ? "light" : "dark") : preference;
   const theme = useMemo(() => createTheme(mode, preset), [mode, preset]);
-  const value = useMemo(() => Object.freeze({ mode, preference, preset, theme, setMode: setPreference, setPreset }), [mode, preference, preset, theme]);
+  const value = useMemo(() => Object.freeze({ mode, preference, preset, theme, setMode: setPreference, setPreset }), [mode, preference, preset, theme, setPreset]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
