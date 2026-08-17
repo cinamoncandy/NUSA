@@ -3,6 +3,8 @@ import type { CioSignal, SignalSource } from "./cioDecisionEngine";
 export interface IntelligenceObservation {
   readonly id: string;
   readonly source: SignalSource;
+  /** Optional canonical market identity for market-scoped observations. */
+  readonly market?: string;
   readonly sentiment: number;
   readonly confidence: number;
   readonly observedAt: number;
@@ -36,6 +38,9 @@ export function fuseMarketIntelligence(now: number, observations: readonly Intel
     if (!observation.id.trim()) throw new Error("observation.id is required");
     if (ids.has(observation.id)) throw new Error(`duplicate observation id: ${observation.id}`);
     ids.add(observation.id);
+    if (observation.market !== undefined && !/^KRW-[A-Z0-9-]+$/.test(observation.market.trim().toUpperCase())) {
+      throw new Error("observation.market is invalid");
+    }
     assertSentiment(observation.sentiment);
     assertUnit(observation.confidence, "observation.confidence");
     if (!Number.isSafeInteger(observation.observedAt) || observation.observedAt < 0 || observation.observedAt > now) {
