@@ -152,7 +152,7 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       borderStrong: palette.borderStrong,
       success: dark ? "#36D8CB" : preset.name === "master" ? "#0F6843" : "#147A50",
       warning: dark ? "#E5C06C" : "#8D681B",
-      danger: dark ? "#F17A94" : "#B83249",
+      danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
       info: palette.info,
       onDanger: dark ? "#11151B" : "#FFFFFF",
       focus: palette.focus,
