@@ -12,7 +12,18 @@
       "path": "apps/desktop/src/main.ts",
       "marker": "ipcMain.handle(",
       "access": "LOCAL_PROCESS",
-      "authority": "PAPER_LOCAL_CONTROL",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-local-paper-simulation",
+      "kind": "LOCAL_PAPER_SIMULATION_WRITER",
+      "path": "apps/desktop/src/main.ts",
+      "marker": "new PaperBroker(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION",
       "liveAuthority": "NONE",
       "productionMutationAllowed": false,
       "credentialExecutionAllowed": false
@@ -55,8 +66,30 @@
       "kind": "CLOUD_HTTP",
       "path": "apps/cloud/src/server.ts",
       "marker": "http.createServer(",
-      "access": "AUTHENTICATED_GET_ONLY",
-      "authority": "READ_ONLY",
+      "access": "AUTHENTICATED_LOCALHOST_HTTP",
+      "authority": "BOUNDED_HTTP_ROUTER",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "cloud-paper-command-ingress",
+      "kind": "PAPER_COMMAND_INGRESS",
+      "path": "apps/cloud/src/server.ts",
+      "marker": "req.url === \"/api/paper-orders\"",
+      "access": "AUTHENTICATED_PAPER_COMMAND",
+      "authority": "CANONICAL_PAPER_COMMAND_INGRESS",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "cloud-canonical-paper-writer",
+      "kind": "PAPER_MUTATION_BOUNDARY",
+      "path": "apps/cloud/src/runtime.ts",
+      "marker": "new CloudPaperExecutionBoundary(",
+      "access": "INTERNAL_RUNTIME",
+      "authority": "CANONICAL_PAPER_WRITER",
       "liveAuthority": "NONE",
       "productionMutationAllowed": false,
       "credentialExecutionAllowed": false
