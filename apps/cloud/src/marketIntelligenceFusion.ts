@@ -8,6 +8,9 @@ export interface IntelligenceObservation {
   readonly sentiment: number;
   /** Original exchange return, retained as evidence beside the normalized score. */
   readonly rawChangeRate?: number;
+  /** Optional deterministic normalization identity for replay/audit. */
+  readonly normalizationPolicyId?: string;
+  readonly normalizationPolicyFingerprint?: string;
   readonly confidence: number;
   readonly observedAt: number;
   readonly expiresAt: number;
@@ -42,6 +45,16 @@ export function fuseMarketIntelligence(now: number, observations: readonly Intel
     ids.add(observation.id);
     if (observation.market !== undefined && !/^KRW-[A-Z0-9-]+$/.test(observation.market.trim().toUpperCase())) {
       throw new Error("observation.market is invalid");
+    }
+    if (observation.rawChangeRate !== undefined && !Number.isFinite(observation.rawChangeRate)) {
+      throw new Error("observation.rawChangeRate must be finite");
+    }
+    const hasPolicyId = observation.normalizationPolicyId !== undefined;
+    const hasPolicyFingerprint = observation.normalizationPolicyFingerprint !== undefined;
+    if (hasPolicyId !== hasPolicyFingerprint) throw new Error("observation normalization policy identity is incomplete");
+    if (hasPolicyId && !observation.normalizationPolicyId!.trim()) throw new Error("observation normalization policy id is invalid");
+    if (hasPolicyFingerprint && !/^[a-f0-9]{64}$/.test(observation.normalizationPolicyFingerprint!)) {
+      throw new Error("observation normalization policy fingerprint is invalid");
     }
     assertSentiment(observation.sentiment);
     assertUnit(observation.confidence, "observation.confidence");
