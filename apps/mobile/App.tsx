@@ -107,7 +107,7 @@ function AuthenticatedApp() {
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   // App works with public market data (Upbit WebSocket) from startup; PAPER server is optional
-  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });
+  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER server is not connected. Public market data only." });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
@@ -169,7 +169,7 @@ function AuthenticatedApp() {
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
       // Emit a read-only mode signal but continue operation with public markets only
       dispatchRuntime({ type: "NETWORK_OFFLINE" });
-      setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] });
+      setOperations({ status: "NOT_CONFIGURED", reason: "PAPER server is not connected. Public market data only." });
       return Promise.resolve();
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
@@ -284,7 +284,7 @@ function AuthenticatedApp() {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; upbitRefreshGenerationRef.current += 1; credentialSession.clear(); upbitCredentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
     // Revert to public data only mode on sign out
-    setOperations({ status: "READY", snapshot: initialMobileRuntimeSnapshot().portfolio, orders: [] }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER server is not connected. Public market data only." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, upbitCredentialSession, signOut]);
 
   // Dispatches a human-originated order. AI analysis never reaches this path.
