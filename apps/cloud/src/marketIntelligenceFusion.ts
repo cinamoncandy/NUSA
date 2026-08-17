@@ -6,6 +6,8 @@ export interface IntelligenceObservation {
   /** Optional canonical market identity for market-scoped observations. */
   readonly market?: string;
   readonly sentiment: number;
+  /** Original exchange return, retained as evidence beside the normalized score. */
+  readonly rawChangeRate?: number;
   readonly confidence: number;
   readonly observedAt: number;
   readonly expiresAt: number;

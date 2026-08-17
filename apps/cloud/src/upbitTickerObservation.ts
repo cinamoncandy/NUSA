@@ -2,10 +2,22 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { UpbitTicker } from "./upbitWebSocket";
 
 export const DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS = 30_000;
+export const UPBIT_CHART_NORMALIZATION_POLICY = Object.freeze({
+  id: "CHART_NORMALIZATION_V1",
+  referenceMove: 0.03,
+  deadZone: 0.002,
+  maximumScore: 1
+});
 const MAX_QUOTE_TURNOVER_FOR_FULL_CONFIDENCE = 1_000_000_000;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
+
+export function normalizeUpbitChartChangeRate(rawChangeRate: number): number {
+  if (!Number.isFinite(rawChangeRate)) throw new Error("signed change rate must be finite");
+  if (Math.abs(rawChangeRate) <= UPBIT_CHART_NORMALIZATION_POLICY.deadZone) return 0;
+  return round4(clamp(rawChangeRate / UPBIT_CHART_NORMALIZATION_POLICY.referenceMove, -UPBIT_CHART_NORMALIZATION_POLICY.maximumScore, UPBIT_CHART_NORMALIZATION_POLICY.maximumScore));
+}
 
 export interface UpbitTickerObservationOptions {
   readonly now: number;
@@ -29,11 +41,13 @@ export function upbitTickerToIntelligenceObservation(
   const turnoverConfidence = clamp(turnover / MAX_QUOTE_TURNOVER_FOR_FULL_CONFIDENCE, 0, 1);
   const confidence = round4(freshness * turnoverConfidence);
   const signedPercent = round4(clamp(signedChangeRate, -1, 1) * 100);
+  const normalizedScore = normalizeUpbitChartChangeRate(signedChangeRate);
   return Object.freeze({
     id: `${ticker.code}:${ticker.trade_timestamp}`,
     source: "CHART" as const,
     market: ticker.code,
-    sentiment: round4(clamp(signedChangeRate, -1, 1)),
+    sentiment: normalizedScore,
+    rawChangeRate: signedChangeRate,
     confidence,
     observedAt: ticker.trade_timestamp,
     expiresAt: ticker.trade_timestamp + staleWindowMs,
