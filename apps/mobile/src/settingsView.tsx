@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DataRow, NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
+import type { DesignPresetName } from "./designSystem";
 import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
@@ -14,6 +15,7 @@ import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
+const designPresetItems = Object.freeze([{ key: "classic", label: "Classic" }, { key: "master", label: "Master" }]);
 const allocationPresets = Object.freeze([{ key: "25", label: "25%" }, { key: "50", label: "50%" }, { key: "75", label: "75%" }, { key: "100", label: "100%" }]);
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
 const money = (value: number): string => `₩${Math.round(value).toLocaleString("ko-KR")}`;
@@ -21,7 +23,7 @@ const actionFor = (user: OperatorUserRecord): readonly OperatorUserAction[] => u
 const actionLabel: Readonly<Record<OperatorUserAction, string>> = { APPROVE: "승인", REJECT: "거절", SUSPEND: "정지", RESTORE: "복구" };
 
 export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave, onInvestmentPercentChanged }: SettingsViewProps) {
-  const { theme, setMode } = useTheme();
+  const { theme, preset, setMode, setPreset } = useTheme();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,7 +103,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     catch (actionError) { setOperatorError(actionError instanceof Error ? actionError.message : "사용자 상태를 변경할 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
-  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
+  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; const previousPreset = preset; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); setPreset("master"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) { setMode(themePreference(previousTheme)); setPreset(previousPreset); } else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
   const signOutLocal = () => { if (!isBusyNow()) { setOperatorToken(""); onSignOut?.(); } };
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><InlineNotice title="설정을 불러올 수 없습니다" detail={error} tone="danger" /></View>;
@@ -132,7 +134,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <View style={styles.sectionBlock} testID="settings-capital-allocation"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>03 · CASH ALLOCATION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>현금 투자 비중</Text></View><Text style={[styles.allocationPercent, { color: theme.colors.primary }]}>{allocation.investmentPercent}%</Text></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>거래소 PAPER 현금 중 신규 매수에 사용할 최대 비중입니다. 나머지는 자동으로 보호 현금으로 남깁니다.</Text><View style={[styles.allocationTrack, { backgroundColor: theme.colors.border }]}><View style={[styles.allocationFill, { width: allocationWidth, backgroundColor: theme.colors.primary }]} /></View><View style={styles.allocationAmounts}><View><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>실제 투자 가능 금액</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.investableCash)}</Text></View><View style={styles.amountRight}><Text style={[styles.amountLabel, { color: theme.colors.textMuted }]}>보호되는 현금 금액</Text><Text style={[styles.amountValue, { color: theme.colors.text }]}>{money(allocation.reservedCash)}</Text></View></View><SegmentedControl disabled={busy} items={allocationPresets} selectedKey={selectedPreset} onChange={(key) => { setInvestmentPercentDraft(key); void saveInvestmentPercent(key); }} testID="settings-investment-allocation-presets" /><NusaTextField autoCorrect={false} editable={!busy} keyboardType="decimal-pad" label="직접 입력 (%)" value={investmentPercentDraft} onChangeText={setInvestmentPercentDraft} placeholder="0 - 100" returnKeyType="done" testID="settings-investment-percent" /><NusaButton disabled={busy} label={saving ? "저장 중..." : "투자 비중 저장"} onPress={() => void saveInvestmentPercent()} testID="settings-investment-percent-save" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>0%는 신규 매수를 막고 전액을 보호합니다. 매도·청산에는 이 한도를 적용하지 않습니다.</Text></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <View style={styles.sectionBlock} testID="settings-theme"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>04 · APPEARANCE</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>화면 테마</Text><SegmentedControl disabled={busy} items={themeItems} selectedKey={settings.theme} onChange={(key) => updateTheme(key as ThemeSetting)} testID="settings-theme-segmented-control" /></View>
+    <View style={styles.sectionBlock} testID="settings-theme"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>04 · APPEARANCE</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>화면 테마</Text><SegmentedControl disabled={busy} items={themeItems} selectedKey={settings.theme} onChange={(key) => updateTheme(key as ThemeSetting)} testID="settings-theme-segmented-control" /><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>디자인 프리셋</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>선택 즉시 전체 앱의 디자인 토큰이 다시 계산되며 재시작 후에도 유지됩니다.</Text><SegmentedControl disabled={busy} items={designPresetItems} selectedKey={preset} onChange={(key) => setPreset(key as DesignPresetName)} testID="settings-design-preset-segmented-control" /></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <View style={styles.sectionBlock} testID="settings-safety"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>05 · SAFETY & AUTHORITY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>안전 상태</Text></View><StatusChip label="READ ONLY" tone="info" /></View><NusaCard><DataRow label="운영 모드" value="PAPER" emphasis /><DataRow label="LIVE 주문" value="금지" tone="success" /><DataRow label="Production mutation" value="금지" tone="success" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다.</Text></NusaCard></View>
