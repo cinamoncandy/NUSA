@@ -209,7 +209,7 @@ async function loadUpbitOrders({ env, fetchImpl, scope = "open", uuid }) {
   let query = "";
   if (scope === "open") {
     url = ORDERS_OPEN_URL;
-    query = "states%5B%5D=wait&states%5B%5D=watch";
+    query = "states[]=wait&states[]=watch";
   } else if (scope === "history") {
     url = ORDERS_HISTORY_URL;
     query = "state=done&limit=100";
@@ -220,7 +220,8 @@ async function loadUpbitOrders({ env, fetchImpl, scope = "open", uuid }) {
     throw new Error("Invalid order query scope");
   }
   const jwt = createUpbitJwt(accessKey, secretKey, query);
-  const upstream = await fetchImpl(url + "?" + query, {
+  const requestQuery = scope === "open" ? "states%5B%5D=wait&states%5B%5D=watch" : query;
+  const upstream = await fetchImpl(url + "?" + requestQuery, {
     method: "GET",
     headers: {
       authorization: "Bearer " + jwt,
