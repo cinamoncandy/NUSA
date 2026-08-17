@@ -286,7 +286,7 @@ planning_gates:
       runtime_implementation_started: false
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened while runtime implementation remains prohibited before human/environment serialization clears."
+    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -332,7 +332,18 @@ serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
   status: IN_PROGRESS
-  reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
+  mode: HUMAN_ENVIRONMENT_ONLY
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate:
+    - PAPER_ONLY
+    - READ_ONLY
+    - MOBILE_AUTH_AND_SECURE_SESSION
+    - UI_UX_AND_NON_LIVE_ARCHITECTURE
+  blocked_under_gate:
+    - LIVE_ACTIVATION
+    - REAL_MONEY_MUTATION
+    - LIVE_RISK_ENVELOPE_EXPANSION
+  reason: "WO-0051 remains mandatory for LIVE and real-money transition; non-LIVE successors cannot satisfy, weaken, or bypass it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -344,7 +355,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
-  reason: "Implement and test the authenticated read-only MCP adapter over existing relays; do not claim external deployment or ChatGPT connection without evidence."
+  reason: "Continue the authenticated read-only MCP adapter and external evidence work without claiming deployment or ChatGPT connection; non-LIVE successors remain eligible under independent fail-closed contracts."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -353,17 +364,34 @@ verification:
     - "Preserve real-user PENDING -> APPROVED/SUSPENDED server-side authorization and OWNER-only users:manage"
     - "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence"
     - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
-    - "Separate constitutional human production/LIVE decision"
+    - "Actual OWNER approval evidence bound to exact code/config/scope/risk/rollback"
+    - "Separate explicit OWNER constitutional production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate two-human governance for any later risk increase"
+    - "Separate explicit OWNER approval for any later risk or scale increase"
   last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
   current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
+  project_classification: PRIVATE_PERSONAL_USE
+  sole_final_human_authority: OWNER
   live_trading_mutation: prohibited
   live_authority: human_only
-  constitutional_production_decision: human_only
-  risk_increase_approvers_required: 2
+  constitutional_production_decision: OWNER_ONLY
+  owner_approval_required_for:
+    - production_transition
+    - restricted_live_activation
+    - rollback
+    - risk_envelope_change
+    - scale_change
+    - constitutional_decision
+  owner_approval_bindings_required:
+    - exact_code_sha
+    - exact_configuration
+    - exact_scope
+    - exact_risk_envelope
+    - rollback_procedure
+    - timestamp
+    - explicit_approval_statement
+  absent_owner_evidence: fail_closed
   automatic_live_activation: prohibited
   automatic_scale_up: prohibited
   automatic_production_transition: prohibited
