@@ -136,7 +136,7 @@ test("runtime starts with a hydrated safe state", async () => {
   }
 });
 
-test("ticker hydration exposes a degraded read-only dashboard and stops the socket gracefully", async () => {
+test("ticker hydration exposes a healthy market-scoped PAPER dashboard and stops the socket gracefully", async () => {
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
   let onTicker;
@@ -162,9 +162,9 @@ test("ticker hydration exposes a degraded read-only dashboard and stops the sock
     onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: Date.now(), signed_change_rate: 0.01, acc_trade_price_24h: 1000 });
     const hydrated = await request(port);
     assert.equal(hydrated.status, 200);
-    assert.equal(hydrated.body.overallHealth, "DEGRADED");
-    assert.equal(hydrated.body.killSwitchActive, true);
-    assert.equal(hydrated.body.tradingAllowed, false);
+    assert.equal(hydrated.body.overallHealth, "HEALTHY");
+    assert.equal(hydrated.body.killSwitchActive, false);
+    assert.equal(hydrated.body.tradingAllowed, true);
     assert.equal(hydrated.body.deployableCapital, 0);
     assert.equal(hydrated.body.staleIntelligenceSources?.includes("CHART") ?? false, false);
     onConnectionState("DISCONNECTED");
@@ -178,7 +178,7 @@ test("ticker hydration exposes a degraded read-only dashboard and stops the sock
   assert.deepEqual(calls.at(-1), ["stop"]);
 });
 
-test("runtime projects initial paper capital and preserves it while the kill switch blocks ticks", async () => {
+test("runtime preserves initial paper capital when a supplied loop has no canonical strategy mutation boundary", async () => {
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
   const loop = new PaperTradingExecutionLoop({ initialCapital: 100_000 });
@@ -201,11 +201,11 @@ test("runtime projects initial paper capital and preserves it while the kill swi
     assert.equal(initial.body.tradingAllowed, false);
 
     onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, trade_timestamp: Date.now(), signed_change_rate: 0.01, acc_trade_price_24h: 1_000 });
-    const blocked = await request(port);
-    assert.equal(blocked.body.cashCapital, 100_000);
-    assert.equal(blocked.body.deployableCapital, 100_000);
-    assert.equal(blocked.body.killSwitchActive, true);
-    assert.equal(blocked.body.tradingAllowed, false);
+    const healthy = await request(port);
+    assert.equal(healthy.body.cashCapital, 100_000);
+    assert.equal(healthy.body.deployableCapital, 100_000);
+    assert.equal(healthy.body.killSwitchActive, false);
+    assert.equal(healthy.body.tradingAllowed, true);
     const projected = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
     assert.equal(projected.paper.equity, 100_000);
     assert.equal(projected.paper.unrealizedPnL, 0);
