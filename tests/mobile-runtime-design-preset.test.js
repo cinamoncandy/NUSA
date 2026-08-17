@@ -45,3 +45,15 @@ test("screen composition is preset-owned so information architecture can change 
   assert.match(composition, /desktopLayout: "stacked"/);
   assert.match(composition, /getScreenComposition\(preset: DesignPresetName\)/);
 });
+
+test("HOME production render consumes the active preset composition", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  assert.match(home, /getScreenComposition\(theme\.preset\)\.home/);
+  assert.match(home, /composition\.primary\.map/);
+  assert.match(home, /primarySections\[section\]/);
+  assert.match(home, /composition\.secondary\.map/);
+  assert.match(home, /secondarySections\[section\]/);
+  assert.match(home, /composition\.desktopLayout === "split"/);
+  assert.match(home, /composition\.heroEmphasis === "dominant"/);
+  assert.match(home, /testID=\{`home-layout-\$\{composition\.desktopLayout\}`\}/);
+});
