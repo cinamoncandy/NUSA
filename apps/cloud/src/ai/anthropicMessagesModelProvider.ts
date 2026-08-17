@@ -20,9 +20,18 @@ export type AnthropicFetch = (
   }
 ) => Promise<AnthropicHttpResponse>;
 
+/**
+ * Thinking depth for the structured agent calls. Current Claude models think by
+ * default, and max_tokens bounds thinking and response text together, so depth is
+ * controlled here rather than by disabling thinking (disabling it can leak internal
+ * tags into the response and corrupt the structured output).
+ */
+export type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface AnthropicMessagesModelProviderOptions {
   readonly apiKey: string;
   readonly modelVersionId: string;
+  readonly effort?: AnthropicEffort;
   readonly fetchImpl?: AnthropicFetch;
   readonly now?: () => number;
 }
@@ -82,6 +91,7 @@ export class AnthropicMessagesModelProvider implements ModelProvider {
   public readonly providerId = "anthropic";
   public readonly modelVersionId: string;
   #apiKey: string;
+  private readonly effort: AnthropicEffort;
   private readonly fetchImpl: AnthropicFetch;
   private readonly now: () => number;
 
@@ -89,6 +99,7 @@ export class AnthropicMessagesModelProvider implements ModelProvider {
     this.#apiKey = options.apiKey.trim();
     this.modelVersionId = options.modelVersionId.trim();
     if (!this.#apiKey || !this.modelVersionId) throw new Error("AI provider configuration is incomplete");
+    this.effort = options.effort ?? "low";
     this.fetchImpl = options.fetchImpl ?? defaultFetch;
     this.now = options.now ?? Date.now;
   }
@@ -106,6 +117,7 @@ export class AnthropicMessagesModelProvider implements ModelProvider {
       system: request.instructions,
       messages: [{ role: "user", content: [{ type: "text", text: JSON.stringify(request.input) }] }],
       output_config: {
+        effort: this.effort,
         format: {
           type: "json_schema",
           schema: structuredOutputSchema(request.role)

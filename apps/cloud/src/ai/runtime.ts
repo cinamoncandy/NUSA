@@ -289,7 +289,23 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
   const maximumResultAgeMs = duration(options.maximumResultAgeMs, 120_000, "AI maximum result age");
   const calibration = calibrationOptions(options.calibration);
   const calibrationLedger = new OutcomeCalibrationLedger();
-  const orchestrator = new MultiAgentOrchestrator(provider, { enabled });
+  // Four agent roles at 4_096 output tokens each exactly fills the 16_384 default,
+  // leaving no headroom for a retry. Declare the budget explicitly with margin so a
+  // single retried role cannot exhaust the run.
+  const orchestrator = new MultiAgentOrchestrator(provider, {
+    enabled,
+    resourcePolicy: normalizeAiInferenceBudgetPolicy({
+      schemaVersion: 1,
+      policyId: "NUSA_AI_ORCHESTRATION_RESOURCE_BUDGET_V1",
+      policyVersion: "1",
+      maxModelCalls: 4,
+      maxTotalAttempts: 6,
+      maxCumulativeOutputTokens: 24_576,
+      maxInputBytes: 1024 * 1024,
+      maxWallClockMs: 90_000,
+      requireUsageAccounting: true
+    })
+  });
   const environmentPool = options.nVersionEvaluator === undefined ? createNVersionProviderPoolFromEnvironment(env) : null;
   const nVersionEvaluator = options.nVersionEvaluator === undefined
     ? environmentPool == null
