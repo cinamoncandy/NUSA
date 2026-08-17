@@ -103,10 +103,12 @@ if (isFile(cloudMainSourcePath)) {
 }
 
 // F: compiled canonical bootstrap must retain the same three required runtime dependencies.
+// Validate the actual emitted module identities from cloudMain.ts, not an implementation
+// class name that is not imported by the bootstrap.
 if (isFile(compiledCloudMain)) {
   const cloudMainCompiled = fs.readFileSync(compiledCloudMain, "utf8");
-  if (!/desktopCloudPaperAuthority/.test(cloudMainCompiled)) {
-    fail(`Compiled cloudMain.js does not reference desktopCloudPaperAuthority`);
+  if (!/desktopPaperAuthorityPolicy/.test(cloudMainCompiled)) {
+    fail(`Compiled cloudMain.js does not reference desktopPaperAuthorityPolicy`);
   }
   if (!/desktopCloudPaperIpc/.test(cloudMainCompiled)) {
     fail(`Compiled cloudMain.js does not reference desktopCloudPaperIpc`);
