@@ -101,7 +101,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     }),
     light: Object.freeze({
       background: "#F7F8FA", surface: "#FFFFFF", surfaceRaised: "#F1F3F7", surfaceSunken: "#ECEFF4",
-      text: "#0C1017", textMuted: "#687284", primary: "#11131A", primarySoft: "#F0ECFF", onPrimary: "#FFFFFF",
+      text: "#0C1017", textMuted: "#626C7A", primary: "#11131A", primarySoft: "#F0ECFF", onPrimary: "#FFFFFF",
       navSurface: "#FFFFFF", border: "#D9DEE8", borderStrong: "#B9C1D0", info: "#566176", focus: "#11131A",
       neonGlow: "rgba(123, 92, 255, 0.12)",
     }),
