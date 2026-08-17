@@ -1,29 +1,32 @@
-id: WO-0056
-title: Read-only MCP gateway over existing NUSA relays
-branch: agent/issue-mcp-readonly-gateway
-pull_request: 538
+id: WO-0057
+title: Desktop Cloud Canonical PAPER Authority Migration
+branch: agent/wo-0057-desktop-cloud-paper-authority
 base_branch: main
-phase: mcp-read-only-gateway-external-verification
-status: VERIFYING_EXTERNAL_HUMAN_ENVIRONMENT_ONLY
-source_work_order: .aipos/work-orders/WO-0056-read-only-mcp-gateway.yaml
-objective: "Preserve the merged authenticated read-only MCP gateway as repository-complete while keeping stable HTTPS deployment and actual ChatGPT connection unclaimed until external evidence exists."
-repository_completion:
-  pull_request: 538
-  head_commit: fffed2c3e37ca6acd4e61646c4419f932e2773c3
-  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
-  merged: true
-  exact_head_ci: PASS
-  read_only_broker: PASS
-  restricted_live_activation: PASS
-  restricted_live_capability: PASS
-  restricted_live_transport: PASS
+phase: desktop-cloud-canonical-paper-authority
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
+child_work_orders:
+  - id: WO-0057A
+    title: Desktop Cloud PAPER Session Boundary
+    source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
+    status: READY
+    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+    bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
+    secure_storage: ELECTRON_SAFE_STORAGE
+    allowed_scopes:
+      - dashboard:read
+      - paper:trade
+preserved_previous_mission:
+  id: WO-0056
+  title: Read-only MCP gateway over existing NUSA relays
   repository_implementation: COMPLETE
-scope:
-  - merged existing apps/cloud read-only dashboard and PAPER projections
-  - merged existing services/upbit-readonly GET relay integration
-  - merged authenticated MCP protocol adapter with normalized bounded outputs
-  - merged mutation blocking, secret sanitization, timeout/rate-limit/audit contracts
-  - external stable HTTPS deployment and ChatGPT connection remain separate human-environment evidence gates
+  pull_request: 538
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  exact_head_ci: PASS
+  external_deployment: PENDING_AUTHORITY
+  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
+  note: "WO-0056 repository implementation remains closed; its external HTTPS/ChatGPT evidence may be collected separately and does not block non-LIVE successors."
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
@@ -44,20 +47,11 @@ safety:
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  automatedCompletion: prohibited
-  syntheticCiCompletion: prohibited
-  chatConsentAsLiveAuthority: prohibited
-  aiLiveAuthority: prohibited
+  aiAuthority: ZERO_AUTHORITY
 verification:
-  focused_mcp_suite: PASS_5_OF_5
-  typecheck: PASS
-  lint: PASS
-  build: PASS
-  security_aipos_safety: PASS
-  exact_head_ci: PASS
-  repository_merge: PASS
-  external_deployment: PENDING_AUTHORITY
-  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
-blockers:
-  - STABLE_HTTPS_MCP_DEPLOYMENT_AND_CHATGPT_CONNECTION_EVIDENCE_REQUIRED_FOR_EXTERNAL_CLOSEOUT_ONLY
-next_recommended_task: "Do not reopen WO-0056 repository implementation. Preserve its merged read-only gateway and collect external HTTPS/ChatGPT evidence only when human environment authority is available. PAPER, read-only, mobile-auth, UI/UX, and other non-LIVE successors may proceed under independent fail-closed contracts; LIVE and real-money transitions remain blocked by WO-0051."
+  governance_registration: IN_PROGRESS
+  implementation_started: false
+  exact_head_ci: PENDING
+mobile_auth:
+  status: NOT_STARTED
+next_recommended_task: "Merge the governance-only registration for WO-0057 and WO-0057A. After exact-head governance checks pass, implement WO-0057A from the protected base; do not start Mobile Auth or LIVE work."
