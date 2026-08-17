@@ -12,6 +12,7 @@ export interface CloudRuntimeConfig {
   readonly cloudStateDbPath: string;
   readonly paperInitialCapitalKrw?: number;
   readonly paperInvestmentPercent: number;
+  readonly ownerId: string;
 }
 
 interface ConfiguredUserIdentity {
@@ -110,7 +111,7 @@ export function readCloudRuntimeConfig(env: NodeJS.ProcessEnv): CloudRuntimeConf
   if (!Number.isFinite(paperInvestmentPercent) || paperInvestmentPercent < 0 || paperInvestmentPercent > 100) throw new Error(`${PAPER_INVESTMENT_PERCENT_ENV} must be between 0 and 100`);
   const owner = resolveOwnerIdentity(token, env);
   readConfiguredUsers(token, env, owner);
-  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
+  return Object.freeze({ port, dashboardToken: token, upbitMarkets: readMarkets(env[MARKETS_ENV]), upbitPublicDataEnabled: env[PUBLIC_DATA_ENV]?.trim().toLowerCase() === "true", paperInvestmentPercent, ownerId: owner.userId, cloudStateDbPath: env[STATE_DB_ENV]?.trim() || DEFAULT_CLOUD_STATE_DB_PATH, ...(paperInitialCapitalKrw === undefined ? {} : { paperInitialCapitalKrw }), ...(host ? { host } : {}) });
 }
 
 /**

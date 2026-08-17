@@ -9,7 +9,7 @@ const boundary = fs.readFileSync(path.join(process.cwd(), "apps", "cloud", "src"
 
 test("runtime shares one investment allocation repository with server and PAPER execution", () => {
   assert.match(runtime, /new SqliteInvestmentAllocationSettingsRepository\(durableRepository\.database\(\)\)/);
-  assert.match(runtime, /investmentAllocationSettings\.get\("operator"\)\?\.investmentPercent \?\? 100/);
+  assert.match(runtime, /investmentAllocationSettings\.get\(config\.ownerId\)\?\.investmentPercent \?\? config\.paperInvestmentPercent/);
   assert.match(runtime, /investmentAllocationSettings\.get\(principal\.userId\)\?\.investmentPercent \?\? 100/);
   assert.match(runtime, /investmentAllocationSettings\s*\n\s*\}\);/);
   assert.match(server, /\/api\/settings\/investment-allocation/);
