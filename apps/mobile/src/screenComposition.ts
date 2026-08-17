@@ -32,7 +32,7 @@ export const screenCompositionPresets: Readonly<Record<DesignPresetName, ScreenC
   }),
   master: Object.freeze({
     home: freezeHome({
-      primary: ["hero", "metrics", "nextAction", "allocation"],
+      primary: ["hero", "allocation", "metrics", "nextAction"],
       secondary: ["safety", "aiInsight"],
       desktopLayout: "stacked",
       heroEmphasis: "dominant",
