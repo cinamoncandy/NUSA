@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: restricted-live-activation-rehearsal-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
