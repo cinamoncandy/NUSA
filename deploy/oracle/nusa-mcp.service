@@ -1,7 +1,8 @@
 [Unit]
 Description=NUSA Read-only MCP Gateway
-After=network-online.target nusa.service
+After=network-online.target nusa.service nusa-upbit-readonly.service
 Wants=network-online.target
+Requires=nusa-upbit-readonly.service
 
 [Service]
 Type=simple
