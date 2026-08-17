@@ -4,7 +4,7 @@ This service is the repository-managed source for the NUSA server-side Upbit rea
 
 ## Safety boundary
 
-- Binds to `127.0.0.1:3000` only. Public HTTPS termination belongs to the reverse proxy.
+- Binds to `127.0.0.1:3001` only by default (`NUSA_UPBIT_READONLY_PORT`). Public HTTPS termination belongs to the reverse proxy. Cloud Runtime keeps its separate canonical port.
 - Exposes unauthenticated `GET /health`.
 - Exposes authenticated `GET /api/v1/account/summary`.
 - Retains `GET /api/upbit/accounts` as a normalized compatibility path.

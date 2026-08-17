@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const {
   LOOPBACK_HOST,
   UPBIT_ACCOUNTS_URL,
@@ -238,7 +239,7 @@ test("read-only order loader uses GET and query-hashed credentials", async () =>
   assert.equal(captured[0].options.method, "GET");
   const tokenPayload = JSON.parse(Buffer.from(captured[0].options.headers.authorization.split(".")[1], "base64url").toString("utf8"));
   assert.equal(tokenPayload.query_hash_alg, "SHA512");
-  assert.match(tokenPayload.query_hash, /^[a-f0-9]{128}$/);
+  assert.equal(tokenPayload.query_hash, createHash("sha512").update("states[]=wait&states[]=watch").digest("hex"));
 });
 
 test("read-only order detail validates UUID before upstream access", async () => {
