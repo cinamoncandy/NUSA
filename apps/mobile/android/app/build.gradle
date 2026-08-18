@@ -25,6 +25,7 @@ def nusaBuildNumber = nusaBuildNumberRaw ? nusaBuildNumberRaw.toLong() : 0L
 def nusaVersionCode = Math.max(1L, Math.min(nusaBuildNumber, 2100000000L)).intValue()
 def nusaShortSha = nusaBuildSha.length() > 8 ? nusaBuildSha.substring(0, 8) : nusaBuildSha
 def nusaVersionName = "1.0.${nusaBuildNumber}-${nusaShortSha}"
+def nusaCanonicalOrigin = (System.getenv("NUSA_CANONICAL_ORIGIN") ?: "").trim()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -40,11 +41,10 @@ android {
         versionName nusaVersionName
         buildConfigField "String", "NUSA_BUILD_SHA", "\"${nusaBuildSha}\""
         buildConfigField "String", "NUSA_BUILD_NUMBER", "\"${nusaBuildNumber}\""
-        // Keep the complete source commit in the packaged Android resources as
-        // well as BuildConfig. The persistent preview workflow verifies the APK
-        // with `aapt dump --values resources`, so this is the provenance anchor
-        // that makes the exact 40-character source SHA independently visible.
+        // Keep the complete source commit and non-secret canonical Cloud origin
+        // in packaged Android resources as independent RC provenance anchors.
         resValue "string", "nusa_build_sha", nusaBuildSha
+        resValue "string", "nusa_canonical_origin", nusaCanonicalOrigin
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     buildFeatures {
