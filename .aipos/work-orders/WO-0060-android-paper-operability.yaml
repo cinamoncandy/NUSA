@@ -1,0 +1,75 @@
+id: WO-0060
+title: "Android Cloud PAPER Operability"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 6da25496bf6da93bfe589a71b1e7bae986e7c5b3
+implementation_branch: agent/wo-0060-android-paper-operability
+objective: "Make the Android app visibly and actually usable for canonical Cloud PAPER trading: the app must reach an approved HTTPS Cloud origin, obtain an approved mobile session without exposing the dashboard owner bearer, read the same canonical PAPER account/orders/positions/PnL verified by WO-0059, submit PAPER-only orders with idempotency, and render truthful connected/offline/error states on a physical Android device."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+root_cause:
+  - "WO-0059 proved the Cloud PAPER writer, but that did not prove Android product delivery."
+  - "Current main still uses a Settings-entered Cloud endpoint and ephemeral dashboard bearer as the Android connection contract."
+  - "The Cloud runtime intentionally binds only to loopback; a physical Android device therefore needs a trusted HTTPS reverse proxy/stable origin to reach it."
+  - "PR #540 contains a stale zero-config origin attempt and PR #541 contains a stale mobile-auth foundation; both are unmerged and based on obsolete main. They are evidence/input only, not merge candidates."
+  - "Physical Android visibility remains unverified even though repository/mobile UI components for PAPER, orders and portfolio exist."
+scope:
+  - "Reconstruct approved mobile session/bootstrap on latest main from reviewed prior work without carrying stale branch state"
+  - "Replace production Android user-entered endpoint/dashboard-bearer dependency with one build-provided stable HTTPS origin"
+  - "Keep Cloud runtime loopback-only and publish it only through the existing trusted HTTPS bridge pattern"
+  - "Bind Android dashboard/PAPER reads and POST /api/paper-orders to the approved mobile session and correct PAPER scopes"
+  - "Show canonical PAPER cash, equity, position, realized/unrealized PnL, orders and fills in Android"
+  - "Allow PAPER BUY/SELL preview-confirm-submit-result with idempotent retry and no double fill"
+  - "Refresh/recover the same canonical state after app background/foreground and Cloud restart"
+  - "Produce a current-main Android RC APK and verify source SHA/checksum provenance"
+  - "Require genuine physical Android evidence for endpoint-free startup, authenticated session, PAPER state visibility, PAPER order, history/portfolio update, retry behavior, relaunch and truthful failure states"
+architecture_impact:
+  acknowledged: true
+  analysis: "This work closes the client-delivery gap after WO-0059. It does not add a new writer or broker authority. Cloud remains the sole canonical PAPER writer; Android is an approved client using scoped mobile sessions. The runtime remains loopback-only and external reachability is provided by a trusted HTTPS bridge, preserving defense in depth."
+  references:
+    - .aipos/architecture.md
+    - .aipos/work-orders/WO-0059-actual-paper-runtime-e2e.yaml
+    - apps/mobile/App.tsx
+    - apps/mobile/src/tradingView.tsx
+    - apps/mobile/src/personalPaperOrderClient.ts
+    - apps/cloud/src/cloudRuntimeConfig.ts
+    - apps/cloud/src/server.ts
+    - deploy/cloudflare-tunnel/config.example.yml
+prior_artifacts:
+  stale_zero_config_pr: 540
+  stale_mobile_auth_pr: 541
+  trusted_https_bridge_pr: 420
+  android_real_use_successor_pr: 442
+blocked:
+  - "Embedding dashboard owner bearer or any long-lived Cloud secret in the APK"
+  - "Allowing cleartext remote HTTP"
+  - "Binding Cloud runtime to 0.0.0.0 as a shortcut"
+  - "Upbit private credentials in Android"
+  - "LIVE order/cancel/withdraw/transfer authority"
+  - "Treating CI/emulator evidence as physical Android acceptance"
+verification:
+  latest_main_reconstruction: PENDING
+  mobile_scoped_session: PENDING
+  stable_https_origin_contract: PENDING
+  canonical_paper_snapshot_visible: PENDING
+  paper_order_submit: PENDING
+  idempotent_retry_no_double_fill: PENDING
+  relaunch_recovery: PENDING
+  android_rc_provenance: PENDING
+  exact_head_ci: PENDING
+  mobile_native: PENDING
+  required_companion_workflows: PENDING
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  exchange_private_credential_authority: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Do not mark WO-0060 complete merely because Cloud PAPER works or CI passes. Completion requires a current-main Android RC that reaches the approved HTTPS Cloud origin using an approved mobile session and genuine physical-device evidence showing canonical PAPER state, PAPER submit/result/history/portfolio/relaunch behavior, while preserving PAPER_ONLY and zero LIVE authority."
