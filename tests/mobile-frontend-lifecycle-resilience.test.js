@@ -28,7 +28,7 @@ test("automatic PAPER polling runs only while signed in and foregrounded and nev
   const app = source();
   assert.match(app, /AppState\.addEventListener\("change", \(nextState\) =>/);
   assert.match(app, /dispatchRuntime\(\{ type: nextState === "active" \? "APP_FOREGROUND" : "APP_BACKGROUND" \}\)/);
-  assert.match(app, /authStatus !== "SIGNED_IN" \|\| appState !== "active"/);
+  assert.match(app, /authStatus !== "ACTIVE" \|\| appState !== "active"/);
   assert.match(app, /PAPER_REFRESH_INTERVAL_MS = 5000/);
   assert.match(app, /timer = setTimeout\(\(\) => \{/);
   assert.match(app, /void refresh\(\)\.catch\(\(\) => undefined\)\.finally\(scheduleNext\)/);
