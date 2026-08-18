@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { OutcomeCalibrationLedger, computeCalibrationMetrics, createCalibrationOutcome, createCalibrationPrediction, verifyCalibrationOutcome, verifyCalibrationPrediction } = require("../dist/apps/cloud/src/ai/outcomeCalibration.js");
+const { OutcomeCalibrationLedger, computeCalibrationMetrics, createCalibrationOutcome, createCalibrationPrediction, verifyCalibrationOutcome, verifyCalibrationPrediction, wilsonLowerBound } = require("../dist/apps/cloud/src/ai/outcomeCalibration.js");
 
 const digest = "a".repeat(64);
 const calibrationHorizonMs = 5 * 60 * 1_000;
@@ -102,11 +102,62 @@ test("calibrated confidence is conservative and degraded calibration cannot incr
   const good = new OutcomeCalibrationLedger();
   for (const id of ["a", "b"]) { const item = prediction(id, 0.8); good.appendPrediction(item); good.appendOutcome(outcome(item, true)); }
   const calibrated = good.profile(cohort, 0.8, { minimumSamples: 2, minimumBucketSamples: 2, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
-  assert.equal(calibrated.status, "CALIBRATED"); assert.equal(calibrated.calibratedProbability, 1); assert.equal(calibrated.effectiveConfidence, 0.8); assert.equal(calibrated.liveAuthority, "NONE"); assert.equal(calibrated.productionMutationAllowed, false);
+  assert.equal(calibrated.status, "CALIBRATED"); assert.equal(calibrated.calibratedProbability, 1);
+  // Two successes out of two is not evidence of an 80% rate. effectiveConfidence takes the Wilson
+  // lower bound (1/2.9208) rather than the point estimate, so a thin bucket cannot vouch for itself.
+  assert.ok(Math.abs(calibrated.effectiveConfidence - 0.3423719) < 1e-6, `expected conservative confidence, got ${calibrated.effectiveConfidence}`);
+  assert.ok(calibrated.effectiveConfidence < calibrated.calibratedProbability);
+  assert.equal(calibrated.liveAuthority, "NONE"); assert.equal(calibrated.productionMutationAllowed, false);
   const bad = new OutcomeCalibrationLedger();
   for (const id of ["c", "d"]) { const item = prediction(id, 0.9); bad.appendPrediction(item); bad.appendOutcome(outcome(item, false)); }
   const degraded = bad.profile(cohort, 0.9, { minimumSamples: 2, minimumBucketSamples: 2, maximumExpectedCalibrationError: 0.1, maximumBrierScore: 0.1 });
   assert.equal(degraded.status, "DEGRADED"); assert.equal(degraded.calibratedProbability, null); assert.equal(degraded.effectiveConfidence, 0); assert.equal(degraded.liveAuthority, "NONE"); assert.equal(degraded.productionMutationAllowed, false);
+});
+
+test("wilson lower bound never exceeds the point estimate, stays in range, and tightens as samples accumulate", () => {
+  assert.ok(Math.abs(wilsonLowerBound(1, 1) - 0.2065432) < 1e-6);
+  assert.ok(Math.abs(wilsonLowerBound(0.8, 5) - 0.3755283) < 1e-6);
+  // A rate of 0 cannot be dragged below 0, and a rate of 1 cannot reach 1 on finite evidence.
+  assert.equal(wilsonLowerBound(0, 5), 0);
+  assert.ok(wilsonLowerBound(1, 1000) < 1);
+  for (const [rate, count] of [[0, 1], [0.5, 3], [0.8, 5], [1, 1], [0.03, 250]]) {
+    const bound = wilsonLowerBound(rate, count);
+    assert.ok(bound >= 0 && bound <= 1, `bound ${bound} out of range`);
+    assert.ok(bound <= rate + 1e-12, `bound ${bound} exceeded point estimate ${rate}`);
+  }
+  let previous = -1;
+  for (const count of [1, 2, 5, 10, 50, 100, 1000]) {
+    const bound = wilsonLowerBound(0.8, count);
+    assert.ok(bound > previous, `bound did not tighten at n=${count}`);
+    previous = bound;
+  }
+  assert.ok(Math.abs(wilsonLowerBound(0.8, 100000) - 0.8) < 0.01, "bound should converge on the point estimate");
+  for (const bad of [-0.01, 1.01, Number.NaN, Number.POSITIVE_INFINITY]) assert.throws(() => wilsonLowerBound(bad, 5), /observedRate/);
+  for (const bad of [0, -1, 1.5, Number.NaN]) assert.throws(() => wilsonLowerBound(0.5, bad), /sampleCount/);
+  assert.throws(() => wilsonLowerBound(0.5, 5, -1), /z must be/);
+});
+
+test("a thin bucket cannot vouch for itself but a deep bucket earns its confidence", () => {
+  const build = (sampleCount, successRate) => {
+    const ledger = new OutcomeCalibrationLedger();
+    const successes = Math.round(sampleCount * successRate);
+    for (let index = 0; index < sampleCount; index += 1) {
+      const item = prediction(`deep-${sampleCount}-${index}`, 0.8);
+      ledger.appendPrediction(item);
+      ledger.appendOutcome(outcome(item, index < successes));
+    }
+    return ledger.profile(cohort, 0.8, { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
+  };
+  const thin = build(5, 0.8);
+  const deep = build(200, 0.8);
+  assert.equal(thin.status, "CALIBRATED");
+  assert.equal(deep.status, "CALIBRATED");
+  // Same observed rate, same raw probability: only the weight of evidence differs.
+  assert.ok(Math.abs(thin.calibratedProbability - deep.calibratedProbability) < 1e-9);
+  assert.ok(deep.effectiveConfidence > thin.effectiveConfidence * 1.5, `deep ${deep.effectiveConfidence} should dominate thin ${thin.effectiveConfidence}`);
+  assert.ok(thin.effectiveConfidence < 0.5, "five samples must not report majority confidence");
+  // The raw probability remains a ceiling regardless of how much evidence accumulates.
+  assert.ok(deep.effectiveConfidence <= 0.8);
 });
 
 test("outcome definition and provenance mismatches fail closed", () => {
