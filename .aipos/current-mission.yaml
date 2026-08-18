@@ -1,30 +1,27 @@
-id: WO-0057A
-title: Desktop Cloud PAPER Session Boundary
-branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+id: WO-0057
+title: Desktop Cloud Canonical PAPER Authority Migration
+branch: agent/wo-0057-desktop-cloud-paper-authority
 base_branch: main
-phase: desktop-cloud-paper-session-boundary
+phase: desktop-cloud-canonical-paper-authority
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
-parent_work_order:
-  id: WO-0057
-  title: Desktop Cloud Canonical PAPER Authority Migration
-  branch: agent/wo-0057-desktop-cloud-paper-authority
-  pull_request: 552
-  status: IN_PROGRESS
-  serialization: PAUSED_FOR_CHILD
-objective: "Implement the authenticated Desktop bootstrap/session and Electron safeStorage boundary required before resuming Desktop Cloud canonical PAPER authority cutover."
-bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
-session_contract:
-  access_token_storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
-  refresh_token_storage: ELECTRON_SAFE_STORAGE
-  access_ttl_minutes: 10
-  refresh_max_ttl_days: 30
-  refresh_rotation: required
-  refresh_reuse_detection: required
-  server_token_storage: HASH_ONLY
-  allowed_scopes:
-    - dashboard:read
-    - paper:trade
+source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
+child_work_orders:
+  - id: WO-0057A
+    title: Desktop Cloud PAPER Session Boundary
+    source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
+    status: IN_PROGRESS
+    branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+    pull_request: 554
+    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+    bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
+    secure_storage: ELECTRON_SAFE_STORAGE
+    access_token_storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
+    refresh_rotation: required
+    refresh_reuse_detection: required
+    allowed_scopes:
+      - dashboard:read
+      - paper:trade
 preserved_previous_mission:
   id: WO-0056
   title: Read-only MCP gateway over existing NUSA relays
@@ -34,6 +31,7 @@ preserved_previous_mission:
   exact_head_ci: PASS
   external_deployment: PENDING_AUTHORITY
   chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
+  note: "WO-0056 repository implementation remains closed; its external HTTPS/ChatGPT evidence may be collected separately and does not block non-LIVE successors."
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
@@ -56,7 +54,10 @@ safety:
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
 verification:
-  child_pull_request: 554
+  governance_registration: PASS_MAIN_PR_553
   implementation_started: true
+  active_child_pull_request: 554
   exact_head_ci: PENDING
-next_recommended_task: "Finish WO-0057A HTTP/runtime/secure-storage composition and exact-head required checks, merge child, then synchronize and resume parent PR #552."
+mobile_auth:
+  status: NOT_STARTED
+next_recommended_task: "Finish and merge WO-0057A with exact-head required checks PASS, then synchronize parent PR #552 and resume canonical Desktop Cloud PAPER cutover. Do not start Mobile Auth or LIVE work."
