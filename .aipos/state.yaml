@@ -1,11 +1,11 @@
 version: 1
 project: nusa
 updated_at: "2026-08-18T14:25:00+09:00"
-phase: desktop-cloud-canonical-paper-authority-complete
-status: completed
-objective: "Desktop PAPER read/write authority is migrated to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
+phase: constitutional-production-human-environment-gate
+status: in_progress
+objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
-active_branch: null
+active_branch: main
 active_pull_request: null
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
@@ -32,18 +32,15 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0057
-  status: COMPLETED
-  branch: agent/wo-0057-desktop-cloud-paper-authority
-  base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
-  pull_request: 552
-  exact_head: 03eef24c4abbba91920c0063a3e2af95088eb9d0
-  merge_commit: f875980e4ff9111ab576f1e93294fae510d07167
-  scope: "Desktop Cloud canonical PAPER authority migration completed through the authenticated Cloud session boundary with no LIVE or real-money authority."
+  work_order: WO-0051
+  status: IN_PROGRESS
+  branch: main
+  base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
+  scope: "Terminal HUMAN_ENVIRONMENT_ONLY gate for LIVE and real-money transition; non-LIVE successors may be separately registered without satisfying or weakening this gate."
 verified_state:
-  work_order: WO-0057
+  work_order: WO-AI-010
   status: COMPLETED
-  evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
+  evidence: ".aipos/evidence/WO-AI-010-completion.json"
 latest_verified_slice:
   id: wo-ai-010-claim-evidence-faithfulness-complete
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -330,7 +327,10 @@ completed:
   - id: WO-0049
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
-in_progress: []
+in_progress:
+  - id: WO-0051
+    evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
+    summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -357,8 +357,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: null
-  reason: "WO-0057 repository work is complete. Any successor must be separately registered and must preserve WO-0051 HUMAN_ENVIRONMENT_ONLY serialization for LIVE and real-money transitions."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "WO-0057 repository work is complete. The standing WO-0051 human/environment gate remains the active serialized boundary for LIVE and real-money transition; any non-LIVE successor must be separately registered and cannot satisfy or weaken this gate."
 verification:
   wo_0057:
     parent_pull_request: 552
