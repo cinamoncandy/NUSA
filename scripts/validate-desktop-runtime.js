@@ -3,8 +3,9 @@
  * Static, GUI-free consistency check for everything Electron's Desktop bootstrap needs at
  * runtime: the canonical Cloud authority bootstrap, legacy Electron main, preload and
  * rendererPath modules exist; apps/desktop/package.json points at the canonical bootstrap;
- * the bootstrap establishes Cloud PAPER authority before loading the legacy runtime; local
- * renderer assets exist; and the legacy main still resolves renderer/index.html correctly.
+ * the bootstrap activates Cloud PAPER authority and schedules the secure session IPC only
+ * after Electron readiness before loading the legacy runtime; local renderer assets exist;
+ * and the legacy main still resolves renderer/index.html correctly.
  * Node built-ins only, no network, no Electron, no file writes. Run after `pnpm run build`.
  */
 const fs = require("node:fs");
@@ -87,35 +88,32 @@ if (rootPackage.main !== expectedRootMain || rootPackage.build?.extraMetadata?.m
   fail(`Root Desktop package metadata must resolve to the canonical Cloud bootstrap: ${expectedRootMain}`);
 }
 
-// E: canonical source bootstrap must establish Cloud PAPER authority and register its IPC
-// before the legacy runtime is loaded. This is the single-writer cutover invariant.
+// E: authority must be activated synchronously before the legacy runtime can register any
+// local PAPER mutation path. Secure credential composition is scheduled through app.whenReady
+// and uses the production safeStorage session factory before the legacy import appears.
 if (isFile(cloudMainSourcePath)) {
   const cloudMainSource = fs.readFileSync(cloudMainSourcePath, "utf8");
   const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
-  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+  const readyIndex = cloudMainSource.indexOf("app.whenReady()");
+  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
   const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
-  if (activateIndex < 0 || registerIndex <= activateIndex || legacyImportIndex <= registerIndex) {
-    fail(`Canonical Cloud Desktop bootstrap order must be authority -> Cloud IPC -> legacy runtime`);
+  if (activateIndex < 0 || readyIndex <= activateIndex || registerIndex <= readyIndex || legacyImportIndex <= registerIndex) {
+    fail(`Canonical Cloud Desktop bootstrap order must be authority -> ready secure-session IPC -> legacy runtime`);
   }
   if (/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource)) {
     fail(`Canonical Cloud Desktop bootstrap contains a credential literal`);
   }
 }
 
-// F: compiled canonical bootstrap must retain the same three required runtime dependencies.
-// Validate the actual emitted module identities from cloudMain.ts, not an implementation
-// class name that is not imported by the bootstrap.
+// F: compiled canonical bootstrap must retain the authority, Cloud IPC, secure-session factory,
+// and legacy runtime dependencies. Validate emitted identities rather than implementation details.
 if (isFile(compiledCloudMain)) {
   const cloudMainCompiled = fs.readFileSync(compiledCloudMain, "utf8");
-  if (!/desktopPaperAuthorityPolicy/.test(cloudMainCompiled)) {
-    fail(`Compiled cloudMain.js does not reference desktopPaperAuthorityPolicy`);
-  }
-  if (!/desktopCloudPaperIpc/.test(cloudMainCompiled)) {
-    fail(`Compiled cloudMain.js does not reference desktopCloudPaperIpc`);
-  }
-  if (!/(?:require|import).*\.\/main|import\(["']\.\/main["']\)/.test(cloudMainCompiled)) {
-    fail(`Compiled cloudMain.js does not load the legacy Desktop runtime`);
-  }
+  if (!/desktopPaperAuthorityPolicy/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopPaperAuthorityPolicy`);
+  if (!/desktopCloudPaperIpc/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopCloudPaperIpc`);
+  if (!/desktopCloudSessionRuntime/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopCloudSessionRuntime`);
+  if (!/whenReady/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not defer secure session composition until Electron readiness`);
+  if (!/(?:require|import).*\.\/main|import\(["']\.\/main["']\)/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not load the legacy Desktop runtime`);
 }
 
 // G: renderer's local <script src>/<link href> assets actually exist.
@@ -134,11 +132,7 @@ if (isFile(rendererIndex)) {
     seen.add(withoutQueryOrFragment);
     const resolvedAsset = path.resolve(rendererDirectory, withoutQueryOrFragment);
     if (!isFile(resolvedAsset)) {
-      fail(
-        `Renderer asset not found:\n` +
-          `  ${path.relative(ROOT, resolvedAsset)}\n` +
-          `  referenced by ${path.relative(ROOT, rendererIndex)}`
-      );
+      fail(`Renderer asset not found:\n  ${path.relative(ROOT, resolvedAsset)}\n  referenced by ${path.relative(ROOT, rendererIndex)}`);
     }
   }
 }
@@ -153,13 +147,9 @@ if (isFile(compiledRendererPathModule)) {
     } else {
       const compiledLegacyMainDirectory = path.dirname(compiledLegacyMain);
       const resolved = rendererPathModule.resolveRendererIndexPath(compiledLegacyMainDirectory);
-      if (resolved !== rendererIndex) {
-        fail(`Renderer path resolution mismatch:\n  expected: ${rendererIndex}\n  actual:   ${resolved}`);
-      }
+      if (resolved !== rendererIndex) fail(`Renderer path resolution mismatch:\n  expected: ${rendererIndex}\n  actual:   ${resolved}`);
       const normalized = resolved.split(path.sep).join("/");
-      if (normalized.includes("apps/desktop/apps/desktop")) {
-        fail(`Renderer path resolution contains a duplicated apps/desktop segment: ${resolved}`);
-      }
+      if (normalized.includes("apps/desktop/apps/desktop")) fail(`Renderer path resolution contains a duplicated apps/desktop segment: ${resolved}`);
     }
   } catch (error) {
     fail(`Failed to evaluate renderer path resolution: ${error instanceof Error ? error.message : String(error)}`);
@@ -176,9 +166,7 @@ if (isFile(compiledLegacyMain)) {
 
   if (!requiresRendererPathModule) fail(`Compiled legacy main.js does not require the renderer path module (./rendererPath)`);
   if (!loadFileUsesResolvedPath) fail(`Compiled legacy main.js does not pass resolveRendererIndexPath(__dirname)'s result to loadFile()`);
-  if (hasStaleDuplication) {
-    fail(`Compiled legacy main.js still contains the fixed app.getAppPath() + "apps/desktop/renderer/index.html" duplication (WO-0003 regression)`);
-  }
+  if (hasStaleDuplication) fail(`Compiled legacy main.js still contains the fixed app.getAppPath() + "apps/desktop/renderer/index.html" duplication (WO-0003 regression)`);
 }
 
 if (errors.length > 0) {
@@ -194,6 +182,6 @@ console.log("- Preload entry found");
 console.log("- Renderer entry found");
 console.log("- Local renderer assets found");
 console.log("- Package entrypoints consistent");
-console.log("- Cloud authority bootstrap order consistent");
+console.log("- Cloud authority + ready-only secure session composition consistent");
 console.log("- Renderer path resolution consistent");
 process.exit(0);
