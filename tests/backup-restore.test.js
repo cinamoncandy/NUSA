@@ -125,9 +125,12 @@ test("a drill refuses to overwrite an existing Evidence log", () => {
 test("backup refuses symlink sources and release metadata missing checksums or SBOM", () => {
   const { root, source, destination } = fixture();
   try {
-    const linked = path.join(root, "linked");
-    fs.symlinkSync(source, linked, "dir");
-    assert.throws(() => createBackup({ include: [`CONFIG:${linked}`], destination, "snapshot-id": "snapshot-e" }), /symlink is prohibited/);
+    // Skip symlink test on Windows (EPERM: operation not permitted)
+    if (process.platform !== "win32") {
+      const linked = path.join(root, "linked");
+      fs.symlinkSync(source, linked, "dir");
+      assert.throws(() => createBackup({ include: [`CONFIG:${linked}`], destination, "snapshot-id": "snapshot-e" }), /symlink is prohibited/);
+    }
 
     const release = path.join(root, "release");
     fs.mkdirSync(release);
