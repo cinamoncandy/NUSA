@@ -92,25 +92,23 @@ test("mobile client treats historical localhost default as unconfigured unless e
   assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0); assert.match(result.reason, /endpoint is not configured/i);
 });
 
-test("Settings verified connection state reaches a separate Trading PAPER client instance", async () => {
-  const settingsSession = new InMemoryDashboardCredentialSession();
-  const tradingSession = new InMemoryDashboardCredentialSession();
+test("Settings verified endpoint state reaches a separate Trading PAPER client call", async () => {
   const submitted = command();
+  const credentialProvider = async () => "settings-approved-session-0001";
   let observedUrl = "";
   let observedAuthorization = "";
   setConfiguredPaperEndpoint("https://paper.settings.test/");
-  settingsSession.connect("settings-shared-token-0001");
   markPaperConnectionVerified("https://paper.settings.test/");
 
   const result = await submitPersonalPaperOrder({
-    baseUrl: "https://paper.settings.test",
-    credentialProvider: tradingSession.credentialProvider,
+    baseUrl: "https://caller-env-ignored.test",
+    credentialProvider,
     request: async (url, init) => {
       observedUrl = String(url); observedAuthorization = String(init.headers.authorization);
       return { ok: true, status: 200, redirected: false, url: "https://paper.settings.test/api/paper-orders", json: async () => blockedWireResult(submitted) };
     }
   }, submitted);
-  assert.equal(result.status, "READY"); assert.equal(observedUrl, "https://paper.settings.test/api/paper-orders"); assert.equal(observedAuthorization, "Bearer settings-shared-token-0001");
+  assert.equal(result.status, "READY"); assert.equal(observedUrl, "https://paper.settings.test/api/paper-orders"); assert.equal(observedAuthorization, "Bearer settings-approved-session-0001");
 });
 
 test("mobile client posts only to exact verified PAPER route with no redirects and bound authority", async () => {
