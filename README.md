@@ -1,21 +1,37 @@
 # NUSA
 
-NUSA is an Electron-based Upbit Paper/Shadow trading application with fail-closed safety, recovery, diagnostics, evidence workflows, a bounded Cloud PAPER runtime, and read-only mobile operations surfaces.
+**NUSA** is a private, single-user, fail-closed **Upbit Paper/Shadow trading** and deterministic research platform built with Electron.
 
-Renderer interaction guidance: [Command Palette](docs/design/command-palette.md).
+It prioritizes capital survival, evidence, and safety over speed or aggressive automation.
 
-## Safety scope
+> Live trading is **not implemented**.  
+> Production mutation remains **disabled**.  
+> AI has **zero authority** over orders, transfers, or live activation.
 
-- Live trading is not implemented or authorized.
-- Production mutation remains disabled; current Cloud/mobile operations are PAPER/read-only only.
-- The application does not request or store LIVE exchange execution credentials.
-- Buy and sell activity is Paper/Shadow simulation only.
-- AI remains advisory/zero-authority and cannot authorize orders, transfers, or LIVE activation.
-- Electron renderer isolation, sandboxing, and restricted preload IPC remain enabled.
+## Key Features
 
-## Run the desktop app
+- Electron desktop application (Windows primary)
+- Upbit public market-data WebSocket with robust reconnect
+- Local Paper trading engine (cash, positions, fees, PnL)
+- Bounded Cloud PAPER / read-only runtime
+- Read-only mobile operations surface
+- Strong safety boundaries and recovery workflows
+- Deterministic accounting and evidence collection
+- AIPOS: cross-AI repository continuity contract
 
-Use Node.js 24 or newer.
+## Safety Scope (Non-negotiable)
+
+- Live trading is not implemented or authorized
+- The application does not request or store LIVE exchange execution credentials
+- Buy and sell activity is Paper/Shadow simulation only
+- AI remains advisory / zero-authority
+- Electron renderer isolation, sandboxing, and restricted preload IPC remain enabled
+- `liveAuthority` remains `NONE`
+- `productionMutationAllowed` remains `false`
+
+## Quick Start (Desktop)
+
+Requires **Node.js 24+**.
 
 ```bash
 git clone https://github.com/cinamoncandy/NUSA.git
@@ -26,19 +42,16 @@ pnpm run build
 pnpm desktop
 ```
 
-## Cloud PAPER runtime
-
-The repository includes an executable Cloud PAPER/read-only runtime bootstrap. It wires the Cloud dashboard server, durable SQLite-backed dashboard/PAPER state when configured, Upbit public market data, research coordination, and the bounded zero-authority AI runtime. It does **not** grant LIVE authority or production mutation.
-
-Required environment configuration remains fail-closed; see `apps/cloud/src/cloudRuntimeConfig.ts`. Start the configured runtime with:
+## Cloud PAPER Runtime
 
 ```bash
 pnpm cloud:runtime
 ```
 
-`cloud:runtime` being runnable does not mean it is publicly hosted or production-authorized. Hosting, external read-only preflight, and any future real-money transition remain separate operator/human-gated decisions.
+This starts a localhost-by-default, authenticated, GET-only dashboard/PAPER surface.  
+It does **not** grant LIVE authority.
 
-Run validation:
+## Validation
 
 ```bash
 pnpm test
@@ -48,26 +61,38 @@ pnpm run architecture:truth
 pnpm run package:validate
 ```
 
-Create the Windows installer on Windows:
+## Project Layout
 
-```bash
-pnpm package:win
+| Path | Purpose |
+|------|---------|
+| `apps/desktop` | Electron main, preload, renderer, paper broker, Upbit WebSocket |
+| `apps/cloud` | Cloud PAPER / read-only runtime and dashboard server |
+| `apps/mobile` | Read-only mobile operations surface |
+| `packages/contracts` | Shared accounting, operations, AI, and risk contracts |
+| `packages/storage` | SQLite accounting and durable storage |
+| `.aipos/` | Cross-AI recovery, work orders, architecture state |
+
+## Architecture Principles
+
+```
+Market Data → Intelligence → Strategy → Decision → Risk → Portfolio → Execution → Paper Adapter → Review → Memory
 ```
 
-## Project layout
+- Strategy emits signals only (never places orders)
+- Risk may reject, resize, pause, or halt any intent
+- Paper and Live adapters share interfaces but never share mutable operating state
+- Fail closed on uncertainty
 
-- `apps/desktop/src/main.ts`: Electron main process and IPC
-- `apps/desktop/src/preload.ts`: restricted renderer API
-- `apps/desktop/src/upbitWebSocket.ts`: public Upbit market-data WebSocket and reconnect handling
-- `apps/desktop/src/paperBroker.ts`: Paper cash, positions, fees, and PnL
-- `apps/desktop/renderer`: NUSA desktop workspace
-- `apps/cloud/src/runtime.ts`: executable Cloud PAPER/read-only runtime composition root
-- `apps/cloud/src/server.ts`: localhost-by-default authenticated GET-only dashboard/PAPER operations HTTP surface
-- `apps/cloud/src/cloudRuntimeConfig.ts`: fail-closed Cloud runtime environment/configuration boundary
-- `apps/cloud/src`: investment/research governance, durable PAPER state, public market-data, read-only operations projection, and zero-authority AI runtime integration
-- `packages/contracts`: shared accounting, operations, AI, and risk contracts
-- `packages/storage`: SQLite accounting and durable storage infrastructure
+Full principles: see `nusa.md`, `AGENTS.md`, and `.aipos/architecture.md`.
 
-## Release boundary
+## License
 
-Runnable does not mean Production-authorized. NUSA remains Paper/Shadow only, `liveAuthority` remains `NONE`, and `productionMutationAllowed` remains `false` unless a separately approved human/constitutional transition changes that boundary. Repository or CI validation must never be treated as real-world LIVE authorization.
+MIT License — see [LICENSE](LICENSE).
+
+**This software is for paper trading and research only.**  
+No warranty. No liability for financial decisions or losses.
+
+## Disclaimer
+
+NUSA is a research and simulation tool.  
+It is not a broker, not financial advice, and not authorized for real-money trading.
