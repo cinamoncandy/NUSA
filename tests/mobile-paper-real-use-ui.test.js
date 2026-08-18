@@ -40,11 +40,12 @@ test("Settings is the single PAPER endpoint and approved secure-session setup pa
 test("cold start restores the saved endpoint before the first dashboard refresh", () => {
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
+  assert.match(app, /let endpoint = settings\.paperEndpoint;/);
+  assert.match(app, /setConfiguredPaperEndpoint\(endpoint\)/);
   assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
+  assert.match(app, /let endpoint = settings\.paperEndpoint;[\s\S]*setConfiguredPaperEndpoint\(endpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
 });
 
 test("AI-only authority copy does not claim broader authority than the local PAPER entry disclosure", () => {
