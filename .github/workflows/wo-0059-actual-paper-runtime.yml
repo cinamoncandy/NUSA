@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Enable pnpm via Corepack
         run: |
           corepack enable
@@ -49,12 +50,13 @@ jobs:
           NUSA_LIVE_MUTATION: PROHIBITED
           NUSA_E2E_MARKET: KRW-BTC
           NUSA_E2E_QUANTITY: '0.000001'
-        run: node scripts/actual-paper-runtime-e2e.js --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
+        shell: pwsh
+        run: node scripts/actual-paper-runtime-e2e.js --working-dir "$env:RUNNER_TEMP\nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: wo-0059-actual-paper-runtime-evidence-${{ github.sha }}
+          name: wo-0059-actual-paper-runtime-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: artifacts/operational-evidence/actual-paper-runtime-e2e.json
           if-no-files-found: error
           retention-days: 14
