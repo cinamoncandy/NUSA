@@ -5,11 +5,13 @@ const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
-const { CloudPaperAccessSession } = require("../dist/apps/desktop/src/cloudPaperAccessSession.js");
+const { DesktopCloudSessionClient } = require("../dist/apps/desktop/src/desktopCloudSessionClient.js");
+const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/desktopCloudSessionStore.js");
 const { CloudPaperClient } = require("../dist/apps/desktop/src/cloudPaperClient.js");
 const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/desktopCloudPaperAuthority.js");
 
-const ACCESS_VALUE = "p".repeat(40);
+const OWNER_BOOTSTRAP_CREDENTIAL = "p".repeat(40);
+const OWNER_ID = "operator";
 const ORDER_RATE_WINDOW_MS = 1_000;
 const ORDER_RATE_WINDOW_SAFETY_MS = 25;
 
@@ -55,7 +57,11 @@ function createEnvironment(port, databasePath) {
   return {
     NUSA_CLOUD_DASHBOARD_PORT: String(port),
     NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
-    NUSA_CLOUD_DASHBOARD_TOKEN: ACCESS_VALUE,
+    // This long-lived value remains Cloud-side OWNER/bootstrap identity only. Desktop never
+    // receives it as its operational PAPER bearer after WO-0057A.
+    NUSA_CLOUD_DASHBOARD_TOKEN: OWNER_BOOTSTRAP_CREDENTIAL,
+    NUSA_OWNER_ID: OWNER_ID,
+    NUSA_OWNER_EMAIL: "owner@nusa.local",
     NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC",
     NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
     NUSA_CLOUD_STATE_DB_PATH: databasePath,
@@ -65,10 +71,52 @@ function createEnvironment(port, databasePath) {
   };
 }
 
-function connectClient(port, value = ACCESS_VALUE) {
-  const session = new CloudPaperAccessSession();
-  session.connect(`http://127.0.0.1:${port}`, value);
-  return { session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+const safeStorage = Object.freeze({
+  isEncryptionAvailable: () => true,
+  getSelectedStorageBackend: () => "test_secure_backend",
+  encryptString(value) {
+    return Buffer.from([...Buffer.from(value, "utf8")].map((byte) => byte ^ 0x5a));
+  },
+  decryptString(value) {
+    return Buffer.from([...value].map((byte) => byte ^ 0x5a)).toString("utf8");
+  }
+});
+
+async function issueDesktopBootstrap(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/operator/desktop-bootstrap`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${OWNER_BOOTSTRAP_CREDENTIAL}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ targetUserId: OWNER_ID, scopes: ["dashboard:read", "paper:trade"] })
+  });
+  assert.equal(response.status, 201);
+  const payload = await response.json();
+  assert.equal(payload.targetUserId, OWNER_ID);
+  assert.equal(typeof payload.token, "string");
+  assert.ok(payload.token.length >= 32);
+  return payload.token;
+}
+
+async function bootstrapDesktopClient(port, sessionPath) {
+  const store = new DesktopCloudSessionStore(safeStorage, sessionPath);
+  const session = new DesktopCloudSessionClient(store);
+  const bootstrapToken = await issueDesktopBootstrap(port);
+  await session.bootstrap(`http://127.0.0.1:${port}`, bootstrapToken);
+  const snapshot = session.snapshot();
+  assert.equal(snapshot.connected, true);
+  assert.equal(snapshot.endpoint, `http://127.0.0.1:${port}`);
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "accessToken"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "refreshToken"), false);
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+}
+
+async function restoreDesktopClient(sessionPath) {
+  const store = new DesktopCloudSessionStore(safeStorage, sessionPath);
+  const session = new DesktopCloudSessionClient(store);
+  assert.equal(await session.restore(), true, "Desktop restart must restore through the rotated encrypted refresh credential");
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
 }
 
 async function waitForOperations(client, timeoutMs = 5_000) {
@@ -102,9 +150,10 @@ async function waitPastCanonicalOrderRateWindow(filledAt) {
   if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
 }
 
-test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority, survives restart, and never falls back locally", async () => {
+test("Desktop secure session drives production Cloud HTTP/risk/SQLite PAPER authority, restores after restart, and never falls back locally", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-desktop-cloud-paper-e2e-"));
   const databasePath = path.join(directory, "cloud.sqlite");
+  const sessionPath = path.join(directory, "desktop-session.json");
   const port = await allocatePort();
   let runtime;
   try {
@@ -115,17 +164,21 @@ test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority,
       createMarketFactory(50_000)
     );
 
-    const { client } = connectClient(port);
-    const initial = await waitForOperations(client);
+    const firstConnection = await bootstrapDesktopClient(port, sessionPath);
+    const initial = await waitForOperations(firstConnection.client);
     assert.equal(initial.liveAuthority, "NONE");
     assert.equal(initial.productionMutationAllowed, false);
     assert.equal(initial.portfolio.account.cash, 100_000);
     assert.equal(initial.orders.length, 0);
 
+    const persistedSession = fs.readFileSync(sessionPath, "utf8");
+    assert.doesNotMatch(persistedSession, /accessToken|refreshToken/);
+    assert.equal(persistedSession.includes(OWNER_BOOTSTRAP_CREDENTIAL), false);
+
     // Freeze the Desktop request identity so invoking the same user action twice proves the
     // canonical Cloud idempotency ledger rather than creating a second distinct command.
     const buyer = new DesktopCloudPaperAuthority({
-      client,
+      client: firstConnection.client,
       now: () => 1_700_000_000_000,
       createId: () => "desktop-buy-idempotency-0001"
     });
@@ -142,13 +195,6 @@ test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority,
     assert.equal(duplicate.snapshot.orders.length, 1);
     assert.equal(duplicate.snapshot.position.quantity, buy.snapshot.position.quantity);
 
-    const wrong = connectClient(port, "z".repeat(40));
-    const rejected = await wrong.client.loadOperations();
-    assert.equal(rejected.status, "UNAVAILABLE");
-    const afterRejected = await waitForOperations(client);
-    assert.equal(afterRejected.orders.length, 1);
-    assert.equal(afterRejected.portfolio.account.position.quantity, buy.snapshot.position.quantity);
-
     const beforeRestart = await buyer.snapshot();
     assert.ok(beforeRestart);
     await runtime.stop();
@@ -161,7 +207,10 @@ test("Desktop manual PAPER uses the production Cloud HTTP/risk/SQLite authority,
       undefined,
       createMarketFactory(55_000)
     );
-    const restartedConnection = connectClient(port);
+
+    // Model an Electron process restart: access memory is gone, only the safeStorage-backed
+    // refresh record survives. Restore must rotate that credential before PAPER reads resume.
+    const restartedConnection = await restoreDesktopClient(sessionPath);
     const restoredOperations = await waitForOperations(restartedConnection.client);
     const restored = restoredOperations.portfolio;
     assert.ok(restored);
