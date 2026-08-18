@@ -1,4 +1,5 @@
 export type ThemeMode = "light" | "dark";
+export type DesignPresetName = "classic" | "master";
 export type ButtonTone = "primary" | "danger" | "neutral";
 
 export interface ShadowToken {
@@ -9,8 +10,32 @@ export interface ShadowToken {
   readonly elevation: number;
 }
 
+export interface DesignPreset {
+  readonly name: DesignPresetName;
+  readonly dark: Readonly<{
+    background: string; surface: string; surfaceRaised: string; surfaceSunken: string;
+    text: string; textMuted: string; primary: string; primarySoft: string; onPrimary: string;
+    navSurface: string; border: string; borderStrong: string; info: string; focus: string;
+    neonGlow: string;
+  }>;
+  readonly light: Readonly<{
+    background: string; surface: string; surfaceRaised: string; surfaceSunken: string;
+    text: string; textMuted: string; primary: string; primarySoft: string; onPrimary: string;
+    navSurface: string; border: string; borderStrong: string; info: string; focus: string;
+    neonGlow: string;
+  }>;
+  readonly typography: Readonly<{
+    micro: number; caption: number; body: number; title: number; heading: number; display: number; hero: number;
+  }>;
+  readonly layout: Readonly<{
+    screenPadding: number; sectionGap: number; cardPadding: number; heroRadius: number;
+  }>;
+  readonly radii: Readonly<{ sm: number; md: number; lg: number; xl: number; full: 9999 }>;
+}
+
 export interface Theme {
   readonly mode: ThemeMode;
+  readonly preset: DesignPresetName;
   readonly colors: Readonly<{
     background: string; surface: string; surfaceRaised: string; surfaceSunken: string;
     text: string; textMuted: string; primary: string; primarySoft: string; onPrimary: string;
@@ -26,12 +51,15 @@ export interface Theme {
     weights: Readonly<{ regular: "400"; medium: "500"; semibold: "600"; bold: "700"; }>;
   }>;
   readonly spacing: Readonly<{ zero: 0; xs: 4; sm: 8; md: 12; lg: 16; xl: 24; xxl: 32; huge: 48; }>;
-  readonly radii: Readonly<{ sm: 8; md: 12; lg: 16; xl: 24; full: 9999; }>;
+  readonly radii: Readonly<{ sm: number; md: number; lg: number; xl: number; full: 9999 }>;
   readonly shadows: Readonly<{ sm: ShadowToken; md: ShadowToken; focus: ShadowToken; glow: ShadowToken; }>;
   readonly icons: Readonly<{ sm: 16; md: 20; lg: 24; xl: 32 }>;
   readonly interaction: Readonly<{
     touchTarget: 48; controlHeight: 48; borderWidth: 1; focusBorderWidth: 2;
     pressedOpacity: 0.88; disabledOpacity: 0.42;
+  }>;
+  readonly layout: Readonly<{
+    screenPadding: number; sectionGap: number; cardPadding: number; heroRadius: number;
   }>;
 }
 
@@ -44,6 +72,45 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
+export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
+  classic: Object.freeze({
+    name: "classic" as const,
+    dark: Object.freeze({
+      background: "#05070D", surface: "#0A0F19", surfaceRaised: "#101827", surfaceSunken: "#070B13",
+      text: "#F4F6F8", textMuted: "#8D96A5", primary: "#E8F3FF", primarySoft: "#10233A", onPrimary: "#05070D",
+      navSurface: "#080D17", border: "#182337", borderStrong: "#30445F", info: "#8FA9C7", focus: "#FFFFFF",
+      neonGlow: "rgba(181, 107, 255, 0.2)",
+    }),
+    light: Object.freeze({
+      background: "#F6F7F9", surface: "#FFFFFF", surfaceRaised: "#F0F2F5", surfaceSunken: "#EAEDF1",
+      text: "#11151B", textMuted: "#626C7A", primary: "#11151B", primarySoft: "#EEF1F5", onPrimary: "#FFFFFF",
+      navSurface: "#FFFFFF", border: "#DDE1E7", borderStrong: "#BFC6D1", info: "#4C5665", focus: "#11151B",
+      neonGlow: "rgba(181, 107, 255, 0.1)",
+    }),
+    typography: Object.freeze({ micro: 10, caption: 12, body: 16, title: 21, heading: 30, display: 40, hero: 50 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 22, cardPadding: 20, heroRadius: 22 }),
+    radii: Object.freeze({ sm: 8, md: 12, lg: 16, xl: 24, full: 9999 as const }),
+  }),
+  master: Object.freeze({
+    name: "master" as const,
+    dark: Object.freeze({
+      background: "#0A0B0E", surface: "#101216", surfaceRaised: "#16191F", surfaceSunken: "#0D0F12",
+      text: "#F2EFE6", textMuted: "#9DA2AA", primary: "#F2EFE6", primarySoft: "#24211B", onPrimary: "#0A0B0E",
+      navSurface: "#0D0F12", border: "#292D34", borderStrong: "#4A505A", info: "#B4BAC4", focus: "#F2EFE6",
+      neonGlow: "rgba(155, 108, 255, 0.14)",
+    }),
+    light: Object.freeze({
+      background: "#F1EEE6", surface: "#FAF8F2", surfaceRaised: "#E8E4DA", surfaceSunken: "#E2DDD1",
+      text: "#17181B", textMuted: "#59606A", primary: "#17181B", primarySoft: "#E5DFD1", onPrimary: "#FAF8F2",
+      navSurface: "#F7F4EC", border: "#CDC6B9", borderStrong: "#8F887C", info: "#4D5560", focus: "#17181B",
+      neonGlow: "rgba(155, 108, 255, 0.08)",
+    }),
+    typography: Object.freeze({ micro: 9, caption: 11, body: 14, title: 20, heading: 29, display: 40, hero: 58 }),
+    layout: Object.freeze({ screenPadding: 14, sectionGap: 12, cardPadding: 16, heroRadius: 8 }),
+    radii: Object.freeze({ sm: 3, md: 5, lg: 8, xl: 12, full: 9999 as const }),
+  }),
+});
+
 const freezeTheme = (theme: Theme): Theme => Object.freeze({
   ...theme,
   colors: Object.freeze({ ...theme.colors }),
@@ -53,64 +120,71 @@ const freezeTheme = (theme: Theme): Theme => Object.freeze({
   shadows: Object.freeze(Object.fromEntries(Object.entries(theme.shadows).map(([key, value]) => [key, Object.freeze({ ...value, offset: Object.freeze({ ...value.offset }) })])) as Theme["shadows"]),
   icons: Object.freeze({ ...theme.icons }),
   interaction: Object.freeze({ ...theme.interaction }),
+  layout: Object.freeze({ ...theme.layout }),
 });
 
-export function createTheme(mode: ThemeMode): Theme {
+export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "master"): Theme {
   const dark = mode === "dark";
+  const preset = designPresets[presetName];
+  const palette = dark ? preset.dark : preset.light;
   return freezeTheme({
     mode,
+    preset: preset.name,
     colors: {
-      background: dark ? "#05070D" : "#F6F7F9",
-      surface: dark ? "#0A0F19" : "#FFFFFF",
-      surfaceRaised: dark ? "#101827" : "#F0F2F5",
-      surfaceSunken: dark ? "#070B13" : "#EAEDF1",
-      text: dark ? "#F4F6F8" : "#11151B",
-      textMuted: dark ? "#8D96A5" : "#626C7A",
-      // Brand actions stay monochrome. Chromatic signal colors are reserved for AI surfaces.
-      primary: dark ? "#E8F3FF" : "#11151B",
-      primarySoft: dark ? "#10233A" : "#EEF1F5",
-      onPrimary: dark ? "#05070D" : "#FFFFFF",
-      aiSignalStart: "#B56BFF",
+      background: palette.background,
+      surface: palette.surface,
+      surfaceRaised: palette.surfaceRaised,
+      surfaceSunken: palette.surfaceSunken,
+      text: palette.text,
+      textMuted: palette.textMuted,
+      primary: palette.primary,
+      primarySoft: palette.primarySoft,
+      onPrimary: palette.onPrimary,
+      aiSignalStart: "#9B6CFF",
       aiSignalMid: "#5B8CFF",
-      aiSignalEnd: "#49D7C3",
-      aiSignalSoft: dark ? "#151632" : "#F2EAFE",
+      aiSignalEnd: "#36D8CB",
+      aiSignalSoft: dark ? "#15122B" : "#F2EAFE",
       terrain: dark ? "#DCEBFF" : "#23334A",
-      chartUp: dark ? "#48D6C0" : "#147A50",
+      chartUp: dark ? "#36D8CB" : "#147A50",
       chartDown: dark ? "#F17A94" : "#B83249",
-      navSurface: dark ? "#080D17" : "#FFFFFF",
-      border: dark ? "#182337" : "#DDE1E7",
-      borderStrong: dark ? "#30445F" : "#BFC6D1",
-      success: dark ? "#48D6C0" : "#147A50",
+      navSurface: palette.navSurface,
+      border: palette.border,
+      borderStrong: palette.borderStrong,
+      success: dark ? "#36D8CB" : preset.name === "master" ? "#0F6843" : "#147A50",
       warning: dark ? "#E5C06C" : "#8D681B",
-      danger: dark ? "#F17A94" : "#B83249",
-      info: dark ? "#8FA9C7" : "#4C5665",
+      danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
+      info: palette.info,
       onDanger: dark ? "#11151B" : "#FFFFFF",
-      focus: dark ? "#FFFFFF" : "#11151B",
-      // Neon colors for enhanced visual redesign
-      neonPurple: "#B56BFF",
+      focus: palette.focus,
+      neonPurple: "#9B6CFF",
       neonBlue: "#5B8CFF",
-      neonTeal: "#49D7C3",
-      neonGlow: dark ? "rgba(181, 107, 255, 0.2)" : "rgba(181, 107, 255, 0.1)",
+      neonTeal: "#36D8CB",
+      neonGlow: palette.neonGlow,
     },
     typography: {
-      fontFamily: "Noto Sans KR", monoFamily: "Menlo", micro: 10, caption: 12, body: 16,
-      title: 21, heading: 30, display: 40, hero: 50, lineHeight: 1.5,
+      fontFamily: "Noto Sans KR", monoFamily: "Menlo",
+      ...preset.typography,
+      lineHeight: 1.5,
       weights: { regular: "400", medium: "500", semibold: "600", bold: "700" },
     },
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
-    radii: { sm: 8, md: 12, lg: 16, xl: 24, full: 9999 },
+    radii: preset.radii,
     shadows: {
       sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
       md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
-      focus: { color: dark ? "#FFFFFF" : "#11151B", offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
-      glow: { color: "#B56BFF", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
+      focus: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
+      glow: { color: "#9B6CFF", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
+    layout: preset.layout,
   });
 }
 
-export const themes = Object.freeze({ light: createTheme("light"), dark: createTheme("dark") });
+export const themes = Object.freeze({
+  light: createTheme("light", "master"),
+  dark: createTheme("dark", "master"),
+});
 
 export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
   return Object.freeze({
@@ -141,9 +215,9 @@ export function fieldTokens(theme: Theme) {
 }
 
 export function cardTokens(theme: Theme) {
-  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: 20, shadow: theme.shadows.sm });
+  return Object.freeze({ background: theme.colors.surface, border: theme.colors.border, radius: theme.radii.lg, padding: theme.layout.cardPadding, shadow: theme.shadows.sm });
 }
 
 export function designSystemSnapshot(theme: Theme): string {
-  return JSON.stringify({ mode: theme.mode, colors: theme.colors, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
+  return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }

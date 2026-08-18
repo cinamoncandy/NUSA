@@ -1,11 +1,14 @@
 id: WO-0057
 title: "Desktop Cloud Canonical PAPER Authority Migration"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
 implementation_branch: agent/wo-0057-desktop-cloud-paper-authority
+pull_request: 552
+exact_head: 03eef24c4abbba91920c0063a3e2af95088eb9d0
+merge_commit: f875980e4ff9111ab576f1e93294fae510d07167
 objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary without introducing LIVE or real-money authority."
 authority:
   mode: PAPER_ONLY
@@ -19,7 +22,7 @@ scope:
   - "Preserve existing PAPER safety, risk, audit, persistence, and fail-closed contracts"
 architecture_impact:
   acknowledged: true
-  analysis: "This governance-only registration records the canonical PAPER authority migration and its session-boundary predecessor. It does not change runtime composition, grant LIVE or production authority, or alter Risk Governor and fail-closed contracts."
+  analysis: "WO-0057 completed the Desktop PAPER authority cutover from local Desktop ownership to the authenticated canonical Cloud PAPER runtime. Desktop reads and manual PAPER orders now cross the main-process authenticated Cloud boundary; Cloud remains the sole canonical PAPER writer. No local broker fallback or dual writer was introduced, and the existing Risk Governor, audit, persistence, fail-closed, LIVE, and real-money prohibitions remain intact."
   references:
     - .aipos/architecture.md
     - .aipos/AI_HANDOFF_CONTRACT.md
@@ -31,7 +34,13 @@ blocked:
   - "liveAuthority != NONE"
 children:
   - id: WO-0057A
-    status: READY
+    status: COMPLETED
+    pull_request: 554
+    exact_head: d52d416b6df618c582d1a4e33288f040954e59ef
+    merge_commit: d32437bc7a6ad903ea42f3ec14cc8d3cdcd4425d
+    exact_head_ci: PASS
+    coverage: PASS
+    required_companion_workflows: PASS_4_OF_4
     purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
 serialization:
   parent_gate: WO-0051
@@ -43,4 +52,13 @@ safety:
   real_order_authority: false
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
+verification:
+  exact_head_ci: PASS
+  read_only_broker_credential_integration: PASS
+  restricted_live_activation_rehearsal: PASS
+  restricted_live_transport_credential_readiness: PASS
+  restricted_live_capability_surface_guard: PASS
+  mergeable_at_merge: true
+  unresolved_review_threads_at_merge: 0
 completion_rule: "Merge + exact-head required checks PASS after canonical Desktop Cloud PAPER read/write cutover is complete. WO-0057A must first provide the approved Desktop session boundary."
+completion_result: "SATISFIED by PR #552 exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 merged to main as f875980e4ff9111ab576f1e93294fae510d07167 with required exact-head workflows PASS."

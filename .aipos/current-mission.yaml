@@ -1,32 +1,55 @@
-id: WO-0057
-title: Desktop Cloud Canonical PAPER Authority Migration
-branch: agent/wo-0057-desktop-cloud-paper-authority
+id: WO-0051
+title: Constitutional Production Transition Human/Environment Gate
+branch: main
 base_branch: main
-phase: desktop-cloud-canonical-paper-authority
+phase: constitutional-production-human-environment-gate
 status: IN_PROGRESS
-source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
-objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
-child_work_orders:
-  - id: WO-0057A
-    title: Desktop Cloud PAPER Session Boundary
-    source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
-    status: COMPLETED
-    branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
-    pull_request: 554
-    exact_head: d52d416b6df618c582d1a4e33288f040954e59ef
-    merge_commit: d32437bc7a6ad903ea42f3ec14cc8d3cdcd4425d
-    exact_head_ci: PASS
-    coverage: PASS
-    required_companion_workflows: PASS_4_OF_4
-    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
-    bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
-    secure_storage: ELECTRON_SAFE_STORAGE
-    access_token_storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
-    refresh_rotation: required
-    refresh_reuse_detection: required
-    allowed_scopes:
-      - dashboard:read
-      - paper:trade
+source_work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; this work order cannot be completed by synthetic CI, chat consent, AI inference, or automated repository changes."
+mode: HUMAN_ENVIRONMENT_ONLY
+automated_completion: prohibited
+synthetic_ci_completion: prohibited
+chat_consent_as_live_authority: prohibited
+latest_completed_work_order:
+  id: WO-0059
+  title: Actual PAPER Runtime End-to-End Activation
+  source_work_order: .aipos/work-orders/WO-0059-actual-paper-runtime-e2e.yaml
+  status: COMPLETED
+  branch: agent/wo-0059-actual-paper-runtime-e2e
+  pull_request: 567
+  exact_head: d115ccf58765ae6e394210d51ae043a649db14f6
+  merge_commit: 0f6eb6f8148d208090be27f9515f6a97a2c272f8
+  exact_head_ci: PASS
+  actual_paper_public_market_runtime: PASS
+  live_upbit_public_ticker_ingestion: PASS
+  canonical_paper_order_fill: PASS
+  sqlite_persistence: PASS
+  restart_recovery: PASS
+  same_idempotency_retry_no_double_fill: PASS
+  required_companion_workflows: PASS_4_OF_4
+  evidence_workflow_run: 32109958045
+  evidence_artifact_digest: sha256:b1b7e09430281a9bbb73824bbcd9481446ecfb96d61794f36942c0337663627c
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+previous_completed_work_order:
+  id: WO-0058
+  title: Approved User Session Core Extraction
+  source_work_order: .aipos/work-orders/WO-0058-approved-user-session-core.yaml
+  status: COMPLETED
+  branch: agent/wo-0058-approved-user-session-core
+  pull_request: 565
+  exact_head: cdbf734cf5e62d60c3e0daf77b4ad7fca0e03335
+  merge_commit: 33e3f5d3d6d55cd0877f2ccd794a643c7e0de253
+  exact_head_ci: PASS
+  focused_session_contract: PASS
+  desktop_compatibility: PASS
+  required_companion_workflows: PASS_4_OF_4
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
 preserved_previous_mission:
   id: WO-0056
   title: Read-only MCP gateway over existing NUSA relays
@@ -37,12 +60,9 @@ preserved_previous_mission:
   external_deployment: PENDING_AUTHORITY
   chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
   note: "WO-0056 repository implementation remains closed; its external HTTPS/ChatGPT evidence may be collected separately and does not block non-LIVE successors."
-serialized_human_environment_gate:
-  id: WO-0051
-  status: IN_PROGRESS
-  mode: HUMAN_ENVIRONMENT_ONLY
-  bypass: prohibited
+serialization:
   scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  bypass: prohibited
   allowed_successors:
     - PAPER_ONLY
     - READ_ONLY
@@ -58,12 +78,18 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-verification:
-  governance_registration: PASS_MAIN_PR_553
-  implementation_started: true
-  child_session_boundary: PASS_MERGED_PR_554
-  parent_pull_request: 552
-  exact_head_ci: PENDING
-mobile_auth:
-  status: NOT_STARTED
-next_recommended_task: "Finish the parent PR #552 secure-session-backed Desktop Cloud PAPER cutover, obtain exact-head required checks PASS, and merge without adding LIVE, real-money, or local canonical PAPER authority."
+active_non_live_successor:
+  id: WO-0060A
+  title: Android Approved-User Secure Session Binding
+  source_work_order: .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
+  status: IN_PROGRESS
+  branch: agent/wo-0060-android-approved-user-session
+  base_commit: 713e19ce6dd6186c54ccf4caa51ac938950db75e
+  parent_work_order: WO-0060
+  parent_pull_request: 569
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "WO-0060A is the approved mobile-session/Android secure-storage child slice required by WO-0060. It does not complete parent WO-0060 and does not satisfy, bypass, or modify WO-0051."
+next_recommended_task: "Complete WO-0060A with exact-head CI, mobile-native build, Android Keystore secure-storage, and approved-user session evidence; then parent WO-0060 may continue Android PAPER operability and physical-device acceptance. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."

@@ -16,7 +16,7 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
   assert.doesNotMatch(app, /dashboard-credential/);
 });
 
-test("Settings is the single PAPER endpoint and memory credential setup path", () => {
+test("Settings is the single PAPER endpoint and approved secure-session setup path", () => {
   const app = read("apps/mobile/App.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
@@ -32,28 +32,22 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   assert.match(settings, /clearPaperConnectionVerification/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /allowUnverifiedEndpoint: true/);
-  assert.match(settings, /토큰은 현재 프로세스 메모리에만 유지됩니다/);
+  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
 test("cold start restores the saved endpoint before the first dashboard refresh", () => {
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /let endpoint = settings\.paperEndpoint/);
+  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
   assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
-  // Development: auto-connect to local PAPER server if no endpoint configured
-  assert.match(app, /if\s*\(\s*!endpoint\s*&&\s*__DEV__\s*\)/);
-  assert.match(app, /endpoint\s*=\s*"http:\/\/127\.0\.0\.1:8000"/);
-  assert.match(app, /setConfiguredPaperEndpoint\(endpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
+  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
 });
 
 test("AI-only authority copy does not claim broader authority than the local PAPER entry disclosure", () => {
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4) removed the permanent full-width
-  // PAPER ONLY/LIVE NONE strip that used to repeat on every authenticated screen; the local
-  // entry screen's one-time disclosure badges remain, and AI's own zero-authority messaging
-  // must not read as if it grants more than that.
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(app, /StatusChip label="PAPER ONLY"/);
@@ -114,7 +108,6 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
 
 test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
   const bounded = {
-    "apps/mobile/src/homeView.tsx": /maxWidth: 920/,
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
@@ -124,10 +117,15 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
   const home = read("apps/mobile/src/homeView.tsx");
+  const profile = read("apps/mobile/src/homeVisualProfile.ts");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap", gap: 10 \}/);
+  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 1120\) : profile\.screen\.maxWidth/);
+  assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
+  assert.match(profile, /master:[\s\S]*maxWidth: 780/);
+  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
+  assert.match(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
   assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);

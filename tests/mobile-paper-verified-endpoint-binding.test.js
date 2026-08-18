@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
 const { submitPersonalPaperOrder } = require("../dist/apps/mobile/src/personalPaperOrderClient.js");
 const {
@@ -13,6 +12,7 @@ const {
 const VERIFIED = "https://paper-verified.example.test";
 const ATTACKER = "https://caller-env-attacker.example.test";
 const SESSION_FIXTURE = ["verified", "endpoint", "bound", "dashboard", "fixture", "123456"].join("-");
+const credentialProvider = async () => SESSION_FIXTURE;
 
 const order = Object.freeze({
   schemaVersion: 1,
@@ -25,28 +25,24 @@ const order = Object.freeze({
   quantity: 0.001
 });
 
-function setupVerifiedSession() {
+function setupVerifiedEndpoint() {
   clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(VERIFIED);
   markPaperConnectionVerified(VERIFIED);
-  const session = new InMemoryDashboardCredentialSession();
-  session.connect(SESSION_FIXTURE);
-  return session;
 }
 
-function cleanup(session) {
-  session?.clear();
+function cleanup() {
   clearConfiguredPaperEndpoint();
 }
 
 test("normal PAPER read ignores caller/env URL and sends credential only to verified Settings endpoint", async () => {
-  const session = setupVerifiedSession();
+  setupVerifiedEndpoint();
   let observedUrl = null;
   let observedAuthorization = null;
   try {
     const result = await loadPersonalPaperOperations({
       baseUrl: ATTACKER,
-      credentialProvider: session.credentialProvider,
+      credentialProvider,
       request: async (url, init) => {
         observedUrl = String(url);
         observedAuthorization = init?.headers?.authorization ?? null;
@@ -59,18 +55,18 @@ test("normal PAPER read ignores caller/env URL and sends credential only to veri
     assert.equal(observedAuthorization, `Bearer ${SESSION_FIXTURE}`);
     assert.equal(String(observedUrl).startsWith(ATTACKER), false, "caller/env URL must never receive credential transport");
   } finally {
-    cleanup(session);
+    cleanup();
   }
 });
 
 test("normal PAPER order ignores caller/env URL and sends credential only to verified Settings endpoint", async () => {
-  const session = setupVerifiedSession();
+  setupVerifiedEndpoint();
   let observedUrl = null;
   let observedAuthorization = null;
   try {
     const result = await submitPersonalPaperOrder({
       baseUrl: ATTACKER,
-      credentialProvider: session.credentialProvider,
+      credentialProvider,
       request: async (url, init) => {
         observedUrl = String(url);
         observedAuthorization = init?.headers?.authorization ?? null;
@@ -89,6 +85,6 @@ test("normal PAPER order ignores caller/env URL and sends credential only to ver
     assert.equal(observedAuthorization, `Bearer ${SESSION_FIXTURE}`);
     assert.equal(String(observedUrl).startsWith(ATTACKER), false, "caller/env URL must never receive order credential transport");
   } finally {
-    cleanup(session);
+    cleanup();
   }
 });

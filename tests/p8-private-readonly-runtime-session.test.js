@@ -41,32 +41,31 @@ async function loadOperations(handle, token) {
 test.beforeEach(() => clearConfiguredPaperEndpoint());
 test.afterEach(() => clearConfiguredPaperEndpoint());
 
-test("memory-only dashboard credential session never persists or infers local auth", async () => {
+test("mobile dashboard credential session never exposes a submitted bootstrap token as bearer auth", async () => {
   const session = new InMemoryDashboardCredentialSession();
   assert.equal(await session.credentialProvider(), null);
   assert.throws(() => session.connect("short"), /invalid/);
-  session.connect("  read-only-dashboard-token-123456  ");
-  assert.equal(await session.credentialProvider(), "read-only-dashboard-token-123456");
-  assert.equal(session.isConfigured(), true);
+  session.connect("  one-time-mobile-bootstrap-token-123456  ");
+  assert.equal(await session.credentialProvider(), null, "a bootstrap token must never be returned directly as bearer auth");
+  assert.equal(session.isConfigured(), false, "a bootstrap token alone must not imply a configured endpoint");
   assert.equal(Object.prototype.hasOwnProperty.call(session, "storage"), false);
   session.clear();
   assert.equal(await session.credentialProvider(), null);
 });
 
-test("changing PAPER endpoint revokes the previous credential before any request", async () => {
+test("changing PAPER endpoint revokes pending bootstrap/access state before any request", async () => {
   const session = new InMemoryDashboardCredentialSession();
   setConfiguredPaperEndpoint("https://paper-one.invalid");
-  session.connect("endpoint-bound-dashboard-token-123456");
-  assert.equal(await session.credentialProvider(), "endpoint-bound-dashboard-token-123456");
+  session.connect("endpoint-bound-mobile-bootstrap-token-123456");
   setConfiguredPaperEndpoint("https://paper-two.invalid");
-  assert.equal(await session.credentialProvider(), null, "endpoint identity change must revoke the shared token");
-  assert.equal(session.isConfigured(), false);
+  assert.equal(await session.credentialProvider(), null, "endpoint identity change must revoke the previous pending bootstrap/access state");
+  assert.equal(session.isConfigured(), true, "the new endpoint remains configured even though it has no approved session yet");
   let requestCount = 0;
   let authorizationSeen = null;
   const result = await loadPersonalPaperOperations({ baseUrl: "https://paper-two.invalid", credentialProvider: session.credentialProvider, request: async (_url, init) => { requestCount += 1; authorizationSeen = init?.headers?.authorization ?? null; return { ok: false, status: 503 }; } });
   assert.equal(result.status, "NOT_CONFIGURED");
   assert.equal(requestCount, 0, "no network request is allowed until the new endpoint is re-verified");
-  assert.equal(authorizationSeen, null, "the previous endpoint credential must never be disclosed to the new endpoint");
+  assert.equal(authorizationSeen, null, "credential material from the previous endpoint must never be disclosed to the new endpoint");
 });
 
 test("dashboard bearer credential is sent only to a verified secure or loopback endpoint", async () => {

@@ -30,6 +30,14 @@ import {
   handleDesktopSessionRefreshHttp,
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
+import { MobileSessionService } from "./mobileSessionService";
+import {
+  handleMobileBootstrapHttp,
+  handleMobileBootstrapIssueHttp,
+  handleMobileMeHttp,
+  handleMobileSessionRefreshHttp,
+  handleMobileSessionRevokeHttp
+} from "./mobileSessionHttp";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -51,6 +59,7 @@ export interface CloudDashboardServerOptions {
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
+  readonly mobileSessionService?: MobileSessionService;
   readonly readiness?: () => CloudReadinessSnapshot;
   readonly rateLimiter?: BoundedHttpRateLimiter;
 }
@@ -156,6 +165,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     userAccessRepository = new SqliteNusaUserAccessRepository(ownedUserDb);
   }
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
+  const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -171,7 +181,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
       try {
-        const principal = desktopSessionService?.verifyAccess(token) ?? options.tokenVerifier.verify(token);
+        const principal = mobileSessionService?.verifyAccess(token) ?? desktopSessionService?.verifyAccess(token) ?? options.tokenVerifier.verify(token);
         if (principal == null || !principal.userId.trim()) return undefined;
         const principalEmail = principal.email?.trim().toLowerCase();
         if (!principalEmail) return undefined;
@@ -255,6 +265,32 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           if (raw) requestPrincipal = desktopSessionService.verifyAccess(raw);
         }
         respond("desktop_me", handleDesktopMeHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+
+      if (mobileSessionService != null && req.url === "/api/operator/mobile-bootstrap") {
+        respond("mobile_bootstrap_issue", handleMobileBootstrapIssueHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/bootstrap") {
+        respond("mobile_bootstrap", handleMobileBootstrapHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
+        respond("mobile_session_refresh", handleMobileSessionRefreshHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/revoke") {
+        respond("mobile_session_revoke", handleMobileSessionRevokeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/me") {
+        const token = dashboardRequest.headers.authorization ?? dashboardRequest.headers.Authorization;
+        if (typeof token === "string") {
+          const raw = /^Bearer\s+([^\s]+)$/i.exec(token.trim())?.[1];
+          if (raw) requestPrincipal = mobileSessionService.verifyAccess(raw);
+        }
+        respond("mobile_me", handleMobileMeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
       }
 
