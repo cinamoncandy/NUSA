@@ -46,9 +46,9 @@ function gitRevision(root) {
   return result.status === 0 ? result.stdout.trim() : "UNKNOWN";
 }
 
-function build(root) {
-  const result = spawnSync("pnpm", ["run", "build"], { cwd: root, encoding: "utf8", shell: false });
-  if (result.status !== 0) throw new Error(`build failed: ${String(result.stderr || result.stdout).slice(-4000)}`);
+function assertBuilt(root) {
+  const runtimePath = resolve(root, "dist/apps/cloud/src/runtime.js");
+  if (!existsSync(runtimePath)) throw new Error("compiled Cloud runtime is missing; run `pnpm run build` before the E2E harness");
 }
 
 function startRuntime(root, env) {
@@ -156,7 +156,7 @@ async function run(options = {}) {
   if (!/^KRW-[A-Z0-9-]+$/.test(market)) throw new Error("invalid E2E market");
   if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("invalid E2E quantity");
 
-  build(root);
+  assertBuilt(root);
   rmSync(workingDir, { recursive: true, force: true });
   mkdirSync(workingDir, { recursive: true });
 
