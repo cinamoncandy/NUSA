@@ -1,78 +1,46 @@
 id: WO-0057
-schema_version: 1
-title: "Desktop Cloud canonical PAPER authority migration"
+title: "Desktop Cloud Canonical PAPER Authority Migration"
 status: IN_PROGRESS
-priority: 95
-owner: nusa-engineering
+owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
 implementation_branch: agent/wo-0057-desktop-cloud-paper-authority
-objective: "Move Desktop manual PAPER command and account truth to the existing authenticated Cloud canonical PAPER runtime while preserving explicit local simulation only and zero LIVE authority."
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary without introducing LIVE or real-money authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
 scope:
-  - "Reuse the existing stable-user Cloud bearer principal with paper:trade scope and durable ACTIVE/SUSPENDED access control."
-  - "Keep the Desktop Cloud access credential process-memory-only and endpoint-bound; never expose it through the renderer bridge."
-  - "Route Desktop manual PAPER order and account snapshot surfaces through Cloud /api/paper-orders and /api/paper-operations."
-  - "Make packaged/Desktop PAPER authority Cloud canonical and block legacy local manual order IPC under that authority."
-  - "Keep Desktop automatic strategy execution disabled until a separately serialized successor migrates strategy commands to Cloud canonical authority."
-  - "Preserve LOCAL_SIMULATION only as an explicit non-packaged research/development mode."
-exclusions:
-  - "No LIVE order, cancel, withdrawal, transfer, broker mutation, or real-money authority."
-  - "No new authentication semantics, anonymous PAPER access, dashboard-bearer fallback, or credential persistence."
-  - "No Cloud failure fallback to Desktop PaperBroker."
-  - "No CIO replacement, portfolio optimizer, fill-engine rewrite, mobile auth rewrite, Oracle deployment, or broad runtime rewrite."
+  - "Desktop Cloud PAPER read projection"
+  - "Desktop Cloud PAPER order submission through canonical PAPER authority"
+  - "Desktop IPC cutover to main-process authenticated Cloud PAPER client"
+  - "Preserve existing PAPER safety, risk, audit, persistence, and fail-closed contracts"
 architecture_impact:
   acknowledged: true
-  analysis: "Converges Desktop PAPER authority onto the Cloud writer already declared canonical by PR #550. It removes an exposed split-brain client surface without creating a second runtime, second writer, or new financial authority."
+  analysis: "This governance-only registration records the canonical PAPER authority migration and its session-boundary predecessor. It does not change runtime composition, grant LIVE or production authority, or alter Risk Governor and fail-closed contracts."
   references:
     - .aipos/architecture.md
-    - .aipos/current-mission.yaml
-    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
-safety_boundaries:
-  - "Cloud remains the only canonical PAPER writer."
-  - "Desktop local PaperBroker is never an implicit fallback."
-  - "liveAuthority remains NONE and productionMutationAllowed remains false."
-  - "AI remains ZERO_AUTHORITY."
-  - "Existing Cloud principal scope and user ACTIVE/SUSPENDED checks remain authoritative."
-execution_sequence:
-  - "Resolve Desktop auth blocker by reusing the existing Cloud stable-user paper:trade bearer contract without persistence."
-  - "Add fail-closed Cloud PAPER client/session and canonical Desktop authority adapter."
-  - "Switch packaged Electron bootstrap and preload PAPER surface to Cloud-only read/write channels."
-  - "Block legacy local manual PAPER IPC when Cloud canonical Desktop authority is active."
-  - "Keep automatic Desktop strategy execution disabled until the successor migration."
-  - "Add focused authority, no-fallback, secret-boundary, packaging, and production-composition tests."
-  - "Run exact-head CI, coverage, architecture, AIPOS, safety, read-only broker, Restricted LIVE workflows and synchronize main before merge."
-verification:
-  commands:
-    - "node --test tests/desktop-cloud-paper-client.test.js tests/desktop-cloud-paper-authority.test.js"
-    - "pnpm run typecheck"
-    - "pnpm run lint"
-    - "pnpm run build"
-    - "pnpm run architecture:check"
-    - "pnpm run architecture:truth"
-    - "pnpm run aipos:drift"
-    - "pnpm run aipos:conformance"
-    - "pnpm run safety:architecture"
-    - "pnpm run ai:architecture"
-    - "pnpm run verify:paper-runtime"
-    - "pnpm run security:gate"
-    - "pnpm run coverage"
-    - "git diff --check"
-completion_criteria:
-  - "Desktop renderer manual PAPER write surface reaches Cloud canonical PAPER only."
-  - "Desktop renderer PAPER account snapshot surface reads Cloud canonical truth only."
-  - "Legacy local manual order IPC fails closed while Cloud Desktop authority is active."
-  - "Cloud unavailable/auth rejected does not produce a local fill or local account fallback."
-  - "Automatic Desktop strategy execution remains fail-closed/deferred in CLOUD_PAPER mode."
-  - "Credential value is absent from renderer bridge, logs, static fixtures, package config, and persistent storage."
-  - "Exact-head full CI/coverage/architecture/AIPOS/safety and required restricted workflows pass."
-  - "Branch is synchronized with main and PR is merged; Merge SHA is recorded before COMPLETE."
-predecessor_external_verification:
-  work_order: WO-0056
-  status: VERIFYING_EXTERNAL_HUMAN_ENVIRONMENT_ONLY
-  repository_implementation: COMPLETE
-  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
-  note: "Stable HTTPS/ChatGPT connection evidence remains parked and does not serialize this non-LIVE successor."
-blockers: []
-current_status: "Auth contract blocker resolved by existing Cloud stable-user paper:trade principal contract; implementation and exact-head verification are in progress."
-next_action: "Complete Desktop Cloud PAPER surface cutover, production-composition evidence, exact-head verification, then merge only if all gates pass."
+    - .aipos/AI_HANDOFF_CONTRACT.md
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "withdrawal/transfer"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+children:
+  - id: WO-0057A
+    status: READY
+    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Merge + exact-head required checks PASS after canonical Desktop Cloud PAPER read/write cutover is complete. WO-0057A must first provide the approved Desktop session boundary."

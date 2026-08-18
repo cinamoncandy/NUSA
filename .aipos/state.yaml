@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-17T23:18:00+09:00"
-phase: desktop-cloud-paper-authority-migration
+updated_at: "2026-08-18T07:20:00+09:00"
+phase: desktop-cloud-canonical-paper-authority
 status: in_progress
-objective: "Move Desktop manual PAPER command and account truth to the existing authenticated Cloud canonical PAPER runtime with one writer, one account truth, no implicit local fallback, and no LIVE authority."
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
 base_branch: main
 active_branch: agent/wo-0057-desktop-cloud-paper-authority
-active_pull_request: 552
+active_pull_request: 553
 base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
 repository_maintenance:
   issue: 210
@@ -36,7 +36,7 @@ claimed_state:
   status: IN_PROGRESS
   branch: agent/wo-0057-desktop-cloud-paper-authority
   base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
-  scope: "Desktop manual PAPER write/read migration to the existing authenticated Cloud canonical PAPER runtime; local simulation remains explicit only and automatic strategy execution remains deferred."
+  scope: "Desktop Cloud canonical PAPER authority migration; WO-0057A provides the authenticated Desktop session boundary first. No LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -327,7 +327,7 @@ completed:
 in_progress:
   - id: WO-0057
     evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
-    summary: "Desktop manual PAPER migration is in progress using the existing Cloud stable-user paper:trade contract; WO-0056 external HTTPS/ChatGPT verification remains parked and non-serializing."
+    summary: "Desktop Cloud canonical PAPER authority migration is in progress; WO-0057A must provide the authenticated Desktop session boundary before the cutover."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -355,7 +355,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
-  reason: "Finish Desktop Cloud-only manual PAPER read/write cutover, no-fallback production E2E, exact-head verification, main synchronization, and merge before any automatic strategy migration."
+  reason: "Execute WO-0057 through its approved child sequence: implement WO-0057A session boundary first, then perform the canonical Desktop Cloud PAPER cutover. Preserve PAPER-only and fail-closed authority throughout."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
