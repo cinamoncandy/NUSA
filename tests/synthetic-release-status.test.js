@@ -6,7 +6,7 @@ const {
  SqliteSyntheticReleaseRevocationEvidenceRepository,
  aggregateSyntheticReleaseStatus,SyntheticReleaseStatusDecision,
  SyntheticReleaseRevocationDecision
-}=require('../apps/execution/src/index');
+}=require('../dist/apps/execution/src/index.js');
 
 const nodes=[
  {evidenceId:'freeze',kind:'FREEZE',candidateId:'rc-1'},
