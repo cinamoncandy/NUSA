@@ -1,0 +1,54 @@
+id: WO-0060
+title: "Android Approved-User Secure Session Binding"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 713e19ce6dd6186c54ccf4caa51ac938950db75e
+implementation_branch: agent/wo-0060-android-approved-user-session
+objective: "Bind the Android mobile PAPER client to the reusable approved-user Cloud session core with one-time bootstrap, memory-only access tokens, and Android Keystore-backed refresh-token persistence, without introducing LIVE or real-money authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Create a mobile namespace/profile over ApprovedUserSessionService"
+  - "Expose owner-issued one-time mobile bootstrap plus refresh, revoke, and me endpoints"
+  - "Allow mobile approved-user access tokens through the existing dashboard/PAPER authorization boundary"
+  - "Add Android Keystore AES-GCM secure-storage native module with ciphertext-only SharedPreferences persistence"
+  - "Add mobile session client/runtime: access token memory-only; refresh token secure-storage-only; rotation and restart restore"
+  - "Bind Settings connection flow to one-time mobile bootstrap instead of storing a long-lived bearer"
+  - "Keep iOS secure-storage activation fail-closed until a separately verified native adapter is present"
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0060 extends the WO-0058 approved-user session core to Android without creating a second authorization model. The Cloud remains canonical for identity/status and PAPER authority. Android persists only an encrypted rotating refresh credential through OS-backed Keystore material; access credentials stay in process memory. iOS is not falsely marked secure and remains fail-closed for persistent session restore."
+  references:
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+    - .aipos/work-orders/WO-0058-approved-user-session-core.yaml
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "withdrawal/transfer"
+  - "exchange private credential persistence"
+  - "AsyncStorage credential persistence"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+verification:
+  exact_head_ci: PENDING
+  mobile_native: PENDING
+  focused_session_contract: PENDING
+  android_secure_storage_boundary: PENDING
+  required_companion_workflows: PENDING
+completion_rule: "Merge only after exact-head CI, mobile-native Android/iOS build checks, required companion workflows, and focused approved-user secure-session regressions PASS. iOS persistent secure-session activation is out of scope and must remain fail-closed."
