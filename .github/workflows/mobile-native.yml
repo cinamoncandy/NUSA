@@ -11,6 +11,7 @@ on:
       - "tests/mobile-native-structure.test.js"
       - "tests/mobile-uiux-v3-canonical.test.js"
       - "tests/mobile-cash-allocation-uiux-v3.test.js"
+      - "scripts/prepare-mobile-build-config.js"
       - "scripts/security-backports.js"
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
@@ -150,6 +151,16 @@ jobs:
           cmdline-tools-version: 11076708
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Prepare canonical mobile Cloud origin
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
+      - name: Verify canonical build config source identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: grep -F "$EXPECTED_SHA" apps/mobile/src/generatedBuildConfig.ts
       - name: Build TypeScript output for UI contract tests
         run: pnpm run build
       - name: Verify canonical mobile UI contracts before RC packaging
@@ -165,6 +176,7 @@ jobs:
           tests/mobile-cash-allocation-uiux-v3.test.js
           tests/uiux-002-phase2-visual-foundation.test.js
           tests/uiux-nav-chrome-closeout.test.js
+          tests/mobile-canonical-origin.test.js
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: |
@@ -178,6 +190,7 @@ jobs:
         env:
           NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
+          NUSA_CANONICAL_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
       - name: Seal Android release candidate provenance
         shell: bash
         env:
@@ -185,23 +198,28 @@ jobs:
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
           NUSA_RUN_ID: ${{ github.run_id }}
           NUSA_REPOSITORY: ${{ github.repository }}
+          NUSA_CANONICAL_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
         run: |
           set -euo pipefail
           OUT="apps/mobile/android/app/build/outputs/apk/release"
           APK="$OUT/app-release.apk"
           APK_SHA256="$(sha256sum "$APK" | awk '{print $1}')"
           printf '%s  %s\n' "$APK_SHA256" "app-release.apk" > "$OUT/app-release.apk.sha256"
+          aapt dump --values resources "$APK" | grep -F "$NUSA_BUILD_SHA"
+          aapt dump --values resources "$APK" | grep -F "$NUSA_CANONICAL_ORIGIN"
           cat > "$OUT/provenance.json" <<EOF
           {
             "repository": "$NUSA_REPOSITORY",
             "sourceSha": "$NUSA_BUILD_SHA",
             "runNumber": "$NUSA_BUILD_NUMBER",
             "runId": "$NUSA_RUN_ID",
+            "canonicalOrigin": "$NUSA_CANONICAL_ORIGIN",
             "apk": "app-release.apk",
             "apkSha256": "$APK_SHA256"
           }
           EOF
           grep -F "\"sourceSha\": \"$NUSA_BUILD_SHA\"" "$OUT/provenance.json"
+          grep -F "\"canonicalOrigin\": \"$NUSA_CANONICAL_ORIGIN\"" "$OUT/provenance.json"
           grep -F "\"apkSha256\": \"$APK_SHA256\"" "$OUT/provenance.json"
       - name: Upload exact-head Android release candidate APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
