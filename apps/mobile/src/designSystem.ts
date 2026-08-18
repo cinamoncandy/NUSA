@@ -1,3 +1,4 @@
+// Runtime UI canonical master v3: visual token changes must be directly observable in every render state.
 export type ThemeMode = "light" | "dark";
 export type ButtonTone = "primary" | "danger" | "neutral";
 
