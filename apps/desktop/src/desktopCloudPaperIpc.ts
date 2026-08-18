@@ -1,5 +1,5 @@
 import type { IpcMain } from "electron";
-import { CloudPaperAccessSession } from "./cloudPaperAccessSession";
+import type { DesktopCloudSessionClient } from "./desktopCloudSessionClient";
 import { CloudPaperClient } from "./cloudPaperClient";
 import { DesktopCloudPaperAuthority } from "./desktopCloudPaperAuthority";
 
@@ -19,30 +19,71 @@ function readOrderInput(input: unknown): Readonly<{ side: "BUY" | "SELL"; quanti
   return Object.freeze({ side: candidate.side, quantity: candidate.quantity });
 }
 
-function provisionFromEnvironment(session: CloudPaperAccessSession): void {
-  const endpoint = process.env.NUSA_CLOUD_PAPER_ENDPOINT?.trim();
-  const accessValue = process.env.NUSA_CLOUD_PAPER_ACCESS_TOKEN?.trim();
+export async function provisionDesktopCloudPaperSession(
+  session: DesktopCloudSessionClient,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
+  const endpoint = env.NUSA_CLOUD_PAPER_ENDPOINT?.trim();
+  const bootstrapToken = env.NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN?.trim();
+  const prohibitedLegacyAccessToken = env.NUSA_CLOUD_PAPER_ACCESS_TOKEN?.trim();
   try {
-    if (!endpoint && !accessValue) return;
-    if (!endpoint || !accessValue) throw new Error("Cloud PAPER endpoint and access credential must be supplied together.");
-    session.connect(endpoint, accessValue);
+    if (prohibitedLegacyAccessToken) throw new Error("Legacy Cloud PAPER access-token injection is prohibited; use the one-time Desktop bootstrap boundary.");
+    if (bootstrapToken) {
+      if (!endpoint) throw new Error("Cloud PAPER endpoint is required with the one-time Desktop bootstrap token.");
+      await session.bootstrap(endpoint, bootstrapToken);
+      return;
+    }
+    await session.restore();
   } finally {
-    // The already-issued Cloud stable-user bearer may be injected by the launcher, but it is
-    // not retained in process.env after bootstrap. The live copy remains only in the private
-    // main-process session closure and is never returned through IPC.
-    delete process.env.NUSA_CLOUD_PAPER_ACCESS_TOKEN;
+    // Bootstrap and legacy bearer material must never remain in the long-lived Electron
+    // environment. Refresh persistence is owned exclusively by Electron safeStorage.
+    delete env.NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN;
+    delete env.NUSA_CLOUD_PAPER_ACCESS_TOKEN;
   }
 }
 
-export function registerDesktopCloudPaperIpc(ipcMain: Pick<IpcMain, "handle">): DesktopCloudPaperIpcHandle {
-  const session = new CloudPaperAccessSession();
-  provisionFromEnvironment(session);
+const rendererSafeStatus = (session: DesktopCloudSessionClient): Readonly<{
+  configured: boolean;
+  endpoint: string | null;
+  accessExpiresAt?: number;
+  refreshExpiresAt?: number;
+}> => {
+  const snapshot = session.snapshot();
+  return Object.freeze({
+    configured: snapshot.connected,
+    endpoint: snapshot.endpoint ?? null,
+    ...(snapshot.accessExpiresAt == null ? {} : { accessExpiresAt: snapshot.accessExpiresAt }),
+    ...(snapshot.refreshExpiresAt == null ? {} : { refreshExpiresAt: snapshot.refreshExpiresAt })
+  });
+};
+
+export function registerDesktopCloudPaperIpc(
+  ipcMain: Pick<IpcMain, "handle">,
+  session: DesktopCloudSessionClient,
+  env: NodeJS.ProcessEnv = process.env
+): DesktopCloudPaperIpcHandle {
+  let initializationError: Error | undefined;
+  const initialization = provisionDesktopCloudPaperSession(session, env).catch((error) => {
+    initializationError = error instanceof Error ? error : new Error("Cloud PAPER secure session initialization failed.");
+  });
+  const requireInitialized = async (): Promise<void> => {
+    await initialization;
+    if (initializationError) throw initializationError;
+  };
+
   const client = new CloudPaperClient({ session });
   const authority = new DesktopCloudPaperAuthority({ client });
 
-  ipcMain.handle("cloud-paper:status", () => session.snapshot());
-  ipcMain.handle("cloud-paper:snapshot", async () => authority.snapshot());
+  ipcMain.handle("cloud-paper:status", async () => {
+    await initialization;
+    return rendererSafeStatus(session);
+  });
+  ipcMain.handle("cloud-paper:snapshot", async () => {
+    await requireInitialized();
+    return authority.snapshot();
+  });
   ipcMain.handle("cloud-paper:order", async (_event, input: unknown) => {
+    await requireInitialized();
     const { side, quantity } = readOrderInput(input);
     return authority.placeOrder(side, quantity);
   });
@@ -50,6 +91,6 @@ export function registerDesktopCloudPaperIpc(ipcMain: Pick<IpcMain, "handle">): 
     throw new Error("Desktop automatic strategy execution is disabled in CLOUD_PAPER mode until the canonical strategy migration successor is merged.");
   });
 
-  const snapshot = session.snapshot();
+  const snapshot = rendererSafeStatus(session);
   return Object.freeze({ configured: snapshot.configured, endpoint: snapshot.endpoint });
 }
