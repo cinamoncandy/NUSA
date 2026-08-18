@@ -7,6 +7,7 @@ const required = [
   expectedDesktopMain,
   "dist/apps/desktop/src/main.js",
   "dist/apps/desktop/src/preload.js",
+  "dist/apps/desktop/src/desktopCloudSessionRuntime.js",
   "apps/desktop/renderer/index.html",
   "apps/desktop/src/cloudMain.ts"
 ];
@@ -31,14 +32,16 @@ if (
 
 const cloudMainSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloudMain.ts"), "utf8");
 const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
-const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+const readyIndex = cloudMainSource.indexOf("app.whenReady()");
+const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
 const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
 if (
   activateIndex < 0 ||
-  registerIndex <= activateIndex ||
+  readyIndex <= activateIndex ||
+  registerIndex <= readyIndex ||
   legacyImportIndex <= registerIndex
 ) {
-  console.error("Release readiness failed: Cloud Desktop authority bootstrap order changed");
+  console.error("Release readiness failed: Cloud Desktop authority/secure-session bootstrap order changed");
   process.exit(1);
 }
 
@@ -59,7 +62,7 @@ console.log(JSON.stringify({
   legacyMainBundleBytes: byteSize("dist/apps/desktop/src/main.js"),
   preloadBundleBytes: byteSize("dist/apps/desktop/src/preload.js"),
   rendererHtmlBytes: byteSize("apps/desktop/renderer/index.html"),
-  bootstrapOrder: "AUTHORITY_THEN_CLOUD_IPC_THEN_LEGACY_RUNTIME",
+  bootstrapOrder: "AUTHORITY_THEN_READY_SECURE_SESSION_IPC_THEN_LEGACY_RUNTIME",
   packageTarget: "nsis",
   autoUpdate: "DISABLED",
   runtimeMetrics: "NOT_EVALUATED"
