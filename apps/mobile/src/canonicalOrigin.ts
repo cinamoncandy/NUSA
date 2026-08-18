@@ -23,10 +23,11 @@ export function tryNormalizeCanonicalNusaOrigin(value: string): string | null {
 }
 
 export function tryReadCanonicalNusaOrigin(): string | null {
-  return tryNormalizeCanonicalNusaOrigin(CANONICAL_NUSA_ORIGIN);
+  if (!CANONICAL_NUSA_ORIGIN.trim()) return null;
+  return normalizeCanonicalNusaOrigin(CANONICAL_NUSA_ORIGIN);
 }
 
 export function resolvePaperEndpoint(personalEndpoint: string, canonicalOrigin = CANONICAL_NUSA_ORIGIN): string {
-  const canonical = tryNormalizeCanonicalNusaOrigin(canonicalOrigin);
-  return canonical ?? personalEndpoint;
+  if (!canonicalOrigin.trim()) return personalEndpoint;
+  return normalizeCanonicalNusaOrigin(canonicalOrigin);
 }
