@@ -8,8 +8,11 @@ const root = path.resolve(__dirname, "..");
 const rendererSource = fs.readFileSync(path.join(root, "apps/desktop/renderer/renderer.js"), "utf8");
 const preloadSource = fs.readFileSync(path.join(root, "apps/desktop/src/preload.ts"), "utf8");
 const mainSource = fs.readFileSync(path.join(root, "apps/desktop/src/main.ts"), "utf8");
+const cloudMainSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloudMain.ts"), "utf8");
+const cloudPaperIpcSource = fs.readFileSync(path.join(root, "apps/desktop/src/desktopCloudPaperIpc.ts"), "utf8");
 const contractsSource = fs.readFileSync(path.join(root, "packages/contracts/src/aiCioDashboard.ts"), "utf8");
 const compiledPreloadPath = path.join(root, "dist/apps/desktop/src/preload.js");
+const cloudCanonicalDisabledLegacyChannels = new Set(["paper:order", "paper:snapshot", "control:start", "control:quantity"]);
 
 // A: security webPreferences (contextIsolation/nodeIntegration/sandbox) are already asserted
 // verbatim by tests/release-production-hardening.test.js -- not duplicated here. This test
@@ -38,10 +41,10 @@ function extractRendererUsage(source) {
  * not retyped from memory, so this list can't silently drift from the real contract. */
 function extractPreloadChannels(source) {
   const channels = new Set();
-  // `app:` added for the WO-0034-A4O productization channels; `safety:` added for the WO-0019
-  // kill-switch release/activate channels. Widening the extractor is coverage, not relaxation:
-  // a prefix it does not know is a channel it silently ignores.
-  const pattern = /"((?:paper|control|market|chart|shadow|diagnostics|recovery|app|operations|execution|ai|safety):[\w-]+)"/g;
+  // Keep every known fixed prefix explicit. `cloud-paper:` is the canonical Desktop PAPER
+  // client boundary; omitting it would make this contract test reject the real safe channel
+  // and, worse, skip validating it against its dedicated main-process owner.
+  const pattern = /"((?:cloud-paper|paper|control|market|chart|shadow|diagnostics|recovery|app|operations|execution|ai|safety):[\w-]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) channels.add(match[1]);
   const [, aiCioChannel] = contractsSource.match(/AI_CIO_DASHBOARD_CHANNEL\s*=\s*"([^"]+)"/) ?? [];
@@ -49,14 +52,16 @@ function extractPreloadChannels(source) {
   return channels;
 }
 
-function extractMainChannels(source) {
+function extractMainChannels(...sources) {
   const handled = new Set();
   const sent = new Set();
-  let match;
-  const handlePattern = /ipcMain\.handle\("([\w:-]+)"/g;
-  while ((match = handlePattern.exec(source)) !== null) handled.add(match[1]);
-  const sendPattern = /webContents\.send\("([\w:-]+)"/g;
-  while ((match = sendPattern.exec(source)) !== null) sent.add(match[1]);
+  for (const source of sources) {
+    let match;
+    const handlePattern = /ipcMain\.handle\("([\w:-]+)"/g;
+    while ((match = handlePattern.exec(source)) !== null) handled.add(match[1]);
+    const sendPattern = /webContents\.send\("([\w:-]+)"/g;
+    while ((match = sendPattern.exec(source)) !== null) sent.add(match[1]);
+  }
   return { handled, sent };
 }
 
@@ -125,48 +130,48 @@ test("preload exposes exactly the globals/methods renderer.js actually calls", (
   }
 });
 
-test("preload never lets a caller-supplied value choose the IPC channel", () => {
+test("preload never lets a caller-supplied value choose the IPC channel", async () => {
   const { exposed, ipcCalls } = loadPreloadWithElectronMock();
   const allowedChannels = extractPreloadChannels(preloadSource);
   assert.ok(allowedChannels.size > 0, "expected to extract at least one literal channel from preload.ts");
 
   const sentinel = "__SENTINEL_CHANNEL__";
-  // Fuzz every exposed method with the sentinel wherever an argument slot exists -- if any
-  // method forwarded a caller argument straight through as the ipcRenderer channel (the
-  // `invoke(channel, payload)` / `send(channel, payload)` shape this check exists to catch),
-  // it would show up verbatim in ipcCalls below.
-  void exposed.nusa.placeOrder(sentinel, sentinel);
-  void exposed.nusa.getSnapshot();
-  void exposed.nusa.getControlSnapshot();
-  void exposed.nusa.startStrategy();
-  void exposed.nusa.stopStrategy();
-  void exposed.nusa.setAutoTrade(sentinel);
-  void exposed.nusa.setStrategyQuantity(sentinel);
-  const unsubscribeTicker = exposed.nusa.onTicker(() => {});
-  const unsubscribeStatus = exposed.nusa.onStatus(() => {});
-  const unsubscribeSnapshot = exposed.nusa.onSnapshot(() => {});
-  const unsubscribeControl = exposed.nusa.onControl(() => {});
-  const unsubscribeChart = exposed.nusa.onChartPoint(() => {});
-  void exposed.aiCioDashboard.getAiCioDashboard();
-  void exposed.shadowPilot.preflight();
-  void exposed.operations.snapshot();
-  void exposed.operations.listExecutions();
-  void exposed.operations.getExecution("execution-id");
-  void exposed.operations.listTransitions("execution-id");
-  void exposed.operations.listFills("execution-id");
-  void exposed.operations.getExecutionHealth();
+  const unsubscribe = [];
+  try {
+    // Await request/response calls so timeout cleanup is part of the test lifecycle. Keep
+    // subscriptions in a finally block so any assertion failure can never strand the Cloud
+    // PAPER polling timer and hang the isolated coverage runner.
+    await exposed.nusa.placeOrder(sentinel, sentinel);
+    await exposed.nusa.getSnapshot();
+    await exposed.nusa.getControlSnapshot();
+    await exposed.nusa.startStrategy();
+    await exposed.nusa.stopStrategy();
+    await exposed.nusa.setAutoTrade(sentinel);
+    await exposed.nusa.setStrategyQuantity(sentinel);
+    unsubscribe.push(exposed.nusa.onTicker(() => {}));
+    unsubscribe.push(exposed.nusa.onStatus(() => {}));
+    unsubscribe.push(exposed.nusa.onSnapshot(() => {}));
+    unsubscribe.push(exposed.nusa.onControl(() => {}));
+    unsubscribe.push(exposed.nusa.onChartPoint(() => {}));
+    await exposed.aiCioDashboard.getAiCioDashboard();
+    await exposed.shadowPilot.preflight();
+    await exposed.operations.snapshot();
+    await exposed.operations.listExecutions();
+    await exposed.operations.getExecution("execution-id");
+    await exposed.operations.listTransitions("execution-id");
+    await exposed.operations.listFills("execution-id");
+    await exposed.operations.getExecutionHealth();
 
-  assert.ok(ipcCalls.length > 0, "expected preload methods to actually reach ipcRenderer during this fuzz pass");
-  for (const call of ipcCalls) {
-    assert.notEqual(call.channel, sentinel, `an exposed method forwarded a caller-supplied value directly as the IPC channel: ${JSON.stringify(call)}`);
-    assert.ok(
-      allowedChannels.has(call.channel),
-      `channel "${call.channel}" is not in preload.ts's own fixed literal channel set: ${[...allowedChannels].join(", ")}`
-    );
-  }
-
-  for (const unsubscribe of [unsubscribeTicker, unsubscribeStatus, unsubscribeSnapshot, unsubscribeControl, unsubscribeChart]) {
-    assert.equal(typeof unsubscribe, "function", "onX subscription methods must return an unsubscribe function");
+    assert.ok(ipcCalls.length > 0, "expected preload methods to actually reach ipcRenderer during this fuzz pass");
+    for (const call of ipcCalls) {
+      assert.notEqual(call.channel, sentinel, `an exposed method forwarded a caller-supplied value directly as the IPC channel: ${JSON.stringify(call)}`);
+      assert.ok(
+        allowedChannels.has(call.channel),
+        `channel "${call.channel}" is not in preload.ts's own fixed literal channel set: ${[...allowedChannels].join(", ")}`
+      );
+    }
+  } finally {
+    for (const stop of unsubscribe) if (typeof stop === "function") stop();
   }
 });
 
@@ -181,26 +186,43 @@ test("subscription unsubscribe functions actually remove the registered listener
   );
 });
 
-test("main process ipcMain/webContents channels and preload's channels are the same set (no one-sided contract)", () => {
-  const { handled, sent } = extractMainChannels(mainSource);
+test("Cloud canonical entrypoint structurally removes legacy local PAPER mutation/query IPC", () => {
+  assert.match(cloudMainSource, /activateCloudCanonicalDesktopAuthority\(\)/);
+  assert.match(cloudMainSource, /ipcMain\.removeHandler\(channel\)/);
+  for (const channel of cloudCanonicalDisabledLegacyChannels) {
+    assert.ok(cloudMainSource.includes(`"${channel}"`), `Cloud canonical entrypoint must remove legacy local IPC "${channel}"`);
+  }
+});
+
+test("main process IPC owners and preload channels are the same fixed canonical contract", () => {
+  const { handled, sent } = extractMainChannels(mainSource, cloudPaperIpcSource);
   const preloadChannels = extractPreloadChannels(preloadSource);
 
   // ai-cio:dashboard:get is registered by registerAiCioReadOnlyIpc (apps/desktop/src/aiCioIpcBridge.ts),
-  // not by a literal ipcMain.handle(...) call in main.ts -- already covered by
-  // tests/ai-cio-ipc-bridge.test.js, so it's excluded from this literal-string comparison.
+  // not by a literal ipcMain.handle(...) call in either source inspected here -- already covered
+  // by tests/ai-cio-ipc-bridge.test.js, so it is excluded from this literal-string comparison.
   const requestResponseChannels = [...preloadChannels].filter((channel) => channel !== "ai-cio:dashboard:get");
 
   for (const channel of requestResponseChannels) {
     // Push channels: main webContents.send()s them, so there is no ipcMain.handle to find.
-    // `app:shutdown` joins them (WO-0034-A4O) and is asserted as a send below.
     if (channel === "market:ticker" || channel === "market:status" || channel === "chart:point" || channel === "app:shutdown") continue;
-    assert.ok(handled.has(channel), `preload invokes "${channel}", but main.ts has no ipcMain.handle("${channel}", ...)`);
+    assert.ok(handled.has(channel), `preload invokes "${channel}", but no main-process IPC owner handles it`);
   }
   for (const channel of handled) {
-    assert.ok(preloadChannels.has(channel), `main.ts handles "${channel}", but preload.ts never invokes it -- dead IPC channel`);
+    // cloud-paper:status is intentionally main-process-only bootstrap/status plumbing and is
+    // not exposed to the renderer API. Legacy local PAPER/start/quantity handlers are also
+    // intentionally absent from the packaged canonical surface: cloudMain removes them after
+    // the legacy module is evaluated, while direct main.ts LOCAL_SIMULATION remains available
+    // only to an explicit development entrypoint.
+    if (channel === "cloud-paper:status" || cloudCanonicalDisabledLegacyChannels.has(channel)) continue;
+    assert.ok(preloadChannels.has(channel), `main process handles "${channel}", but preload.ts never invokes it -- dead IPC channel`);
+  }
+
+  for (const channel of cloudCanonicalDisabledLegacyChannels) {
+    assert.equal(preloadChannels.has(channel), false, `canonical preload must never expose legacy local IPC "${channel}"`);
   }
 
   for (const channel of ["market:ticker", "market:status", "chart:point", "paper:snapshot", "control:snapshot", "app:shutdown"]) {
-    assert.ok(sent.has(channel), `preload subscribes to "${channel}", but main.ts never webContents.send()s it`);
+    assert.ok(sent.has(channel), `main process must continue emitting the governed push channel "${channel}"`);
   }
 });

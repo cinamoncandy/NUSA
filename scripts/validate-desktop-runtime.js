@@ -1,12 +1,12 @@
 "use strict";
 /**
- * Static, GUI-free consistency check for everything Electron's `createWindow()` needs at
- * runtime: the compiled main/preload/rendererPath modules exist, apps/desktop/package.json's
- * main field and the root desktop script actually point at them, renderer/index.html's local
- * script/link assets all exist on disk, and the renderer path arithmetic (WO-0004) neither
- * regresses to the "apps/desktop/apps/desktop" duplication (WO-0003) nor silently stops being
- * wired into the compiled main.js. Node built-ins only, no network, no Electron, no file
- * writes -- run after `pnpm run build` so dist/ reflects the current source.
+ * Static, GUI-free consistency check for everything Electron's Desktop bootstrap needs at
+ * runtime: the canonical Cloud authority bootstrap, legacy Electron main, preload and
+ * rendererPath modules exist; apps/desktop/package.json points at the canonical bootstrap;
+ * the bootstrap activates Cloud PAPER authority and schedules the secure session IPC only
+ * after Electron readiness before loading the legacy runtime; local renderer assets exist;
+ * and the legacy main still resolves renderer/index.html correctly.
+ * Node built-ins only, no network, no Electron, no file writes. Run after `pnpm run build`.
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,20 +15,24 @@ const ROOT = path.resolve(__dirname, "..");
 const errors = [];
 const fail = (message) => errors.push(message);
 
-const compiledMain = path.join(ROOT, "dist", "apps", "desktop", "src", "main.js");
+const compiledCloudMain = path.join(ROOT, "dist", "apps", "desktop", "src", "cloudMain.js");
+const compiledLegacyMain = path.join(ROOT, "dist", "apps", "desktop", "src", "main.js");
 const compiledPreload = path.join(ROOT, "dist", "apps", "desktop", "src", "preload.js");
 const compiledRendererPathModule = path.join(ROOT, "dist", "apps", "desktop", "src", "rendererPath.js");
+const cloudMainSourcePath = path.join(ROOT, "apps", "desktop", "src", "cloudMain.ts");
 const rendererIndex = path.join(ROOT, "apps", "desktop", "renderer", "index.html");
 
 function isFile(candidate) {
   return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
 }
 
-// A: build artifacts
+// A: build artifacts and canonical bootstrap source
 for (const [label, file] of [
-  ["compiled Electron main", compiledMain],
+  ["compiled canonical Cloud Electron main", compiledCloudMain],
+  ["compiled legacy Electron main", compiledLegacyMain],
   ["compiled preload", compiledPreload],
-  ["compiled renderer path module", compiledRendererPathModule]
+  ["compiled renderer path module", compiledRendererPathModule],
+  ["canonical Cloud Electron bootstrap source", cloudMainSourcePath]
 ]) {
   if (!isFile(file)) fail(`Missing ${label}: ${path.relative(ROOT, file)}`);
 }
@@ -36,7 +40,7 @@ for (const [label, file] of [
 // B: renderer entry
 if (!isFile(rendererIndex)) fail(`Missing renderer entry: ${path.relative(ROOT, rendererIndex)}`);
 
-// C: apps/desktop/package.json main entrypoint, resolved (not string-compared)
+// C: apps/desktop/package.json must resolve to the canonical Cloud bootstrap.
 const desktopPackagePath = path.join(ROOT, "apps", "desktop", "package.json");
 let desktopPackage;
 try {
@@ -49,17 +53,18 @@ if (desktopPackage) {
     fail(`apps/desktop/package.json has no "main" field`);
   } else {
     const resolvedMain = path.resolve(path.dirname(desktopPackagePath), desktopPackage.main);
-    if (resolvedMain !== compiledMain) {
+    if (resolvedMain !== compiledCloudMain) {
       fail(
         `Desktop package main resolves incorrectly:\n` +
-          `  expected: ${path.relative(ROOT, compiledMain)}\n` +
+          `  expected: ${path.relative(ROOT, compiledCloudMain)}\n` +
           `  actual:   ${path.relative(ROOT, resolvedMain)}`
       );
     }
   }
 }
 
-// D: root package.json's desktop script -- build-first, targets apps/desktop, no user-specific path
+// D: root package.json's desktop script remains portable and build-first, and its packaged
+// entrypoint agrees with the app package instead of creating a second Desktop authority.
 const rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 const desktopScript = rootPackage.scripts && rootPackage.scripts.desktop;
 if (typeof desktopScript !== "string" || desktopScript.length === 0) {
@@ -78,7 +83,40 @@ if (typeof desktopScript !== "string" || desktopScript.length === 0) {
   if (hasUserSpecificPath) fail(`Root desktop script contains a user-specific absolute path: "${desktopScript}"`);
 }
 
-// E: renderer's local <script src>/<link href> assets actually exist
+const expectedRootMain = "dist/apps/desktop/src/cloudMain.js";
+if (rootPackage.main !== expectedRootMain || rootPackage.build?.extraMetadata?.main !== expectedRootMain) {
+  fail(`Root Desktop package metadata must resolve to the canonical Cloud bootstrap: ${expectedRootMain}`);
+}
+
+// E: authority must be activated synchronously before the legacy runtime can register any
+// local PAPER mutation path. Secure credential composition is scheduled through app.whenReady
+// and uses the production safeStorage session factory before the legacy import appears.
+if (isFile(cloudMainSourcePath)) {
+  const cloudMainSource = fs.readFileSync(cloudMainSourcePath, "utf8");
+  const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
+  const readyIndex = cloudMainSource.indexOf("app.whenReady()");
+  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
+  const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
+  if (activateIndex < 0 || readyIndex <= activateIndex || registerIndex <= readyIndex || legacyImportIndex <= registerIndex) {
+    fail(`Canonical Cloud Desktop bootstrap order must be authority -> ready secure-session IPC -> legacy runtime`);
+  }
+  if (/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource)) {
+    fail(`Canonical Cloud Desktop bootstrap contains a credential literal`);
+  }
+}
+
+// F: compiled canonical bootstrap must retain the authority, Cloud IPC, secure-session factory,
+// and legacy runtime dependencies. Validate emitted identities rather than implementation details.
+if (isFile(compiledCloudMain)) {
+  const cloudMainCompiled = fs.readFileSync(compiledCloudMain, "utf8");
+  if (!/desktopPaperAuthorityPolicy/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopPaperAuthorityPolicy`);
+  if (!/desktopCloudPaperIpc/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopCloudPaperIpc`);
+  if (!/desktopCloudSessionRuntime/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopCloudSessionRuntime`);
+  if (!/whenReady/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not defer secure session composition until Electron readiness`);
+  if (!/(?:require|import).*\.\/main|import\(["']\.\/main["']\)/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not load the legacy Desktop runtime`);
+}
+
+// G: renderer's local <script src>/<link href> assets actually exist.
 if (isFile(rendererIndex)) {
   const rendererDirectory = path.dirname(rendererIndex);
   const html = fs.readFileSync(rendererIndex, "utf8");
@@ -94,50 +132,41 @@ if (isFile(rendererIndex)) {
     seen.add(withoutQueryOrFragment);
     const resolvedAsset = path.resolve(rendererDirectory, withoutQueryOrFragment);
     if (!isFile(resolvedAsset)) {
-      fail(
-        `Renderer asset not found:\n` +
-          `  ${path.relative(ROOT, resolvedAsset)}\n` +
-          `  referenced by ${path.relative(ROOT, rendererIndex)}`
-      );
+      fail(`Renderer asset not found:\n  ${path.relative(ROOT, resolvedAsset)}\n  referenced by ${path.relative(ROOT, rendererIndex)}`);
     }
   }
 }
 
-// F: renderer path resolution -- real function call, real output, no duplicated segment
+// H: renderer path resolution remains based on the legacy main directory because legacy
+// main owns BrowserWindow creation after the canonical bootstrap has established authority.
 if (isFile(compiledRendererPathModule)) {
   try {
     const rendererPathModule = require(compiledRendererPathModule);
     if (typeof rendererPathModule.resolveRendererIndexPath !== "function") {
       fail(`${path.relative(ROOT, compiledRendererPathModule)} does not export resolveRendererIndexPath`);
     } else {
-      const compiledMainDirectory = path.dirname(compiledMain);
-      const resolved = rendererPathModule.resolveRendererIndexPath(compiledMainDirectory);
-      if (resolved !== rendererIndex) {
-        fail(`Renderer path resolution mismatch:\n  expected: ${rendererIndex}\n  actual:   ${resolved}`);
-      }
+      const compiledLegacyMainDirectory = path.dirname(compiledLegacyMain);
+      const resolved = rendererPathModule.resolveRendererIndexPath(compiledLegacyMainDirectory);
+      if (resolved !== rendererIndex) fail(`Renderer path resolution mismatch:\n  expected: ${rendererIndex}\n  actual:   ${resolved}`);
       const normalized = resolved.split(path.sep).join("/");
-      if (normalized.includes("apps/desktop/apps/desktop")) {
-        fail(`Renderer path resolution contains a duplicated apps/desktop segment: ${resolved}`);
-      }
+      if (normalized.includes("apps/desktop/apps/desktop")) fail(`Renderer path resolution contains a duplicated apps/desktop segment: ${resolved}`);
     }
   } catch (error) {
     fail(`Failed to evaluate renderer path resolution: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-// G: compiled main.js actually wires loadFile() through the renderer path module,
-// and the fixed (WO-0003) direct app.getAppPath()-join duplication has not returned
-if (isFile(compiledMain)) {
-  const mainSource = fs.readFileSync(compiledMain, "utf8");
+// I: legacy main.js must still wire BrowserWindow loadFile() through rendererPath and must
+// not regain package-entry authority or the old duplicated renderer path.
+if (isFile(compiledLegacyMain)) {
+  const mainSource = fs.readFileSync(compiledLegacyMain, "utf8");
   const requiresRendererPathModule = /require\(["']\.\/rendererPath["']\)/.test(mainSource);
   const loadFileUsesResolvedPath = /loadFile\([^;]*resolveRendererIndexPath[^;]*__dirname[^;]*\)/.test(mainSource);
   const hasStaleDuplication = /getAppPath\(\)\s*,\s*["']apps\/desktop\/renderer\/index\.html["']/.test(mainSource);
 
-  if (!requiresRendererPathModule) fail(`Compiled main.js does not require the renderer path module (./rendererPath)`);
-  if (!loadFileUsesResolvedPath) fail(`Compiled main.js does not pass resolveRendererIndexPath(__dirname)'s result to loadFile()`);
-  if (hasStaleDuplication) {
-    fail(`Compiled main.js still contains the fixed app.getAppPath() + "apps/desktop/renderer/index.html" duplication (WO-0003 regression)`);
-  }
+  if (!requiresRendererPathModule) fail(`Compiled legacy main.js does not require the renderer path module (./rendererPath)`);
+  if (!loadFileUsesResolvedPath) fail(`Compiled legacy main.js does not pass resolveRendererIndexPath(__dirname)'s result to loadFile()`);
+  if (hasStaleDuplication) fail(`Compiled legacy main.js still contains the fixed app.getAppPath() + "apps/desktop/renderer/index.html" duplication (WO-0003 regression)`);
 }
 
 if (errors.length > 0) {
@@ -147,10 +176,12 @@ if (errors.length > 0) {
 }
 
 console.log("Desktop runtime validation passed:");
-console.log("- Electron main entry found");
+console.log("- Canonical Cloud Electron bootstrap found");
+console.log("- Legacy Electron main found");
 console.log("- Preload entry found");
 console.log("- Renderer entry found");
 console.log("- Local renderer assets found");
 console.log("- Package entrypoints consistent");
+console.log("- Cloud authority + ready-only secure session composition consistent");
 console.log("- Renderer path resolution consistent");
 process.exit(0);

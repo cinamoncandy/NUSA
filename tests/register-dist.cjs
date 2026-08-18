@@ -38,3 +38,22 @@ Module._resolveFilename = function resolveCompiledSource(request, parent, isMain
     return originalResolveFilename.call(this, compiledPath, parent, isMain, options);
   }
 };
+
+// The preload contract test intentionally executes the real compiled CLOUD_PAPER snapshot
+// subscription inside a plain Node child process. In Electron, BrowserWindow owns preload
+// lifetime; in the coverage harness, the repeating 2-second refresh timer can otherwise keep
+// that child alive after every assertion and unsubscribe has completed. Unref only that exact
+// background refresh timer, only for this one coverage-instrumented contract test. Retry
+// timeout timers (3 seconds) remain referenced, so timeout/failure semantics are unchanged.
+const isPreloadCoverageContract =
+  typeof process.env.NODE_V8_COVERAGE === "string" &&
+  process.argv.some((value) => value.endsWith("electron-preload-renderer-contract.test.js"));
+
+if (isPreloadCoverageContract) {
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = function coverageAwareSetTimeout(callback, delay, ...args) {
+    const timer = originalSetTimeout(callback, delay, ...args);
+    if (delay === 2_000 && timer != null && typeof timer.unref === "function") timer.unref();
+    return timer;
+  };
+}

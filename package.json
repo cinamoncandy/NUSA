@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Windows Electron paper-trading and deterministic research platform",
   "author": "NUSA contributors",
-  "main": "dist/apps/desktop/src/main.js",
+  "main": "dist/apps/desktop/src/cloudMain.js",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=24.0.0",
@@ -99,7 +99,7 @@
     "asar": true,
     "directories": {"output": "release"},
     "files": ["dist/**/*","apps/desktop/renderer/**/*","apps/desktop/package.json","package.json","!**/*.ts","!**/*.map","!**/tests{,/**/*}","!**/docs{,/**/*}"],
-    "extraMetadata": {"main": "dist/apps/desktop/src/main.js"},
+    "extraMetadata": {"main": "dist/apps/desktop/src/cloudMain.js"},
     "win": {"target": "nsis","icon": "build/nusa-a4p.ico","artifactName": "NUSA-${version}-Windows-Setup.${ext}","signAndEditExecutable": false},
     "nsis": {"oneClick": false,"perMachine": false,"allowToChangeInstallationDirectory": false,"createDesktopShortcut": true,"createStartMenuShortcut": true,"deleteAppDataOnUninstall": false}
   }

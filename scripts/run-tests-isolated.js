@@ -6,6 +6,7 @@ const os = require("node:os");
 const testsDirectory = join(process.cwd(), "tests");
 const diagnosticPath = join(process.cwd(), "isolated-test-failure.txt");
 const registerDistPath = join(testsDirectory, "register-dist.cjs");
+const testFileTimeoutMs = 120_000;
 rmSync(diagnosticPath, { force: true });
 
 const files = readdirSync(testsDirectory)
@@ -34,14 +35,23 @@ function runOne(file) {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
     const child = spawn(process.execPath, args, { cwd: process.cwd(), windowsHide: true, env: process.env });
+    // A hung test file (e.g. an unresolved promise under Coverage instrumentation)
+    // must not hang the whole run indefinitely -- kill it and report explicitly.
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, testFileTimeoutMs);
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.on("error", (error) => {
-      resolve({ relativePath, status: null, stdout, stderr, spawnError: error });
+      clearTimeout(timer);
+      resolve({ relativePath, status: null, stdout, stderr, spawnError: error, timedOut: false });
     });
     child.on("close", (status) => {
-      resolve({ relativePath, status, stdout, stderr, spawnError: null });
+      clearTimeout(timer);
+      resolve({ relativePath, status, stdout, stderr, spawnError: null, timedOut });
     });
   });
 }
@@ -62,6 +72,17 @@ async function main() {
       if (result.spawnError) {
         failure = failure ?? {
           diagnostic: [`FAILED_TO_START ${result.relativePath}`, result.spawnError.stack || result.spawnError.message].join("\n")
+        };
+        continue;
+      }
+      if (result.timedOut) {
+        failure = failure ?? {
+          diagnostic: [
+            `TIMED_OUT_TEST_FILE ${result.relativePath} after ${testFileTimeoutMs}ms`,
+            result.stdout || "",
+            result.stderr || ""
+          ].join("\n").trimEnd(),
+          status: 1
         };
         continue;
       }

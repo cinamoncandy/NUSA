@@ -83,22 +83,52 @@ const invokeReadWithRecovery = <T>(channel: string, ...args: readonly unknown[])
 const invokeMutation = <T>(channel: string, ...args: readonly unknown[]): Promise<T> =>
   ipcRenderer.invoke(channel, ...args) as Promise<T>;
 
+/**
+ * The legacy main process still emits local paper:snapshot events for explicit local
+ * simulation internals. CLOUD_PAPER never subscribes to that channel because doing so
+ * would overwrite canonical Cloud account truth with a second state owner.
+ */
+const subscribeCloudPaperSnapshot = (handler: (snapshot: PaperAccountSnapshot) => void): (() => void) => {
+  let active = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const poll = async (): Promise<void> => {
+    if (!active) return;
+    try {
+      const snapshot = await invokeReadWithRecovery<PaperAccountSnapshot | null>("cloud-paper:snapshot");
+      if (active && snapshot != null) handler(snapshot);
+    } catch {
+      // Refresh is best-effort only. Cloud failure must never become a local broker fallback.
+    } finally {
+      if (active) timer = setTimeout(() => { void poll(); }, 2_000);
+    }
+  };
+  void poll();
+  return () => {
+    active = false;
+    if (timer !== undefined) clearTimeout(timer);
+  };
+};
+
+const automaticUnavailable = <T>(): Promise<T> => invokeMutation<T>("cloud-paper:automatic-unavailable");
+
 const api: NUSAApi = {
-  placeOrder: (side, quantity) => invokeMutation("paper:order", { side, quantity }),
-  getSnapshot: () => invokeReadWithRecovery("paper:snapshot"),
+  placeOrder: (side, quantity) => invokeMutation("cloud-paper:order", { side, quantity }),
+  getSnapshot: () => invokeReadWithRecovery("cloud-paper:snapshot"),
   getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
   getA4Diagnostics: () => invokeReadWithRecovery<A4RuntimeDiagnostics>("diagnostics:a4"),
   getControlSnapshot: () => invokeReadWithRecovery("control:snapshot"),
   getRiskBudgetUsage: () => invokeReadWithRecovery("paper:risk-budget-usage"),
-  startStrategy: () => invokeMutation("control:start"),
+  // Automatic strategy execution is deliberately deferred until the serialized successor
+  // moves strategy commands through the same Cloud canonical approval/risk boundary.
+  startStrategy: () => automaticUnavailable<ControlSnapshot>(),
   stopStrategy: () => invokeMutation("control:stop"),
-  setAutoTrade: (enabled) => invokeMutation("control:auto", enabled),
-  setStrategyQuantity: (quantity) => invokeMutation("control:quantity", quantity),
+  setAutoTrade: (enabled) => enabled ? automaticUnavailable<ControlSnapshot>() : invokeMutation("control:auto", false),
+  setStrategyQuantity: (_quantity) => automaticUnavailable<ControlSnapshot>(),
   releaseKillSwitch: (confirmationText, reason) => invokeMutation("safety:kill-switch-release", { confirmationText, reason }),
   activateKillSwitch: (reason) => invokeMutation("safety:kill-switch-activate", { reason }),
   onTicker: (handler) => subscribe("market:ticker", handler),
   onStatus: (handler) => subscribe("market:status", handler),
-  onSnapshot: (handler) => subscribe("paper:snapshot", handler),
+  onSnapshot: (handler) => subscribeCloudPaperSnapshot(handler),
   onControl: (handler) => subscribe("control:snapshot", handler),
   onChartPoint: (handler) => subscribe("chart:point", handler)
 };
@@ -181,9 +211,8 @@ const recoveryReview: RecoveryReviewApi = Object.freeze({
  * WO-0034-A4O productization bridge. Ten fixed methods, no channel name the renderer can
  * shape.
  *
- * What is absent matters as much as what is here: no method accepts a secret of any kind, and
- * none can enable real execution or an authenticated endpoint. Those are not disabled behind
- * a flag -- the bridge has no such surface, so a compromised renderer has nothing to call.
+ * Cloud PAPER provisioning happens before this preload loads. The existing stable-user
+ * bearer stays in the Electron main-process session closure and never crosses this bridge.
  *
  * `openFolder` takes one of three KEYS, never a path. A renderer able to name a directory
  * would turn "open my logs" into "open anything on this machine, from the main process".
