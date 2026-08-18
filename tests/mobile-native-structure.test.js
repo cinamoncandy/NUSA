@@ -51,24 +51,26 @@ test("mobile foundation exposes a Home screen, theme, and six-tab navigation wit
   assert.match(app, /accessibilityRole="button"/);
 });
 
-test("fresh-install entry is explicitly local and does not impersonate account authentication", () => {
+test("fresh-install entry requires a production bootstrap token and never stores credentials in the UI", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
-  assert.match(app, /testID="local-entry-submit"/);
-  assert.match(app, /개인 모드 시작/);
-  assert.match(app, /계정 인증이 아닙니다/);
+  assert.match(app, /testID="nusa-auth-submit"/);
+  assert.match(app, /OWNER가 발급한 일회용 bootstrap token/);
+  assert.match(app, /client\.bootstrap/);
+  assert.doesNotMatch(app, /LOCAL ENTRY/);
   assert.match(app, /PAPER ONLY/);
   assert.match(app, /LIVE NONE/);
   assert.doesNotMatch(app, /accessibilityLabel="Email"|accessibilityLabel="Password"|testID="auth-email"|testID="auth-password"/);
 });
 
-test("local entry guard still exposes Splash and Auth Context without claiming identity verification", () => {
+test("production auth guard requires server-backed ACTIVE evidence", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   const context = fs.readFileSync(path.join(mobile, "src", "authContext.ts"), "utf8");
   assert.match(app, /authStatus === "CHECKING"/);
   assert.match(app, /AuthContextProvider/);
-  assert.match(app, /authStatus !== "SIGNED_IN"/);
+  assert.match(app, /authStatus !== "ACTIVE"/);
+  assert.match(app, /client\.restore/);
   assert.match(context, /AuthContext/);
-  assert.match(app, /사용자 신원을 검증하지 않으며/);
+  assert.match(context, /ACTIVE/);
 });
 
 test("mobile release workflow validates unsigned Android and iOS candidates", () => {
