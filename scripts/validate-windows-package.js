@@ -40,13 +40,18 @@ required(fs.existsSync(cloudMainPath), "Cloud canonical Desktop bootstrap source
 if (fs.existsSync(cloudMainPath)) {
   const cloudMainSource = fs.readFileSync(cloudMainPath, "utf8");
   const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
-  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+  const readyIndex = cloudMainSource.indexOf("app.whenReady()");
+  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
   const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
   required(activateIndex >= 0, "Cloud Desktop bootstrap must activate canonical authority");
-  required(registerIndex > activateIndex, "Cloud PAPER IPC must register after canonical authority activation");
-  required(legacyImportIndex > registerIndex, "legacy Desktop runtime must load only after Cloud PAPER authority and IPC registration");
+  required(readyIndex > activateIndex, "secure Cloud PAPER session composition must be scheduled after authority activation");
+  required(registerIndex > readyIndex, "Cloud PAPER IPC must use the production secure session factory after Electron readiness");
+  required(legacyImportIndex > registerIndex, "legacy Desktop runtime source must load only after secure IPC composition is scheduled");
   required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource), "Cloud Desktop bootstrap must not hardcode a private credential or API key literal");
 }
+
+required(exists("apps/desktop/src/desktopCloudSessionRuntime.ts"), "Desktop safeStorage session runtime is missing");
+required(exists("apps/desktop/src/desktopCloudSessionStore.ts"), "Desktop secure session store is missing");
 
 const result = Object.freeze({
   status: failures.length === 0 ? "PASS" : "FAIL",
