@@ -5,14 +5,14 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";
 import { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";
-import { HomeView, type HomeDestination } from "./src/homeView";
-import { PortfolioView } from "./src/portfolioView";
-import { TradingView } from "./src/tradingView";
+import { HomeView as HomeViewImpl, type HomeDestination } from "./src/homeView";
+import { PortfolioView as PortfolioViewImpl } from "./src/portfolioView";
+import { TradingView as TradingViewImpl } from "./src/tradingView";
 import { MarketsView } from "./src/marketsView";
-import { AiView } from "./src/aiView";
-import { NotificationView } from "./src/notificationView";
-import { SettingsView } from "./src/settingsView";
-import { OrderHistoryView } from "./src/orderHistoryView";
+import { AiView as AiViewImpl } from "./src/aiView";
+import { NotificationView as NotificationViewImpl } from "./src/notificationView";
+import { SettingsView as SettingsViewImpl } from "./src/settingsView";
+import { OrderHistoryView as OrderHistoryViewImpl } from "./src/orderHistoryView";
 import { WatchlistRepository } from "./src/watchlist";
 import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
@@ -33,6 +33,23 @@ import { UpbitTradingConfirmationModal, type TradingConfirmationRequest } from "
 import { executeTradingSignal, confirmAndExecuteTradingSignal, type TradingSignalEvent } from "./src/upbitTradingSignalDispatcher";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
+
+// AuthenticatedApp re-renders on every WebSocket ticker tick (handleLiveTicker below drives
+// setPublicMarkets many times per second for an active market). Only ONE of these views is ever
+// mounted at a time (see the conditional render below), but without a memo boundary that one
+// active view still re-runs its full render body on every tick even though its own props did not
+// change. Each of these receives only primitives or already-stable (useCallback'd) references, so
+// wrapping in React.memo lets React skip the re-render entirely when props are unchanged.
+// MarketsView is deliberately excluded: its rawCandles/rawMarkets props are freshly spread arrays
+// built inline on every render, so memoizing it would never actually skip a re-render, and it is
+// also the one tab that legitimately should track live ticker updates.
+const HomeView = React.memo(HomeViewImpl);
+const PortfolioView = React.memo(PortfolioViewImpl);
+const TradingView = React.memo(TradingViewImpl);
+const AiView = React.memo(AiViewImpl);
+const NotificationView = React.memo(NotificationViewImpl);
+const SettingsView = React.memo(SettingsViewImpl);
+const OrderHistoryView = React.memo(OrderHistoryViewImpl);
 
 const tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;
 type Tab = (typeof tabs)[number];
@@ -80,7 +97,7 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
   return <>{children}</>;
 }
 
-function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {
+const DashboardConnectionRequired = React.memo(function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason: string; onGoSettings: () => void }>) {
   const { theme: appTheme } = useTheme();
   return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>
     <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>
@@ -88,7 +105,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
     <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>
     <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />
   </NusaCard></View></View>;
-}
+});
 
 export default function App() { return <SafeAreaProvider><ThemeProvider initialMode="system"><PersistedThemeBridge><AuthContextProvider><AuthenticatedApp /></AuthContextProvider></PersistedThemeBridge></ThemeProvider></SafeAreaProvider>; }
 
