@@ -1,4 +1,4 @@
-import { clearDashboardCredentialSession } from "./dashboardCredentialSession";
+import { clearDashboardCredentialSession, setDashboardCredentialEndpoint } from "./dashboardCredentialSession";
 import { clearMobileApprovedSessionMemory } from "./mobileApprovedSessionBoundary";
 
 let configuredEndpoint: string | null = null;
@@ -22,6 +22,7 @@ export function setConfiguredPaperEndpoint(value: string): void {
     clearCredentialMemory();
   }
   configuredEndpoint = next;
+  setDashboardCredentialEndpoint(next);
 }
 
 export function getConfiguredPaperEndpoint(): string | null { return configuredEndpoint; }
@@ -37,5 +38,6 @@ export function isPaperConnectionVerified(value = configuredEndpoint): boolean {
 export function clearConfiguredPaperEndpoint(): void {
   configuredEndpoint = null;
   verifiedEndpoint = null;
+  setDashboardCredentialEndpoint(null);
   clearCredentialMemory();
 }
