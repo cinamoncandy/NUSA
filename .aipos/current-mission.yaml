@@ -78,4 +78,16 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next_recommended_task: "WO-0059 actual PAPER runtime verification is complete. Continue only with separately registered non-LIVE successors that improve PAPER operability, observability, or approved-client access; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+active_non_live_successor:
+  id: WO-0060
+  title: Android Cloud PAPER Operability
+  source_work_order: .aipos/work-orders/WO-0060-android-paper-operability.yaml
+  status: IN_PROGRESS
+  branch: agent/wo-0060-android-paper-operability
+  base_commit: 6da25496bf6da93bfe589a71b1e7bae986e7c5b3
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "Close the post-WO-0059 Android product-delivery gap without modifying WO-0051."
+next_recommended_task: "Reconstruct the approved mobile-session and stable-HTTPS-origin path on latest main, produce a current Android RC, and obtain genuine physical-device PAPER visibility/submit/relaunch evidence. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
