@@ -123,7 +123,8 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 1120\) : profile\.screen\.maxWidth/);
   assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
   assert.match(profile, /master:[\s\S]*maxWidth: 780/);
-  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap", gap: 10 \}/);
+  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
+  assert.match(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
   assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
