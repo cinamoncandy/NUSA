@@ -18,11 +18,15 @@ const contrast = (left, right) => {
 const presetColorPair = (design, presetName, name) => {
   const presetStart = design.indexOf(`${presetName}: Object.freeze({`);
   assert.ok(presetStart >= 0, `${presetName} preset must exist`);
-  const nextPreset = design.indexOf("  }),", presetStart);
-  const preset = design.slice(presetStart, nextPreset + 5);
+  const nextPresetName = presetName === "classic" ? "master" : null;
+  const presetEnd = nextPresetName
+    ? design.indexOf(`${nextPresetName}: Object.freeze({`, presetStart)
+    : design.indexOf("\n});\n\nconst freezeTheme", presetStart);
+  assert.ok(presetEnd > presetStart, `${presetName} preset block must be bounded`);
+  const preset = design.slice(presetStart, presetEnd);
   const darkStart = preset.indexOf("dark: Object.freeze({");
   const lightStart = preset.indexOf("light: Object.freeze({");
-  assert.ok(darkStart >= 0 && lightStart >= 0, `${presetName} must define dark and light palettes`);
+  assert.ok(darkStart >= 0 && lightStart > darkStart, `${presetName} must define dark and light palettes`);
   const dark = preset.slice(darkStart, lightStart);
   const light = preset.slice(lightStart);
   const extract = (block, mode) => {
