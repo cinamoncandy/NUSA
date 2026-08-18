@@ -1,9 +1,11 @@
 id: WO-0057A
 title: "Desktop Cloud PAPER Session Boundary"
-status: READY
+status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
+implementation_branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+pull_request: 554
 parent_work_order: WO-0057
 purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
 authority:
