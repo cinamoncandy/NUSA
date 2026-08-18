@@ -1,0 +1,89 @@
+id: WO-0060
+title: "Android Cloud PAPER Operability"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+implementation_branch: agent/wo-0060-android-paper-operability-v2
+objective: "Make the Android app visibly and actually usable for canonical Cloud PAPER trading from a stable build-provided HTTPS origin, consuming the completed WO-0060A approved-user secure-session boundary without creating a duplicate authentication authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+completed_prerequisites:
+  - id: WO-0059
+    status: COMPLETED
+    purpose: "Canonical Cloud PAPER runtime, persistence, restart recovery, and idempotent fill evidence"
+    pull_request: 567
+  - id: WO-0060A
+    status: COMPLETED
+    purpose: "Approved-user mobile session plus Android Keystore secure refresh storage"
+    pull_request: 572
+    exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
+    merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+root_cause:
+  - "WO-0059 proved the canonical Cloud PAPER writer, but did not prove Android product delivery."
+  - "WO-0060A now provides the approved scoped mobile session and Android secure-storage prerequisite."
+  - "Current main still treats the Cloud/PAPER endpoint as a user-entered setting, so a physical Android install is not yet zero-config for its stable Cloud origin."
+  - "The Cloud runtime intentionally remains loopback-only; physical Android reachability must use the trusted named HTTPS bridge rather than binding the runtime publicly."
+  - "The original PR #569 predates WO-0060A and contains a duplicate mobile-auth implementation, so it is evidence/input only and must not be merged as-is."
+scope:
+  - "Consume WO-0060A approved-user mobile sessions as the sole mobile authorization boundary"
+  - "Replace production Android dependence on a user-entered PAPER endpoint with one build-provided stable HTTPS origin"
+  - "Reject loopback, embedded credentials, path/query/hash state, and temporary trycloudflare.com origins for release packaging"
+  - "Keep Cloud runtime loopback-only and publish it only through the existing trusted HTTPS bridge pattern"
+  - "Keep access credentials in process memory and rotating refresh credentials in Android Keystore-backed secure storage"
+  - "Use the same canonical PAPER reads and POST /api/paper-orders boundary already present on main"
+  - "Preserve idempotent PAPER retry semantics and truthful connected/offline/error states"
+  - "Produce an exact-head Android RC APK with source SHA and checksum provenance"
+  - "Require genuine physical Android evidence for endpoint-free startup, authenticated session, PAPER state visibility, PAPER submit/result/history/portfolio/relaunch behavior and truthful failure states"
+architecture_impact:
+  acknowledged: true
+  analysis: "This successor closes only the Android client-delivery gap. Cloud remains the sole canonical PAPER writer. WO-0060A is reused rather than duplicated. A public HTTPS origin is non-secret deployment configuration embedded at build time, while tunnel credentials remain outside the repository and APK. LIVE and real-money authority remain absent."
+  references:
+    - .aipos/architecture.md
+    - .aipos/work-orders/WO-0059-actual-paper-runtime-e2e.yaml
+    - .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
+    - apps/mobile/App.tsx
+    - apps/mobile/src/settings.ts
+    - apps/mobile/src/paperConnectionSession.ts
+    - apps/mobile/src/mobileApprovedSession.ts
+    - apps/cloud/src/server.ts
+    - deploy/cloudflare-tunnel/config.example.yml
+prior_artifacts:
+  superseded_parent_pr: 569
+  approved_session_child_pr: 572
+  stale_zero_config_pr: 540
+  stale_mobile_auth_pr: 541
+  trusted_https_bridge_pr: 420
+blocked:
+  - "Embedding dashboard owner bearer or any long-lived Cloud secret in the APK"
+  - "Embedding Cloudflare tunnel credential material in the repository or APK"
+  - "Allowing cleartext remote HTTP"
+  - "Binding Cloud runtime to 0.0.0.0 as a shortcut"
+  - "Upbit private credentials in Android"
+  - "LIVE order/cancel/withdraw/transfer authority"
+  - "Treating CI, emulator, simulator or synthetic evidence as physical Android acceptance"
+verification:
+  latest_main_reconstruction: PASS
+  mobile_scoped_session: PASS_VIA_WO_0060A
+  stable_https_origin_contract: PENDING
+  canonical_paper_snapshot_visible: PENDING
+  paper_order_submit: PENDING
+  idempotent_retry_no_double_fill: PENDING
+  relaunch_recovery: PENDING
+  android_rc_provenance: PENDING
+  exact_head_ci: PENDING
+  mobile_native: PENDING
+  required_companion_workflows: PENDING
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  exchange_private_credential_authority: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Do not mark WO-0060 complete merely because repository CI or emulator/native builds pass. Completion requires an exact-head Android RC that contains the approved stable HTTPS origin, uses the merged WO-0060A approved-user session, and genuine physical-device evidence showing canonical PAPER state, PAPER submit/result/history/portfolio/relaunch behavior while preserving PAPER_ONLY and zero LIVE authority."
