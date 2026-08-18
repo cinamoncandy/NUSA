@@ -1,0 +1,65 @@
+id: WO-0057A
+title: "Desktop Cloud PAPER Session Boundary"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+pull_request: 554
+parent_work_order: WO-0057
+purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+bootstrap:
+  identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
+  properties:
+    single_use: true
+    short_ttl: true
+    server_hash_only: true
+    revocable_before_use: true
+    rate_limited: true
+    audit_logged: true
+    embedded_in_app: false
+    committed_to_repository: false
+    renderer_exposure: false
+    long_lived_operational_use: false
+session_contract:
+  endpoints:
+    - "POST /v1/desktop/bootstrap"
+    - "POST /v1/desktop/session/refresh"
+    - "POST /v1/desktop/session/revoke"
+    - "GET /v1/desktop/me"
+  access_token:
+    ttl_minutes: 10
+    storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
+  refresh_token:
+    max_ttl_days: 30
+    rotation_required: true
+    reuse_detection_required: true
+    server_hash_only: true
+    revoke_family_on_reuse: true
+  authorization_source: EXISTING_DURABLE_NUSA_USER_MODEL
+  allowed_scopes:
+    - dashboard:read
+    - paper:trade
+secure_storage:
+  provider: Electron safeStorage
+  renderer_receives_credentials: false
+disallowed:
+  - "LIVE authority"
+  - "Upbit credential access"
+  - "withdrawal/transfer"
+  - "execution transport"
+  - "risk-envelope expansion"
+serialization:
+  gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "Implement and merge the approved Desktop bootstrap/session and secure-storage boundary with exact-head required checks PASS before resuming the parent WO-0057 cutover."

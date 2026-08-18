@@ -58,6 +58,8 @@ jobs:
         run: pnpm run typecheck
       - name: Build
         run: pnpm run build
+      - name: Read-only MCP gateway regression
+        run: node --test --test-reporter=spec tests/nusa-mcp-gateway.test.js
       - name: Backend hardening regression (WO-0053)
         run: >-
           node --test --test-reporter=spec

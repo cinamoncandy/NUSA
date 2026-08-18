@@ -22,6 +22,14 @@ import { handleOperatorUserAccessHttp } from "./operatorUserAccessHttp";
 import { isUserAllowed, SqliteNusaUserAccessRepository, type NusaUserAccessRepository } from "./operatorUserAccess";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { BoundedHttpRateLimiter, rateLimitIdentity } from "./httpRateLimiter";
+import { DesktopSessionService } from "./desktopSessionService";
+import {
+  handleDesktopBootstrapHttp,
+  handleDesktopBootstrapIssueHttp,
+  handleDesktopMeHttp,
+  handleDesktopSessionRefreshHttp,
+  handleDesktopSessionRevokeHttp
+} from "./desktopSessionHttp";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -42,6 +50,7 @@ export interface CloudDashboardServerOptions {
   readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly userAccessRepository?: NusaUserAccessRepository;
+  readonly desktopSessionService?: DesktopSessionService;
   readonly readiness?: () => CloudReadinessSnapshot;
   readonly rateLimiter?: BoundedHttpRateLimiter;
 }
@@ -83,8 +92,6 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
     const fail = (error: Error): void => {
       if (settled) return;
       settled = true;
-      // Continue draining without retaining data so an oversized client cannot
-      // turn the bounded body reader into an unbounded memory sink.
       req.resume();
       reject(error);
     };
@@ -148,6 +155,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ownedUserDb = new SqliteDatabase(pathname);
     userAccessRepository = new SqliteNusaUserAccessRepository(ownedUserDb);
   }
+  const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -159,15 +167,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     });
   }
 
-  // Authentication is necessary but not sufficient. First-seen authenticated
-  // ordinary identities are registered PENDING and every protected request checks
-  // the durable approval state. Suspension therefore blocks the same bearer
-  // immediately while preserving PAPER-only authority boundaries.
   const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
       try {
-        const principal = options.tokenVerifier.verify(token);
+        const principal = desktopSessionService?.verifyAccess(token) ?? options.tokenVerifier.verify(token);
         if (principal == null || !principal.userId.trim()) return undefined;
         const principalEmail = principal.email?.trim().toLowerCase();
         if (!principalEmail) return undefined;
@@ -227,6 +231,32 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
+
+      if (desktopSessionService != null && req.url === "/api/operator/desktop-bootstrap") {
+        respond("desktop_bootstrap_issue", handleDesktopBootstrapIssueHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (desktopSessionService != null && req.url === "/v1/desktop/bootstrap") {
+        respond("desktop_bootstrap", handleDesktopBootstrapHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (desktopSessionService != null && req.url === "/v1/desktop/session/refresh") {
+        respond("desktop_session_refresh", handleDesktopSessionRefreshHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (desktopSessionService != null && req.url === "/v1/desktop/session/revoke") {
+        respond("desktop_session_revoke", handleDesktopSessionRevokeHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (desktopSessionService != null && req.url === "/v1/desktop/me") {
+        const token = dashboardRequest.headers.authorization ?? dashboardRequest.headers.Authorization;
+        if (typeof token === "string") {
+          const raw = /^Bearer\s+([^\s]+)$/i.exec(token.trim())?.[1];
+          if (raw) requestPrincipal = desktopSessionService.verifyAccess(raw);
+        }
+        respond("desktop_me", handleDesktopMeHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
 
       if (req.url === "/ready") {
         const authorization = authorizeDashboardReadRequest(dashboardRequest, requestTokenVerifier);

@@ -167,7 +167,7 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
   ) return "FAIL_CLOSED";
   if (
     input.dashboard.overallHealth === "DEGRADED" || input.operations.runtimeState !== "READY" || input.operations.transport !== "ONLINE" ||
-    input.operations.pendingWrites > 0 || input.research == null || input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY"
+    input.operations.pendingWrites > 0 || (input.research != null && (input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY"))
   ) return "DEGRADED";
   return "HEALTHY";
 }

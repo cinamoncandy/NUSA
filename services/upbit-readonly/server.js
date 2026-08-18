@@ -3,7 +3,8 @@
 const crypto = require("node:crypto");
 const http = require("node:http");
 
-const DEFAULT_PORT = 3000;
+const DEFAULT_PORT = 3001;
+const PORT_ENV = "NUSA_UPBIT_READONLY_PORT";
 const LOOPBACK_HOST = "127.0.0.1";
 const UPBIT_ACCOUNTS_URL = "https://api.upbit.com/v1/accounts";
 const ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";
@@ -208,7 +209,7 @@ async function loadUpbitOrders({ env, fetchImpl, scope = "open", uuid }) {
   let query = "";
   if (scope === "open") {
     url = ORDERS_OPEN_URL;
-    query = "states%5B%5D=wait&states%5B%5D=watch";
+    query = "states[]=wait&states[]=watch";
   } else if (scope === "history") {
     url = ORDERS_HISTORY_URL;
     query = "state=done&limit=100";
@@ -219,7 +220,8 @@ async function loadUpbitOrders({ env, fetchImpl, scope = "open", uuid }) {
     throw new Error("Invalid order query scope");
   }
   const jwt = createUpbitJwt(accessKey, secretKey, query);
-  const upstream = await fetchImpl(url + "?" + query, {
+  const requestQuery = scope === "open" ? "states%5B%5D=wait&states%5B%5D=watch" : query;
+  const upstream = await fetchImpl(url + "?" + requestQuery, {
     method: "GET",
     headers: {
       authorization: "Bearer " + jwt,
@@ -323,9 +325,13 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch,
 }
 
 function startServer({ env = process.env, fetchImpl = globalThis.fetch, port = DEFAULT_PORT } = {}) {
+  const configuredPort = env[PORT_ENV] === undefined ? port : Number(env[PORT_ENV]);
+  if (!Number.isSafeInteger(configuredPort) || configuredPort < 1024 || configuredPort > 65535) {
+    throw new Error(`${PORT_ENV} must be an integer in [1024, 65535]`);
+  }
   const server = http.createServer(createRequestHandler({ env, fetchImpl }));
-  server.listen(port, LOOPBACK_HOST, () => {
-    console.log(`nusa-upbit listening on ${LOOPBACK_HOST}:${port}`);
+  server.listen(configuredPort, LOOPBACK_HOST, () => {
+    console.log(`nusa-upbit listening on ${LOOPBACK_HOST}:${configuredPort}`);
   });
   return server;
 }
@@ -334,6 +340,8 @@ if (require.main === module) startServer();
 
 module.exports = {
   LOOPBACK_HOST,
+  DEFAULT_PORT,
+  PORT_ENV,
   UPBIT_ACCOUNTS_URL,
   ACCOUNT_SUMMARY_PATH,
   LEGACY_ACCOUNTS_PATH,

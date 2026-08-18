@@ -1,43 +1,63 @@
-id: WO-0053
-title: Android real-use successor
-branch: agent/android-real-use-successor
-pull_request: 442
+id: WO-0057
+title: Desktop Cloud Canonical PAPER Authority Migration
+branch: agent/wo-0057-desktop-cloud-paper-authority
 base_branch: main
-phase: android-real-use-successor
-status: VERIFYING
-source_work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-objective: "Hold the merged Android PAPER successor at physical-device verification while preserving the real-user operator approval boundary merged in PR #448, PAPER-only authority, and AI ZERO_AUTHORITY."
-scope:
-  - exact-head Android debug/release candidate packaging and provenance
-  - cold-start, crash recovery, navigation, responsive UI, and accessibility resilience
-  - trusted HTTPS PAPER endpoint binding with memory-only credentials and session invalidation
-  - PAPER read/order/history/portfolio flow with preview-confirm-submit, idempotency, retry identity, and fail-closed transport
-  - real authenticated user identity with fail-closed PENDING approval and OWNER-only users:manage
-  - existing capital allocation, approval, risk, and cloud runtime boundaries only; no duplicate policy system
+phase: desktop-cloud-canonical-paper-authority
+status: IN_PROGRESS
+source_work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
+child_work_orders:
+  - id: WO-0057A
+    title: Desktop Cloud PAPER Session Boundary
+    source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
+    status: IN_PROGRESS
+    branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+    pull_request: 554
+    purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
+    bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
+    secure_storage: ELECTRON_SAFE_STORAGE
+    access_token_storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
+    refresh_rotation: required
+    refresh_reuse_detection: required
+    allowed_scopes:
+      - dashboard:read
+      - paper:trade
+preserved_previous_mission:
+  id: WO-0056
+  title: Read-only MCP gateway over existing NUSA relays
+  repository_implementation: COMPLETE
+  pull_request: 538
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  exact_head_ci: PASS
+  external_deployment: PENDING_AUTHORITY
+  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
+  note: "WO-0056 repository implementation remains closed; its external HTTPS/ChatGPT evidence may be collected separately and does not block non-LIVE successors."
 serialized_human_environment_gate:
   id: WO-0051
   status: IN_PROGRESS
   mode: HUMAN_ENVIRONMENT_ONLY
   bypass: prohibited
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_successors:
+    - PAPER_ONLY
+    - READ_ONLY
+    - MOBILE_AUTH_AND_SECURE_SESSION
+    - UI_UX_AND_NON_LIVE_ARCHITECTURE
+  blocked_successors:
+    - LIVE_ACTIVATION
+    - REAL_MONEY_MUTATION
+    - LIVE_RISK_ENVELOPE_EXPANSION
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   realOrderAuthority: false
   realTransferAuthority: false
-  automatedCompletion: prohibited
-  syntheticCiCompletion: prohibited
-  chatConsentAsLiveAuthority: prohibited
-  aiLiveAuthority: prohibited
+  aiAuthority: ZERO_AUTHORITY
 verification:
-  focused_mobile_paper_suite: PASS_69_OF_69
-  merged_successor_pr: 442
-  merged_successor_commit: e9dee4fb26bbb296eab2007b5269ff0ee59365e3
-  access_approval_identity_pr: 448
-  access_approval_identity_head: 129d5d85e5f69175dff4a56e2d0ec0fea5869042
-  access_approval_identity_merge: 00727a4298413b567b6d9552c3cb656c260bc112
-  access_approval_exact_head_ci: PASS
-  access_approval_safety_workflows: PASS_4_OF_4
-  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
-blockers:
-  - ACTUAL_PHYSICAL_ANDROID_DEVICE_ACCEPTANCE_REQUIRED
-next_recommended_task: "Preserve HOLD on WO-0053 until genuine physical Android acceptance is available; repository-controlled maintenance may continue only when it does not claim or bypass the HUMAN_ENVIRONMENT_ONLY gate."
+  governance_registration: PASS_MAIN_PR_553
+  implementation_started: true
+  active_child_pull_request: 554
+  exact_head_ci: PENDING
+mobile_auth:
+  status: NOT_STARTED
+next_recommended_task: "Finish and merge WO-0057A with exact-head required checks PASS, then synchronize parent PR #552 and resume canonical Desktop Cloud PAPER cutover. Do not start Mobile Auth or LIVE work."

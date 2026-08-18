@@ -1,0 +1,80 @@
+id: WO-0056
+schema_version: 1
+title: "Read-only MCP gateway over existing NUSA relays"
+status: VERIFYING
+priority: 90
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dd951890458eef43b77cd943a89e9e52d84d2500
+implementation_branch: agent/issue-mcp-readonly-gateway
+objective: "Expose only existing NUSA read-only API projections through an authenticated MCP gateway without adding backend domain logic or mutation authority."
+scope:
+  - "Inventory and reuse apps/cloud authenticated read-only projections and services/upbit-readonly GET relay."
+  - "Implement bounded, normalized MCP Streamable HTTP tools for endpoints that actually exist."
+  - "Add upstream GET-only enforcement, auth, error sanitization, rate limiting, and hashed audit metadata."
+  - "Add focused tests and deployment/runbook evidence without claiming external deployment or ChatGPT connection."
+exclusions:
+  - "No new NUSA domain backend, persistence, exchange adapter, candle endpoint, or market mutation."
+  - "No LIVE order, cancel, withdrawal, transfer, broker mutation, or AI-triggered financial mutation."
+  - "No dashboard master bearer, Upbit credential, Oracle credential, or Cloudflare credential in MCP clients or responses."
+  - "No user-PC runtime, Quick Tunnel, temporary hostname, or anonymous public MCP endpoint."
+  - "No changes to PR #535/#537 UI work."
+architecture_impact:
+  acknowledged: true
+  decision: .aipos/decisions/ADR-0014-read-only-mcp-gateway.md
+  analysis: "Adds an adapter/transport boundary around existing read-only HTTP relays; does not create a parallel NUSA runtime or alter domain authority."
+  references:
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+    - .aipos/decisions/ADR-0014-read-only-mcp-gateway.md
+safety_boundaries:
+  - "PAPER only; liveAuthority remains NONE; productionMutationAllowed remains false."
+  - "AI remains ZERO_AUTHORITY/read-only."
+  - "MCP exposes GET-backed projections only and blocks all mutation methods/paths."
+execution_sequence:
+  - "Inventory existing endpoint contracts and deployment state."
+  - "Implement the smallest authenticated MCP gateway with only available read-only tools."
+  - "Add focused protocol, normalization, security, rate-limit, and mutation-block tests."
+  - "Run typecheck/lint/build/security/AIPOS checks and exact-head CI."
+  - "Verify deployment authority and ChatGPT connection separately; report PENDING when unavailable."
+verification:
+  commands:
+    - "node --test services/nusa-mcp/test/*.test.js"
+    - "pnpm run typecheck"
+    - "pnpm run lint"
+    - "pnpm run build"
+    - "pnpm run architecture:truth"
+    - "pnpm run aipos:drift"
+    - "pnpm run aipos:conformance"
+    - "pnpm run safety:architecture"
+    - "pnpm run ai:architecture"
+    - "pnpm run security:gate"
+    - "git diff --check"
+completion_criteria:
+  - "Only existing read-only upstream projections are available as MCP tools."
+  - "Mutation methods and unknown routes fail closed."
+  - "Secrets are absent from client-visible responses, logs, source fixtures, and build artifacts."
+  - "Exact-head required checks pass."
+  - "External deployment and ChatGPT calls are separately evidenced; absent evidence leaves external closeout PENDING."
+repository_completion:
+  pull_request: 538
+  head_commit: fffed2c3e37ca6acd4e61646c4419f932e2773c3
+  merge_commit: 6c7ea184aec4da54e7e4d63b7ef47a12f7214e29
+  merged: true
+  exact_head_ci: PASS
+  read_only_broker: PASS
+  restricted_live_activation: PASS
+  restricted_live_capability: PASS
+  restricted_live_transport: PASS
+  implementation: COMPLETE
+external_verification:
+  stable_https_deployment: PENDING_AUTHORITY
+  chatgpt_connection: HUMAN_ENVIRONMENT_ONLY_PENDING
+  scope: "External evidence only; it must not reopen or invalidate the merged repository implementation."
+blockers:
+  - "Stable Oracle/HTTPS deployment origin and ChatGPT connector access require external human authority/evidence for external closeout only."
+current_status: "Repository implementation is merged and exact-head CI/safety checks passed. WO-0056 remains VERIFYING only for stable HTTPS deployment and actual ChatGPT connection evidence, which are human-environment-only and do not serialize permitted non-LIVE successors."
+next_action: "Do not reopen repository implementation. Obtain external deployment and ChatGPT read evidence only when human authority/environment is available; otherwise keep those evidence gates pending while permitted non-LIVE successors continue under independent fail-closed contracts."

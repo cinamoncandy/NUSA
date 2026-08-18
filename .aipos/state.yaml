@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-15T21:56:00+09:00"
-phase: android-real-use-successor
-status: ready
-objective: "Hold merged WO-0053 at physical Android verification while preserving PR #448 real-user approval identity binding, verified WO-AI-010, WO-AI-011 planning-only serialization, PAPER-only authority, and AI ZERO_AUTHORITY."
+updated_at: "2026-08-18T07:20:00+09:00"
+phase: desktop-cloud-canonical-paper-authority
+status: in_progress
+objective: "Migrate Desktop PAPER read/write authority to the canonical authenticated Cloud PAPER boundary while preserving PAPER-only authority and all LIVE/real-money prohibitions."
 base_branch: main
-active_branch: agent/aipos-0053-main-final
-active_pull_request: null
-base_commit: 61e9380cd6a4806618e6665532e6f6e5ec186121
+active_branch: agent/wo-0057-desktop-cloud-paper-authority
+active_pull_request: 553
+base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
@@ -32,8 +32,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0053
-  status: VERIFYING
+  work_order: WO-0057
+  status: IN_PROGRESS
+  branch: agent/wo-0057-desktop-cloud-paper-authority
+  base_commit: 5ed5fada607d2eea3d4470f33c9304f5bc16ddf9
+  scope: "Desktop Cloud canonical PAPER authority migration; WO-0057A provides the authenticated Desktop session boundary first. No LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -283,7 +286,7 @@ planning_gates:
       runtime_implementation_started: false
     implementation_started: false
     serialization: HUMAN_ENVIRONMENT_ONLY
-    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened while runtime implementation remains prohibited before human/environment serialization clears."
+    summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
   - id: WO-AI-010
     evidence: ".aipos/evidence/WO-AI-010-completion.json"
@@ -322,14 +325,25 @@ completed:
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
 in_progress:
-  - id: WO-0053
-    evidence: ".aipos/work-orders/WO-0053-android-real-use-successor.yaml"
-    summary: "Repository implementation and exact-head automated gates are merged/PASS; WO-0053 remains VERIFYING solely because physical Android acceptance is HUMAN_ENVIRONMENT_ONLY pending."
+  - id: WO-0057
+    evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
+    summary: "Desktop Cloud canonical PAPER authority migration is in progress; WO-0057A must provide the authenticated Desktop session boundary before the cutover."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
   status: IN_PROGRESS
-  reason: "WO-0051 remains a mandatory human/environment gate; this successor cannot satisfy, weaken, or bypass it."
+  mode: HUMAN_ENVIRONMENT_ONLY
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate:
+    - PAPER_ONLY
+    - READ_ONLY
+    - MOBILE_AUTH_AND_SECURE_SESSION
+    - UI_UX_AND_NON_LIVE_ARCHITECTURE
+  blocked_under_gate:
+    - LIVE_ACTIVATION
+    - REAL_MONEY_MUTATION
+    - LIVE_RISK_ENVELOPE_EXPANSION
+  reason: "WO-0051 remains mandatory for LIVE and real-money transition; non-LIVE successors cannot satisfy, weaken, or bypass it."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -340,8 +354,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0053-android-real-use-successor.yaml
-  reason: "Preserve HOLD until genuine physical Android device acceptance is available; repository-controlled maintenance may proceed only without claiming or bypassing the HUMAN_ENVIRONMENT_ONLY gate."
+  work_order: .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+  reason: "Execute WO-0057 through its approved child sequence: implement WO-0057A session boundary first, then perform the canonical Desktop Cloud PAPER cutover. Preserve PAPER-only and fail-closed authority throughout."
 verification:
   required:
     - "Preserve WO-AI-010 claim-evidence faithfulness as the latest completed and evidence-verified AI runtime slice"
@@ -350,17 +364,34 @@ verification:
     - "Preserve real-user PENDING -> APPROVED/SUSPENDED server-side authorization and OWNER-only users:manage"
     - "Physical Android device install, cold start, PAPER flow, retry/no-double-fill, recovery, reinstall, and logcat evidence"
     - "Operator-authorized external read-only broker preflight"
-    - "Actual independent human activation ceremony evidence"
-    - "Separate constitutional human production/LIVE decision"
+    - "Actual OWNER approval evidence bound to exact code/config/scope/risk/rollback"
+    - "Separate explicit OWNER constitutional production/LIVE decision"
     - "Post-LIVE validation only after any separately authorized tiny LIVE session"
-    - "Separate two-human governance for any later risk increase"
+    - "Separate explicit OWNER approval for any later risk or scale increase"
   last_result: "Protected main e6deab1499974275eba0ea88455c1edd56642cca after #017 merge; final backend grill and post-merge CI/Mobile Native PASS. No new repository-controlled P0/P1 defect found. Physical Android acceptance, trusted HTTPS operator setup, Firebase external project/CLI, and Windows symlink fixture privileges remain external blockers."
   current_commit: "Protected main e6deab1499974275eba0ea88455c1edd56642cca; post-merge CI and Mobile Native PASS after #017 final backend grill closeout. Physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY."
 human_authority:
+  project_classification: PRIVATE_PERSONAL_USE
+  sole_final_human_authority: OWNER
   live_trading_mutation: prohibited
   live_authority: human_only
-  constitutional_production_decision: human_only
-  risk_increase_approvers_required: 2
+  constitutional_production_decision: OWNER_ONLY
+  owner_approval_required_for:
+    - production_transition
+    - restricted_live_activation
+    - rollback
+    - risk_envelope_change
+    - scale_change
+    - constitutional_decision
+  owner_approval_bindings_required:
+    - exact_code_sha
+    - exact_configuration
+    - exact_scope
+    - exact_risk_envelope
+    - rollback_procedure
+    - timestamp
+    - explicit_approval_statement
+  absent_owner_evidence: fail_closed
   automatic_live_activation: prohibited
   automatic_scale_up: prohibited
   automatic_production_transition: prohibited
