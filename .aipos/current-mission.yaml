@@ -78,4 +78,16 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next_recommended_task: "WO-0059 actual PAPER runtime verification is complete. Continue only with separately registered non-LIVE successors that improve PAPER operability, observability, or approved-client access; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+active_non_live_successor:
+  id: WO-0060
+  title: Android Approved-User Secure Session Binding
+  source_work_order: .aipos/work-orders/WO-0060-android-approved-user-session.yaml
+  status: IN_PROGRESS
+  branch: agent/wo-0060-android-approved-user-session
+  base_commit: 713e19ce6dd6186c54ccf4caa51ac938950db75e
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "WO-0060 is an allowed MOBILE_AUTH_AND_SECURE_SESSION successor. It does not satisfy, bypass, or modify WO-0051."
+next_recommended_task: "Complete WO-0060 with exact-head CI, mobile-native build, Android Keystore secure-storage, and approved-user session evidence. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
