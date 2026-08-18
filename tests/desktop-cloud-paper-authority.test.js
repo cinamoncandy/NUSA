@@ -6,6 +6,7 @@ const { resolveDesktopPaperMode } = require("../dist/apps/desktop/src/paperMode.
 const { activateCloudCanonicalDesktopAuthority } = require("../dist/apps/desktop/src/desktopPaperAuthorityPolicy.js");
 const { parsePaperOrderIpc } = require("../dist/apps/desktop/src/paperIpcValidation.js");
 const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/desktopCloudPaperAuthority.js");
+const { provisionDesktopCloudPaperSession } = require("../dist/apps/desktop/src/desktopCloudPaperIpc.js");
 const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 
 function canonicalSnapshot(now = Date.now()) {
@@ -85,11 +86,57 @@ test("Desktop Cloud authority fails closed for Cloud rejection or unavailability
   await assert.rejects(() => rejected.placeOrder("BUY", 0.001), /P0_BLOCKED/i);
 });
 
+test("Desktop consumes only the one-time bootstrap environment credential and removes it after use", async () => {
+  const bootstrapToken = "b".repeat(40);
+  const env = {
+    NUSA_CLOUD_PAPER_ENDPOINT: "https://paper.example.test",
+    NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN: bootstrapToken
+  };
+  let observed;
+  const session = {
+    async bootstrap(endpoint, token) { observed = { endpoint, token }; },
+    async restore() { throw new Error("restore must not run"); }
+  };
+  await provisionDesktopCloudPaperSession(session, env);
+  assert.deepEqual(observed, { endpoint: "https://paper.example.test", token: bootstrapToken });
+  assert.equal(env.NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN, undefined);
+  assert.equal(env.NUSA_CLOUD_PAPER_ACCESS_TOKEN, undefined);
+});
+
+test("Desktop rejects legacy stable access-token injection and erases credential environment values", async () => {
+  const env = {
+    NUSA_CLOUD_PAPER_ENDPOINT: "https://paper.example.test",
+    NUSA_CLOUD_PAPER_ACCESS_TOKEN: "x".repeat(40),
+    NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN: "b".repeat(40)
+  };
+  let called = false;
+  const session = {
+    async bootstrap() { called = true; },
+    async restore() { called = true; }
+  };
+  await assert.rejects(() => provisionDesktopCloudPaperSession(session, env), /access-token injection is prohibited/i);
+  assert.equal(called, false);
+  assert.equal(env.NUSA_CLOUD_PAPER_ACCESS_TOKEN, undefined);
+  assert.equal(env.NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN, undefined);
+});
+
+test("Desktop restores the safeStorage-backed session when no one-time bootstrap token is supplied", async () => {
+  const env = { NUSA_CLOUD_PAPER_ENDPOINT: "https://paper.example.test" };
+  let restored = 0;
+  const session = {
+    async bootstrap() { throw new Error("bootstrap must not run"); },
+    async restore() { restored += 1; return true; }
+  };
+  await provisionDesktopCloudPaperSession(session, env);
+  assert.equal(restored, 1);
+});
+
 test("packaging and preload expose Cloud PAPER rather than legacy local order/read surfaces", () => {
   const rootPackage = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"));
   const desktopPackage = JSON.parse(fs.readFileSync(path.join(process.cwd(), "apps/desktop/package.json"), "utf8"));
   const preload = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/preload.ts"), "utf8");
   const bootstrap = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/cloudMain.ts"), "utf8");
+  const ipc = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/desktopCloudPaperIpc.ts"), "utf8");
   assert.equal(rootPackage.main, "dist/apps/desktop/src/cloudMain.js");
   assert.equal(rootPackage.build.extraMetadata.main, "dist/apps/desktop/src/cloudMain.js");
   assert.equal(desktopPackage.main, "../../dist/apps/desktop/src/cloudMain.js");
@@ -98,5 +145,8 @@ test("packaging and preload expose Cloud PAPER rather than legacy local order/re
   assert.doesNotMatch(preload, /invokeMutation\("paper:order"/);
   assert.doesNotMatch(preload, /subscribe\("paper:snapshot"/);
   assert.match(bootstrap, /activateCloudCanonicalDesktopAuthority\(\)/);
-  assert.match(bootstrap, /registerDesktopCloudPaperIpc\(ipcMain\)/);
+  assert.match(bootstrap, /registerDesktopCloudPaperIpc\(ipcMain, createDesktopCloudSessionClient\(\)\)/);
+  assert.match(ipc, /NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN/);
+  assert.match(ipc, /Legacy Cloud PAPER access-token injection is prohibited/);
+  assert.doesNotMatch(preload, /BOOTSTRAP_TOKEN|ACCESS_TOKEN|refreshToken|accessToken/);
 });
