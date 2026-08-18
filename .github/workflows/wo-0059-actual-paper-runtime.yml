@@ -18,7 +18,7 @@ concurrency:
 jobs:
   actual-paper-runtime:
     if: github.event_name != 'pull_request' || github.head_ref == 'agent/wo-0059-actual-paper-runtime-e2e'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -40,18 +40,18 @@ jobs:
       - name: Build exact PR head
         run: pnpm run build
       - name: Assert PAPER-only external runtime boundary
-        shell: pwsh
+        env:
+          NUSA_LIVE_MUTATION: PROHIBITED
         run: |
-          if ($env:NUSA_LIVE_MUTATION -and $env:NUSA_LIVE_MUTATION -ne 'PROHIBITED') { throw 'LIVE mutation environment is not permitted' }
-          Write-Output 'WO-0059: Upbit PUBLIC market data only; no private exchange credentials or LIVE broker endpoint is configured.'
+          test "$NUSA_LIVE_MUTATION" = "PROHIBITED"
+          echo 'WO-0059: Upbit PUBLIC market data only; no private exchange credentials or LIVE broker endpoint is configured.'
       - name: Run actual Cloud PAPER E2E against Upbit PUBLIC ticker
         env:
           NUSA_MODE: PAPER
           NUSA_LIVE_MUTATION: PROHIBITED
           NUSA_E2E_MARKET: KRW-BTC
           NUSA_E2E_QUANTITY: '0.000001'
-        shell: pwsh
-        run: node scripts/actual-paper-runtime-e2e.js --working-dir "$env:RUNNER_TEMP\nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
+        run: node scripts/actual-paper-runtime-e2e.js --working-dir "${{ runner.temp }}/nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
