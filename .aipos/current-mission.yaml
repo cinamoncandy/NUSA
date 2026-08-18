@@ -10,10 +10,15 @@ child_work_orders:
   - id: WO-0057A
     title: Desktop Cloud PAPER Session Boundary
     source_work_order: .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
-    status: READY
+    status: IN_PROGRESS
+    branch: agent/wo-0057a-desktop-cloud-paper-session-boundary
+    pull_request: 554
     purpose: "Provide the authenticated Desktop session and secure credential boundary required to unblock WO-0057."
     bootstrap_identity: OWNER_ISSUED_ONE_TIME_BOOTSTRAP_TOKEN
     secure_storage: ELECTRON_SAFE_STORAGE
+    access_token_storage: ELECTRON_MAIN_PROCESS_MEMORY_ONLY
+    refresh_rotation: required
+    refresh_reuse_detection: required
     allowed_scopes:
       - dashboard:read
       - paper:trade
@@ -49,9 +54,10 @@ safety:
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
 verification:
-  governance_registration: IN_PROGRESS
-  implementation_started: false
+  governance_registration: PASS_MAIN_PR_553
+  implementation_started: true
+  active_child_pull_request: 554
   exact_head_ci: PENDING
 mobile_auth:
   status: NOT_STARTED
-next_recommended_task: "Merge the governance-only registration for WO-0057 and WO-0057A. After exact-head governance checks pass, implement WO-0057A from the protected base; do not start Mobile Auth or LIVE work."
+next_recommended_task: "Finish and merge WO-0057A with exact-head required checks PASS, then synchronize parent PR #552 and resume canonical Desktop Cloud PAPER cutover. Do not start Mobile Auth or LIVE work."
