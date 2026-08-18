@@ -31,10 +31,11 @@ if (!fs.existsSync(cloudMainPath)) {
 } else {
   const cloudMain = fs.readFileSync(cloudMainPath, "utf8");
   const activateIndex = cloudMain.indexOf("activateCloudCanonicalDesktopAuthority()");
-  const registerIndex = cloudMain.indexOf("registerDesktopCloudPaperIpc(ipcMain)");
+  const readyIndex = cloudMain.indexOf("app.whenReady()");
+  const registerIndex = cloudMain.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
   const legacyImportIndex = cloudMain.indexOf('import("./main")');
-  if (activateIndex < 0 || registerIndex <= activateIndex || legacyImportIndex <= registerIndex) {
-    failures.push("Cloud Desktop bootstrap must activate authority, register Cloud PAPER IPC, then load legacy runtime in order");
+  if (activateIndex < 0 || readyIndex <= activateIndex || registerIndex <= readyIndex || legacyImportIndex <= registerIndex) {
+    failures.push("Cloud Desktop bootstrap must activate authority, schedule ready-only secure Cloud PAPER IPC, then load legacy runtime in order");
   }
 }
 
@@ -42,6 +43,8 @@ const safetySources = [
   "apps/desktop/src/cloudMain.ts",
   "apps/desktop/src/desktopPaperAuthorityPolicy.ts",
   "apps/desktop/src/desktopCloudPaperIpc.ts",
+  "apps/desktop/src/desktopCloudSessionClient.ts",
+  "apps/desktop/src/desktopCloudSessionStore.ts",
   "apps/desktop/src/main.ts",
   "apps/execution/src/production-readiness.ts",
   "apps/execution/src/live-operations.ts"
@@ -51,6 +54,8 @@ const safetySources = [
   .join("\n");
 if (!/productionMutationAllowed/.test(safetySources) || !/productionMutationAllowed:\s*false/.test(safetySources)) failures.push("production mutation safety boundary missing");
 if (/enableLiveTrading\s*[:=]\s*true/.test(safetySources)) failures.push("live trading enabled in release sources");
+if (!/NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN/.test(safetySources)) failures.push("Desktop one-time Cloud PAPER bootstrap contract missing");
+if (!/access-token injection is prohibited/i.test(safetySources)) failures.push("legacy Desktop stable access-token injection must remain prohibited");
 console.log(JSON.stringify({
   status: failures.length ? "FAIL" : "PASS",
   checks: {
@@ -58,6 +63,7 @@ console.log(JSON.stringify({
     target: pkg.build?.win?.target,
     asar: pkg.build?.asar,
     desktopMain: pkg.main,
+    secureDesktopSession: failures.every((failure) => !/bootstrap|access-token/i.test(failure)),
     userDataPreserved: pkg.build?.nsis?.deleteAppDataOnUninstall === false
   },
   failures
