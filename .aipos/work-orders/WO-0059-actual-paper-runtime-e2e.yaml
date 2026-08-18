@@ -1,0 +1,70 @@
+id: WO-0059
+title: "Actual PAPER Runtime End-to-End Activation"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ad34549c06805c24a0634e8a9250157210b60121
+implementation_branch: agent/wo-0059-actual-paper-runtime-e2e
+objective: "Prove the canonical Cloud PAPER runtime actually operates end-to-end against live Upbit PUBLIC market data, including PAPER-only order/fill accounting, SQLite durability, restart recovery, and idempotent retry protection, without adding or using any LIVE, private-exchange, withdrawal, transfer, or real-money authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Start the canonical Cloud PAPER runtime with Upbit PUBLIC ticker ingestion enabled"
+  - "Prove live public market data reaches the canonical Cloud PAPER risk/execution boundary"
+  - "Execute at least one PAPER-only order through the canonical Cloud PAPER mutation path"
+  - "Capture resulting PAPER order, fill, position, cash, equity, realized/unrealized PnL, and SQLite persistence evidence"
+  - "Restart the runtime and prove the same PAPER account state recovers from SQLite"
+  - "Retry the same idempotency key after restart and prove no second fill is created"
+  - "Prove Desktop/read-only projections observe the same canonical PAPER state where environment access permits"
+  - "Record exact source commit, runtime configuration class, timestamps, market, order/fill identifiers, and evidence hashes without recording secrets"
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0059 does not create a new trading authority or broker path. It activates and verifies the already merged Cloud canonical PAPER writer against live Upbit PUBLIC market data. All mutation remains confined to simulated PAPER state behind CloudPaperExecutionBoundary and CloudPaperCanonicalRiskGateway. The purpose is operational evidence, not LIVE promotion. Any discovered defect must be fixed on this branch without weakening WO-0051 or introducing private Upbit credentials."
+  references:
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+    - .aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml
+    - .aipos/work-orders/WO-0058-approved-user-session-core.yaml
+required_runtime_configuration:
+  public_market_data: UPBIT_PUBLIC_ONLY
+  private_exchange_credentials: PROHIBITED
+  live_order_endpoint: PROHIBITED
+  withdrawal_transfer: PROHIBITED
+  cloud_state: SQLITE_DURABLE_REQUIRED
+  paper_initial_capital: REQUIRED
+  paper_authority: PAPER_ONLY
+blocked:
+  - "Upbit private API credentials"
+  - "LIVE order/cancel endpoint"
+  - "real-money broker mutation"
+  - "withdrawal/transfer"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+  - "synthetic CI being treated as proof of live public-market runtime operation"
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  exchange_private_credential_authority: false
+  ai_authority: ZERO_AUTHORITY
+verification:
+  exact_head_ci: PENDING
+  required_companion_workflows: PENDING
+  live_upbit_public_ticker_ingestion: PENDING_EXTERNAL_RUNTIME
+  canonical_paper_order_fill: PENDING_EXTERNAL_RUNTIME
+  sqlite_persistence: PENDING_EXTERNAL_RUNTIME
+  restart_recovery: PENDING_EXTERNAL_RUNTIME
+  same_idempotency_retry_no_double_fill: PENDING_EXTERNAL_RUNTIME
+  desktop_canonical_projection: PENDING_EXTERNAL_RUNTIME
+  no_private_exchange_credentials: REQUIRED
+  no_live_broker_mutation: REQUIRED
+completion_rule: "Do not mark WO-0059 complete from CI alone. Completion requires evidence from an actual runtime session using live Upbit PUBLIC market data that proves canonical PAPER order/fill mutation, durable SQLite state, restart recovery, and same-idempotency retry without a second fill, while preserving liveAuthority=NONE and productionMutationAllowed=false."
