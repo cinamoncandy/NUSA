@@ -165,12 +165,12 @@ export class MobileApprovedSession {
   public async disconnect(baseUrl?: string): Promise<void> {
     const endpoint = baseUrl == null ? this.endpoint : secureEndpoint(baseUrl);
     const access = this.accessToken;
+    await this.clearLocal();
     try {
       if (endpoint != null && access != null) {
         await requestJson(this.request, `${endpoint}/v1/mobile/session/revoke`, { method: "POST", headers: { authorization: `Bearer ${access}` }, body: "{}" });
       }
-    } catch { /* local credential destruction still proceeds fail-closed */ }
-    await this.clearLocal();
+    } catch { /* local credential destruction has already completed */ }
   }
 
   public clearMemory(): void {
@@ -228,7 +228,7 @@ export class MobileApprovedSession {
   private async clearLocal(): Promise<void> {
     this.clearMemory();
     if (this.storage != null) {
-      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage remains fail-closed */ }
+      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage adapter remains fail-closed */ }
     }
   }
 }
