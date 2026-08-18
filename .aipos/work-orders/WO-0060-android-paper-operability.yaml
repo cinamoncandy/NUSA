@@ -6,6 +6,7 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: df078f286ead8256eba2b667b2af5b1f621cb112
 implementation_branch: agent/wo-0060-android-paper-operability-v2
+pull_request: 581
 objective: "Make the Android app visibly and actually usable for canonical Cloud PAPER trading from a stable build-provided HTTPS origin, consuming the completed WO-0060A approved-user secure-session boundary without creating a duplicate authentication authority."
 authority:
   mode: PAPER_ONLY
