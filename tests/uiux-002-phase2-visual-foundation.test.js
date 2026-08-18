@@ -15,19 +15,40 @@ const contrast = (left, right) => {
   const b = relativeLuminance(right);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 };
-const colorPair = (design, name) => {
-  const match = design.match(new RegExp(`${name}: dark \\? "(#[0-9A-F]{6})" : "(#[0-9A-F]{6})"`, "i"));
-  assert.ok(match, `${name} must have explicit light and dark colors`);
-  return { dark: match[1], light: match[2] };
+const presetColorPair = (design, presetName, name) => {
+  const presetStart = design.indexOf(`${presetName}: Object.freeze({`);
+  assert.ok(presetStart >= 0, `${presetName} preset must exist`);
+  const nextPreset = design.indexOf("  }),", presetStart);
+  const preset = design.slice(presetStart, nextPreset + 5);
+  const darkStart = preset.indexOf("dark: Object.freeze({");
+  const lightStart = preset.indexOf("light: Object.freeze({");
+  assert.ok(darkStart >= 0 && lightStart >= 0, `${presetName} must define dark and light palettes`);
+  const dark = preset.slice(darkStart, lightStart);
+  const light = preset.slice(lightStart);
+  const extract = (block, mode) => {
+    const match = block.match(new RegExp(`${name}: "(#[0-9A-F]{6})"`, "i"));
+    assert.ok(match, `${presetName}.${mode}.${name} must be explicit`);
+    return match[1];
+  };
+  return { dark: extract(dark, "dark"), light: extract(light, "light") };
+};
+const explicitThemeColorPair = (design, name) => {
+  const match = design.match(new RegExp(`${name}: dark \\? "(#[0-9A-F]{6})"(?: : preset\\.name === "master" \\? "(#[0-9A-F]{6})" : "(#[0-9A-F]{6})"| : "(#[0-9A-F]{6})")`, "i"));
+  assert.ok(match, `${name} must have explicit theme colors`);
+  return { dark: match[1], light: match[2] ?? match[4] };
 };
 
-test("Phase 2 theme follows the canonical graphite identity and restrained accent", () => {
+test("Phase 2 theme follows the canonical preset identity and restrained accent", () => {
   const design = read("designSystem.ts");
-  assert.match(design, /background: dark \? "#05070D"/);
-  assert.match(design, /primary: dark \? "#E8F3FF"/);
-  assert.match(design, /surfaceRaised: dark \? "#101827"/);
+  assert.match(design, /export type DesignPresetName = "classic" \| "master"/);
+  assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
+  assert.match(design, /background: palette\.background/);
+  assert.match(design, /primary: palette\.primary/);
+  assert.match(design, /surfaceRaised: palette\.surfaceRaised/);
   assert.match(design, /terrain: dark \? "#DCEBFF"/);
-  assert.match(design, /radii: \{ sm: 8, md: 12, lg: 16, xl: 24/);
+  assert.match(design, /classic: Object\.freeze\(/);
+  assert.match(design, /master: Object\.freeze\(/);
+  assert.match(design, /radii: preset\.radii/);
 });
 
 test("financial values use stable tabular numerals and touch targets remain accessible", () => {
@@ -41,29 +62,33 @@ test("financial values use stable tabular numerals and touch targets remain acce
 
 test("danger button foreground keeps WCAG AA contrast in both themes", () => {
   const design = read("designSystem.ts");
-  const danger = colorPair(design, "danger");
-  const onDanger = colorPair(design, "onDanger");
+  const danger = explicitThemeColorPair(design, "danger");
+  const onDanger = explicitThemeColorPair(design, "onDanger");
   assert.ok(contrast(danger.dark, onDanger.dark) >= 4.5, "dark danger button contrast must meet WCAG AA");
   assert.ok(contrast(danger.light, onDanger.light) >= 4.5, "light danger button contrast must meet WCAG AA");
 });
 
 test("status chip foregrounds remain readable in both themes", () => {
   const design = read("designSystem.ts");
-  const surfaceSunken = colorPair(design, "surfaceSunken");
-  const primarySoft = colorPair(design, "primarySoft");
-  const toneColors = {
-    primary: colorPair(design, "primary"),
-    success: colorPair(design, "success"),
-    warning: colorPair(design, "warning"),
-    danger: colorPair(design, "danger"),
-    info: colorPair(design, "info"),
-    neutral: colorPair(design, "textMuted"),
-  };
-  for (const mode of ["dark", "light"]) {
-    for (const [tone, foreground] of Object.entries(toneColors)) {
-      const background = tone === "primary" ? primarySoft[mode] : surfaceSunken[mode];
-      const minimum = tone === "warning" && mode === "light" ? 3 : 4.5;
-      assert.ok(contrast(foreground[mode], background) >= minimum, `${mode} ${tone} status chip contrast must remain readable`);
+  for (const presetName of ["classic", "master"]) {
+    const surfaceSunken = presetColorPair(design, presetName, "surfaceSunken");
+    const primarySoft = presetColorPair(design, presetName, "primarySoft");
+    const presetTones = {
+      primary: presetColorPair(design, presetName, "primary"),
+      info: presetColorPair(design, presetName, "info"),
+      neutral: presetColorPair(design, presetName, "textMuted"),
+    };
+    const explicitTones = {
+      success: explicitThemeColorPair(design, "success"),
+      warning: explicitThemeColorPair(design, "warning"),
+      danger: explicitThemeColorPair(design, "danger"),
+    };
+    for (const mode of ["dark", "light"]) {
+      for (const [tone, foreground] of Object.entries({ ...presetTones, ...explicitTones })) {
+        const background = tone === "primary" ? primarySoft[mode] : surfaceSunken[mode];
+        const minimum = tone === "warning" && mode === "light" ? 3 : 4.5;
+        assert.ok(contrast(foreground[mode], background) >= minimum, `${presetName} ${mode} ${tone} status chip contrast must remain readable`);
+      }
     }
   }
 });
