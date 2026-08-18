@@ -1,0 +1,47 @@
+id: WO-0060B
+title: "Canonical Mobile HTTPS Origin"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: agent/wo-0060b-canonical-mobile-origin
+parent_work_order: WO-0060
+parent_pull_request: 569
+completed_prerequisite:
+  id: WO-0060A
+  pull_request: 572
+  exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
+  merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+objective: "Remove production Android dependence on a user-entered Cloud endpoint by packaging one validated canonical HTTPS origin into the Android release candidate while reusing the already-merged approved-user secure session boundary from WO-0060A."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Generate canonical HTTPS origin at Android RC packaging time from repository-level non-secret configuration"
+  - "Reject loopback, cleartext HTTP, credential-bearing URLs, path/query/fragment state, and temporary Quick Tunnel origins"
+  - "Make packaged canonical origin authoritative over persisted Settings endpoint input"
+  - "Reuse WO-0060A Android Keystore approved-user session without introducing a second mobile auth stack"
+  - "Produce exact-head Android RC provenance and checksum evidence"
+blocked:
+  - "Embedding dashboard owner bearer or exchange credentials in the APK"
+  - "Adding a second mobile session implementation"
+  - "Allowing Settings input to redirect production credentials away from the packaged canonical origin"
+  - "Treating CI or emulator evidence as physical Android acceptance"
+verification:
+  canonical_origin_validation: PENDING
+  packaged_origin_authority: PENDING
+  exact_head_ci: PENDING
+  mobile_native: PENDING
+  canonical_android_rc: PENDING
+  required_companion_workflows: PENDING
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  exchange_private_credential_authority: false
+  ai_authority: ZERO_AUTHORITY
+completion_rule: "WO-0060B completes only after exact-head CI/native validation and a canonical-origin Android RC exist. Parent WO-0060 still requires genuine physical Android PAPER visibility, submit/result/idempotency/relaunch evidence before completion."
