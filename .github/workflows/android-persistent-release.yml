@@ -79,7 +79,15 @@ jobs:
         env:
           NUSA_BUILD_SHA: ${{ steps.source.outputs.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
-        run: ./gradlew :app:assembleRelease
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          case "${EXPO_PUBLIC_NUSA_API_BASE_URL:-}" in
+            https://*) ;;
+            "") echo "Repository variable NUSA_API_BASE_URL is required for Android preview releases." >&2; exit 1 ;;
+            *) echo "NUSA_API_BASE_URL must be an HTTPS URL for a physical-device release." >&2; exit 1 ;;
+          esac
+          ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
 
       - name: Verify APK source provenance
