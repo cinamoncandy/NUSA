@@ -7,7 +7,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
+export type HomeDestination = "Markets" | "AiSignal" | "Portfolio" | "More";
 interface HomeViewProps { readonly snapshot: Snapshot | null; readonly investmentPercent: number; readonly readOnlyError: string | null; readonly notConfigured: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onGoSettings: () => void; readonly onNavigate: (destination: HomeDestination) => void; }
 function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function healthTone(health: string | undefined): "success" | "warning" | "danger" { return health === "HEALTHY" || health === "READY" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning"; }
@@ -25,17 +25,17 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const allocationWidth = allocation ? `${allocation.investmentPercent}%` as `${number}%` : "0%";
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const nextAction = notConfigured
-    ? { title: "PAPER 연결 설정", detail: "Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요.", tab: null }
-    : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
-      ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
+    ? { title: "PAPER 연결 설정", detail: "Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요.", destination: null }
+    : snapshot && snapshot.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
+      ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", destination: "Markets" as const }
       : aiInsightAvailable
-        ? { title: "AI 분석 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", tab: "AiSignal" as const }
-        : { title: "시장 보기", detail: "검증된 시장 데이터를 확인하세요.", tab: "Markets" as const };
-  const runNextAction = () => { if (nextAction.tab === null) onGoSettings(); else onNavigate(nextAction.tab); };
+        ? { title: "AI 인사이트 보기", detail: "검증된 읽기 전용 분석을 확인하세요.", destination: "AiSignal" as const }
+        : { title: "시장 데이터 보기", detail: "검증된 시장 데이터를 확인하세요.", destination: "More" as const };
+  const runNextAction = () => { if (nextAction.destination === null) onGoSettings(); else onNavigate(nextAction.destination); };
 
   return <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
     <ScreenHeader eyebrow="NUSA ISLAND" title="홈" description="자산 상태와 지금 필요한 한 가지 행동을 확인합니다." statusLabel={snapshot?.health ?? "미연결"} statusTone={snapshot ? healthTone(snapshot.health) : "neutral"} />
-    <View style={styles.topline}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text><View style={styles.toplineRight}><StatusChip label={snapshot?.health ?? (notConfigured ? "연결 필요" : "대기")} tone={snapshot ? healthTone(snapshot.health) : "warning"} /><StatusChip label="LIVE NONE" tone="neutral" /></View></View>
+    <View style={styles.topline}><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER · LIVE OFF</Text><View style={styles.toplineRight}><StatusChip label={snapshot?.health ?? (notConfigured ? "연결 필요" : "대기")} tone={snapshot ? healthTone(snapshot.health) : "warning"} /><StatusChip label="LIVE NONE" tone="neutral" /></View></View>
     {readOnlyError ? <InlineNotice title="PAPER 서버 연결 오류" detail={readOnlyError} tone="danger" /> : null}
     {notConfigured ? <View style={styles.connection} testID="dashboard-session-card"><Text style={[styles.connectionTitle, { color: theme.colors.text }]}>PAPER 서버 연결이 필요합니다</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{notConfigured}</Text><NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" /></View> : null}
 

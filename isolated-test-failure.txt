@@ -1,0 +1,36 @@
+FAILED_TEST_FILE tests\backup-restore.test.js
+✔ backup creates a missing destination, excludes secret-shaped paths, and records fail-closed safety metadata (39.3547ms)
+✔ backup content scanning excludes secrets hidden behind benign filenames and verify rejects a self-consistent secret artifact (28.559ms)
+✔ verify fails closed when a backed-up artifact is tampered (27.7232ms)
+✔ verify-only restore drill removes the target and writes a manifest-bound Evidence log (53.6217ms)
+✔ a drill refuses to overwrite an existing Evidence log (29.4235ms)
+✖ backup refuses symlink sources and release metadata missing checksums or SBOM (2.0094ms)
+✔ destructive restore command is intentionally unavailable (59.3253ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 318.9338
+
+✖ failing tests:
+
+test at tests\backup-restore.test.js:125:1
+✖ backup refuses symlink sources and release metadata missing checksums or SBOM (2.0094ms)
+  Error: EPERM: operation not permitted, symlink 'C:\Users\PC\AppData\Local\Temp\nusa-recovery-VO8Bb2\source' -> 'C:\Users\PC\AppData\Local\Temp\nusa-recovery-VO8Bb2\linked'
+      at Object.symlinkSync (node:fs:1877:11)
+      at TestContext.<anonymous> (C:\Users\PC\Documents\NUSA-git-recovery\tests\backup-restore.test.js:129:8)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    errno: -4048,
+    code: 'EPERM',
+    syscall: 'symlink',
+    path: 'C:\\Users\\PC\\AppData\\Local\\Temp\\nusa-recovery-VO8Bb2\\source',
+    dest: 'C:\\Users\\PC\\AppData\\Local\\Temp\\nusa-recovery-VO8Bb2\\linked'
+  }
