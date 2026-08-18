@@ -100,7 +100,7 @@ export function startCloudRuntime(
   aiRuntime?: CloudAiRuntime
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
-  const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken);
+  const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
