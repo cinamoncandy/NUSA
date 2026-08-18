@@ -2,10 +2,8 @@ name: Android Persistent Preview Release
 
 on:
   push:
-    branches: [main]
+    branches: ["deploy/android-preview-de047e4d"]
     paths:
-      - "apps/mobile/**"
-      - "pnpm-lock.yaml"
       - ".github/workflows/android-persistent-release.yml"
   workflow_dispatch:
 
@@ -21,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: de047e4db52d08d0ef4f93d437ed53be3e10601d
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.7.0
@@ -41,35 +41,29 @@ jobs:
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - name: Build exact-source release APK
         env:
-          NUSA_BUILD_SHA: ${{ github.sha }}
+          NUSA_BUILD_SHA: de047e4db52d08d0ef4f93d437ed53be3e10601d
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
       - name: Verify APK source provenance
         env:
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: de047e4db52d08d0ef4f93d437ed53be3e10601d
           EXPECTED_RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
           APK="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
-
           EXPECTED_SHORT_SHA="${EXPECTED_SHA:0:8}"
           EXPECTED_VERSION_NAME="1.0.${EXPECTED_RUN_NUMBER}-${EXPECTED_SHORT_SHA}"
           EXPECTED_VERSION_CODE="$EXPECTED_RUN_NUMBER"
-
           AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
           test -x "$AAPT"
           BADGING="$("$AAPT" dump badging "$APK")"
           printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION_CODE}'"
           printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
-
           RESOURCES="$(${AAPT} dump --values resources "$APK")"
           printf '%s\n' "$RESOURCES" | grep -F "$EXPECTED_SHA"
-
-          printf 'source_sha=%s\nversion_name=%s\nversion_code=%s\n' \
-            "$EXPECTED_SHA" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" \
-            > NUSA-Android.provenance.txt
+          printf 'source_sha=%s\nversion_name=%s\nversion_code=%s\n' "$EXPECTED_SHA" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" > NUSA-Android.provenance.txt
       - name: Prepare persistent APK assets
         run: |
           cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk NUSA-Android.apk
@@ -77,22 +71,20 @@ jobs:
       - name: Create or update persistent preview release
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: de047e4db52d08d0ef4f93d437ed53be3e10601d
         run: |
           if gh release view nusa-android-preview >/dev/null 2>&1; then
             gh release upload nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --clobber
-            gh release edit nusa-android-preview --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
+            gh release edit nusa-android-preview --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Android preview from exact UI migration head de047e4d. PAPER/read-only safety boundaries remain unchanged." --prerelease
           else
-            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$GITHUB_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview build from main. PAPER/read-only safety boundaries remain unchanged." --prerelease
+            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Android preview from exact UI migration head de047e4d. PAPER/read-only safety boundaries remain unchanged." --prerelease
           fi
       - name: Prepare Firebase credentials
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
-
+        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
       - name: Install Firebase CLI
         run: npm install --global firebase-tools
-
       - name: Distribute APK to Firebase App Distribution
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
@@ -101,8 +93,7 @@ jobs:
           firebase appdistribution:distribute NUSA-Android.apk \
             --app "$FIREBASE_APP_ID" \
             --testers "desporin12@gmail.com" \
-            --release-notes "NUSA Android preview from ${GITHUB_SHA::8}; exact source provenance verified"
-
+            --release-notes "NUSA Android preview from de047e4d; preset migration included; exact source provenance verified"
       - name: Remove Firebase credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
