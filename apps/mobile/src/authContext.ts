@@ -1,13 +1,13 @@
 import { createContext, useContext } from "react";
 import type { SecureStoragePort } from "./mobileSecurity";
 
-export type AuthStatus = "CHECKING" | "SIGNED_OUT" | "SIGNED_IN";
+export type AuthStatus = "CHECKING" | "SIGNED_OUT" | "AUTHENTICATING" | "ACTIVE" | "EXPIRED" | "BLOCKED" | "OFFLINE";
 
 export interface AuthContextValue {
   readonly status: AuthStatus;
   readonly secureStorage?: SecureStoragePort;
-  readonly signIn: () => void;
-  readonly signOut: () => void;
+  readonly signIn: (bootstrapToken: string) => Promise<void>;
+  readonly signOut: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

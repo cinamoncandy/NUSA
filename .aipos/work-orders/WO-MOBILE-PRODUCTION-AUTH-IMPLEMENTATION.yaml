@@ -1,0 +1,49 @@
+id: WO-MOBILE-PRODUCTION-AUTH-IMPLEMENTATION
+title: "Mobile production authentication and secure session"
+status: IN_PROGRESS
+owner: nusa-engineering
+base_branch: main
+base_commit: 7ecbfe080199d6169670bb9ed645a5b725b8fbdf
+parent_gate: WO-0051
+mode: NON_LIVE_SUCCESSOR
+objective: "Replace the mobile LOCAL ENTRY placeholder with truthful server-backed authentication and secure-session state while preserving PAPER-only authority."
+scope:
+  - "Reuse the approved-user session core for mobile bootstrap, refresh, revoke, and identity projection."
+  - "Keep access credentials in process memory and refresh material in Android Keystore-backed storage."
+  - "Expose authenticated read-only and existing PAPER routes without adding LIVE authority."
+  - "Keep Firebase provisioning external and fail closed until an approved project/configuration exists."
+constraints:
+  - "liveAuthority=NONE"
+  - "productionMutationAllowed=false"
+  - "AI=ZERO_AUTHORITY"
+  - "No Upbit credentials, MCP tokens, or bearer tokens in renderer persistence or APK."
+  - "No localhost or cleartext production origin."
+acceptance:
+  - "ACTIVE requires server session evidence."
+  - "Refresh rotation, revocation, and unavailable secure storage fail closed."
+  - "Android secure storage uses Keystore-backed encryption."
+  - "Authenticated PAPER/read-only routes reuse existing Cloud authorization."
+  - "Focused tests, typecheck, lint, build, architecture, AIPOS, security, and safety gates pass."
+external_blockers:
+  - "Firebase project, provider configuration, and physical Android acceptance require human/environment evidence."
+implementation:
+  status: IN_PROGRESS
+  branch: codex/mobile-production-auth
+  base_commit: 7ecbfe080199d6169670bb9ed645a5b725b8fbdf
+  completed_repository_slice:
+    - "Cloud mobile bootstrap/refresh/revoke/me routes reuse ApprovedUserSessionService with mobile namespace."
+    - "Mobile client requires HTTPS production origin, keeps access token in memory, and stores only rotated refresh material through SecureStoragePort."
+    - "Android Keystore-backed AES-GCM React Native module is registered and unavailable platforms fail closed."
+    - "LOCAL ENTRY UI was replaced by server-backed ACTIVE state and one-time bootstrap-token flow."
+  validation:
+    mobile_typecheck: PASS
+    focused_mobile_session_tests: PASS_3_OF_3
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    architecture: PASS
+    ai_zero_authority: PASS
+    safety_architecture: PASS
+    root_build: BLOCKED_PRE_EXISTING_NODE_TIMER_TYPE_ERRORS
+  remaining:
+    - "Firebase external identity provisioning is not present in repository."
+    - "Trusted production HTTPS and physical Android install/runtime evidence remain HUMAN_ENVIRONMENT_ONLY."

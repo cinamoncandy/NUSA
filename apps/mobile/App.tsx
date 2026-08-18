@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, TextInput, View, type AppStateStatus } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";
@@ -26,6 +26,8 @@ import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPubli
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
+import { nativeKeystoreStorage } from "./src/nativeSecureStorage";
+import { MobileSessionClient } from "./src/mobileSessionClient";
 
 const tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;
 type Tab = (typeof tabs)[number];
@@ -81,13 +83,17 @@ export default function App() { return <SafeAreaProvider><ThemeProvider initialM
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [status, setStatus] = useState<AuthStatus>("CHECKING");
-  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);
-  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);
+  const client = useMemo(() => new MobileSessionClient({ secureStorage: nativeKeystoreStorage, baseUrl: process.env.EXPO_PUBLIC_NUSA_API_BASE_URL ?? "https://nusa-api.duckdns.org", production: !__DEV__ }), []);
+  const signIn = useCallback(async (bootstrapToken: string) => { setStatus("AUTHENTICATING"); try { await client.bootstrap(bootstrapToken); setStatus("ACTIVE"); } catch (error) { setStatus(client.state); throw error; } }, [client]);
+  const signOut = useCallback(async () => { await client.logout(); setStatus("SIGNED_OUT"); }, [client]);
+  useEffect(() => { let cancelled = false; void client.restore().then((identity) => { if (!cancelled) setStatus(identity == null ? "SIGNED_OUT" : "ACTIVE"); }).catch(() => { if (!cancelled) setStatus("SIGNED_OUT"); }); return () => { cancelled = true; }; }, [client]);
+  const value = useMemo(() => ({ status, signIn, signOut }), [signIn, signOut, status]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 function AuthenticatedApp() {
   const { status: authStatus, signIn, signOut } = useAuth();
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const { theme: appTheme } = useTheme();
   const upbitState = useUpbitReadOnlyState();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
@@ -233,7 +239,7 @@ function AuthenticatedApp() {
   }, [dispatchRuntime, runtimeCoordinator]);
   useEffect(() => {
     refreshGenerationRef.current += 1;
-    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    if (authStatus !== "ACTIVE" || appState !== "active") return;
     const generation = refreshGenerationRef.current;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -244,7 +250,7 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     publicRefreshGenerationRef.current += 1;
-    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    if (authStatus !== "ACTIVE" || appState !== "active") return;
     const generation = publicRefreshGenerationRef.current;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -254,7 +260,7 @@ function AuthenticatedApp() {
   }, [appState, authStatus, refreshPublicMarkets]);
 
   useEffect(() => {
-    if (authStatus !== "SIGNED_IN" || appState !== "active") { liveTickerClient.disconnect(); return; }
+    if (authStatus !== "ACTIVE" || appState !== "active") { liveTickerClient.disconnect(); return; }
     void liveTickerClient.connect();
     return () => liveTickerClient.disconnect();
   }, [appState, authStatus, liveTickerClient]);
@@ -270,7 +276,7 @@ function AuthenticatedApp() {
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
-  if (authStatus !== "SIGNED_IN") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><View style={styles.authPanel}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>개인 PAPER 모드</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>개인 기기에서 PAPER 작업공간으로 진입합니다. 서버 자격 증명은 Settings에서 별도로 검증합니다.</Text><View style={styles.entryBadges}><StatusChip label="LOCAL ENTRY" tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><NusaButton accessibilityLabel="Start personal mode" label="개인 모드 시작" onPress={signIn} testID="local-entry-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>이 진입 단계는 계정 인증이 아닙니다. 사용자 신원을 검증하지 않으며 비밀번호를 수집하거나 저장하지 않습니다.</Text></View></View></SafeAreaView>;
+  if (authStatus !== "ACTIVE") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={styles.authContent}><View style={styles.authPanel}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>SECURE NUSA SESSION</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>{authStatus === "AUTHENTICATING" ? "서버 인증 중" : "NUSA 인증 필요"}</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted }]}>OWNER가 발급한 일회용 bootstrap token으로 NUSA 세션을 시작합니다. 토큰은 저장하지 않으며 서버가 승인한 세션만 활성화됩니다.</Text><View style={styles.entryBadges}><StatusChip label={authStatus} tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><TextInput accessibilityLabel="Bootstrap token" autoCapitalize="none" autoCorrect={false} onChangeText={setBootstrapToken} placeholder="일회용 bootstrap token" placeholderTextColor={appTheme.colors.textMuted} secureTextEntry style={[styles.bootstrapInput, { borderColor: appTheme.colors.border, color: appTheme.colors.text }]} value={bootstrapToken} /><NusaButton accessibilityLabel="Authenticate with NUSA" label="NUSA에 연결" onPress={() => { void signIn(bootstrapToken).then(() => setBootstrapToken("")).catch(() => undefined); }} testID="nusa-auth-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Firebase 외부 provisioning이 연결되기 전까지는 서버 발급 bootstrap token 경로만 사용합니다. 인증 실패 시 PAPER 데이터와 작업은 차단됩니다.</Text></View></View></SafeAreaView>;
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
@@ -310,7 +316,7 @@ function AuthenticatedApp() {
 
 const styles = StyleSheet.create({
   container: theme.container,
-  authContent: { flex: 1, justifyContent: "center", padding: 24, alignItems: "center" }, authPanel: { width: "100%", maxWidth: 640, gap: 16 }, authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }, authHeading: { fontSize: 29, fontWeight: "700", letterSpacing: -0.8 }, subtitle: { fontSize: 14, lineHeight: 21 }, entryBadges: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  authContent: { flex: 1, justifyContent: "center", padding: 24, alignItems: "center" }, authPanel: { width: "100%", maxWidth: 640, gap: 16 }, authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }, authHeading: { fontSize: 29, fontWeight: "700", letterSpacing: -0.8 }, subtitle: { fontSize: 14, lineHeight: 21 }, entryBadges: { flexDirection: "row", flexWrap: "wrap", gap: 7 }, bootstrapInput: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14 },
   header: { minHeight: 64, borderBottomWidth: 1, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 }, brand: { fontSize: 23, fontWeight: "800", letterSpacing: 1.6 }, eyebrow: { fontSize: 9, fontWeight: "800", letterSpacing: 1.7, marginTop: -1 },
   utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: 12, fontWeight: "700" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   connectionState: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, connectionStateInner: { width: "100%", maxWidth: 720 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 }, meta: { fontSize: 12, lineHeight: 18 },
