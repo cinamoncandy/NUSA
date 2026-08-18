@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: android-persistent-preview-release
@@ -130,6 +131,7 @@ jobs:
         run: npm install --global firebase-tools
 
       - name: Distribute APK to Firebase App Distribution
+        id: firebase
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
@@ -143,3 +145,38 @@ jobs:
       - name: Remove Firebase credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Publish deployment receipt
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          FIREBASE_OUTCOME: ${{ steps.firebase.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          SOURCE="${SOURCE_SHA:-unresolved}"
+          APK_SHA="unavailable"
+          VERSION_NAME="unavailable"
+          VERSION_CODE="unavailable"
+          if [ -f NUSA-Android.apk.sha256 ]; then
+            APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
+          fi
+          if [ -f NUSA-Android.provenance.txt ]; then
+            VERSION_NAME="$(sed -n 's/^version_name=//p' NUSA-Android.provenance.txt)"
+            VERSION_CODE="$(sed -n 's/^version_code=//p' NUSA-Android.provenance.txt)"
+          fi
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BODY=$(cat <<EOF
+          Android preview deployment receipt
+
+          - job_status: ${JOB_STATUS}
+          - firebase_outcome: ${FIREBASE_OUTCOME:-not_run}
+          - source_sha: ${SOURCE}
+          - version_name: ${VERSION_NAME}
+          - version_code: ${VERSION_CODE}
+          - apk_sha256: ${APK_SHA}
+          - run: ${RUN_URL}
+          EOF
+          )
+          gh issue comment 558 --body "$BODY"
