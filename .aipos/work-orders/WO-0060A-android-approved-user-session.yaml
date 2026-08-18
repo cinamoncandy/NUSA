@@ -1,6 +1,6 @@
 id: WO-0060A
 title: "Android Approved-User Secure Session Binding"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -8,6 +8,9 @@ base_commit: 713e19ce6dd6186c54ccf4caa51ac938950db75e
 implementation_branch: agent/wo-0060-android-approved-user-session
 parent_work_order: WO-0060
 parent_pull_request: 569
+pull_request: 572
+exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
+merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
 objective: "Deliver the approved scoped mobile-session and Android secure-storage prerequisite required by WO-0060 Android Cloud PAPER Operability, without introducing LIVE or real-money authority."
 authority:
   mode: PAPER_ONLY
@@ -48,9 +51,16 @@ safety:
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
 verification:
-  exact_head_ci: PENDING
-  mobile_native: PENDING
-  focused_session_contract: PENDING
-  android_secure_storage_boundary: PENDING
-  required_companion_workflows: PENDING
-completion_rule: "Merge only after exact-head CI, mobile-native Android/iOS build checks, required companion workflows, and focused approved-user secure-session regressions PASS. This child work order does not complete parent WO-0060; physical Android PAPER operability remains governed by PR #569."
+  exact_head_ci: PASS
+  mobile_native: PASS
+  focused_session_contract: PASS
+  android_secure_storage_boundary: PASS
+  required_companion_workflows: PASS_4_OF_4
+completion_evidence:
+  exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
+  merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+  pull_request: 572
+  ci: PASS
+  mobile_native: PASS
+  required_companion_workflows: PASS_4_OF_4
+completion_rule: "Satisfied by PR #572 at exact head 523896a1afdaeae9e235b3fcfaa290d0d0e1b672 with CI, Mobile Native Android/iOS build checks, required companion workflows, and focused approved-user secure-session regressions PASS. This child completion does not complete parent WO-0060; physical Android PAPER operability remains governed by the parent work order."
