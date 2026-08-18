@@ -68,4 +68,16 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next_recommended_task: "WO-0057 repository work is complete. Any non-LIVE successor must be registered as a separate AIPOS work order; WO-0051 remains HUMAN_ENVIRONMENT_ONLY and cannot be auto-completed."
+active_non_live_successor:
+  id: WO-0058
+  title: Approved User Session Core Extraction
+  source_work_order: .aipos/work-orders/WO-0058-approved-user-session-core.yaml
+  status: IN_PROGRESS
+  branch: agent/wo-0058-approved-user-session-core
+  base_commit: 4afa0c4482c05cd34a21b5d3c83b4cae9cb9b44e
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "WO-0058 is an allowed non-LIVE architecture successor and does not satisfy, bypass, or modify WO-0051."
+next_recommended_task: "Complete WO-0058 with exact-head CI and session-contract evidence; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
