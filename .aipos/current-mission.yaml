@@ -85,4 +85,17 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-next_recommended_task: "WO-0058 repository work is complete. A separately registered non-LIVE successor may bind mobile secure storage and session transport to the approved-user session core; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+active_non_live_successor:
+  id: WO-0059
+  title: Actual PAPER Runtime End-to-End Activation
+  source_work_order: .aipos/work-orders/WO-0059-actual-paper-runtime-e2e.yaml
+  status: IN_PROGRESS
+  branch: agent/wo-0059-actual-paper-runtime-e2e
+  base_commit: ad34549c06805c24a0634e8a9250157210b60121
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  runtime_evidence: PENDING_EXTERNAL_RUNTIME
+  note: "WO-0059 verifies actual Cloud PAPER operation using Upbit PUBLIC market data only. It does not satisfy, bypass, or modify WO-0051."
+next_recommended_task: "Run WO-0059 against actual Upbit PUBLIC market data and collect canonical PAPER order/fill, SQLite persistence, restart recovery, and idempotent retry evidence. CI alone cannot complete WO-0059; WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."

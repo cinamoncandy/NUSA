@@ -1,0 +1,62 @@
+name: Actual PAPER Public-Market Runtime Evidence
+
+on:
+  push:
+    branches:
+      - agent/wo-0059-actual-paper-runtime-e2e
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wo-0059-actual-paper-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-paper-runtime:
+    if: github.event_name != 'pull_request' || github.head_ref == 'agent/wo-0059-actual-paper-runtime-e2e'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build exact PR head
+        run: pnpm run build
+      - name: Assert PAPER-only external runtime boundary
+        env:
+          NUSA_LIVE_MUTATION: PROHIBITED
+        run: |
+          test "$NUSA_LIVE_MUTATION" = "PROHIBITED"
+          echo 'WO-0059: Upbit PUBLIC market data only; no private exchange credentials or LIVE broker endpoint is configured.'
+      - name: Run actual Cloud PAPER E2E against Upbit PUBLIC ticker
+        env:
+          NUSA_MODE: PAPER
+          NUSA_LIVE_MUTATION: PROHIBITED
+          NUSA_E2E_MARKET: KRW-BTC
+          NUSA_E2E_QUANTITY: '0.000001'
+        run: node scripts/actual-paper-runtime-e2e.js --working-dir "${{ runner.temp }}/nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
+      - name: Upload actual PAPER runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wo-0059-actual-paper-runtime-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/operational-evidence/actual-paper-runtime-e2e.json
+          if-no-files-found: error
+          retention-days: 14
