@@ -9,7 +9,7 @@ export interface AppSettings {
   readonly locale: LocaleSetting;
   readonly notifications: NotificationSettings;
   readonly capitalAllocation: CapitalAllocationSettings;
-  /** Explicit personal Cloud/PAPER endpoint. Empty means not configured; there is no magic localhost fallback. */
+  /** Explicit personal Cloud/PAPER endpoint. Empty falls back to the non-secret release endpoint. */
   readonly paperEndpoint: string;
 }
 export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonly authMode: string; readonly monitorUrl: string; }
@@ -35,6 +35,19 @@ const normalizeEndpoint = (value: string | undefined): string => {
   return normalized.replace(/\/+$/, "");
 };
 
+/**
+ * Resolve the PAPER endpoint from the user's explicit setting first, then from the
+ * non-secret release configuration. This makes production Android builds connect
+ * to their configured Cloud/PAPER gateway without persisting or embedding a bearer.
+ */
+export const resolvePaperEndpoint = (
+  explicitEndpoint: string | undefined,
+  environment: Record<string, string | undefined> = process.env
+): string => {
+  const explicit = explicitEndpoint?.trim() ?? "";
+  return normalizeEndpoint(explicit || environment.EXPO_PUBLIC_NUSA_API_BASE_URL);
+};
+
 export const normalizeInvestmentPercent = (value: number): number => {
   if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("capitalAllocation.investmentPercent must be between 0 and 100");
   return Math.round(value * 100) / 100;
@@ -50,7 +63,7 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
   const capitalAllocation = input.capitalAllocation ?? DEFAULT_SETTINGS.capitalAllocation;
   const investmentPercent = normalizeInvestmentPercent(capitalAllocation.investmentPercent);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: normalizeEndpoint(input.paperEndpoint) });
+  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: resolvePaperEndpoint(input.paperEndpoint) });
 };
 
 /** Environment configuration is fail-closed: endpoint variables must be explicitly supplied by the caller. */
