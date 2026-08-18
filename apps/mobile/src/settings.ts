@@ -1,4 +1,5 @@
 import type { SecureStoragePort } from "./mobileSecurity";
+import { resolvePaperEndpoint } from "./canonicalOrigin";
 
 export type ThemeSetting = "LIGHT" | "DARK" | "SYSTEM";
 export type LocaleSetting = "ko-KR" | "en-US";
@@ -9,7 +10,7 @@ export interface AppSettings {
   readonly locale: LocaleSetting;
   readonly notifications: NotificationSettings;
   readonly capitalAllocation: CapitalAllocationSettings;
-  /** Explicit personal Cloud/PAPER endpoint. Empty means not configured; there is no magic localhost fallback. */
+  /** Development/personal fallback only. A release build with a canonical origin always overrides this value. */
   readonly paperEndpoint: string;
 }
 export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonly authMode: string; readonly monitorUrl: string; }
@@ -24,7 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
 });
 const text = (value: string, field: string): string => { const normalized = value.trim(); if (!normalized) throw new Error(`${field} must not be empty`); return normalized; };
 const normalizeEndpoint = (value: string | undefined): string => {
-  const normalized = value?.trim() ?? "";
+  const resolved = resolvePaperEndpoint(value?.trim() ?? "");
+  const normalized = resolved.trim();
   if (!normalized) return "";
   let url: URL;
   try { url = new URL(normalized); } catch { throw new Error("paperEndpoint is invalid"); }
