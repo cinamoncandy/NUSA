@@ -1,4 +1,5 @@
 import { clearDashboardCredentialSession } from "./dashboardCredentialSession";
+import { getReleasePaperEndpoint } from "./releaseConfig";
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
@@ -8,9 +9,15 @@ function normalizeEndpoint(value: string): string | null {
   return endpoint || null;
 }
 
-/** Process-local mirror of the persisted non-secret PAPER endpoint. Endpoint identity changes revoke the ephemeral credential. */
+function configuredOrRelease(value: string): string | null {
+  const explicit = normalizeEndpoint(value);
+  if (explicit != null) return explicit;
+  return normalizeEndpoint(getReleasePaperEndpoint());
+}
+
+/** Process-local mirror of the persisted non-secret PAPER endpoint. Empty settings use the signed release gateway. */
 export function setConfiguredPaperEndpoint(value: string): void {
-  const next = normalizeEndpoint(value);
+  const next = configuredOrRelease(value);
   if (configuredEndpoint !== next) {
     verifiedEndpoint = null;
     clearDashboardCredentialSession();
