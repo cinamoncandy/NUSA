@@ -78,18 +78,30 @@ safety:
   realOrderAuthority: false
   realTransferAuthority: false
   aiAuthority: ZERO_AUTHORITY
-active_non_live_successor:
+completed_non_live_prerequisite:
   id: WO-0060A
   title: Android Approved-User Secure Session Binding
   source_work_order: .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
+  status: COMPLETED
+  pull_request: 572
+  exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
+  merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+  parent_work_order: WO-0060
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+active_non_live_successor:
+  id: WO-0060B
+  title: Canonical Mobile HTTPS Origin
+  source_work_order: .aipos/work-orders/WO-0060B-canonical-mobile-origin.yaml
   status: IN_PROGRESS
-  branch: agent/wo-0060-android-approved-user-session
-  base_commit: 713e19ce6dd6186c54ccf4caa51ac938950db75e
+  branch: agent/wo-0060b-canonical-mobile-origin
   parent_work_order: WO-0060
   parent_pull_request: 569
   authority: PAPER_ONLY
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-  note: "WO-0060A is the approved mobile-session/Android secure-storage child slice required by WO-0060. It does not complete parent WO-0060 and does not satisfy, bypass, or modify WO-0051."
-next_recommended_task: "Complete WO-0060A with exact-head CI, mobile-native build, Android Keystore secure-storage, and approved-user session evidence; then parent WO-0060 may continue Android PAPER operability and physical-device acceptance. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+  note: "Package one stable canonical HTTPS origin into Android RCs and make it authoritative over Settings input while reusing merged WO-0060A mobile sessions."
+next_recommended_task: "Complete WO-0060B canonical-origin packaging and exact-head Android RC verification; then continue parent WO-0060 genuine physical Android PAPER visibility, submit/result/idempotency/relaunch acceptance. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
