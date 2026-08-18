@@ -8,7 +8,7 @@ import {
   type PersonalPaperOrderCommand,
   type PersonalPaperOrderCommandResult
 } from "../../../packages/contracts/src/personalPaperOrderCommand";
-import { CloudPaperAccessSession, type CloudPaperAccessLease } from "./cloudPaperAccessSession";
+import type { DesktopCloudSessionClient, DesktopCloudSessionLease } from "./desktopCloudSessionClient";
 
 export type CloudPaperClientResult<T> =
   | { readonly status: "READY"; readonly value: T }
@@ -16,7 +16,7 @@ export type CloudPaperClientResult<T> =
   | { readonly status: "UNAVAILABLE"; readonly reason: string };
 
 export interface CloudPaperClientOptions {
-  readonly session: CloudPaperAccessSession;
+  readonly session: DesktopCloudSessionClient;
   readonly request?: typeof fetch;
   readonly timeoutMs?: number;
 }
@@ -37,7 +37,7 @@ function errorReason(payload: unknown, fallback: string): string {
 
 async function requestBoundJson(
   options: CloudPaperClientOptions,
-  lease: CloudPaperAccessLease,
+  lease: DesktopCloudSessionLease,
   path: string,
   init: RequestInit
 ): Promise<{ readonly response: Response; readonly payload: unknown }> {
@@ -67,9 +67,15 @@ async function requestBoundJson(
   }
 }
 
+async function acquireLease(options: CloudPaperClientOptions): Promise<DesktopCloudSessionLease | undefined> {
+  if (options.session.snapshot().endpoint == null) return undefined;
+  return options.session.lease();
+}
+
 /**
- * Desktop client for the existing Cloud stable-user PAPER contract.
- * There is intentionally no local broker dependency or fallback path in this client.
+ * Desktop client for the canonical Cloud PAPER contract.
+ * Access credentials are leased from the rotating Desktop secure session and never
+ * persisted or exposed to the renderer. There is intentionally no local broker fallback.
  */
 export class CloudPaperClient {
   public constructor(private readonly options: CloudPaperClientOptions) {
@@ -77,12 +83,12 @@ export class CloudPaperClient {
   }
 
   public async loadOperations(): Promise<CloudPaperClientResult<PersonalPaperOperationsSnapshot>> {
-    const lease = this.options.session.lease();
-    if (lease == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Cloud PAPER access session is not configured." });
     try {
+      const lease = await acquireLease(this.options);
+      if (lease == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Cloud PAPER secure session is not configured." });
       const { response, payload } = await requestBoundJson(this.options, lease, "/api/paper-operations", {
         method: "GET",
-        headers: { authorization: `Bearer ${lease.token}`, accept: "application/json" }
+        headers: { authorization: `Bearer ${lease.accessToken}`, accept: "application/json" }
       });
       if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: errorReason(payload, `Cloud PAPER operations unavailable (${response.status}).`) });
       try {
@@ -99,13 +105,13 @@ export class CloudPaperClient {
     let validated: PersonalPaperOrderCommand;
     try { validated = validatePersonalPaperOrderCommand(command); }
     catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "Cloud PAPER order command is invalid." }); }
-    const lease = this.options.session.lease();
-    if (lease == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Cloud PAPER access session is not configured." });
     try {
+      const lease = await acquireLease(this.options);
+      if (lease == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Cloud PAPER secure session is not configured." });
       const { response, payload } = await requestBoundJson(this.options, lease, "/api/paper-orders", {
         method: "POST",
         headers: {
-          authorization: `Bearer ${lease.token}`,
+          authorization: `Bearer ${lease.accessToken}`,
           accept: "application/json",
           "content-type": "application/json",
           "idempotency-key": validated.idempotencyKey
