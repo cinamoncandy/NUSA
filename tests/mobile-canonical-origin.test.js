@@ -17,12 +17,18 @@ test("canonical mobile origin is build-provided and authoritative in PAPER endpo
   assert.match(session, /configuredEndpoint = buildConfiguredEndpoint/);
 });
 
-test("canonical Android RC workflow generates build config before release assembly", () => {
+test("canonical Android RC workflow validates a stable public origin and probes NUSA health before release assembly", () => {
   const workflow = read(".github/workflows/wo-0060b-canonical-android-rc.yml");
   const generator = read("scripts/prepare-mobile-build-config.js");
   assert.match(workflow, /Generate canonical mobile build configuration/);
   assert.match(workflow, /vars\.NUSA_MOBILE_API_BASE_URL/);
-  assert.ok(workflow.indexOf("prepare-mobile-build-config.js") < workflow.indexOf(":app:assembleRelease"));
+  assert.match(workflow, /Probe canonical NUSA Cloud health/);
+  assert.match(workflow, /new URL\('\/health', origin\)/);
+  assert.match(workflow, /body\?\.ok !== true/);
+  assert.ok(workflow.indexOf("prepare-mobile-build-config.js") < workflow.indexOf("Probe canonical NUSA Cloud health"));
+  assert.ok(workflow.indexOf("Probe canonical NUSA Cloud health") < workflow.indexOf(":app:assembleRelease"));
   assert.match(generator, /NUSA_MOBILE_API_BASE_URL/);
-  assert.match(generator, /mobile release origin cannot be loopback or a temporary Quick Tunnel/);
+  assert.match(generator, /isIP/);
+  assert.match(generator, /stable public hostname/);
+  assert.match(generator, /trycloudflare\.com/);
 });
