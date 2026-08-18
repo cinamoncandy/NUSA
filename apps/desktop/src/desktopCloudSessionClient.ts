@@ -15,12 +15,18 @@ export interface DesktopCloudIdentity {
   readonly scopes: readonly string[];
 }
 
+export interface DesktopCloudSessionLease {
+  readonly endpoint: string;
+  readonly accessToken: string;
+  readonly accessExpiresAt: number;
+}
+
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 const normalizeEndpoint = (value: string): string => {
   const url = new URL(value);
   const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
-  if (url.username || url.password || url.search || url.hash) throw new Error("invalid desktop cloud endpoint");
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("invalid desktop cloud endpoint");
   if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) throw new Error("invalid desktop cloud endpoint");
   return url.origin;
 };
@@ -49,7 +55,11 @@ export class DesktopCloudSessionClient {
   public async bootstrap(endpoint: string, bootstrapToken: string): Promise<void> {
     const normalized = normalizeEndpoint(endpoint);
     if (!bootstrapToken || Buffer.byteLength(bootstrapToken, "utf8") < 32) throw new Error("invalid bootstrap token");
+    // An explicit re-bootstrap is a security boundary, not a fallback attempt. Drop any
+    // prior refresh credential first so a failed bootstrap cannot silently resurrect an
+    // older Desktop session on the next restart.
     this.clearMemory();
+    this.store.clear();
     const response = await this.fetchImpl(`${normalized}/v1/desktop/bootstrap`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -85,6 +95,18 @@ export class DesktopCloudSessionClient {
     const tokens = await this.refreshWith(stored.endpoint, stored.refreshToken);
     this.accept(stored.endpoint, tokens);
     return tokens.accessToken;
+  }
+
+  /** Main-process-only lease used by the canonical Cloud PAPER client. */
+  public async lease(now = Date.now()): Promise<DesktopCloudSessionLease> {
+    const accessToken = await this.ensureAccess(now);
+    const endpoint = this.endpoint;
+    if (endpoint == null || this.accessToken !== accessToken || this.accessExpiresAt <= now) throw new Error("desktop cloud session unavailable");
+    return Object.freeze({ endpoint, accessToken, accessExpiresAt: this.accessExpiresAt });
+  }
+
+  public isCurrent(lease: DesktopCloudSessionLease): boolean {
+    return this.endpoint === lease.endpoint && this.accessToken === lease.accessToken && this.accessExpiresAt === lease.accessExpiresAt;
   }
 
   public async me(): Promise<DesktopCloudIdentity> {
