@@ -22,3 +22,4 @@ release/
 coverage/
 test-results/
 artifacts/
+isolated-test-failure.txt
