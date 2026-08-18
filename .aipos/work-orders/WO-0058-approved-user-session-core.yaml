@@ -1,0 +1,50 @@
+id: WO-0058
+title: "Approved User Session Core Extraction"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 4afa0c4482c05cd34a21b5d3c83b4cae9cb9b44e
+implementation_branch: agent/wo-0058-approved-user-session-core
+objective: "Extract the verified Desktop approved-user session lifecycle into a reusable canonical session core without changing Desktop behavior or enabling any new LIVE, real-money, or mobile execution authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Extract bootstrap, access, refresh rotation, refresh-reuse detection, revocation, audit, and ACTIVE-user revalidation into ApprovedUserSessionService"
+  - "Preserve Desktop endpoint, scope, TTL, SQLite table, token-hash, and secure-storage contracts"
+  - "Provide a reusable client namespace/profile boundary for a later mobile-auth successor"
+  - "Add focused regression coverage proving Desktop compatibility and shared ACTIVE-user authorization"
+architecture_impact:
+  acknowledged: true
+  analysis: "WO-0058 removes duplicated-session pressure by making the already verified Desktop session lifecycle the reusable approved-user session core. Desktop remains a thin compatibility adapter using the existing desktop_* persistence namespace and unchanged dashboard:read/paper:trade scopes. No mobile endpoint, secure-storage adapter, LIVE transport, exchange credential, or real-money path is activated in this work order."
+  references:
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+    - .aipos/work-orders/WO-0057A-desktop-cloud-paper-session-boundary.yaml
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "withdrawal/transfer"
+  - "exchange credential access"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+  - "mobile runtime activation before a separately verified secure-storage/session adapter"
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+verification:
+  exact_head_ci: PENDING
+  focused_session_contract: PENDING
+  desktop_compatibility: PENDING
+  required_companion_workflows: PENDING
+completion_rule: "Merge only after the exact PR head passes required CI and companion workflows, focused approved-user/desktop session tests pass, and Desktop behavior remains backward-compatible."
