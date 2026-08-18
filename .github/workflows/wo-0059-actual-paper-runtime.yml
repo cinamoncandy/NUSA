@@ -36,6 +36,8 @@ jobs:
         run: node scripts/validate-workflow-action-pins.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build exact PR head
+        run: pnpm run build
       - name: Assert PAPER-only external runtime boundary
         shell: pwsh
         run: |
