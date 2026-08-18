@@ -16,7 +16,7 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
   assert.doesNotMatch(app, /dashboard-credential/);
 });
 
-test("Settings is the single PAPER endpoint and memory credential setup path", () => {
+test("Settings is the single PAPER endpoint and approved secure-session setup path", () => {
   const app = read("apps/mobile/App.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
@@ -32,7 +32,8 @@ test("Settings is the single PAPER endpoint and memory credential setup path", (
   assert.match(settings, /clearPaperConnectionVerification/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /allowUnverifiedEndpoint: true/);
-  assert.match(settings, /토큰은 현재 앱 프로세스 메모리에만 존재합니다/);
+  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
