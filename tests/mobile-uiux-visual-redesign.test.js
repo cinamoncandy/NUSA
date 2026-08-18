@@ -8,9 +8,12 @@ const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile",
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
-  assert.match(design, /background: dark \? "#05070D"/);
-  assert.match(design, /navSurface: dark \? "#080D17"/);
-  assert.match(design, /chartUp: dark \? "#48D6C0"/);
+  assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#0A0B0E"/);
+  assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
+  assert.match(design, /background: palette\.background/);
+  assert.match(design, /navSurface: palette\.navSurface/);
+  assert.match(design, /chartUp: dark \? "#36D8CB" : "#147A50"/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });

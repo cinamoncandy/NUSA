@@ -47,10 +47,6 @@ test("cold start restores the saved endpoint before the first dashboard refresh"
 });
 
 test("AI-only authority copy does not claim broader authority than the local PAPER entry disclosure", () => {
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4) removed the permanent full-width
-  // PAPER ONLY/LIVE NONE strip that used to repeat on every authenticated screen; the local
-  // entry screen's one-time disclosure badges remain, and AI's own zero-authority messaging
-  // must not read as if it grants more than that.
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(app, /StatusChip label="PAPER ONLY"/);
@@ -111,7 +107,6 @@ test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE 
 
 test("primary mobile workspaces keep bounded tablet widths and intentional responsive composition", () => {
   const bounded = {
-    "apps/mobile/src/homeView.tsx": /maxWidth: 920/,
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
@@ -121,10 +116,15 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
   const home = read("apps/mobile/src/homeView.tsx");
+  const profile = read("apps/mobile/src/homeVisualProfile.ts");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap", gap: 10 \}/);
+  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 1120\) : profile\.screen\.maxWidth/);
+  assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
+  assert.match(profile, /master:[\s\S]*maxWidth: 780/);
+  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
+  assert.match(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
   assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
