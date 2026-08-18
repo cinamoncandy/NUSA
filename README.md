@@ -42,7 +42,7 @@ pnpm run build
 pnpm desktop
 ```
 
-## Cloud PAPER Runtime
+## Cloud PAPER runtime
 
 ```bash
 pnpm cloud:runtime
