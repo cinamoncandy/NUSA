@@ -16,6 +16,8 @@ export interface DashboardPrincipal {
   readonly email?: string;
   readonly displayName?: string;
   readonly scopes: readonly string[];
+  readonly authDomain?: "DASHBOARD" | "MOBILE";
+  readonly sessionId?: string;
 }
 
 export interface DashboardTokenVerifier {
@@ -48,11 +50,11 @@ export type DashboardAuthorization =
   | { readonly ok: true; readonly principal: DashboardPrincipal }
   | { readonly ok: false; readonly response: DashboardHttpResponse };
 
-function authorizeScope(
+function authorizeScopes(
   request: DashboardHttpRequest,
   tokenVerifier: DashboardTokenVerifier,
   method: "GET" | "POST",
-  scope: "dashboard:read" | "paper:trade"
+  acceptedScopes: readonly string[]
 ): DashboardAuthorization {
   if (request.method.toUpperCase() !== method) {
     const base = dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" });
@@ -67,26 +69,28 @@ function authorizeScope(
   try { principal = tokenVerifier.verify(token); }
   catch { return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) }); }
   if (principal == null || !principal.userId.trim()) return Object.freeze({ ok: false, response: dashboardJsonResponse(401, { error: "UNAUTHORIZED" }) });
-  if (!principal.scopes.includes(scope)) return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
+  if (!acceptedScopes.some((scope) => principal!.scopes.includes(scope))) return Object.freeze({ ok: false, response: dashboardJsonResponse(403, { error: "FORBIDDEN" }) });
   return Object.freeze({
     ok: true,
     principal: Object.freeze({
       userId: principal.userId.trim(),
       ...(principal.email?.trim() ? { email: principal.email.trim().toLowerCase() } : {}),
       ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {}),
-      scopes: Object.freeze([...principal.scopes])
+      scopes: Object.freeze([...principal.scopes]),
+      ...(principal.authDomain ? { authDomain: principal.authDomain } : {}),
+      ...(principal.sessionId?.trim() ? { sessionId: principal.sessionId.trim() } : {})
     })
   });
 }
 
-/** Shared fail-closed authorization boundary for every read-only dashboard projection. */
+/** Shared fail-closed authorization boundary for dashboard/PAPER read projections. */
 export function authorizeDashboardReadRequest(request: DashboardHttpRequest, tokenVerifier: DashboardTokenVerifier): DashboardAuthorization {
-  return authorizeScope(request, tokenVerifier, "GET", "dashboard:read");
+  return authorizeScopes(request, tokenVerifier, "GET", Object.freeze(["dashboard:read", "paper:read"]));
 }
 
-/** Explicit PAPER-only mutation boundary. It grants no LIVE, transfer, withdrawal, or production authority. */
+/** Explicit PAPER-only mutation boundary. Mobile paper:simulate cannot authorize LIVE or broker mutation. */
 export function authorizePaperTradeRequest(request: DashboardHttpRequest, tokenVerifier: DashboardTokenVerifier): DashboardAuthorization {
-  return authorizeScope(request, tokenVerifier, "POST", "paper:trade");
+  return authorizeScopes(request, tokenVerifier, "POST", Object.freeze(["paper:trade", "paper:simulate"]));
 }
 
 export function handleMobileDashboardHttp(
