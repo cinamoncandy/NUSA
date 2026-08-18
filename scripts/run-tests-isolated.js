@@ -5,6 +5,7 @@ const { spawnSync } = require("node:child_process");
 const testsDirectory = join(process.cwd(), "tests");
 const diagnosticPath = join(process.cwd(), "isolated-test-failure.txt");
 const registerDistPath = join(testsDirectory, "register-dist.cjs");
+const testFileTimeoutMs = 120_000;
 rmSync(diagnosticPath, { force: true });
 
 const files = readdirSync(testsDirectory)
@@ -32,15 +33,20 @@ for (const file of files) {
       encoding: "utf8",
       env: { ...process.env },
       windowsHide: true,
-      maxBuffer: 64 * 1024 * 1024
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: testFileTimeoutMs,
+      killSignal: "SIGKILL"
     }
   );
 
   if (result.error) {
+    const timedOut = result.error.code === "ETIMEDOUT";
     const diagnostic = [
-      `FAILED_TO_START ${relativePath}`,
+      timedOut ? `TIMED_OUT_TEST_FILE ${relativePath} after ${testFileTimeoutMs}ms` : `FAILED_TO_START ${relativePath}`,
+      result.stdout || "",
+      result.stderr || "",
       result.error.stack || result.error.message
-    ].join("\n");
+    ].join("\n").trimEnd();
     writeFileSync(diagnosticPath, diagnostic, "utf8");
     console.error(diagnostic);
     process.exit(1);

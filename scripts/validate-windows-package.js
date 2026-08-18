@@ -8,7 +8,9 @@ const failures = [];
 const required = (condition, message) => { if (!condition) failures.push(message); };
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
-required(packageJson.main === "dist/apps/desktop/src/main.js", "root main must point at compiled desktop main");
+const expectedDesktopMain = "dist/apps/desktop/src/cloudMain.js";
+required(packageJson.main === expectedDesktopMain, "root main must point at the Cloud canonical Desktop bootstrap");
+required(build?.extraMetadata?.main === expectedDesktopMain, "packaged extraMetadata main must match the Cloud canonical Desktop bootstrap");
 required(packageJson.dependencies?.ws === "8.21.0", "runtime WebSocket dependency must be production-scoped and pinned");
 required(build?.appId === "com.nusa.trader", "appId is missing or changed");
 required(build?.productName === "NUSA", "productName is missing or changed");
@@ -32,6 +34,24 @@ required(/nodeIntegration:\s*false/.test(mainSource), "nodeIntegration must rema
 required(/sandbox:\s*true/.test(mainSource), "preload sandbox must remain enabled");
 required(/RISK_GATE_NOT_CONFIGURED/.test(mainSource), "paper risk gate must fail closed when unconfigured");
 required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(mainSource), "main source must not hardcode a private credential or API key literal");
+
+const cloudMainPath = path.join(root, "apps/desktop/src/cloudMain.ts");
+required(fs.existsSync(cloudMainPath), "Cloud canonical Desktop bootstrap source is missing");
+if (fs.existsSync(cloudMainPath)) {
+  const cloudMainSource = fs.readFileSync(cloudMainPath, "utf8");
+  const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
+  const readyIndex = cloudMainSource.indexOf("app.whenReady()");
+  const registerIndex = cloudMainSource.indexOf("registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient())");
+  const legacyImportIndex = cloudMainSource.indexOf('import("./main")');
+  required(activateIndex >= 0, "Cloud Desktop bootstrap must activate canonical authority");
+  required(readyIndex > activateIndex, "secure Cloud PAPER session composition must be scheduled after authority activation");
+  required(registerIndex > readyIndex, "Cloud PAPER IPC must use the production secure session factory after Electron readiness");
+  required(legacyImportIndex > registerIndex, "legacy Desktop runtime source must load only after secure IPC composition is scheduled");
+  required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource), "Cloud Desktop bootstrap must not hardcode a private credential or API key literal");
+}
+
+required(exists("apps/desktop/src/desktopCloudSessionRuntime.ts"), "Desktop safeStorage session runtime is missing");
+required(exists("apps/desktop/src/desktopCloudSessionStore.ts"), "Desktop secure session store is missing");
 
 const result = Object.freeze({
   status: failures.length === 0 ? "PASS" : "FAIL",

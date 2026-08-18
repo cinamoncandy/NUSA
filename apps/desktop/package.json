@@ -2,5 +2,5 @@
   "name": "@nusa/desktop",
   "version": "0.1.0",
   "private": true,
-  "main": "../../dist/apps/desktop/src/main.js"
+  "main": "../../dist/apps/desktop/src/cloudMain.js"
 }

@@ -17,12 +17,16 @@ test("desktop IPC rejects coerced control values and public market data remains 
 test("mutating IPC commands are not automatically retried", () => {
   const source = readFileSync("apps/desktop/src/preload.ts", "utf8");
   assert.match(source, /const invokeMutation/);
-  assert.match(source, /placeOrder: .*invokeMutation\("paper:order"/);
-  assert.match(source, /startStrategy: \(\) => invokeMutation\("control:start"\)/);
+  assert.match(source, /placeOrder: .*invokeMutation\("cloud-paper:order"/);
+  assert.match(source, /const automaticUnavailable = .*invokeMutation<T>\("cloud-paper:automatic-unavailable"\)/);
+  assert.match(source, /startStrategy: \(\) => automaticUnavailable<ControlSnapshot>\(\)/);
   assert.match(source, /stopStrategy: \(\) => invokeMutation\("control:stop"\)/);
-  assert.match(source, /setAutoTrade: .*invokeMutation\("control:auto"/);
-  assert.match(source, /setStrategyQuantity: .*invokeMutation\("control:quantity"/);
+  assert.match(source, /setAutoTrade: .*automaticUnavailable<ControlSnapshot>\(\).*invokeMutation\("control:auto", false\)/);
+  assert.match(source, /setStrategyQuantity: .*automaticUnavailable<ControlSnapshot>\(\)/);
+  assert.match(source, /releaseKillSwitch: .*invokeMutation\("safety:kill-switch-release"/);
+  assert.match(source, /activateKillSwitch: .*invokeMutation\("safety:kill-switch-activate"/);
   assert.doesNotMatch(source, /placeOrder: .*invokeReadWithRecovery/);
+  assert.doesNotMatch(source, /invokeReadWithRecovery[^\n]*"cloud-paper:order"/);
 });
 
 test("desktop execution requires fresh connected market data and a runtime readiness provider", () => {
