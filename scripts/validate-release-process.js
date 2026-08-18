@@ -56,6 +56,7 @@ if (!/productionMutationAllowed/.test(safetySources) || !/productionMutationAllo
 if (/enableLiveTrading\s*[:=]\s*true/.test(safetySources)) failures.push("live trading enabled in release sources");
 if (!/NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN/.test(safetySources)) failures.push("Desktop one-time Cloud PAPER bootstrap contract missing");
 if (!/access-token injection is prohibited/i.test(safetySources)) failures.push("legacy Desktop stable access-token injection must remain prohibited");
+const secureDesktopSession = /NUSA_CLOUD_PAPER_BOOTSTRAP_TOKEN/.test(safetySources) && /access-token injection is prohibited/i.test(safetySources);
 console.log(JSON.stringify({
   status: failures.length ? "FAIL" : "PASS",
   checks: {
@@ -63,7 +64,7 @@ console.log(JSON.stringify({
     target: pkg.build?.win?.target,
     asar: pkg.build?.asar,
     desktopMain: pkg.main,
-    secureDesktopSession: failures.every((failure) => !/bootstrap|access-token/i.test(failure)),
+    secureDesktopSession,
     userDataPreserved: pkg.build?.nsis?.deleteAppDataOnUninstall === false
   },
   failures
