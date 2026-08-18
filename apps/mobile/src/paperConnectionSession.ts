@@ -1,4 +1,5 @@
 import { clearDashboardCredentialSession } from "./dashboardCredentialSession";
+import { clearMobileApprovedSessionMemory } from "./mobileApprovedSessionBoundary";
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
@@ -8,12 +9,17 @@ function normalizeEndpoint(value: string): string | null {
   return endpoint || null;
 }
 
-/** Process-local mirror of the persisted non-secret PAPER endpoint. Endpoint identity changes revoke the ephemeral credential. */
+function clearCredentialMemory(): void {
+  clearDashboardCredentialSession();
+  clearMobileApprovedSessionMemory();
+}
+
+/** Process-local mirror of the persisted non-secret PAPER endpoint. Endpoint identity changes revoke all ephemeral access credentials. */
 export function setConfiguredPaperEndpoint(value: string): void {
   const next = normalizeEndpoint(value);
   if (configuredEndpoint !== next) {
     verifiedEndpoint = null;
-    clearDashboardCredentialSession();
+    clearCredentialMemory();
   }
   configuredEndpoint = next;
 }
@@ -31,5 +37,5 @@ export function isPaperConnectionVerified(value = configuredEndpoint): boolean {
 export function clearConfiguredPaperEndpoint(): void {
   configuredEndpoint = null;
   verifiedEndpoint = null;
-  clearDashboardCredentialSession();
+  clearCredentialMemory();
 }
