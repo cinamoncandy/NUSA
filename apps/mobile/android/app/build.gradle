@@ -25,6 +25,8 @@ def nusaBuildNumber = nusaBuildNumberRaw ? nusaBuildNumberRaw.toLong() : 0L
 def nusaVersionCode = Math.max(1L, Math.min(nusaBuildNumber, 2100000000L)).intValue()
 def nusaShortSha = nusaBuildSha.length() > 8 ? nusaBuildSha.substring(0, 8) : nusaBuildSha
 def nusaVersionName = "1.0.${nusaBuildNumber}-${nusaShortSha}"
+def nusaApiBaseUrl = (System.getenv("NUSA_API_BASE_URL") ?: "").trim()
+def nusaApiBaseUrlEscaped = nusaApiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -40,6 +42,9 @@ android {
         versionName nusaVersionName
         buildConfigField "String", "NUSA_BUILD_SHA", "\"${nusaBuildSha}\""
         buildConfigField "String", "NUSA_BUILD_NUMBER", "\"${nusaBuildNumber}\""
+        // Public connection metadata only. Bearer/session credentials must never be
+        // passed through BuildConfig or packaged resources.
+        buildConfigField "String", "NUSA_API_BASE_URL", "\"${nusaApiBaseUrlEscaped}\""
         // Keep the complete source commit in the packaged Android resources as
         // well as BuildConfig. The persistent preview workflow verifies the APK
         // with `aapt dump --values resources`, so this is the provenance anchor
