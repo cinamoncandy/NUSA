@@ -6,12 +6,18 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("mobile v1 keeps brand actions monochrome and reserves chromatic colors for AI signals", () => {
+test("mobile presets keep brand actions monochrome and reserve chromatic colors for AI signals", () => {
   const source = read("apps/mobile/src/designSystem.ts");
-  assert.match(source, /primary: dark \? "#E8F3FF" : "#11151B"/);
-  assert.match(source, /aiSignalStart: "#B56BFF"/);
+
+  // Brand action colors are defined by each preset but remain neutral/monochrome.
+  assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
+  assert.match(source, /master:[\s\S]*?primary: "#F2EFE6"[\s\S]*?primary: "#17181B"/);
+  assert.match(source, /primary: palette\.primary/);
+
+  // Chromatic accents remain confined to signal/AI semantics rather than brand actions.
+  assert.match(source, /aiSignalStart: "#9B6CFF"/);
   assert.match(source, /aiSignalMid: "#5B8CFF"/);
-  assert.match(source, /aiSignalEnd: "#49D7C3"/);
+  assert.match(source, /aiSignalEnd: "#36D8CB"/);
   assert.match(source, /aiSignalSoft/);
 });
 
