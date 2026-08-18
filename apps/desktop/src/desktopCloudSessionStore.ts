@@ -21,7 +21,7 @@ export interface StoredDesktopRefreshSession {
 
 const normalizeEndpoint = (value: string): string => {
   const url = new URL(value);
-  if (url.username || url.password || url.search || url.hash) throw new Error("desktop cloud endpoint must not contain credentials, query, or fragment");
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("desktop cloud endpoint must name the server origin only");
   const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) throw new Error("desktop cloud endpoint must use HTTPS or loopback HTTP");
   return url.origin;
