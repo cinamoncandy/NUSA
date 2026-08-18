@@ -9,7 +9,7 @@ export interface AppSettings {
   readonly locale: LocaleSetting;
   readonly notifications: NotificationSettings;
   readonly capitalAllocation: CapitalAllocationSettings;
-  /** Explicit personal Cloud/PAPER endpoint. Empty falls back to the non-secret release endpoint. */
+  /** Explicit personal Cloud/PAPER endpoint. Empty means use the non-secret release endpoint at runtime. */
   readonly paperEndpoint: string;
 }
 export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonly authMode: string; readonly monitorUrl: string; }
@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   paperEndpoint: ""
 });
 const text = (value: string, field: string): string => { const normalized = value.trim(); if (!normalized) throw new Error(`${field} must not be empty`); return normalized; };
-const normalizeEndpoint = (value: string | undefined): string => {
+export const normalizePaperEndpoint = (value: string | undefined): string => {
   const normalized = value?.trim() ?? "";
   if (!normalized) return "";
   let url: URL;
@@ -33,19 +33,6 @@ const normalizeEndpoint = (value: string | undefined): string => {
   const secure = url.protocol === "https:" || (url.protocol === "http:" && (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]"));
   if (!secure) throw new Error("paperEndpoint must use HTTPS unless loopback-only");
   return normalized.replace(/\/+$/, "");
-};
-
-/**
- * Resolve the PAPER endpoint from the user's explicit setting first, then from the
- * non-secret release configuration. This makes production Android builds connect
- * to their configured Cloud/PAPER gateway without persisting or embedding a bearer.
- */
-export const resolvePaperEndpoint = (
-  explicitEndpoint: string | undefined,
-  environment: Record<string, string | undefined> = process.env
-): string => {
-  const explicit = explicitEndpoint?.trim() ?? "";
-  return normalizeEndpoint(explicit || environment.EXPO_PUBLIC_NUSA_API_BASE_URL);
 };
 
 export const normalizeInvestmentPercent = (value: number): number => {
@@ -63,7 +50,7 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
   const capitalAllocation = input.capitalAllocation ?? DEFAULT_SETTINGS.capitalAllocation;
   const investmentPercent = normalizeInvestmentPercent(capitalAllocation.investmentPercent);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: resolvePaperEndpoint(input.paperEndpoint) });
+  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: normalizePaperEndpoint(input.paperEndpoint) });
 };
 
 /** Environment configuration is fail-closed: endpoint variables must be explicitly supplied by the caller. */
