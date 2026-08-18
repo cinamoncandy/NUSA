@@ -1,11 +1,14 @@
 id: WO-0058
 title: "Approved User Session Core Extraction"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 4afa0c4482c05cd34a21b5d3c83b4cae9cb9b44e
 implementation_branch: agent/wo-0058-approved-user-session-core
+pull_request: 565
+exact_head: cdbf734cf5e62d60c3e0daf77b4ad7fca0e03335
+merge_commit: 33e3f5d3d6d55cd0877f2ccd794a643c7e0de253
 objective: "Extract the verified Desktop approved-user session lifecycle into a reusable canonical session core without changing Desktop behavior or enabling any new LIVE, real-money, or mobile execution authority."
 authority:
   mode: PAPER_ONLY
@@ -43,8 +46,17 @@ safety:
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
 verification:
-  exact_head_ci: PENDING
-  focused_session_contract: PENDING
-  desktop_compatibility: PENDING
-  required_companion_workflows: PENDING
+  exact_head_ci: PASS
+  focused_session_contract: PASS
+  desktop_compatibility: PASS
+  required_companion_workflows: PASS_4_OF_4
+  typecheck: PASS
+  build: PASS
+  architecture_aipos_drift: PASS
+  safety_architecture: PASS
+  paper_runtime_operational_verification: PASS
+  coverage_baseline: PASS
+  mergeable_at_merge: true
+  unresolved_review_threads_at_merge: 0
 completion_rule: "Merge only after the exact PR head passes required CI and companion workflows, focused approved-user/desktop session tests pass, and Desktop behavior remains backward-compatible."
+completion_result: "SATISFIED by PR #565 exact head cdbf734cf5e62d60c3e0daf77b4ad7fca0e03335 merged to main as 33e3f5d3d6d55cd0877f2ccd794a643c7e0de253 after CI and all four required companion workflows passed."
