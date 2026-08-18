@@ -21,7 +21,7 @@ const presetColorPair = (design, presetName, name) => {
   const nextPresetName = presetName === "classic" ? "master" : null;
   const presetEnd = nextPresetName
     ? design.indexOf(`${nextPresetName}: Object.freeze({`, presetStart)
-    : design.indexOf("\n});\n\nconst freezeTheme", presetStart);
+    : design.indexOf("const freezeTheme", presetStart);
   assert.ok(presetEnd > presetStart, `${presetName} preset block must be bounded`);
   const preset = design.slice(presetStart, presetEnd);
   const darkStart = preset.indexOf("dark: Object.freeze({");
