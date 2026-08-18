@@ -117,5 +117,6 @@ test("Android secure storage source uses AndroidKeyStore AES-GCM and never Async
   assert.match(native, /SharedPreferences/);
   assert.doesNotMatch(native, /AsyncStorage/);
   assert.doesNotMatch(adapter, /AsyncStorage/);
-  assert.match(adapter, /Platform\.OS !== "android"/);
+  assert.match(adapter, /bridge\.Platform\.OS !== "android"/);
+  assert.doesNotMatch(adapter, /from "react-native"/);
 });
