@@ -8,9 +8,11 @@ const root = path.resolve(__dirname, "..");
 const rendererSource = fs.readFileSync(path.join(root, "apps/desktop/renderer/renderer.js"), "utf8");
 const preloadSource = fs.readFileSync(path.join(root, "apps/desktop/src/preload.ts"), "utf8");
 const mainSource = fs.readFileSync(path.join(root, "apps/desktop/src/main.ts"), "utf8");
+const cloudMainSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloudMain.ts"), "utf8");
 const cloudPaperIpcSource = fs.readFileSync(path.join(root, "apps/desktop/src/desktopCloudPaperIpc.ts"), "utf8");
 const contractsSource = fs.readFileSync(path.join(root, "packages/contracts/src/aiCioDashboard.ts"), "utf8");
 const compiledPreloadPath = path.join(root, "dist/apps/desktop/src/preload.js");
+const cloudCanonicalDisabledLegacyChannels = new Set(["paper:order", "paper:snapshot", "control:start", "control:quantity"]);
 
 // A: security webPreferences (contextIsolation/nodeIntegration/sandbox) are already asserted
 // verbatim by tests/release-production-hardening.test.js -- not duplicated here. This test
@@ -184,7 +186,15 @@ test("subscription unsubscribe functions actually remove the registered listener
   );
 });
 
-test("main process IPC owners and preload channels are the same fixed contract", () => {
+test("Cloud canonical entrypoint structurally removes legacy local PAPER mutation/query IPC", () => {
+  assert.match(cloudMainSource, /activateCloudCanonicalDesktopAuthority\(\)/);
+  assert.match(cloudMainSource, /ipcMain\.removeHandler\(channel\)/);
+  for (const channel of cloudCanonicalDisabledLegacyChannels) {
+    assert.ok(cloudMainSource.includes(`"${channel}"`), `Cloud canonical entrypoint must remove legacy local IPC "${channel}"`);
+  }
+});
+
+test("main process IPC owners and preload channels are the same fixed canonical contract", () => {
   const { handled, sent } = extractMainChannels(mainSource, cloudPaperIpcSource);
   const preloadChannels = extractPreloadChannels(preloadSource);
 
@@ -200,9 +210,16 @@ test("main process IPC owners and preload channels are the same fixed contract",
   }
   for (const channel of handled) {
     // cloud-paper:status is intentionally main-process-only bootstrap/status plumbing and is
-    // not exposed to the renderer API. All renderer-reachable handled channels must match.
-    if (channel === "cloud-paper:status") continue;
+    // not exposed to the renderer API. Legacy local PAPER/start/quantity handlers are also
+    // intentionally absent from the packaged canonical surface: cloudMain removes them after
+    // the legacy module is evaluated, while direct main.ts LOCAL_SIMULATION remains available
+    // only to an explicit development entrypoint.
+    if (channel === "cloud-paper:status" || cloudCanonicalDisabledLegacyChannels.has(channel)) continue;
     assert.ok(preloadChannels.has(channel), `main process handles "${channel}", but preload.ts never invokes it -- dead IPC channel`);
+  }
+
+  for (const channel of cloudCanonicalDisabledLegacyChannels) {
+    assert.equal(preloadChannels.has(channel), false, `canonical preload must never expose legacy local IPC "${channel}"`);
   }
 
   for (const channel of ["market:ticker", "market:status", "chart:point", "paper:snapshot", "control:snapshot", "app:shutdown"]) {
