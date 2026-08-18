@@ -40,10 +40,13 @@ test("Settings revokes prior credential verification before testing a replacemen
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
-test("Settings fields use mobile-appropriate endpoint and secret input semantics", () => {
+test("Settings fields use mobile-appropriate endpoint and one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
   assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} keyboardType="url" label="Cloud endpoint"/);
-  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} label="세션 토큰"/);
+  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} label="1회용 연결 토큰"[\s\S]*placeholder="OWNER가 발급한 bootstrap token"[\s\S]*secureTextEntry/);
+  assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(source, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
+  assert.match(source, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);
   assert.match(source, /disabled=\{busy\} label=\{connecting \? "연결 확인 중\.\.\." : "저장하고 연결 확인"\}/);
   assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
   assert.match(source, /const connectionLabel = connecting \? "확인 중"/);

@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { InMemoryDashboardCredentialSession } = require("../dist/apps/mobile/src/dashboardCredentialSession.js");
 const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/personalPaperOperationsClient.js");
 const {
   clearConfiguredPaperEndpoint,
@@ -10,25 +9,23 @@ const {
 } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 const ENDPOINT = "https://paper-read-guard.example.test";
-const SESSION_FIXTURE = ["paper", "read", "guard", "dashboard", "fixture", "123456"].join("-");
-const ROTATED_SESSION_FIXTURE = ["paper", "read", "guard", "rotated", "fixture", "654321"].join("-");
+const SESSION_FIXTURE = ["paper", "read", "guard", "approved", "session", "123456"].join("-");
+const ROTATED_SESSION_FIXTURE = ["paper", "read", "guard", "rotated", "session", "654321"].join("-");
 
-function setup() {
+function setupCredential() {
   clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(ENDPOINT);
-  const session = new InMemoryDashboardCredentialSession();
-  session.connect(SESSION_FIXTURE);
   markPaperConnectionVerified(ENDPOINT);
-  return session;
-}
-
-function cleanup(session) {
-  session?.clear();
-  clearConfiguredPaperEndpoint();
+  let token = SESSION_FIXTURE;
+  return {
+    credentialProvider: async () => token,
+    rotate: () => { token = ROTATED_SESSION_FIXTURE; },
+    cleanup: () => clearConfiguredPaperEndpoint()
+  };
 }
 
 test("credential-bearing PAPER read forbids redirects at fetch boundary", async () => {
-  const session = setup();
+  const session = setupCredential();
   let requestCount = 0;
   try {
     const result = await loadPersonalPaperOperations({
@@ -51,11 +48,11 @@ test("credential-bearing PAPER read forbids redirects at fetch boundary", async 
     assert.equal(requestCount, 1);
     assert.equal(result.status, "UNAVAILABLE");
     assert.match(result.reason, /redirect is prohibited/i);
-  } finally { cleanup(session); }
+  } finally { session.cleanup(); }
 });
 
 test("credential-bearing PAPER read rejects a changed final endpoint", async () => {
-  const session = setup();
+  const session = setupCredential();
   try {
     const result = await loadPersonalPaperOperations({
       baseUrl: ENDPOINT,
@@ -70,11 +67,11 @@ test("credential-bearing PAPER read rejects a changed final endpoint", async () 
     });
     assert.equal(result.status, "UNAVAILABLE");
     assert.match(result.reason, /final endpoint changed/i);
-  } finally { cleanup(session); }
+  } finally { session.cleanup(); }
 });
 
 test("PAPER read discards a response if the credential rotates while the request is in flight", async () => {
-  const session = setup();
+  const session = setupCredential();
   try {
     const result = await loadPersonalPaperOperations({
       baseUrl: ENDPOINT,
@@ -87,7 +84,7 @@ test("PAPER read discards a response if the credential rotates while the request
           redirected: false,
           url: `${ENDPOINT}/api/paper-operations`,
           json: async () => {
-            session.connect(ROTATED_SESSION_FIXTURE);
+            session.rotate();
             return {};
           }
         };
@@ -95,11 +92,11 @@ test("PAPER read discards a response if the credential rotates while the request
     });
     assert.equal(result.status, "UNAVAILABLE");
     assert.match(result.reason, /connection changed while the request was in flight/i);
-  } finally { cleanup(session); }
+  } finally { session.cleanup(); }
 });
 
 test("PAPER read timeout is bounded before credential-bearing transport", async () => {
-  const session = setup();
+  const session = setupCredential();
   let credentialReads = 0;
   let requests = 0;
   try {
@@ -113,5 +110,5 @@ test("PAPER read timeout is bounded before credential-bearing transport", async 
     assert.match(invalid.reason, /timeout must be an integer/i);
     assert.equal(credentialReads, 0);
     assert.equal(requests, 0);
-  } finally { cleanup(session); }
+  } finally { session.cleanup(); }
 });
