@@ -85,6 +85,7 @@ active_non_live_successor:
   source_work_order: .aipos/work-orders/WO-0060-android-paper-operability.yaml
   status: IN_PROGRESS
   branch: agent/wo-0060-android-paper-operability-v2
+  pull_request: 581
   base_commit: df078f286ead8256eba2b667b2af5b1f621cb112
   completed_child_work_order: WO-0060A
   completed_child_pull_request: 572
