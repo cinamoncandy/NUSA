@@ -65,6 +65,36 @@ jobs:
           grep -F "$EXPECTED_SHA" apps/mobile/src/generatedBuildConfig.ts
           ! grep -E 'localhost|127\.0\.0\.1|trycloudflare\.com' apps/mobile/src/generatedBuildConfig.ts
 
+      - name: Probe canonical NUSA Cloud health
+        env:
+          NUSA_MOBILE_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+        run: |
+          node <<'NODE'
+          (async () => {
+            const origin = new URL(process.env.NUSA_MOBILE_API_BASE_URL);
+            const healthUrl = new URL('/health', origin);
+            const response = await fetch(healthUrl, {
+              redirect: 'manual',
+              signal: AbortSignal.timeout(15000),
+              headers: { 'user-agent': 'nusa-wo-0060-origin-probe' }
+            });
+            if (response.status !== 200) {
+              throw new Error(`canonical NUSA /health expected 200, received ${response.status}`);
+            }
+            if (new URL(response.url).origin !== origin.origin) {
+              throw new Error('canonical NUSA /health changed origin');
+            }
+            const body = await response.json();
+            if (body?.ok !== true) {
+              throw new Error('canonical NUSA /health did not report ok=true');
+            }
+            console.log(`[wo-0060] canonical NUSA health PASS ${origin.origin}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
       - run: pnpm run typecheck
       - run: pnpm run build
       - run: chmod +x apps/mobile/android/gradlew
