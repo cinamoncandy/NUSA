@@ -1,10 +1,14 @@
-import { NativeModules, Platform } from "react-native";
 import type { SecureStoragePort } from "./mobileSecurity";
 
 interface NusaSecureStorageNativeModule {
   setSecret(key: string, valueBase64: string): Promise<void>;
   getSecret(key: string): Promise<string | null>;
   deleteSecret(key: string): Promise<void>;
+}
+
+interface ReactNativeBridge {
+  readonly NativeModules: Readonly<Record<string, unknown>>;
+  readonly Platform: Readonly<{ OS: string }>;
 }
 
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -42,9 +46,18 @@ function decodeBase64(value: string): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+function loadReactNativeBridge(): ReactNativeBridge | null {
+  try {
+    const bridge = require("react-native") as Partial<ReactNativeBridge>;
+    if (bridge.Platform == null || bridge.NativeModules == null) return null;
+    return bridge as ReactNativeBridge;
+  } catch { return null; }
+}
+
 function nativeModule(): NusaSecureStorageNativeModule | null {
-  if (Platform.OS !== "android") return null;
-  const module = NativeModules.NusaSecureStorage as Partial<NusaSecureStorageNativeModule> | undefined;
+  const bridge = loadReactNativeBridge();
+  if (bridge == null || bridge.Platform.OS !== "android") return null;
+  const module = bridge.NativeModules.NusaSecureStorage as Partial<NusaSecureStorageNativeModule> | undefined;
   if (module == null || typeof module.setSecret !== "function" || typeof module.getSecret !== "function" || typeof module.deleteSecret !== "function") return null;
   return module as NusaSecureStorageNativeModule;
 }
