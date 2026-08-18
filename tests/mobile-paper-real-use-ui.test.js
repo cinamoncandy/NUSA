@@ -5,15 +5,18 @@ const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 
-test("fresh install is a truthful local PAPER entry, not fake account authentication", () => {
+test("fresh install requires a server-backed NUSA session and never falls back to local entry", () => {
   const app = read("apps/mobile/App.tsx");
-  assert.match(app, /testID="local-entry-submit"/);
-  assert.match(app, /개인 모드 시작/);
-  assert.match(app, /개인 기기에서 PAPER 작업공간으로 진입합니다/);
+  assert.match(app, /new MobileSessionClient\(\{ secureStorage: nativeKeystoreStorage/);
+  assert.match(app, /client\.bootstrap\(bootstrapToken\)/);
+  assert.match(app, /identity == null \? "SIGNED_OUT" : "ACTIVE"/);
+  assert.match(app, /testID="nusa-auth-submit"/);
+  assert.match(app, /OWNER가 발급한 일회용 bootstrap token/);
+  assert.match(app, /서버가 승인한 세션만 활성화됩니다/);
   assert.match(app, /PAPER ONLY/);
   assert.match(app, /LIVE NONE/);
+  assert.doesNotMatch(app, /testID="local-entry-submit"|개인 모드 시작|개인 기기에서 PAPER 작업공간으로 진입합니다/);
   assert.doesNotMatch(app, /testID="auth-email"|testID="auth-password"/);
-  assert.doesNotMatch(app, /dashboard-credential/);
 });
 
 test("Settings is the single PAPER endpoint and memory credential setup path", () => {
