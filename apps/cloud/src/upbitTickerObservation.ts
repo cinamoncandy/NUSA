@@ -7,6 +7,12 @@ import {
 } from "./chartSignalNormalization";
 
 export const DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS = 30_000;
+/**
+ * How far ahead of this machine's clock an exchange timestamp may sit before the tick is treated
+ * as implausible rather than as ordinary clock skew. Desktop clocks drift, and NTP is not
+ * guaranteed; without this allowance a sub-second lag silently discards the entire public feed.
+ */
+export const DEFAULT_UPBIT_TICKER_CLOCK_SKEW_TOLERANCE_MS = 5_000;
 /** Compatibility export; the policy now belongs to the exchange-agnostic chart normalization module. */
 export const UPBIT_CHART_NORMALIZATION_POLICY = CHART_NORMALIZATION_V1;
 const MAX_QUOTE_TURNOVER_FOR_FULL_CONFIDENCE = 1_000_000_000;
@@ -22,6 +28,8 @@ export function normalizeUpbitChartChangeRate(rawChangeRate: number): number {
 export interface UpbitTickerObservationOptions {
   readonly now: number;
   readonly staleWindowMs?: number;
+  /** Allowance for benign exchange/local clock skew. See DEFAULT_UPBIT_TICKER_CLOCK_SKEW_TOLERANCE_MS. */
+  readonly clockSkewToleranceMs?: number;
 }
 
 /** Converts one accepted public ticker into bounded, read-only intelligence evidence. */
@@ -32,8 +40,18 @@ export function upbitTickerToIntelligenceObservation(
   const staleWindowMs = options.staleWindowMs ?? DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS;
   if (!Number.isSafeInteger(options.now) || options.now < 0) throw new Error("now must be a non-negative safe integer");
   if (!Number.isSafeInteger(staleWindowMs) || staleWindowMs < 1_000) throw new Error("staleWindowMs must be >= 1000");
-  if (ticker.type !== "ticker" || !ticker.code.startsWith("KRW-") || ticker.trade_timestamp > options.now) return undefined;
-  const age = options.now - ticker.trade_timestamp;
+  const skewToleranceMs = options.clockSkewToleranceMs ?? DEFAULT_UPBIT_TICKER_CLOCK_SKEW_TOLERANCE_MS;
+  if (!Number.isSafeInteger(skewToleranceMs) || skewToleranceMs < 0) throw new Error("clockSkewToleranceMs must be a non-negative safe integer");
+  if (ticker.type !== "ticker" || !ticker.code.startsWith("KRW-")) return undefined;
+  // Future-dated data is refused, but only beyond a tolerance. The exchange clock and this
+  // machine's clock are independent and routinely differ by a few hundred milliseconds; an
+  // exact comparison rejected every genuine tick whenever the local clock lagged even slightly,
+  // which produced no market intelligence at all and left the PAPER kill switch closed. The
+  // tolerance is small relative to the staleness window, so implausibly future-dated data is
+  // still refused.
+  if (ticker.trade_timestamp > options.now + skewToleranceMs) return undefined;
+  // A tick that is barely "ahead" of us is treated as current rather than as negatively aged.
+  const age = Math.max(0, options.now - ticker.trade_timestamp);
   if (age > staleWindowMs) return undefined;
   const signedChangeRate = ticker.signed_change_rate ?? 0;
   const turnover = ticker.acc_trade_price_24h ?? 0;

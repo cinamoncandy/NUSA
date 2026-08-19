@@ -121,7 +121,15 @@ function parseTicker(value: Record<string, unknown>): UpbitTicker {
 function parseTrade(value: Record<string, unknown>): UpbitTrade {
   const askBid = value.ask_bid;
   if (askBid !== "ASK" && askBid !== "BID") throw new Error("trade ask_bid is invalid");
-  const sequentialId = value.sequential_id === undefined ? undefined : timestamp(value.sequential_id, "trade sequential_id");
+  // NOT a timestamp. Upbit's sequential_id is an opaque monotonic trade id whose live values
+  // (~1.79e16) sit well above Number.MAX_SAFE_INTEGER, so validating it as a timestamp rejected
+  // every real trade message. Each rejection marked the whole feed DEGRADED, which cleared the
+  // accumulated ticker intelligence and pinned the PAPER kill switch closed -- the public feed
+  // could never reach a tradable state. Accept any positive finite number instead.
+  //
+  // JSON.parse has already rounded this value before we see it, so it is informational only and
+  // must never be used for ordering, dedup, or identity. Nothing reads it today.
+  const sequentialId = value.sequential_id === undefined ? undefined : positiveNumber(value.sequential_id, "trade sequential_id");
   return Object.freeze({
     type: "trade" as const,
     code: requiredString(value.code, "trade code"),
