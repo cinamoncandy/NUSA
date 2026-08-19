@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   judgementStrip: { minHeight: 112, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, flexDirection: "row", alignItems: "flex-start", gap: 12 },
   judgementRail: { width: 2, alignSelf: "stretch", minHeight: 78 },
   judgementCopy: { flex: 1, minWidth: 0, gap: 5 },
-  judgementTitle: { fontSize: 22, lineHeight: 28, fontWeight: "750", letterSpacing: -0.6 },
+  judgementTitle: { fontSize: 22, lineHeight: 28, fontWeight: "700", letterSpacing: -0.6 },
   judgementThesis: { fontSize: 12, lineHeight: 19 },
   confidenceBlock: { minWidth: 72, alignItems: "flex-end", gap: 2 },
   confidenceValue: { fontSize: 20, lineHeight: 25, fontWeight: "800", fontVariant: ["tabular-nums"] },
