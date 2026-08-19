@@ -65,6 +65,18 @@ Every default is applied only when that variable is absent, so explicit configur
 `apps/cloud/src/cloudRuntimeConfig.ts` for the full list of variables. To run the compiled runtime
 directly with no defaults supplied, use `pnpm cloud:runtime:bare`.
 
+A single writer may mutate the PAPER account at a time, enforced by a lease in the state database.
+A clean shutdown releases it; a crash or a force-kill leaves it behind, and a lease that is too old
+to take over safely is refused rather than seized. When nothing is running, clear an abandoned lease
+with:
+
+```bash
+node scripts/reset-paper-writer-lease.js
+```
+
+It refuses to act while a runtime is answering on the dashboard endpoint or while the lease is still
+valid, and it only removes the lease row — cash, positions, and fills are untouched.
+
 ## Validation
 
 ```bash
