@@ -6,12 +6,13 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
-test("Concept 1 brand geometry is used by the mobile mark", () => {
+test("runtime mobile brand keeps the provisional symbol hidden while logo production is on hold", () => {
   const components = read("apps/mobile/src/components.tsx");
-  assert.match(components, /symbolPeak/);
-  assert.match(components, /symbolReflection/);
-  assert.match(components, /symbolReflectionLine/);
-  assert.doesNotMatch(components, /islandBeacon|islandHalo|islandLand/);
+  const app = read("apps/mobile/App.tsx");
+
+  assert.match(components, /export function WaveMark\(_props:[\s\S]*?return null;/);
+  assert.doesNotMatch(components, /symbolPeak|symbolReflection|symbolReflectionLine/);
+  assert.match(app, />NUSA<\/Text>/);
 });
 
 test("Android launcher resources expose Concept 1, monochrome, notification, and splash assets", () => {
