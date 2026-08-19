@@ -44,13 +44,15 @@ import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from
 import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
 import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
 import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
-import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest } from "./aiSignalExplainer";
+import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest, type AiSignalExplanation, type AiSignalFollowUpAnswer } from "./aiSignalExplainer";
 import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
 import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
-import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest } from "./aiSessionSummary";
-import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest } from "./aiRegimeExplainer";
+import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest, type AiSessionSummary } from "./aiSessionSummary";
+import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest, type AiRegimeExplanation } from "./aiRegimeExplainer";
 import { evaluateStrategyRegime } from "./regimePolicy";
-import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest } from "./aiRiskCommentary";
+import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest, type AiRiskCommentary } from "./aiRiskCommentary";
+import { ResearchAssistantGovernor, type ResearchAssistantId } from "./aiResearchAssistantGovernor";
+import { aiSha256 } from "../../../packages/contracts/src/aiInference";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
 import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
@@ -176,6 +178,34 @@ const aiRegimeExplainerClient: AiRegimeExplainerClient | undefined =
 // On-demand risk commentary: explains the AI CIO risk dashboard section in plain Korean.
 const aiRiskCommentaryClient: AiRiskCommentaryClient | undefined =
   process.env.ANTHROPIC_API_KEY ? createAnthropicRiskCommentaryClient({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
+// Caps and caches calls to the five research-assistant IPC handlers below (signal explainer
+// covers two handlers: explain + follow-up) so a chatty operator or a renderer bug cannot run
+// up unbounded AI inference cost in a single session. Governed at the IPC boundary only --
+// none of the five assistant modules themselves are aware of this.
+const aiResearchAssistantGovernor = new ResearchAssistantGovernor();
+const aiResearchAssistantResponseCache = new Map<string, unknown>();
+async function governedAiAssistantCall<TResponse>(
+  assistantId: ResearchAssistantId,
+  requestForHash: unknown,
+  fallback: (reason: "RATE_LIMITED") => TResponse,
+  invoke: () => Promise<TResponse>
+): Promise<TResponse> {
+  const now = Date.now();
+  const inputHash = aiSha256(requestForHash);
+  const cacheKey = `${assistantId}:${inputHash}`;
+  const decision = aiResearchAssistantGovernor.check(assistantId, inputHash, now);
+  if (decision === "CACHE_HIT") {
+    const cached = aiResearchAssistantResponseCache.get(cacheKey);
+    if (cached !== undefined) return cached as TResponse;
+    // Cache entry expired between check() and here (or was never populated); fall through to a fresh call.
+  } else if (decision === "BLOCKED") {
+    return fallback("RATE_LIMITED");
+  }
+  const response = await invoke();
+  aiResearchAssistantGovernor.recordCall(assistantId, inputHash, now);
+  aiResearchAssistantResponseCache.set(cacheKey, response);
+  return response;
+}
 const smaStrategy = new SmaCrossoverStrategy(5, 20);
 const strategy = new StrategyEngine(smaStrategy);
 const aiCioEnvelopeSource = new InMemoryAiCioEnvelopeSource();
@@ -994,19 +1024,29 @@ ipcMain.handle("ai:explain-latest-signal", async () => {
   const request: SignalExplanationRequest | undefined = signal === undefined
     ? undefined
     : { market: MARKET, signal, recentPrices: strategy.getHistory(), signalHistory: strategy.getSignalHistory() };
-  const result = await explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() });
+  const result = await governedAiAssistantCall<AiSignalExplanation>(
+    "SIGNAL_EXPLAINER",
+    { handler: "explain-latest-signal", request },
+    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
+    () => explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() })
+  );
   lastAiSignalExplanation = request !== undefined && result.status === "OK" ? Object.freeze({ request, explanation: result.explanation }) : undefined;
   return result;
 });
 ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => {
   if (typeof question !== "string") throw new Error("invalid follow-up question");
-  return answerSignalFollowUp({
-    request: lastAiSignalExplanation?.request,
-    priorExplanation: lastAiSignalExplanation?.explanation,
-    question,
-    client: aiSignalExplainerClient,
-    nowMs: Date.now()
-  });
+  return governedAiAssistantCall<AiSignalFollowUpAnswer>(
+    "SIGNAL_EXPLAINER",
+    { handler: "ask-followup-question", request: lastAiSignalExplanation?.request, priorExplanation: lastAiSignalExplanation?.explanation, question },
+    () => Object.freeze({ status: "UNAVAILABLE" as const, answer: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
+    () => answerSignalFollowUp({
+      request: lastAiSignalExplanation?.request,
+      priorExplanation: lastAiSignalExplanation?.explanation,
+      question,
+      client: aiSignalExplainerClient,
+      nowMs: Date.now()
+    })
+  );
 });
 ipcMain.handle("ai:challenger-status", () => ({
   configured: aiChallengerClient !== undefined,
@@ -1030,7 +1070,12 @@ ipcMain.handle("ai:summarize-session", async () => {
     signalHistory: strategy.getSignalHistory(),
     challengerStats: aiChallengerObserver.getStats()
   };
-  return summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() });
+  return governedAiAssistantCall<AiSessionSummary>(
+    "SESSION_SUMMARY",
+    request,
+    () => Object.freeze({ status: "UNAVAILABLE" as const, summary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
+    () => summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("ai:explain-regime", async () => {
   const signal = strategy.getLatestSignal();
@@ -1040,7 +1085,12 @@ ipcMain.handle("ai:explain-regime", async () => {
     recentPrices: strategy.getHistory(),
     decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
   };
-  return explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() });
+  return governedAiAssistantCall<AiRegimeExplanation>(
+    "REGIME_EXPLAINER",
+    request,
+    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
+    () => explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("ai:explain-risk", async () => {
   const envelope = aiCioEnvelopeSource.current();
@@ -1050,7 +1100,12 @@ ipcMain.handle("ai:explain-risk", async () => {
     risk: envelope.snapshot.risk,
     warnings: envelope.snapshot.warnings
   };
-  return explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() });
+  return governedAiAssistantCall<AiRiskCommentary>(
+    "RISK_COMMENTARY",
+    request,
+    () => Object.freeze({ status: "UNAVAILABLE" as const, commentary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
+    () => explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() })
+  );
 });
 ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
