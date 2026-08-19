@@ -49,8 +49,30 @@ test("normalizes realistic exchange returns with a dead-zone and preserves raw e
   }
 });
 
-test("rejects stale, future, and non-KRW tickers", () => {
+test("rejects stale, implausibly future, and non-KRW tickers", () => {
   assert.equal(upbitTickerToIntelligenceObservation(ticker(), { now: 12_001, staleWindowMs: 3_000 }), undefined);
-  assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 12_000 }), { now: 11_000 }), undefined);
+  // Beyond the clock-skew allowance this is no longer explainable as drift.
+  assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 12_000 }), { now: 11_000, clockSkewToleranceMs: 0 }), undefined);
+  assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 20_000 }), { now: 11_000 }), undefined);
   assert.equal(upbitTickerToIntelligenceObservation(ticker({ code: "USDT-BTC" }), { now: 10_000 }), undefined);
+});
+
+test("a lagging local clock does not discard the live public feed", () => {
+  // Observed in practice: this machine's clock sat ~670ms behind Upbit, so every genuine tick
+  // looked future-dated. An exact comparison discarded all of them, the runtime saw no market
+  // data, and the PAPER kill switch stayed closed permanently. Sub-second skew is ordinary and
+  // must not be treated as a corrupted feed.
+  const skewed = upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 10_670 }), { now: 10_000 });
+  assert.ok(skewed, "a tick 670ms ahead of a lagging clock must still produce evidence");
+  assert.equal(skewed.observedAt, 10_670);
+  // Freshness is computed from a non-negative age, so a slightly-ahead tick reads as current
+  // rather than as impossibly fresh.
+  assert.ok(skewed.confidence > 0 && skewed.confidence <= 1);
+
+  // The allowance is bounded and configurable, and its edge is inclusive.
+  assert.ok(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 15_000 }), { now: 10_000 }), "5s skew is within the default allowance");
+  assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 15_001 }), { now: 10_000 }), undefined, "beyond the allowance is refused");
+  assert.ok(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 10_100 }), { now: 10_000, clockSkewToleranceMs: 100 }));
+  assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 10_101 }), { now: 10_000, clockSkewToleranceMs: 100 }), undefined);
+  assert.throws(() => upbitTickerToIntelligenceObservation(ticker(), { now: 10_000, clockSkewToleranceMs: -1 }), /clockSkewToleranceMs/);
 });

@@ -73,11 +73,15 @@ jobs:
           file apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
           test -x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
           apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
-      - run: ./gradlew :app:assembleDebug
+      - run: ./gradlew :app:assembleDebug -PnusaEmbedDebugBundle
         working-directory: apps/mobile/android
         env:
           NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
+      - name: Verify the debug APK actually contains the JS bundle
+        # Without this the job still passes while uploading an APK with no application
+        # code in it, which reads to a human as "the UI never changes".
+        run: unzip -l apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/index.android.bundle'
       - name: Generate Android debug APK checksum
         run: sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk.sha256
       - name: Upload installable Android debug APK

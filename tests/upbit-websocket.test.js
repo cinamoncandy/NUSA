@@ -62,6 +62,33 @@ test("public parser normalizes ticker, trade, and orderbook payloads", () => {
   });
 });
 
+test("a live-magnitude sequential_id is accepted rather than rejected as a bad timestamp", () => {
+  // Upbit's real sequential_id (~1.79e16) exceeds Number.MAX_SAFE_INTEGER. Validating it as a
+  // timestamp rejected every genuine trade message, and each rejection degraded the feed and
+  // cleared the ticker intelligence, so PAPER could never leave the kill-switched state. The
+  // previous fixture used 22, which is a safe integer, so it never exercised real traffic.
+  const liveSequentialId = 17870976536110000;
+  assert.equal(Number.isSafeInteger(liveSequentialId), false, "fixture must reproduce the unsafe magnitude");
+  const parsed = parseUpbitPublicMessage(JSON.stringify({
+    type: "trade", code: "KRW-BTC", trade_price: 90925000, trade_volume: 0.001,
+    ask_bid: "BID", trade_timestamp: 1787097653611, sequential_id: liveSequentialId
+  }));
+  assert.equal(parsed.type, "trade");
+  assert.equal(parsed.sequential_id, liveSequentialId);
+  // trade_timestamp is a genuine timestamp and keeps its stricter safe-integer contract.
+  assert.throws(() => parseUpbitPublicMessage(JSON.stringify({
+    type: "trade", code: "KRW-BTC", trade_price: 100, trade_volume: 0.01,
+    ask_bid: "BID", trade_timestamp: 1.5, sequential_id: 22
+  })), /trade_timestamp/);
+  // A nonsense sequence id is still refused.
+  for (const bad of [0, -1, Number.NaN, "22"]) {
+    assert.throws(() => parseUpbitPublicMessage(JSON.stringify({
+      type: "trade", code: "KRW-BTC", trade_price: 100, trade_volume: 0.01,
+      ask_bid: "BID", trade_timestamp: 1001, sequential_id: bad
+    })), /sequential_id/, `sequential_id ${String(bad)} must be rejected`);
+  }
+});
+
 test("public parser rejects malformed and private channel payloads", () => {
   assert.throws(() => parseUpbitPublicMessage("not-json"), /not valid JSON/);
   assert.throws(() => parseUpbitPublicMessage(JSON.stringify({ type: "myOrder", code: "KRW-BTC" })), /unsupported/);
