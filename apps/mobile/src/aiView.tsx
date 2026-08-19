@@ -21,8 +21,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
 
   const isCalibrated = ai?.calibrationStatus === "CALIBRATED";
   const trustedConfidence = isCalibrated ? percent(ai?.confidence) : "-";
+  const verifiedConfidence = ai?.calibrationStatus === "CALIBRATED" ? percent(ai.confidence) : "-";
   const rawProbability = percent(ai?.rawProbability);
-  const calibratedProbability = isCalibrated ? percent(ai?.calibratedProbability) : "-";
+  const calibratedProbability = ai?.calibrationStatus === "CALIBRATED" ? percent(ai.calibratedProbability) : "-";
   const lastRun = ai?.lastModelRun == null ? "-" : new Date(ai.lastModelRun).toLocaleString("ko-KR");
   const analysisTone = statusTone(ai?.status);
   const evidenceCount = ai?.evidenceReferences.length ?? 0;
@@ -53,7 +54,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
         <View style={styles.confidencePrimary}>
           <Text style={[styles.bandLabel, { color: theme.colors.textMuted }]}>CALIBRATED CONFIDENCE</Text>
           <Text style={[styles.confidenceValue, { color: isCalibrated ? theme.colors.primary : theme.colors.textMuted }]}>{trustedConfidence}</Text>
-          <Text style={[styles.bandDetail, { color: theme.colors.textMuted }]}>{isCalibrated ? "보정된 신뢰도" : "보정 완료 전 숨김"}</Text>
+          <Text style={[styles.bandDetail, { color: theme.colors.textMuted }]}>{isCalibrated ? "검증 신뢰도" : "보정 완료 전 숨김"}</Text>
         </View>
         <View style={[styles.stageDivider, { backgroundColor: theme.colors.borderStrong }]} />
         <View style={styles.stageMetric}>
@@ -115,7 +116,9 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <View style={styles.detailCell}>
         <NusaCard testID="ai-diagnostics-card">
           <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>CALIBRATION DETAILS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>신뢰도 진단</Text></View><StatusChip label={ai?.calibrationStatus ?? "UNKNOWN"} tone={isCalibrated ? "success" : "warning"} /></View>
-          <Text style={[styles.cardLead, { color: theme.colors.textMuted }]}>진단값은 신호를 설명하기 위한 보조 정보입니다. 원시 확률은 검증된 성공 확률이나 성과 보장이 아닙니다.</Text>
+          <Text style={[styles.cardLead, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED 상태에서만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
+          <DataRow label="교정 상태" value={ai?.calibrationStatus ?? "-"} />
+          <DataRow label="검증 신뢰도" value={verifiedConfidence} emphasis />
           <DataRow label="보정 표본" value={ai?.calibrationSampleCount == null ? "-" : String(ai.calibrationSampleCount)} />
           <DataRow label="보정 확률" value={calibratedProbability} />
           <DataRow label="원시 모델 확률 (미보정)" value={rawProbability} />
