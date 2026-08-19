@@ -21,10 +21,24 @@ test("mobile presets keep brand actions monochrome and reserve chromatic colors 
   assert.match(source, /aiSignalSoft/);
 });
 
-test("APEX mobile and Android assets remain monochrome", () => {
+test("runtime brand placeholder stays suppressed while signal color remains semantic", () => {
   const components = read("apps/mobile/src/components.tsx");
-  assert.match(components, /borderBottomColor: theme\.colors\.text/);
-  assert.match(components, /backgroundColor: theme\.colors\.text/);
+  const terrainStart = components.indexOf("export function TerrainSignal");
+  const waveMarkStart = components.indexOf("export function WaveMark");
+  assert.ok(terrainStart >= 0 && waveMarkStart > terrainStart, "TerrainSignal and WaveMark boundaries must remain explicit");
+
+  const terrain = components.slice(terrainStart, waveMarkStart);
+  assert.match(terrain, /theme\.colors\.aiSignalStart/);
+  assert.match(terrain, /theme\.colors\.aiSignalMid/);
+  assert.match(terrain, /theme\.colors\.aiSignalEnd/);
+
+  // The provisional runtime mark is intentionally not product-facing while logo production is HOLD.
+  const waveMark = components.slice(waveMarkStart, components.indexOf("export function SectionHeading", waveMarkStart));
+  assert.match(waveMark, /return null;/);
+  assert.doesNotMatch(waveMark, /aiSignalStart|aiSignalMid|aiSignalEnd|neonBlue/);
+});
+
+test("Android APEX launcher and splash assets remain monochrome", () => {
   for (const file of [
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo.xml",
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo_foreground.xml",
@@ -33,7 +47,7 @@ test("APEX mobile and Android assets remain monochrome", () => {
     "apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher_round.xml",
   ]) {
     const source = read(file);
-    assert.doesNotMatch(source, /#6D8DFF|#87A0F7/);
+    assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB/);
     assert.match(source, /#FFFFFFFF/);
   }
 });
