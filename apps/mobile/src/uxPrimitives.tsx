@@ -30,6 +30,45 @@ export function MetricTile({ label, value, detail, tone = "default", testID }: R
   </View>;
 }
 
+export function CompactMetric({ label, value, detail, tone = "default", testID }: Readonly<{ label: string; value: string; detail?: string; tone?: "default" | "success" | "warning" | "danger" | "info"; testID?: string }>) {
+  const { theme } = useTheme();
+  const valueColor = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.aiSignalEnd : theme.colors.text;
+  return <View accessible accessibilityLabel={`${label}: ${value}${detail ? `. ${detail}` : ""}`} style={[styles.compactMetric, { borderBottomColor: theme.colors.border }]} testID={testID}>
+    <View style={styles.compactMetricCopy}>
+      <Text style={[styles.compactMetricLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+      {detail ? <Text style={[styles.compactMetricDetail, { color: theme.colors.textMuted }]}>{detail}</Text> : null}
+    </View>
+    <Text style={[styles.compactMetricValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+  </View>;
+}
+
+export function QuietStatus({ label, tone = "neutral", testID }: Readonly<{ label: string; tone?: StatusTone; testID?: string }>) {
+  const { theme } = useTheme();
+  const accent = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.aiSignalEnd : theme.colors.textMuted;
+  return <View accessible accessibilityLabel={label} style={styles.quietStatus} testID={testID}>
+    <View style={[styles.quietStatusDot, { backgroundColor: accent }]} />
+    <Text style={[styles.quietStatusLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+  </View>;
+}
+
+export function InsightPanel({ title, thesis, meta, confidenceLabel, actionLabel, onAction, testID }: Readonly<{ title: string; thesis: string; meta: string; confidenceLabel?: string; actionLabel?: string; onAction?: () => void; testID?: string }>) {
+  const { theme } = useTheme();
+  return <View style={[styles.insightPanel, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border }]} testID={testID}>
+    <View style={styles.insightTopline}>
+      <View style={styles.insightTitleGroup}>
+        <Text style={[styles.insightEyebrow, { color: theme.colors.aiSignalMid }]}>AI JUDGEMENT</Text>
+        <Text style={[styles.insightTitle, { color: theme.colors.text }]}>{title}</Text>
+      </View>
+      {confidenceLabel ? <Text style={[styles.insightConfidence, { color: theme.colors.aiSignalEnd }]}>{confidenceLabel}</Text> : null}
+    </View>
+    <Text style={[styles.insightThesis, { color: theme.colors.textMuted }]}>{thesis}</Text>
+    <View style={styles.insightFooter}>
+      <Text style={[styles.insightMeta, { color: theme.colors.textMuted }]}>{meta}</Text>
+      {actionLabel && onAction ? <Pressable accessibilityRole="button" onPress={onAction} style={({ pressed }) => [styles.insightAction, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}><Text style={[styles.insightActionLabel, { color: theme.colors.text }]}>{actionLabel}</Text></Pressable> : null}
+    </View>
+  </View>;
+}
+
 export function SegmentedControl({ items, selectedKey, onChange, disabled = false, testID }: Readonly<{ items: readonly Readonly<{ key: string; label: string }>[]; selectedKey: string; onChange: (key: string) => void; disabled?: boolean; testID?: string }>) {
   const { theme } = useTheme();
   return <View accessibilityRole="tablist" style={[styles.segmented, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID={testID}>
@@ -51,6 +90,19 @@ export function InlineNotice({ title, detail, tone = "info", testID }: Readonly<
   </View>;
 }
 
+export function OperationalNotice({ title, detail, tone = "info", actionLabel, onAction, testID, actionTestID }: Readonly<{ title: string; detail?: string; tone?: "success" | "warning" | "danger" | "info"; actionLabel?: string; onAction?: () => void; testID?: string; actionTestID?: string }>) {
+  const { theme } = useTheme();
+  const accent = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.info;
+  return <View accessibilityRole="text" style={[styles.operationalNotice, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border }]} testID={testID}>
+    <View style={[styles.operationalNoticeDot, { backgroundColor: accent }]} />
+    <View style={styles.operationalNoticeCopy}>
+      <Text style={[styles.operationalNoticeTitle, { color: theme.colors.text }]}>{title}</Text>
+      {detail ? <Text style={[styles.operationalNoticeDetail, { color: theme.colors.textMuted }]}>{detail}</Text> : null}
+    </View>
+    {actionLabel && onAction ? <Pressable accessibilityRole="button" onPress={onAction} style={({ pressed }) => [styles.operationalNoticeAction, { borderColor: theme.colors.borderStrong, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID={actionTestID}><Text style={[styles.operationalNoticeActionLabel, { color: theme.colors.text }]}>{actionLabel}</Text></Pressable> : null}
+  </View>;
+}
+
 const styles = StyleSheet.create({
   screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
   screenHeaderCopy: { flex: 1, gap: 5, minWidth: 0 },
@@ -65,6 +117,25 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.1 },
   metricValue: { marginTop: 8, fontSize: 25, lineHeight: 30, fontWeight: "800", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
   metricDetail: { marginTop: 5, fontSize: 12, lineHeight: 17 },
+  compactMetric: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
+  compactMetricCopy: { flex: 1, minWidth: 0, gap: 2 },
+  compactMetricLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700", letterSpacing: 0.1 },
+  compactMetricDetail: { fontSize: 10, lineHeight: 15 },
+  compactMetricValue: { maxWidth: "48%", textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  quietStatus: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
+  quietStatusDot: { width: 6, height: 6, borderRadius: 3 },
+  quietStatusLabel: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 1.05 },
+  insightPanel: { gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
+  insightTopline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
+  insightTitleGroup: { flex: 1, minWidth: 0, gap: 5 },
+  insightEyebrow: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.7 },
+  insightTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700", letterSpacing: -0.35 },
+  insightConfidence: { fontSize: 12, lineHeight: 18, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  insightThesis: { fontSize: 14, lineHeight: 22 },
+  insightFooter: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  insightMeta: { flex: 1, fontSize: 11, lineHeight: 16 },
+  insightAction: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  insightActionLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700" },
   segmented: { flexDirection: "row", minHeight: 50, padding: 3, borderRadius: 999, borderWidth: 1, gap: 3 },
   segment: { flex: 1, minHeight: 44, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   segmentLabel: { fontSize: 13 },
@@ -73,4 +144,11 @@ const styles = StyleSheet.create({
   noticeCopy: { flex: 1, gap: 3 },
   noticeTitle: { fontSize: 13, lineHeight: 19, fontWeight: "700" },
   noticeDetail: { fontSize: 12, lineHeight: 18 },
+  operationalNotice: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
+  operationalNoticeDot: { width: 7, height: 7, borderRadius: 4 },
+  operationalNoticeCopy: { flex: 1, minWidth: 0, gap: 2 },
+  operationalNoticeTitle: { fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  operationalNoticeDetail: { fontSize: 11, lineHeight: 16 },
+  operationalNoticeAction: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, borderWidth: 1, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  operationalNoticeActionLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
 });
