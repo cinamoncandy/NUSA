@@ -9,10 +9,12 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("premium UI minimum path keeps one actionable Home next step and truthful PAPER naming", () => {
   const home = read("src/homeView.tsx");
   assert.match(home, /testID="home-next-action-button"/);
-  assert.match(home, /<CompactMetric label="PAPER 연결"/);
+  assert.match(home, /testID="home-indicator-strip"/);
+  assert.match(home, /testID="home-signal-stage"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /PAPER 상태 신호:/);
   assert.match(home, /accessibilityLabel=\{terrainLabel\}/);
+  assert.match(home, /PAPER DATA/);
   assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);
   assert.doesNotMatch(home, /primaryActions/);
 });

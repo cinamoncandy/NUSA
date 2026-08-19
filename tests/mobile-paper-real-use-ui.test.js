@@ -122,13 +122,16 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
 
-  // HOME MASTER is intentionally a calm single-flow hierarchy rather than the previous generic two-column card grid.
+  // HOME MASTER keeps a single-flow layout, but its upper half is one dominant signal stage rather than stacked dashboard sections.
   assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
   assert.match(profile, /master:[\s\S]*maxWidth: 780/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /<CompactMetric/);
+  assert.match(home, /testID="home-signal-stage"/);
+  assert.match(home, /testID="home-stage-canvas"/);
+  assert.match(home, /testID="home-indicator-strip"/);
   assert.match(home, /<OperationalNotice/);
+  assert.doesNotMatch(home, /PRIMARY INDICATORS/);
+  assert.doesNotMatch(home, /<CompactMetric/);
   assert.doesNotMatch(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
   assert.doesNotMatch(home, /column: \{ flexGrow: 1, flexBasis: 440/);
 

@@ -18,23 +18,23 @@ test("App shell routes canonical Home and preserves six primary jobs", () => {
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses MASTER hierarchy and keeps AI read-only", () => {
+test("Home uses a dominant MASTER signal stage and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, />NUSA<\/Text>/);
-  assert.match(source, /TOTAL EQUITY/);
-  assert.match(source, /<InsightPanel/);
-  // HOME v2 expresses the same read-only safety boundary with the stronger
-  // canonical authority label rather than duplicating a READ ONLY badge.
-  assert.match(source, /ZERO AUTHORITY/);
-  assert.match(source, /EVIDENCE/);
+  assert.match(source, /PAPER EQUITY/);
+  assert.match(source, /testID="home-signal-stage"/);
+  assert.match(source, /testID="home-stage-canvas"/);
   assert.match(source, /testID="home-signal-trace"/);
-  assert.match(source, /<CompactMetric label="PAPER 연결"/);
-  assert.match(source, /<CompactMetric label="안전 게이트"/);
-  assert.match(source, /<CompactMetric label="AI 분석"/);
-  assert.match(source, /LIVE 권한/);
-  assert.match(source, /Production mutation/);
+  assert.match(source, /testID="home-ai-judgement"/);
+  assert.match(source, /AI JUDGEMENT · READ ONLY/);
+  assert.match(source, /testID="home-indicator-strip"/);
+  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /LIVE \{snapshot\?\.liveAuthority \?\? "NONE"\}/);
+  assert.match(source, /PRODUCTION MUTATION/);
   assert.doesNotMatch(source, /<ScreenHeader/);
   assert.doesNotMatch(source, /<MetricTile/);
+  assert.doesNotMatch(source, /<InsightPanel/);
+  assert.doesNotMatch(source, /PRIMARY INDICATORS/);
 });
 
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {

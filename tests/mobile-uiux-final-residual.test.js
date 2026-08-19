@@ -8,7 +8,6 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("Home exposes one real safety-first next action from verified runtime state", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /testID="home-next-action"/);
   assert.match(home, /testID="home-next-action-button"/);
   assert.match(home, /설정에서 연결/);
   assert.match(home, /시장 상태 보기/);
@@ -18,6 +17,7 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(home, /snapshot\?\.health !== "HEALTHY" \|\| snapshot\?\.dashboard\.killSwitchActive \|\| !snapshot\?\.readyForPaperOperations/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
   assert.match(home, /: aiInsightAvailable\s*\? \{ title: "AI 분석 보기"/s);
+  assert.doesNotMatch(home, /large teal|primaryActions/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
