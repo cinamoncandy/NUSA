@@ -83,7 +83,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
 
     <View style={styles.section} testID="ai-evidence-card">
       <View style={styles.sectionHeader}>
-        <View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>EVIDENCE MAP</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>무엇이 신호를 지지하고 반박하는가</Text></View>
+        <View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>EVIDENCE MAP</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>근거와 반대 신호</Text></View>
         <StatusChip label={`${evidenceCount} : ${counterCount}`} tone={counterCount > 0 ? "warning" : "neutral"} />
       </View>
       <View style={styles.evidenceGrid}>
