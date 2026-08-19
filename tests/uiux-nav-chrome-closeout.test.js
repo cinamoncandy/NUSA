@@ -30,7 +30,11 @@ test("header keeps utilities behind one compact tools entry", () => {
   for (const marker of ["header-notifications", "header-settings"]) assert.match(app, new RegExp(marker));
   assert.match(app, /utilityMenuButton: \{ flex: 1, minHeight: 48/);
   assert.match(app, /utilityButton: \{ minWidth: 48, minHeight: 48/);
-  assert.match(app, /navItem: \{ flex: 1, minHeight: 54/);
+  // MASTER keeps the primary nav compact while preserving an accessible >=48px touch target.
+  assert.match(app, /navItem: \{ flex: 1, minHeight: 50/);
+  assert.doesNotMatch(app, /backgroundColor: active \? appTheme\.colors\.neonGlow/);
+  assert.doesNotMatch(app, /borderColor: active \? appTheme\.colors\.neonBlue/);
+  assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
 });
 
 test("nav and chrome preserve PAPER-only authority and utility routing", () => {
