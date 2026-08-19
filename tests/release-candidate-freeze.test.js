@@ -9,7 +9,7 @@ const {
   SyntheticCertificationReportDecision,
   BurnInDecision,
   InvariantMonitorStatus
-} = require('../apps/execution/src/index');
+} = require('../dist/apps/execution/src/index.js');
 
 const schema = `
 CREATE TABLE burn_in_evidence (run_id TEXT PRIMARY KEY, decision TEXT NOT NULL, sample_count INTEGER NOT NULL, duration_ms INTEGER NOT NULL, critical_failure_samples INTEGER NOT NULL, unknown_samples INTEGER NOT NULL, blocking_reasons_json TEXT NOT NULL, final_invariant_status TEXT NOT NULL, completed_at_ms INTEGER NOT NULL);

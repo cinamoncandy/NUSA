@@ -161,6 +161,29 @@ export function computeCalibrationMetrics(samples: readonly CalibrationSample[],
 
 const emptyBucket = (index: number, count: number): AiCalibrationReliabilityBucket => Object.freeze({ lowerBound: index / count, upperBound: (index + 1) / count, count: 0, meanPredicted: null, observedRate: null, absoluteGap: null });
 
+/**
+ * Wilson score interval lower bound for a binomial proportion.
+ *
+ * A bucket's observedRate is a point estimate: four successes out of five samples reads as 0.80
+ * even though the true rate is anywhere in roughly [0.38, 0.96]. Trusting the point estimate makes
+ * effectiveConfidence overstate a thin sample by ~2x at the default minimumBucketSamples of 5.
+ * The lower bound is the fail-closed reading of the same evidence, and it converges on the point
+ * estimate as the bucket fills. Wilson is used rather than the normal approximation because it
+ * stays inside [0,1] and does not degenerate at rates of 0 or 1.
+ *
+ * Deterministic: depends only on observedRate and count.
+ */
+export function wilsonLowerBound(observedRate: number, sampleCount: number, z = 1.96): number {
+  probability(observedRate, "observedRate");
+  positiveInteger(sampleCount, "sampleCount");
+  if (!Number.isFinite(z) || z < 0) throw new Error("z must be a non-negative finite number");
+  const zSquared = z * z;
+  const denominator = 1 + zSquared / sampleCount;
+  const centre = observedRate + zSquared / (2 * sampleCount);
+  const margin = z * Math.sqrt(observedRate * (1 - observedRate) / sampleCount + zSquared / (4 * sampleCount * sampleCount));
+  return Math.min(1, Math.max(0, (centre - margin) / denominator));
+}
+
 const sameCohort = (prediction: AiCalibrationPrediction, cohort: AiCalibrationCohortKey): boolean => {
   const normalized = normalizeCohort(cohort);
   return prediction.providerId === normalized.providerId
@@ -251,7 +274,11 @@ export class OutcomeCalibrationLedger {
       else if ((bucket?.count ?? 0) >= minimumBucketSamples) status = "CALIBRATED";
     }
     const calibratedProbability = status === "CALIBRATED" ? bucket?.observedRate ?? null : null;
-    const effectiveConfidence = calibratedProbability == null ? 0 : Math.min(raw, calibratedProbability);
+    // effectiveConfidence is the trusted number downstream, so it takes the sampling-uncertainty
+    // lower bound of the bucket rather than the point estimate. calibratedProbability stays the
+    // point estimate because that is what it is named for.
+    const confidenceFloor = calibratedProbability == null || bucket == null ? null : wilsonLowerBound(calibratedProbability, bucket.count);
+    const effectiveConfidence = confidenceFloor == null ? 0 : Math.min(raw, confidenceFloor);
     return Object.freeze({ cohort: normalizedCohort, status, sampleCount: metrics.sampleCount, expectedCalibrationError: metrics.sampleCount === 0 ? null : metrics.expectedCalibrationError, brierScore: metrics.sampleCount === 0 ? null : metrics.brierScore, rawProbability: raw, calibratedProbability, effectiveConfidence, reliabilityBuckets: metrics.reliabilityBuckets, provenance: "VERIFIED_RUNTIME_ONLY", liveAuthority: "NONE", productionMutationAllowed: false });
   }
 }

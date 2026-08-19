@@ -10,6 +10,17 @@ react {
     def hermesBinDir = org.gradle.internal.os.OperatingSystem.current().isWindows() ? "win64-bin" : (org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? "osx-bin" : "linux64-bin")
     hermesCommand = "${rootDir}/../node_modules/hermes-compiler/hermesc/${hermesBinDir}/hermesc"
 
+    // Variants listed here are built WITHOUT an embedded JS bundle and load their
+    // JavaScript from a Metro dev server instead. That is what you want while
+    // developing locally (fast refresh), and exactly what you do not want for an
+    // APK a human installs on a device: such a build ships zero application code,
+    // so it renders whatever stale JS the device or Metro happens to serve and
+    // appears frozen at an old UI no matter what has been merged.
+    //
+    // Pass -PnusaEmbedDebugBundle (CI does) to bundle the debug variant too, so the
+    // uploaded debug APK is genuinely self-contained and installable.
+    debuggableVariants = project.hasProperty("nusaEmbedDebugBundle") ? [] : ["debug"]
+
     autolinkLibrariesWithApp()
 }
 
@@ -61,6 +72,10 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Evidence-only preview identity: installs beside the production NUSA app so a
+            // physical-device visual check cannot accidentally be reading a stale install.
+            applicationIdSuffix ".preview"
+            versionNameSuffix "-preview"
         }
         release {
             signingConfig signingConfigs.debug

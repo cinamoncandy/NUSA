@@ -112,8 +112,8 @@ async function waitForOrderResult(baseUrl, token, command, expectedStatus, timeo
   while (Date.now() < deadline) {
     last = await submitOrder(baseUrl, token, command);
     if (last.httpStatus === 200 && last.body && last.body.status === expectedStatus) return last.body;
-    const retryable = last.body?.reason === "PAPER_MARKET_DATA_UNAVAILABLE" || last.body?.reason === "paper execution gate is closed" || last.body?.error === "PAPER_ORDER_UNAVAILABLE";
-    if (!retryable && last.httpStatus !== 429) throw new Error(`unexpected PAPER order result: ${JSON.stringify(last).slice(0, 2000)}`);
+    const retryable = last.httpStatus === 429 || (last.httpStatus === 200 && last.body?.status === "BLOCKED");
+    if (!retryable) throw new Error(`unexpected PAPER order result: ${JSON.stringify(last).slice(0, 2000)}`);
     await sleep(750);
   }
   throw new Error(`timed out waiting for ${expectedStatus}; last=${JSON.stringify(last).slice(0, 2000)}`);

@@ -22,17 +22,23 @@ test("classic and master presets are materially distinct visual systems", () => 
   assert.match(profile, /master:[\s\S]*?metricGap:\s*6/);
 });
 
-test("HomeView consumes the selected preset for geometry and composition", () => {
+test("HomeView consumes the selected preset for MASTER geometry and composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
-  assert.match(home, /minHeight:\s*profile\.hero\.minHeight/);
-  assert.match(home, /borderRadius:\s*profile\.hero\.radius/);
+  assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
+  assert.match(home, /gap:\s*tablet \? 18 : profile\.screen\.sectionGap/);
+  assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
+  assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(home, /fontSize:\s*tablet \? profile\.hero\.tabletBalanceSize : profile\.hero\.balanceSize/);
-  assert.match(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
-  assert.match(home, /testID={`home-visual-\$\{theme\.preset\}`}/);
-  assert.match(home, /theme\.preset === "master" && snapshot && allocation/);
-  assert.match(home, /theme\.preset === "classic" && snapshot && allocation/);
+  assert.match(home, /lineHeight:\s*tablet \? profile\.hero\.tabletBalanceLineHeight : profile\.hero\.balanceLineHeight/);
+  assert.match(home, /letterSpacing:\s*profile\.hero\.balanceLetterSpacing/);
+  assert.match(home, /testID="home-screen"/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /<InsightPanel/);
+  assert.match(home, /<CompactMetric/);
+  assert.match(home, /<OperationalNotice/);
+  assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {

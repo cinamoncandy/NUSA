@@ -106,7 +106,9 @@ test("cloud AI runtime records a verified prediction and resolves it only from a
   assert.equal(resolvedProfile.status, "CALIBRATED");
   assert.equal(resolvedProfile.sampleCount, 1);
   assert.equal(resolvedProfile.calibratedProbability, 1);
-  assert.equal(resolvedProfile.effectiveConfidence, 0.8);
+  // One resolved prediction is one coin flip. The bucket rate is 1 but effectiveConfidence reports
+  // the Wilson lower bound for a single sample rather than the raw 0.8 ceiling.
+  assert.ok(Math.abs(resolvedProfile.effectiveConfidence - 0.2065432) < 1e-6, `expected single-sample confidence floor, got ${resolvedProfile.effectiveConfidence}`);
   await waitForRuntime(runtime);
 
   const projection = runtime.latestProjection(runtimeNow);

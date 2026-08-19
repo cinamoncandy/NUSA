@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { createBackup, readAndVerify } = require("../scripts/backup-restore.js");
+const { SYMLINK_UNAVAILABLE, canCreateSymlink } = require("./support/symlinkCapability.js");
 
 function temporaryRoot(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -45,7 +46,10 @@ test("backup persists the exact bytes that passed the content secret scan", () =
   }
 });
 
-test("backup rejects a regular source swapped to a symlink between lstat and open", () => {
+test("backup rejects a regular source swapped to a symlink between lstat and open", (t) => {
+  // The swap this exercises needs a real symlink, which an unprivileged Windows host cannot
+  // create. The TOCTOU contract itself is unchanged and stays enforced wherever symlinks work.
+  if (!canCreateSymlink()) { t.diagnostic(SYMLINK_UNAVAILABLE); return; }
   const root = temporaryRoot("nusa-recovery-symlink-race-");
   const source = path.join(root, "source");
   const destination = path.join(root, "backups");

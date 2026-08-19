@@ -118,7 +118,10 @@ test("restart replay preserves cohort calibration and expires stale pending pred
     const profile2 = ledger2.profile(cohort, 0.8, { minimumSamples: 1, minimumBucketSamples: 1, maximumExpectedCalibrationError: 1, maximumBrierScore: 1 });
     assert.equal(profile2.sampleCount, 1);
     assert.equal(profile2.status, "CALIBRATED");
-    assert.equal(profile2.effectiveConfidence, 0.8);
+    // A single resolved prediction is one coin flip, not calibration evidence. The bucket rate is 1
+    // but effectiveConfidence reports the Wilson lower bound (1/4.8416) so recovery cannot manufacture
+    // confidence out of one sample.
+    assert.ok(Math.abs(profile2.effectiveConfidence - 0.2065432) < 1e-6, `expected single-sample confidence floor, got ${profile2.effectiveConfidence}`);
     store2.close();
 
     const store3 = new SqliteAiCalibrationDurableStore(filename);

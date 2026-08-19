@@ -21,7 +21,7 @@ test("Settings is the single PAPER endpoint and approved secure-session setup pa
   const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
   assert.match(home, /dashboard-open-settings/);
-  assert.match(home, /PAPER 서버 연결이 필요합니다/);
+  assert.match(home, /PAPER 연결이 필요합니다/);
   assert.match(home, /설정에서 연결/);
   assert.match(app, /<HomeView/);
   assert.match(settings, /settings-paper-token/);
@@ -130,12 +130,17 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 1120\) : profile\.screen\.maxWidth/);
+
+  // HOME MASTER is intentionally a calm single-flow hierarchy rather than the previous generic two-column card grid.
+  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
   assert.match(profile, /master:[\s\S]*maxWidth: 780/);
-  assert.match(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
-  assert.match(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
-  assert.match(home, /column: \{ flexGrow: 1, flexBasis: 440/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /<CompactMetric/);
+  assert.match(home, /<OperationalNotice/);
+  assert.doesNotMatch(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
+  assert.doesNotMatch(home, /column: \{ flexGrow: 1, flexBasis: 440/);
+
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
   assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);

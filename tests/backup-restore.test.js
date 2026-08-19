@@ -8,6 +8,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { createBackup, readAndVerify, runDrill } = require("../scripts/backup-restore.js");
+const { SYMLINK_UNAVAILABLE, canCreateSymlink } = require("./support/symlinkCapability.js");
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recovery-"));
@@ -122,12 +123,17 @@ test("a drill refuses to overwrite an existing Evidence log", () => {
   }
 });
 
-test("backup refuses symlink sources and release metadata missing checksums or SBOM", () => {
+test("backup refuses symlink sources and release metadata missing checksums or SBOM", (t) => {
   const { root, source, destination } = fixture();
   try {
-    const linked = path.join(root, "linked");
-    fs.symlinkSync(source, linked, "dir");
-    assert.throws(() => createBackup({ include: [`CONFIG:${linked}`], destination, "snapshot-id": "snapshot-e" }), /symlink is prohibited/);
+    // Skipping only the symlink half keeps the rest of this contract enforced everywhere.
+    if (canCreateSymlink()) {
+      const linked = path.join(root, "linked");
+      fs.symlinkSync(source, linked, "dir");
+      assert.throws(() => createBackup({ include: [`CONFIG:${linked}`], destination, "snapshot-id": "snapshot-e" }), /symlink is prohibited/);
+    } else {
+      t.diagnostic(SYMLINK_UNAVAILABLE);
+    }
 
     const release = path.join(root, "release");
     fs.mkdirSync(release);

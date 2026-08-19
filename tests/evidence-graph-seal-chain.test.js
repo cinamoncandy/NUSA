@@ -4,7 +4,7 @@ const {
   sealEvidenceGraph, verifyEvidenceGraphSeal, verifySealChainIntegrity,
   SealChainIntegrityDecision, GENESIS_SEAL_HASH,
   InMemoryEvidenceGraphSealRepository
-} = require("../apps/execution/src/index");
+} = require('../dist/apps/execution/src/index.js');
 const storage = require("../dist/packages/storage/src/index.js");
 const sealStorage = require("../dist/packages/storage/src/evidence-graph-seal.js");
 

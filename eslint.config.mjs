@@ -16,7 +16,8 @@ export default [
         HTMLInputElement: "readonly",
         HTMLTextAreaElement: "readonly",
         setTimeout: "readonly",
-        clearTimeout: "readonly"
+        clearTimeout: "readonly",
+        getComputedStyle: "readonly"
       }
     },
     rules: {

@@ -10,10 +10,11 @@ test("Home exposes one real safety-first next action from verified runtime state
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /testID="home-next-action"/);
   assert.match(home, /testID="home-next-action-button"/);
-  assert.match(home, /PAPER 상태 보기/);
+  assert.match(home, /설정에서 연결/);
+  assert.match(home, /시장 상태 보기/);
   assert.match(home, /AI 분석 보기/);
   assert.match(home, /시장 보기/);
-  assert.match(home, /onNavigate\(nextAction\.tab\)/);
+  assert.match(home, /if \(nextAction\.destination === null\) onGoSettings\(\); else onNavigate\(nextAction\.destination\)/);
   assert.match(home, /snapshot\?\.health !== "HEALTHY" \|\| snapshot\?\.dashboard\.killSwitchActive \|\| !snapshot\?\.readyForPaperOperations/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
   assert.match(home, /: aiInsightAvailable\s*\? \{ title: "AI 분석 보기"/s);

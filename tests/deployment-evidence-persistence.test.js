@@ -9,7 +9,7 @@ const {
   SqliteDeploymentAttemptEvidenceRepository,
   DeploymentEvidenceChainVerifier,
   DeploymentEvidenceChainDecision
-} = require("../apps/execution/src/index");
+} = require('../dist/apps/execution/src/index.js');
 
 const productionInput = { environment: "production", endpoint: "https://api.exchange.example", apiKeyPresent: true, apiSecretPresent: true, accountIdentifier: "live-main" };
 const cleanInventory = { productionExchangeAdapter: false, liveTradingExecutor: false, realOrderSubmitter: false, capitalMovementAdapter: false };
