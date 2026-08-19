@@ -1,4 +1,5 @@
 import type { UpbitCredentialProvider } from "./upbitCredentialSession";
+import { CANONICAL_PAPER_ORIGIN } from "./settings";
 
 export interface UpbitAccount {
   readonly currency: string;
@@ -14,7 +15,7 @@ export interface UpbitLiveSnapshot {
   readonly fetchedAt: number;
 }
 
-const DEFAULT_BASE_URL = "https://nusa-api.duckdns.org";
+const DEFAULT_BASE_URL = CANONICAL_PAPER_ORIGIN;
 const ACCOUNT_SUMMARY_PATH = "/api/v1/account/summary";
 
 const normalizeBaseUrl = (value: string): string => {

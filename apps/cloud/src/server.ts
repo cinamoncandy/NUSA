@@ -38,6 +38,11 @@ import {
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
+import {
+  createUpbitReadOnlyRelay,
+  handleUpbitReadOnlyHttp,
+  type UpbitReadOnlyRelay
+} from "./upbitReadOnlyRelay";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -60,6 +65,11 @@ export interface CloudDashboardServerOptions {
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
+  /** Server-only local relay; no Upbit credential enters this option from a client. */
+  readonly upbitReadOnlyRelay?: UpbitReadOnlyRelay;
+  readonly upbitReadOnlyRelayOrigin?: string;
+  readonly upbitReadOnlyRelayToken?: string;
+  readonly upbitReadOnlyRelayRequest?: typeof fetch;
   readonly readiness?: () => CloudReadinessSnapshot;
   readonly rateLimiter?: BoundedHttpRateLimiter;
 }
@@ -166,6 +176,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   }
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
+  const upbitReadOnlyRelay = options.upbitReadOnlyRelay ?? createUpbitReadOnlyRelay({
+    origin: options.upbitReadOnlyRelayOrigin ?? process.env.NUSA_UPBIT_READONLY_URL,
+    bridgeToken: options.upbitReadOnlyRelayToken ?? process.env.NUSA_API_TOKEN,
+    request: options.upbitReadOnlyRelayRequest
+  });
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -321,6 +336,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
       if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      const upbitPath = path === "/api/v1/account/summary" || path === "/api/v1/orders/open" || path === "/api/v1/orders/history"
+        ? path
+        : /^\/api\/v1\/orders\/[0-9a-f-]{20,64}$/i.test(path) ? path : undefined;
+      if (upbitPath !== undefined) {
+        const route = path === "/api/v1/account/summary" ? "upbit_account_summary" : path === "/api/v1/orders/open" ? "upbit_orders_open" : path === "/api/v1/orders/history" ? "upbit_orders_history" : "upbit_order_detail";
+        respond(route, await handleUpbitReadOnlyHttp(dashboardRequest, upbitPath, { tokenVerifier: requestTokenVerifier, relay: upbitReadOnlyRelay }));
+        return;
+      }
       if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {

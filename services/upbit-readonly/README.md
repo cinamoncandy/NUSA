@@ -12,7 +12,9 @@ This service is the repository-managed source for the NUSA server-side Upbit rea
 - Order query responses are normalized to stable NUSA fields and never expose BUY/SELL/CANCEL controls.
 - Validates and normalizes the provider payload server-side; PAPER state is never mixed into the response.
 - Upbit credentials stay server-side in environment variables.
-- The mobile client supplies only the NUSA bridge bearer token.
+- The Cloud runtime proxies its authenticated read-only routes to this loopback service. Configure the same server-only `NUSA_API_TOKEN` in the Cloud and relay processes; the mobile access token is validated by Cloud and is never forwarded to Upbit.
+- Cloud uses `http://127.0.0.1:3001` by default (`NUSA_UPBIT_READONLY_URL` may select an approved HTTPS relay origin). No relay token, Upbit credential, or dashboard bearer is configured in Android.
+- Cloud supplies the relay-only `NUSA_API_TOKEN`; the mobile client supplies only its authenticated NUSA session bearer to Cloud.
 - No order placement, cancellation, withdrawal, transfer, or other financial mutation endpoint is implemented here.
 
 ## Required environment
