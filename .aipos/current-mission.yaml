@@ -86,11 +86,14 @@ active_non_live_successor:
   status: IN_PROGRESS
   branch: agent/wo-0060-android-paper-operability-v2
   pull_request: 581
-  base_commit: 02986cfaa317e1dd65409efc28e547badba9d432
-  latest_main_sync_pull_request: 584
+  base_commit: fae88406d5c898ce507a7457ed265b70310f1c51
+  latest_main_sync_pull_request: 586
   latest_main_sync_contains:
     - PR-582_SELF_CONTAINED_ANDROID_DEBUG_APK_AND_UPBIT_PUBLIC_FEED_FIXES
     - PR-583_EXPLICIT_PAPER_WRITER_LEASE_RECOVERY
+    - PR-556_WILSON_CONFIDENCE_HARDENING
+    - PR-560_EXECUTION_TEST_REQUIRE_HARMONIZATION
+    - PR-585_ANDROID_PERSISTENT_PREVIEW_POINTER_CURRENT_MAIN
   completed_child_work_order: WO-0060A
   completed_child_pull_request: 572
   superseded_parent_pull_request: 569
@@ -98,5 +101,5 @@ active_non_live_successor:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-  note: "WO-0060 consumes the completed WO-0060A approved-user secure session and current main through PR #584; it closes only the remaining stable-HTTPS-origin, exact-head Android RC, and genuine physical-device PAPER operability gap. It does not satisfy, bypass, or modify WO-0051."
+  note: "WO-0060 consumes the completed WO-0060A approved-user secure session and current main through sync PR #586; it closes only the remaining stable-HTTPS-origin, exact-head Android RC, and genuine physical-device PAPER operability gap. It does not satisfy, bypass, or modify WO-0051."
 next_recommended_task: "Provision or identify one genuine stable public HTTPS hostname fronting the loopback-only NUSA Cloud runtime, set repository variable NUSA_MOBILE_API_BASE_URL, require exact-head Canonical Android RC /health + provenance PASS, then obtain genuine physical Galaxy PAPER visibility/submit/relaunch evidence. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
