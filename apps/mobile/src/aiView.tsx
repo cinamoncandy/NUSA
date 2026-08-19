@@ -31,7 +31,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const disagreementCount = ai?.disagreements.length ?? 0;
   const signalReady = ai?.status === "AVAILABLE" && isCalibrated && Boolean(ai?.thesis);
   const signalLabel = signalReady ? "VERIFIED SIGNAL" : "NO VERIFIED SIGNAL";
-  const signalDetail = ai?.thesis ?? "검증된 AI 관찰이 없습니다. 근거와 보정 상태가 확인되기 전에는 신호를 만들지 않습니다.";
+  const signalDetail = ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다.";
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI SIGNAL" description="검증된 관찰·근거·불확실성을 한 흐름으로 읽습니다. AI는 읽기 전용이며 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
@@ -87,12 +87,12 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
         <StatusChip label={`${evidenceCount} : ${counterCount}`} tone={counterCount > 0 ? "warning" : "neutral"} />
       </View>
       <View style={styles.evidenceGrid}>
-        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}>
+        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}> 
           <Text style={[styles.columnLabel, { color: theme.colors.success }]}>SUPPORTING EVIDENCE</Text>
           {ai && ai.evidenceReferences.length > 0 ? ai.evidenceReferences.slice(0, 4).map((item) => <Text key={item} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증된 근거 참조가 없습니다.</Text>}
           {ai && ai.evidenceReferences.length > 4 ? <Text style={[styles.more, { color: theme.colors.textMuted }]}>외 {ai.evidenceReferences.length - 4}개 근거</Text> : null}
         </View>
-        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}>
+        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}> 
           <Text style={[styles.columnLabel, { color: theme.colors.warning }]}>COUNTER EVIDENCE</Text>
           {ai && ai.counterEvidence.length > 0 ? ai.counterEvidence.slice(0, 4).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>등록된 반대 근거가 없습니다.</Text>}
         </View>
