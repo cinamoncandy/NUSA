@@ -46,5 +46,6 @@ test("utility shell controls honor the 48px system touch target", () => {
   assert.match(app, /utilityButton: \{ minWidth: 48, minHeight: 48/);
   assert.match(app, /utilityMenuButton: \{ flex: 1, minHeight: 48/);
   assert.match(app, /utilityClose: \{ minWidth: 48, minHeight: 48/);
-  assert.match(app, /navItem: \{ flex: 1, minHeight: 54/);
+  // MASTER uses a compact primary nav while preserving a touch target above the 48px floor.
+  assert.match(app, /navItem: \{ flex: 1, minHeight: 50/);
 });
