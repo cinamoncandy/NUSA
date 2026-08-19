@@ -135,16 +135,22 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
 export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
-  const primaryWidth = `${Math.round(42 + boundedStrength * 34)}%` as `${number}%`;
-  const secondaryWidth = `${Math.round(30 + boundedStrength * 26)}%` as `${number}%`;
-  const convergenceLeft = `${Math.round(44 + boundedStrength * 18)}%` as `${number}%`;
+  const primaryWidth = `${Math.round(58 + boundedStrength * 27)}%` as `${number}%`;
+  const secondaryWidth = `${Math.round(45 + boundedStrength * 25)}%` as `${number}%`;
+  const convergenceLeft = `${Math.round(48 + boundedStrength * 22)}%` as `${number}%`;
+  const signalOpacity = 0.34 + boundedStrength * 0.42;
   return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
-    <View style={[styles.terrainHorizon, { backgroundColor: theme.colors.terrain, opacity: 0.22 }]} />
-    <View style={[styles.terrainLine, { width: primaryWidth, backgroundColor: theme.colors.terrain, opacity: 0.78 }]} />
-    <View style={[styles.terrainLine, styles.terrainLineHigh, { width: secondaryWidth, backgroundColor: theme.colors.aiSignalMid, opacity: 0.7 }]} />
-    <View style={[styles.terrainLine, styles.terrainLineLow, { width: "42%", backgroundColor: theme.colors.aiSignalEnd, opacity: 0.58 }]} />
-    <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd }]} />
-    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineTop, { backgroundColor: theme.colors.border, opacity: 0.32 }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineMid, { backgroundColor: theme.colors.border, opacity: 0.42 }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineLow, { backgroundColor: theme.colors.border, opacity: 0.24 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.42 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.62 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "72%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.76 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "88%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
+    <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.18 + boundedStrength * 0.22 }]} />
+    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.18 + boundedStrength * 0.18 }]} />
+    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.32 + boundedStrength * 0.25 }]} />
+    <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.72 + boundedStrength * 0.28 }]} />
   </View>;
 }
 
@@ -203,11 +209,18 @@ const styles = StyleSheet.create({
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
-  terrainSignal: { height: 92, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
-  terrainHorizon: { position: "absolute", left: 0, right: 0, top: "59%", height: StyleSheet.hairlineWidth },
-  terrainLine: { position: "absolute", left: "4%", top: "50%", height: 1, transform: [{ rotate: "-7deg" }] },
-  terrainLineHigh: { left: "18%", top: "32%", transform: [{ rotate: "8deg" }] },
-  terrainLineLow: { left: "28%", top: "68%", transform: [{ rotate: "-2deg" }] },
-  terrainConvergence: { position: "absolute", top: "47%", width: 7, height: 7, borderRadius: 4, marginLeft: -3, shadowOpacity: 0.6, shadowRadius: 10, elevation: 2 },
-  terrainConvergenceHalo: { position: "absolute", top: "39%", width: 23, height: 23, borderRadius: 12, borderWidth: 1, marginLeft: -11, opacity: 0.45 },
+  terrainSignal: { height: 240, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
+  terrainGridLine: { position: "absolute", left: "2%", right: "2%", height: StyleSheet.hairlineWidth },
+  terrainGridLineTop: { top: "27%" },
+  terrainGridLineMid: { top: "50%" },
+  terrainGridLineLow: { top: "73%" },
+  terrainPlane: { position: "absolute", height: 1, transformOrigin: "left center" },
+  terrainPlaneFar: { left: "6%", top: "32%", transform: [{ rotate: "6deg" }] },
+  terrainPlaneMid: { left: "10%", top: "46%", transform: [{ rotate: "-8deg" }] },
+  terrainPlaneNear: { left: "18%", top: "61%", transform: [{ rotate: "9deg" }] },
+  terrainPlaneGround: { left: "4%", top: "76%", transform: [{ rotate: "-3deg" }] },
+  terrainConvergenceBeam: { position: "absolute", top: "29%", bottom: "20%", width: StyleSheet.hairlineWidth, marginLeft: 0 },
+  terrainConvergence: { position: "absolute", top: "48%", width: 8, height: 8, borderRadius: 4, marginLeft: -4, shadowOpacity: 0.62, shadowRadius: 11, elevation: 2 },
+  terrainConvergenceHalo: { position: "absolute", top: "43%", width: 30, height: 30, borderRadius: 15, borderWidth: 1, marginLeft: -15 },
+  terrainConvergenceHaloOuter: { position: "absolute", top: "38%", width: 54, height: 54, borderRadius: 27, borderWidth: StyleSheet.hairlineWidth, marginLeft: -27 },
 });
