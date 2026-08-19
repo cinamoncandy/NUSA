@@ -132,9 +132,8 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       </View>
     </View>
 
-    <View style={styles.safetyLead} testID="ai-zero-authority-status">
+    <View style={styles.safetyLead} testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY" tone="info" />
       <View><Text style={[styles.eyebrow, { color: theme.colors.info }]}>SAFETY BOUNDARY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>판단 보조와 실행 권한을 분리합니다</Text></View>
-      <StatusChip label="AI ZERO AUTHORITY" tone="info" />
     </View>
     <InlineNotice title="AI 분석은 판단 보조입니다" detail="AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다. 성과를 보장하지 않습니다." tone="info" />
     <NusaCard testID="ai-authority-card">
