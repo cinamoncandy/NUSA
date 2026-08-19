@@ -181,6 +181,10 @@
   --cr-flame-a: var(--cr-teal-300);
   --cr-flame-b: var(--cr-teal-400);
   --cr-flame-c: var(--cr-violet-400);
+
+  /* Chart line accent. Follows the same violet brand hue as --cr-flame-c so the equity
+     chart stays in sync with theme changes instead of a color baked into renderer.js. */
+  --color-chart-accent: var(--cr-violet-400);
 }
 
 /*
@@ -199,6 +203,7 @@
   --cr-red-400: var(--cr-red-300);
   --cr-sky-400: var(--cr-sky-300);
   --cr-gold-400: var(--cr-gold-300);
+  --cr-violet-400: var(--cr-violet-300);
 }
 
 @media (prefers-reduced-motion: reduce) {
