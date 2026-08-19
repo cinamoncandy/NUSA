@@ -116,7 +116,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <View style={styles.detailCell}>
         <NusaCard testID="ai-diagnostics-card">
           <View style={styles.cardHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>CALIBRATION DETAILS</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>신뢰도 진단</Text></View><StatusChip label={ai?.calibrationStatus ?? "UNKNOWN"} tone={isCalibrated ? "success" : "warning"} /></View>
-          <Text style={[styles.cardLead, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED 상태에서만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
+          <Text style={[styles.cardLead, { color: theme.colors.textMuted }]}>원시 모델 확률은 미보정 모델 출력이며 검증된 성공 확률이나 성과 보장이 아닙니다. CALIBRATED일 때만 별도의 검증 신뢰도와 보정 확률을 표시합니다.</Text>
           <DataRow label="교정 상태" value={ai?.calibrationStatus ?? "-"} />
           <DataRow label="검증 신뢰도" value={verifiedConfidence} emphasis />
           <DataRow label="보정 표본" value={ai?.calibrationSampleCount == null ? "-" : String(ai.calibrationSampleCount)} />
