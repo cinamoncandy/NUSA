@@ -44,12 +44,38 @@ pnpm desktop
 
 ## Cloud PAPER runtime
 
+Start it with no configuration:
+
 ```bash
 pnpm cloud:runtime
 ```
 
 This starts a localhost-by-default, authenticated, GET-only dashboard/PAPER surface.  
 It does **not** grant LIVE authority.
+
+It launches through `scripts/start-cloud-runtime.js`, which supplies the operational defaults the
+runtime requires — dashboard port and host, Upbit's PUBLIC quotation feed, and PAPER starting
+capital — and prints the endpoint to configure the mobile app against. A dashboard token is
+generated once and kept owner-only at `~/.nusa/cloud/dashboard-token`, so the device does not need
+reconfiguring on every restart. Private exchange credentials found in the environment are stripped
+rather than forwarded.
+
+Every default is applied only when that variable is absent, so explicit configuration always wins.
+`readCloudRuntimeConfig` itself remains fail-closed and unchanged — see
+`apps/cloud/src/cloudRuntimeConfig.ts` for the full list of variables. To run the compiled runtime
+directly with no defaults supplied, use `pnpm cloud:runtime:bare`.
+
+A single writer may mutate the PAPER account at a time, enforced by a lease in the state database.
+A clean shutdown releases it; a crash or a force-kill leaves it behind, and a lease that is too old
+to take over safely is refused rather than seized. When nothing is running, clear an abandoned lease
+with:
+
+```bash
+node scripts/reset-paper-writer-lease.js
+```
+
+It refuses to act while a runtime is answering on the dashboard endpoint or while the lease is still
+valid, and it only removes the lease row — cash, positions, and fills are untouched.
 
 ## Validation
 
