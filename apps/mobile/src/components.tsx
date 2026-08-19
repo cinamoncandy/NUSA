@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   terrainGridLineTop: { top: "27%" },
   terrainGridLineMid: { top: "50%" },
   terrainGridLineLow: { top: "73%" },
-  terrainPlane: { position: "absolute", height: 1, transformOrigin: "left center" },
+  terrainPlane: { position: "absolute", height: 1 },
   terrainPlaneFar: { left: "6%", top: "32%", transform: [{ rotate: "6deg" }] },
   terrainPlaneMid: { left: "10%", top: "46%", transform: [{ rotate: "-8deg" }] },
   terrainPlaneNear: { left: "18%", top: "61%", transform: [{ rotate: "9deg" }] },
