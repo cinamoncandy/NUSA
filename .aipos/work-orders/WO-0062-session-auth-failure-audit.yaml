@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 75b29c7d0a7ef2931ff0dfc1cc3589cb5347ea2d
+base_commit: 8a98c9ce5798b6aaf38197c71990525b247c3622
 implementation_branch: fix/phase11-session-auth-failure-audit
 objective: "Extend the existing approved-user session audit ledger so rejected bootstrap and refresh authentication attempts are durably recorded with safe reason codes and without persisting credential material."
 authority:
