@@ -18,15 +18,20 @@ test("App shell routes canonical Home and preserves six primary jobs", () => {
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses v3 hierarchy and keeps AI read-only", () => {
+test("Home uses MASTER hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
-  assert.match(source, /<ScreenHeader/);
-  assert.match(source, /<MetricTile label="PAPER 연결"/);
-  assert.match(source, /<MetricTile label="PAPER 준비"/);
-  assert.match(source, /<MetricTile label="AI 신뢰도"/);
-  assert.match(source, /AI READ-ONLY/);
+  assert.match(source, />NUSA<\/Text>/);
+  assert.match(source, /TOTAL EQUITY/);
+  assert.match(source, /<InsightPanel/);
+  assert.match(source, /READ ONLY/);
+  assert.match(source, /testID="home-signal-trace"/);
+  assert.match(source, /<CompactMetric label="PAPER 연결"/);
+  assert.match(source, /<CompactMetric label="안전 게이트"/);
+  assert.match(source, /<CompactMetric label="AI 분석"/);
   assert.match(source, /LIVE 권한/);
   assert.match(source, /Production mutation/);
+  assert.doesNotMatch(source, /<ScreenHeader/);
+  assert.doesNotMatch(source, /<MetricTile/);
 });
 
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {
