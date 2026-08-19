@@ -11,7 +11,7 @@ const {
   FaultPoint,
   FaultAction,
   runChaosRecovery
-} = require('../apps/execution/src/index');
+} = require('../dist/apps/execution/src/index.js');
 
 test('recovery and startup evidence are append-only and causally linked', () => {
   const repository = new InMemoryRecoveryEvidenceRepository();

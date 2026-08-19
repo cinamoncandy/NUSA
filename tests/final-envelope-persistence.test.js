@@ -14,7 +14,7 @@ const {
   FinalSyntheticReleaseEnvelopeDecision,
   ReleaseCandidatePromotionDecision,
   evaluateIndependentApproval
-} = require("../apps/execution/src/index");
+} = require('../dist/apps/execution/src/index.js');
 
 const candidateId = "rc-1";
 const requirements = [

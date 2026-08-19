@@ -11,7 +11,7 @@ const {
   beginSnapshotRecovery,
   commitRecoverySnapshot,
   WebSocketRecoveryStatus
-} = require('../apps/execution/src/index');
+} = require('../dist/apps/execution/src/index.js');
 
 test('rate limit manager allows, delays, blocks oversized requests, and deduplicates request ids', () => {
   const manager = new DeterministicRateLimitManager({ capacity: 10, refillTokens: 2, refillIntervalMs: 1000, maximumQueueDelayMs: 2000 }, 0);

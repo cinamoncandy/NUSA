@@ -1,5 +1,5 @@
 const test=require('node:test');const assert=require('node:assert/strict');
-const {CredentialBoundaryDecision,ProductionAdapterAttestationDecision,DeploymentEvidenceChainDecision,evaluateDeploymentEvidenceChain,EvidenceCompletenessDecision,auditEvidenceCompleteness,ReleaseCandidatePromotionDecision,FinalSyntheticReleaseEnvelopeDecision,createFinalSyntheticReleaseEnvelope}=require('../apps/execution/src/index');
+const {CredentialBoundaryDecision,ProductionAdapterAttestationDecision,DeploymentEvidenceChainDecision,evaluateDeploymentEvidenceChain,EvidenceCompletenessDecision,auditEvidenceCompleteness,ReleaseCandidatePromotionDecision,FinalSyntheticReleaseEnvelopeDecision,createFinalSyntheticReleaseEnvelope}=require('../dist/apps/execution/src/index.js');
 const candidateId='rc-final';
 const promotion={candidateId,decision:ReleaseCandidatePromotionDecision.PROMOTABLE,productionMutationAllowed:false,blockers:[],evaluatedAtMs:10};
 const attempt={attemptId:'attempt-1',candidateId,requestedBy:'operator',blockers:['DEPLOYMENT_HARD_BLOCK_ACTIVE'],attemptedAtMs:11,deploymentAllowed:false,productionMutationAllowed:false};
