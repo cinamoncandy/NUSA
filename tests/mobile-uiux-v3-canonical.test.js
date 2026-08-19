@@ -23,7 +23,10 @@ test("Home uses MASTER hierarchy and keeps AI read-only", () => {
   assert.match(source, />NUSA<\/Text>/);
   assert.match(source, /TOTAL EQUITY/);
   assert.match(source, /<InsightPanel/);
-  assert.match(source, /READ ONLY/);
+  // HOME v2 expresses the same read-only safety boundary with the stronger
+  // canonical authority label rather than duplicating a READ ONLY badge.
+  assert.match(source, /ZERO AUTHORITY/);
+  assert.match(source, /EVIDENCE/);
   assert.match(source, /testID="home-signal-trace"/);
   assert.match(source, /<CompactMetric label="PAPER 연결"/);
   assert.match(source, /<CompactMetric label="안전 게이트"/);

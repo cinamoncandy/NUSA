@@ -25,7 +25,13 @@ test("Home uses one truthful state-bound hero signal primitive", () => {
   assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
   assert.match(home, /const terrainLabel = snapshot \? `PAPER 상태 신호:/);
   assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
-  assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
+  // Terrain v2 computes the fallback accessibility text once and binds that
+  // resolved label to the field, rather than duplicating the expression in JSX.
+  assert.match(components, /const fieldLabel = accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
+  assert.match(components, /accessibilityLabel=\{fieldLabel\}/);
+  assert.match(components, /terrainSignal: \{ height: 292/);
+  assert.match(components, /terrainContourGroundB/);
+  assert.match(components, /terrainHaloOuter/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {

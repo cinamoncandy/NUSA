@@ -8,10 +8,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("the launch entry screen follows the active design preset instead of fixed geometry", () => {
   const app = read("apps/mobile/App.tsx");
-  // Local entry is not persisted, so this screen is the first thing seen on every launch. While it
-  // carried hardcoded geometry, changing the design preset left it byte-identical -- which is how
-  // several shipped HOME redesigns could read as "nothing changed" to someone who never tapped
-  // past it.
+  // The disclosure remains the first-run front door, but acknowledgement is persisted so returning
+  // launches can reach the redesigned HOME directly instead of making every visual change look hidden.
   assert.match(app, /getHomeVisualProfile/, "entry screen must consult the shared visual profile");
   assert.match(app, /const entryProfile = getHomeVisualProfile\(appTheme\.preset\)/);
 
@@ -28,10 +26,19 @@ test("the launch entry screen follows the active design preset instead of fixed 
   }
 });
 
+test("local entry acknowledgement is persisted and sign-out clears it", () => {
+  const app = read("apps/mobile/App.tsx");
+  assert.match(app, /LOCAL_ENTRY_ACK_KEY = "nusa\.local-entry-ack\.v1"/);
+  assert.match(app, /AsyncStorage\.getItem\(LOCAL_ENTRY_ACK_KEY\)/, "launch must restore prior acknowledgement");
+  assert.match(app, /acknowledged === "1" \? "SIGNED_IN" : "SIGNED_OUT"/, "acknowledged launches must enter the signed-in local workspace");
+  assert.match(app, /AsyncStorage\.setItem\(LOCAL_ENTRY_ACK_KEY, "1"\)/, "first local entry must persist acknowledgement");
+  assert.match(app, /AsyncStorage\.removeItem\(LOCAL_ENTRY_ACK_KEY\)/, "sign-out must restore the disclosure gate");
+});
+
 test("the entry screen keeps its PAPER-only disclosure while following the preset", () => {
   const app = read("apps/mobile/App.tsx");
   const entryScreen = app.split('if (authStatus !== "SIGNED_IN")')[1] ?? "";
-  // Restyling must not quietly drop the boundary this screen exists to state.
+  // Persistence must not quietly drop the boundary this screen exists to state.
   assert.match(entryScreen, /PAPER ONLY/);
   assert.match(entryScreen, /LIVE NONE/);
   assert.match(entryScreen, /계정 인증이 아닙니다/);

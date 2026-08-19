@@ -26,8 +26,12 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
-  assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 18 : profile\.screen\.sectionGap/);
+  // HOME v2 intentionally compresses the preset top inset after the physical-device
+  // acceptance failure exposed a large dead zone in the no-data state.
+  assert.match(home, /paddingTop:\s*Math\.max\(10,\s*profile\.screen\.topPadding\s*-\s*6\)/);
+  // v2 uses section hairlines and component-owned vertical rhythm instead of a
+  // generic global section gap, keeping the control-room surface continuous.
+  assert.match(home, /gap:\s*0/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(home, /fontSize:\s*tablet \? profile\.hero\.tabletBalanceSize : profile\.hero\.balanceSize/);

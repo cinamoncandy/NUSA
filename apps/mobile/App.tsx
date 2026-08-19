@@ -36,6 +36,7 @@ const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NO
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
 const PUBLIC_REFRESH_INTERVAL_MS = 30_000;
+const LOCAL_ENTRY_ACK_KEY = "nusa.local-entry-ack.v1";
 const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
 const theme = { container: { flex: 1 } } as const;
 
@@ -82,8 +83,22 @@ export default function App() { return <SafeAreaProvider><ThemeProvider initialM
 
 function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [status, setStatus] = useState<AuthStatus>("CHECKING");
-  const value = useMemo(() => ({ status, signIn: () => setStatus("SIGNED_IN"), signOut: () => setStatus("SIGNED_OUT") }), [status]);
-  useEffect(() => { const timer = setTimeout(() => setStatus("SIGNED_OUT"), 250); return () => clearTimeout(timer); }, []);
+  const signIn = useCallback(() => {
+    setStatus("SIGNED_IN");
+    void AsyncStorage.setItem(LOCAL_ENTRY_ACK_KEY, "1").catch(() => undefined);
+  }, []);
+  const signOut = useCallback(() => {
+    setStatus("SIGNED_OUT");
+    void AsyncStorage.removeItem(LOCAL_ENTRY_ACK_KEY).catch(() => undefined);
+  }, []);
+  const value = useMemo(() => ({ status, signIn, signOut }), [signIn, signOut, status]);
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(LOCAL_ENTRY_ACK_KEY)
+      .then((acknowledged) => { if (active) setStatus(acknowledged === "1" ? "SIGNED_IN" : "SIGNED_OUT"); })
+      .catch(() => { if (active) setStatus("SIGNED_OUT"); });
+    return () => { active = false; };
+  }, []);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
@@ -270,9 +285,9 @@ function AuthenticatedApp() {
 
   const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
 
-  // The entry screen is the app's front door and, because local entry is not persisted, the
-  // first thing seen on every launch. It previously carried fixed geometry, so a preset change
-  // left it identical and the redesign looked as though it had not shipped at all.
+  // The local-entry disclosure is not account authentication. Persist its acknowledgement so
+  // returning launches enter HOME directly; signing out clears the acknowledgement and restores
+  // the disclosure gate on the next entry.
   const entryProfile = getHomeVisualProfile(appTheme.preset);
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
   if (authStatus !== "SIGNED_IN") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><View style={[styles.authPanel, { maxWidth: entryProfile.screen.maxWidth, gap: entryProfile.density.contentGap }]}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text, fontSize: entryProfile.hero.balanceSize * 0.66, letterSpacing: entryProfile.hero.balanceLetterSpacing * 0.35 }]}>개인 PAPER 모드</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.body, lineHeight: entryProfile.type.bodyLineHeight }]}>개인 기기에서 PAPER 작업공간으로 진입합니다. 서버 자격 증명은 Settings에서 별도로 검증합니다.</Text><View style={[styles.entryBadges, { gap: entryProfile.density.metricGap }]}><StatusChip label="LOCAL ENTRY" tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><NusaButton accessibilityLabel="Start personal mode" label="개인 모드 시작" onPress={signIn} testID="local-entry-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.meta }]}>이 진입 단계는 계정 인증이 아닙니다. 사용자 신원을 검증하지 않으며 비밀번호를 수집하거나 저장하지 않습니다.</Text></View></View></SafeAreaView>;

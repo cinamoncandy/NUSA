@@ -53,7 +53,7 @@ export function QuietStatus({ label, tone = "neutral", testID }: Readonly<{ labe
 
 export function InsightPanel({ title, thesis, meta, confidenceLabel, actionLabel, onAction, testID }: Readonly<{ title: string; thesis: string; meta: string; confidenceLabel?: string; actionLabel?: string; onAction?: () => void; testID?: string }>) {
   const { theme } = useTheme();
-  return <View style={[styles.insightPanel, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border }]} testID={testID}>
+  return <View style={[styles.insightPanel, { borderBottomColor: theme.colors.border }]} testID={testID}>
     <View style={styles.insightTopline}>
       <View style={styles.insightTitleGroup}>
         <Text style={[styles.insightEyebrow, { color: theme.colors.aiSignalMid }]}>AI JUDGEMENT</Text>
@@ -117,25 +117,25 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.1 },
   metricValue: { marginTop: 8, fontSize: 25, lineHeight: 30, fontWeight: "800", letterSpacing: -0.8, fontVariant: ["tabular-nums"] },
   metricDetail: { marginTop: 5, fontSize: 12, lineHeight: 17 },
-  compactMetric: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
-  compactMetricCopy: { flex: 1, minWidth: 0, gap: 2 },
-  compactMetricLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700", letterSpacing: 0.1 },
-  compactMetricDetail: { fontSize: 10, lineHeight: 15 },
-  compactMetricValue: { maxWidth: "48%", textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  compactMetric: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
+  compactMetricCopy: { flex: 1, minWidth: 0, gap: 1 },
+  compactMetricLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700", letterSpacing: 0.1 },
+  compactMetricDetail: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.8 },
+  compactMetricValue: { maxWidth: "48%", textAlign: "right", fontSize: 12, lineHeight: 17, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: 0.4 },
   quietStatus: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
   quietStatusDot: { width: 6, height: 6, borderRadius: 3 },
   quietStatusLabel: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 1.05 },
-  insightPanel: { gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
+  insightPanel: { gap: 7, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12 },
   insightTopline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
-  insightTitleGroup: { flex: 1, minWidth: 0, gap: 5 },
-  insightEyebrow: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.7 },
-  insightTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700", letterSpacing: -0.35 },
-  insightConfidence: { fontSize: 12, lineHeight: 18, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  insightThesis: { fontSize: 14, lineHeight: 22 },
-  insightFooter: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  insightMeta: { flex: 1, fontSize: 11, lineHeight: 16 },
-  insightAction: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
-  insightActionLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  insightTitleGroup: { flex: 1, minWidth: 0, gap: 3 },
+  insightEyebrow: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 1.6 },
+  insightTitle: { fontSize: 16, lineHeight: 21, fontWeight: "700", letterSpacing: -0.25 },
+  insightConfidence: { fontSize: 11, lineHeight: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  insightThesis: { fontSize: 12, lineHeight: 18 },
+  insightFooter: { minHeight: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  insightMeta: { flex: 1, fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 0.55 },
+  insightAction: { minHeight: 36, minWidth: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  insightActionLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
   segmented: { flexDirection: "row", minHeight: 50, padding: 3, borderRadius: 999, borderWidth: 1, gap: 3 },
   segment: { flex: 1, minHeight: 44, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   segmentLabel: { fontSize: 13 },
