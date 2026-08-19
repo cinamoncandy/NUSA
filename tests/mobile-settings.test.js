@@ -1,15 +1,19 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { DEFAULT_SETTINGS, MockSettingsRepository, SecureSettingsRepository, normalizeSettings, readEnvironmentConfiguration } = require("../dist/apps/mobile/src/settings.js");
+const { CANONICAL_PAPER_ORIGIN, DEFAULT_SETTINGS, MockSettingsRepository, SecureSettingsRepository, normalizeSettings, readEnvironmentConfiguration } = require("../dist/apps/mobile/src/settings.js");
 
 test("settings normalize defaults and reject unsupported theme, locale, or unsafe PAPER endpoint", () => {
   assert.deepEqual(normalizeSettings({}), DEFAULT_SETTINGS);
+  assert.equal(DEFAULT_SETTINGS.paperEndpoint, CANONICAL_PAPER_ORIGIN);
   assert.throws(() => normalizeSettings({ theme: "NEON" }), /theme/);
   assert.throws(() => normalizeSettings({ locale: "ja-JP" }), /locale/);
   assert.throws(() => normalizeSettings({ paperEndpoint: "http://192.168.1.10:41731" }), /HTTPS/);
   assert.throws(() => normalizeSettings({ paperEndpoint: "https://user:secret@paper.test" }), /credentials/);
   assert.equal(normalizeSettings({ paperEndpoint: "https://paper.test///" }).paperEndpoint, "https://paper.test");
   assert.equal(normalizeSettings({ paperEndpoint: "http://127.0.0.1:41731/" }).paperEndpoint, "http://127.0.0.1:41731");
+  assert.throws(() => normalizeSettings({ paperEndpoint: "http://127.0.0.1:41731" }, { production: true }), /canonical HTTPS origin/);
+  assert.throws(() => normalizeSettings({ paperEndpoint: "https://paper.test" }, { production: true }), /canonical HTTPS origin/);
+  assert.equal(normalizeSettings({ paperEndpoint: "" }, { production: true }).paperEndpoint, CANONICAL_PAPER_ORIGIN);
 });
 
 test("environment configuration requires explicit endpoints and keeps only authMode default", () => {

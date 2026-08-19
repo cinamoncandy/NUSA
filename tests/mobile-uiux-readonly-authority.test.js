@@ -63,7 +63,7 @@ test("dashboard credential flow remains Settings-owned and approved-session scop
   assert.match(settings, /InMemoryDashboardCredentialSession/);
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /연결 주소는 앱이 안전하게 관리합니다\. bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.match(settings, /Access token은 앱 메모리에만 유지/);
   assert.match(settings, /rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
   assert.match(settings, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);

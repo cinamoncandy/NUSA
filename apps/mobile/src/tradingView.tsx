@@ -52,7 +52,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const remainingInvestableCash = model.estimatedNotional === null ? cashEnvelope.investableCash : Math.max(0, cashEnvelope.investableCash - model.estimatedNotional);
 
   const submitBuiltIn = async () => {
-    if (!configuredEndpoint || !isPaperConnectionVerified(configuredEndpoint)) { setSubmitMessage("설정에서 PAPER endpoint와 세션을 먼저 검증하세요."); return; }
+    if (!configuredEndpoint || !isPaperConnectionVerified(configuredEndpoint)) { setSubmitMessage("설정에서 PAPER 세션을 먼저 연결하세요."); return; }
     setSubmitting(true); setSubmitMessage(null);
     try {
       const quantity = Number(quantityInput);
@@ -87,7 +87,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
       <View style={styles.ticketSection}><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>02 · 주문 검토</Text><View style={[styles.preview, { borderColor: theme.colors.border }]}><DataRow label="예상 주문 금액" value={formatTradingAmount(model.estimatedNotional, "KRW")} emphasis /><DataRow label={side === "BUY" ? "주문 가능" : "보유 가능"} value={formatTradingAmount(model.availableAmount, model.availableUnit)} />{side === "BUY" ? <DataRow label="주문 후 투자 가능 현금" value={formatTradingAmount(remainingInvestableCash, "KRW")} tone="success" testID="paper-remaining-investable-cash" /> : null}</View></View>
 
       {side === "BUY" && cashEnvelope.investmentPercent === 0 ? <InlineNotice title="신규 매수 비중이 0%입니다" detail="설정에서 투자 비중을 높이기 전까지 현금 전액을 보호합니다. 매도는 계속 가능합니다." tone="warning" /> : null}
-      {!submitAvailable ? <InlineNotice title="PAPER 주문 연결이 필요합니다" detail="설정에서 Cloud endpoint와 메모리 세션을 검증하면 주문을 사용할 수 있습니다." tone="warning" /> : null}
+      {!submitAvailable ? <InlineNotice title="PAPER 주문 연결이 필요합니다" detail="설정에서 1회용 연결 토큰으로 세션을 연결하면 주문을 사용할 수 있습니다." tone="warning" /> : null}
       {!runtimeCanSubmit ? <InlineNotice title="PAPER 주문이 잠시 차단되었습니다" detail="네트워크 또는 복구 상태를 확인하는 동안 신규 주문을 fail-closed로 막습니다." tone="warning" testID="paper-runtime-blocked" /> : null}
       {model.validationErrors.length > 0 || model.blockedReasons.length > 0 ? <InlineNotice title="주문 조건을 확인하세요" detail={[...model.validationErrors, ...model.blockedReasons].join(" · ")} tone="warning" /> : null}
 

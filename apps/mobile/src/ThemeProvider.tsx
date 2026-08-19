@@ -7,7 +7,10 @@ export type ThemePreference = ThemeMode | "system";
 
 const DESIGN_PRESET_STORAGE_KEY = "nusa:design-preset";
 const DESIGN_PRESET_SCHEMA_KEY = "nusa:design-preset-schema";
-const DESIGN_PRESET_SCHEMA_VERSION = "2";
+// Bump this when a release changes the canonical visual preset. Existing
+// installs must converge on the shipped MASTER composition instead of
+// retaining an older persisted preset indefinitely.
+const DESIGN_PRESET_SCHEMA_VERSION = "3";
 const CURRENT_DEFAULT_PRESET: DesignPresetName = "master";
 const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "classic" || value === "master";
 

@@ -53,7 +53,7 @@ test("PAPER submit is available only through a ready runtime and verified local 
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
-  assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
+  assert.match(source, /설정에서 PAPER 세션을 먼저 연결하세요/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);

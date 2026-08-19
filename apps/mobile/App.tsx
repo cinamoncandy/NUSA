@@ -14,11 +14,11 @@ import { NotificationView } from "./src/notificationView";
 import { SettingsView } from "./src/settingsView";
 import { OrderHistoryView } from "./src/orderHistoryView";
 import { WatchlistRepository } from "./src/watchlist";
-import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
+import { CANONICAL_PAPER_ORIGIN, DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, setConfiguredPaperEndpoint, subscribePaperConnection } from "./src/paperConnectionSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
@@ -35,7 +35,7 @@ const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NO
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
 const PUBLIC_REFRESH_INTERVAL_MS = 30_000;
-const settingsRepository = new VersionedSettingsRepository(AsyncStorage);
+const settingsRepository = new VersionedSettingsRepository(AsyncStorage, "nusa:app-settings:v1", { production: !__DEV__ });
 const theme = { container: { flex: 1 } } as const;
 
 type PublicMarketsStatus = "LOADING" | "READY" | "STALE" | "ERROR";
@@ -58,10 +58,10 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
     let active = true;
     void settingsRepository.load().then((stored) => {
       if (!active) return;
-      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
+      const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS, { production: !__DEV__ });
       setConfiguredPaperEndpoint(settings.paperEndpoint);
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
+    }).catch(() => { if (active) { setConfiguredPaperEndpoint(CANONICAL_PAPER_ORIGIN); setMode("system"); } });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;
@@ -72,7 +72,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
   return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>
     <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>
     <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>
-    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>
+    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 1회용 연결 토큰을 검증하면 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>
     <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />
   </NusaCard></View></View>;
 }
@@ -93,7 +93,7 @@ function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<Tab>("Home");
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
-  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
+  const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER 연결이 필요합니다." });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
@@ -129,7 +129,7 @@ function AuthenticatedApp() {
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
-      setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
+      setOperations({ status: "NOT_CONFIGURED", reason: "PAPER 세션을 Settings에서 연결해야 합니다." });
       return Promise.resolve();
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
@@ -157,6 +157,12 @@ function AuthenticatedApp() {
     void request.then(clearIfCurrent, clearIfCurrent);
     return request;
   }, [credentialSession, dispatchRuntime, runtimeCoordinator]);
+
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    const unsubscribe = subscribePaperConnection(() => { void refresh().catch(() => undefined); });
+    return () => { unsubscribe(); };
+  }, [appState, authStatus, refresh]);
 
   const refreshPublicMarkets = useCallback((): Promise<void> => {
     if (publicRefreshInFlightRef.current) return publicRefreshInFlightRef.current;
@@ -220,7 +226,7 @@ function AuthenticatedApp() {
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER 연결이 필요합니다." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {

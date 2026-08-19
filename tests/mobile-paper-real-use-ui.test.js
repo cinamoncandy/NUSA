@@ -24,7 +24,6 @@ test("Settings is the single PAPER endpoint and approved secure-session setup pa
   assert.match(home, /PAPER 서버 연결이 필요합니다/);
   assert.match(home, /설정에서 연결/);
   assert.match(app, /<HomeView/);
-  assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
   assert.match(settings, /settings-paper-connect/);
   assert.match(settings, /settings-paper-disconnect/);
@@ -41,9 +40,10 @@ test("cold start restores the saved endpoint before the first dashboard refresh"
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
   assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
-  assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
+  assert.match(app, /setConfiguredPaperEndpoint\(CANONICAL_PAPER_ORIGIN\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
+  assert.doesNotMatch(settings, /settings-paper-endpoint|endpointDraft/);
   assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)[\s\S]*setMode\(themePreference\(settings\.theme\)\)/);
 });
 
@@ -67,8 +67,17 @@ test("verified PAPER connection is shared and invalidated when endpoint or sessi
   assert.match(connection, /verifiedEndpoint = null/);
   assert.match(connection, /markPaperConnectionVerified/);
   assert.match(connection, /isPaperConnectionVerified/);
+  assert.match(connection, /subscribePaperConnection/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(trading, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
+  assert.match(trading, /설정에서 PAPER 세션을 먼저 연결하세요/);
+});
+
+test("async secure-session restore notifies the app and Settings to refresh PAPER state", () => {
+  const app = read("apps/mobile/App.tsx");
+  const settings = read("apps/mobile/src/settingsView.tsx");
+  assert.match(app, /subscribePaperConnection\(\(\) => \{ void refresh\(\)\.catch/);
+  assert.match(settings, /subscribePaperConnection\(\(\) => \{/);
+  assert.match(settings, /loadPersonalPaperOperations\(\{ baseUrl: endpoint, credentialProvider: credentialSession\.credentialProvider \}\)/);
 });
 
 test("normal PAPER clients use only the Settings-configured verified endpoint", () => {

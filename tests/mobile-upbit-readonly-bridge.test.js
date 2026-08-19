@@ -15,7 +15,7 @@ test("Upbit bridge credential stays process-memory-only", () => {
 });
 
 test("Upbit bridge is HTTPS-only and read-only", () => {
-  assert.match(clientSource, /https:\/\/nusa-api\.duckdns\.org/);
+  assert.match(clientSource, /CANONICAL_PAPER_ORIGIN/);
   assert.match(clientSource, /url\.protocol !== "https:"/);
   assert.match(clientSource, /\/api\/v1\/account\/summary/);
   assert.match(clientSource, /method: "GET"/);

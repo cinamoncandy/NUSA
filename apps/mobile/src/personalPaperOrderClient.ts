@@ -45,8 +45,8 @@ export async function submitPersonalPaperOrder(options: PersonalPaperOrderClient
   // PAPER order authority is bound only to the Settings-configured, process-locally verified
   // endpoint. The legacy caller baseUrl is intentionally not an authority input.
   const configured = getConfiguredPaperEndpoint();
-  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured. Open Settings and save the Cloud endpoint." });
-  if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before an order credential can be used." });
+  if (configured == null) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER 연결이 필요합니다. 설정에서 1회용 연결 토큰으로 시작하세요." });
+  if (!isPaperConnectionVerified(configured)) return Object.freeze({ status: "NOT_CONFIGURED", reason: "PAPER 세션을 Settings에서 연결해야 합니다." });
   if (!isSecureEndpoint(configured)) return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER credential will not be sent over insecure remote HTTP." });
 
   const token = await options.credentialProvider();

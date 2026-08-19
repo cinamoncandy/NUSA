@@ -8,14 +8,15 @@ test("settings UI exposes PAPER connection, cash allocation, appearance, safety 
   assert.match(source, /testID="settings-screen"/);
   assert.match(source, /<ScreenHeader/);
   assert.match(source, /testID="settings-paper-connection"/);
-  assert.match(source, /testID="settings-paper-endpoint"/);
   assert.match(source, /testID="settings-paper-token"/);
   assert.match(source, /testID="settings-paper-connect"/);
   assert.match(source, /testID="settings-paper-disconnect"/);
-  assert.match(source, /입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.doesNotMatch(source, /settings-paper-endpoint|endpointDraft|Canonical Cloud endpoint/);
+  assert.match(source, /연결 주소는 앱이 안전하게 관리합니다\. bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.match(source, /Access token은 앱 메모리에만 유지/);
   assert.match(source, /rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
   assert.match(source, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);
+  assert.match(source, /paperConnected \? "PAPER 연결됨"/);
 
   assert.match(source, /testID="settings-capital-allocation"/);
   assert.match(source, /현금 투자 비중/);

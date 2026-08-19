@@ -38,6 +38,7 @@ test("HomeView consumes the selected preset for geometry and composition", () =>
 test("fresh or stale installs converge on the canonical master preset", () => {
   const provider = read("apps/mobile/src/ThemeProvider.tsx");
   assert.match(provider, /CURRENT_DEFAULT_PRESET:\s*DesignPresetName\s*=\s*"master"/);
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION\s*=\s*"3"/);
   assert.match(provider, /storedSchema !== DESIGN_PRESET_SCHEMA_VERSION/);
   assert.match(provider, /setPresetState\(CURRENT_DEFAULT_PRESET\)/);
   assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET\)/);

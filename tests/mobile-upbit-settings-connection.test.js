@@ -17,14 +17,13 @@ test("Upbit settings connection remains HTTPS-only and process-memory-only", () 
   const client = read("apps/mobile/src/upbitLiveClient.ts");
 
   assert.match(panel, /settings-upbit-connection/);
-  assert.match(panel, /settings-upbit-endpoint/);
-  assert.match(panel, /settings-upbit-token/);
   assert.match(panel, /settings-upbit-connect/);
   assert.match(panel, /settings-upbit-disconnect/);
   assert.match(panel, /READ ONLY/);
   assert.match(panel, /loadUpbitLiveAccounts/);
-  assert.match(panel, /credentialSession\.clear\(\)/);
-  assert.match(panel, /프로세스 메모리/);
+  assert.match(panel, /mobileApprovedSession\(\)\.credentialProvider/);
+  assert.match(panel, /subscribePaperConnection/);
+  assert.doesNotMatch(panel, /settings-upbit-endpoint|settings-upbit-token|Bridge token|InMemoryUpbitCredentialSession/);
 
   assert.match(credential, /let sharedToken: string \| null = null/);
   assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);

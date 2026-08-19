@@ -89,7 +89,7 @@ test("mobile client refuses insecure non-loopback PAPER endpoint before credenti
 
 test("mobile client treats historical localhost default as unconfigured unless explicitly saved", async () => {
   let calls = 0; const result = await submitPersonalPaperOrder({ baseUrl: "http://127.0.0.1:41731", credentialProvider: async () => "1234567890123456", request: async () => { calls += 1; throw new Error("must not call"); } }, command());
-  assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0); assert.match(result.reason, /endpoint is not configured/i);
+  assert.equal(result.status, "NOT_CONFIGURED"); assert.equal(calls, 0); assert.match(result.reason, /PAPER (연결|session|세션)/i);
 });
 
 test("Settings verified endpoint state reaches a separate Trading PAPER client call", async () => {

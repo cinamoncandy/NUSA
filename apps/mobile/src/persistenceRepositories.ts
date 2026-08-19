@@ -1,5 +1,5 @@
 import { VersionedJsonStore, type VersionedStorage } from "./mobilePersistence";
-import { normalizeSettings, type AppSettings, type SettingsRepository } from "./settings";
+import { normalizeSettings, type AppSettings, type SettingsNormalizationOptions, type SettingsRepository } from "./settings";
 import { setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { parseOrderHistory, type OrderHistoryEntry } from "./orderHistory";
 import type { PortfolioRepository, PortfolioSummary } from "./portfolioDomain";
@@ -20,7 +20,7 @@ export class JsonOrderHistoryRepository {
 
 export class VersionedSettingsRepository implements SettingsRepository {
   private readonly store: VersionedJsonStore<AppSettings>;
-  public constructor(storage: VersionedStorage, key = "nusa:app-settings:v1") { this.store = new VersionedJsonStore(storage, key, 1, (value) => normalizeSettings(value as Partial<AppSettings>), (value, version) => { if (version !== 0 || value === null || typeof value !== "object") throw new Error("unsupported settings migration"); return normalizeSettings(value as Partial<AppSettings>); }); }
-  public async load(): Promise<AppSettings | null> { const value = await this.store.load(); setConfiguredPaperEndpoint((value ?? normalizeSettings({})).paperEndpoint); return value; }
-  public async save(value: AppSettings): Promise<void> { const normalized = normalizeSettings(value); await this.store.save(normalized); setConfiguredPaperEndpoint(normalized.paperEndpoint); }
+  public constructor(storage: VersionedStorage, key = "nusa:app-settings:v1", private readonly options: SettingsNormalizationOptions = {}) { this.store = new VersionedJsonStore(storage, key, 1, (value) => normalizeSettings(value as Partial<AppSettings>, this.options), (value, version) => { if (version !== 0 || value === null || typeof value !== "object") throw new Error("unsupported settings migration"); return normalizeSettings(value as Partial<AppSettings>, this.options); }); }
+  public async load(): Promise<AppSettings | null> { const value = await this.store.load(); setConfiguredPaperEndpoint((value ?? normalizeSettings({}, this.options)).paperEndpoint); return value; }
+  public async save(value: AppSettings): Promise<void> { const normalized = normalizeSettings(value, this.options); await this.store.save(normalized); setConfiguredPaperEndpoint(normalized.paperEndpoint); }
 }

@@ -37,3 +37,11 @@ test("settings migrate version zero and rollback when migration fails", async ()
   s.values["nusa:app-settings:v1:backup"] = JSON.stringify({ version: 1, value: { theme: "DARK", locale: "ko-KR", notifications: { enabled: true, riskAlerts: true, orderUpdates: true } }, checksum: persistenceChecksum({ theme: "DARK", locale: "ko-KR", notifications: { enabled: true, riskAlerts: true, orderUpdates: true } }) });
   assert.equal((await new VersionedSettingsRepository(s).load()).theme, "DARK");
 });
+
+test("production settings repository restores the canonical PAPER origin and rejects loopback", async () => {
+  const s = storage();
+  const repository = new VersionedSettingsRepository(s, "nusa:app-settings:v1", { production: true });
+  await repository.save({ theme: "DARK", locale: "ko-KR", notifications: { enabled: true, riskAlerts: true, orderUpdates: true }, paperEndpoint: "" });
+  assert.equal((await repository.load()).paperEndpoint, "https://nusa-api.duckdns.org");
+  await assert.rejects(() => repository.save({ theme: "DARK", locale: "ko-KR", notifications: { enabled: true, riskAlerts: true, orderUpdates: true }, paperEndpoint: "http://127.0.0.1:41731" }), /canonical HTTPS origin/);
+});

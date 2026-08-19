@@ -27,7 +27,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const allocationWidth = allocation ? `${allocation.investmentPercent}%` as `${number}%` : "0%";
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const nextAction = notConfigured
-    ? { title: "PAPER 연결 설정", detail: "Settings에서 endpoint와 메모리 전용 세션 토큰을 검증하세요.", tab: null }
+    ? { title: "PAPER 연결 설정", detail: "Settings에서 1회용 연결 토큰을 검증하세요.", tab: null }
     : snapshot?.health !== "HEALTHY" || snapshot?.dashboard.killSwitchActive || !snapshot?.readyForPaperOperations
       ? { title: "PAPER 상태 보기", detail: "연결과 안전 상태를 확인하세요.", tab: "Markets" as const }
       : aiInsightAvailable

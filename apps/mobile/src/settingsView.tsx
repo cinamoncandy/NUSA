@@ -3,11 +3,11 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import { DataRow, NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
 import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
-import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
+import { CANONICAL_PAPER_ORIGIN, DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint, subscribePaperConnection } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
 import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
@@ -26,10 +26,9 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [endpointDraft, setEndpointDraft] = useState("");
   const [tokenDraft, setTokenDraft] = useState("");
   const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
-  const [connection, setConnection] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
+  const [connection, setConnection] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER 연결을 시작하세요." });
   const [operatorToken, setOperatorToken] = useState("");
   const [operatorUsers, setOperatorUsers] = useState<readonly OperatorUserRecord[]>([]);
   const [operatorError, setOperatorError] = useState<string | null>(null);
@@ -42,8 +41,8 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     let active = true;
     void repository.load().then(async (loaded) => {
       if (!active) return;
-      const next = normalizeSettings(loaded ?? DEFAULT_SETTINGS);
-      setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setEndpointDraft(next.paperEndpoint); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme)); onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
+      const next = normalizeSettings(loaded ?? DEFAULT_SETTINGS, { production: !__DEV__ });
+      setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme)); onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
       if (!next.paperEndpoint || !credentialSession.isConfigured() || !isPaperConnectionVerified(next.paperEndpoint)) return;
       const result = await loadPersonalPaperOperations({ baseUrl: next.paperEndpoint, credentialProvider: credentialSession.credentialProvider });
       if (!active) return;
@@ -53,15 +52,29 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     return () => { active = false; };
   }, [credentialSession, onInvestmentPercentChanged, repository, setMode]);
 
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribePaperConnection(() => {
+      const endpoint = getConfiguredPaperEndpoint();
+      if (!active || endpoint == null || !credentialSession.isConfigured() || !isPaperConnectionVerified(endpoint) || connectionInFlightRef.current) return;
+      connectionInFlightRef.current = true;
+      void loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider })
+        .then((result) => { if (active) setConnection(result); })
+        .catch((loadError) => { if (active) setConnection({ status: "UNAVAILABLE", reason: loadError instanceof Error ? loadError.message : "PAPER operations connection is unavailable." }); })
+        .finally(() => { connectionInFlightRef.current = false; });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [credentialSession]);
+
   const persist = async (next: AppSettings): Promise<boolean> => {
     if (savingRef.current) return false;
     savingRef.current = true; setSaving(true);
     try {
-      const normalized = normalizeSettings(next);
+      const normalized = normalizeSettings({ ...next, paperEndpoint: CANONICAL_PAPER_ORIGIN }, { production: !__DEV__ });
       const allocationChanged = normalized.capitalAllocation.investmentPercent !== settings?.capitalAllocation.investmentPercent;
       if (allocationChanged && onCloudInvestmentPercentSave) await onCloudInvestmentPercentSave(normalized.capitalAllocation.investmentPercent);
       await repository.save(normalized);
-      setConfiguredPaperEndpoint(normalized.paperEndpoint); setSettings(normalized); setEndpointDraft(normalized.paperEndpoint); setInvestmentPercentDraft(String(normalized.capitalAllocation.investmentPercent)); setError(null);
+      setConfiguredPaperEndpoint(normalized.paperEndpoint); setSettings(normalized); setInvestmentPercentDraft(String(normalized.capitalAllocation.investmentPercent)); setError(null);
       if (allocationChanged) onInvestmentPercentChanged?.(normalized.capitalAllocation.investmentPercent);
       return true;
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; }
@@ -74,9 +87,9 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     if (settings == null || isBusyNow()) return;
     connectionInFlightRef.current = true; setConnecting(true); setError(null);
     try {
-      if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
+      if (!await persist({ ...settings, paperEndpoint: CANONICAL_PAPER_ORIGIN })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
-      if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); return; }
+      if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER 연결을 시작할 수 없습니다." }); return; }
       credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress." }); credentialSession.connect(tokenDraft);
       const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status === "READY") { markPaperConnectionVerified(configuredEndpoint); setTokenDraft(""); } else { credentialSession.clear(); clearPaperConnectionVerification(); }
@@ -86,30 +99,29 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   };
   const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "PAPER 보안 세션을 해제했습니다." }); };
   const refreshOperatorUsers = async (): Promise<void> => {
-    const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
-    if (!baseUrl) { setOperatorError("먼저 PAPER 서버 endpoint를 설정하세요."); return; }
+    const baseUrl = getConfiguredPaperEndpoint() ?? CANONICAL_PAPER_ORIGIN;
     setOperatorBusy(true);
     try { const snapshot = await loadOperatorUsers(baseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
     catch (loadError) { setOperatorUsers([]); setOperatorError(loadError instanceof Error ? loadError.message : "사용자 목록을 불러올 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
   const applyOperatorAction = async (user: OperatorUserRecord, action: OperatorUserAction): Promise<void> => {
-    const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
-    if (!baseUrl) { setOperatorError("먼저 PAPER 서버 endpoint를 설정하세요."); return; }
+    const baseUrl = getConfiguredPaperEndpoint() ?? CANONICAL_PAPER_ORIGIN;
     setOperatorBusy(true);
     try { await changeOperatorUserStatus(baseUrl, operatorToken, user.id, action); const snapshot = await loadOperatorUsers(baseUrl, operatorToken); setOperatorUsers(snapshot.users); setOperatorError(null); }
     catch (actionError) { setOperatorError(actionError instanceof Error ? actionError.message : "사용자 상태를 변경할 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
-  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER endpoint is not configured." }); }); };
+  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "PAPER 연결을 시작하세요." }); }); };
   const signOutLocal = () => { if (!isBusyNow()) { setOperatorToken(""); onSignOut?.(); } };
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><InlineNotice title="설정을 불러올 수 없습니다" detail={error} tone="danger" /></View>;
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
   const busy = saving || connecting || operatorBusy;
   const connectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning";
-  const connectionLabel = connecting ? "확인 중" : connection.status === "READY" ? "연결됨" : "연결 필요";
-  const connectionDetail = connecting ? "저장된 endpoint와 승인된 보안 세션을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connection.reason;
+  const connectionLabel = connecting ? "확인 중" : connection.status === "READY" ? "PAPER 연결됨" : "연결 필요";
+  const connectionDetail = connecting ? "저장된 승인 세션을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connection.reason;
+  const paperConnected = connection.status === "READY";
   const allocation = createCashInvestmentEnvelope(exchangeCash, settings.capitalAllocation.investmentPercent);
   const selectedPreset = allocationPresets.some((item) => item.key === String(settings.capitalAllocation.investmentPercent)) ? String(settings.capitalAllocation.investmentPercent) : "";
   const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
@@ -123,7 +135,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     {/* v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §10) order: connection -> cash
         allocation -> appearance -> safety/authority -> local/personal-mode management.
         Operator user access (owner-only, not one of the 5 canonical steps) moves after them. */}
-    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>01 · CONNECTION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버</Text></View><StatusChip label={connectionLabel} tone={connectionTone} /></View><InlineNotice title={connection.status === "READY" ? "연결 정상" : "연결 필요"} detail={connectionDetail} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning"} testID="settings-connection-summary" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="1회용 연결 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="OWNER가 발급한 bootstrap token" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다. iOS 영구 세션 복원은 아직 활성화하지 않습니다.</Text><View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "저장하고 연결 확인"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View></View>
+    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>01 · CONNECTION</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버</Text></View><StatusChip label={connectionLabel} tone={connectionTone} /></View><InlineNotice title={paperConnected ? "PAPER 연결됨" : "연결 필요"} detail={connectionDetail} tone={paperConnected ? "success" : connection.status === "UNAVAILABLE" ? "danger" : "warning"} testID="settings-connection-summary" />{paperConnected ? <NusaButton disabled={busy} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /> : <><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="1회용 연결 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="OWNER가 발급한 bootstrap token" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>연결 주소는 앱이 안전하게 관리합니다. bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다. iOS 영구 세션 복원은 아직 활성화하지 않습니다.</Text><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "연결"} onPress={() => void testConnection()} testID="settings-paper-connect" /></>}</View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <UpbitConnectionPanel />
