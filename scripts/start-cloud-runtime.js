@@ -107,6 +107,24 @@ function banner(env, stripped) {
   return lines.join("\n");
 }
 
+/**
+ * The writer lease refuses a takeover it cannot prove is safe, which is correct, but on its own it
+ * leaves the operator with a stack trace and no stated way forward. Name the recovery instead.
+ */
+function leaseRecoveryGuidance(stderrTail) {
+  const stillActive = /PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail);
+  return [
+    "",
+    "  The PAPER writer lease blocked startup.",
+    stillActive
+      ? "  Another NUSA runtime currently holds it. Stop that runtime, or wait for its lease to expire."
+      : "  A previous runtime did not shut down cleanly and its lease is too old to take over safely.",
+    stillActive ? "" : "  Once nothing is running, clear the abandoned lease with:",
+    stillActive ? "" : "    node scripts/reset-paper-writer-lease.js",
+    "",
+  ].filter((line) => line !== "").join("\n") + "\n";
+}
+
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
   const token = (options.resolveToken ?? resolveDashboardToken)();
@@ -117,10 +135,20 @@ function start(options = {}) {
   const child = spawnFn(process.execPath, ["dist/apps/cloud/src/runtime.js"], {
     cwd: options.cwd ?? process.cwd(),
     env,
-    stdio: "inherit",
+    // stderr is piped so a writer-lease failure can be answered with the recovery command
+    // instead of a bare stack trace; it is still echoed through unchanged.
+    stdio: ["ignore", "inherit", "pipe"],
     shell: false,
   });
+  let stderrTail = "";
+  child.stderr?.on("data", (chunk) => {
+    process.stderr.write(chunk);
+    stderrTail = `${stderrTail}${chunk}`.slice(-4000);
+  });
   child.on("exit", (code, signal) => {
+    if (code !== 0 && /PAPER_WRITER_CLOCK_ANOMALY|PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) {
+      write(leaseRecoveryGuidance(stderrTail));
+    }
     process.exitCode = signal ? 1 : code ?? 0;
   });
   // The runtime installs its own SIGTERM/SIGINT shutdown controller; forward the signal so it

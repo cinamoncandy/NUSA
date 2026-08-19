@@ -1,9 +1,13 @@
 const { spawnSync } = require("node:child_process");
 
-const USAGE = "usage: nusa start\n       nusa verify paper-runtime [--output <path>]\n";
+const USAGE = "usage: nusa start\n       nusa reset-paper-writer-lease\n       nusa verify paper-runtime [--output <path>]\n";
 
 function main(args = process.argv.slice(2), spawn = spawnSync) {
   const [command, target, ...rest] = args;
+  if (command === "reset-paper-writer-lease") {
+    void require("./reset-paper-writer-lease.js").resetPaperWriterLease();
+    return 0;
+  }
   if (command === "start") {
     require("./start-cloud-runtime.js").start();
     return 0;
