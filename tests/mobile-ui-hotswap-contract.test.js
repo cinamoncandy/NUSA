@@ -22,23 +22,27 @@ test("classic and master presets are materially distinct visual systems", () => 
   assert.match(profile, /master:[\s\S]*?metricGap:\s*6/);
 });
 
-test("HomeView consumes the selected preset for MASTER geometry and composition", () => {
+test("HomeView consumes the selected preset shell while MASTER v2 owns the dominant signal-stage composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
   assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 18 : profile\.screen\.sectionGap/);
+  assert.match(home, /gap:\s*tablet \? 18 : 14/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(home, /fontSize:\s*tablet \? profile\.hero\.tabletBalanceSize : profile\.hero\.balanceSize/);
-  assert.match(home, /lineHeight:\s*tablet \? profile\.hero\.tabletBalanceLineHeight : profile\.hero\.balanceLineHeight/);
-  assert.match(home, /letterSpacing:\s*profile\.hero\.balanceLetterSpacing/);
+  assert.match(home, /fontSize:\s*tablet \? 66 : 54/);
+  assert.match(home, /lineHeight:\s*tablet \? 70 : 58/);
+  assert.match(home, /letterSpacing:\s*tablet \? -3\.2 : -2\.8/);
   assert.match(home, /testID="home-screen"/);
+  assert.match(home, /testID="home-signal-stage"/);
+  assert.match(home, /testID="home-stage-canvas"/);
   assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /<InsightPanel/);
-  assert.match(home, /<CompactMetric/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-indicator-strip"/);
   assert.match(home, /<OperationalNotice/);
-  assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
+  assert.doesNotMatch(home, /<InsightPanel/);
+  assert.doesNotMatch(home, /<CompactMetric/);
+  assert.doesNotMatch(home, /PRIMARY INDICATORS/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
