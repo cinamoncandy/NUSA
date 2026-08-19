@@ -72,6 +72,10 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Evidence-only preview identity: installs beside the production NUSA app so a
+            // physical-device visual check cannot accidentally be reading a stale install.
+            applicationIdSuffix ".preview"
+            versionNameSuffix "-preview"
         }
         release {
             signingConfig signingConfigs.debug
