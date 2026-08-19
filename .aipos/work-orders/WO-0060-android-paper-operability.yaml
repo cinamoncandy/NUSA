@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+base_commit: 02986cfaa317e1dd65409efc28e547badba9d432
 implementation_branch: agent/wo-0060-android-paper-operability-v2
 pull_request: 581
 objective: "Make the Android app visibly and actually usable for canonical Cloud PAPER trading from a stable build-provided HTTPS origin, consuming the completed WO-0060A approved-user secure-session boundary without creating a duplicate authentication authority."
@@ -24,22 +24,33 @@ completed_prerequisites:
     pull_request: 572
     exact_head: 523896a1afdaeae9e235b3fcfaa290d0d0e1b672
     merge_commit: df078f286ead8256eba2b667b2af5b1f621cb112
+  - id: LATEST_MAIN_RECONSTRUCTION
+    status: COMPLETED
+    purpose: "Synchronize WO-0060 over current main without losing the self-contained Android APK, Upbit PUBLIC feed, PAPER lease recovery, canonical-origin, or provenance contracts"
+    pull_request: 584
+    base_commit: 02986cfaa317e1dd65409efc28e547badba9d432
+    includes:
+      - PR-582_SELF_CONTAINED_ANDROID_DEBUG_APK_AND_UPBIT_PUBLIC_FEED_FIXES
+      - PR-583_EXPLICIT_PAPER_WRITER_LEASE_RECOVERY
 root_cause:
   - "WO-0059 proved the canonical Cloud PAPER writer, but did not prove Android product delivery."
-  - "WO-0060A now provides the approved scoped mobile session and Android secure-storage prerequisite."
-  - "Current main still treats the Cloud/PAPER endpoint as a user-entered setting, so a physical Android install is not yet zero-config for its stable Cloud origin."
+  - "WO-0060A provides the approved scoped mobile session and Android secure-storage prerequisite."
+  - "A physical Android release still needs one genuine build-provided stable public HTTPS origin; repository variable NUSA_MOBILE_API_BASE_URL is currently absent/empty, so canonical RC packaging correctly fails closed."
   - "The Cloud runtime intentionally remains loopback-only; physical Android reachability must use the trusted named HTTPS bridge rather than binding the runtime publicly."
   - "The original PR #569 predates WO-0060A and contains a duplicate mobile-auth implementation, so it is evidence/input only and must not be merged as-is."
+  - "Android debug APKs intended for installation must contain an embedded JS bundle; a Metro-dependent shell is not acceptable physical-device evidence."
 scope:
   - "Consume WO-0060A approved-user mobile sessions as the sole mobile authorization boundary"
   - "Replace production Android dependence on a user-entered PAPER endpoint with one build-provided stable HTTPS origin"
-  - "Reject loopback, embedded credentials, path/query/hash state, and temporary trycloudflare.com origins for release packaging"
-  - "Keep Cloud runtime loopback-only and publish it only through the existing trusted HTTPS bridge pattern"
+  - "Reject loopback, internal hostnames, IP literals, embedded credentials, path/query/hash state, cleartext, and temporary trycloudflare.com origins for release packaging"
+  - "Require the canonical release origin GET /health to return HTTP 200 and ok=true before release assembly"
+  - "Keep Cloud runtime loopback-only and publish it only through the trusted HTTPS bridge pattern"
   - "Keep access credentials in process memory and rotating refresh credentials in Android Keystore-backed secure storage"
-  - "Use the same canonical PAPER reads and POST /api/paper-orders boundary already present on main"
-  - "Preserve idempotent PAPER retry semantics and truthful connected/offline/error states"
-  - "Produce an exact-head Android RC APK with source SHA and checksum provenance"
-  - "Require genuine physical Android evidence for endpoint-free startup, authenticated session, PAPER state visibility, PAPER submit/result/history/portfolio/relaunch behavior and truthful failure states"
+  - "Use the same canonical PAPER reads and POST /api/paper-orders boundary already established"
+  - "Preserve idempotent PAPER retry semantics, live Upbit PUBLIC quotation feed, explicit abandoned PAPER writer-lease recovery, and truthful connected/offline/error states"
+  - "Build installable Android debug artifacts with embedded assets/index.android.bundle and verify its presence before upload"
+  - "Produce an exact-head Android RC APK with source SHA, canonical origin, and checksum provenance"
+  - "Require genuine physical Android evidence for endpoint-free startup, authenticated session, PAPER state visibility, PAPER submit/result/history/portfolio/relaunch behavior, current visible UI, and truthful failure states"
 architecture_impact:
   acknowledged: true
   analysis: "This successor closes only the Android client-delivery gap. Cloud remains the sole canonical PAPER writer. WO-0060A is reused rather than duplicated. A public HTTPS origin is non-secret deployment configuration embedded at build time, while tunnel credentials remain outside the repository and APK. LIVE and real-money authority remain absent."
@@ -53,32 +64,37 @@ architecture_impact:
     - apps/mobile/src/mobileApprovedSession.ts
     - apps/cloud/src/server.ts
     - deploy/cloudflare-tunnel/config.example.yml
+    - docs/TRUSTED_HTTPS_BRIDGE.md
 prior_artifacts:
   superseded_parent_pr: 569
   approved_session_child_pr: 572
   stale_zero_config_pr: 540
   stale_mobile_auth_pr: 541
   trusted_https_bridge_pr: 420
+  latest_main_sync_pr: 584
 blocked:
   - "Embedding dashboard owner bearer or any long-lived Cloud secret in the APK"
   - "Embedding Cloudflare tunnel credential material in the repository or APK"
   - "Allowing cleartext remote HTTP"
   - "Binding Cloud runtime to 0.0.0.0 as a shortcut"
+  - "Using localhost, an IP literal, internal hostname, fake hostname, or temporary trycloudflare.com URL as the canonical release origin"
   - "Upbit private credentials in Android"
   - "LIVE order/cancel/withdraw/transfer authority"
   - "Treating CI, emulator, simulator or synthetic evidence as physical Android acceptance"
 verification:
   latest_main_reconstruction: PASS
   mobile_scoped_session: PASS_VIA_WO_0060A
-  stable_https_origin_contract: PENDING
-  canonical_paper_snapshot_visible: PENDING
-  paper_order_submit: PENDING
-  idempotent_retry_no_double_fill: PENDING
-  relaunch_recovery: PENDING
-  android_rc_provenance: PENDING
-  exact_head_ci: PENDING
-  mobile_native: PENDING
-  required_companion_workflows: PENDING
+  stable_https_origin_contract: PASS_REPOSITORY_CONTRACT_DEPLOYMENT_PENDING
+  stable_https_origin_deployment: HUMAN_ENVIRONMENT_ONLY_PENDING
+  repository_variable_NUSA_MOBILE_API_BASE_URL: PENDING
+  canonical_paper_snapshot_visible: PENDING_PHYSICAL_ANDROID
+  paper_order_submit: PENDING_PHYSICAL_ANDROID
+  idempotent_retry_no_double_fill: PENDING_PHYSICAL_ANDROID
+  relaunch_recovery: PENDING_PHYSICAL_ANDROID
+  android_rc_provenance: PENDING_STABLE_ORIGIN
+  exact_head_ci: PENDING_AFTER_SERIALIZATION_UPDATE
+  mobile_native: PENDING_AFTER_SERIALIZATION_UPDATE
+  required_companion_workflows: PENDING_AFTER_SERIALIZATION_UPDATE
   physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
 safety:
   live_authority: NONE
@@ -87,4 +103,4 @@ safety:
   real_transfer_authority: false
   exchange_private_credential_authority: false
   ai_authority: ZERO_AUTHORITY
-completion_rule: "Do not mark WO-0060 complete merely because repository CI or emulator/native builds pass. Completion requires an exact-head Android RC that contains the approved stable HTTPS origin, uses the merged WO-0060A approved-user session, and genuine physical-device evidence showing canonical PAPER state, PAPER submit/result/history/portfolio/relaunch behavior while preserving PAPER_ONLY and zero LIVE authority."
+completion_rule: "Do not mark WO-0060 complete merely because repository CI or emulator/native builds pass. Completion requires one unchanged exact head with Full CI, Mobile Native including embedded-JS Android artifact verification, required companion workflows, Canonical Android RC against the genuine stable HTTPS NUSA origin with /health and exact source/origin/checksum provenance, and genuine physical-device evidence showing canonical PAPER state, PAPER submit/result/history/portfolio/relaunch behavior while preserving PAPER_ONLY and zero LIVE authority."
