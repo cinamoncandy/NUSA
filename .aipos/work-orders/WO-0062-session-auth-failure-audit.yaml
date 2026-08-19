@@ -1,0 +1,48 @@
+id: WO-0062
+title: "Approved-User Session Failure Audit Hardening"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8a98c9ce5798b6aaf38197c71990525b247c3622
+implementation_branch: fix/phase11-session-auth-failure-audit
+objective: "Extend the existing approved-user session audit ledger so rejected bootstrap and refresh authentication attempts are durably recorded with safe reason codes and without persisting credential material."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Reuse ApprovedUserSessionService and its existing namespace-scoped SQLite session audit ledger"
+  - "Audit rejected bootstrap attempts with bounded reason codes"
+  - "Audit rejected refresh attempts while preserving refresh-reuse family revocation"
+  - "Prove raw bootstrap and refresh tokens are absent from audit records"
+architecture_impact:
+  acknowledged: true
+  analysis: "No parallel AuditLogger, RBAC system, SessionManager, security kernel, or renderer authority is introduced. This work extends the existing canonical approved-user session service and durable domain audit ledger only."
+  references:
+    - AGENTS.md
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "withdrawal/transfer"
+  - "productionMutationAllowed=true"
+  - "liveAuthority != NONE"
+  - "persisting raw bootstrap/access/refresh tokens in audit records"
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+verification:
+  focused_session_tests: PENDING
+  typecheck: PENDING
+  required_ci: PENDING
+completion_rule: "Implementation, focused tests, and exact-head required CI must pass; audit records must contain only safe reason codes and existing actor/target/family identifiers when already known, never raw credential material."
