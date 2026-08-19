@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {InvariantSeverity,InvariantObservationStatus,evaluateRuntimeInvariants,BurnInDecision,runSyntheticBurnIn,ReadinessCheckStatus,ProductionReadinessDecision,evaluateProductionReadiness,StartupGateDecision,createSyntheticCertificationReport,SyntheticCertificationReportDecision,FinalCertificationDecision}=require('../apps/execution/src/index');
+const {InvariantSeverity,InvariantObservationStatus,evaluateRuntimeInvariants,BurnInDecision,runSyntheticBurnIn,ReadinessCheckStatus,ProductionReadinessDecision,evaluateProductionReadiness,StartupGateDecision,createSyntheticCertificationReport,SyntheticCertificationReportDecision,FinalCertificationDecision}=require('../dist/apps/execution/src/index.js');
 
 const obs=(id,status,severity=InvariantSeverity.CRITICAL,time=0)=>({invariantId:id,status,severity,observedAtMs:time});
 

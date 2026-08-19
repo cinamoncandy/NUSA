@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createArtifactManifest, verifyArtifactManifest } = require("../apps/execution/src/index");
+const { createArtifactManifest, verifyArtifactManifest } = require('../dist/apps/execution/src/index.js');
 
 /**
  * verifyArtifactManifest used to compare only the two pre-computed manifestHash FIELDS
