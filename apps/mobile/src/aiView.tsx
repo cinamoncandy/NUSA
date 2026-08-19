@@ -87,12 +87,12 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
         <StatusChip label={`${evidenceCount} : ${counterCount}`} tone={counterCount > 0 ? "warning" : "neutral"} />
       </View>
       <View style={styles.evidenceGrid}>
-        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}> 
+        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}>
           <Text style={[styles.columnLabel, { color: theme.colors.success }]}>SUPPORTING EVIDENCE</Text>
           {ai && ai.evidenceReferences.length > 0 ? ai.evidenceReferences.slice(0, 4).map((item) => <Text key={item} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증된 근거 참조가 없습니다.</Text>}
           {ai && ai.evidenceReferences.length > 4 ? <Text style={[styles.more, { color: theme.colors.textMuted }]}>외 {ai.evidenceReferences.length - 4}개 근거</Text> : null}
         </View>
-        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}> 
+        <View style={[styles.evidenceColumn, { borderColor: theme.colors.border }]}>
           <Text style={[styles.columnLabel, { color: theme.colors.warning }]}>COUNTER EVIDENCE</Text>
           {ai && ai.counterEvidence.length > 0 ? ai.counterEvidence.slice(0, 4).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>등록된 반대 근거가 없습니다.</Text>}
         </View>
