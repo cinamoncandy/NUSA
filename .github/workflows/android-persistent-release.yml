@@ -72,6 +72,47 @@ jobs:
 
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+
+      - name: Generate canonical mobile build configuration
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ steps.source.outputs.sha }}
+        run: node scripts/prepare-mobile-build-config.js
+
+      - name: Verify generated canonical origin and exact source
+        env:
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+          EXPECTED_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_ORIGIN"
+          grep -F "export const CANONICAL_NUSA_ORIGIN = \"$EXPECTED_ORIGIN\";" apps/mobile/src/generatedBuildConfig.ts
+          grep -F "$EXPECTED_SHA" apps/mobile/src/generatedBuildConfig.ts
+          ! grep -E 'localhost|127\.0\.0\.1|trycloudflare\.com' apps/mobile/src/generatedBuildConfig.ts
+
+      - name: Probe canonical NUSA Cloud health
+        env:
+          NUSA_MOBILE_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+        run: |
+          node <<'NODE'
+          (async () => {
+            const origin = new URL(process.env.NUSA_MOBILE_API_BASE_URL);
+            const response = await fetch(new URL('/health', origin), {
+              redirect: 'manual',
+              signal: AbortSignal.timeout(15000),
+              headers: { 'user-agent': 'nusa-android-persistent-preview-origin-probe' }
+            });
+            if (response.status !== 200) throw new Error(`canonical NUSA /health expected 200, received ${response.status}`);
+            if (new URL(response.url).origin !== origin.origin) throw new Error('canonical NUSA /health changed origin');
+            const body = await response.json();
+            if (body?.ok !== true) throw new Error('canonical NUSA /health did not report ok=true');
+            console.log(`[android-preview] canonical NUSA health PASS ${origin.origin}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
 
@@ -79,13 +120,15 @@ jobs:
         env:
           NUSA_BUILD_SHA: ${{ steps.source.outputs.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
+          NUSA_CANONICAL_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
         run: ./gradlew :app:assembleRelease
         working-directory: apps/mobile/android
 
-      - name: Verify APK source provenance
+      - name: Verify APK source and canonical-origin provenance
         env:
           EXPECTED_SHA: ${{ steps.source.outputs.sha }}
           EXPECTED_RUN_NUMBER: ${{ github.run_number }}
+          EXPECTED_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
         run: |
           set -euo pipefail
           APK="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
@@ -98,13 +141,10 @@ jobs:
           BADGING="$("$AAPT" dump badging "$APK")"
           printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION_CODE}'"
           printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
-          # Full-SHA provenance is established by the exact detached checkout above.
-          # APK identity is independently bound to that source by the short SHA in
-          # versionName plus the workflow run number in versionCode. Do not require
-          # aapt resource-table output to expose a full SHA; that representation is
-          # not a stable APK packaging contract.
-          printf 'source_sha=%s\nversion_name=%s\nversion_code=%s\n' \
-            "$EXPECTED_SHA" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" \
+          "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_SHA"
+          "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_ORIGIN"
+          printf 'source_sha=%s\ncanonical_origin=%s\nversion_name=%s\nversion_code=%s\n' \
+            "$EXPECTED_SHA" "$EXPECTED_ORIGIN" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" \
             > NUSA-Android.provenance.txt
 
       - name: Prepare persistent APK assets
@@ -120,9 +160,9 @@ jobs:
         run: |
           if gh release view nusa-android-preview >/dev/null 2>&1; then
             gh release upload nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --clobber
-            gh release edit nusa-android-preview --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview from exact source $SHORT_SHA. PAPER/read-only safety boundaries remain unchanged." --prerelease
+            gh release edit nusa-android-preview --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview from exact source $SHORT_SHA with canonical Cloud PAPER origin sealed. PAPER/read-only safety boundaries remain unchanged." --prerelease
           else
-            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview from exact source $SHORT_SHA. PAPER/read-only safety boundaries remain unchanged." --prerelease
+            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "Standalone Android preview from exact source $SHORT_SHA with canonical Cloud PAPER origin sealed. PAPER/read-only safety boundaries remain unchanged." --prerelease
           fi
 
       - name: Prepare Firebase credentials
@@ -143,7 +183,7 @@ jobs:
           firebase appdistribution:distribute NUSA-Android.apk \
             --app "$FIREBASE_APP_ID" \
             --testers "desporin12@gmail.com" \
-            --release-notes "NUSA Android preview from $SHORT_SHA; exact source provenance verified"
+            --release-notes "NUSA Android preview from $SHORT_SHA; canonical Cloud PAPER origin and exact source provenance verified"
 
       - name: Remove Firebase credentials
         if: always()
@@ -154,6 +194,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          CANONICAL_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
           FIREBASE_OUTCOME: ${{ steps.firebase.outcome }}
           JOB_STATUS: ${{ job.status }}
         run: |
@@ -162,10 +203,12 @@ jobs:
           APK_SHA="unavailable"
           VERSION_NAME="unavailable"
           VERSION_CODE="unavailable"
+          SEALED_ORIGIN="unavailable"
           if [ -f NUSA-Android.apk.sha256 ]; then
             APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
           fi
           if [ -f NUSA-Android.provenance.txt ]; then
+            SEALED_ORIGIN="$(sed -n 's/^canonical_origin=//p' NUSA-Android.provenance.txt)"
             VERSION_NAME="$(sed -n 's/^version_name=//p' NUSA-Android.provenance.txt)"
             VERSION_CODE="$(sed -n 's/^version_code=//p' NUSA-Android.provenance.txt)"
           fi
@@ -176,6 +219,7 @@ jobs:
           - job_status: ${JOB_STATUS}
           - firebase_outcome: ${FIREBASE_OUTCOME:-not_run}
           - source_sha: ${SOURCE}
+          - canonical_origin: ${SEALED_ORIGIN}
           - version_name: ${VERSION_NAME}
           - version_code: ${VERSION_CODE}
           - apk_sha256: ${APK_SHA}
