@@ -48,6 +48,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <View style={styles.stageThesis} testID="ai-thesis-card">
         <Text style={[styles.stageThesisLabel, { color: theme.colors.textMuted }]}>CURRENT THESIS</Text>
         <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{signalDetail}</Text>
+        {!signalReady ? <Text style={[styles.bandDetail, { color: theme.colors.textMuted }]}>근거와 보정 상태가 확인되기 전에는 신호를 만들지 않습니다.</Text> : null}
       </View>
 
       <View style={styles.confidenceBand} testID="ai-signal-confidence">
