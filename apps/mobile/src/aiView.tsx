@@ -55,7 +55,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
           <Text style={[styles.confidenceValue, { color: isCalibrated ? theme.colors.primary : theme.colors.textMuted }]}>{trustedConfidence}</Text>
           <Text style={[styles.bandDetail, { color: theme.colors.textMuted }]}>{isCalibrated ? "보정된 신뢰도" : "보정 완료 전 숨김"}</Text>
         </View>
-        <View style={styles.stageDivider} />
+        <View style={[styles.stageDivider, { backgroundColor: theme.colors.borderStrong }]} />
         <View style={styles.stageMetric}>
           <Text style={[styles.bandLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text>
           <Text style={[styles.stageMetricValue, { color: theme.colors.text }]}>{evidenceCount}</Text>
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   bandLabel: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1 },
   confidenceValue: { fontSize: 36, lineHeight: 42, fontWeight: "800", letterSpacing: -1.1 },
   bandDetail: { fontSize: 10, lineHeight: 15, fontWeight: "600" },
-  stageDivider: { width: 1, minHeight: 68, opacity: 0.22, backgroundColor: "#8B93A7" },
+  stageDivider: { width: 1, minHeight: 68, opacity: 0.22 },
   stageMetric: { minWidth: 96, flexGrow: 1, gap: 3, justifyContent: "center" },
   stageMetricValue: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: -0.6 },
   stageFooter: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
