@@ -5,6 +5,7 @@ import { OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
+import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -34,6 +35,7 @@ function healthTone(health: string | undefined): "success" | "warning" | "danger
 
 export function HomeView({
   snapshot,
+  investmentPercent,
   readOnlyError,
   notConfigured,
   refreshing,
@@ -47,6 +49,7 @@ export function HomeView({
   const tablet = width >= 768;
 
   const account = snapshot?.portfolio?.account ?? null;
+  const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
   const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
@@ -132,6 +135,17 @@ export function HomeView({
           </Text>
           <Text style={[styles.meta, { color: theme.colors.textMuted }]}>누적 PAPER 손익</Text>
         </View>
+        {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
+          <View style={styles.cashMetric} testID="home-investable-cash">
+            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>투자 가능 · {cashEnvelope.investmentPercent}%</Text>
+            <Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text>
+          </View>
+          <View style={[styles.cashDivider, { backgroundColor: theme.colors.border }]} />
+          <View style={styles.cashMetric} testID="home-reserved-cash">
+            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>보호 현금 · {cashEnvelope.reservePercent}%</Text>
+            <Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text>
+          </View>
+        </View> : null}
       </View>
     </MotionReveal>
 
@@ -195,6 +209,11 @@ const styles = StyleSheet.create({
   balance: { fontWeight: "800", fontVariant: ["tabular-nums"] },
   pnlRow: { minHeight: 22, flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" },
   pnlValue: { fontSize: 14, lineHeight: 20, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  cashRail: { flexDirection: "row", alignItems: "stretch", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 3 },
+  cashMetric: { flex: 1, minWidth: 0, gap: 2 },
+  cashDivider: { width: StyleSheet.hairlineWidth, marginHorizontal: 12 },
+  cashLabel: { fontSize: 9, lineHeight: 13, fontWeight: "600" },
+  cashValue: { fontSize: 12, lineHeight: 17, fontWeight: "700", fontVariant: ["tabular-nums"] },
   meta: { fontSize: 11, lineHeight: 16 },
   body: { fontSize: 13, lineHeight: 20 },
   decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
