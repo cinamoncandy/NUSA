@@ -29,7 +29,7 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
   assert.match(markets, /useState<Panel>\("CHART"\)/);
   assert.match(markets, /testID="markets-panels"/);
   assert.match(markets, /const watchlist = <WatchlistView/);
-  assert.match(markets, /const chart = <ChartView/);
+  assert.match(markets, /const chart = <View[\s\S]*<ChartView/);
 });
 
 test("PAPER exposes independent LOCAL execution while verified CLOUD execution remains runtime-gated", () => {

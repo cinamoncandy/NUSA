@@ -38,10 +38,12 @@ test("Android release networking fails closed without an unresolved manifest pla
   assert.equal((gradle.match(/manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/g) ?? []).length, 2);
 });
 
-test("mobile foundation exposes a Home screen, theme, and six-tab navigation with visual redesign", () => {
+test("mobile foundation exposes a Home screen, theme, and four primary decision-flow tabs", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /useState<Tab>\("Home"\)/);
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
+  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO"/);
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });

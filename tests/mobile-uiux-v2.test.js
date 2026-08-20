@@ -6,11 +6,11 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through six-tab restructuring", () => {
+test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
+  assert.match(app, /Paper: "TRADE"/);
+  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
