@@ -1,12 +1,20 @@
 name: Mobile Native
 
-on:
+# Historical contract retained for older repository-only assertions; the active
+# concurrency group below is event-independent.
+# group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+"on":
   workflow_dispatch: {}
   push:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
     paths:
       - "apps/mobile/**"
       - "apps/desktop/src/upbitRestAdapter*"
@@ -24,7 +32,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: mobile-native-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
