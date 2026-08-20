@@ -10,10 +10,9 @@ import {
   type UpbitOrderQuery,
   type UpbitReadAdapter,
 } from "./upbitRestAdapter";
-import {
-  UpbitExecutionRestClient,
-  type UpbitOrderAdapter,
-  type UpbitSubmitOrderRequest,
+import type {
+  UpbitOrderAdapter,
+  UpbitSubmitOrderRequest,
 } from "./upbitExecutionRestClient";
 
 export type TradingAdapterMode = "MOCK" | "LIVE";
@@ -42,6 +41,7 @@ export interface TradingAdapterEnvironment {
 export interface TradingAdapterDependencies {
   readonly mockReadAdapter?: UpbitReadAdapter;
   readonly liveReadAdapter?: UpbitReadAdapter;
+  /** Must come from the separately authorized Restricted-LIVE runtime. Never auto-created here. */
   readonly liveOrderAdapter?: UpbitOrderAdapter;
 }
 
@@ -99,23 +99,16 @@ abstract class ReadOnlyTradingAdapter implements TradingAdapter {
   public async withdraw(): Promise<never> { throw new LiveMutationDisabledError(`${this.mode}:withdraw`); }
 }
 
-/** Default LIVE adapter is deliberately read-only. */
 export class LiveTradingAdapter extends ReadOnlyTradingAdapter {
   public readonly mode = "LIVE" as const;
   constructor(readAdapter: UpbitReadAdapter) { super(readAdapter); }
 }
 
-/** Deterministic adapter used by default and by tests; it has the same read-only contract. */
 export class MockTradingAdapter extends ReadOnlyTradingAdapter {
   public readonly mode = "MOCK" as const;
   constructor(readAdapter: UpbitReadAdapter = new MockUpbitRestAdapter()) { super(readAdapter); }
 }
 
-/**
- * Separate, opt-in execution adapter. Construction itself requires the mutation gate,
- * and each real mutation additionally requires an explicit per-call authority object.
- * Test-order validation is non-mutating and does not require the per-call authority.
- */
 export class UpbitLiveOrderExecutionAdapter implements LiveOrderExecutionAdapter {
   public readonly mode = "LIVE" as const;
   public readonly readOnly = false as const;
@@ -160,8 +153,10 @@ export function createLiveOrderExecutionAdapter(
   if (configuration.mode !== "LIVE") throw new LiveAdapterSelectionError("Live order execution requires NUSA_TRADING_ADAPTER_MODE=LIVE");
   if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ADAPTER=true");
   if (!configuration.liveOrderMutationEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ORDER_MUTATION=true");
-  const orderAdapter = dependencies.liveOrderAdapter ?? new UpbitExecutionRestClient({ credentials: loadUpbitCredentials(environment) });
-  return new UpbitLiveOrderExecutionAdapter(orderAdapter);
+  if (!dependencies.liveOrderAdapter) {
+    throw new LiveAdapterSelectionError("Live order execution requires an explicitly injected Restricted-LIVE transport");
+  }
+  return new UpbitLiveOrderExecutionAdapter(dependencies.liveOrderAdapter);
 }
 
 function assertLiveOrderAuthority(authority: LiveOrderAuthority): void {
@@ -170,7 +165,6 @@ function assertLiveOrderAuthority(authority: LiveOrderAuthority): void {
   }
 }
 
-/** Runtime mode switch. Switching is explicit, validated, and never enables mutation. */
 export class TradingAdapterRuntime {
   private readonly environment: Record<string, string | undefined>;
   private readonly dependencies: TradingAdapterDependencies;
