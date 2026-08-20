@@ -32,7 +32,7 @@ test("AI SIGNAL preserves diagnostics lower in hierarchy and keeps zero executio
   const diagnostics = ai.indexOf('testID="ai-diagnostics-card"');
   const authority = ai.indexOf('testID="ai-authority-card"');
   assert.ok(evidence >= 0 && diagnostics > evidence && authority > diagnostics);
-  assert.match(ai, /AI SIGNAL · READ ONLY/);
+  assert.match(ai, /statusLabel="READ ONLY"/);
   assert.match(ai, /AI ZERO AUTHORITY/);
   assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
   assert.match(ai, /value=\{liveAuthority \?\? "-"\}/);
