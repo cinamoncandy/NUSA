@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { MotionReveal, TerrainSignal } from "./components";
-import { OperationalNotice, QuietStatus } from "./uxPrimitives";
+import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
@@ -47,6 +47,7 @@ export function HomeView({
   const profile = getHomeVisualProfile(theme.preset);
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
+  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
 
   const account = snapshot?.portfolio?.account ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -73,7 +74,7 @@ export function HomeView({
   const contentStyle = {
     paddingHorizontal: profile.screen.horizontalPadding,
     paddingTop: profile.screen.topPadding,
-    gap: tablet ? 20 : profile.screen.sectionGap,
+    gap: tablet ? 18 : profile.screen.sectionGap,
     paddingBottom: profile.screen.bottomPadding,
     maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth,
   } as const;
@@ -109,9 +110,11 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  const notice = readOnlyError
-    ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
-    : null;
+  const notice = notConfigured
+    ? { title: "PAPER 연결이 필요합니다", detail: "Settings에서 PAPER endpoint와 세션을 검증한 뒤 안전하게 연결하세요.", tone: "warning" as const }
+    : readOnlyError
+      ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
+      : null;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
@@ -149,7 +152,8 @@ export function HomeView({
       </View>
     </MotionReveal>
 
-    <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
+    <View testID="ai-card">
+      <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
       <View style={styles.decisionHeader}>
         <View style={styles.decisionHeaderCopy}>
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NOW</Text>
@@ -172,14 +176,16 @@ export function HomeView({
         <Text style={[styles.judgement, { color: theme.colors.text }]}>{blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
         <Text style={[styles.body, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
       </View>}
+      </View>
     </View>
 
     {notice ? <OperationalNotice
       title={notice.title}
       detail={notice.detail}
       tone={notice.tone}
-      actionLabel="설정"
+      actionLabel="설정에서 연결"
       onAction={onGoSettings}
+      actionTestID="dashboard-open-settings"
       testID="home-operational-notice"
     /> : null}
 
@@ -196,6 +202,27 @@ export function HomeView({
       >
         <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
       </Pressable>
+    </View>
+
+    <View style={styles.secondaryDiagnostics} testID="safety-card">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: diagnosticsOpen }}
+        onPress={() => setDiagnosticsOpen((open) => !open)}
+        style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
+        testID="home-diagnostics-toggle"
+      >
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>운영 진단</Text>
+        <Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "진단 닫기" : "진단 보기"}</Text>
+      </Pressable>
+      {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
+        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={snapshot ? "success" : "warning"} />
+        <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
+        <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
+        <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
+        <CompactMetric label="Production mutation" value="false" detail="fail-closed" />
+        {aiInsightAvailable ? <InsightPanel title="NUSA VIEW" thesis={ai?.thesis ?? ""} meta={`근거 ${ai?.evidenceReferences.length ?? 0}개 · READ ONLY`} confidenceLabel={calibratedConfidence} /> : null}
+      </View> : null}
     </View>
   </ScrollView>;
 }
@@ -230,4 +257,7 @@ const styles = StyleSheet.create({
   actionDetail: { fontSize: 11, lineHeight: 16 },
   primaryButton: { minHeight: 48, minWidth: 112, maxWidth: "46%", justifyContent: "center", alignItems: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14 },
   primaryLabel: { fontSize: 12, lineHeight: 18, fontWeight: "800" },
+  secondaryDiagnostics: { gap: 6, paddingTop: 2 },
+  diagnosticsToggle: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  diagnosticsToggleLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
 });
