@@ -3,7 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import { DataRow, NusaButton, NusaCard, StatusChip } from "./components";
-import { InlineNotice, ScreenHeader } from "./uxPrimitives";
+import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { uxLayout } from "./uxLayout";
 
@@ -52,11 +52,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       </View>
 
       <View style={styles.confidenceBand} testID="ai-signal-confidence">
-        <View style={styles.confidencePrimary}>
-          <Text style={[styles.bandLabel, { color: theme.colors.textMuted }]}>CALIBRATED CONFIDENCE</Text>
-          <Text style={[styles.confidenceValue, { color: isCalibrated ? theme.colors.primary : theme.colors.textMuted }]}>{trustedConfidence}</Text>
-          <Text style={[styles.bandDetail, { color: theme.colors.textMuted }]}>{isCalibrated ? "검증 신뢰도" : "보정 완료 전 숨김"}</Text>
-        </View>
+        <MetricTile label="검증 신뢰도" value={trustedConfidence} detail={isCalibrated ? "CALIBRATED CONFIDENCE" : "CALIBRATED CONFIDENCE · 보정 완료 전 숨김"} tone={isCalibrated ? "primary" : "warning"} testID="ai-verified-confidence" />
         <View style={[styles.stageDivider, { backgroundColor: theme.colors.borderStrong }]} />
         <View style={styles.stageMetric}>
           <Text style={[styles.bandLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text>
