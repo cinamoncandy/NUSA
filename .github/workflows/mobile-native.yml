@@ -3,7 +3,8 @@ name: Mobile Native
 # Historical contract retained for older repository-only assertions; the active
 # concurrency group below is event-independent.
 # group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-"on":
+# Registration recovery keeps this workflow's trigger syntax canonical.
+on:
   workflow_dispatch: {}
   push:
     branches:
