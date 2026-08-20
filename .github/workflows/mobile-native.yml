@@ -9,12 +9,7 @@ name: Mobile Native
     branches:
       - main
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - labeled
-      - unlabeled
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths:
       - "apps/mobile/**"
       - "apps/desktop/src/upbitRestAdapter*"
