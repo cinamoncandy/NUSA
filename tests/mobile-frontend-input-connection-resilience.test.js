@@ -36,13 +36,13 @@ test("Settings connection mutation is single-flight and probes only the persiste
 
 test("Settings revokes prior credential verification before testing a replacement token", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
+  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "[^"]*connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
-test("Settings fields use mobile-appropriate endpoint and one-time secret bootstrap semantics", () => {
+test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} keyboardType="url" label="Cloud endpoint"/);
+  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} keyboardType="url" label="Cloud(?: PAPER)? endpoint"/);
   assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} label="1회용 연결 토큰"[\s\S]*placeholder="OWNER가 발급한 bootstrap token"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.match(source, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
