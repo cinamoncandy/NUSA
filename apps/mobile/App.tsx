@@ -28,10 +28,11 @@ import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
-const tabs = ["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"] as const;
-type Tab = (typeof tabs)[number];
+const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
+type PrimaryTab = (typeof tabs)[number];
+type Tab = PrimaryTab | "AiSignal" | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<Tab, string>> = { Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
