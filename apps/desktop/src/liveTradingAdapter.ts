@@ -6,12 +6,15 @@ import {
   type UpbitAccountBalance,
   type UpbitLiveReadOnlySnapshot,
   type UpbitOrder,
-  type UpbitOrderAdapter,
   type UpbitOrderChance,
   type UpbitOrderQuery,
   type UpbitReadAdapter,
-  type UpbitSubmitOrderRequest,
 } from "./upbitRestAdapter";
+import {
+  UpbitExecutionRestClient,
+  type UpbitOrderAdapter,
+  type UpbitSubmitOrderRequest,
+} from "./upbitExecutionRestClient";
 
 export type TradingAdapterMode = "MOCK" | "LIVE";
 
@@ -145,7 +148,7 @@ export function createTradingAdapter(
   const configuration = readTradingAdapterEnvironment(environment);
   if (configuration.mode === "MOCK") return new MockTradingAdapter(dependencies.mockReadAdapter);
   if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("LIVE adapter requires NUSA_ENABLE_LIVE_ADAPTER=true");
-  const readAdapter = dependencies.liveReadAdapter ?? dependencies.liveOrderAdapter ?? new UpbitRestClient({ credentials: loadUpbitCredentials(environment) });
+  const readAdapter = dependencies.liveReadAdapter ?? new UpbitRestClient({ credentials: loadUpbitCredentials(environment) });
   return new LiveTradingAdapter(readAdapter);
 }
 
@@ -157,7 +160,7 @@ export function createLiveOrderExecutionAdapter(
   if (configuration.mode !== "LIVE") throw new LiveAdapterSelectionError("Live order execution requires NUSA_TRADING_ADAPTER_MODE=LIVE");
   if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ADAPTER=true");
   if (!configuration.liveOrderMutationEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ORDER_MUTATION=true");
-  const orderAdapter = dependencies.liveOrderAdapter ?? new UpbitRestClient({ credentials: loadUpbitCredentials(environment) });
+  const orderAdapter = dependencies.liveOrderAdapter ?? new UpbitExecutionRestClient({ credentials: loadUpbitCredentials(environment) });
   return new UpbitLiveOrderExecutionAdapter(orderAdapter);
 }
 
