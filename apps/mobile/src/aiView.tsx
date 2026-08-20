@@ -34,7 +34,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const signalDetail = ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다.";
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
-    <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI SIGNAL" description="검증된 관찰·근거·불확실성을 한 흐름으로 읽습니다. AI는 읽기 전용이며 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
+    <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI SIGNAL" description="검증된 관찰·근거·불확실성을 한 흐름으로 읽습니다. AI는 읽기 전용이며 주문 권한이 없습니다." />
 
     <View style={[styles.signalStage, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID="ai-signal-stage">
       <View style={styles.stageHeader}>
@@ -52,7 +52,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       </View>
 
       <View style={styles.confidenceBand} testID="ai-signal-confidence">
-        <MetricTile label="검증 신뢰도" value={trustedConfidence} detail={isCalibrated ? "CALIBRATED CONFIDENCE" : "CALIBRATED CONFIDENCE · 보정 완료 전 숨김"} tone={isCalibrated ? "primary" : "warning"} testID="ai-verified-confidence" />
+        <MetricTile label="검증 신뢰도" value={trustedConfidence} detail={isCalibrated ? "CALIBRATED CONFIDENCE" : "CALIBRATED CONFIDENCE · 보정 완료 전 숨김"} tone={isCalibrated ? "primary" : "warning"} testID="ai-trusted-confidence" />
         <View style={[styles.stageDivider, { backgroundColor: theme.colors.borderStrong }]} />
         <View style={styles.stageMetric}>
           <Text style={[styles.bandLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text>
