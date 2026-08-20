@@ -75,7 +75,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
     {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
       <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
         {segment("WATCHLIST", "시장", "markets-watchlist-tab")}
-        {segment("CHART", "상세", "markets-chart-tab")}
+        {segment("CHART", "차트", "markets-chart-tab")}
       </View></View>
     </View> : null}
     {!tabletWorkspace ? (panel === "WATCHLIST" ? watchlist : chart) : null}
