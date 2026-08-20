@@ -79,8 +79,6 @@ jobs:
           NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
       - name: Verify the debug APK actually contains the JS bundle
-        # Without this the job still passes while uploading an APK with no application
-        # code in it, which reads to a human as "the UI never changes".
         run: unzip -l apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/index.android.bundle'
       - name: Generate Android debug APK checksum
         run: sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk.sha256
@@ -95,23 +93,10 @@ jobs:
           retention-days: 14
 
   ios-debug:
+    if: ${{ false }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Enable pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.7.0 --activate
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
-      - run: pod install
-        working-directory: apps/mobile/ios
-      - run: xcodebuild -workspace NusaMobile.xcworkspace -scheme NusaMobile -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-        working-directory: apps/mobile/ios
+      - run: echo "iOS skipped: NUSA mobile delivery is Android-only"
 
   android-release-candidate:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
@@ -219,21 +204,7 @@ jobs:
           retention-days: 14
 
   ios-release-candidate:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
+    if: ${{ false }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Enable pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.7.0 --activate
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
-      - run: pod install
-        working-directory: apps/mobile/ios
-      - run: xcodebuild -workspace NusaMobile.xcworkspace -scheme NusaMobile -sdk iphonesimulator -configuration Release -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-        working-directory: apps/mobile/ios
+      - run: echo "iOS release candidate skipped: NUSA mobile delivery is Android-only"
