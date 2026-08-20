@@ -18,12 +18,12 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
 
 test("Settings keeps optional Cloud PAPER setup separate from immediate LOCAL PAPER", () => {
   const app = read("apps/mobile/App.tsx");
-  const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(home, /LOCAL PAPER/);
   assert.match(app, /<HomeView/);
   assert.match(settings, /settings-local-paper/);
+  assert.match(settings, /01 · LOCAL PAPER/);
   assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
+  assert.match(settings, /Cloud 연결 없이 LOCAL PAPER를 바로 사용할 수 있습니다/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
   assert.match(settings, /settings-paper-connect/);
