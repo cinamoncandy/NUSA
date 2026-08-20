@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
   decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   decisionHeaderCopy: { gap: 3 },
-  stageTitle: { fontSize: 20, lineHeight: 26, fontWeight: "750", letterSpacing: -0.5 },
+  stageTitle: { fontSize: 20, lineHeight: 26, fontWeight: "700", letterSpacing: -0.5 },
   decisionState: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.4 },
   decisionCopy: { gap: 8, paddingTop: 2 },
   judgementRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
