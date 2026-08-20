@@ -1,11 +1,14 @@
 id: WO-0062
 title: "Approved-User Session Failure Audit Hardening"
-status: IN_PROGRESS
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 8a98c9ce5798b6aaf38197c71990525b247c3622
 implementation_branch: fix/phase11-session-auth-failure-audit
+pull_request: 615
+exact_head: 6c8608774ef8c4bd655cf61f6720fdcf84c7dd20
+merge_commit: 7d1072f6b1f3ce1c3c104b2575ed222e0faa4359
 objective: "Extend the existing approved-user session audit ledger so rejected bootstrap and refresh authentication attempts are durably recorded with safe reason codes and without persisting credential material."
 authority:
   mode: PAPER_ONLY
@@ -42,7 +45,14 @@ safety:
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
 verification:
-  focused_session_tests: PENDING
-  typecheck: PENDING
-  required_ci: PENDING
+  focused_session_tests: PASS
+  typecheck: PASS
+  required_ci: PASS
+  exact_head_ci_run: 4998
+  read_only_broker_credential_integration: PASS
+  restricted_live_activation_rehearsal: PASS
+  restricted_live_transport_credential_readiness: PASS
+  restricted_live_capability_surface_guard: PASS
+  unresolved_review_threads_at_merge: 0
 completion_rule: "Implementation, focused tests, and exact-head required CI must pass; audit records must contain only safe reason codes and existing actor/target/family identifiers when already known, never raw credential material."
+completion_result: "SATISFIED by PR #615 exact head 6c8608774ef8c4bd655cf61f6720fdcf84c7dd20 merged to main as 7d1072f6b1f3ce1c3c104b2575ed222e0faa4359 after exact-head CI #4998 and required companion workflows passed. Rejected session attempts now use safe bounded reason codes in the existing durable session audit ledger without persisting raw credential material."
