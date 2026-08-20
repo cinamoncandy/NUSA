@@ -17,7 +17,7 @@ function jobBlock(name) {
 }
 
 test("Mobile Native supports explicit Android release intent and label changes", () => {
-  assert.match(workflow, /workflow_dispatch:\n/);
+  assert.match(workflow, /workflow_dispatch:(?: \{\})?\n/);
   assert.match(workflow, /types: \[opened, synchronize, reopened, labeled, unlabeled\]/);
   assert.equal(workflow.split(releaseIntent).length - 1, 1);
 });
