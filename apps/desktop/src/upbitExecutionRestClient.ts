@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   LiveMutationDisabledError,
   UpbitApiError,
@@ -47,11 +48,7 @@ export interface UpbitOrderAdapter {
   withdraw(): Promise<never>;
 }
 
-/**
- * Private Upbit mutation transport. This class is never selected by the default
- * TradingAdapter. It is constructed only behind the explicit LIVE order gate.
- * Mutations are intentionally not retried automatically.
- */
+/** Private Upbit mutation transport, only constructed behind the explicit LIVE order gate. */
 export class UpbitExecutionRestClient implements UpbitOrderAdapter {
   private readonly credentials: UpbitCredentials;
   private readonly baseUrl: string;
@@ -65,83 +62,46 @@ export class UpbitExecutionRestClient implements UpbitOrderAdapter {
     this.credentials = Object.freeze({ accessKey, secretKey });
     this.baseUrl = (options.baseUrl ?? "https://api.upbit.com").replace(/\/$/, "");
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.nonce = options.nonce ?? crypto.randomUUID;
+    this.nonce = options.nonce ?? randomUUID;
   }
 
-  async getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]> {
-    return this.request<readonly UpbitAccountBalance[]>("GET", "/v1/accounts", undefined, undefined, signal);
-  }
-
+  async getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]> { return this.request("GET", "/v1/accounts", undefined, undefined, signal); }
   async getOrders(query: UpbitOrderQuery = {}, signal?: AbortSignal): Promise<readonly UpbitOrder[]> {
     const parameters: Record<string, string> = {};
     if (query.market?.trim()) parameters.market = query.market.trim();
     if (query.state?.trim()) parameters.state = query.state.trim();
     if (query.page !== undefined) parameters.page = positiveInteger(query.page, "page");
     if (query.limit !== undefined) parameters.limit = positiveInteger(query.limit, "limit");
-    return this.request<readonly UpbitOrder[]>("GET", "/v1/orders", parameters, undefined, signal);
+    return this.request("GET", "/v1/orders", parameters, undefined, signal);
   }
-
-  async getOpenOrders(market?: string, signal?: AbortSignal): Promise<readonly UpbitOrder[]> {
-    return this.getOrders({ market, state: "wait" }, signal);
-  }
-
-  async getOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> {
-    return this.request<UpbitOrder>("GET", "/v1/order", { uuid: requiredText(uuid, "Order UUID") }, undefined, signal);
-  }
-
-  async getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance> {
-    return this.request<UpbitOrderChance>("GET", "/v1/orders/chance", { market: requiredText(market, "Market") }, undefined, signal);
-  }
-
+  async getOpenOrders(market?: string, signal?: AbortSignal): Promise<readonly UpbitOrder[]> { return this.getOrders({ market, state: "wait" }, signal); }
+  async getOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> { return this.request("GET", "/v1/order", { uuid: requiredText(uuid, "Order UUID") }, undefined, signal); }
+  async getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance> { return this.request("GET", "/v1/orders/chance", { market: requiredText(market, "Market") }, undefined, signal); }
   async captureSnapshot(market?: string, signal?: AbortSignal): Promise<UpbitLiveReadOnlySnapshot> {
     const [accounts, openOrders] = await Promise.all([this.getAccounts(signal), this.getOpenOrders(market, signal)]);
     return Object.freeze({ observedAt: new Date().toISOString(), accounts, openOrders });
   }
+  async testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> { return this.request("POST", "/v1/orders/test", undefined, normalizeOrder(order), signal); }
+  async submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> { return this.request("POST", "/v1/orders", undefined, normalizeOrder(order), signal); }
+  async cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> { return this.request("DELETE", "/v1/order", { uuid: requiredText(uuid, "Order UUID") }, undefined, signal); }
+  async withdraw(): Promise<never> { throw new LiveMutationDisabledError("LIVE:withdraw"); }
 
-  async testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
-    return this.request<UpbitOrder>("POST", "/v1/orders/test", undefined, normalizeOrder(order), signal);
-  }
-
-  async submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
-    return this.request<UpbitOrder>("POST", "/v1/orders", undefined, normalizeOrder(order), signal);
-  }
-
-  async cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> {
-    return this.request<UpbitOrder>("DELETE", "/v1/order", { uuid: requiredText(uuid, "Order UUID") }, undefined, signal);
-  }
-
-  async withdraw(): Promise<never> {
-    throw new LiveMutationDisabledError("LIVE:withdraw");
-  }
-
-  private async request<T>(
-    method: "GET" | "POST" | "DELETE",
-    path: string,
-    query: Record<string, string> | undefined,
-    body: Record<string, string> | undefined,
-    signal?: AbortSignal,
-  ): Promise<T> {
+  private async request<T>(method: "GET" | "POST" | "DELETE", path: string, query: Record<string, string> | undefined, body: Record<string, string> | undefined, signal?: AbortSignal): Promise<T> {
     const queryString = query ? new URLSearchParams(query).toString() : "";
     const authParameters = body ?? query;
     const authQueryString = authParameters ? Object.entries(authParameters).map(([key, value]) => `${key}=${value}`).join("&") : "";
     const url = `${this.baseUrl}${path}${queryString ? `?${queryString}` : ""}`;
-
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
         method,
-        headers: {
-          Authorization: createUpbitJwt(this.credentials, { queryString: authQueryString, nonce: this.nonce() }),
-          Accept: "application/json",
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
+        headers: { Authorization: createUpbitJwt(this.credentials, { queryString: authQueryString, nonce: this.nonce() }), Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}),
         signal,
       });
     } catch (error) {
       throw new UpbitTransportError(error instanceof Error ? error.message : String(error));
     }
-
     const text = await response.text();
     const payload = parseJson(text, response.status);
     if (response.ok) return payload as T;
@@ -149,24 +109,14 @@ export class UpbitExecutionRestClient implements UpbitOrderAdapter {
   }
 }
 
-function requiredText(value: string, name: string): string {
-  const normalized = value.trim();
-  if (!normalized) throw new UpbitConfigurationError(`${name} is required`);
-  return normalized;
-}
-
-function positiveInteger(value: number, name: string): string {
-  if (!Number.isSafeInteger(value) || value < 1) throw new UpbitConfigurationError(`${name} must be a positive integer`);
-  return String(value);
-}
-
+function requiredText(value: string, name: string): string { const normalized = value.trim(); if (!normalized) throw new UpbitConfigurationError(`${name} is required`); return normalized; }
+function positiveInteger(value: number, name: string): string { if (!Number.isSafeInteger(value) || value < 1) throw new UpbitConfigurationError(`${name} must be a positive integer`); return String(value); }
 function positiveDecimal(value: string | undefined, name: string): string | undefined {
   if (value === undefined) return undefined;
   const normalized = value.trim();
   if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(normalized) || Number(normalized) <= 0) throw new UpbitConfigurationError(`${name} must be a positive decimal string`);
   return normalized;
 }
-
 function normalizeOrder(order: UpbitSubmitOrderRequest): Record<string, string> {
   const market = requiredText(order.market, "Market");
   if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(market)) throw new UpbitConfigurationError("Market must use quote-base format such as KRW-BTC");
@@ -185,15 +135,5 @@ function normalizeOrder(order: UpbitSubmitOrderRequest): Record<string, string> 
   if (order.smp_type) body.smp_type = order.smp_type;
   return body;
 }
-
-function parseJson(text: string, status: number): unknown {
-  if (!text) return null;
-  try { return JSON.parse(text) as unknown; }
-  catch { throw new UpbitApiError(status, "invalid_json", "Upbit returned invalid JSON", false); }
-}
-
-function parseRetryAfter(value: string | null): number | undefined {
-  if (!value) return undefined;
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds >= 0 ? Math.min(seconds * 1_000, 60_000) : undefined;
-}
+function parseJson(text: string, status: number): unknown { if (!text) return null; try { return JSON.parse(text) as unknown; } catch { throw new UpbitApiError(status, "invalid_json", "Upbit returned invalid JSON", false); } }
+function parseRetryAfter(value: string | null): number | undefined { if (!value) return undefined; const seconds = Number(value); return Number.isFinite(seconds) && seconds >= 0 ? Math.min(seconds * 1_000, 60_000) : undefined; }
