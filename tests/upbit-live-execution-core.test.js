@@ -35,10 +35,11 @@ test("default bundle contains no real order or cancel transport", async () => {
   assert.equal(calls, 0);
 });
 
-test("default LIVE adapter stays read-only and execution construction requires explicit mutation gate", () => {
+test("default LIVE adapter stays read-only and environment flags alone cannot create execution", () => {
   const readOnly = createTradingAdapter({ NUSA_TRADING_ADAPTER_MODE: "LIVE", NUSA_ENABLE_LIVE_ADAPTER: "true", UPBIT_ACCESS_KEY: "a", UPBIT_SECRET_KEY: "b" });
   assert.equal(readOnly.readOnly, true);
   assert.equal(readOnly.productionMutationAllowed, false);
+  assert.throws(() => createLiveOrderExecutionAdapter({ NUSA_TRADING_ADAPTER_MODE: "LIVE", NUSA_ENABLE_LIVE_ADAPTER: "true", NUSA_ENABLE_LIVE_ORDER_MUTATION: "true", UPBIT_ACCESS_KEY: "a", UPBIT_SECRET_KEY: "b" }), /explicitly injected Restricted-LIVE transport/);
   assert.throws(() => createLiveOrderExecutionAdapter({ NUSA_TRADING_ADAPTER_MODE: "LIVE", NUSA_ENABLE_LIVE_ADAPTER: "true", UPBIT_ACCESS_KEY: "a", UPBIT_SECRET_KEY: "b" }), LiveAdapterSelectionError);
 });
 
