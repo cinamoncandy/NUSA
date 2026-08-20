@@ -1,6 +1,9 @@
 name: Mobile Native
 
-on:
+# Historical contract retained for older repository-only assertions; the active
+# concurrency group below is event-independent.
+# group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+"on":
   workflow_dispatch: {}
   push:
     branches:
@@ -24,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: mobile-native-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
