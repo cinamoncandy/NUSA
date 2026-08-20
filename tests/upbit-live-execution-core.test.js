@@ -58,7 +58,7 @@ test("injected restricted-live transport still requires per-order authority", as
   const adapter = createLiveOrderExecutionAdapter({ NUSA_TRADING_ADAPTER_MODE: "LIVE", NUSA_ENABLE_LIVE_ADAPTER: "true", NUSA_ENABLE_LIVE_ORDER_MUTATION: "true" }, { liveOrderAdapter: orderAdapter });
   const order = { market: "KRW-BTC", side: "bid", ord_type: "price", price: "10000" };
   await adapter.testOrder(order);
-  await assert.rejects(() => adapter.submitOrder(order, { productionMutationAllowed: false, confirmation: "NO" }), LiveMutationDisabledError);
+  assert.throws(() => adapter.submitOrder(order, { productionMutationAllowed: false, confirmation: "NO" }), LiveMutationDisabledError);
   assert.equal(delegated.length, 1);
   const authority = { productionMutationAllowed: true, confirmation: "CONFIRM_UPBIT_LIVE_ORDER" };
   await adapter.submitOrder(order, authority);
