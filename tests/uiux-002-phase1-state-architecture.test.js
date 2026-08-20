@@ -39,7 +39,6 @@ test("PAPER exposes local simulation independently while cloud submit stays auth
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
   assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(trading, /LOCAL PAPER/);
-  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
 });
