@@ -34,15 +34,17 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   assert.doesNotMatch(app, /94%/);
 });
 
-test("PAPER surface exposes verified PAPER-only execution without LIVE authority", () => {
+test("PAPER surface exposes local or verified cloud PAPER execution without LIVE authority", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /PAPER 주문 작업공간/);
-  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(trading, /MockTradingService/);
+  assert.match(trading, /loadUpbitPublicMarkets/);
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);

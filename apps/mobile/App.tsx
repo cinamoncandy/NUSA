@@ -285,7 +285,7 @@ function AuthenticatedApp() {
     && runtimeSnapshot.lifecycle === "FOREGROUND"
     && runtimeSnapshot.network === "ONLINE"
     && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && (utilityView === null && activeTab !== "Home" && activeTab !== "Markets") && activeTab !== "Portfolio";
+  const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper";
   const homeShellActive = utilityView === null && activeTab === "Home";
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>

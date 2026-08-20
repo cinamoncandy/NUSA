@@ -32,11 +32,15 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
   assert.match(markets, /const chart = <View[\s\S]*<ChartView/);
 });
 
-test("PAPER hides mutation controls until verified PAPER submit authority exists", () => {
+test("PAPER exposes independent LOCAL execution while verified CLOUD execution remains runtime-gated", () => {
   const trading = source("tradingView.tsx");
   assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
-  assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
-  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
+  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
+  assert.match(trading, /productionMutationAllowed: false/);
+  assert.match(trading, /liveMutationAllowed: false/);
 });

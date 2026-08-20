@@ -37,7 +37,7 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
-test("closeout does not change authority or mutation semantics", () => {
+test("closeout preserves PAPER-only mutation semantics while local PAPER stays independent of cloud runtime", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   const trading = read("apps/mobile/src/tradingView.tsx");
@@ -45,6 +45,10 @@ test("closeout does not change authority or mutation semantics", () => {
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
   assert.match(trading, /Production mutation 금지/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /liveMutationAllowed: false/);
+  assert.match(trading, /productionMutationAllowed: false/);
+  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
 });
