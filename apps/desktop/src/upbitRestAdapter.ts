@@ -263,8 +263,7 @@ export class UpbitRestClient implements UpbitOrderAdapter {
     signal?: AbortSignal,
   ): Promise<T> {
     const queryString = query ? new URLSearchParams(query).toString() : "";
-    const bodyQueryString = body ? new URLSearchParams(body).toString() : "";
-    const authQueryString = bodyQueryString || queryString;
+    const authQueryString = canonicalQueryString(body ?? query);
     const url = `${this.baseUrl}${path}${queryString ? `?${queryString}` : ""}`;
     const maxAttempts = method === "GET" ? this.retry.maxAttempts : 1;
 
@@ -331,6 +330,10 @@ export class MockUpbitRestAdapter implements UpbitReadAdapter {
 }
 
 function base64Url(value: string): string { return Buffer.from(value, "utf8").toString("base64url"); }
+function canonicalQueryString(parameters: Record<string, string> | undefined): string {
+  if (!parameters) return "";
+  return Object.entries(parameters).map(([key, value]) => `${key}=${value}`).join("&");
+}
 function positiveInteger(value: number, name: string): string { if (!Number.isSafeInteger(value) || value < 1) throw new UpbitConfigurationError(`${name} must be a positive integer`); return String(value); }
 function requiredText(value: string, name: string): string { const normalized = value.trim(); if (!normalized) throw new UpbitConfigurationError(`${name} is required`); return normalized; }
 function positiveDecimal(value: string | undefined, name: string): string | undefined {
