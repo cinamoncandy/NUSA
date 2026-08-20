@@ -140,9 +140,12 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       primary: palette.primary,
       primarySoft: palette.primarySoft,
       onPrimary: palette.onPrimary,
-      aiSignalStart: "#9B6CFF",
-      aiSignalMid: "#5B8CFF",
-      aiSignalEnd: "#36D8CB",
+      // Tuned for a dark surface. Used unconditionally against a light background, aiSignalEnd in
+      // particular fell to ~1.5:1 contrast -- well under WCAG's 3:1 non-text floor -- so the HOME
+      // hero's central convergence node was nearly invisible in light mode specifically.
+      aiSignalStart: dark ? "#9B6CFF" : "#7C3AED",
+      aiSignalMid: dark ? "#5B8CFF" : "#2563EB",
+      aiSignalEnd: dark ? "#36D8CB" : "#0B6B60",
       aiSignalSoft: dark ? "#15122B" : "#F2EAFE",
       terrain: dark ? "#DCEBFF" : "#23334A",
       chartUp: dark ? "#36D8CB" : "#147A50",
