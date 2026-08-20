@@ -1,6 +1,10 @@
 name: Mobile Native
 
 on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
     paths:
@@ -15,9 +19,6 @@ on:
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
       - "pnpm-lock.yaml"
-  push:
-    branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
