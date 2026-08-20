@@ -53,20 +53,6 @@ export interface UpbitLiveReadOnlySnapshot {
   readonly openOrders: readonly UpbitOrder[];
 }
 
-export type UpbitOrderSide = "bid" | "ask";
-export type UpbitOrderType = "limit" | "price" | "market" | "best";
-
-export interface UpbitSubmitOrderRequest {
-  readonly market: string;
-  readonly side: UpbitOrderSide;
-  readonly ord_type: UpbitOrderType;
-  readonly volume?: string;
-  readonly price?: string;
-  readonly identifier?: string;
-  readonly time_in_force?: "ioc" | "fok" | "post_only";
-  readonly smp_type?: "cancel_maker" | "cancel_taker" | "reduce";
-}
-
 export interface UpbitRestClientOptions {
   readonly credentials: UpbitCredentials;
   readonly baseUrl?: string;
@@ -99,12 +85,6 @@ export interface UpbitReadAdapter {
   captureSnapshot(market?: string, signal?: AbortSignal): Promise<UpbitLiveReadOnlySnapshot>;
 }
 
-export interface UpbitOrderAdapter extends UpbitReadAdapter {
-  testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder>;
-  submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder>;
-  cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder>;
-}
-
 export class UpbitConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -120,7 +100,7 @@ export class UpbitApiError extends Error {
     readonly retryable: boolean,
     readonly retryAfterMs?: number,
   ) {
-    super(`Upbit request failed (${status}): ${message}`);
+    super(`Upbit read request failed (${status}): ${message}`);
     this.name = "UpbitApiError";
   }
 }
@@ -182,14 +162,13 @@ export function mapUpbitError(status: number, payload: unknown, statusText = "re
 
 const DEFAULT_RETRY: UpbitRetryPolicy = Object.freeze({ maxAttempts: 3, baseDelayMs: 100, maxDelayMs: 2_000 });
 
-export class UpbitRestClient implements UpbitOrderAdapter {
+export class UpbitRestClient implements UpbitReadAdapter {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
   private readonly nonce: () => string;
   private readonly retry: UpbitRetryPolicy;
   private readonly sleep: (milliseconds: number) => Promise<void>;
-  private readonly credentials: UpbitCredentials;
 
   constructor(options: UpbitRestClientOptions) {
     const accessKey = options.credentials.accessKey.trim();
@@ -204,8 +183,10 @@ export class UpbitRestClient implements UpbitOrderAdapter {
     this.credentials = Object.freeze({ accessKey, secretKey });
   }
 
+  private readonly credentials: UpbitCredentials;
+
   async getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]> {
-    return this.request<readonly UpbitAccountBalance[]>("GET", "/v1/accounts", undefined, undefined, signal);
+    return this.request<readonly UpbitAccountBalance[]>("/v1/accounts", undefined, signal);
   }
 
   async getOrders(query: UpbitOrderQuery = {}, signal?: AbortSignal): Promise<readonly UpbitOrder[]> {
@@ -214,7 +195,7 @@ export class UpbitRestClient implements UpbitOrderAdapter {
     if (query.state?.trim()) normalized.state = query.state.trim();
     if (query.page !== undefined) normalized.page = positiveInteger(query.page, "page");
     if (query.limit !== undefined) normalized.limit = positiveInteger(query.limit, "limit");
-    return this.request<readonly UpbitOrder[]>("GET", "/v1/orders", normalized, undefined, signal);
+    return this.request<readonly UpbitOrder[]>("/v1/orders", normalized, signal);
   }
 
   async getOpenOrders(market?: string, signal?: AbortSignal): Promise<readonly UpbitOrder[]> {
@@ -222,13 +203,15 @@ export class UpbitRestClient implements UpbitOrderAdapter {
   }
 
   async getOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> {
-    const normalized = requiredText(uuid, "Order UUID");
-    return this.request<UpbitOrder>("GET", "/v1/order", { uuid: normalized }, undefined, signal);
+    const normalized = uuid.trim();
+    if (!normalized) throw new UpbitConfigurationError("Order UUID is required");
+    return this.request<UpbitOrder>("/v1/order", { uuid: normalized }, signal);
   }
 
   async getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance> {
-    const normalized = requiredText(market, "Market");
-    return this.request<UpbitOrderChance>("GET", "/v1/orders/chance", { market: normalized }, undefined, signal);
+    const normalized = market.trim();
+    if (!normalized) throw new UpbitConfigurationError("Market is required");
+    return this.request<UpbitOrderChance>("/v1/orders/chance", { market: normalized }, signal);
   }
 
   async captureSnapshot(market?: string, signal?: AbortSignal): Promise<UpbitLiveReadOnlySnapshot> {
@@ -236,52 +219,27 @@ export class UpbitRestClient implements UpbitOrderAdapter {
     return Object.freeze({ observedAt: this.now().toISOString(), accounts, openOrders });
   }
 
-  async testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
-    const body = normalizeOrder(order);
-    return this.request<UpbitOrder>("POST", "/v1/orders/test", undefined, body, signal);
+  async submitOrder(): Promise<never> {
+    throw new LiveMutationDisabledError("submitOrder");
   }
 
-  async submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
-    const body = normalizeOrder(order);
-    return this.request<UpbitOrder>("POST", "/v1/orders", undefined, body, signal);
-  }
-
-  async cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> {
-    const normalized = requiredText(uuid, "Order UUID");
-    return this.request<UpbitOrder>("DELETE", "/v1/order", { uuid: normalized }, undefined, signal);
+  async cancelOrder(): Promise<never> {
+    throw new LiveMutationDisabledError("cancelOrder");
   }
 
   async withdraw(): Promise<never> {
     throw new LiveMutationDisabledError("withdraw");
   }
 
-  private async request<T>(
-    method: "GET" | "POST" | "DELETE",
-    path: string,
-    query: Record<string, string> | undefined,
-    body: Record<string, string> | undefined,
-    signal?: AbortSignal,
-  ): Promise<T> {
+  private async request<T>(path: string, query: Record<string, string> | undefined, signal?: AbortSignal): Promise<T> {
     const queryString = query ? new URLSearchParams(query).toString() : "";
-    const authQueryString = canonicalQueryString(body ?? query);
     const url = `${this.baseUrl}${path}${queryString ? `?${queryString}` : ""}`;
-    const maxAttempts = method === "GET" ? this.retry.maxAttempts : 1;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    for (let attempt = 1; attempt <= this.retry.maxAttempts; attempt += 1) {
       let response: Response;
       try {
-        response = await this.fetchImpl(url, {
-          method,
-          headers: {
-            Authorization: createUpbitJwt(this.credentials, { queryString: authQueryString, nonce: this.nonce() }),
-            Accept: "application/json",
-            ...(body ? { "Content-Type": "application/json" } : {}),
-          },
-          ...(body ? { body: JSON.stringify(body) } : {}),
-          signal,
-        });
+        response = await this.fetchImpl(url, { method: "GET", headers: { Authorization: createUpbitJwt(this.credentials, { queryString, nonce: this.nonce() }), Accept: "application/json" }, signal });
       } catch (error) {
-        if (attempt < maxAttempts) {
+        if (attempt < this.retry.maxAttempts) {
           await this.sleep(backoff(attempt, this.retry));
           continue;
         }
@@ -293,7 +251,7 @@ export class UpbitRestClient implements UpbitOrderAdapter {
       if (response.ok) return payload as T;
       const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
       const mapped = mapUpbitError(response.status, payload, response.statusText, retryAfterMs);
-      if (method !== "GET" || !mapped.retryable || attempt >= maxAttempts) throw mapped;
+      if (!mapped.retryable || attempt >= this.retry.maxAttempts) throw mapped;
       await this.sleep(mapped.retryAfterMs ?? backoff(attempt, this.retry));
     }
     throw new UpbitTransportError("request retry loop ended unexpectedly");
@@ -330,36 +288,7 @@ export class MockUpbitRestAdapter implements UpbitReadAdapter {
 }
 
 function base64Url(value: string): string { return Buffer.from(value, "utf8").toString("base64url"); }
-function canonicalQueryString(parameters: Record<string, string> | undefined): string {
-  if (!parameters) return "";
-  return Object.entries(parameters).map(([key, value]) => `${key}=${value}`).join("&");
-}
 function positiveInteger(value: number, name: string): string { if (!Number.isSafeInteger(value) || value < 1) throw new UpbitConfigurationError(`${name} must be a positive integer`); return String(value); }
-function requiredText(value: string, name: string): string { const normalized = value.trim(); if (!normalized) throw new UpbitConfigurationError(`${name} is required`); return normalized; }
-function positiveDecimal(value: string | undefined, name: string): string | undefined {
-  if (value === undefined) return undefined;
-  const normalized = value.trim();
-  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(normalized) || Number(normalized) <= 0) throw new UpbitConfigurationError(`${name} must be a positive decimal string`);
-  return normalized;
-}
-function normalizeOrder(order: UpbitSubmitOrderRequest): Record<string, string> {
-  const market = requiredText(order.market, "Market");
-  if (!/^[A-Z0-9]+-[A-Z0-9]+$/.test(market)) throw new UpbitConfigurationError("Market must use quote-base format such as KRW-BTC");
-  const volume = positiveDecimal(order.volume, "volume");
-  const price = positiveDecimal(order.price, "price");
-  if (order.ord_type === "limit" && (!volume || !price)) throw new UpbitConfigurationError("limit order requires volume and price");
-  if (order.ord_type === "price" && (order.side !== "bid" || !price || volume)) throw new UpbitConfigurationError("price order is a market buy and requires price only");
-  if (order.ord_type === "market" && (order.side !== "ask" || !volume || price)) throw new UpbitConfigurationError("market order is a market sell and requires volume only");
-  if (order.ord_type === "best" && !volume && !price) throw new UpbitConfigurationError("best order requires volume or price");
-  if (order.time_in_force === "post_only" && order.smp_type) throw new UpbitConfigurationError("post_only cannot be combined with smp_type");
-  const body: Record<string, string> = { market, side: order.side, ord_type: order.ord_type };
-  if (volume) body.volume = volume;
-  if (price) body.price = price;
-  if (order.identifier?.trim()) body.identifier = order.identifier.trim();
-  if (order.time_in_force) body.time_in_force = order.time_in_force;
-  if (order.smp_type) body.smp_type = order.smp_type;
-  return body;
-}
 function parseJson(text: string, status: number): unknown { if (!text) return null; try { return JSON.parse(text) as unknown; } catch { throw new UpbitApiError(status, "invalid_json", "Upbit returned invalid JSON", false); } }
 function parseRetryAfter(value: string | null): number | undefined { if (!value) return undefined; const seconds = Number(value); return Number.isFinite(seconds) && seconds >= 0 ? Math.min(seconds * 1_000, 60_000) : undefined; }
 function backoff(attempt: number, retry: UpbitRetryPolicy): number { return Math.min(retry.maxDelayMs, retry.baseDelayMs * 2 ** (attempt - 1)); }
