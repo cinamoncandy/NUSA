@@ -136,17 +136,17 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
   const convergenceLeft = `${Math.round(50 + boundedStrength * 8)}%` as `${number}%`;
-  const signalOpacity = 0.28 + boundedStrength * 0.42;
+  const signalOpacity = 0.55 + boundedStrength * 0.4;
   const fieldLabel = accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널");
 
   return <View accessible accessibilityRole="image" accessibilityLabel={fieldLabel} style={styles.terrainSignal} testID={testID}>
-    <View style={[styles.terrainGridLine, styles.terrainGridLineA, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineB, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineC, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineD, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridColumn, styles.terrainGridColumnA, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridColumn, styles.terrainGridColumnB, { backgroundColor: theme.colors.border }]} />
-    <View style={[styles.terrainGridColumn, styles.terrainGridColumnC, { backgroundColor: theme.colors.border }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineA, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineB, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineC, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridLine, styles.terrainGridLineD, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridColumn, styles.terrainGridColumnA, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridColumn, styles.terrainGridColumnB, { backgroundColor: theme.colors.borderStrong }]} />
+    <View style={[styles.terrainGridColumn, styles.terrainGridColumnC, { backgroundColor: theme.colors.borderStrong }]} />
 
     <View style={[styles.terrainContour, styles.terrainContourFarA, { backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.30 }]} />
     <View style={[styles.terrainContour, styles.terrainContourFarB, { backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.38 }]} />
@@ -157,16 +157,16 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
     <View style={[styles.terrainContour, styles.terrainContourGroundA, { backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.82 }]} />
     <View style={[styles.terrainContour, styles.terrainContourGroundB, { backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
 
-    <View style={[styles.terrainRail, styles.terrainRailLeft, { backgroundColor: theme.colors.aiSignalStart, opacity: 0.18 + boundedStrength * 0.24 }]} />
-    <View style={[styles.terrainRail, styles.terrainRailRight, { backgroundColor: theme.colors.aiSignalMid, opacity: 0.20 + boundedStrength * 0.28 }]} />
-    <View style={[styles.terrainAxis, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.12 + boundedStrength * 0.20 }]} />
+    <View style={[styles.terrainRail, styles.terrainRailLeft, { backgroundColor: theme.colors.aiSignalStart, opacity: 0.28 + boundedStrength * 0.30 }]} />
+    <View style={[styles.terrainRail, styles.terrainRailRight, { backgroundColor: theme.colors.aiSignalMid, opacity: 0.30 + boundedStrength * 0.34 }]} />
+    <View style={[styles.terrainAxis, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.24 + boundedStrength * 0.28 }]} />
 
-    <View style={[styles.terrainNodeTick, styles.terrainNodeTickLeft, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.55 }]} />
-    <View style={[styles.terrainNodeTick, styles.terrainNodeTickRight, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.55 }]} />
-    <View style={[styles.terrainHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalStart, opacity: 0.12 + boundedStrength * 0.14 }]} />
-    <View style={[styles.terrainHaloMid, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.18 + boundedStrength * 0.20 }]} />
-    <View style={[styles.terrainHaloInner, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.30 + boundedStrength * 0.26 }]} />
-    <View style={[styles.terrainNode, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.76 + boundedStrength * 0.24 }]} />
+    <View style={[styles.terrainNodeTick, styles.terrainNodeTickLeft, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.72 }]} />
+    <View style={[styles.terrainNodeTick, styles.terrainNodeTickRight, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.72 }]} />
+    <View style={[styles.terrainHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalStart, opacity: 0.30 + boundedStrength * 0.20 }]} />
+    <View style={[styles.terrainHaloMid, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.38 + boundedStrength * 0.22 }]} />
+    <View style={[styles.terrainHaloInner, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.52 + boundedStrength * 0.24 }]} />
+    <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.9 + boundedStrength * 0.1 }]} />
   </View>;
 }
 
@@ -213,17 +213,17 @@ const styles = StyleSheet.create({
   dataValueEmphasis: { fontSize: 14 },
 
   terrainSignal: { height: 292, width: "100%", overflow: "hidden", position: "relative" },
-  terrainGridLine: { position: "absolute", left: "1%", right: "1%", height: StyleSheet.hairlineWidth, opacity: 0.22 },
+  terrainGridLine: { position: "absolute", left: "1%", right: "1%", height: 1, opacity: 0.46 },
   terrainGridLineA: { top: "18%" },
   terrainGridLineB: { top: "39%" },
   terrainGridLineC: { top: "61%" },
   terrainGridLineD: { top: "82%" },
-  terrainGridColumn: { position: "absolute", top: "8%", bottom: "8%", width: StyleSheet.hairlineWidth, opacity: 0.14 },
+  terrainGridColumn: { position: "absolute", top: "8%", bottom: "8%", width: 1, opacity: 0.28 },
   terrainGridColumnA: { left: "24%" },
   terrainGridColumnB: { left: "50%" },
   terrainGridColumnC: { left: "76%" },
 
-  terrainContour: { position: "absolute", height: 1 },
+  terrainContour: { position: "absolute", height: 2, borderRadius: 1 },
   terrainContourFarA: { left: "5%", top: "24%", width: "58%", transform: [{ rotate: "4deg" }] },
   terrainContourFarB: { right: "3%", top: "28%", width: "48%", transform: [{ rotate: "-5deg" }] },
   terrainContourMidA: { left: "3%", top: "39%", width: "74%", transform: [{ rotate: "-7deg" }] },
@@ -233,15 +233,15 @@ const styles = StyleSheet.create({
   terrainContourGroundA: { left: "2%", top: "73%", width: "88%", transform: [{ rotate: "-3deg" }] },
   terrainContourGroundB: { right: "0%", top: "79%", width: "92%", transform: [{ rotate: "3deg" }] },
 
-  terrainRail: { position: "absolute", height: 1, width: "58%", top: "51%" },
+  terrainRail: { position: "absolute", height: 2, width: "58%", top: "51%", borderRadius: 1 },
   terrainRailLeft: { left: "-6%", transform: [{ rotate: "12deg" }] },
   terrainRailRight: { right: "-8%", transform: [{ rotate: "-11deg" }] },
-  terrainAxis: { position: "absolute", top: "10%", bottom: "9%", width: StyleSheet.hairlineWidth },
-  terrainNodeTick: { position: "absolute", top: "51%", width: 18, height: 1, marginTop: 0 },
+  terrainAxis: { position: "absolute", top: "10%", bottom: "9%", width: 1.5 },
+  terrainNodeTick: { position: "absolute", top: "51%", width: 18, height: 2, marginTop: -0.5 },
   terrainNodeTickLeft: { marginLeft: -30 },
   terrainNodeTickRight: { marginLeft: 12 },
-  terrainHaloOuter: { position: "absolute", top: "39%", width: 78, height: 78, borderRadius: 39, borderWidth: StyleSheet.hairlineWidth, marginLeft: -39 },
-  terrainHaloMid: { position: "absolute", top: "42.5%", width: 58, height: 58, borderRadius: 29, borderWidth: StyleSheet.hairlineWidth, marginLeft: -29 },
-  terrainHaloInner: { position: "absolute", top: "46%", width: 38, height: 38, borderRadius: 19, borderWidth: 1, marginLeft: -19 },
-  terrainNode: { position: "absolute", top: "50.3%", width: 10, height: 10, borderRadius: 5, marginLeft: -5, shadowOpacity: 0.72, shadowRadius: 14, elevation: 3 },
+  terrainHaloOuter: { position: "absolute", top: "39%", width: 78, height: 78, borderRadius: 39, borderWidth: 1, marginLeft: -39 },
+  terrainHaloMid: { position: "absolute", top: "42.5%", width: 58, height: 58, borderRadius: 29, borderWidth: 1, marginLeft: -29 },
+  terrainHaloInner: { position: "absolute", top: "46%", width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, marginLeft: -19 },
+  terrainConvergence: { position: "absolute", top: "49.3%", width: 16, height: 16, borderRadius: 8, marginLeft: -8, shadowOpacity: 0.82, shadowRadius: 18, elevation: 4 },
 });
