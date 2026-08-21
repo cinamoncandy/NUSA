@@ -51,14 +51,19 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
   assert.throws(() => buildPortfolioViewModel(response({ account: { equity: 900 } })), /reconcile/);
 });
 
-test("Portfolio screen exposes truthful verified totals without unavailable return UI", () => {
+test("Portfolio screen exposes truthful verified totals and shared LOCAL PAPER fallback", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   assert.match(source, /자산 정보를 표시할 수 없습니다/);
+  assert.match(source, /PAPER 자산을 표시할 수 없습니다/);
   assert.match(source, /열린 포지션 없음/);
-  assert.match(source, /자산 정보를 불러오는 중/);
   assert.match(source, /RefreshControl/);
-  assert.match(source, /styles\.heroLabel, \{ color: theme\.colors\.textMuted \}\]\}>총 평가자산/);
+  assert.match(source, /getLocalPaperState/);
+  assert.match(source, /subscribeLocalPaper/);
+  assert.match(source, /const usingLocalPaper = snapshot === null && error === null/);
+  assert.match(source, /testID="portfolio-local-paper-source"/);
+  assert.match(source, /testID="portfolio-summary"/);
+  assert.match(source, />총 평가자산</);
   assert.match(source, /계정 전체 집계/);
   assert.match(source, /portfolio-realized-pnl/);
   assert.match(source, /portfolio-unrealized-pnl/);
