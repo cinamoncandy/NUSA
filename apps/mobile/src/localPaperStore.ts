@@ -50,22 +50,13 @@ export function setLocalPaperMarkPrice(value: number | null): void {
 }
 
 export async function placeLocalPaperOrder(input: Readonly<{ side: OrderSide; quantity: number; price: number; nowMs: number }>) {
-  if (input.side === "SELL") {
-    const position = trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
-    if (position && input.quantity <= position.quantity) realizedPnl += (input.price - position.averageEntryPrice) * input.quantity;
-  }
-  try {
-    const order = await service.placePaperOrder({ market: LOCAL_PAPER_MARKET, side: input.side, quantity: input.quantity, price: input.price, nowMs: input.nowMs });
-    trading = await service.getSnapshot();
-    publish();
-    return order;
-  } catch (error) {
-    if (input.side === "SELL") {
-      const position = trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
-      if (position && input.quantity <= position.quantity) realizedPnl -= (input.price - position.averageEntryPrice) * input.quantity;
-    }
-    throw error;
-  }
+  const priorPosition = input.side === "SELL" ? trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET) : undefined;
+  const realizedDelta = priorPosition && input.quantity <= priorPosition.quantity ? (input.price - priorPosition.averageEntryPrice) * input.quantity : 0;
+  const order = await service.placePaperOrder({ market: LOCAL_PAPER_MARKET, side: input.side, quantity: input.quantity, price: input.price, nowMs: input.nowMs });
+  if (input.side === "SELL") realizedPnl += realizedDelta;
+  trading = await service.getSnapshot();
+  publish();
+  return order;
 }
 
 export async function restoreLocalPaperState(): Promise<LocalPaperState> {
