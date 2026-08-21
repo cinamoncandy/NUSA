@@ -2,7 +2,8 @@
 
 ## Status
 
-PROPOSAL. Not implemented. Recorded per `.aipos/architecture-governance.json`
+PARTIALLY IMPLEMENTED. Item 1 (folder reorganization) landed; items 2-5 remain
+PROPOSAL. Recorded per `.aipos/architecture-governance.json`
 lifecycle (`PROPOSAL -> IMPACT_ANALYSIS -> ARCHITECTURE_REVIEW -> MIGRATION_PLAN
 -> APPROVAL -> STAGED_ADOPTION -> VERIFICATION`) because every item below
 changes file-level interfaces that `.aipos/functional-status.yaml` and
@@ -70,11 +71,22 @@ executed in the same pass:
 Sequence any future work in this order, each as its own reviewed change with
 its own AIPOS synchronization:
 
-1. Update `.aipos/functional-status.yaml` and `.aipos/module-map.yaml` to
-   describe the *target* `apps/desktop/src` folder layout, get that reviewed,
-   then execute the physical move + import rewrite + surface-governance path
-   update in one atomic change, verified by `tsc --noEmit` and the full
-   `pnpm run architecture:check` / `pnpm run aipos:drift` suite.
+1. DONE. `apps/desktop/src`'s 102 domain files were moved into 13 subfolders
+   (`ipc/ strategy/ paper/ exchange/ risk/ ai/ shadow/ evidence/ cloud/
+   control/ persistence/ recovery/ diagnostics/`), 19 Electron-shell files
+   stayed at root, and `.aipos/functional-status.yaml`,
+   `config/architecture/surfaces.json`, and `config/shadow/governance.json`
+   were updated in the same commit. Verified with `tsc --noEmit` (root +
+   mobile), a full rebuild, `node --test tests/*.test.js` (3212/3217,
+   matching the pre-existing baseline exactly), and every architecture/safety
+   validator. See the "reorganize apps/desktop/src into domain subfolders"
+   commit on this branch. Two latent test bugs predating this ADR (tests
+   asserting content against post-dedup re-export shims instead of the
+   canonical `packages/core` source) were found and fixed along the way,
+   which is only possible now that `node --test` can actually run in-session
+   against the built `dist/` output (Electron's own postinstall fails
+   without network access to its binary host, but the test suite does not
+   need Electron).
 2. Only after (1), extract `main.ts`'s IPC handler bodies into per-domain
    handler modules under the new folders, leaving `main.ts` as
    lifecycle + registration wiring only. Update
