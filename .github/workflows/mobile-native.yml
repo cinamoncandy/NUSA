@@ -101,7 +101,7 @@ jobs:
     if: ${{ false }}
     runs-on: macos-15
     steps:
-      - run: echo "iOS skipped: NUSA mobile delivery is Android-only"
+      - run: 'echo "iOS skipped: NUSA mobile delivery is Android-only"'
 
   android-release-candidate:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
@@ -212,4 +212,4 @@ jobs:
     if: ${{ false }}
     runs-on: macos-15
     steps:
-      - run: echo "iOS release candidate skipped: NUSA mobile delivery is Android-only"
+      - run: 'echo "iOS release candidate skipped: NUSA mobile delivery is Android-only"'
