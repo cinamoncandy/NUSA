@@ -17,7 +17,7 @@ const { buildMarketConnectionEvidence } = require("../dist/apps/desktop/src/exch
 const { UpbitWebSocketClient } = require("../dist/apps/desktop/src/exchange/upbitWebSocket.js");
 const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
 const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
-const { DomainEventBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/control/domainEventBus.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
 const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
 
@@ -339,7 +339,7 @@ function makeRuntime(overrides = {}) {
     onProductionSignal: (input) => productionSignals.push(input),
     riskGate: { evaluate: () => ({ status: "ALLOW", reasonCodes: [] }) },
     getHypotheticalOrderQuantity: () => 1,
-    createEvidenceBus: ({ sessionId, onHalt }) => new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink(), recordingSink], onHalt }),
+    createEvidenceBus: ({ sessionId, onHalt }) => new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink(), recordingSink], onHalt }),
     findIncompleteEvidence: () => [],
     getSafetyState: () => ({ deploymentIntegrity: true, reconciliation: true, killSwitch: false, openP0: false, automaticTrading: false, currentModeIsCanaryOrExtended: false }),
     now: () => now,

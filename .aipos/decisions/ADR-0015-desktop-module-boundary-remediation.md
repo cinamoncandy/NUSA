@@ -108,11 +108,54 @@ its own AIPOS synchronization:
    the actual Electron process, so this change is verified by static typing
    and the existing unit/static-scan suite, not an end-to-end run of the
    packaged app.
-3. Audit `domainEventBus.ts` vs `packages/core/src/eventBus.ts` for semantic
-   equivalence; either extend the core bus with the missing guarantees and
-   migrate call sites, or explicitly document why a second bus is a deliberate
-   exception (and get that exception approved, since the architecture
-   contract currently reads as a flat prohibition).
+3. DONE. Compared `DomainEventBus` (as it was then:
+   `apps/desktop/src/control/domainEventBus.ts`) against `packages/core/src/eventBus.ts`'s
+   `EventBus<Events>`:
+
+   - **Different problems, not competing implementations of the same one.**
+     `EventBus` is a generic typed pub/sub: `subscribe`/`publish`/`once`,
+     async handlers, no ordering or delivery guarantee beyond
+     "await every current subscriber." `DomainEventBus` is a
+     single-purpose durable-delivery pipeline for the Shadow evidence chain
+     of custody: `publish()` is **synchronous and non-blocking** by
+     necessity (the caller is inside a market-tick callback and cannot
+     `await`), and it adds bounded-queue backpressure, sequence+hash
+     exactly-once dedup, and fail-closed halt-on-overflow/halt-on-write-
+     failure semantics that `EventBus` has no concept of at all. Extending
+     `EventBus` to grow all of that would not be "adding a missing
+     guarantee" to a generic primitive -- it would turn a generic bus into
+     this one specialized pipeline wearing a generic name, which is worse
+     for every other (hypothetical) consumer of `EventBus`, not better.
+   - **No actual overlap in practice.** `DomainEventBus` is used only by
+     `shadowEvidenceComposition.ts` and `shadowOperationalRuntime.ts` --
+     nowhere else in the app. `packages/core/src/eventBus.ts`'s `EventBus`
+     is used only by `packages/core/src/runtime.ts` itself. Neither is
+     actually serving as "the" app-wide event system that the other
+     duplicates; they are each already scoped to one narrow job. There is
+     no call site to migrate.
+
+   Conclusion: `DomainEventBus` is a deliberate, justified exception to
+   "must not create a parallel kernel," not an accidental duplicate --
+   it solves a durability/backpressure problem `EventBus` was never
+   designed for, under a real-time constraint (`publish()` must not block
+   a market-tick callback) `EventBus`'s async API cannot satisfy. No merge,
+   no call-site migration needed. This paragraph is the recorded
+   justification the architecture contract asks for.
+
+   Also done, as a low-risk follow-up now that the exception is justified
+   rather than left looking like an accidental near-duplicate: renamed
+   `DomainEventBus` -> `ShadowEvidenceBus` (and its
+   `DomainEventSink`/`DomainEventHaltReason`/`DomainEventBusDiagnostics`/
+   `DomainEventBusOptions`/`DomainEventBusStatus` companions to their
+   `ShadowEvidence*` equivalents), and moved the file from
+   `apps/desktop/src/control/domainEventBus.ts` to
+   `apps/desktop/src/shadow/shadowEvidenceBus.ts` -- it belongs in the
+   `shadow/` bucket with its only two call sites
+   (`shadowEvidenceComposition.ts`, `shadowOperationalRuntime.ts`), not in
+   `control/`, and the old generic name was itself what made this look like
+   a competing "domain event" kernel. `tsc --noEmit` and the full test
+   suite (`node --test tests/*.test.js`, 3212/3217, matching the
+   established baseline) verified the rename.
 4. Split `shadowOperationalRuntime.ts` along its four concerns only after
    characterizing existing behavior (tests or a captured trace) so the split
    can be verified to preserve it.

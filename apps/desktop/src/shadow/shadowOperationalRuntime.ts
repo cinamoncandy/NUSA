@@ -4,7 +4,7 @@ import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } 
 import type { StrategyEngine, StrategySignal } from "../strategy/strategyEngine";
 import type { PaperCommandRiskGate } from "../control/runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "../exchange/upbitMinuteCandleSource";
-import type { DomainEventBus, DomainEventBusDiagnostics, DomainEventHaltReason } from "../control/domainEventBus";
+import type { ShadowEvidenceBus, ShadowEvidenceBusDiagnostics, ShadowEvidenceHaltReason } from "../shadow/shadowEvidenceBus";
 import { buildShadowCompletionEvidence, type ShadowCompletionEvidence } from "./shadowCompletionEvidence";
 import { ShadowLongRunningDiagnosticsSampler, type ShadowLongRunningDiagnostics } from "./shadowLongRunningDiagnostics";
 import { DEFAULT_MARKET_RECONNECT_POLICY, evaluateMarketFreshness, type MarketConnectionDiagnostics, type MarketConnectionEpisode, type MarketFreshness } from "../exchange/marketConnectionSupervisor";
@@ -165,7 +165,7 @@ export interface ShadowOperationalDependencies {
    * gets a fresh bus -- a halted bus is never reused, and a previous session's queue can
    * never leak into a new one.
    */
-  readonly createEvidenceBus: (metadata: Readonly<{ sessionId: string; createdAt: number; onHalt: (reason: DomainEventHaltReason, detail: string) => void }>) => DomainEventBus;
+  readonly createEvidenceBus: (metadata: Readonly<{ sessionId: string; createdAt: number; onHalt: (reason: ShadowEvidenceHaltReason, detail: string) => void }>) => ShadowEvidenceBus;
   /**
    * Reports evidence archives left open by a previous process. Any result at all forces
    * RECOVERY_REQUIRED and blocks start: an unsealed archive means the last session's record
@@ -260,7 +260,7 @@ export class ShadowOperationalRuntime {
   private lastOfficialCandleTime?: number;
   private officialClosedCandleCount = 0;
   private closedCandleHistory: readonly ClosedCandle[] = Object.freeze([]);
-  private evidenceBus?: DomainEventBus;
+  private evidenceBus?: ShadowEvidenceBus;
   /** Highest pilot sequence handed to the bus; the runtime half of exactly-once. */
   private publishedSequence = 0;
   private evidenceFinalization: Promise<void> = Promise.resolve();
@@ -345,7 +345,7 @@ export class ShadowOperationalRuntime {
   }
 
   /** Called by the bus itself when a sink write or finalize fails. */
-  private onEvidenceHalt(reason: DomainEventHaltReason, detail: string): void {
+  private onEvidenceHalt(reason: ShadowEvidenceHaltReason, detail: string): void {
     this.lifecycle = "HALTED";
     this.blockers = [`EVIDENCE_${reason}`, detail];
     this.longRunningDiagnostics.stop();
@@ -390,7 +390,7 @@ export class ShadowOperationalRuntime {
     await this.evidenceFinalization;
   }
 
-  evidenceDiagnostics(): DomainEventBusDiagnostics | null {
+  evidenceDiagnostics(): ShadowEvidenceBusDiagnostics | null {
     return this.evidenceBus?.diagnostics() ?? null;
   }
 

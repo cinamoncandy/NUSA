@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
-const { DomainEventBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/control/domainEventBus.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;
@@ -35,7 +35,7 @@ function makeHarness(overrides = {}) {
     onProductionSignal: (input) => productionSignals.push(input),
     riskGate: { evaluate: (command) => { riskCalls.push(command); return riskDecision; } },
     getHypotheticalOrderQuantity: () => 1,
-    createEvidenceBus: ({ sessionId, onHalt }) => new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink()], onHalt }),
+    createEvidenceBus: ({ sessionId, onHalt }) => new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink()], onHalt }),
     findIncompleteEvidence: () => [],
     getSafetyState: () => safety,
     now: () => now

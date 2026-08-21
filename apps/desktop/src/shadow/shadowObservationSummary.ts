@@ -1,4 +1,4 @@
-import type { DomainEventBusDiagnostics } from "../control/domainEventBus";
+import type { ShadowEvidenceBusDiagnostics } from "../shadow/shadowEvidenceBus";
 import type { ShadowEvidenceVerification } from "./shadowEvidenceArchive";
 import type { ShadowOperationalDiagnostics } from "./shadowOperationalRuntime";
 
@@ -15,7 +15,7 @@ export type ShadowObservationVerdict = "PASS" | "FAIL" | "RECOVERY_REQUIRED";
 
 export interface ShadowObservationSummaryInput {
   readonly diagnostics: ShadowOperationalDiagnostics;
-  readonly evidence: DomainEventBusDiagnostics | null;
+  readonly evidence: ShadowEvidenceBusDiagnostics | null;
   readonly verification: ShadowEvidenceVerification | null;
   /** Which completion marker the sealed archive actually carries, read from disk. */
   readonly completionMarker: "COMPLETED" | "ABORTED" | "NONE";

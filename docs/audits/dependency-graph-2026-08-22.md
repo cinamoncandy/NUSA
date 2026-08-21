@@ -413,9 +413,6 @@ Audited: 2026-08-22
 | type | apps/desktop/src/control/controlSessionStore.ts | apps/desktop/src/control/controlPlane.ts |
 | type | apps/desktop/src/control/controlSessionStore.ts | apps/desktop/src/paper/paperSessionStore.ts |
 | runtime | apps/desktop/src/control/controlSessionStore.ts | apps/desktop/src/recovery/sessionRecovery.ts |
-| type | apps/desktop/src/control/domainEventBus.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
-| type | apps/desktop/src/control/domainEventBus.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
-| type | apps/desktop/src/control/domainEventBus.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
 | runtime | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/control/controlPlane.ts |
 | runtime | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/paper/paperBroker.ts |
 | runtime | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/strategy/strategyEngine.ts |
@@ -423,7 +420,7 @@ Audited: 2026-08-22
 | type | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/paper/paperScenarioEvidenceRecorder.ts |
 | runtime | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/strategy/regimePolicy.ts |
 | runtime | apps/desktop/src/control/runtimeCommandService.ts | apps/desktop/src/risk/runtimeMutationDiagnostics.ts |
-| type | apps/desktop/src/diagnostics/a4RuntimeDiagnostics.ts | apps/desktop/src/control/domainEventBus.ts |
+| type | apps/desktop/src/diagnostics/a4RuntimeDiagnostics.ts | apps/desktop/src/shadow/shadowEvidenceBus.ts |
 | type | apps/desktop/src/diagnostics/a4RuntimeDiagnostics.ts | apps/desktop/src/paper/paperOperationalPreflight.ts |
 | type | apps/desktop/src/diagnostics/a4RuntimeDiagnostics.ts | apps/desktop/src/shadow/shadowOperationalRuntime.ts |
 | runtime | apps/desktop/src/diagnostics/a4RuntimeDiagnostics.ts | apps/desktop/src/shadow/shadowEvidenceArchive.ts |
@@ -651,14 +648,17 @@ Audited: 2026-08-22
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
-| runtime | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/control/domainEventBus.ts |
+| type | apps/desktop/src/shadow/shadowEvidenceBus.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
+| type | apps/desktop/src/shadow/shadowEvidenceBus.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
+| type | apps/desktop/src/shadow/shadowEvidenceBus.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
+| runtime | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/shadow/shadowEvidenceBus.ts |
 | runtime | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/shadow/shadowEvidenceArchive.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceComposition.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
 | runtime | apps/desktop/src/shadow/shadowObservationPreflight.ts | apps/desktop/src/shadow/shadowObservationProfile.ts |
 | type | apps/desktop/src/shadow/shadowObservationPreflight.ts | apps/desktop/src/shadow/shadowOperationalRuntime.ts |
-| type | apps/desktop/src/shadow/shadowObservationSummary.ts | apps/desktop/src/control/domainEventBus.ts |
+| type | apps/desktop/src/shadow/shadowObservationSummary.ts | apps/desktop/src/shadow/shadowEvidenceBus.ts |
 | type | apps/desktop/src/shadow/shadowObservationSummary.ts | apps/desktop/src/shadow/shadowEvidenceArchive.ts |
 | type | apps/desktop/src/shadow/shadowObservationSummary.ts | apps/desktop/src/shadow/shadowOperationalRuntime.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/strategy/closedCandleAdapter.ts |
@@ -666,7 +666,7 @@ Audited: 2026-08-22
 | type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/strategy/strategyEngine.ts |
 | type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/control/runtimeCommandService.ts |
 | type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/exchange/upbitMinuteCandleSource.ts |
-| type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/control/domainEventBus.ts |
+| type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowEvidenceBus.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/exchange/marketConnectionSupervisor.ts |

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
-const { DomainEventBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/control/domainEventBus.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
 const { SHADOW_OBSERVATION_PROFILE, validateShadowObservationProfile, withShortenedObservation } = require("../dist/apps/desktop/src/shadow/shadowObservationProfile.js");
 const { evaluateShadowObservationPreflight } = require("../dist/apps/desktop/src/shadow/shadowObservationPreflight.js");
 const { buildShadowObservationSummary, formatShadowObservationSummary } = require("../dist/apps/desktop/src/shadow/shadowObservationSummary.js");
@@ -68,7 +68,7 @@ function makeRuntime(overrides = {}) {
     ...(overrides.maxSessionDurationMs === undefined ? {} : { maxSessionDurationMs: overrides.maxSessionDurationMs }),
     ...(overrides.maxCandleAgeMs === undefined ? {} : { maxCandleAgeMs: overrides.maxCandleAgeMs }),
     createEvidenceBus: overrides.createEvidenceBus || (({ sessionId, onHalt }) => {
-      const bus = new DomainEventBus({ sessionId, sinks: overrides.sinks || [new InMemoryEvidenceSink()], capacity: overrides.capacity, onHalt });
+      const bus = new ShadowEvidenceBus({ sessionId, sinks: overrides.sinks || [new InMemoryEvidenceSink()], capacity: overrides.capacity, onHalt });
       buses.push(bus);
       return bus;
     }),

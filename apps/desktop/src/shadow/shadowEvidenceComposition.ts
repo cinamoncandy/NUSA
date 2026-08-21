@@ -1,4 +1,4 @@
-import { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink, type DomainEventHaltReason, type DurableEvidenceWriter } from "../control/domainEventBus";
+import { ShadowEvidenceBus, DurableEvidenceSink, InMemoryEvidenceSink, type ShadowEvidenceHaltReason, type DurableEvidenceWriter } from "../shadow/shadowEvidenceBus";
 import { ShadowEvidenceArchive } from "./shadowEvidenceArchive";
 import type { ShadowPilotSession } from "./shadowPilotRuntime";
 import type { ShadowCompletionEvidence } from "./shadowCompletionEvidence";
@@ -30,7 +30,7 @@ export interface ShadowEvidenceCompositionOptions {
  */
 export function createShadowEvidenceBusFactory(
   options: ShadowEvidenceCompositionOptions
-): (metadata: Readonly<{ sessionId: string; createdAt: number; onHalt: (reason: DomainEventHaltReason, detail: string) => void }>) => DomainEventBus {
+): (metadata: Readonly<{ sessionId: string; createdAt: number; onHalt: (reason: ShadowEvidenceHaltReason, detail: string) => void }>) => ShadowEvidenceBus {
   return ({ sessionId, createdAt, onHalt }) => {
     // Creating the archive is asynchronous -- it makes a directory and writes session.json --
     // but the runtime needs the bus synchronously. The sink awaits this same promise before
@@ -53,6 +53,6 @@ export function createShadowEvidenceBusFactory(
     };
     // The in-memory sink is not the system of record; it refuses a sequence gap, so a
     // disagreement with the durable archive halts the bus instead of being smoothed over.
-    return new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer)], onHalt });
+    return new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer)], onHalt });
   };
 }

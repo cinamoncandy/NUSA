@@ -1,6 +1,6 @@
 import { accessSync, constants, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import type { DomainEventBusDiagnostics } from "../control/domainEventBus";
+import type { ShadowEvidenceBusDiagnostics } from "../shadow/shadowEvidenceBus";
 import type { OperationalPreflightState } from "../paper/paperOperationalPreflight";
 import type { ShadowOperationalDiagnostics } from "../shadow/shadowOperationalRuntime";
 import { verifyShadowEvidenceDirectory } from "../shadow/shadowEvidenceArchive";
@@ -112,7 +112,7 @@ export async function buildA4RuntimeDiagnostics(input: Readonly<{
   shadow: ShadowOperationalDiagnostics;
   evidenceRoot: string;
   incompleteArchives: readonly string[];
-  evidenceBus: DomainEventBusDiagnostics | null;
+  evidenceBus: ShadowEvidenceBusDiagnostics | null;
   mutationCounters: A4MutationCounters;
   startPrecheckBlockers: readonly string[];
   market?: Readonly<{

@@ -173,7 +173,7 @@ test("main.ts composes the evidence bus through the module the tests drive", () 
   // If main.ts ever inlines its own composition again, the behavioural tests above stop
   // covering what the application actually runs.
   assert.match(source, /createEvidenceBus: createShadowEvidenceBusFactory\(\{/);
-  assert.doesNotMatch(source, /new DomainEventBus\(/);
+  assert.doesNotMatch(source, /new ShadowEvidenceBus\(/);
   assert.doesNotMatch(source, /ShadowEvidenceArchive\.create\(/);
 });
 

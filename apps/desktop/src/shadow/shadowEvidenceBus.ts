@@ -28,11 +28,11 @@ import type { MarketConnectionEvidence } from "../exchange/marketConnectionEvide
  * new bus.
  */
 
-export type DomainEventBusStatus = "OPEN" | "HALTED";
+export type ShadowEvidenceBusStatus = "OPEN" | "HALTED";
 
-export type DomainEventHaltReason = "QUEUE_OVERFLOW" | "SINK_WRITE_FAILED" | "SINK_FLUSH_FAILED" | "SINK_FINALIZE_FAILED";
+export type ShadowEvidenceHaltReason = "QUEUE_OVERFLOW" | "SINK_WRITE_FAILED" | "SINK_FLUSH_FAILED" | "SINK_FINALIZE_FAILED";
 
-export interface DomainEventSink {
+export interface ShadowEvidenceSink {
   readonly name: string;
   /** Receives each event exactly once, in sequence order. Throwing halts the bus. */
   deliver(event: ShadowPilotEvent): Promise<void> | void;
@@ -42,9 +42,9 @@ export interface DomainEventSink {
   finalize?(reason: string, status: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<void> | void;
 }
 
-export interface DomainEventBusDiagnostics {
-  readonly status: DomainEventBusStatus;
-  readonly haltReason: DomainEventHaltReason | null;
+export interface ShadowEvidenceBusDiagnostics {
+  readonly status: ShadowEvidenceBusStatus;
+  readonly haltReason: ShadowEvidenceHaltReason | null;
   readonly haltDetail: string | null;
   readonly published: number;
   readonly delivered: number;
@@ -55,27 +55,27 @@ export interface DomainEventBusDiagnostics {
   readonly finalized: boolean;
 }
 
-export interface DomainEventBusOptions {
+export interface ShadowEvidenceBusOptions {
   readonly sessionId: string;
-  readonly sinks: readonly DomainEventSink[];
+  readonly sinks: readonly ShadowEvidenceSink[];
   /** Fixed queue capacity. Exceeding it halts rather than dropping. */
   readonly capacity?: number;
-  readonly onHalt?: (reason: DomainEventHaltReason, detail: string) => void;
+  readonly onHalt?: (reason: ShadowEvidenceHaltReason, detail: string) => void;
 }
 
 const DEFAULT_CAPACITY = 1_000;
 
-export class DomainEventBus {
+export class ShadowEvidenceBus {
   private readonly sessionId: string;
-  private readonly sinks: readonly DomainEventSink[];
+  private readonly sinks: readonly ShadowEvidenceSink[];
   private readonly capacity: number;
-  private readonly onHalt?: (reason: DomainEventHaltReason, detail: string) => void;
+  private readonly onHalt?: (reason: ShadowEvidenceHaltReason, detail: string) => void;
 
   private queue: ShadowPilotEvent[] = [];
   /** Sequences accepted into the queue; the basis of the exactly-once guarantee. */
   private readonly accepted = new Map<number, string | undefined>();
-  private status: DomainEventBusStatus = "OPEN";
-  private haltReason: DomainEventHaltReason | null = null;
+  private status: ShadowEvidenceBusStatus = "OPEN";
+  private haltReason: ShadowEvidenceHaltReason | null = null;
   private haltDetail: string | null = null;
   private published = 0;
   private delivered = 0;
@@ -84,7 +84,7 @@ export class DomainEventBus {
   private finalized = false;
   private draining: Promise<void> = Promise.resolve();
 
-  constructor(options: DomainEventBusOptions) {
+  constructor(options: ShadowEvidenceBusOptions) {
     this.sessionId = options.sessionId;
     this.sinks = Object.freeze([...options.sinks]);
     const capacity = options.capacity ?? DEFAULT_CAPACITY;
@@ -188,7 +188,7 @@ export class DomainEventBus {
     }
   }
 
-  private halt(reason: DomainEventHaltReason, detail: string): void {
+  private halt(reason: ShadowEvidenceHaltReason, detail: string): void {
     if (this.status === "HALTED") return;
     this.status = "HALTED";
     this.haltReason = reason;
@@ -200,7 +200,7 @@ export class DomainEventBus {
     }
   }
 
-  diagnostics(): DomainEventBusDiagnostics {
+  diagnostics(): ShadowEvidenceBusDiagnostics {
     return Object.freeze({
       status: this.status,
       haltReason: this.haltReason,
@@ -221,7 +221,7 @@ export class DomainEventBus {
  * tests; it is never the system of record, and it deliberately does not tolerate a gap so
  * that a disagreement with the durable sink surfaces instead of being smoothed over.
  */
-export class InMemoryEvidenceSink implements DomainEventSink {
+export class InMemoryEvidenceSink implements ShadowEvidenceSink {
   readonly name = "in-memory";
   private readonly events: ShadowPilotEvent[] = [];
   private finalizedAs: "COMPLETED" | "ABORTED" | null = null;
@@ -253,7 +253,7 @@ export interface DurableEvidenceWriter {
   finalize(completionReason: string, generatedAt?: number, status?: "COMPLETED" | "ABORTED", completion?: ShadowCompletionEvidence, marketConnection?: MarketConnectionEvidence): Promise<unknown>;
 }
 
-export class DurableEvidenceSink implements DomainEventSink {
+export class DurableEvidenceSink implements ShadowEvidenceSink {
   readonly name = "durable-archive";
 
   constructor(private readonly archive: DurableEvidenceWriter, private readonly now: () => number = Date.now) {}
