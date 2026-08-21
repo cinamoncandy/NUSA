@@ -6,9 +6,11 @@ import type { PaperCommandRiskGate } from "../control/runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "../exchange/upbitMinuteCandleSource";
 import type { ShadowEvidenceBus, ShadowEvidenceBusDiagnostics, ShadowEvidenceHaltReason } from "../shadow/shadowEvidenceBus";
 import { buildShadowCompletionEvidence, type ShadowCompletionEvidence } from "./shadowCompletionEvidence";
-import { ShadowLongRunningDiagnosticsSampler, type ShadowLongRunningDiagnostics } from "./shadowLongRunningDiagnostics";
+import { ShadowLongRunningDiagnosticsSampler } from "./shadowLongRunningDiagnostics";
 import { DEFAULT_MARKET_RECONNECT_POLICY, evaluateMarketFreshness, type MarketConnectionDiagnostics, type MarketConnectionEpisode, type MarketFreshness } from "../exchange/marketConnectionSupervisor";
 import { buildMarketConnectionEvidence, type MarketConnectionEvidence } from "../exchange/marketConnectionEvidence";
+import { computeShadowReadinessBlockers } from "./shadowReadinessBlockers";
+import { buildShadowOperationalDiagnostics, buildShadowLongRunningSourceSnapshot } from "./shadowDiagnosticsProjection";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -23,104 +25,25 @@ type PaperSide = "BUY" | "SELL";
  * strategy -- main.ts no longer calls strategy.onTick directly (see main.ts's handleTicker).
  */
 
-export type ShadowLifecycleStatus = "IDLE" | "PRECHECK" | "READY" | "RUNNING" | "PAUSED" | "COMPLETED" | "HALTED" | "FAILED" | "INVALIDATED";
-export type ShadowMarketDataStatus = "CONNECTING" | "WARMING_UP" | "HEALTHY" | "STALE" | "RECONNECTING" | "GAP_DETECTED" | "OUT_OF_ORDER" | "CLOCK_DRIFT" | "DISCONNECTED";
-
-/**
- * The last signal's journey through the pipeline, recorded so the UI can explain a specific
- * blocked signal rather than approximating one from session-level blockers. Every field is
- * copied from the values the dispatch actually used -- none of it is re-derived afterwards.
- */
-export interface ShadowSignalOutcome {
-  readonly at: number;
-  readonly signalType: "BUY" | "SELL";
-  /** The strategy's own words for why it wanted to act, e.g. "short-SMA crossed above long-SMA". */
-  readonly strategyReason: string;
-  readonly riskDecision: "ALLOW" | "REJECT" | "HALT";
-  readonly reasonCodes: readonly string[];
-  readonly quantity: number;
-  readonly price: number;
-  /** True when the pilot recorded a hypothetical fill. Actual fills remain impossible here. */
-  readonly hypotheticalFill: boolean;
-}
-
-export interface ShadowOperationalDiagnostics {
-  readonly state: ShadowLifecycleStatus;
-  readonly sessionId: string | null;
-  readonly symbol: string;
-  readonly strategyId: string;
-  readonly marketDataStatus: ShadowMarketDataStatus;
-  readonly closedCandleCount: number;
-  readonly requiredWarmupCandles: number;
-  readonly warmupComplete: boolean;
-  readonly lastClosedCandleTime: number | null;
-  readonly lastSignalTime: number | null;
-  /** When the current session started, or null outside a session (WO-0034-A4). */
-  readonly startedAt: number | null;
-  /** How long the current session has been running. 0 outside a session (WO-0034-A4). */
-  readonly elapsedMs: number;
-  /** The configured hard ceiling, or null when no ceiling was configured (WO-0034-A4). */
-  readonly maxSessionDurationMs: number | null;
-  /** Closed candles the runtime refused because they arrived out of order (WO-0034-A4). */
-  readonly outOfOrderCandleCount: number;
-  /** Closed candles the runtime refused as already-seen (WO-0034-A4). */
-  readonly duplicateCandleCount: number;
-  /** Closed candles the runtime refused as older than the staleness tolerance (WO-0034-A4). */
-  readonly staleCandleCount: number;
-  readonly signalCount: number;
-  readonly hypotheticalOrderCount: number;
-  readonly hypotheticalFillCount: number;
-  readonly actualBrokerCallCount: 0;
-  readonly executionGateCallCount: 0;
-  readonly actualOrderCount: number;
-  readonly actualFillCount: number;
-  readonly cashMutationCount: number;
-  readonly positionMutationCount: number;
-  readonly blockers: readonly string[];
-  readonly lastSignal: ShadowSignalOutcome | null;
-  /**
-   * Unchanged and still literally false: no session that stopped for a SAFETY reason ever
-   * resumes itself. A4L's market-recovery resume is a separate, narrower claim carried by
-   * `marketRecoveryResumeAllowed` below, so neither field has to be read as covering the
-   * other.
-   */
-  readonly automaticResumeAllowed: false;
-  /**
-   * WO-0034-A4L. True only when this runtime is configured to return a session to RUNNING
-   * after a pause caused SOLELY by the public feed dropping, and only once the full precheck
-   * passes again. An owner pause, a stale feed, a clock drift, a gap, or any halt is outside
-   * it entirely.
-   */
-  readonly marketRecoveryResumeAllowed: boolean;
-  /**
-   * A UI hint, not a guarantee: the session is paused only on market-connection blockers and
-   * the feed is back. `resume()` still re-runs the full precheck and may still refuse -- most
-   * often because the warm-up restarted when the feed did.
-   */
-  readonly marketRecoveryResumeSuggested: boolean;
-  /** Read-only connection state, retry counters, and episode log (WO-0034-A4L). */
-  readonly marketConnection: MarketConnectionDiagnostics | null;
-  readonly marketFreshness: MarketFreshness;
-  readonly productionMutationAllowed: false;
-  readonly strategyVersion: string;
-  readonly inputType: "CLOSED_CANDLE";
-  readonly interval: "1m";
-  readonly sourceType: "UPBIT_PUBLIC_CANDLE";
-  readonly strategyFingerprint: string;
-  /** Completed sessions remain visible as history; this is never used as current-session state. */
-  readonly completionHistory: readonly ShadowCompletionEvidence[];
-  readonly longRunning: ShadowLongRunningDiagnostics;
-}
-
-/** What the running system currently knows about safety preconditions. Read fresh on every precheck/resume. */
-export interface ShadowSafetyState {
-  readonly deploymentIntegrity: boolean;
-  readonly reconciliation: boolean;
-  readonly killSwitch: boolean;
-  readonly openP0: boolean;
-  readonly automaticTrading: boolean;
-  readonly currentModeIsCanaryOrExtended: boolean;
-}
+// Canonical definitions moved to shadowOperationalTypes.ts to avoid a type-only import cycle
+// with the pure-computation modules extracted from this class (ADR-0015 item 4); re-exported
+// here for every existing external caller.
+export type {
+  ShadowLifecycleStatus,
+  ShadowMarketDataStatus,
+  ShadowSignalOutcome,
+  ShadowOperationalDiagnostics,
+  ShadowSafetyState,
+  ShadowEvidenceRecoveryState
+} from "./shadowOperationalTypes";
+import type {
+  ShadowLifecycleStatus,
+  ShadowMarketDataStatus,
+  ShadowSignalOutcome,
+  ShadowOperationalDiagnostics,
+  ShadowSafetyState,
+  ShadowEvidenceRecoveryState
+} from "./shadowOperationalTypes";
 
 export interface ShadowOperationalDependencies {
   readonly symbol: string;
@@ -199,8 +122,6 @@ export interface ShadowOperationalDependencies {
   /** Age past which the feed is judged stale. Defaults to the shared reconnect policy's. */
   readonly marketFreshnessToleranceMs?: number;
 }
-
-export type ShadowEvidenceRecoveryState = "NONE" | "RECOVERY_REQUIRED";
 
 const ADVERSE_CANDLE_HEALTH_CODES = new Set(["GAP_DETECTED", "OUT_OF_ORDER", "DISCONNECTED"]);
 
@@ -753,38 +674,17 @@ export class ShadowOperationalRuntime {
   }
 
   private computeReadinessBlockers(persistRecovery = true): readonly string[] {
-    const safety = this.deps.getSafetyState();
-    // An archive left open by a previous process means the last session's record is of
-    // unknown completeness. Starting beside it would interleave two sessions' events with
-    // no way to tell later where one ended, so recovery is required before anything runs.
-    let incomplete: readonly string[] = [];
-    let evidenceRecovery = this.evidenceRecovery;
-    try {
-      incomplete = this.deps.findIncompleteEvidence();
-      if (!Array.isArray(incomplete)) throw new Error("incomplete evidence scan returned an invalid result");
-    } catch {
-      // An unreadable evidence root is uncertainty about the previous session, not proof that
-      // no session exists. Fail closed with the same recovery gate as a markerless archive.
-      evidenceRecovery = "RECOVERY_REQUIRED";
-    }
-    if (incomplete.length > 0) evidenceRecovery = "RECOVERY_REQUIRED";
-    if (persistRecovery) this.evidenceRecovery = evidenceRecovery;
-    const candleState = this.candleAdapter.inspectState();
-    const blockers: string[] = [];
-    if (!this.webSocketConnected) blockers.push("MARKET_DATA_DISCONNECTED");
-    // WARMING_UP is reported once, via the warmupComplete check below -- counting it again
-    // here would turn a pure "not warmed up yet" condition into two blockers and defeat the
-    // intentional softer handling of that specific, expected, retryable condition.
-    else if (this.marketDataStatus !== "HEALTHY" && this.marketDataStatus !== "WARMING_UP") blockers.push(`MARKET_DATA_UNHEALTHY:${this.marketDataStatus}`);
-    if (!this.officialWarmupComplete() && !candleState.warmupComplete) blockers.push("MARKET_DATA_WARMING_UP");
-    if (safety.killSwitch) blockers.push("KILL_SWITCH_ACTIVE");
-    if (safety.openP0) blockers.push("OPEN_P0_ALERT");
-    if (!safety.deploymentIntegrity) blockers.push("DEPLOYMENT_INTEGRITY_FAILED");
-    if (!safety.reconciliation) blockers.push("RECONCILIATION_REQUIRED");
-    if (safety.automaticTrading) blockers.push("AUTOMATIC_TRADING_ON");
-    if (safety.currentModeIsCanaryOrExtended) blockers.push("CANARY_OR_EXTENDED_MODE_ACTIVE");
-    if (evidenceRecovery === "RECOVERY_REQUIRED") blockers.push("EVIDENCE_RECOVERY_REQUIRED");
-    return blockers;
+    const result = computeShadowReadinessBlockers({
+      safety: this.deps.getSafetyState(),
+      findIncompleteEvidence: () => this.deps.findIncompleteEvidence(),
+      currentEvidenceRecovery: this.evidenceRecovery,
+      webSocketConnected: this.webSocketConnected,
+      marketDataStatus: this.marketDataStatus,
+      candleAdapterWarmupComplete: this.candleAdapter.inspectState().warmupComplete,
+      officialWarmupComplete: this.officialWarmupComplete()
+    });
+    if (persistRecovery) this.evidenceRecovery = result.evidenceRecovery;
+    return result.blockers;
   }
 
   /**
@@ -954,75 +854,51 @@ export class ShadowOperationalRuntime {
     const session: ShadowPilotSession | undefined = this.pilot?.snapshot();
     const candleState = this.candleAdapter.inspectState();
     const closedCandleCount = Math.max(candleState.closedCandleCount, this.officialClosedCandleCount);
-    return Object.freeze({
-      state: this.lifecycle,
-      sessionId: session?.sessionId ?? null,
-      symbol: this.deps.symbol,
-      strategyId: this.deps.strategyId,
-      marketDataStatus: this.marketDataStatus,
+    return buildShadowOperationalDiagnostics({
+      lifecycle: this.lifecycle,
+      session,
       closedCandleCount,
       requiredWarmupCandles: candleState.requiredWarmupCandles,
       warmupComplete: this.officialWarmupComplete() || candleState.warmupComplete,
-      lastClosedCandleTime: this.lastClosedCandleTime ?? null,
-      lastSignalTime: this.lastSignalTime ?? null,
-      startedAt: this.sessionStartedAt ?? null,
-      elapsedMs: this.sessionStartedAt === undefined ? 0 : Math.max(0, this.now() - this.sessionStartedAt),
-      maxSessionDurationMs: this.deps.maxSessionDurationMs ?? null,
+      symbol: this.deps.symbol,
+      strategyId: this.deps.strategyId,
+      marketDataStatus: this.marketDataStatus,
+      lastClosedCandleTime: this.lastClosedCandleTime,
+      lastSignalTime: this.lastSignalTime,
+      sessionStartedAt: this.sessionStartedAt,
+      now: this.now(),
+      maxSessionDurationMs: this.deps.maxSessionDurationMs,
       outOfOrderCandleCount: this.outOfOrderCandleCount,
       duplicateCandleCount: this.duplicateCandleCount,
       staleCandleCount: this.staleCandleCount,
-      lastSignal: this.lastSignal ?? null,
-      signalCount: session?.counters.signalCount ?? 0,
-      hypotheticalOrderCount: session?.counters.hypotheticalOrderCount ?? 0,
-      hypotheticalFillCount: session?.counters.hypotheticalFillCount ?? 0,
-      actualBrokerCallCount: 0,
-      executionGateCallCount: 0,
-      actualOrderCount: session?.counters.actualOrderCount ?? 0,
-      actualFillCount: session?.counters.actualFillCount ?? 0,
-      cashMutationCount: session?.counters.cashMutationCount ?? 0,
-      positionMutationCount: session?.counters.positionMutationCount ?? 0,
-      blockers: Object.freeze([...this.blockers]),
-      automaticResumeAllowed: false,
+      lastSignal: this.lastSignal,
       marketRecoveryResumeAllowed: this.deps.autoResumeOnMarketRecovery === true,
       marketRecoveryResumeSuggested: this.resumeSuggestedAfterMarketRecovery(),
       marketConnection: this.marketConnection,
       marketFreshness: this.marketFreshness(),
-      productionMutationAllowed: false,
       strategyVersion: this.deps.strategyVersion ?? `${this.deps.strategyId}:legacy-ticker-v1`,
-      inputType: "CLOSED_CANDLE",
-      interval: "1m",
-      sourceType: "UPBIT_PUBLIC_CANDLE",
       strategyFingerprint: this.deps.strategyFingerprint ?? this.deps.fingerprints.strategy,
-      completionHistory: Object.freeze([...this.completionHistory])
-      ,longRunning: this.longRunningDiagnostics.diagnostics()
+      completionHistory: this.completionHistory,
+      longRunning: this.longRunningDiagnostics.diagnostics(),
+      blockers: this.blockers
     });
   }
 
   private longRunningSourceSnapshot() {
     const session = this.pilot?.snapshot();
     const evidence = this.evidenceBus?.diagnostics();
-    const sourceTimestamp = this.lastSignalTime ?? this.lastClosedCandleTime ?? null;
-    return {
-      timestamp: this.now(),
-      sessionId: session?.sessionId ?? null,
-      sessionState: this.lifecycle,
-      observationStartedAt: this.sessionStartedAt ?? null,
-      elapsedTime: this.sessionStartedAt === undefined ? 0 : Math.max(0, this.now() - this.sessionStartedAt),
-      signalCount: session?.counters.signalCount ?? 0,
-      evidenceCount: evidence?.delivered ?? 0,
-      marketListenerCount: Math.max(0, this.deps.getMarketListenerCount?.() ?? 0),
-      marketSubscriptionCount: Math.max(0, this.deps.getMarketSubscriptionCount?.() ?? 0),
-      hostIntervalCount: Math.max(0, this.deps.getHostIntervalCount?.() ?? 0),
-      hostTimeoutCount: Math.max(0, this.deps.getHostTimeoutCount?.() ?? 0),
-      lastEventAt: sourceTimestamp,
-      lastEvidenceAt: evidence && evidence.delivered > 0 ? sourceTimestamp : null,
-      actualOrderCount: session?.counters.actualOrderCount ?? 0,
-      actualFillCount: session?.counters.actualFillCount ?? 0,
-      cashMutationCount: session?.counters.cashMutationCount ?? 0,
-      positionMutationCount: session?.counters.positionMutationCount ?? 0,
-      brokerCallCount: 0,
-      privateApiCallCount: 0
-    };
+    return buildShadowLongRunningSourceSnapshot({
+      now: this.now(),
+      session,
+      lifecycle: this.lifecycle,
+      sessionStartedAt: this.sessionStartedAt,
+      evidence,
+      sourceTimestamp: this.lastSignalTime ?? this.lastClosedCandleTime ?? null,
+      marketListenerCount: this.deps.getMarketListenerCount?.() ?? 0,
+      marketSubscriptionCount: this.deps.getMarketSubscriptionCount?.() ?? 0,
+      hostIntervalCount: this.deps.getHostIntervalCount?.() ?? 0,
+      hostTimeoutCount: this.deps.getHostTimeoutCount?.() ?? 0
+    });
   }
 
   private officialWarmupComplete(): boolean {

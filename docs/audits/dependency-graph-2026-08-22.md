@@ -656,6 +656,12 @@ Audited: 2026-08-22
 | runtime | apps/desktop/src/risk/runtimeMutationDiagnostics.ts | packages/core/src/runtimeMutationDiagnostics.ts |
 | type | apps/desktop/src/shadow/canaryPilotRuntime.ts | apps/desktop/src/paper/paperBroker.ts |
 | type | apps/desktop/src/shadow/canaryPilotRuntime.ts | apps/desktop/src/control/runtimeCommandService.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/exchange/marketConnectionSupervisor.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/shadow/shadowEvidenceBus.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts |
+| type | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/shadow/shadowPilotRuntime.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
 | type | apps/desktop/src/shadow/shadowEvidenceArchive.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
@@ -682,7 +688,14 @@ Audited: 2026-08-22
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/exchange/marketConnectionSupervisor.ts |
 | runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/exchange/marketConnectionEvidence.ts |
+| runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowReadinessBlockers.ts |
+| runtime | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowDiagnosticsProjection.ts |
+| type | apps/desktop/src/shadow/shadowOperationalRuntime.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
+| type | apps/desktop/src/shadow/shadowOperationalTypes.ts | apps/desktop/src/exchange/marketConnectionSupervisor.ts |
+| type | apps/desktop/src/shadow/shadowOperationalTypes.ts | apps/desktop/src/shadow/shadowCompletionEvidence.ts |
+| type | apps/desktop/src/shadow/shadowOperationalTypes.ts | apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts |
 | type | apps/desktop/src/shadow/shadowPilotRuntime.ts | apps/desktop/src/paper/paperBroker.ts |
+| type | apps/desktop/src/shadow/shadowReadinessBlockers.ts | apps/desktop/src/shadow/shadowOperationalTypes.ts |
 | type | apps/desktop/src/strategy/backtestAnalytics.ts | apps/desktop/src/paper/paperBroker.ts |
 | runtime | apps/desktop/src/strategy/backtestEngine.ts | apps/desktop/src/paper/paperBroker.ts |
 | runtime | apps/desktop/src/strategy/backtestEngine.ts | apps/desktop/src/strategy/strategyEngine.ts |

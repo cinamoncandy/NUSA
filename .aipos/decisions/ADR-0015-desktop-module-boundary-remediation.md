@@ -2,11 +2,8 @@
 
 ## Status
 
-PARTIALLY IMPLEMENTED. Items 1 (folder reorganization), 2 (main.ts IPC
-handler extraction), 3 (domainEventBus audit + rename), and 5
-(desktopPersistenceStore domain split) landed; item 4
-(shadowOperationalRuntime god-class split) remains PROPOSAL. Recorded per
-`.aipos/architecture-governance.json`
+IMPLEMENTED (all five items addressed; item 4 partially, by deliberate
+design -- see below). Recorded per `.aipos/architecture-governance.json`
 lifecycle (`PROPOSAL -> IMPACT_ANALYSIS -> ARCHITECTURE_REVIEW -> MIGRATION_PLAN
 -> APPROVAL -> STAGED_ADOPTION -> VERIFICATION`) because every item below
 changes file-level interfaces that `.aipos/functional-status.yaml` and
@@ -159,46 +156,76 @@ its own AIPOS synchronization:
    a competing "domain event" kernel. `tsc --noEmit` and the full test
    suite (`node --test tests/*.test.js`, 3212/3217, matching the
    established baseline) verified the rename.
-4. STILL PROPOSAL -- attempted an audit, found no mechanically-safe seam
-   comparable to items 2 and 5. Read the full 1031-line file: ~25 private
-   fields (`lifecycle`, `marketDataStatus`, `blockers`,
-   `closedCandleHistory`, `evidenceRecovery`, `marketConnection`,
-   `lastMarketMessageAt`, ...) and dense cross-references between them --
-   `computeReadinessBlockers` alone (246 lines) reads nearly every field to
-   synthesize the four concerns' state into one readiness verdict, and
-   `onClosedCandle`/`dispatchShadowSignal`/`tryResumeAfterMarketRecovery`/
-   `haltActiveSession` each read and write across more than one of the four
-   concerns per call. This is not the persistence store's shape (mostly
-   independent SQL per method, one shared `db` handle) or main.ts's shape
-   (independent handler bodies sharing state only via simple get/set
-   proxies) -- it is a single continuous state machine where a "split" is a
-   real redesign of how the four concerns communicate, not an extraction.
+4. PARTIALLY DONE, deliberately narrower than "split along its four
+   concerns." An initial audit (read the full 1031-line file: ~25 private
+   fields and dense cross-references between them --
+   `computeReadinessBlockers` alone, 246 lines, read nearly every field)
+   found no mechanically-safe seam comparable to items 2 and 5 for the
+   *stateful orchestration* -- `onClosedCandle`/`dispatchShadowSignal`/
+   `tryResumeAfterMarketRecovery`/`haltActiveSession` each read and write
+   across more than one of the four concerns per call, in an order that
+   matters. That part of the original finding stands: a full split of the
+   orchestration is a real redesign of how the four concerns communicate,
+   not an extraction, and this sandbox cannot launch the actual Electron
+   process to verify a redesign's behavior end-to-end, only run a test
+   suite that mixes true behavioral coverage with static source-text
+   scans. Executing that redesign without first characterizing existing
+   behavior against the *unsplit* class remains the requirement recorded
+   below, and remains unmet.
 
-   Items 2 and 5 in this ADR were judged safe to execute directly because a
-   mechanical, low-risk seam existed and `tsc`/the test suite could catch a
-   missed reference. Neither is true here: an incorrect split could
-   silently change *when* a readiness blocker fires or *which* concern
-   observes a given event first, and this repo's test suite -- the only
-   verification available in this sandbox, which cannot launch the actual
-   Electron process -- mixes true behavioral coverage with static
-   source-text scans, so it cannot be trusted alone to catch a subtle
-   reordering on a class this dense. Proceeding anyway, on request alone,
-   would be executing exactly the "silently mutate architecture on the
-   safety path without adequate verification" failure mode
-   `.aipos/architecture.md`'s safety invariants exist to prevent.
+   What was extracted instead, on a second pass: exactly the sub-logic
+   that is a **pure function of explicit inputs**, with no reordering of
+   any stateful call. `computeReadinessBlockers`'s body (safety/market/
+   evidence readiness synthesis, `.aipos/architecture.md`'s "safety-state
+   tracking" concern) moved verbatim into
+   `apps/desktop/src/shadow/shadowReadinessBlockers.ts` as
+   `computeShadowReadinessBlockers(input)`, taking every value it used to
+   read off `this` as an explicit parameter and returning `{ blockers,
+   evidenceRecovery }` instead of mutating `this.evidenceRecovery`
+   directly -- the class still decides *whether* to persist that result
+   (the `persistRecovery` parameter), it just no longer computes it
+   inline. `diagnostics()`'s and `longRunningSourceSnapshot()`'s bodies
+   (state-to-public-shape projection) moved verbatim into
+   `shadowDiagnosticsProjection.ts` the same way; the class still owns
+   calling `reflectEvidenceHalt()` (a real mutation) immediately before
+   projecting, since that ordering is exactly the kind of thing this audit
+   says must not move without characterization. The six shared public
+   types (`ShadowLifecycleStatus`, `ShadowMarketDataStatus`,
+   `ShadowSignalOutcome`, `ShadowOperationalDiagnostics`,
+   `ShadowSafetyState`, `ShadowEvidenceRecoveryState`) moved to
+   `shadowOperationalTypes.ts`, re-exported from
+   `shadowOperationalRuntime.ts` for every existing external caller, to
+   avoid a type-only import cycle between the class and the two new pure
+   modules (`validate-architecture`'s type-cycle count stayed at the
+   baseline of 2 rather than climbing to 4).
 
-   Recorded requirement before this item can safely execute: a
-   characterization pass first (either a captured trace of a real Shadow
-   session's field-by-field transitions, or a set of unit tests that pin
-   the *current* ordering/values of `computeReadinessBlockers` and the
-   four halt/resume/dispatch paths under representative sequences of
-   candles, market-connection state changes, and evidence-bus halts) --
-   written and passing against the *unsplit* class, so a subsequent split
-   can be checked against it rather than against the split author's own
+   This is safe by the same standard as items 2 and 5: `tsc --noEmit`
+   verifies every input/output binding (an extraction that changed a
+   value's meaning is a type error, not a silent behavior change), and
+   because no call site's *order* changed -- only where the computation
+   *lives* -- the existing test suite's pass/fail is a meaningful check
+   here, unlike for a reordering. 1031 -> 907 lines in the class; 58 + 124
+   + 112 lines across the three new files.
+
+   Verified: `tsc --noEmit` (root + mobile) clean, full rebuild, `node
+   --test tests/*.test.js` 3212/3217 (matching the established baseline
+   exactly -- a sixth, unrelated failure on one run reproduced as passing
+   in isolation and disappeared on a clean rerun, i.e. a pre-existing flake
+   under this suite's parallel execution, not a regression), every
+   architecture/safety validator PASS, and every Shadow-specific test file
+   individually green.
+
+   Recorded requirement before the *orchestration* split can safely
+   execute: a characterization pass first (either a captured trace of a
+   real Shadow session's field-by-field transitions, or a set of unit
+   tests that pin the *current* ordering/values of the four halt/resume/
+   dispatch paths under representative sequences of candles,
+   market-connection state changes, and evidence-bus halts) -- written and
+   passing against the *current* class, so a subsequent split can be
+   checked against it rather than against the split author's own
    (possibly mistaken) understanding of the invariants. That
-   characterization work, and the split itself, are appropriately a
-   separate, explicitly-scoped follow-up, not a continuation of this
-   session's remaining budget.
+   characterization work, and the orchestration split itself, are
+   appropriately a separate, explicitly-scoped follow-up.
 5. DONE. Unlike items 2 and 4, this file had no deeply-shared mutable
    in-memory state across its ~35 methods -- each domain's read/write
    methods are (mostly) self-contained SQL against `this.db`, so the split
@@ -229,7 +256,13 @@ its own AIPOS synchronization:
 
 ## Consequences
 
-Item 4 (`shadowOperationalRuntime.ts`) is the one item from this ADR still
-outstanding. This ADR exists so the next AI or human collaborator (per the
-cross-AI continuity contract) can pick it up as a scoped, reviewable,
-individually-synchronized change instead of one large unreviewed rewrite.
+All five items have a landed result. The one piece deliberately left
+outstanding is the stateful-orchestration half of item 4 -- splitting
+`onClosedCandle`/`dispatchShadowSignal`/`tryResumeAfterMarketRecovery`/
+`haltActiveSession`'s cross-concern read/write ordering apart -- which item
+4's entry above records as unsafe to attempt without a characterization
+pass this session did not have the verification means (no live Electron
+process) to build with confidence. This ADR exists so the next AI or human
+collaborator (per the cross-AI continuity contract) can pick that up as a
+scoped, reviewable, individually-synchronized change instead of one large
+unreviewed rewrite.
