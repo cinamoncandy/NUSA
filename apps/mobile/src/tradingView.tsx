@@ -24,6 +24,7 @@ const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, {
 const LOCAL_PAPER_MARKET = "KRW-BTC";
 const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
 const initialLocalTradingSnapshot = (): TradingSnapshot => Object.freeze({ orders: Object.freeze([]), positions: Object.freeze([]), balances: Object.freeze([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]) });
+const localTradingService = new MockTradingService([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]);
 
 function buildLocalPortfolio(trading: TradingSnapshot, markPrice: number | null): PortfolioAccountResponse {
   const cash = trading.balances.find((balance) => balance.currency === "KRW")?.available ?? 0;
@@ -52,7 +53,6 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const [localPriceError, setLocalPriceError] = useState<string | null>(null);
   const [localChartError, setLocalChartError] = useState<string | null>(null);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
-  const localTradingService = useMemo(() => new MockTradingService([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]), []);
   const configuredEndpoint = getConfiguredPaperEndpoint();
   const builtInSubmitAvailable = Boolean(configuredEndpoint && credentialSession.isConfigured() && isPaperConnectionVerified(configuredEndpoint));
   const usingLocalPaper = !builtInSubmitAvailable;
@@ -61,6 +61,13 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const effectiveConnectionState = usingLocalPaper ? (effectiveMarkPrice != null ? "CONNECTED" : "UNKNOWN") : marketConnectionState;
   const effectiveStale = usingLocalPaper ? effectiveMarkPrice == null : stale;
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
+
+  useEffect(() => {
+    if (!usingLocalPaper) return;
+    let active = true;
+    void localTradingService.getSnapshot().then((next) => { if (active) setLocalTradingSnapshot(next); });
+    return () => { active = false; };
+  }, [usingLocalPaper]);
 
   useEffect(() => {
     if (!usingLocalPaper) return;
