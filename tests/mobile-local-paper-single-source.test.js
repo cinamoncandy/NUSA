@@ -34,8 +34,16 @@ test("Home and Portfolio read the same LOCAL PAPER store", () => {
   assert.match(portfolio, /const effectiveSnapshot = snapshot \?\? localState\.portfolio/);
 });
 
-test("LOCAL PAPER remains zero-LIVE authority", () => {
+test("shared ledger derives unrealized and realized PnL from executed PAPER orders", () => {
   assert.match(store, /const assetValue = quantity \* validMarkPrice/);
+  assert.match(store, /const unrealizedPnl = quantity > 0 && validMarkPrice > 0/);
+  assert.match(store, /realizedPnl \+= \(input\.price - position\.averageEntryPrice\) \* input\.quantity/);
   assert.match(store, /equity:\s*cash \+ assetValue/);
+  assert.match(trade, /label="실현 손익"/);
+});
+
+test("LOCAL PAPER remains zero-LIVE authority", () => {
   assert.doesNotMatch(store + trade + home + portfolio, /placeLiveOrder|withdraw\(|transfer\(|productionMutationAllowed\s*:\s*true/);
+  assert.match(trade, /authority: "PAPER_ONLY"/);
+  assert.match(trade, /productionMutationAllowed: false/);
 });
