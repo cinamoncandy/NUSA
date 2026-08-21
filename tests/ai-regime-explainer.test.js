@@ -4,7 +4,7 @@ const {
   buildRegimeExplanationPrompt,
   explainRegime,
   createAnthropicRegimeExplainerClient
-} = require("../dist/apps/desktop/src/aiRegimeExplainer.js");
+} = require("../dist/apps/desktop/src/ai/aiRegimeExplainer.js");
 
 function request(overrides = {}) {
   return {

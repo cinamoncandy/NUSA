@@ -41,10 +41,10 @@ if (!fs.existsSync(cloudMainPath)) {
 
 const safetySources = [
   "apps/desktop/src/cloudMain.ts",
-  "apps/desktop/src/desktopPaperAuthorityPolicy.ts",
-  "apps/desktop/src/desktopCloudPaperIpc.ts",
-  "apps/desktop/src/desktopCloudSessionClient.ts",
-  "apps/desktop/src/desktopCloudSessionStore.ts",
+  "apps/desktop/src/paper/desktopPaperAuthorityPolicy.ts",
+  "apps/desktop/src/cloud/desktopCloudPaperIpc.ts",
+  "apps/desktop/src/cloud/desktopCloudSessionClient.ts",
+  "apps/desktop/src/cloud/desktopCloudSessionStore.ts",
   "apps/desktop/src/main.ts",
   "apps/execution/src/production-readiness.ts",
   "apps/execution/src/live-operations.ts"

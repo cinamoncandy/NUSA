@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { recordStressExperiment, runExecutionCostStress } = require("../dist/apps/desktop/src/executionCostStress.js");
+const { recordStressExperiment, runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 
 class RoundTrip { constructor() { this.id = "round"; this.name = "Round"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : this.index === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
 class Flat { constructor() { this.id = "flat"; this.name = "Flat"; } onTick(tick) { return { type: "HOLD", reason: "flat", confidence: 0, timestamp: tick.timestamp }; } reset() {} }

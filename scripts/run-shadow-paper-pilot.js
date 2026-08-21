@@ -1,5 +1,5 @@
 "use strict";
-const fs=require("node:fs"),path=require("node:path");const {ShadowPilotRuntime,verifyShadowPilotEvents}=require("../dist/apps/desktop/src/shadowPilotRuntime.js");
+const fs=require("node:fs"),path=require("node:path");const {ShadowPilotRuntime,verifyShadowPilotEvents}=require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
 // safety-input-literal-ok: this whole precheck call is a fixed --dry-run demonstration fixture,
 // required by the throw two lines below -- there is no live desktop/cloud safety state for it to
 // read yet, because no production-like public-market session exists. When a real (non-dry-run)

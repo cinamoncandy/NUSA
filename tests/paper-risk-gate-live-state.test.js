@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createOperationalPaperRiskGate } = require("../dist/apps/desktop/src/paperOperationalPreflight.js");
-const { createSessionPeakEquityTracker } = require("../dist/apps/desktop/src/paperRiskState.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { createOperationalPaperRiskGate } = require("../dist/apps/desktop/src/paper/paperOperationalPreflight.js");
+const { createSessionPeakEquityTracker } = require("../dist/apps/desktop/src/paper/paperRiskState.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 /**
  * createOperationalPaperRiskGate used to build the PreTradeRiskRequest with

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/aiCioSnapshotPublisher.js");
+const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/ai/aiCioSnapshotPublisher.js");
 
 const now = 10_000;
 const section = (overrides = {}) => ({ status: "HEALTHY", generatedAt: now, reasons: [], ...overrides });

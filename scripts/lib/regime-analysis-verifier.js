@@ -4,7 +4,7 @@
  * NOT call scripts/lib/regime-analysis-runner.js's segment builder, attribution, or
  * assessment functions -- and deliberately does NOT call the production classifier
  * either. It re-derives the trailing-only trend/volatility labels from the raw candles
- * with its own arithmetic, so a bug in apps/desktop/src/marketRegime.ts could not hide
+ * with its own arithmetic, so a bug in apps/desktop/src/strategy/marketRegime.ts could not hide
  * behind a verifier that simply asked that same module what the answer was.
  */
 const { canonicalHash } = require("./canonical-hash.js");

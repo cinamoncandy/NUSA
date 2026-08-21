@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { UpbitMinuteCandleSource, UpbitMinuteCandleSourceError } = require("../dist/apps/desktop/src/upbitMinuteCandleSource.js");
+const { UpbitMinuteCandleSource, UpbitMinuteCandleSourceError } = require("../dist/apps/desktop/src/exchange/upbitMinuteCandleSource.js");
 
 const row = (time, changes = {}) => ({ market: "KRW-BTC", candle_date_time_utc: new Date(time).toISOString(), opening_price: 100, high_price: 110, low_price: 90, trade_price: 105, candle_acc_trade_volume: 1, ...changes });
 

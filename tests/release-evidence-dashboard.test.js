@@ -7,7 +7,7 @@ const { createHash } = require("node:crypto");
 const { appendPaperScenarioEvent } = require("../dist/apps/cloud/src/paperScenarioEvidenceLedger.js");
 const { exportOperatorEvidenceBundle } = require("../dist/apps/cloud/src/operatorEvidenceBundle.js");
 const { buildReleaseEvidenceDashboard } = require("../dist/apps/cloud/src/releaseEvidenceDashboard.js");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 const at = Date.UTC(2026, 6, 15);
 const bundle = () => {

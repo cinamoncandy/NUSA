@@ -8,7 +8,7 @@ const { handlePersonalPaperOperationsHttp } = require("../dist/apps/cloud/src/pe
 const {
   buildPersonalPaperOperationsEnvelope,
   validatePersonalPaperOperationsEnvelope
-} = require("../dist/apps/desktop/src/personalPaperOperationsAdapter.js");
+} = require("../dist/apps/desktop/src/paper/personalPaperOperationsAdapter.js");
 const {
   loadPersonalPaperOperations,
   unavailableDashboardCredentialProvider

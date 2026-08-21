@@ -1,4 +1,4 @@
-const { readEvidenceStatus, exportEvidence, verifyEvidenceBundle } = require("../dist/apps/desktop/src/evidenceOperator.js");
+const { readEvidenceStatus, exportEvidence, verifyEvidenceBundle } = require("../dist/apps/desktop/src/evidence/evidenceOperator.js");
 
 function value(args, name) {
   const index = args.indexOf(name);

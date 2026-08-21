@@ -1,7 +1,7 @@
 import { app, ipcMain } from "electron";
-import { activateCloudCanonicalDesktopAuthority } from "./desktopPaperAuthorityPolicy";
-import { registerDesktopCloudPaperIpc } from "./desktopCloudPaperIpc";
-import { createDesktopCloudSessionClient } from "./desktopCloudSessionRuntime";
+import { activateCloudCanonicalDesktopAuthority } from "./paper/desktopPaperAuthorityPolicy";
+import { registerDesktopCloudPaperIpc } from "./cloud/desktopCloudPaperIpc";
+import { createDesktopCloudSessionClient } from "./cloud/desktopCloudSessionRuntime";
 
 // These handlers belong to the legacy local simulator. The explicit LOCAL_SIMULATION
 // development entrypoint may still load main.ts directly, but the packaged Cloud-canonical

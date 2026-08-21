@@ -3,13 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import type { PreTradeRiskDecision, PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
-import type { RiskDecision, RiskEvidenceSink } from "../../../apps/execution/src/global-risk-gateway";
+import type { RiskDecision, RiskEvidenceSink } from "../../../packages/contracts/src/global-risk-gateway";
 import type { PaperCommandRiskGate } from "./runtimeCommandService";
 import type { PaperBroker, PaperSide } from "./paperBroker";
 import { reconcilePaperLedger } from "./paperSafetyGates";
 import { computeConsecutiveLossCount, computeDailyNotional, computeOrderRateState, tradingDayOf, type SessionPeakEquityTracker } from "./paperRiskState";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
-import { CanonicalRiskSafetyGate, type CanonicalRiskDecision, type RiskSafetyPersistence } from "../../../apps/execution/src/risk-safety-integration";
+import { CanonicalRiskSafetyGate, type CanonicalRiskDecision, type RiskSafetyPersistence } from "../../../packages/contracts/src/risk-safety-integration";
 
 export interface OperationalPreflightDiagnostic {
   readonly status: "PASS" | "BLOCKED";

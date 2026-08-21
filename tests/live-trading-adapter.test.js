@@ -7,8 +7,8 @@ const {
   TradingAdapterRuntime,
   createTradingAdapter,
   readTradingAdapterEnvironment,
-} = require("../dist/apps/desktop/src/liveTradingAdapter.js");
-const { LiveMutationDisabledError, MockUpbitRestAdapter } = require("../dist/apps/desktop/src/upbitRestAdapter.js");
+} = require("../dist/apps/desktop/src/exchange/liveTradingAdapter.js");
+const { LiveMutationDisabledError, MockUpbitRestAdapter } = require("../dist/apps/desktop/src/exchange/upbitRestAdapter.js");
 
 const environment = (overrides = {}) => ({ NUSA_TRADING_ADAPTER_MODE: "MOCK", ...overrides });
 

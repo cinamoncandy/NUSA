@@ -25,9 +25,9 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
     paths:
       - "apps/mobile/**"
-      - "apps/desktop/src/upbitRestAdapter*"
-      - "apps/desktop/src/upbitWebSocket*"
-      - "apps/desktop/src/liveTradingAdapter*"
+      - "apps/desktop/src/exchange/upbitRestAdapter*"
+      - "apps/desktop/src/exchange/upbitWebSocket*"
+      - "apps/desktop/src/exchange/liveTradingAdapter*"
       - "tests/mobile-native-structure.test.js"
       - "tests/mobile-uiux-v3-canonical.test.js"
       - "tests/mobile-cash-allocation-uiux-v3.test.js"

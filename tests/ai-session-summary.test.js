@@ -4,7 +4,7 @@ const {
   buildSessionSummaryPrompt,
   summarizeSession,
   createAnthropicSessionSummaryClient
-} = require("../dist/apps/desktop/src/aiSessionSummary.js");
+} = require("../dist/apps/desktop/src/ai/aiSessionSummary.js");
 
 function request(overrides = {}) {
   return {

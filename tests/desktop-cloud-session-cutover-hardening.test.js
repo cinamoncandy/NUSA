@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { DesktopCloudSessionClient } = require("../dist/apps/desktop/src/desktopCloudSessionClient.js");
-const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/desktopCloudSessionStore.js");
+const { DesktopCloudSessionClient } = require("../dist/apps/desktop/src/cloud/desktopCloudSessionClient.js");
+const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/cloud/desktopCloudSessionStore.js");
 
 const safeStorage = Object.freeze({
   isEncryptionAvailable: () => true,

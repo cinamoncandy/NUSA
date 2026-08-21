@@ -7,7 +7,7 @@ const required = [
   expectedDesktopMain,
   "dist/apps/desktop/src/main.js",
   "dist/apps/desktop/src/preload.js",
-  "dist/apps/desktop/src/desktopCloudSessionRuntime.js",
+  "dist/apps/desktop/src/cloud/desktopCloudSessionRuntime.js",
   "apps/desktop/renderer/index.html",
   "apps/desktop/src/cloudMain.ts"
 ];
