@@ -54,14 +54,13 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   const model = buildTradingViewModel(input({ draft: { side: "BUY", orderType: "MARKET", priceInput: "", quantityInput: "2" } }));
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
-
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-
   assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(source, /const usingLocalPaper = !builtInSubmitAvailable/);
-  assert.match(source, /localTradingService\.placePaperOrder/);
+  assert.match(source, /placeLocalPaperOrder/);
+  assert.doesNotMatch(source, /new MockTradingService/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
@@ -91,11 +90,6 @@ test("Market order uses verified current price and UI exposes only PAPER executi
 });
 
 test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §7): SELL previously only got an
-  // InlineNotice while BUY got a full allocation panel; SELL now gets an equivalent
-  // contextual panel bounded by holdings, not cash (capitalAllocationGuard.ts's reservePercent
-  // correctly never applies to SELL). BUY's "after order" figure was previously a static
-  // reservedCash value that never actually changed with the order.
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   assert.match(source, /testID="paper-holdings-panel"/);
   assert.match(source, /매도 가능 수량/);
