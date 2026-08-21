@@ -1,29 +1,32 @@
 import { DatabaseSync } from "node:sqlite";
-import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { runMigrations } from "../../../../packages/storage/src/migrationRunner";
 import type { ControlPlaneState } from "../control/controlPlane";
 import type { PaperBrokerState, PaperOrder } from "../paper/paperBroker";
 import type { PaperScenarioEvent } from "../../../cloud/src/paperScenarioEvidenceLedger";
-import { validateResearchRunManifest, type ResearchRunManifest, type ResearchValidationReport } from "../../../cloud/src/researchRunValidation";
+import type { ResearchRunManifest, ResearchValidationReport } from "../../../cloud/src/researchRunValidation";
 import type { OwnerReviewRecord } from "../../../cloud/src/releaseEvidenceDashboard";
 import type { PaperSafetySnapshot } from "../../../../packages/contracts/src/paperSafetySnapshot";
 import { validatePaperSafetySnapshot } from "../paper/paperSafetySnapshot";
 import { SqliteDurableExecutionRepository } from "../../../../packages/storage/src/durable-execution";
 import { SqliteRiskEvidenceRepository } from "../../../../packages/storage/src/risk-evidence";
 import { SqliteRiskSafetyPersistence } from "../../../../packages/storage/src/risk-safety";
-import { replayCommitteeLedger, type CommitteeLedgerRecord, type RecordedCommitteeDecision } from "../../../cloud/src/investmentCommitteeLedger";
+import type { RecordedCommitteeDecision } from "../../../cloud/src/investmentCommitteeLedger";
 import type { OpportunitySchedule } from "../../../cloud/src/opportunityScheduler";
-import { validateOpportunitySchedule } from "../cloud/opportunityDashboardProjection";
+import * as researchEvidenceStore from "./researchEvidenceStore";
+import * as ownerReviewStore from "./ownerReviewStore";
+import * as committeeLedgerStore from "./committeeLedgerStore";
+import * as operationsStore from "./operationsStore";
+import type { OperationsAlertRecord, OperationsAuditRecord } from "./operationsStore";
+import * as opportunityScheduleStore from "./opportunityScheduleStore";
+import * as strategyHistoryStore from "./strategyHistoryStore";
 
 const SCENARIO_EVENT_TYPES = new Set(["SESSION_OBSERVED", "ORDER_COMPLETED", "REGIME_OBSERVED", "RECOVERY_COMPLETED", "DUPLICATE_ORDER_CHECKED", "FAULT_SCENARIO_PASSED"]);
-const RESEARCH_RUN_TYPES = new Set(["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"]);
-const SHA256 = /^[a-f0-9]{64}$/i;
 
 export interface DesktopPersistenceState { readonly paper: PaperBrokerState; readonly control: ControlPlaneState; }
-export interface OperationsAuditRecord { readonly auditId: string; readonly actor: string; readonly action: string; readonly target: string | null; readonly metadata: Readonly<Record<string, unknown>>; readonly createdAt: string; }
-export interface OperationsAlertRecord { readonly alertId: string; readonly severity: "INFO" | "WARNING" | "ERROR" | "CRITICAL"; readonly source: string; readonly code: string; readonly message: string; readonly createdAt: string; }
+// Re-exported for existing call sites; the canonical definitions now live in operationsStore.ts.
+export type { OperationsAuditRecord, OperationsAlertRecord } from "./operationsStore";
 
 const migrations = [{ id: "001_desktop_runtime", sql: `
 CREATE TABLE desktop_account_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
@@ -137,22 +140,11 @@ export class DesktopPersistenceStore {
    * fail-closed evidence path those methods use.
    */
   saveStrategyPriceHistory(prices: readonly number[]): void {
-    if (!prices.every((price) => Number.isFinite(price) && price > 0)) {
-      throw new Error("strategy price history must contain only positive finite numbers");
-    }
-    this.transaction(() => {
-      this.db.prepare("INSERT OR REPLACE INTO desktop_strategy_state (id, payload) VALUES (1, ?)").run(JSON.stringify({ version: 1, priceHistory: prices }));
-    });
+    strategyHistoryStore.saveStrategyPriceHistory(this.db, (op) => this.transaction(op), prices);
   }
 
   loadStrategyPriceHistory(): readonly number[] | undefined {
-    const row = this.db.prepare("SELECT payload FROM desktop_strategy_state WHERE id = 1").get() as { payload: string } | undefined;
-    if (row == null) return undefined;
-    const parsed = JSON.parse(row.payload) as { version?: number; priceHistory?: unknown };
-    if (parsed.version !== 1 || !Array.isArray(parsed.priceHistory) || !parsed.priceHistory.every((price) => Number.isFinite(price) && price > 0)) {
-      throw new Error("stored strategy price history is invalid");
-    }
-    return parsed.priceHistory as readonly number[];
+    return strategyHistoryStore.loadStrategyPriceHistory(this.db);
   }
 
   saveWithScenarioEvent(paper: PaperBrokerState, control: ControlPlaneState, event: PaperScenarioEvent): void {
@@ -206,102 +198,31 @@ export class DesktopPersistenceStore {
   }
 
   appendResearchRunManifest(manifest: ResearchRunManifest): void {
-    validateResearchRunManifest(manifest);
-    this.transaction(() => {
-      const existing = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(manifest.runId) as { manifest_json: string } | undefined;
-      const payload = JSON.stringify(manifest);
-      if (existing != null) {
-        if (existing.manifest_json !== payload) throw new Error("research manifest identity conflict");
-        return;
-      }
-      this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(manifest.runId, manifest.runType, manifest.strategyId, manifest.strategyVersion, manifest.datasetId, manifest.datasetChecksum, payload);
-    });
+    researchEvidenceStore.appendResearchRunManifest(this.db, (op) => this.transaction(op), manifest);
   }
 
   loadResearchRunManifests(): readonly ResearchRunManifest[] {
-    const rows = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests ORDER BY run_id ASC").all() as Array<{ manifest_json: string }>;
-    return Object.freeze(rows.map((row) => this.parseResearchManifest(row.manifest_json)));
+    return researchEvidenceStore.loadResearchRunManifests(this.db);
   }
 
   appendResearchValidationReport(report: ResearchValidationReport): void {
-    this.assertResearchReport(report);
-    this.transaction(() => {
-      const manifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(report.runId) as { manifest_json: string } | undefined;
-      if (manifest == null) throw new Error("research report manifest is missing");
-      const parsedManifest = this.parseResearchManifest(manifest.manifest_json);
-      if (parsedManifest.runType !== report.runType || parsedManifest.resultChecksum !== report.resultChecksum) throw new Error("research report does not match manifest");
-      const existing = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(report.runId, report.runType) as { report_json: string } | undefined;
-      const payload = JSON.stringify(report);
-      if (existing != null) {
-        if (existing.report_json !== payload) throw new Error("research validation report identity conflict");
-        return;
-      }
-      this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(report.runId, report.runType, payload);
-    });
+    researchEvidenceStore.appendResearchValidationReport(this.db, (op) => this.transaction(op), report);
   }
 
   appendResearchEvidence(manifest: ResearchRunManifest, report: ResearchValidationReport): void {
-    validateResearchRunManifest(manifest);
-    this.assertResearchReport(report);
-    if (manifest.runId !== report.runId || manifest.runType !== report.runType) throw new Error("research evidence manifest/report identity mismatch");
-    if (manifest.resultChecksum !== report.resultChecksum) throw new Error("research evidence result checksum mismatch");
-    this.transaction(() => {
-      const manifestPayload = JSON.stringify(manifest);
-      const reportPayload = JSON.stringify(report);
-      const existingManifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(manifest.runId) as { manifest_json: string } | undefined;
-      const existingReport = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(report.runId, report.runType) as { report_json: string } | undefined;
-      if (existingManifest != null && existingManifest.manifest_json !== manifestPayload) throw new Error("research manifest identity conflict");
-      if (existingReport != null && existingReport.report_json !== reportPayload) throw new Error("research validation report identity conflict");
-      if (existingManifest == null) {
-        this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(manifest.runId, manifest.runType, manifest.strategyId, manifest.strategyVersion, manifest.datasetId, manifest.datasetChecksum, manifestPayload);
-      }
-      if (existingReport == null) this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(report.runId, report.runType, reportPayload);
-    });
+    researchEvidenceStore.appendResearchEvidence(this.db, (op) => this.transaction(op), manifest, report);
   }
 
   loadResearchValidationReports(): readonly ResearchValidationReport[] {
-    const rows = this.db.prepare("SELECT report_json FROM desktop_research_reports ORDER BY run_id ASC, run_type ASC").all() as Array<{ report_json: string }>;
-    const manifests = new Map(this.loadResearchRunManifests().map((manifest) => [manifest.runId, manifest]));
-    return Object.freeze(rows.map((row) => {
-      let report: ResearchValidationReport;
-      try { report = Object.freeze(JSON.parse(row.report_json) as ResearchValidationReport); }
-      catch (error) { throw new Error("research validation report JSON is invalid", { cause: error }); }
-      this.assertResearchReport(report);
-      const manifest = manifests.get(report.runId);
-      if (manifest == null || manifest.runType !== report.runType || manifest.resultChecksum !== report.resultChecksum) throw new Error("research report does not match persisted manifest");
-      return report;
-    }));
+    return researchEvidenceStore.loadResearchValidationReports(this.db);
   }
 
   appendOwnerReview(record: OwnerReviewRecord, currentBundleStatus: "BLOCKED" | "READY_FOR_OWNER_REVIEW" | "APPROVED"): void {
-    if (!/^[a-zA-Z0-9._-]{1,64}$/.test(record.reviewerId)) throw new Error("reviewer id must be a local owner alias");
-    if (!/^[a-f0-9]{64}$/i.test(record.bundleChecksum) || !/^[a-f0-9]{64}$/i.test(record.recordChecksum)) throw new Error("review checksum is invalid");
-    if (!["APPROVE", "REJECT", "REQUEST_MORE_EVIDENCE"].includes(record.decision)) throw new Error("review decision is invalid");
-    if (record.decision === "APPROVE" && currentBundleStatus !== "READY_FOR_OWNER_REVIEW") throw new Error("approval requires READY_FOR_OWNER_REVIEW");
-    const canonical = JSON.stringify({ reviewId: record.reviewId, bundleChecksum: record.bundleChecksum, reviewerId: record.reviewerId, decision: record.decision, note: record.note ?? null, reviewedAt: record.reviewedAt });
-    const expectedChecksum = createHash("sha256").update(canonical, "utf8").digest("hex");
-    if (record.recordChecksum !== expectedChecksum) throw new Error("review record checksum mismatch");
-    this.transaction(() => {
-      const existing = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records WHERE review_id = ?").get(record.reviewId) as OwnerReviewRecord | undefined;
-      if (existing != null) {
-        if (JSON.stringify(existing) !== JSON.stringify(record)) throw new Error("review id conflict");
-        return;
-      }
-      this.db.prepare("INSERT INTO desktop_owner_review_records (review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum) VALUES (?, ?, ?, ?, ?, ?, ?)").run(record.reviewId, record.bundleChecksum, record.reviewerId, record.decision, record.note ?? null, record.reviewedAt, record.recordChecksum);
-    });
+    ownerReviewStore.appendOwnerReview(this.db, (op) => this.transaction(op), record, currentBundleStatus);
   }
 
   loadOwnerReviews(): readonly OwnerReviewRecord[] {
-    const rows = this.db.prepare("SELECT review_id, bundle_checksum, reviewer_id, decision, note, reviewed_at, record_checksum FROM desktop_owner_review_records ORDER BY reviewed_at ASC, review_id ASC").all() as Array<Record<string, unknown>>;
-    return Object.freeze(rows.map((row) => Object.freeze({
-      reviewId: String(row.review_id),
-      bundleChecksum: String(row.bundle_checksum),
-      reviewerId: String(row.reviewer_id),
-      decision: String(row.decision) as OwnerReviewRecord["decision"],
-      note: row.note == null ? undefined : String(row.note),
-      reviewedAt: String(row.reviewed_at),
-      recordChecksum: String(row.record_checksum)
-    })));
+    return ownerReviewStore.loadOwnerReviews(this.db);
   }
 
   close(): void { this.db.close(); }
@@ -330,87 +251,36 @@ export class DesktopPersistenceStore {
   }
 
   appendResearchEvidenceBundle(entries: readonly Readonly<{ manifest: ResearchRunManifest; report: ResearchValidationReport }>[]): void {
-    if (entries.length === 0) throw new Error("research evidence bundle is empty");
-    const seen = new Set<string>();
-    for (const entry of entries) {
-      validateResearchRunManifest(entry.manifest);
-      this.assertResearchReport(entry.report);
-      if (entry.manifest.runId !== entry.report.runId || entry.manifest.runType !== entry.report.runType || entry.manifest.resultChecksum !== entry.report.resultChecksum) {
-        throw new Error("research evidence bundle identity mismatch");
-      }
-      if (seen.has(entry.manifest.runId)) throw new Error("research evidence bundle contains duplicate runId");
-      seen.add(entry.manifest.runId);
-    }
-    this.transaction(() => {
-      for (const entry of entries) {
-        const manifestPayload = JSON.stringify(entry.manifest);
-        const reportPayload = JSON.stringify(entry.report);
-        const existingManifest = this.db.prepare("SELECT manifest_json FROM desktop_research_manifests WHERE run_id = ?").get(entry.manifest.runId) as { manifest_json: string } | undefined;
-        const existingReport = this.db.prepare("SELECT report_json FROM desktop_research_reports WHERE run_id = ? AND run_type = ?").get(entry.report.runId, entry.report.runType) as { report_json: string } | undefined;
-        if (existingManifest != null && existingManifest.manifest_json !== manifestPayload) throw new Error("research manifest identity conflict");
-        if (existingReport != null && existingReport.report_json !== reportPayload) throw new Error("research validation report identity conflict");
-        if (existingManifest == null) this.db.prepare("INSERT INTO desktop_research_manifests (run_id, run_type, strategy_id, strategy_version, dataset_id, dataset_checksum, manifest_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(entry.manifest.runId, entry.manifest.runType, entry.manifest.strategyId, entry.manifest.strategyVersion, entry.manifest.datasetId, entry.manifest.datasetChecksum, manifestPayload);
-        if (existingReport == null) this.db.prepare("INSERT INTO desktop_research_reports (run_id, run_type, report_json) VALUES (?, ?, ?)").run(entry.report.runId, entry.report.runType, reportPayload);
-      }
-    });
+    researchEvidenceStore.appendResearchEvidenceBundle(this.db, (op) => this.transaction(op), entries);
   }
 
   /** Reads the existing append-only committee ledger without creating or mutating it. */
   loadCommitteeDashboardSource(): Readonly<{ decision: RecordedCommitteeDecision | null; integrity: "VALID" | "UNAVAILABLE" | "INVALID" }> {
-    try {
-      const rows = this.db.prepare("SELECT sequence, previous_hash, decision_json, hash FROM investment_committee_events ORDER BY sequence ASC").all() as Array<Record<string, unknown>>;
-      if (rows.length === 0) return Object.freeze({ decision: null, integrity: "UNAVAILABLE" as const });
-      const records = rows.map((row) => Object.freeze({ sequence: Number(row.sequence), previousHash: String(row.previous_hash), decision: JSON.parse(String(row.decision_json)) as RecordedCommitteeDecision, hash: String(row.hash) })) as readonly CommitteeLedgerRecord[];
-      replayCommitteeLedger(records);
-      return Object.freeze({ decision: records[records.length - 1]!.decision, integrity: "VALID" as const });
-    } catch {
-      return Object.freeze({ decision: null, integrity: "INVALID" as const });
-    }
+    return committeeLedgerStore.loadCommitteeDashboardSource(this.db);
   }
 
   appendOperationsAudit(record: OperationsAuditRecord): void {
-    this.db.prepare("INSERT INTO desktop_operations_audit (audit_id, created_at, payload) VALUES (?, ?, ?) ON CONFLICT(audit_id) DO NOTHING").run(record.auditId, record.createdAt, JSON.stringify(record));
+    operationsStore.appendOperationsAudit(this.db, record);
   }
 
   loadOperationsAudit(limit = 50): readonly OperationsAuditRecord[] {
-    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
-    const rows = this.db.prepare("SELECT payload FROM desktop_operations_audit ORDER BY created_at DESC, audit_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
-    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAuditRecord)));
+    return operationsStore.loadOperationsAudit(this.db, limit);
   }
 
   appendOperationsAlert(record: OperationsAlertRecord): void {
-    this.db.prepare("INSERT INTO desktop_operations_alerts (alert_id, created_at, severity, payload) VALUES (?, ?, ?, ?) ON CONFLICT(alert_id) DO NOTHING").run(record.alertId, record.createdAt, record.severity, JSON.stringify(record));
+    operationsStore.appendOperationsAlert(this.db, record);
   }
 
   loadOperationsAlerts(limit = 50): readonly OperationsAlertRecord[] {
-    const safeLimit = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
-    const rows = this.db.prepare("SELECT payload FROM desktop_operations_alerts ORDER BY created_at DESC, alert_id DESC LIMIT ?").all(safeLimit) as Array<{ payload: string }>;
-    return Object.freeze(rows.map((row) => Object.freeze(JSON.parse(row.payload) as OperationsAlertRecord)));
+    return operationsStore.loadOperationsAlerts(this.db, limit);
   }
 
   appendOpportunitySchedule(input: Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }>): void {
-    if (!input.scheduleId.trim() || !input.source.trim() || !Number.isSafeInteger(input.generatedAt) || input.generatedAt < 0) throw new Error("opportunity schedule identity is invalid");
-    validateOpportunitySchedule(input.schedule);
-    const payload = JSON.stringify(input.schedule);
-    const payloadChecksum = createHash("sha256").update(payload, "utf8").digest("hex");
-    this.transaction(() => {
-      const existing = this.db.prepare("SELECT source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules WHERE schedule_id = ?").get(input.scheduleId) as { source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
-      if (existing != null) {
-        if (existing.source !== input.source || existing.generated_at !== input.generatedAt || existing.payload !== payload || existing.payload_checksum !== payloadChecksum) throw new Error("opportunity schedule identity conflict");
-        return;
-      }
-      this.db.prepare("INSERT INTO desktop_opportunity_schedules (schedule_id, source, generated_at, payload, payload_checksum) VALUES (?, ?, ?, ?, ?)").run(input.scheduleId, input.source, input.generatedAt, payload, payloadChecksum);
-    });
+    opportunityScheduleStore.appendOpportunitySchedule(this.db, (op) => this.transaction(op), input);
   }
 
   loadLatestOpportunitySchedule(): Readonly<{ scheduleId: string; source: string; generatedAt: number; schedule: OpportunitySchedule }> | undefined {
-    const row = this.db.prepare("SELECT schedule_id, source, generated_at, payload, payload_checksum FROM desktop_opportunity_schedules ORDER BY generated_at DESC, schedule_id DESC LIMIT 1").get() as { schedule_id: string; source: string; generated_at: number; payload: string; payload_checksum: string } | undefined;
-    if (row == null) return undefined;
-    const checksum = createHash("sha256").update(row.payload, "utf8").digest("hex");
-    if (checksum !== row.payload_checksum) throw new Error("opportunity schedule checksum mismatch");
-    const schedule = JSON.parse(row.payload) as OpportunitySchedule;
-    validateOpportunitySchedule(schedule);
-    return Object.freeze({ scheduleId: row.schedule_id, source: row.source, generatedAt: Number(row.generated_at), schedule: Object.freeze(schedule) });
+    return opportunityScheduleStore.loadLatestOpportunitySchedule(this.db);
   }
 
   private configureSafetyPragmas(): void {
@@ -431,19 +301,6 @@ export class DesktopPersistenceStore {
   private verifyStartupIntegrity(): void {
     const rows = this.db.prepare("PRAGMA quick_check").all() as Array<{ quick_check: string }>;
     if (rows.length !== 1 || rows[0]?.quick_check !== "ok") throw new Error("SQLite quick_check failed");
-  }
-
-  private parseResearchManifest(payload: string): ResearchRunManifest {
-    try {
-      const manifest = Object.freeze(JSON.parse(payload) as ResearchRunManifest);
-      validateResearchRunManifest(manifest);
-      return manifest;
-    } catch (error) { throw new Error("research manifest JSON is invalid", { cause: error }); }
-  }
-
-  private assertResearchReport(report: ResearchValidationReport): void {
-    if (!report.runId.trim() || !RESEARCH_RUN_TYPES.has(report.runType) || !["PASS", "FAIL"].includes(report.status)) throw new Error("research validation report identity is invalid");
-    if (!Number.isFinite(Date.parse(report.checkedAt)) || !SHA256.test(report.resultChecksum) || report.reasons.some((reason) => typeof reason !== "string" || !reason.trim())) throw new Error("research validation report content is invalid");
   }
 
   private write({ paper, control }: DesktopPersistenceState): void {

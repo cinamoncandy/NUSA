@@ -2,8 +2,11 @@
 
 ## Status
 
-PARTIALLY IMPLEMENTED. Items 1 (folder reorganization) and 2 (main.ts IPC
-handler extraction) landed; items 3-5 remain PROPOSAL. Recorded per `.aipos/architecture-governance.json`
+PARTIALLY IMPLEMENTED. Items 1 (folder reorganization), 2 (main.ts IPC
+handler extraction), 3 (domainEventBus audit + rename), and 5
+(desktopPersistenceStore domain split) landed; item 4
+(shadowOperationalRuntime god-class split) remains PROPOSAL. Recorded per
+`.aipos/architecture-governance.json`
 lifecycle (`PROPOSAL -> IMPACT_ANALYSIS -> ARCHITECTURE_REVIEW -> MIGRATION_PLAN
 -> APPROVAL -> STAGED_ADOPTION -> VERIFICATION`) because every item below
 changes file-level interfaces that `.aipos/functional-status.yaml` and
@@ -159,12 +162,37 @@ its own AIPOS synchronization:
 4. Split `shadowOperationalRuntime.ts` along its four concerns only after
    characterizing existing behavior (tests or a captured trace) so the split
    can be verified to preserve it.
-5. Split `desktopPersistenceStore.ts` by domain, keeping only SQLite
-   wiring/migration orchestration in the persistence-store file itself.
+5. DONE. Unlike items 2 and 4, this file had no deeply-shared mutable
+   in-memory state across its ~35 methods -- each domain's read/write
+   methods are (mostly) self-contained SQL against `this.db`, so the split
+   carried far less risk than `main.ts` or `shadowOperationalRuntime.ts`.
+   Extracted the domains with no cross-domain transaction coupling into six
+   `apps/desktop/src/persistence/*Store.ts` files as plain functions taking
+   `(db, transaction, ...args)` (research evidence, owner reviews,
+   committee ledger, operations audit/alerts, opportunity schedule,
+   strategy price history); `DesktopPersistenceStore`'s public methods
+   became one-line delegations to them, so no call site outside this file
+   changed. Kept the genuinely cross-domain methods
+   (`save`/`saveWithPaperSafetySnapshot`/`saveWithScenarioEvent(s)`/
+   `saveWithScenarioEventsAndPaperSafetySnapshot`, which write paper state,
+   control state, and/or a safety snapshot together in one SQLite
+   transaction) in the facade, since splitting those further would require
+   threading a shared transaction across file boundaries for no real
+   separation-of-concerns benefit. 473 -> 329 lines in the facade, 239
+   lines across the six new files. Also moved `OperationsAuditRecord`/
+   `OperationsAlertRecord` into `operationsStore.ts` (their natural home)
+   with a re-export from `desktopPersistenceStore.ts` for the two existing
+   external call sites, which avoided introducing a new type-only import
+   cycle between the two files.
+
+   Verified: `tsc --noEmit` (root + mobile) clean, full rebuild, `node
+   --test tests/*.test.js` 3212/3217 (matching the established baseline
+   exactly, and `validate-architecture`'s type-cycle count unchanged at 2),
+   every architecture/safety validator PASS.
 
 ## Consequences
 
-Nothing in `apps/desktop/src` changes as a result of this ADR. It exists so
-the next AI or human collaborator (per the cross-AI continuity contract) can
-pick up items 1-5 above as scoped, reviewable, individually-synchronized
-changes instead of one large unreviewed rewrite.
+Item 4 (`shadowOperationalRuntime.ts`) is the one item from this ADR still
+outstanding. This ADR exists so the next AI or human collaborator (per the
+cross-AI continuity contract) can pick it up as a scoped, reviewable,
+individually-synchronized change instead of one large unreviewed rewrite.
