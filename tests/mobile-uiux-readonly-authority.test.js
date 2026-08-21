@@ -58,18 +58,18 @@ test("PAPER surface exposes local or verified cloud PAPER execution without LIVE
   assert.doesNotMatch(trading, /\/api\/(?:live|withdraw|transfer)/i);
 });
 
-test("dashboard credential flow remains Settings-owned and approved-session scoped", () => {
+test("optional Cloud credential flow remains Settings-owned and never gates local PAPER", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(settings, /InMemoryDashboardCredentialSession/);
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(settings, /Access token은 앱 메모리에만 유지/);
-  assert.match(settings, /rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
-  assert.match(settings, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);
+  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /LOCAL PAPER 거래에는 사용하지 않습니다/);
+  assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
   assert.match(settings, /testID="settings-paper-connect"/);
   assert.match(settings, /testID="settings-paper-disconnect"/);
+  assert.doesNotMatch(settings, /iOS 영구 세션 복원/);
   assert.match(app, /getConfiguredPaperEndpoint/);
   assert.match(app, /isPaperConnectionVerified\(endpoint\)/);
   assert.doesNotMatch(app, /dashboardTokenDraft|testID="dashboard-connect"|testID="dashboard-disconnect"/);
