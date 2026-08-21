@@ -2,8 +2,8 @@
 
 ## Status
 
-PARTIALLY IMPLEMENTED. Item 1 (folder reorganization) landed; items 2-5 remain
-PROPOSAL. Recorded per `.aipos/architecture-governance.json`
+PARTIALLY IMPLEMENTED. Items 1 (folder reorganization) and 2 (main.ts IPC
+handler extraction) landed; items 3-5 remain PROPOSAL. Recorded per `.aipos/architecture-governance.json`
 lifecycle (`PROPOSAL -> IMPACT_ANALYSIS -> ARCHITECTURE_REVIEW -> MIGRATION_PLAN
 -> APPROVAL -> STAGED_ADOPTION -> VERIFICATION`) because every item below
 changes file-level interfaces that `.aipos/functional-status.yaml` and
@@ -87,10 +87,27 @@ its own AIPOS synchronization:
    against the built `dist/` output (Electron's own postinstall fails
    without network access to its binary host, but the test suite does not
    need Electron).
-2. Only after (1), extract `main.ts`'s IPC handler bodies into per-domain
-   handler modules under the new folders, leaving `main.ts` as
-   lifecycle + registration wiring only. Update
-   `scripts/validate-architecture-surfaces.js`'s anchored path alongside it.
+2. DONE. `main.ts`'s 45 `ipcMain.handle(...)` registrations, and their
+   inline bodies, moved into 8 `apps/desktop/src/ipc/register*IpcHandlers.ts`
+   files (paper/execution, AI, control, kill-switch safety, shadow,
+   recovery, app-shell/product, diagnostics), each taking a `RuntimeContext`
+   -- a typed live-getter/setter proxy over main.ts's own state
+   (`apps/desktop/src/ipc/runtimeContext.ts`) -- so no state was duplicated
+   and no handler now reads a stale snapshot. `main.ts` dropped from 1642 to
+   1271 lines and now holds only the Electron lifecycle, state ownership,
+   and the shared helper functions the handler modules call back into.
+   `config/architecture/surfaces.json`'s governed-owner list and 8 test
+   files that statically scanned `main.ts` for handler-specific patterns
+   were updated in the same commit. Verified with `tsc --noEmit` (root +
+   mobile, which would fail on any RuntimeContext property left
+   unlisted/mistyped), a full rebuild, `node --test tests/*.test.js`
+   (3212/3217, matching the established baseline exactly), and every
+   architecture/safety validator (16 governed owners now, up from 8). See
+   the "extract main.ts's 45 IPC handlers into 8 domain modules" commit.
+   Caveat, recorded here rather than silently: this sandbox cannot launch
+   the actual Electron process, so this change is verified by static typing
+   and the existing unit/static-scan suite, not an end-to-end run of the
+   packaged app.
 3. Audit `domainEventBus.ts` vs `packages/core/src/eventBus.ts` for semantic
    equivalence; either extend the core bus with the missing guarantees and
    migrate call sites, or explicitly document why a second bus is a deliberate
