@@ -17,5 +17,5 @@ test("LOCAL PAPER portfolio derives equity and PnL from the same ledger", () => 
   assert.match(source, /const assetValue = quantity \* validMarkPrice/);
   assert.match(source, /const unrealizedPnl = quantity > 0 && validMarkPrice > 0/);
   assert.match(source, /equity:\s*cash \+ assetValue/);
-  assert.match(source, /productionMutationAllowed/, "store must remain free of production mutation authority");
+  assert.doesNotMatch(source, /placeLiveOrder|withdraw|transfer|productionMutationAllowed\s*:\s*true/);
 });
