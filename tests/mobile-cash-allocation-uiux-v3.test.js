@@ -27,18 +27,14 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
 
   assert.match(app, /const \[investmentPercent, setInvestmentPercent\]/);
   assert.match(app, /onCloudInvestmentPercentSave=\{investmentAllocationClient\.save\}/);
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4): investment allocation is not a
-  // permanent global strip -- it belongs contextually in Home/Portfolio/PAPER/Settings.
   assert.doesNotMatch(app, /StatusChip label=\{`투자 \$\{investmentPercent\}%`\}/);
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /home-investable-cash/);
   assert.match(home, /home-reserved-cash/);
   assert.match(portfolio, /portfolio-investable-cash/);
-  // Trading may source its account from Cloud PAPER or the LOCAL PAPER fallback. In both cases
-  // the effective account is what the allocation envelope and SELL availability must use.
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
-  assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);
+  assert.match(trading, /label="보호 현금" value=\{formatTradingAmount\(cashEnvelope\.reservedCash/);
   assert.match(trading, /신규 매수 비중이 0%입니다/);
 });
 
