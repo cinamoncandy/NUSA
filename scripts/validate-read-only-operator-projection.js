@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const SOURCE = 'apps/desktop/src/readOnlyOperatorProjection.ts';
+const SOURCE = 'apps/desktop/src/cloud/readOnlyOperatorProjection.ts';
 const WORK_ORDER = '.aipos/work-orders/WO-0037-read-only-operator-projection.yaml';
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }

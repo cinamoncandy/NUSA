@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { analyzeSignalStability } = require("../dist/apps/desktop/src/signalStabilityAnalyzer.js");
+const { analyzeSignalStability } = require("../dist/apps/desktop/src/strategy/signalStabilityAnalyzer.js");
 
 const points = Array.from({ length: 20 }, (_, index) => ({ timestamp: index + 1, close: 100 + index }));
 const signal = (type, tick, reason = "test") => ({ type, reason, confidence: 1, timestamp: tick.timestamp });

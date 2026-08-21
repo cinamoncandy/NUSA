@@ -2,9 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { compareRecoveryState, approveRecoveryReview, completeRecovery, RecoveryReviewState } = require("../dist/apps/desktop/src/recoveryReconciliation.js");
-const { parseRecoveryOwnerReviewIpc, parseRecoveryStatusIpc, parseRecoveryReconcileIpc, parseRecoveryCompleteIpc } = require("../dist/apps/desktop/src/recoveryIpcValidation.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { compareRecoveryState, approveRecoveryReview, completeRecovery, RecoveryReviewState } = require("../dist/apps/desktop/src/recovery/recoveryReconciliation.js");
+const { parseRecoveryOwnerReviewIpc, parseRecoveryStatusIpc, parseRecoveryReconcileIpc, parseRecoveryCompleteIpc } = require("../dist/apps/desktop/src/ipc/recoveryIpcValidation.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 const mainSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
 const preloadSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "preload.ts"), "utf8");
@@ -249,7 +249,7 @@ test("12: a completed recovery record is marked COMPLETED, never deleted", () =>
 });
 
 test("13: no code path in this module deletes a record or an evidence archive", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recoveryReconciliation.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recovery", "recoveryReconciliation.ts"), "utf8");
   const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["rm(", "rmSync", "unlink", "removeShadowArchive", "DELETE FROM", "truncate"]) {
     assert.equal(code.includes(forbidden), false, `reconciliation must never reference ${forbidden}`);
@@ -259,7 +259,7 @@ test("13: no code path in this module deletes a record or an evidence archive", 
 // --------------------------------------------------------- 14-17. safety posture
 
 test("14-16: the module starts no Shadow session, calls no private API, and mutates nothing", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recoveryReconciliation.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recovery", "recoveryReconciliation.ts"), "utf8");
   const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["shadowRuntime", ".start(", "api.upbit.com", "access_key", "secret_key", "node:http", "fetch(", ".buy(", ".sell("]) {
     assert.equal(code.includes(forbidden), false, `reconciliation must never reference ${forbidden}`);

@@ -20,7 +20,7 @@
     {
       "id": "desktop-cloud-paper-client-ipc",
       "kind": "ELECTRON_IPC_MAIN",
-      "path": "apps/desktop/src/desktopCloudPaperIpc.ts",
+      "path": "apps/desktop/src/cloud/desktopCloudPaperIpc.ts",
       "marker": "ipcMain.handle(",
       "access": "LOCAL_PROCESS_TO_AUTHENTICATED_CLOUD_PAPER",
       "authority": "PAPER_CLIENT_COMMAND_QUERY_BRIDGE",
@@ -53,7 +53,7 @@
     {
       "id": "desktop-ai-cio-readonly-ipc",
       "kind": "DELEGATED_READ_ONLY_IPC",
-      "path": "apps/desktop/src/aiCioIpcBridge.ts",
+      "path": "apps/desktop/src/ai/aiCioIpcBridge.ts",
       "marker": "registrar.handle(",
       "access": "LOCAL_PROCESS",
       "authority": "READ_ONLY",

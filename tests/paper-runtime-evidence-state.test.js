@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperRuntimeEvidenceState } = require("../dist/apps/desktop/src/paperRuntimeEvidenceState.js");
+const { PaperRuntimeEvidenceState } = require("../dist/apps/desktop/src/paper/paperRuntimeEvidenceState.js");
 
 test("records WebSocket recovery only after an observed reconnect cycle", () => {
   const state = new PaperRuntimeEvidenceState();

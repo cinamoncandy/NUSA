@@ -4,7 +4,7 @@ const {
   buildRiskCommentaryPrompt,
   explainRiskCommentary,
   createAnthropicRiskCommentaryClient
-} = require("../dist/apps/desktop/src/aiRiskCommentary.js");
+} = require("../dist/apps/desktop/src/ai/aiRiskCommentary.js");
 
 function request(overrides = {}) {
   return {

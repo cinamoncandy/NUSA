@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { SqliteRiskEvidenceRepository } = require("../dist/packages/storage/src/risk-evidence.js");
-const { toPaperRiskEvidence } = require("../dist/apps/desktop/src/paperOperationalPreflight.js");
+const { toPaperRiskEvidence } = require("../dist/apps/desktop/src/paper/paperOperationalPreflight.js");
 
 test("Paper risk evidence survives reopening the same SQLite database and remains queryable", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-paper-risk-evidence-"));

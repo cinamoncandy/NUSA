@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { buildA4RuntimeDiagnostics } = require("../dist/apps/desktop/src/a4RuntimeDiagnostics.js");
+const { buildA4RuntimeDiagnostics } = require("../dist/apps/desktop/src/diagnostics/a4RuntimeDiagnostics.js");
 
 const diagnostic = (status = "PASS", blockers = []) => ({ status, method: "TEST", evidence: [], blockers });
 const preflight = () => ({ deployment: diagnostic(), reconciliation: diagnostic(), riskGate: diagnostic() });
@@ -62,6 +62,6 @@ test("A4 diagnostics uses the exact Shadow start blocker order", async () => {
 });
 
 test("A4 diagnostics does not start, reset, dismiss, or delete runtime state", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "a4RuntimeDiagnostics.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "diagnostics", "a4RuntimeDiagnostics.ts"), "utf8");
   assert.doesNotMatch(source, /shadow\.start\s*\(|killSwitch\.(reset|disable)\s*\(|alert\.(delete|dismiss)\s*\(/);
 });

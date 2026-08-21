@@ -2,7 +2,7 @@
 /**
  * Independent verification of an independent Paper risk gateway decision (WO-0032).
  *
- * Deliberately does NOT import `apps/desktop/src/independentRiskGateway.ts` or its compiled
+ * Deliberately does NOT import `apps/desktop/src/risk/independentRiskGateway.ts` or its compiled
  * output. It re-implements the rules from the contract and compares. A verifier that asked
  * the evaluator for the answer would confirm a buggy evaluator rather than catch it -- the
  * same principle applied in WO-0029's regime verifier and WO-0031's promotion gate.

@@ -104,7 +104,7 @@ test("invalid values are rejected", () => {
 test("the risk-policy fingerprint covers exactly the gateway's limit fields", () => {
   // If a limit is added to IndependentRiskLimits and not here, relaxing that limit would
   // leave the fingerprint unchanged -- exactly the change the fingerprint exists to catch.
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "independentRiskGateway.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "risk", "independentRiskGateway.ts"), "utf8");
   const start = source.indexOf("export interface IndependentRiskLimits");
   const block = source.slice(start, source.indexOf("}", start));
   const declared = [...block.matchAll(/readonly\s+(\w+)\s*:/g)].map((match) => match[1]);

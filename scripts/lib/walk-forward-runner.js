@@ -10,9 +10,9 @@
  * inventing a parallel, untested contract stack, this runner reuses the REAL, already
  * tested, deterministic production modules that exist today:
  *
- *   - apps/desktop/src/researchDataset.ts  (candle validation + single contentSha256)
- *   - apps/desktop/src/backtestEngine.ts   (runBacktest: real PaperBroker + StrategyEngine)
- *   - apps/desktop/src/strategyEngine.ts   (SmaCrossoverStrategy, configurable periods)
+ *   - apps/desktop/src/cloud/researchDataset.ts  (candle validation + single contentSha256)
+ *   - apps/desktop/src/strategy/backtestEngine.ts   (runBacktest: real PaperBroker + StrategyEngine)
+ *   - apps/desktop/src/strategy/strategyEngine.ts   (SmaCrossoverStrategy, configurable periods)
  *
  * Consequences that must be disclosed, not hidden:
  *   - There is a single dataset content hash, not a source/normalized pair.
@@ -37,9 +37,9 @@ const VALIDATION_SHORTLIST_SIZE = 3;
 function loadProductionModules(repositoryRoot) {
   const distRoot = path.join(repositoryRoot, "dist", "apps", "desktop", "src");
   return {
-    researchDataset: require(path.join(distRoot, "researchDataset.js")),
-    backtestEngine: require(path.join(distRoot, "backtestEngine.js")),
-    strategyEngine: require(path.join(distRoot, "strategyEngine.js"))
+    researchDataset: require(path.join(distRoot, "cloud", "researchDataset.js")),
+    backtestEngine: require(path.join(distRoot, "strategy", "backtestEngine.js")),
+    strategyEngine: require(path.join(distRoot, "strategy", "strategyEngine.js"))
   };
 }
 

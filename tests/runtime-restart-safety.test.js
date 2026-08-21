@@ -1,9 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { RuntimeCommandService } = require("../dist/apps/desktop/src/runtimeCommandService.js");
-const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { RuntimeCommandService } = require("../dist/apps/desktop/src/control/runtimeCommandService.js");
+const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 
 // Reproduces the composition-root wiring used by apps/desktop/src/main.ts's
 // initializeRuntime(): a strategy that was RUNNING with auto trading ON before

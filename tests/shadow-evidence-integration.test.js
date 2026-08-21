@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { DomainEventBus, InMemoryEvidenceSink, DurableEvidenceSink } = require("../dist/apps/desktop/src/domainEventBus.js");
-const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchives } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { DomainEventBus, InMemoryEvidenceSink, DurableEvidenceSink } = require("../dist/apps/desktop/src/control/domainEventBus.js");
+const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchives } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;

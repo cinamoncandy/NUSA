@@ -5,7 +5,7 @@ const {
   createAnthropicChallengerClient,
   AiChallengerObserver,
   verifyAiChallengerEvents
-} = require("../dist/apps/desktop/src/aiChallengerObserver.js");
+} = require("../dist/apps/desktop/src/ai/aiChallengerObserver.js");
 
 function championSignal(overrides = {}) {
   return { type: "BUY", reason: "short-SMA crossed above long-SMA", ...overrides };

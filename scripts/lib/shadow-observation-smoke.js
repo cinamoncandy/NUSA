@@ -20,13 +20,13 @@
  * being a scratch directory; this runner will not write into the repository.
  */
 const path = require("node:path");
-const { ShadowOperationalRuntime } = require("../../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink } = require("../../dist/apps/desktop/src/domainEventBus.js");
-const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchivesSync } = require("../../dist/apps/desktop/src/shadowEvidenceArchive.js");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategyEngine.js");
-const { SHADOW_OBSERVATION_PROFILE, withShortenedObservation } = require("../../dist/apps/desktop/src/shadowObservationProfile.js");
-const { evaluateShadowObservationPreflight } = require("../../dist/apps/desktop/src/shadowObservationPreflight.js");
-const { buildShadowObservationSummary } = require("../../dist/apps/desktop/src/shadowObservationSummary.js");
+const { ShadowOperationalRuntime } = require("../../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink } = require("../../dist/apps/desktop/src/control/domainEventBus.js");
+const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchivesSync } = require("../../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SHADOW_OBSERVATION_PROFILE, withShortenedObservation } = require("../../dist/apps/desktop/src/shadow/shadowObservationProfile.js");
+const { evaluateShadowObservationPreflight } = require("../../dist/apps/desktop/src/shadow/shadowObservationPreflight.js");
+const { buildShadowObservationSummary } = require("../../dist/apps/desktop/src/shadow/shadowObservationSummary.js");
 const { scanCapabilities } = require("../build-deployment-descriptor.js");
 
 const MINUTE = 60_000;

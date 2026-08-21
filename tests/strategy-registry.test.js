@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { StrategyRegistry } = require("../dist/apps/desktop/src/strategyRegistry.js");
+const { StrategyRegistry } = require("../dist/apps/desktop/src/strategy/strategyRegistry.js");
 
 function registration(overrides = {}) {
   const descriptor = {

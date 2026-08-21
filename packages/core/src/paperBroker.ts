@@ -71,7 +71,7 @@ interface NormalizedPaperRiskPolicy {
 export interface PaperFillModel {
   /** Adverse price movement applied against the trader, in basis points of the quoted price. */
   slippageBps?: number;
-  /** Cost of crossing the bid-ask spread, in basis points of the quoted price. Half the spread is charged, matching apps/desktop/src/backtestEngine.ts's execution-cost convention. */
+  /** Cost of crossing the bid-ask spread, in basis points of the quoted price. Half the spread is charged, matching apps/desktop/src/strategy/backtestEngine.ts's execution-cost convention. */
   spreadBps?: number;
   /** Fraction (0, 1] of the requested quantity that can fill against one quote. The remainder is rejected, never queued or retried. */
   maxFillRatio?: number;

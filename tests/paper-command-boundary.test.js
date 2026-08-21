@@ -8,7 +8,7 @@ const read = (file) => fs.readFileSync(path.join(process.cwd(), file), "utf8");
 test("packaged Desktop PAPER execution uses Cloud canonical IPC while legacy RuntimeCommandService remains local-simulation only", () => {
   const main = read("apps/desktop/src/main.ts");
   const cloudMain = read("apps/desktop/src/cloudMain.ts");
-  const runtime = read("apps/desktop/src/runtimeCommandService.ts");
+  const runtime = read("apps/desktop/src/control/runtimeCommandService.ts");
   const preload = read("apps/desktop/src/preload.ts");
   const renderer = read("apps/desktop/renderer/renderer.js");
 

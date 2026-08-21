@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ResearchAssistantGovernor } = require("../dist/apps/desktop/src/aiResearchAssistantGovernor");
+const { ResearchAssistantGovernor } = require("../dist/apps/desktop/src/ai/aiResearchAssistantGovernor");
 
 test("constructor validates policy fields are positive safe integers", () => {
   assert.throws(() => new ResearchAssistantGovernor({ maxCallsPerAssistant: 0 }), /maxCallsPerAssistant must be a positive safe integer/);

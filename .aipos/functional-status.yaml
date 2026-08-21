@@ -25,7 +25,7 @@ features:
   - id: accounting.portfolio-pnl
     priority: critical
     status: VERIFIED_COMPLETE
-    implementation_paths: [apps/desktop/src/paperBroker.ts, apps/desktop/src/paperAccountingService.ts, apps/execution/src, packages/contracts/src]
+    implementation_paths: [apps/desktop/src/paper/paperBroker.ts, apps/desktop/src/paper/paperAccountingService.ts, apps/execution/src, packages/contracts/src]
     test_paths: [tests/paper-accounting-service.test.js, tests/pnl-reconciliation.test.js, tests/position-reconciliation.test.js, tests/paper-ledger-verifier.test.js]
     blockers: []
     latest_evidence: accounting-release-slice-2026-08-02.md; accounting/Ledger/Recovery tests 69/69; CI-mode typecheck/build PASS
@@ -45,14 +45,14 @@ features:
   - id: strategy.sma-paper-routing
     priority: required
     status: IMPLEMENTED_UNVERIFIED
-    implementation_paths: [apps/execution/src, apps/desktop/src/strategyEngine.ts, apps/desktop/src/regimePolicy.ts, apps/desktop/src/runtimeCommandService.ts]
+    implementation_paths: [apps/execution/src, apps/desktop/src/strategy/strategyEngine.ts, apps/desktop/src/strategy/regimePolicy.ts, apps/desktop/src/control/runtimeCommandService.ts]
     test_paths: [tests/strategy-governance.test.js, tests/paper-command-boundary.test.js, tests/regime-policy.test.js, tests/runtime-command-service.test.js]
     blockers: [long-running profitability and runtime evidence not executed]
     latest_evidence: regime-policy.test.js 2/2; automatic forbidden-regime BUY rejection integration test; full isolated suite 299 files; typecheck/build/lint/diff PASS
   - id: capital.growth-sizing-protection
     priority: required
     status: IMPLEMENTED_UNVERIFIED
-    implementation_paths: [apps/desktop/src/positionSizing.ts, apps/cloud/src/capitalAllocationEngine.ts]
+    implementation_paths: [apps/desktop/src/paper/positionSizing.ts, apps/cloud/src/capitalAllocationEngine.ts]
     test_paths: [tests/capital-growth.test.js, tests/position-sizing.test.js, tests/capital-allocation-engine.test.js, tests/capital-allocation-guard.test.js]
     blockers: [sizing utility is not yet wired to the operator-set desktop order quantity; long-run profitability comparison is not executed]
     latest_evidence: capital-growth.test.js 3/3; related sizing/allocation tests 25/25; full isolated suite 300 files; typecheck/build/lint/diff PASS
@@ -204,7 +204,7 @@ features:
   - id: runtime.long-duration-validation
     priority: required
     status: IMPLEMENTED_UNVERIFIED
-    implementation_paths: [apps/execution/src/runtime-metrics.ts, apps/desktop/src/shadowLongRunningDiagnostics.ts]
+    implementation_paths: [apps/execution/src/runtime-metrics.ts, apps/desktop/src/shadow/shadowLongRunningDiagnostics.ts]
     test_paths: [tests/shadow-long-running-observation.test.js]
     evidence: [runtime-stability-sprint-c-2026-08-02.md]
     blockers: [long-duration CPU/memory/battery execution requires external runtime]
@@ -218,7 +218,7 @@ features:
   - id: exchange.upbit-runtime
     priority: critical
     status: IMPLEMENTED_UNVERIFIED
-    implementation_paths: [apps/desktop/src/upbit*.ts, apps/execution/src]
+    implementation_paths: [apps/desktop/src/exchange/upbit*.ts, apps/execution/src]
     test_paths: [tests/upbit-websocket.test.js, tests/market-connection-reconnect.test.js]
     evidence: [docs/audits/exchange-coupling-audit-2026-08-01.md]
     blockers: [real read-only Upbit runtime and bounded reconnect observation not executed]
