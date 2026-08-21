@@ -24,14 +24,17 @@ test("Trade writes through the shared LOCAL PAPER store", () => {
   assert.doesNotMatch(trade, /new MockTradingService/);
 });
 
-test("Home and Portfolio read the same LOCAL PAPER store", () => {
+test("Home and Portfolio read the same LOCAL PAPER store without masking Cloud failures", () => {
   for (const source of [home, portfolio]) {
     assert.match(source, /from "\.\/localPaperStore"/);
     assert.match(source, /subscribeLocalPaper\(setLocalState\)/);
     assert.match(source, /localState\.portfolio/);
   }
-  assert.match(home, /const account = cloudAccount \?\? localState\.portfolio\.account/);
-  assert.match(portfolio, /const effectiveSnapshot = snapshot \?\? localState\.portfolio/);
+  assert.match(home, /const usingLocalPaper = notConfigured !== null/);
+  assert.match(home, /const account = usingLocalPaper \? localState\.portfolio\.account : cloudAccount/);
+  assert.match(portfolio, /const usingLocalPaper = snapshot === null && error === null/);
+  assert.match(portfolio, /const effectiveSnapshot = usingLocalPaper \? localState\.portfolio : snapshot/);
+  assert.match(portfolio, /if \(effectiveSnapshot === null\)/);
 });
 
 test("shared ledger derives unrealized and realized PnL from executed PAPER orders", () => {
