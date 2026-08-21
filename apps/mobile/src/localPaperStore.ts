@@ -7,19 +7,16 @@ export const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
 export interface LocalPaperState {
   readonly trading: TradingSnapshot;
   readonly markPrice: number | null;
+  readonly realizedPnl: number;
   readonly portfolio: PortfolioAccountResponse;
 }
 
 type Listener = (state: LocalPaperState) => void;
-
 const service = new MockTradingService([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]);
 const listeners = new Set<Listener>();
-let trading: TradingSnapshot = Object.freeze({
-  orders: Object.freeze([]),
-  positions: Object.freeze([]),
-  balances: Object.freeze([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]),
-});
+let trading: TradingSnapshot = Object.freeze({ orders: Object.freeze([]), positions: Object.freeze([]), balances: Object.freeze([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]) });
 let markPrice: number | null = null;
+let realizedPnl = 0;
 
 function buildPortfolio(snapshot: TradingSnapshot, price: number | null): PortfolioAccountResponse {
   const cash = snapshot.balances.find((balance) => balance.currency === "KRW")?.available ?? 0;
@@ -30,47 +27,20 @@ function buildPortfolio(snapshot: TradingSnapshot, price: number | null): Portfo
   const assetValue = quantity * validMarkPrice;
   const unrealizedPnl = quantity > 0 && validMarkPrice > 0 ? (validMarkPrice - averagePrice) * quantity : 0;
   return Object.freeze({
-    observedAt: new Date().toISOString(),
-    mode: "PAPER" as const,
+    observedAt: new Date().toISOString(), mode: "PAPER" as const,
     account: Object.freeze({
-      available: true,
-      cash,
-      equity: cash + assetValue,
-      unrealizedPnl,
-      assetValue,
-      realizedPnl: 0,
-      markPrice: validMarkPrice,
-      position: Object.freeze({
-        market: LOCAL_PAPER_MARKET,
-        quantity,
-        averagePrice,
-        realizedPnl: 0,
-        unrealizedPnl,
-      }),
+      available: true, cash, equity: cash + assetValue, unrealizedPnl, assetValue, realizedPnl, markPrice: validMarkPrice,
+      position: Object.freeze({ market: LOCAL_PAPER_MARKET, quantity, averagePrice, realizedPnl, unrealizedPnl }),
       orders: snapshot.orders,
     }),
     openOrderCount: 0,
   });
 }
 
-function current(): LocalPaperState {
-  return Object.freeze({ trading, markPrice, portfolio: buildPortfolio(trading, markPrice) });
-}
-
-function publish(): void {
-  const state = current();
-  for (const listener of listeners) listener(state);
-}
-
-export function getLocalPaperState(): LocalPaperState {
-  return current();
-}
-
-export function subscribeLocalPaper(listener: Listener): () => void {
-  listeners.add(listener);
-  listener(current());
-  return () => { listeners.delete(listener); };
-}
+function current(): LocalPaperState { return Object.freeze({ trading, markPrice, realizedPnl, portfolio: buildPortfolio(trading, markPrice) }); }
+function publish(): void { const state = current(); for (const listener of listeners) listener(state); }
+export function getLocalPaperState(): LocalPaperState { return current(); }
+export function subscribeLocalPaper(listener: Listener): () => void { listeners.add(listener); listener(current()); return () => { listeners.delete(listener); }; }
 
 export function setLocalPaperMarkPrice(value: number | null): void {
   const next = value != null && Number.isFinite(value) && value > 0 ? value : null;
@@ -80,21 +50,25 @@ export function setLocalPaperMarkPrice(value: number | null): void {
 }
 
 export async function placeLocalPaperOrder(input: Readonly<{ side: OrderSide; quantity: number; price: number; nowMs: number }>) {
-  const order = await service.placePaperOrder({
-    market: LOCAL_PAPER_MARKET,
-    side: input.side,
-    quantity: input.quantity,
-    price: input.price,
-    nowMs: input.nowMs,
-  });
-  trading = await service.getSnapshot();
-  publish();
-  return order;
+  if (input.side === "SELL") {
+    const position = trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
+    if (position && input.quantity <= position.quantity) realizedPnl += (input.price - position.averageEntryPrice) * input.quantity;
+  }
+  try {
+    const order = await service.placePaperOrder({ market: LOCAL_PAPER_MARKET, side: input.side, quantity: input.quantity, price: input.price, nowMs: input.nowMs });
+    trading = await service.getSnapshot();
+    publish();
+    return order;
+  } catch (error) {
+    if (input.side === "SELL") {
+      const position = trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
+      if (position && input.quantity <= position.quantity) realizedPnl -= (input.price - position.averageEntryPrice) * input.quantity;
+    }
+    throw error;
+  }
 }
 
 export async function restoreLocalPaperState(): Promise<LocalPaperState> {
   trading = await service.getSnapshot();
-  const state = current();
-  publish();
-  return state;
+  const state = current(); publish(); return state;
 }
