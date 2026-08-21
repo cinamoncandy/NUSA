@@ -11,13 +11,23 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(home, /testID="home-next-action"/);
   assert.match(home, /testID="home-next-action-button"/);
   assert.match(home, /설정에서 연결/);
-  assert.match(home, /PAPER 연결/);
   assert.match(home, /분석 보기/);
   assert.match(home, /시장 보기/);
-  assert.match(home, /const blocked = Boolean\(notConfigured \|\| readOnlyError \|\| !signalReady\)/);
+
+  // Cloud PAPER being unconfigured is no longer itself a blocker because Home falls back
+  // to LOCAL PAPER. Actual read-only errors or missing public mark price still block.
+  assert.match(home, /const usingLocalPaper = notConfigured !== null/);
+  assert.match(home, /const blocked = Boolean\(readOnlyError \|\| !signalReady\)/);
+  assert.doesNotMatch(home, /const blocked = Boolean\(notConfigured \|\| readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /signalReady = usingLocalPaper\s*\? localState\.markPrice != null\s*:\s*snapshot\?\.health === "HEALTHY" && snapshot\.readyForPaperOperations/s);
+
+  // LOCAL PAPER stays on public market data and never routes the user to settings merely
+  // because Cloud PAPER is absent. Cloud read-only errors keep their recovery path.
+  assert.match(home, /if \(!usingLocalPaper && readOnlyError\) \{\s*onGoSettings\(\)/s);
   assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
-  assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
+  assert.match(home, /aiInsightAvailable = !usingLocalPaper && ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
   assert.match(home, /aiInsightAvailable\s*\? "분석 보기"/s);
+  assert.match(home, /LOCAL PAPER/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
