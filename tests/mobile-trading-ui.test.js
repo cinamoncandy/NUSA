@@ -82,6 +82,7 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   assert.match(source, /selectedKey=\{side\}/);
   assert.match(source, /selectedKey=\{orderType\}/);
   assert.match(source, /disabled=\{submitting\}/);
+  assert.match(source, /paper-runtime-blocked/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
@@ -96,5 +97,8 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   assert.match(source, /positionQuantity > 0 && Number\.isFinite\(sellQuantity\) && sellQuantity > 0/);
   assert.match(source, /const remainingInvestableCash = model\.estimatedNotional === null \? cashEnvelope\.investableCash : Math\.max\(0, cashEnvelope\.investableCash - model\.estimatedNotional\)/);
   assert.match(source, /label="주문 후 투자 가능 현금" value=\{formatTradingAmount\(remainingInvestableCash,/);
+  assert.match(source, /label="보호 현금"/);
+  assert.match(source, /cashEnvelope\.investmentPercent === 0/);
+  assert.match(source, /신규 매수 비중이 0%입니다/);
   assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
 });
