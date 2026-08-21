@@ -37,7 +37,10 @@ test("Home and Portfolio read the same LOCAL PAPER store", () => {
 test("shared ledger derives unrealized and realized PnL from executed PAPER orders", () => {
   assert.match(store, /const assetValue = quantity \* validMarkPrice/);
   assert.match(store, /const unrealizedPnl = quantity > 0 && validMarkPrice > 0/);
-  assert.match(store, /realizedPnl \+= \(input\.price - position\.averageEntryPrice\) \* input\.quantity/);
+  assert.match(store, /const realizedDelta = priorPosition && input\.quantity <= priorPosition\.quantity \? \(input\.price - priorPosition\.averageEntryPrice\) \* input\.quantity : 0/);
+  assert.match(store, /const order = await service\.placePaperOrder/);
+  assert.match(store, /if \(input\.side === "SELL"\) realizedPnl \+= realizedDelta/);
+  assert.ok(store.indexOf("const order = await service.placePaperOrder") < store.indexOf('if (input.side === "SELL") realizedPnl += realizedDelta'));
   assert.match(store, /equity:\s*cash \+ assetValue/);
   assert.match(trade, /label="실현 손익"/);
 });
