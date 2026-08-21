@@ -37,8 +37,12 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const { theme } = useTheme();
   const [localState, setLocalState] = useState<LocalPaperState>(() => getLocalPaperState());
   useEffect(() => subscribeLocalPaper(setLocalState), []);
-  const usingLocalPaper = snapshot === null;
-  const effectiveSnapshot = snapshot ?? localState.portfolio;
+  const usingLocalPaper = snapshot === null && error === null;
+  const effectiveSnapshot = usingLocalPaper ? localState.portfolio : snapshot;
+
+  if (effectiveSnapshot === null) {
+    return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} /><InlineNotice title="PAPER 자산을 표시할 수 없습니다" detail={error ?? "PAPER 상태를 불러올 수 없습니다."} tone="danger" /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
+  }
 
   let model: PortfolioViewModel;
   try { model = buildPortfolioViewModel(effectiveSnapshot); }
