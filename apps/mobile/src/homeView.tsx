@@ -57,6 +57,7 @@ export function HomeView({
   const calibratedConfidence = aiInsightAvailable && ai?.calibrationStatus === "CALIBRATED"
     ? `${Math.round(ai.confidence * 100)}%`
     : undefined;
+  const disconnected = notConfigured != null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const statusLabel = snapshot
     ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
@@ -110,11 +111,14 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  const notice = notConfigured
-    ? { title: "PAPER 연결이 필요합니다", detail: "Settings에서 PAPER endpoint와 세션을 검증한 뒤 안전하게 연결하세요.", tone: "warning" as const }
-    : readOnlyError
-      ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
-      : null;
+  // notConfigured has its own single merged recovery block below (title + Signal Field +
+  // one CTA) instead of a separate notice -- see the `disconnected` branch. Duplicating that
+  // guidance here as a second OperationalNotice is exactly the repeated-explanation defect a
+  // real device surfaced: the same "connect PAPER" state described twice with two buttons that
+  // both call onGoSettings.
+  const notice = readOnlyError
+    ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
+    : null;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
@@ -129,15 +133,17 @@ export function HomeView({
     <MotionReveal testID="home-hero-reveal">
       <View style={styles.equitySection} testID="account-hero-card">
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
-        <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>
-          {account ? krw(account.equity) : "-"}
-        </Text>
-        <View style={styles.pnlRow}>
-          <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>
-            {totalPnl == null ? "-" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}
+        {disconnected ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
+          <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>
+            {account ? krw(account.equity) : "-"}
           </Text>
-          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>누적 PAPER 손익</Text>
-        </View>
+          <View style={styles.pnlRow}>
+            <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>
+              {totalPnl == null ? "-" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}
+            </Text>
+            <Text style={[styles.meta, { color: theme.colors.textMuted }]}>누적 PAPER 손익</Text>
+          </View>
+        </>}
         {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
           <View style={styles.cashMetric} testID="home-investable-cash">
             <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>투자 가능 · {cashEnvelope.investmentPercent}%</Text>
@@ -152,57 +158,77 @@ export function HomeView({
       </View>
     </MotionReveal>
 
-    <View testID="ai-card">
-      <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
-      <View style={styles.decisionHeader}>
-        <View style={styles.decisionHeaderCopy}>
-          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NOW</Text>
-          <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
+    {disconnected ? <View testID="ai-card">
+      <View style={[styles.decisionStage, styles.decisionStageCompact, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
+        <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
+        <View style={styles.terrainCompact}>
+          <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
         </View>
-        <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>
-          {aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}
-        </Text>
-      </View>
-
-      <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
-
-      {aiInsightAvailable ? <View style={styles.decisionCopy} testID="home-verified-decision">
-        <View style={styles.judgementRow}>
-          <Text style={[styles.judgement, { color: theme.colors.text }]}>{ai?.thesis ?? ""}</Text>
-          {calibratedConfidence ? <Text style={[styles.confidence, { color: theme.colors.aiSignalEnd }]}>{calibratedConfidence}</Text> : null}
+        <View style={styles.decisionCopy} testID="home-pending-decision">
+          <Text style={[styles.body, { color: theme.colors.textMuted }]}>시장 데이터가 아직 연결되지 않았습니다.</Text>
         </View>
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {ai?.evidenceReferences.length ?? 0}개 · AI 분석은 READ ONLY</Text>
-      </View> : <View style={styles.decisionCopy} testID="home-pending-decision">
-        <Text style={[styles.judgement, { color: theme.colors.text }]}>{blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
-        <Text style={[styles.body, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
-      </View>}
       </View>
-    </View>
+      <OperationalNotice
+        title="PAPER를 연결하면 시장 분석과 모의거래를 시작합니다"
+        tone="warning"
+        actionLabel="PAPER 연결"
+        onAction={onGoSettings}
+        actionTestID="dashboard-open-settings"
+        testID="home-operational-notice"
+      />
+    </View> : <>
+      <View testID="ai-card">
+        <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
+        <View style={styles.decisionHeader}>
+          <View style={styles.decisionHeaderCopy}>
+            <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NOW</Text>
+            <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
+          </View>
+          <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>
+            {aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}
+          </Text>
+        </View>
 
-    {notice ? <OperationalNotice
-      title={notice.title}
-      detail={notice.detail}
-      tone={notice.tone}
-      actionLabel="설정에서 연결"
-      onAction={onGoSettings}
-      actionTestID="dashboard-open-settings"
-      testID="home-operational-notice"
-    /> : null}
+        <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
 
-    <View style={styles.primaryAction} testID="home-next-action">
-      <View style={styles.primaryCopy}>
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT</Text>
-        <Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
+        {aiInsightAvailable ? <View style={styles.decisionCopy} testID="home-verified-decision">
+          <View style={styles.judgementRow}>
+            <Text style={[styles.judgement, { color: theme.colors.text }]}>{ai?.thesis ?? ""}</Text>
+            {calibratedConfidence ? <Text style={[styles.confidence, { color: theme.colors.aiSignalEnd }]}>{calibratedConfidence}</Text> : null}
+          </View>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {ai?.evidenceReferences.length ?? 0}개 · AI 분석은 READ ONLY</Text>
+        </View> : <View style={styles.decisionCopy} testID="home-pending-decision">
+          <Text style={[styles.judgement, { color: theme.colors.text }]}>{blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
+          <Text style={[styles.body, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
+        </View>}
+        </View>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        onPress={runPrimaryAction}
-        style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
-        testID="home-next-action-button"
-      >
-        <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
-      </Pressable>
-    </View>
+
+      {notice ? <OperationalNotice
+        title={notice.title}
+        detail={notice.detail}
+        tone={notice.tone}
+        actionLabel="설정에서 연결"
+        onAction={onGoSettings}
+        actionTestID="dashboard-open-settings"
+        testID="home-operational-notice"
+      /> : null}
+
+      <View style={styles.primaryAction} testID="home-next-action">
+        <View style={styles.primaryCopy}>
+          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT</Text>
+          <Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={runPrimaryAction}
+          style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
+          testID="home-next-action-button"
+        >
+          <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
+        </Pressable>
+      </View>
+    </>}
 
     <View style={styles.secondaryDiagnostics} testID="safety-card">
       <Pressable
@@ -244,6 +270,11 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, lineHeight: 16 },
   body: { fontSize: 13, lineHeight: 20 },
   decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
+  // Pre-connection only: the Signal Field has nothing real to show yet, so it is clipped down
+  // to a quiet sliver instead of standing at full hero height and reading as "analysis in
+  // progress" before there is any market data to analyze.
+  decisionStageCompact: { paddingBottom: 12, gap: 8 },
+  terrainCompact: { height: 72, overflow: "hidden", opacity: 0.7 },
   decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   decisionHeaderCopy: { gap: 3 },
   stageTitle: { fontSize: 20, lineHeight: 26, fontWeight: "700", letterSpacing: -0.5 },
