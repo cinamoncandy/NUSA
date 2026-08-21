@@ -14,9 +14,12 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(home, /PAPER 연결/);
   assert.match(home, /분석 보기/);
   assert.match(home, /시장 보기/);
-  assert.match(home, /const blocked = Boolean\(notConfigured \|\| readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /const usingLocalPaper = notConfigured !== null/);
+  assert.match(home, /const signalReady = usingLocalPaper[\s\S]*?localState\.markPrice != null[\s\S]*?: snapshot\?\.health === "HEALTHY" && snapshot\.readyForPaperOperations/);
+  assert.match(home, /const blocked = Boolean\(readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /if \(!usingLocalPaper && readOnlyError\)/);
   assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
-  assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
+  assert.match(home, /aiInsightAvailable = !usingLocalPaper && ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
   assert.match(home, /aiInsightAvailable\s*\? "분석 보기"/s);
 });
 
