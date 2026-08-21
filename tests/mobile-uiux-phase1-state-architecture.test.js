@@ -88,5 +88,7 @@ test("recoverable states expose retry while unwired notifications stay truthful"
   assert.match(notifications, /DataRow label="현재 상태" value="이벤트 수집 미연결"/);
   assert.match(notifications, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);
   assert.doesNotMatch(notifications, /testID="notifications-error"|NusaButton label="다시 시도"/);
-  assert.match(trading, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
+  assert.match(trading, /function ErrorState[\s\S]*NusaButton label="다시 불러오기"/);
+  assert.match(trading, /KRW-BTC 공개 시세를 아직 받지 못했습니다/);
+  assert.match(trading, /testID="local-paper-ready"/);
 });
