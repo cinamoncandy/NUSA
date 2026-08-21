@@ -346,16 +346,21 @@ test("runtime source wires MANUAL/STRATEGY approval issuance through PaperApprov
   // apps/desktop/src/paper/paperApprovalService.ts is a re-export shim; the real source lives
   // in packages/core, shared with apps/cloud/src.
   const approvalService = fs.readFileSync(path.join(root, "..", "..", "..", "packages", "core", "src", "paperApprovalService.ts"), "utf8");
+  // The ipcMain.handle(...) registrations that used to be inline in main.ts now live in these
+  // per-domain files.
+  const paperIpc = fs.readFileSync(path.join(root, "ipc", "registerPaperIpcHandlers.ts"), "utf8");
+  const controlIpc = fs.readFileSync(path.join(root, "ipc", "registerControlIpcHandlers.ts"), "utf8");
+  const safetyIpc = fs.readFileSync(path.join(root, "ipc", "registerSafetyIpcHandlers.ts"), "utf8");
   assert.match(main, /createCanonicalOperationalPaperRiskGate/);
   assert.doesNotMatch(main, /createOperationalPaperRiskGate\(/);
   assert.ok(service.indexOf("this.requireRiskApproval") < service.indexOf("this.broker.execute"));
   assert.match(service, /RECONNECT_REPLAY/);
   assert.match(fs.readFileSync(path.join(root, "shadow", "shadowOperationalRuntime.ts"), "utf8"), /path: "SHADOW"/);
   // MANUAL: paper:order issues through PaperApprovalService, not a literal approvalId.
-  assert.match(main, /paperApprovalService\.issueManualApproval/);
+  assert.match(paperIpc, /paperApprovalService\.issueManualApproval/);
   // STRATEGY: control:start issues through PaperApprovalService, and control:stop revokes.
-  assert.match(main, /paperApprovalService\.issueStrategyApproval/);
-  assert.match(main, /paperApprovalService\.revoke/);
+  assert.match(controlIpc, /paperApprovalService\.issueStrategyApproval/);
+  assert.match(controlIpc, /paperApprovalService\.revoke/);
   // Kill switch: the audit write happens before the state assignment, in source order, inside
   // the same function -- so a thrown write can never be followed by the assignment.
   const auditFnStart = main.indexOf("function recordKillSwitchAudit");
@@ -363,15 +368,18 @@ test("runtime source wires MANUAL/STRATEGY approval issuance through PaperApprov
   const auditFnBody = main.slice(auditFnStart, auditFnEnd);
   assert.match(auditFnBody, /appendOperationsAudit\(auditRecord\)/);
   assert.doesNotMatch(auditFnBody, /persistedKillSwitchActive\s*=/);
-  assert.match(main, /recordKillSwitchAudit\("KILL_SWITCH_RELEASED"/);
-  assert.match(main, /recordKillSwitchAudit\("KILL_SWITCH_ACTIVATED"/);
-  const releaseStart = main.indexOf('ipcMain.handle("safety:kill-switch-release"');
-  const releaseEnd = main.indexOf("});", releaseStart);
-  const releaseBody = main.slice(releaseStart, releaseEnd);
+  assert.match(safetyIpc, /recordKillSwitchAudit\("KILL_SWITCH_RELEASED"/);
+  assert.match(safetyIpc, /recordKillSwitchAudit\("KILL_SWITCH_ACTIVATED"/);
+  const releaseStart = safetyIpc.indexOf('ipcMain.handle("safety:kill-switch-release"');
+  const releaseEnd = safetyIpc.indexOf("});", releaseStart);
+  const releaseBody = safetyIpc.slice(releaseStart, releaseEnd);
   assert.ok(releaseBody.indexOf("recordKillSwitchAudit(") < releaseBody.indexOf("persistedKillSwitchActive = false"));
   // approvalId must never be a literal string constant assigned directly in an IPC handler --
   // it must come from a PaperApprovalService call's return value.
   assert.doesNotMatch(main, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(paperIpc, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(controlIpc, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(safetyIpc, /approvalId:\s*"[^"]+"/);
   // PaperApprovalService is the only place in the desktop app allowed to call saveApproval.
   assert.match(approvalService, /gate\.saveApproval/);
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

@@ -7,9 +7,86 @@
   },
   "surfaces": [
     {
-      "id": "desktop-main-ipc",
+      "id": "desktop-paper-ipc",
       "kind": "ELECTRON_IPC_MAIN",
-      "path": "apps/desktop/src/main.ts",
+      "path": "apps/desktop/src/ipc/registerPaperIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-ai-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerAiIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-control-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerControlIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-safety-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerSafetyIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-shadow-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerShadowIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-recovery-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerRecoveryIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-app-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerAppIpcHandlers.ts",
+      "marker": "ipcMain.handle(",
+      "access": "LOCAL_PROCESS",
+      "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
+      "liveAuthority": "NONE",
+      "productionMutationAllowed": false,
+      "credentialExecutionAllowed": false
+    },
+    {
+      "id": "desktop-diagnostics-ipc",
+      "kind": "ELECTRON_IPC_MAIN",
+      "path": "apps/desktop/src/ipc/registerDiagnosticsIpcHandlers.ts",
       "marker": "ipcMain.handle(",
       "access": "LOCAL_PROCESS",
       "authority": "LOCAL_PAPER_SIMULATION_CONTROL",
