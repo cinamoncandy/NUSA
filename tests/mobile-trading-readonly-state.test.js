@@ -12,7 +12,8 @@ test("Trading permits only PAPER mutation while LIVE remains disabled", () => {
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /const usingLocalPaper = !builtInSubmitAvailable/);
   assert.match(source, /placeLocalPaperOrder\(/);
-  assert.match(store, /localTradingService\.placePaperOrder/);
+  assert.match(store, /const service = new MockTradingService/);
+  assert.match(store, /service\.placePaperOrder/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(source, /PAPER 주문 연결이 필요합니다/);
   assert.match(source, /02 · 주문 검토/);
