@@ -159,9 +159,46 @@ its own AIPOS synchronization:
    a competing "domain event" kernel. `tsc --noEmit` and the full test
    suite (`node --test tests/*.test.js`, 3212/3217, matching the
    established baseline) verified the rename.
-4. Split `shadowOperationalRuntime.ts` along its four concerns only after
-   characterizing existing behavior (tests or a captured trace) so the split
-   can be verified to preserve it.
+4. STILL PROPOSAL -- attempted an audit, found no mechanically-safe seam
+   comparable to items 2 and 5. Read the full 1031-line file: ~25 private
+   fields (`lifecycle`, `marketDataStatus`, `blockers`,
+   `closedCandleHistory`, `evidenceRecovery`, `marketConnection`,
+   `lastMarketMessageAt`, ...) and dense cross-references between them --
+   `computeReadinessBlockers` alone (246 lines) reads nearly every field to
+   synthesize the four concerns' state into one readiness verdict, and
+   `onClosedCandle`/`dispatchShadowSignal`/`tryResumeAfterMarketRecovery`/
+   `haltActiveSession` each read and write across more than one of the four
+   concerns per call. This is not the persistence store's shape (mostly
+   independent SQL per method, one shared `db` handle) or main.ts's shape
+   (independent handler bodies sharing state only via simple get/set
+   proxies) -- it is a single continuous state machine where a "split" is a
+   real redesign of how the four concerns communicate, not an extraction.
+
+   Items 2 and 5 in this ADR were judged safe to execute directly because a
+   mechanical, low-risk seam existed and `tsc`/the test suite could catch a
+   missed reference. Neither is true here: an incorrect split could
+   silently change *when* a readiness blocker fires or *which* concern
+   observes a given event first, and this repo's test suite -- the only
+   verification available in this sandbox, which cannot launch the actual
+   Electron process -- mixes true behavioral coverage with static
+   source-text scans, so it cannot be trusted alone to catch a subtle
+   reordering on a class this dense. Proceeding anyway, on request alone,
+   would be executing exactly the "silently mutate architecture on the
+   safety path without adequate verification" failure mode
+   `.aipos/architecture.md`'s safety invariants exist to prevent.
+
+   Recorded requirement before this item can safely execute: a
+   characterization pass first (either a captured trace of a real Shadow
+   session's field-by-field transitions, or a set of unit tests that pin
+   the *current* ordering/values of `computeReadinessBlockers` and the
+   four halt/resume/dispatch paths under representative sequences of
+   candles, market-connection state changes, and evidence-bus halts) --
+   written and passing against the *unsplit* class, so a subsequent split
+   can be checked against it rather than against the split author's own
+   (possibly mistaken) understanding of the invariants. That
+   characterization work, and the split itself, are appropriately a
+   separate, explicitly-scoped follow-up, not a continuation of this
+   session's remaining budget.
 5. DONE. Unlike items 2 and 4, this file had no deeply-shared mutable
    in-memory state across its ~35 methods -- each domain's read/write
    methods are (mostly) self-contained SQL against `this.db`, so the split
