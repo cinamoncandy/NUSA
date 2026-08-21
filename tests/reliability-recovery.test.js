@@ -73,7 +73,9 @@ test("paper and control sessions restore a valid backup while returning a fail-c
 
 test("WebSocket recovery has a finite reconnect limit", () => {
   assert.throws(() => new UpbitWebSocketClient("KRW-BTC", () => undefined, () => undefined, 0), /positive safe integer/);
-  const source = require("node:fs").readFileSync("apps/desktop/src/exchange/upbitWebSocket.ts", "utf8");
+  // apps/desktop/src/exchange/upbitWebSocket.ts is a re-export shim; the real source lives in
+  // packages/core, shared with apps/cloud/src.
+  const source = require("node:fs").readFileSync("packages/core/src/upbitWebSocket.ts", "utf8");
   assert.match(source, /reconnect-exhausted/);
   assert.match(source, /maximumReconnectAttempts/);
 });
