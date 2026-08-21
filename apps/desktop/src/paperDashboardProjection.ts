@@ -8,7 +8,7 @@ import type { CommitteeDashboardSection, OpportunityDashboardSection } from "../
 import { verifyStrategyAnalytics, type StrategyAnalyticsSnapshot } from "./strategyAnalytics";
 import { buildOpportunityDashboardSection } from "./opportunityDashboardProjection";
 import type { OpportunitySchedule } from "../../cloud/src/opportunityScheduler";
-import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
+import type { CanonicalRiskDecision } from "../../../packages/contracts/src/risk-safety-integration";
 
 export interface PaperDashboardProjectionInput {
   readonly account: PaperAccountSnapshot;
