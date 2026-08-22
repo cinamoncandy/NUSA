@@ -26,12 +26,12 @@ test("classic and master themes are frozen, semantic, and geometrically distinct
   assert.notEqual(classicDark.colors.background, masterDark.colors.background);
   assert.notEqual(classicDark.layout.screenPadding, masterDark.layout.screenPadding);
   assert.notEqual(classicDark.layout.sectionGap, masterDark.layout.sectionGap);
-  assert.notEqual(classicDark.radii.lg, masterDark.radii.lg);
+  assert.notEqual(classicDark.radii.xl, masterDark.radii.xl);
 
   assert.equal(masterDark.colors.surfaceSunken, "#090E16");
   assert.equal(masterDark.colors.primarySoft, "#12253A");
-  assert.equal(masterDark.colors.borderStrong, "#334155");
-  assert.equal(masterDark.colors.info, "#93A4B8");
+  assert.equal(masterDark.colors.borderStrong, "#34465F");
+  assert.equal(masterDark.colors.info, "#9FB0C5");
   assert.equal(masterDark.colors.aiSignalStart, "#7C5CFF");
   assert.equal(masterDark.colors.aiSignalMid, "#417EFF");
   assert.equal(masterDark.colors.aiSignalEnd, "#2DD4BF");
