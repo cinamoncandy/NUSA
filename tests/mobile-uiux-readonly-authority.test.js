@@ -39,7 +39,9 @@ test("PAPER surface exposes local or verified cloud PAPER execution without LIVE
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
-  assert.match(trading, /PAPER 주문 작업공간/);
+  assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
@@ -50,7 +52,6 @@ test("PAPER surface exposes local or verified cloud PAPER execution without LIVE
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(trading, /liveMutationAllowed: false/);
-  assert.match(trading, /02 · 주문 검토/);
   assert.match(trading, /이 PAPER 주문을 확정할까요/);
   assert.match(trading, /PAPER 주문 확정/);
   assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
