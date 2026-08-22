@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const { evaluateVenueConformance } = require('../scripts/venue-conformance-harness');
 const { evaluateStrategyStagePromotion } = require('../scripts/strategy-stage-promotion-gate');
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function baselineConformanceInput() {
   return {
     strategy: {
@@ -58,8 +62,8 @@ function baselineConformanceInput() {
   };
 }
 
-function promotionRequest(fromStage = 'PAPER', toStage = 'SHADOW') {
-  const conformance = evaluateVenueConformance(baselineConformanceInput());
+function requestForInput(conformanceInput, fromStage = 'PAPER', toStage = 'SHADOW') {
+  const conformance = evaluateVenueConformance(conformanceInput);
   return {
     schemaVersion: 1,
     promotionId: 'promotion-test-1',
@@ -69,11 +73,16 @@ function promotionRequest(fromStage = 'PAPER', toStage = 'SHADOW') {
     accountPolicyHash: conformance.binding.accountPolicyHash,
     fromStage,
     toStage,
+    conformanceInput: clone(conformanceInput),
     venueConformance: conformance,
   };
 }
 
-test('PAPER to SHADOW requires exact PASS venue conformance', () => {
+function promotionRequest(fromStage = 'PAPER', toStage = 'SHADOW') {
+  return requestForInput(baselineConformanceInput(), fromStage, toStage);
+}
+
+test('PAPER to SHADOW requires exact recomputed PASS venue conformance', () => {
   const result = evaluateStrategyStagePromotion(promotionRequest());
   assert.equal(result.status, 'PASS');
   assert.equal(result.eligible, true);
@@ -91,12 +100,7 @@ test('SHADOW to RESTRICTED_LIVE uses the same fail-closed venue gate', () => {
 test('explicit venue BLOCK prevents promotion', () => {
   const input = baselineConformanceInput();
   input.strategy.requiresOvernight = true;
-  const conformance = evaluateVenueConformance(input);
-  const request = promotionRequest();
-  request.strategyHash = conformance.binding.strategyHash;
-  request.venuePolicyHash = conformance.binding.venuePolicyHash;
-  request.accountPolicyHash = conformance.binding.accountPolicyHash;
-  request.venueConformance = conformance;
+  const request = requestForInput(input);
 
   const result = evaluateStrategyStagePromotion(request);
   assert.equal(result.status, 'BLOCK');
@@ -104,57 +108,76 @@ test('explicit venue BLOCK prevents promotion', () => {
   assert.ok(result.reasons.includes('VENUE_CONFORMANCE_BLOCKED'));
 });
 
-test('missing or UNKNOWN conformance never auto-passes', () => {
-  const missing = promotionRequest();
-  delete missing.venueConformance;
-  let result = evaluateStrategyStagePromotion(missing);
+test('missing evidence or current conformance input never auto-passes', () => {
+  const missingEvidence = promotionRequest();
+  delete missingEvidence.venueConformance;
+  let result = evaluateStrategyStagePromotion(missingEvidence);
   assert.equal(result.status, 'UNKNOWN');
   assert.equal(result.eligible, false);
 
-  const input = baselineConformanceInput();
-  delete input.account.dailyLossLimit;
-  const conformance = evaluateVenueConformance(input);
-  const unknown = promotionRequest();
-  unknown.strategyHash = conformance.binding.strategyHash;
-  unknown.venuePolicyHash = conformance.binding.venuePolicyHash;
-  unknown.accountPolicyHash = conformance.binding.accountPolicyHash;
-  unknown.venueConformance = conformance;
-  result = evaluateStrategyStagePromotion(unknown);
+  const missingCurrentInput = promotionRequest();
+  delete missingCurrentInput.conformanceInput;
+  result = evaluateStrategyStagePromotion(missingCurrentInput);
   assert.equal(result.status, 'UNKNOWN');
   assert.equal(result.eligible, false);
+  assert.ok(result.reasons.includes('CURRENT_CONFORMANCE_INPUT_MISSING'));
 });
 
-test('changed strategy cannot reuse an old conformance PASS', () => {
+test('UNKNOWN recomputed conformance never auto-passes', () => {
+  const input = baselineConformanceInput();
+  delete input.account.dailyLossLimit;
+  const result = evaluateStrategyStagePromotion(requestForInput(input));
+  assert.equal(result.status, 'UNKNOWN');
+  assert.equal(result.eligible, false);
+  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_NOT_PASS'));
+});
+
+test('changed strategy hash cannot reuse current conformance', () => {
   const request = promotionRequest();
   request.strategyHash = `sha256:${'f'.repeat(64)}`;
   const result = evaluateStrategyStagePromotion(request);
   assert.equal(result.status, 'BLOCK');
-  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_STRATEGY_HASH_MISMATCH'));
+  assert.ok(result.reasons.includes('CURRENT_STRATEGY_HASH_MISMATCH'));
 });
 
-test('changed venue or account policy makes old conformance stale', () => {
+test('changed venue or account policy hash is blocked', () => {
   const venueChanged = promotionRequest();
   venueChanged.venuePolicyHash = `sha256:${'a'.repeat(64)}`;
   let result = evaluateStrategyStagePromotion(venueChanged);
   assert.equal(result.status, 'BLOCK');
-  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_VENUE_POLICY_STALE'));
+  assert.ok(result.reasons.includes('CURRENT_VENUE_POLICY_HASH_MISMATCH'));
 
   const accountChanged = promotionRequest();
   accountChanged.accountPolicyHash = `sha256:${'b'.repeat(64)}`;
   result = evaluateStrategyStagePromotion(accountChanged);
   assert.equal(result.status, 'BLOCK');
-  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_ACCOUNT_POLICY_STALE'));
+  assert.ok(result.reasons.includes('CURRENT_ACCOUNT_POLICY_HASH_MISMATCH'));
 });
 
-test('inconsistent forged PASS result is blocked', () => {
+test('old PASS evidence cannot survive a current strategy change', () => {
+  const request = promotionRequest();
+  request.conformanceInput.strategy.maxLeverage = 2.5;
+  const current = evaluateVenueConformance(request.conformanceInput);
+  request.strategyHash = current.binding.strategyHash;
+  request.venuePolicyHash = current.binding.venuePolicyHash;
+  request.accountPolicyHash = current.binding.accountPolicyHash;
+
+  const result = evaluateStrategyStagePromotion(request);
+  assert.equal(result.status, 'BLOCK');
+  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_EVIDENCE_STALE_OR_TAMPERED'));
+});
+
+test('forged PASS evidence is rejected by canonical recomputation', () => {
   const request = promotionRequest();
   request.venueConformance = {
     ...request.venueConformance,
-    checks: [...request.venueConformance.checks, { id: 'forged', status: 'BLOCK', reason: 'FORGED' }],
+    checks: request.venueConformance.checks.map((check) => ({ ...check })),
+    reasons: [],
+    forged: true,
   };
   const result = evaluateStrategyStagePromotion(request);
   assert.equal(result.status, 'BLOCK');
-  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_RESULT_INCONSISTENT'));
+  assert.ok(result.reasons.includes('VENUE_CONFORMANCE_EVIDENCE_STALE_OR_TAMPERED'));
 });
 
 test('unsupported transitions are invalid and never mutate state', () => {
