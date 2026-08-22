@@ -4,6 +4,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const mobile = path.resolve(__dirname, "../apps/mobile");
+const repoRoot = path.resolve(__dirname, "..");
+
+const parseVersion = (value) => value.split(".").map((part) => Number.parseInt(part, 10));
+const versionAtLeast = (actual, minimum) => {
+  for (let i = 0; i < Math.max(actual.length, minimum.length); i += 1) {
+    const a = actual[i] ?? 0;
+    const b = minimum[i] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return true;
+};
 
 test("mobile repository exposes the React Native foundation and native project paths", () => {
   assert.equal(fs.existsSync(path.join(mobile, "App.tsx")), true);
@@ -28,6 +39,29 @@ test("native bootstrap pins the approved React Native and Android platform confi
   assert.match(fs.readFileSync(path.join(mobile, "android", "gradle.properties"), "utf8"), /newArchEnabled=true/);
   assert.match(fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8"), /minSdkVersion = 24/);
   assert.match(fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8"), /targetSdkVersion = 35/);
+});
+
+test("React Native upgrades keep the Gradle wrapper compatible with the Android plugin", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(mobile, "package.json"), "utf8"));
+  const reactNative = parseVersion(manifest.dependencies["react-native"]);
+  const wrapper = fs.readFileSync(path.join(mobile, "android", "gradle", "wrapper", "gradle-wrapper.properties"), "utf8");
+  const match = wrapper.match(/gradle-(\d+\.\d+(?:\.\d+)?)-bin\.zip/);
+  assert.ok(match, "Gradle wrapper distribution must pin a concrete version");
+  const gradle = parseVersion(match[1]);
+  if (versionAtLeast(reactNative, [0, 87, 0])) {
+    assert.equal(versionAtLeast(gradle, [9, 4, 1]), true, `React Native ${manifest.dependencies["react-native"]} requires Gradle >= 9.4.1; wrapper is ${match[1]}`);
+  }
+});
+
+test("pull-request workflows cannot self-mutate and push their own branch", () => {
+  const workflowsDir = path.join(repoRoot, ".github", "workflows");
+  for (const filename of fs.readdirSync(workflowsDir).filter((name) => /\.ya?ml$/i.test(name))) {
+    const source = fs.readFileSync(path.join(workflowsDir, filename), "utf8").replace(/\r\n/g, "\n");
+    if (!/(^|\n)\s*pull_request\s*:/m.test(source)) continue;
+    const grantsWrite = /(^|\n)\s*contents\s*:\s*write\s*$/m.test(source);
+    const pushesGit = /(^|\n)\s*(?:run:\s*\|[\s\S]*?)?\bgit\s+push\b/m.test(source);
+    assert.equal(grantsWrite && pushesGit, false, `${filename} must not grant contents: write and git push from a pull_request workflow; that creates synchronize/CI loops`);
+  }
 });
 
 test("Android release networking fails closed without an unresolved manifest placeholder", () => {
