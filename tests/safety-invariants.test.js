@@ -13,7 +13,7 @@ function baseline() {
     shadow: clone(inputs.shadow),
     restricted: clone(inputs.restricted),
     shadowRuntimeSource: inputs.shadowRuntimeSource,
-    aiZeroAuthorityPass: true,
+    aiZeroAuthorityPass: inputs.aiZeroAuthorityPass,
   };
 }
 
