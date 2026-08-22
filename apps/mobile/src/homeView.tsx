@@ -8,7 +8,7 @@ import { getHomeVisualProfile } from "./homeVisualProfile";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
+export type HomeDestination = "Markets" | "Paper" | "AiSignal" | "Portfolio";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
@@ -57,20 +57,25 @@ export function HomeView({
   const calibratedConfidence = aiInsightAvailable && ai?.calibrationStatus === "CALIBRATED"
     ? `${Math.round(ai.confidence * 100)}%`
     : undefined;
-  const disconnected = notConfigured != null;
-  const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
-  const statusLabel = snapshot
-    ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
-    : notConfigured
-      ? "PAPER · 연결 필요"
-      : "PAPER · 대기";
-  const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
+  const localPaperMode = snapshot == null && notConfigured != null;
+  const disconnected = !localPaperMode && notConfigured != null;
+  const signalReady = localPaperMode || Boolean(snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations);
+  const statusLabel = localPaperMode
+    ? "PAPER · LOCAL READY"
+    : snapshot
+      ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
+      : notConfigured
+        ? "PAPER · 연결 필요"
+        : "PAPER · 대기";
+  const statusTone = localPaperMode ? "success" as const : snapshot ? healthTone(snapshot.health) : "warning" as const;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable
     ? "NUSA 검증 분석 신호"
-    : signalReady
-      ? "NUSA 시장 분석 중"
-      : "NUSA 시장 연결 대기";
+    : localPaperMode
+      ? "LOCAL PAPER 시장 준비"
+      : signalReady
+        ? "NUSA 시장 분석 중"
+        : "NUSA 시장 연결 대기";
 
   const contentStyle = {
     paddingHorizontal: profile.screen.horizontalPadding,
@@ -86,24 +91,32 @@ export function HomeView({
     color: theme.colors.text,
   } as const;
 
-  const blocked = Boolean(notConfigured || readOnlyError || !signalReady);
-  const primaryLabel = notConfigured
-    ? "PAPER 연결"
-    : readOnlyError
-      ? "다시 확인"
-      : aiInsightAvailable
-        ? "분석 보기"
-        : "시장 보기";
-  const primaryDetail = notConfigured
-    ? "PAPER 시장 데이터를 연결하면 NUSA가 분석을 시작합니다."
-    : readOnlyError
-      ? "현재 연결 상태를 복구한 뒤 시장 판단을 다시 확인합니다."
-      : aiInsightAvailable
-        ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
-        : signalReady
-          ? "시장 데이터는 준비됐습니다. 검증된 판단을 기다리고 있습니다."
-          : "시장 상태와 연결 상태를 확인합니다.";
+  const blocked = Boolean((!localPaperMode && notConfigured) || readOnlyError || !signalReady);
+  const primaryLabel = localPaperMode
+    ? "PAPER 시작"
+    : notConfigured
+      ? "PAPER 연결"
+      : readOnlyError
+        ? "다시 확인"
+        : aiInsightAvailable
+          ? "분석 보기"
+          : "시장 보기";
+  const primaryDetail = localPaperMode
+    ? "LOCAL PAPER는 Cloud 연결 없이 Upbit 공개 시세로 바로 모의거래를 시작합니다."
+    : notConfigured
+      ? "PAPER 시장 데이터를 연결하면 NUSA가 분석을 시작합니다."
+      : readOnlyError
+        ? "현재 연결 상태를 복구한 뒤 시장 판단을 다시 확인합니다."
+        : aiInsightAvailable
+          ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
+          : signalReady
+            ? "시장 데이터는 준비됐습니다. 검증된 판단을 기다리고 있습니다."
+            : "시장 상태와 연결 상태를 확인합니다.";
   const runPrimaryAction = () => {
+    if (localPaperMode) {
+      onNavigate("Paper");
+      return;
+    }
     if (notConfigured || readOnlyError) {
       onGoSettings();
       return;
@@ -111,11 +124,6 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  // notConfigured has its own single merged recovery block below (title + Signal Field +
-  // one CTA) instead of a separate notice -- see the `disconnected` branch. Duplicating that
-  // guidance here as a second OperationalNotice is exactly the repeated-explanation defect a
-  // real device surfaced: the same "connect PAPER" state described twice with two buttons that
-  // both call onGoSettings.
   const notice = readOnlyError
     ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
     : null;
@@ -133,7 +141,10 @@ export function HomeView({
     <MotionReveal testID="home-hero-reveal">
       <View style={styles.equitySection} testID="account-hero-card">
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
-        {disconnected ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
+        {disconnected ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : localPaperMode ? <>
+          <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-local-paper-ready">LOCAL PAPER 준비됨</Text>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>잔고와 손익은 TRADE에서 체결과 함께 표시됩니다.</Text>
+        </> : <>
           <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>
             {account ? krw(account.equity) : "-"}
           </Text>
@@ -198,7 +209,7 @@ export function HomeView({
           </View>
           <Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {ai?.evidenceReferences.length ?? 0}개 · AI 분석은 READ ONLY</Text>
         </View> : <View style={styles.decisionCopy} testID="home-pending-decision">
-          <Text style={[styles.judgement, { color: theme.colors.text }]}>{blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
+          <Text style={[styles.judgement, { color: theme.colors.text }]}>{localPaperMode ? "LOCAL PAPER 준비 완료" : blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
           <Text style={[styles.body, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
         </View>}
         </View>
@@ -242,8 +253,8 @@ export function HomeView({
         <Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "진단 닫기" : "진단 보기"}</Text>
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
-        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={snapshot ? "success" : "warning"} />
-        <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
+        <CompactMetric label="PAPER 연결" value={localPaperMode ? "LOCAL 준비" : snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={localPaperMode || snapshot ? "success" : "warning"} />
+        <CompactMetric label="안전 게이트" value={localPaperMode || snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={localPaperMode || snapshot?.readyForPaperOperations ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
         <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
         <CompactMetric label="Production mutation" value="false" detail="fail-closed" />
@@ -270,9 +281,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, lineHeight: 16 },
   body: { fontSize: 13, lineHeight: 20 },
   decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
-  // Pre-connection only: the Signal Field has nothing real to show yet, so it is clipped down
-  // to a quiet sliver instead of standing at full hero height and reading as "analysis in
-  // progress" before there is any market data to analyze.
   decisionStageCompact: { paddingBottom: 12, gap: 8 },
   terrainCompact: { height: 72, overflow: "hidden", opacity: 0.7 },
   decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
