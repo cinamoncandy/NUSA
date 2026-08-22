@@ -76,7 +76,10 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
       method: "GET",
       redirect: "error",
       signal: controller.signal,
-      headers: { accept: "application/json" },
+      // Upbit's public API sits behind bot protection that can reject requests carrying no
+      // (or a generic React Native default) User-Agent with a 400, the same reason the desktop
+      // WebSocket client (upbitWebSocket.ts) already sends an explicit User-Agent.
+      headers: { accept: "application/json", "user-agent": "nusa-mobile/0.1" },
     });
     if (!response.ok) throw new Error(`Upbit public quotation unavailable (${response.status}).`);
     return await response.json();
