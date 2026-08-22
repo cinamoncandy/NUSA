@@ -63,8 +63,8 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
   const baseUrl = activeBaseUrl;
   const previous = currentState.snapshot;
   setUpbitReadOnlyState({ status: previous ? "STALE" : "LOADING", snapshot: previous, error: null });
-  let request: Promise<UpbitReadOnlyState>;
-  request = (async (): Promise<UpbitReadOnlyState> => {
+
+  const request = (async (): Promise<UpbitReadOnlyState> => {
     try {
       const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl });
       if (generation !== sessionGeneration) return currentState;
@@ -77,11 +77,13 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
       const next: UpbitReadOnlyState = { status: previous ? "STALE" : "ERROR", snapshot: previous, error: detail };
       setUpbitReadOnlyState(next);
       return next;
-    } finally {
-      if (refreshInFlight === request) refreshInFlight = null;
     }
   })();
+
   refreshInFlight = request;
+  void request.finally(() => {
+    if (refreshInFlight === request) refreshInFlight = null;
+  });
   return request;
 }
 
