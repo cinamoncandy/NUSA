@@ -35,6 +35,12 @@ export interface UpbitExecutionClientOptions {
   readonly nonce?: () => string;
 }
 
+/**
+ * Authenticated Upbit order transport. This client can perform order mutations,
+ * but it grants no authority by itself. Production callers must inject it into
+ * createLiveOrderExecutionAdapter(), whose environment gates and explicit
+ * LiveOrderAuthority remain mandatory. Withdrawals remain unavailable.
+ */
 export interface UpbitOrderAdapter {
   getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]>;
   getOrders(query?: UpbitOrderQuery, signal?: AbortSignal): Promise<readonly UpbitOrder[]>;
@@ -43,8 +49,8 @@ export interface UpbitOrderAdapter {
   getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance>;
   captureSnapshot(market?: string, signal?: AbortSignal): Promise<UpbitLiveReadOnlySnapshot>;
   testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder>;
-  submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<never>;
-  cancelOrder(uuid: string, signal?: AbortSignal): Promise<never>;
+  submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder>;
+  cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder>;
   withdraw(): Promise<never>;
 }
 
@@ -83,15 +89,15 @@ export class UpbitExecutionRestClient implements UpbitOrderAdapter {
   async testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
     return this.request("POST", "/v1/orders/test", undefined, normalizeOrder(order), signal);
   }
-  async submitOrder(_order: UpbitSubmitOrderRequest, _signal?: AbortSignal): Promise<never> {
-    throw new LiveMutationDisabledError("LIVE:submitOrder:restricted-live-artifact-required");
+  async submitOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> {
+    return this.request("POST", "/v1/orders", undefined, normalizeOrder(order), signal);
   }
-  async cancelOrder(_uuid: string, _signal?: AbortSignal): Promise<never> {
-    throw new LiveMutationDisabledError("LIVE:cancelOrder:restricted-live-artifact-required");
+  async cancelOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> {
+    return this.request("DELETE", "/v1/order", { uuid: requiredText(uuid, "Order UUID") }, undefined, signal);
   }
   async withdraw(): Promise<never> { throw new LiveMutationDisabledError("LIVE:withdraw"); }
 
-  private async request<T>(method: "GET" | "POST", path: string, query: Record<string, string> | undefined, body: Record<string, string> | undefined, signal?: AbortSignal): Promise<T> {
+  private async request<T>(method: "GET" | "POST" | "DELETE", path: string, query: Record<string, string> | undefined, body: Record<string, string> | undefined, signal?: AbortSignal): Promise<T> {
     const queryString = query ? new URLSearchParams(query).toString() : "";
     const authParameters = body ?? query;
     const authQueryString = authParameters ? Object.entries(authParameters).map(([key, value]) => `${key}=${value}`).join("&") : "";
