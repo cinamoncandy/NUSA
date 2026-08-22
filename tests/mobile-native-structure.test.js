@@ -22,12 +22,21 @@ test("mobile repository exposes the React Native foundation and native project p
 
 test("native bootstrap pins the approved React Native and Android platform configuration", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(mobile, "package.json"), "utf8"));
-  assert.equal(manifest.nativeProjectStatus, "RN_0.86.0_BOOTSTRAPPED");
-  assert.equal(manifest.dependencies["react-native"], "0.86.0");
+  const gradleProperties = fs.readFileSync(path.join(mobile, "android", "gradle.properties"), "utf8");
+  const buildGradle = fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8");
+
+  assert.equal(manifest.nativeProjectStatus, "RN_0.87.0_BOOTSTRAPPED");
+  assert.equal(manifest.dependencies["react-native"], "0.87.0");
   assert.equal(manifest.packageManager, "pnpm@11.7.0");
-  assert.match(fs.readFileSync(path.join(mobile, "android", "gradle.properties"), "utf8"), /newArchEnabled=true/);
-  assert.match(fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8"), /minSdkVersion = 24/);
-  assert.match(fs.readFileSync(path.join(mobile, "android", "build.gradle"), "utf8"), /targetSdkVersion = 35/);
+  assert.match(gradleProperties, /newArchEnabled=true/);
+  assert.match(gradleProperties, /hermesEnabled=true/);
+  assert.match(gradleProperties, /android\.builtInKotlin=false/);
+  assert.match(gradleProperties, /android\.newDsl=false/);
+  assert.match(buildGradle, /buildToolsVersion = "37\.0\.0"/);
+  assert.match(buildGradle, /minSdkVersion = 24/);
+  assert.match(buildGradle, /compileSdkVersion = 37/);
+  assert.match(buildGradle, /targetSdkVersion = 36/);
+  assert.match(buildGradle, /kotlinVersion = "2\.2\.0"/);
 });
 
 test("Android release networking fails closed without an unresolved manifest placeholder", () => {
@@ -74,6 +83,7 @@ test("mobile release workflow validates Android candidates and explicitly skips 
   assert.match(workflow, /:app:assembleDebug -PnusaEmbedDebugBundle/);
   assert.match(workflow, /android-release-candidate:/);
   assert.match(workflow, /:app:assembleRelease/);
+  assert.match(workflow, /sdkmanager "platforms;android-37" "build-tools;37\.0\.0"/);
   assert.match(workflow, /ios-debug:\s*\r?\n\s*if: \$\{\{ false \}\}/);
   assert.match(workflow, /ios-release-candidate:\s*\r?\n\s*if: \$\{\{ false \}\}/);
   assert.match(workflow, /Android-only/);
