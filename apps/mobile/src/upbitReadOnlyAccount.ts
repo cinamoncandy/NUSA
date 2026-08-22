@@ -20,6 +20,7 @@ let currentState: UpbitReadOnlyState = initialUpbitReadOnlyState;
 let activeBaseUrl: string | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let refreshInFlight: Promise<UpbitReadOnlyState> | null = null;
+let sessionGeneration = 0;
 const listeners = new Set<() => void>();
 
 export function getUpbitReadOnlyState(): UpbitReadOnlyState { return currentState; }
@@ -40,6 +41,7 @@ function startRefreshTimer(): void {
 }
 
 export function resetUpbitReadOnlyState(): void {
+  sessionGeneration += 1;
   stopRefreshTimer();
   refreshInFlight = null;
   activeBaseUrl = null;
@@ -57,21 +59,26 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
     return next;
   }
 
+  const generation = sessionGeneration;
+  const baseUrl = activeBaseUrl;
   const previous = currentState.snapshot;
   setUpbitReadOnlyState({ status: previous ? "STALE" : "LOADING", snapshot: previous, error: null });
-  const request = (async (): Promise<UpbitReadOnlyState> => {
+  let request: Promise<UpbitReadOnlyState>;
+  request = (async (): Promise<UpbitReadOnlyState> => {
     try {
-      const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl: activeBaseUrl ?? UPBIT_LIVE_BASE_URL });
+      const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl });
+      if (generation !== sessionGeneration) return currentState;
       const next: UpbitReadOnlyState = { status: "READY", snapshot: normalizeUpbitReadOnlySnapshot(snapshot), error: null };
       setUpbitReadOnlyState(next);
       return next;
     } catch (error) {
+      if (generation !== sessionGeneration) return currentState;
       const detail = error instanceof Error ? error.message : "Upbit bridge connection failed.";
       const next: UpbitReadOnlyState = { status: previous ? "STALE" : "ERROR", snapshot: previous, error: detail };
       setUpbitReadOnlyState(next);
       return next;
     } finally {
-      refreshInFlight = null;
+      if (refreshInFlight === request) refreshInFlight = null;
     }
   })();
   refreshInFlight = request;
@@ -79,7 +86,9 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
 }
 
 export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string = UPBIT_LIVE_BASE_URL): Promise<UpbitReadOnlyState> {
+  sessionGeneration += 1;
   stopRefreshTimer();
+  refreshInFlight = null;
   credentialSession.clear();
   activeBaseUrl = baseUrl.trim() || UPBIT_LIVE_BASE_URL;
   try {
@@ -91,7 +100,9 @@ export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string
     setUpbitReadOnlyState(next);
     return next;
   }
+  const generation = sessionGeneration;
   const next = await refreshUpbitReadOnlyAccount();
+  if (generation !== sessionGeneration) return currentState;
   if (next.status === "READY") startRefreshTimer();
   else credentialSession.clear();
   return next;
