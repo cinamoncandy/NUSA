@@ -181,7 +181,7 @@ function evaluateVenueConformance(input) {
   const requiredWindows = strategy.tradingWindows;
   const venueWindows = venue.tradingWindows;
   const accountWindows = account.tradingWindows;
-  if (!Array.isArray(requiredWindows) || requiredWindows.some((window) => !validateWindow(window))) {
+  if (!Array.isArray(requiredWindows) || requiredWindows.length === 0 || requiredWindows.some((window) => !validateWindow(window))) {
     add("trading-hours", "UNKNOWN", "STRATEGY_TRADING_HOURS_UNKNOWN");
   } else if (!Array.isArray(venueWindows) || venueWindows.length === 0 || venueWindows.some((window) => !validateWindow(window))) {
     add("trading-hours", "UNKNOWN", "VENUE_TRADING_HOURS_UNKNOWN");
