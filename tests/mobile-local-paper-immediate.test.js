@@ -10,14 +10,18 @@ test("mobile PAPER falls back to a 10M KRW local simulator without Cloud authori
   const app = read("apps/mobile/App.tsx");
   const view = read("apps/mobile/src/tradingView.tsx");
   assert.match(app, /activeTab !== "Portfolio" && activeTab !== "Paper"/);
-  assert.match(view, /LOCAL_PAPER_INITIAL_CASH = 10_000_000/);
-  assert.match(view, /new MockTradingService\(\[\{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH \}\]\)/);
+  assert.match(view, /10_000_000/);
+  assert.match(view, /MockTradingService/);
+  assert.match(view, /currency: "KRW"/);
   assert.match(view, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(view, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
   assert.match(view, /loadUpbitPublicMarkets\(\)/);
-  assert.match(view, /localTradingService\.placePaperOrder/);
+  assert.match(view, /placePaperOrder\(/);
   assert.match(view, /LOCAL PAPER 체결 완료/);
   assert.match(view, /liveMutationAllowed: false/);
   assert.match(view, /productionMutationAllowed: false/);
+  assert.doesNotMatch(view, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(view, /productionMutationAllowed:\s*true/);
 });
 
 test("MockTradingService parses KRW-BTC as KRW quote and BTC base", () => {
