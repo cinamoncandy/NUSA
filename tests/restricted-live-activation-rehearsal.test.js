@@ -26,11 +26,21 @@ test('real money or automatic activation permission fails closed', () => {
   assert.equal(evaluate(b).result, 'BLOCKED');
 });
 
-test('two distinct human approvers are mandatory', () => {
-  const a = clone(); a.approvers[1].principalId = a.approvers[0].principalId;
-  const b = clone(); b.approvers[0].kind = 'AI';
-  assert.equal(evaluate(a).result, 'BLOCKED');
-  assert.equal(evaluate(b).result, 'BLOCKED');
+test('one explicit human OWNER approval is mandatory', () => {
+  const missing = clone(); delete missing.ownerApproval;
+  const ai = clone(); ai.ownerApproval.kind = 'AI';
+  const wrongRole = clone(); wrongRole.ownerApproval.role = 'OPERATOR';
+  const implicit = clone(); implicit.ownerApproval.explicit = false;
+  assert.equal(evaluate(missing).result, 'BLOCKED');
+  assert.equal(evaluate(ai).result, 'BLOCKED');
+  assert.equal(evaluate(wrongRole).result, 'BLOCKED');
+  assert.equal(evaluate(implicit).result, 'BLOCKED');
+});
+
+test('a second approver is not required', () => {
+  const p = clone();
+  assert.equal('approvers' in p, false);
+  assert.equal(evaluate(p).result, 'WOULD_ALLOW');
 });
 
 test('unsafe operational state or UNKNOWN fails closed', () => {
