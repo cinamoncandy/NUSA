@@ -31,9 +31,16 @@ test("Upbit settings connection remains HTTPS-only, process-memory-only, and ref
   assert.match(lifecycle, /InMemoryUpbitCredentialSession/);
   assert.match(lifecycle, /loadUpbitLiveAccounts/);
   assert.match(lifecycle, /REFRESH_INTERVAL_MS = 30_000/);
+  assert.match(lifecycle, /STALE_AFTER_MS = 90_000/);
   assert.match(lifecycle, /setInterval/);
   assert.match(lifecycle, /credentialSession\.clear\(\)/);
   assert.match(lifecycle, /sessionGeneration/);
+  assert.match(lifecycle, /"CONNECTED" \| "STALE" \| "AUTH_ERROR" \| "RELAY_ERROR" \| "OFFLINE"/);
+  assert.match(lifecycle, /lastSuccessAt/);
+  assert.match(lifecycle, /classifyMonitorFailure/);
+  assert.match(lifecycle, /UNAUTHORIZED/);
+  assert.match(lifecycle, /SERVICE_NOT_CONFIGURED/);
+  assert.match(lifecycle, /UPSTREAM_FAILURE/);
 
   assert.match(credential, /let sharedToken: string \| null = null/);
   assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);
@@ -41,4 +48,20 @@ test("Upbit settings connection remains HTTPS-only, process-memory-only, and ref
   assert.match(client, /\/api\/v1\/account\/summary/);
   assert.doesNotMatch(panel + lifecycle + client, /placeOrder|cancelOrder|withdraw/);
   assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
+});
+
+test("real-account monitor remains separate from PAPER and never gains mutation authority", () => {
+  const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
+  const portfolio = read("apps/mobile/src/portfolioView.tsx");
+  const client = read("apps/mobile/src/upbitLiveClient.ts");
+
+  assert.match(portfolio, /UPBIT · READ ONLY/);
+  assert.match(portfolio, /실제 잔고와 PAPER는 합산하지 않습니다/);
+  assert.match(portfolio, /snapshot\.cash\.available/);
+  assert.match(portfolio, /snapshot\.cash\.locked/);
+  assert.match(portfolio, /asset\.available/);
+  assert.match(portfolio, /asset\.locked/);
+  assert.match(portfolio, /asset\.avgBuyPrice|평균 매수가/);
+  assert.doesNotMatch(lifecycle + portfolio + client, /productionMutationAllowed\s*=\s*true|liveAuthority\s*=\s*["'](?:FULL|LIVE)["']/);
+  assert.doesNotMatch(client, /\/orders|\/withdraw|\/transfer/);
 });
