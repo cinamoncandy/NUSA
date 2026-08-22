@@ -162,3 +162,31 @@ test('input objects are not mutated by conformance evaluation', () => {
   evaluateVenueConformance(input);
   assert.deepEqual(input, before);
 });
+
+test('conformance result is bound to exact strategy, venue policy, and account policy', () => {
+  const input = baseline();
+  const result = evaluateVenueConformance(input);
+  assert.match(result.binding.strategyHash, /^sha256:[0-9a-f]{64}$/);
+  assert.match(result.binding.venuePolicyHash, /^sha256:[0-9a-f]{64}$/);
+  assert.match(result.binding.accountPolicyHash, /^sha256:[0-9a-f]{64}$/);
+
+  const repeat = evaluateVenueConformance(clone(input));
+  assert.deepEqual(repeat.binding, result.binding);
+});
+
+test('any strategy or policy change invalidates the corresponding conformance binding', () => {
+  const original = baseline();
+  const originalResult = evaluateVenueConformance(original);
+
+  const strategyChanged = baseline();
+  strategyChanged.strategy.maxLeverage = 2.5;
+  assert.notEqual(evaluateVenueConformance(strategyChanged).binding.strategyHash, originalResult.binding.strategyHash);
+
+  const venueChanged = baseline();
+  venueChanged.venue.maxLeverage = 4;
+  assert.notEqual(evaluateVenueConformance(venueChanged).binding.venuePolicyHash, originalResult.binding.venuePolicyHash);
+
+  const accountChanged = baseline();
+  accountChanged.account.dailyLossLimit = 450;
+  assert.notEqual(evaluateVenueConformance(accountChanged).binding.accountPolicyHash, originalResult.binding.accountPolicyHash);
+});

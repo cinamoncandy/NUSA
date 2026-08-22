@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -27,6 +28,18 @@ function explicitBoolean(value) {
 
 function stringArray(value) {
   return Array.isArray(value) && value.length > 0 && value.every(nonEmpty);
+}
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+  }
+  return value;
+}
+
+function sha256Json(value) {
+  return `sha256:${crypto.createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex")}`;
 }
 
 function parseClock(value) {
@@ -208,6 +221,11 @@ function evaluateVenueConformance(input) {
     strategyId: nonEmpty(strategy.id) ? strategy.id : null,
     venueId: nonEmpty(venue.id) ? venue.id : null,
     accountId: nonEmpty(account.id) ? account.id : null,
+    binding: Object.freeze({
+      strategyHash: sha256Json(strategy),
+      venuePolicyHash: sha256Json(venue),
+      accountPolicyHash: sha256Json(account),
+    }),
     reasons: Object.freeze(reasons),
     checks: Object.freeze(checks),
   });
@@ -230,4 +248,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { evaluateVenueConformance, validateWindow, windowContained };
+module.exports = { evaluateVenueConformance, sha256Json, validateWindow, windowContained };

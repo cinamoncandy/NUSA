@@ -36,6 +36,7 @@
     "research:champion-challenger": "node scripts/validate-champion-challenger.js",
     "identity:check": "node scripts/validate-data-strategy-identity.js",
     "deployment:check": "node scripts/validate-deployment-bundles.js",
+    "deployment:stage-promotion": "node scripts/strategy-stage-promotion-gate.js",
     "safety:architecture": "node scripts/validate-safety-architecture.js",
     "safety:invariants": "node scripts/validate-safety-invariants.js",
     "shadow:check": "node scripts/validate-shadow-governance.js",
