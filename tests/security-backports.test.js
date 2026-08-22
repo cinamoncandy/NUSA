@@ -10,6 +10,7 @@ const {
   resolvePackageRoots,
   patchExact,
   patchImageSizeIcns,
+  patchImageSizeJxlPartialStreams,
   patchNanoidSync,
   patchNanoidAsyncBrowser,
   patchNanoidAsyncNode
@@ -26,6 +27,19 @@ test("image-size ICNS patch guards exactly two offset increments and is idempote
   assert.equal(first.changed, true);
   assert.equal((first.text.match(/Invalid ICNS entry size/g) || []).length, 2);
   const second = patchImageSizeIcns(first.text);
+  assert.equal(second.changed, false);
+});
+
+test("image-size JXL partial-stream patch guards forward progress on a zero-size box and is idempotent", () => {
+  // findBox returns as soon as it finds a box with the requested name, size included -- so a
+  // zero-size 'jxlp' box makes the caller's offset stay put and re-find the same box forever.
+  // This is confirmed with a crafted JXL container in a companion end-to-end check; this test
+  // pins the source-level fix that closes it.
+  const vulnerable = "        offset = jxlpBox.offset + jxlpBox.size;\n";
+  const first = patchImageSizeJxlPartialStreams(vulnerable);
+  assert.equal(first.changed, true);
+  assert.match(first.text, /jxlpBox\.offset \+ \(jxlpBox\.size > 0 \? jxlpBox\.size : 8\)/);
+  const second = patchImageSizeJxlPartialStreams(first.text);
   assert.equal(second.changed, false);
 });
 
