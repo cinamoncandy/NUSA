@@ -42,7 +42,7 @@ export interface PaperAutoLearningRuntimeOptions {
   readonly control: () => {
     readonly killSwitchActive: boolean;
     readonly tradingAllowed: boolean;
-    readonly overallHealth: "HEALTHY" | "DEGRADED" | "HALTED";
+    readonly overallHealth: "HEALTHY" | "DEGRADED" | "DOWN";
   };
   readonly evidence?: Pick<PaperScenarioEvidenceRecorder, "sessionObserved" | "orderCompleted" | "duplicateOrderChecked">;
   readonly research?: Pick<ResearchAutomationRuntime, "onMarketData">;
@@ -122,7 +122,7 @@ export class PaperAutoLearningRuntime {
     try {
       this.validateObservation(observation);
       const control = this.options.control();
-      if (control.killSwitchActive || !control.tradingAllowed || control.overallHealth === "HALTED") {
+      if (control.killSwitchActive || !control.tradingAllowed || control.overallHealth === "DOWN") {
         this.status = "HALTED";
         this.lastReason = "PAPER_RISK_HALT";
         return this.snapshot();
