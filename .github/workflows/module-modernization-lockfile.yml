@@ -23,8 +23,10 @@ jobs:
           node-version: '24'
       - name: Enable pnpm
         run: corepack enable && corepack prepare pnpm@11.7.0 --activate
-      - name: Regenerate lockfile
-        run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+      - name: Rebuild lockfile from a clean resolution
+        run: |
+          pnpm clean --lockfile
+          pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
       - name: Commit regenerated lockfile
         run: |
           if git diff --quiet -- pnpm-lock.yaml; then
