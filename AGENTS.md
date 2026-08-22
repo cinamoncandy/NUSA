@@ -58,6 +58,19 @@ Before changing code:
 - Do not claim tests passed unless they were actually run or CI confirms them.
 - Update AIPOS state whenever architecture, scope, current work, or next work changes.
 
+## PR and CI noise prevention
+
+These rules are mandatory for every AI coding agent and are specifically intended to prevent repeated failing GitHub Actions runs and notification spam.
+
+1. **Do not open, reopen, or refresh a pull request before local validation passes.** At minimum run the relevant targeted tests plus `pnpm run preflight`; for changes that can affect repository-wide contracts, run the work-order validation command or `pnpm run validate:full` when available.
+2. **One task = one active branch = one active PR.** Before creating a branch or PR, search for an existing open PR for the same task and continue there. Never create a follow-up PR merely because CI failed.
+3. **A closed PR is dead unless the owner explicitly asks to revive it.** Do not reopen a closed PR, push new commits to its old remote branch, or create another PR from that same branch automatically.
+4. **When CI fails, stop remote churn.** Diagnose locally, fix locally, and rerun the failing test locally. Push only after the local reproduction passes. Do not use GitHub CI as an iterative debugger.
+5. **Never push speculative fixes one-by-one to make CI discover the next stale assertion.** Search the affected contract/test family first and correct the whole known stale set locally before the next push.
+6. **Do not auto-create replacement PRs.** If a PR was closed by the owner or by cleanup, leave it closed and wait for an explicit new instruction before opening any replacement.
+7. **Respect notification-stop instructions as a hard hold.** If the owner says to stop CI/failure emails or stop opening PRs, no agent may create/reopen/synchronize a PR until the owner explicitly resumes that work.
+8. PR descriptions must report the exact local validation actually run. Missing validation means the PR must remain local and must not be opened.
+
 ## Trading research rules
 
 - Do not promote a strategy based only on in-sample backtests.
