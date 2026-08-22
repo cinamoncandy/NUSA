@@ -14,7 +14,12 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(home, /PAPER 연결/);
   assert.match(home, /분석 보기/);
   assert.match(home, /시장 보기/);
-  assert.match(home, /const blocked = Boolean\(notConfigured \|\| readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /export type HomeDestination = "Markets" \| "Paper" \| "AiSignal" \| "Portfolio"/);
+  assert.match(home, /const localPaperMode = snapshot == null && notConfigured != null/);
+  assert.match(home, /const blocked = Boolean\(\(!localPaperMode && notConfigured\) \|\| readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /onNavigate\("Paper"\)/);
+  assert.match(home, /PAPER · LOCAL READY/);
+  assert.match(home, /LOCAL PAPER는 Cloud 연결 없이 Upbit 공개 시세로 바로 모의거래를 시작합니다/);
   assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
   assert.match(home, /aiInsightAvailable\s*\? "분석 보기"/s);
