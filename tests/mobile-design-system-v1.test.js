@@ -11,15 +11,14 @@ test("mobile presets keep brand actions monochrome and reserve chromatic colors 
 
   // Brand action colors are defined by each preset but remain neutral/monochrome.
   assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master:[\s\S]*?primary: "#F2EFE6"[\s\S]*?primary: "#17181B"/);
+  assert.match(source, /master:[\s\S]*?primary: "#F7F9FC"[\s\S]*?primary: "#0F172A"/);
   assert.match(source, /primary: palette\.primary/);
 
   // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
-  // resolves per mode -- the dark-tuned hues fall to as little as ~1.5:1 contrast on a light
-  // surface, so a light-mode variant exists for each rather than one value used unconditionally.
-  assert.match(source, /aiSignalStart: dark \? "#9B6CFF" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalMid: dark \? "#5B8CFF" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalEnd: dark \? "#36D8CB" : "#[0-9A-F]{6}"/);
+  // resolves per mode so contrast can be tuned independently on dark and light surfaces.
+  assert.match(source, /aiSignalStart: dark \? "#7C5CFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalMid: dark \? "#417EFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalEnd: dark \? "#2DD4BF" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
 });
 
@@ -49,7 +48,7 @@ test("Android APEX launcher and splash assets remain monochrome", () => {
     "apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher_round.xml",
   ]) {
     const source = read(file);
-    assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB/);
+    assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB|#7C5CFF|#417EFF|#2DD4BF/);
     assert.match(source, /#FFFFFFFF/);
   }
 });
