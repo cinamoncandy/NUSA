@@ -100,8 +100,13 @@ function loadRepositoryInputs(root = process.cwd()) {
   const safety = readJson(root, path.join("config", "safety", "architecture.json"));
   const shadow = readJson(root, path.join("config", "shadow", "governance.json"));
   const restricted = readJson(root, path.join("config", "live", "restricted-live-governance.json"));
-  const shadowRuntimePath = path.join(root, shadow?.runtime_binding?.implementation || "");
-  const shadowRuntimeSource = fs.existsSync(shadowRuntimePath) ? fs.readFileSync(shadowRuntimePath, "utf8") : "";
+  const implementation = shadow?.runtime_binding?.implementation;
+  const shadowRuntimePath = typeof implementation === "string" && implementation.length > 0
+    ? path.join(root, implementation)
+    : null;
+  const shadowRuntimeSource = shadowRuntimePath && fs.existsSync(shadowRuntimePath) && fs.statSync(shadowRuntimePath).isFile()
+    ? fs.readFileSync(shadowRuntimePath, "utf8")
+    : "";
   const aiGuard = spawnSync(process.execPath, [path.join(root, "scripts", "validate-ai-zero-authority.js")], {
     cwd: root,
     encoding: "utf8",
