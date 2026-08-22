@@ -1,5 +1,0 @@
-# Production signing intentionally opts into electron-builder's PE resource/signing path.
-# The default package config remains unsigned and non-mutating until this workflow has credentials.
-win:
-  signAndEditExecutable: true
-  signExecutable: true

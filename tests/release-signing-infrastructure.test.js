@@ -41,16 +41,11 @@ test("release manifest verifier fails closed on commit mismatch, unsafe descript
   assert.notEqual(result.status, 0);
 });
 
-test("production signing workflow is manual, exact-SHA bound, and fail-closed without secrets", () => {
-  const workflow = fs.readFileSync(".github/workflows/windows-production-signing.yml", "utf8");
-  const verifier = fs.readFileSync("scripts/verify-windows-authenticode.ps1", "utf8");
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /source_commit:/);
-  assert.match(workflow, /secrets\.WIN_CSC_LINK/);
-  assert.match(workflow, /secrets\.WIN_CSC_KEY_PASSWORD/);
-  assert.match(workflow, /SIGNING_CREDENTIALS_UNAVAILABLE/);
-  assert.match(workflow, /verify-windows-authenticode\.ps1/);
-  assert.match(verifier, /Get-AuthenticodeSignature/);
-  assert.match(verifier, /AUTHENTICODE_TIMESTAMP_MISSING/);
-  assert.match(verifier, /productionMutationAllowed = \$false/);
+test("private Windows packaging remains explicitly unsigned and public signing infrastructure is absent", () => {
+  const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  assert.equal(packageJson.build?.win?.signAndEditExecutable, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(packageJson.scripts ?? {}, "package:win:production"), false);
+  assert.equal(fs.existsSync(".github/workflows/windows-production-signing.yml"), false);
+  assert.equal(fs.existsSync("electron-builder.production.yml"), false);
+  assert.equal(fs.existsSync("scripts/verify-windows-authenticode.ps1"), false);
 });
