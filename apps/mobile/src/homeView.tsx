@@ -6,6 +6,7 @@ import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
+import { getLocalPaperState, subscribeLocalPaper, type LocalPaperState } from "./localPaperStore";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -48,24 +49,32 @@ export function HomeView({
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
+  const [localState, setLocalState] = React.useState<LocalPaperState>(() => getLocalPaperState());
+  React.useEffect(() => subscribeLocalPaper(setLocalState), []);
 
-  const account = snapshot?.portfolio?.account ?? null;
+  const cloudAccount = snapshot?.portfolio?.account ?? null;
+  const usingLocalPaper = notConfigured !== null;
+  const account = usingLocalPaper ? localState.portfolio.account : cloudAccount;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
-  const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
+  const aiInsightAvailable = !usingLocalPaper && ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
   const calibratedConfidence = aiInsightAvailable && ai?.calibrationStatus === "CALIBRATED"
     ? `${Math.round(ai.confidence * 100)}%`
     : undefined;
-  const disconnected = notConfigured != null;
-  const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
-  const statusLabel = snapshot
-    ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
-    : notConfigured
-      ? "PAPER · 연결 필요"
-      : "PAPER · 대기";
-  const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
-  const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
+  const disconnected = false;
+  const signalReady = usingLocalPaper
+    ? localState.markPrice != null
+    : snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
+  const statusLabel = usingLocalPaper
+    ? `LOCAL PAPER · ${signalReady ? "READY" : "시세 대기"}`
+    : snapshot
+      ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
+      : readOnlyError
+        ? "PAPER · 오류"
+        : "PAPER · 대기";
+  const statusTone = usingLocalPaper ? healthTone(signalReady ? "READY" : "WAITING") : snapshot ? healthTone(snapshot.health) : readOnlyError ? "danger" as const : "warning" as const;
+  const terrainStrength = signalReady ? 0.92 : snapshot || usingLocalPaper ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable
     ? "NUSA 검증 분석 신호"
     : signalReady
@@ -86,16 +95,18 @@ export function HomeView({
     color: theme.colors.text,
   } as const;
 
-  const blocked = Boolean(notConfigured || readOnlyError || !signalReady);
-  const primaryLabel = notConfigured
-    ? "PAPER 연결"
+  const blocked = Boolean(readOnlyError || !signalReady);
+  const primaryLabel = usingLocalPaper
+    ? "시장 보기"
     : readOnlyError
       ? "다시 확인"
       : aiInsightAvailable
         ? "분석 보기"
         : "시장 보기";
-  const primaryDetail = notConfigured
-    ? "PAPER 시장 데이터를 연결하면 NUSA가 분석을 시작합니다."
+  const primaryDetail = usingLocalPaper
+    ? signalReady
+      ? "LOCAL PAPER와 동일한 Upbit 공개 시장 데이터를 확인합니다."
+      : "Upbit 공개 시세가 준비되면 LOCAL PAPER 주문을 사용할 수 있습니다."
     : readOnlyError
       ? "현재 연결 상태를 복구한 뒤 시장 판단을 다시 확인합니다."
       : aiInsightAvailable
@@ -104,25 +115,22 @@ export function HomeView({
           ? "시장 데이터는 준비됐습니다. 검증된 판단을 기다리고 있습니다."
           : "시장 상태와 연결 상태를 확인합니다.";
   const runPrimaryAction = () => {
-    if (notConfigured || readOnlyError) {
+    if (!usingLocalPaper && readOnlyError) {
       onGoSettings();
       return;
     }
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  // notConfigured has its own single merged recovery block below (title + Signal Field +
-  // one CTA) instead of a separate notice -- see the `disconnected` branch. Duplicating that
-  // guidance here as a second OperationalNotice is exactly the repeated-explanation defect a
-  // real device surfaced: the same "connect PAPER" state described twice with two buttons that
-  // both call onGoSettings.
-  const notice = readOnlyError
-    ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
-    : null;
+  const notice = usingLocalPaper
+    ? { title: signalReady ? "LOCAL PAPER 사용 가능" : "Upbit 공개 시세를 기다리는 중", detail: "TRADE와 PORTFOLIO가 같은 LOCAL PAPER 원장을 사용합니다.", tone: signalReady ? "success" as const : "warning" as const }
+    : readOnlyError
+      ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
+      : null;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
-    refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
+    refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={usingLocalPaper ? () => undefined : onRefresh} />}
     testID="home-screen"
   >
     <View style={styles.wordmarkHeader}>
@@ -133,9 +141,9 @@ export function HomeView({
     <MotionReveal testID="home-hero-reveal">
       <View style={styles.equitySection} testID="account-hero-card">
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
-        {disconnected ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
+        {account == null ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
           <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>
-            {account ? krw(account.equity) : "-"}
+            {krw(account.equity)}
           </Text>
           <View style={styles.pnlRow}>
             <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>
@@ -158,25 +166,7 @@ export function HomeView({
       </View>
     </MotionReveal>
 
-    {disconnected ? <View testID="ai-card">
-      <View style={[styles.decisionStage, styles.decisionStageCompact, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
-        <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
-        <View style={styles.terrainCompact}>
-          <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
-        </View>
-        <View style={styles.decisionCopy} testID="home-pending-decision">
-          <Text style={[styles.body, { color: theme.colors.textMuted }]}>시장 데이터가 아직 연결되지 않았습니다.</Text>
-        </View>
-      </View>
-      <OperationalNotice
-        title="PAPER를 연결하면 시장 분석과 모의거래를 시작합니다"
-        tone="warning"
-        actionLabel="PAPER 연결"
-        onAction={onGoSettings}
-        actionTestID="dashboard-open-settings"
-        testID="home-operational-notice"
-      />
-    </View> : <>
+    {disconnected ? <View testID="ai-card" /> : <>
       <View testID="ai-card">
         <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
         <View style={styles.decisionHeader}>
@@ -208,9 +198,7 @@ export function HomeView({
         title={notice.title}
         detail={notice.detail}
         tone={notice.tone}
-        actionLabel="설정에서 연결"
-        onAction={onGoSettings}
-        actionTestID="dashboard-open-settings"
+        {...(!usingLocalPaper ? { actionLabel: "설정에서 연결", onAction: onGoSettings, actionTestID: "dashboard-open-settings" } : {})}
         testID="home-operational-notice"
       /> : null}
 
@@ -242,8 +230,8 @@ export function HomeView({
         <Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "진단 닫기" : "진단 보기"}</Text>
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
-        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={snapshot ? "success" : "warning"} />
-        <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
+        <CompactMetric label="PAPER 연결" value={usingLocalPaper ? "LOCAL" : snapshot ? "연결됨" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={signalReady ? "success" : "warning"} />
+        <CompactMetric label="안전 게이트" value={signalReady ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={signalReady ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
         <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
         <CompactMetric label="Production mutation" value="false" detail="fail-closed" />
@@ -270,9 +258,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, lineHeight: 16 },
   body: { fontSize: 13, lineHeight: 20 },
   decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
-  // Pre-connection only: the Signal Field has nothing real to show yet, so it is clipped down
-  // to a quiet sliver instead of standing at full hero height and reading as "analysis in
-  // progress" before there is any market data to analyze.
   decisionStageCompact: { paddingBottom: 12, gap: 8 },
   terrainCompact: { height: 72, overflow: "hidden", opacity: 0.7 },
   decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
