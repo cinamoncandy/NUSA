@@ -15,6 +15,6 @@ test('PAPER learning observability replays one deterministic cycle without dupli
   recorder.record({ ...base, stage: 'LEARNING', reason: 'PAPER_OUTCOME_FORWARDED_TO_RESEARCH' });
   const replay = recorder.replay();
   assert.equal(replay.length, 6);
-  assert.deepEqual(replay.map((event) => event.stage), ['DECISION', 'FILL', 'LEARNING', 'MARKET_DATA', 'ORDER_INTENT', 'PNL'].sort());
+  assert.deepEqual([...replay.map((event) => event.stage)].sort(), ['DECISION', 'FILL', 'LEARNING', 'MARKET_DATA', 'ORDER_INTENT', 'PNL'].sort());
   assert.ok(replay.every((event) => event.mode === 'PAPER'));
 });
