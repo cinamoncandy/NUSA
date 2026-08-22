@@ -49,8 +49,11 @@ test("PAPER exposes independent local simulation while cloud submit stays author
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /testID="paper-order-ticket"/);
-  assert.match(trading, /const requestSubmit = \(\) =>/);
-  assert.match(trading, /const submitBuiltIn = async \(\) =>/);
+  assert.match(trading, /const requestSubmit = \(\): void =>/);
+  assert.match(trading, /const submitBuiltIn = async \(\): Promise<void> =>/);
+  assert.match(trading, /if \(usingLocalPaper\)[\s\S]*placeLocalPaperOrder\(/);
+  assert.match(trading, /if \(!configuredEndpoint \|\| !isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity\(/);
   assert.match(trading, /setConfirming\(true\)/);
 });
 
@@ -63,4 +66,5 @@ test("authority hierarchy closeout preserves AI zero-authority and PAPER-only mu
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(trading, /liveMutationAllowed: false/);
   assert.doesNotMatch(trading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
+  assert.doesNotMatch(trading, /\/api\/(?:live|withdraw|transfer)/i);
 });
