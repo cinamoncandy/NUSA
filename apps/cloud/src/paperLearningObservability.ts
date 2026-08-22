@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { PaperAccountState, PaperExecutionResult, PaperFillRecord } from "./paperTradingExecutionLoop";
 
-export type PaperLearningStage = "MARKET_DATA" | "DECISION" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR";
+export type PaperLearningStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
+export interface PaperLearningGate { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
+export interface PaperLearningRisk { readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; readonly limits?: Readonly<Record<string, number>>; }
+export interface PaperLearningEvidence { readonly evidenceId?: string; readonly inputHash?: string; readonly score?: number; readonly outcome?: "PROMOTE" | "REJECT" | "PAUSE" | "UNCHANGED"; }
 export interface PaperLearningEvent {
   readonly id: string;
   readonly cycleId: string;
@@ -12,8 +15,15 @@ export interface PaperLearningEvent {
   readonly market: string;
   readonly status: "PASS" | "SKIP" | "FAIL";
   readonly reason?: string;
+  readonly strategyId?: string;
+  readonly candidateId?: string;
+  readonly championId?: string;
+  readonly signal?: { readonly action: "BUY" | "SELL" | "HOLD"; readonly confidence?: number };
+  readonly gates?: readonly PaperLearningGate[];
+  readonly risk?: PaperLearningRisk;
+  readonly evidence?: PaperLearningEvidence;
   readonly decision?: Pick<CioDecision, "symbol" | "action" | "allocation" | "confidence" | "decidedAt">;
-  readonly fill?: Pick<PaperFillRecord, "id" | "orderId" | "side" | "quantity" | "price" | "fee" | "filledAt">;
+  readonly fill?: Pick<PaperFillRecord, "id" | "orderId" | "side" | "quantity" | "price" | "fee" | "filledAt"> & { readonly slippage?: number };
   readonly account?: Pick<PaperAccountState, "cash" | "equity" | "realizedPnL" | "unrealizedPnL" | "updatedAt">;
 }
 
