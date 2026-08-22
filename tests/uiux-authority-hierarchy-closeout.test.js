@@ -49,8 +49,8 @@ test("PAPER exposes independent local simulation while cloud submit stays author
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /testID="paper-order-ticket"/);
-  assert.match(trading, /const requestSubmit = \(\) =>/);
-  assert.match(trading, /const submitBuiltIn = async \(\) =>/);
+  assert.match(trading, /const requestSubmit = \(\): void =>/);
+  assert.match(trading, /const submitBuiltIn = async \(\): Promise<void> =>/);
   assert.match(trading, /setConfirming\(true\)/);
 });
 
