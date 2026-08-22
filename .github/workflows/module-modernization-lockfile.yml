@@ -1,0 +1,30 @@
+name: Module Modernization Lockfile
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/package.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/module-modernization-lockfile.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.7.0 --activate
+      - name: Regenerate lockfile
+        run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-pnpm-lock
+          path: pnpm-lock.yaml
+          if-no-files-found: error
