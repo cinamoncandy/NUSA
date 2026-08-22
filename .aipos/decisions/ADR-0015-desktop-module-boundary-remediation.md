@@ -2,7 +2,7 @@
 
 ## Status
 
-IMPLEMENTED (all five items addressed; item 4 partially, by deliberate
+IMPLEMENTED (all five items addressed; item 4 fully, in two stages by deliberate
 design -- see below). Recorded per `.aipos/architecture-governance.json`
 lifecycle (`PROPOSAL -> IMPACT_ANALYSIS -> ARCHITECTURE_REVIEW -> MIGRATION_PLAN
 -> APPROVAL -> STAGED_ADOPTION -> VERIFICATION`) because every item below
@@ -226,6 +226,44 @@ its own AIPOS synchronization:
    (possibly mistaken) understanding of the invariants. That
    characterization work, and the orchestration split itself, are
    appropriately a separate, explicitly-scoped follow-up.
+
+   Stage 2 (orchestration split) -- DONE, follow-up session. The existing
+   85+ Shadow-specific tests across six test files were judged adequate
+   characterization coverage for the concern being extracted (market-data
+   health classification: WebSocket status, market-connection-state
+   episodes, ticker health/staleness, and official-candle sync/gap
+   detection), since their ordering assertions overlap precisely with the
+   code being moved -- so the recorded precondition above is satisfied by
+   that existing coverage rather than by new characterization tests written
+   for this change specifically.
+
+   Extracted the concern into `shadowMarketConnectionTracker.ts`
+   (`ShadowMarketConnectionTracker`), which now owns the candle adapter,
+   `marketDataStatus`, `webSocketConnected`, official-candle bookkeeping,
+   closed-candle history, market-connection diagnostics/episodes, and
+   `lastMarketMessageAt`. `onWebSocketStatus`/`onMarketConnectionState`/
+   `onTicker`'s bodies moved verbatim, with the key risk this ADR flagged --
+   that extracting stateful logic could silently reorder the class's
+   `autoPauseIfRunning`/`haltActiveSession` side effects -- addressed by
+   having the tracker return an ordered list of decision objects
+   (`ShadowMarketAction`, `{kind: "AUTO_PAUSE"|"HALT", reasonCodes}`)
+   instead of calling those mutators itself; `shadowOperationalRuntime.ts`
+   applies them in the returned order via a new `applyMarketActions`
+   helper, immediately after any episode-recording side effects that must
+   still happen first (preserved by keeping episode recording in the
+   orchestrator, driven by the tracker's returned `newEpisodes`). This
+   preserves the original per-tick "last action wins" overwrite semantics
+   on `blockers` exactly, since actions are still applied one at a time in
+   original call order rather than batched or reordered.
+
+   Verified: `tsc --noEmit` (root + mobile) clean, full rebuild clean, all
+   122 Shadow-specific tests individually green, full `node --test
+   tests/*.test.js` at 3214/3217 (matching the established baseline
+   exactly -- the same three pre-existing, environment-dependent failures:
+   two Node-runtime deprecation-warning-noise assertions in
+   `tests/evidence-cli-contract.test.js`, one OS-keychain dependency in
+   `tests/secure-storage.test.js`), every architecture/safety validator
+   PASS, and `validate-architecture`'s type-cycle count unchanged at 2.
 5. DONE. Unlike items 2 and 4, this file had no deeply-shared mutable
    in-memory state across its ~35 methods -- each domain's read/write
    methods are (mostly) self-contained SQL against `this.db`, so the split
@@ -256,13 +294,11 @@ its own AIPOS synchronization:
 
 ## Consequences
 
-All five items have a landed result. The one piece deliberately left
-outstanding is the stateful-orchestration half of item 4 -- splitting
-`onClosedCandle`/`dispatchShadowSignal`/`tryResumeAfterMarketRecovery`/
-`haltActiveSession`'s cross-concern read/write ordering apart -- which item
-4's entry above records as unsafe to attempt without a characterization
-pass this session did not have the verification means (no live Electron
-process) to build with confidence. This ADR exists so the next AI or human
-collaborator (per the cross-AI continuity contract) can pick that up as a
-scoped, reviewable, individually-synchronized change instead of one large
-unreviewed rewrite.
+All five items have a landed result, including item 4's stateful
+orchestration split (market-data health classification), completed as a
+follow-up once the recorded characterization precondition was judged
+satisfied by existing test coverage. This ADR remains the record of that
+precondition and of the "return ordered decisions, orchestrator applies
+them" pattern used to satisfy it without reordering side effects, for the
+next AI or human collaborator (per the cross-AI continuity contract) doing
+similar extractions elsewhere in this codebase.
