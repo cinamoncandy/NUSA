@@ -76,15 +76,14 @@ export function HomeView({
     : null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const disconnected = notConfigured != null;
-  const runtimeLiveEnabled = snapshot?.productionMutationAllowed === true;
+  const liveLabel = snapshot?.liveAuthority ?? "UNKNOWN";
   const statusLabel = snapshot
     ? `PAPER · ${signalReady ? "READY" : "CHECK"}`
     : disconnected
       ? "PAPER · CONNECT"
       : "PAPER · WAIT";
   const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
-  const liveLabel = runtimeLiveEnabled ? "AUTHORIZED" : "OFF";
-  const liveTone = runtimeLiveEnabled ? "warning" as const : "success" as const;
+  const liveTone = liveLabel === "NONE" ? "success" as const : "warning" as const;
   const terrainStrength = aiInsightAvailable ? Math.max(0.35, Math.min(1, ai?.confidence ?? 0.72)) : signalReady ? 0.58 : 0.22;
 
   const contentStyle = {
@@ -122,8 +121,8 @@ export function HomeView({
             <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>TOTAL PAPER EQUITY</Text>
             <Text style={[styles.heroCaption, { color: theme.colors.textMuted }]}>현재 운용 상태</Text>
           </View>
-          <View style={[styles.liveBadge, { backgroundColor: runtimeLiveEnabled ? theme.colors.primarySoft : theme.colors.surfaceRaised, borderColor: theme.colors.borderStrong }]}>
-            <View style={[styles.liveDot, { backgroundColor: runtimeLiveEnabled ? theme.colors.warning : theme.colors.textMuted }]} />
+          <View style={[styles.liveBadge, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.borderStrong }]}>
+            <View style={[styles.liveDot, { backgroundColor: liveLabel === "NONE" ? theme.colors.textMuted : theme.colors.warning }]} />
             <Text style={[styles.liveBadgeText, { color: theme.colors.text }]}>LIVE {liveLabel}</Text>
           </View>
         </View>
@@ -243,7 +242,7 @@ export function HomeView({
         <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : disconnected ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : "warning"} />
         <CompactMetric label="안전 게이트" value={signalReady ? "준비됨" : "차단"} detail="Kill Switch / Risk 보호" tone={signalReady ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "대기"} detail="AI는 실행 권한을 직접 갖지 않음" tone={aiInsightAvailable ? "info" : "default"} />
-        <CompactMetric label="LIVE capability" value={liveLabel} detail={runtimeLiveEnabled ? "runtime authority active" : "기본 비활성"} tone={runtimeLiveEnabled ? "warning" : "default"} />
+        <CompactMetric label="LIVE authority" value={liveLabel} detail={snapshot ? "runtime snapshot" : "상태 대기"} tone={liveLabel === "NONE" ? "default" : "warning"} />
       </View> : null}
     </View>
   </ScrollView>;
