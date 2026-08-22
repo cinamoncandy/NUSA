@@ -4,13 +4,13 @@ import { NusaButton, NusaTextField, StatusChip } from "./components";
 import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
-import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState, type UpbitReadOnlyMonitorStatus } from "./upbitReadOnlyAccount";
 
 type ConnectionState =
   | Readonly<{ status: "DISCONNECTED"; detail: string }>
   | Readonly<{ status: "CONNECTING"; detail: string }>
-  | Readonly<{ status: "READY"; detail: string; fetchedAt: number }>
-  | Readonly<{ status: "ERROR"; detail: string }>;
+  | Readonly<{ status: "MONITORING"; monitorStatus: UpbitReadOnlyMonitorStatus; detail: string; fetchedAt: number | null }>
+  | Readonly<{ status: "ERROR"; monitorStatus: UpbitReadOnlyMonitorStatus; detail: string }>;
 
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
@@ -19,20 +19,26 @@ export function UpbitConnectionPanel() {
   const [state, setState] = useState<ConnectionState>({ status: "DISCONNECTED", detail: "Upbit bridge credential is not configured." });
 
   const busy = state.status === "CONNECTING";
-  const connected = state.status === "READY";
-  const tone = busy ? "info" : connected ? "success" : state.status === "ERROR" ? "danger" : "warning";
-  const label = busy ? "확인 중" : connected ? "연결됨" : state.status === "ERROR" ? "연결 실패" : "연결 필요";
+  const monitoring = state.status === "MONITORING";
+  const monitorStatus = state.status === "MONITORING" || state.status === "ERROR" ? state.monitorStatus : null;
+  const tone = busy ? "info" : monitorStatus === "CONNECTED" ? "success" : monitorStatus === "AUTH_ERROR" || monitorStatus === "RELAY_ERROR" ? "danger" : "warning";
+  const label = busy ? "확인 중" : monitorStatus ?? (state.status === "ERROR" ? "OFFLINE" : "연결 필요");
 
   const connect = async (): Promise<void> => {
     if (busy) return;
     setState({ status: "CONNECTING", detail: "HTTPS read-only 계정 연결을 확인하고 있습니다." });
     const result = await connectUpbitReadOnlyAccount(tokenDraft, endpointDraft);
-    if (result.status === "READY" && result.snapshot) {
+    if ((result.status === "READY" || result.status === "STALE") && result.snapshot) {
       setTokenDraft("");
-      setState({ status: "READY", detail: `READ ONLY · ${result.snapshot.assets.length + 1} assets · 30초 자동 갱신`, fetchedAt: result.snapshot.fetchedAt });
+      setState({
+        status: "MONITORING",
+        monitorStatus: result.monitorStatus,
+        detail: `READ ONLY · ${result.snapshot.assets.length + 1} assets · 30초 자동 갱신`,
+        fetchedAt: result.lastSuccessAt,
+      });
       return;
     }
-    setState({ status: "ERROR", detail: result.error ?? "Upbit bridge connection failed." });
+    setState({ status: "ERROR", monitorStatus: result.monitorStatus, detail: result.error ?? "Upbit bridge connection failed." });
   };
 
   const disconnect = (): void => {
@@ -54,10 +60,10 @@ export function UpbitConnectionPanel() {
     <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Upbit bridge endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-upbit-endpoint" />
     <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="Bridge token" value={tokenDraft} onChangeText={setTokenDraft} placeholder="프로세스 메모리에만 유지" returnKeyType="done" secureTextEntry testID="settings-upbit-token" />
     <Text style={[styles.hint, { color: theme.colors.textMuted }]}>토큰은 저장하지 않고 현재 앱 프로세스 메모리에만 유지합니다. 연결 후 계좌 상태는 30초마다 자동 갱신됩니다. 이 연결은 계정 조회 전용이며 주문·출금 권한을 제공하지 않습니다.</Text>
-    {state.status === "READY" ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-upbit-last-success">연결 확인 시각: {new Date(state.fetchedAt).toLocaleString("ko-KR")}</Text> : null}
+    {state.status === "MONITORING" && state.fetchedAt != null ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-upbit-last-success">마지막 성공 조회: {new Date(state.fetchedAt).toLocaleString("ko-KR")}</Text> : null}
     <View style={styles.row}>
       <NusaButton disabled={busy} label={busy ? "연결 확인 중..." : "연결 확인"} onPress={() => void connect()} testID="settings-upbit-connect" />
-      <NusaButton disabled={busy || !connected} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-upbit-disconnect" />
+      <NusaButton disabled={busy || !monitoring} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-upbit-disconnect" />
     </View>
   </View>;
 }
