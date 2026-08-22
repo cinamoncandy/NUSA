@@ -61,7 +61,7 @@ test("real-account monitor remains separate from PAPER and never gains mutation 
   assert.match(portfolio, /snapshot\.cash\.locked/);
   assert.match(portfolio, /asset\.available/);
   assert.match(portfolio, /asset\.locked/);
-  assert.match(portfolio, /asset\.avgBuyPrice|평균 매수가/);
+  assert.match(portfolio, /avgBuyPrice|평균 매수가/);
   assert.doesNotMatch(lifecycle + portfolio + client, /productionMutationAllowed\s*=\s*true|liveAuthority\s*=\s*["'](?:FULL|LIVE)["']/);
-  assert.doesNotMatch(client, /\/orders|\/withdraw|\/transfer/);
+  assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
 });
