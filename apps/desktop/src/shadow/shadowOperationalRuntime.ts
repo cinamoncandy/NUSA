@@ -12,6 +12,7 @@ import { buildMarketConnectionEvidence, type MarketConnectionEvidence } from "..
 import { computeShadowReadinessBlockers } from "./shadowReadinessBlockers";
 import { buildShadowOperationalDiagnostics, buildShadowLongRunningSourceSnapshot } from "./shadowDiagnosticsProjection";
 import { ShadowMarketConnectionTracker, type ShadowMarketAction } from "./shadowMarketConnectionTracker";
+import { ShadowCandleAdmissionTracker } from "./shadowCandleAdmissionTracker";
 
 type PaperSide = "BUY" | "SELL";
 
@@ -167,6 +168,7 @@ const MARKET_EPISODE_EVENT_STATE = Object.freeze({
 export class ShadowOperationalRuntime {
   private lifecycle: ShadowLifecycleStatus = "IDLE";
   private readonly marketData: ShadowMarketConnectionTracker;
+  private readonly candleAdmission: ShadowCandleAdmissionTracker;
   private pilot?: ShadowPilotRuntime;
   private blockers: readonly string[] = [];
   private lastClosedCandleTime?: number;
@@ -181,22 +183,12 @@ export class ShadowOperationalRuntime {
   private readonly completionHistory: ShadowCompletionEvidence[] = [];
   private evidenceRecovery: ShadowEvidenceRecoveryState = "NONE";
   private sessionStartedAt?: number;
-  /** Close time of the last candle Shadow accepted; the basis of the ordering check. */
-  private lastAdmittedCandleCloseTime?: number;
-  private outOfOrderCandleCount = 0;
-  private duplicateCandleCount = 0;
-  private staleCandleCount = 0;
-  /**
-   * Close times of candles already dispatched this session. The adapter de-duplicates
-   * *tickers*, and syncOfficialCandles de-duplicates by open time within its own source --
-   * neither notices the same closed minute arriving once from each of the two sources.
-   */
-  private readonly dispatchedCandleCloseTimes = new Set<number>();
   private readonly longRunningDiagnostics: ShadowLongRunningDiagnosticsSampler;
 
   constructor(private readonly deps: ShadowOperationalDependencies) {
     this.clockDriftToleranceMs = deps.clockDriftToleranceMs ?? 60_000;
     this.marketData = new ShadowMarketConnectionTracker(deps.symbol, deps.now?.() ?? Date.now());
+    this.candleAdmission = new ShadowCandleAdmissionTracker(deps.maxCandleAgeMs, () => this.now());
     this.longRunningDiagnostics = new ShadowLongRunningDiagnosticsSampler({
       readSource: () => this.longRunningSourceSnapshot(),
       intervalMs: deps.longRunningDiagnosticsIntervalMs ?? 0,
@@ -237,8 +229,6 @@ export class ShadowOperationalRuntime {
     if (!this.evidenceBus || !this.pilot) return;
     for (const event of this.pilot.eventsAfter(this.publishedSequence)) {
       if (!this.evidenceBus.publish(event)) {
-        // The bus refused: overflow or an already-halted bus. Either way the durable record
-        // is now incomplete, so the session must not keep producing events.
         const diagnostics = this.evidenceBus.diagnostics();
         this.onEvidenceHalt(diagnostics.haltReason ?? "SINK_WRITE_FAILED", diagnostics.haltDetail ?? "evidence publish refused");
         return;
@@ -258,19 +248,12 @@ export class ShadowOperationalRuntime {
     this.finalizeEvidence(`EVIDENCE_${reason}`, "ABORTED");
   }
 
-  /**
-   * Seals the archive. Kept off the synchronous lifecycle methods because the IPC contract
-   * returns diagnostics immediately; callers that need the sealed result await
-   * awaitEvidenceFinalized().
-   */
+  /** Seals the archive asynchronously without changing the synchronous lifecycle API. */
   private finalizeEvidence(reason: string, status: "COMPLETED" | "ABORTED"): void {
     const bus = this.evidenceBus;
     if (!bus) return;
     const completion = buildShadowCompletionEvidence({ diagnostics: this.diagnostics(), completionReason: reason, completedAt: this.now() });
     if (completion && !this.completionHistory.some((entry) => entry.sessionId === completion.sessionId)) this.completionHistory.push(completion);
-    // Written for EVERY sealed session, including one that never dropped: "the feed held for
-    // the whole observation" is a finding, and an archive that only records outages cannot
-    // state it. Such a session seals with finalReconnectState NEVER_DISCONNECTED.
     const marketConnection = this.buildMarketConnectionEvidence();
     this.evidenceFinalization = this.evidenceFinalization
       .then(() => bus.finalize(reason, status, completion ?? undefined, marketConnection))
@@ -280,14 +263,9 @@ export class ShadowOperationalRuntime {
   private buildMarketConnectionEvidence(): MarketConnectionEvidence | undefined {
     const sessionId = this.pilot?.snapshot().sessionId;
     if (sessionId === undefined) return undefined;
-    return buildMarketConnectionEvidence({
-      sessionId,
-      episodes: this.marketConnectionEpisodes(),
-      generatedAt: this.now()
-    });
+    return buildMarketConnectionEvidence({ sessionId, episodes: this.marketConnectionEpisodes(), generatedAt: this.now() });
   }
 
-  /** Resolves once any in-flight evidence write and finalize has settled. */
   async awaitEvidenceFinalized(): Promise<void> {
     await this.evidenceBus?.flush();
     await this.evidenceFinalization;
@@ -301,11 +279,6 @@ export class ShadowOperationalRuntime {
     return this.evidenceRecovery;
   }
 
-  /**
-   * A sink write can fail after publish() has already returned, so the bus halts
-   * asynchronously. Reflecting that on every diagnostics read is what stops a session from
-   * continuing to report RUNNING while its durable record is already broken.
-   */
   private reflectEvidenceHalt(): void {
     const bus = this.evidenceBus;
     if (!bus) return;
@@ -327,30 +300,13 @@ export class ShadowOperationalRuntime {
     this.finalizeEvidence(reasonCodes.join(","), "ABORTED");
   }
 
-  /** Real Upbit WebSocket connection-status callback, forwarded from main.ts's handleMarketStatus. */
   onWebSocketStatus(status: string): void {
     const result = this.marketData.onWebSocketStatus(status, this.now());
     this.applyMarketActions(result.actions);
   }
 
-  /**
-   * Structured public-feed connection state (WO-0034-A4L), forwarded from the transport.
-   *
-   * This is the state-model counterpart to `onWebSocketStatus`, which stays exactly as it
-   * was. The transport emits this FIRST, so the specific reason a session ends
-   * (MARKET_RECONNECT_TIMEOUT) is recorded before the generic status string that follows it
-   * can seal the same session under a vaguer one.
-   *
-   * It opens nothing, retries nothing and owns no timer -- the transport owns the single
-   * reconnect timer, and this runtime only reads what that supervisor measured.
-   */
   onMarketConnectionState(diagnostics: MarketConnectionDiagnostics): void {
     const result = this.marketData.onMarketConnectionState(diagnostics, this.sessionStartedAt);
-    // Each closed outage is ALSO written into the pilot's hash chain, so a reader of the
-    // archive can see the transitions inside the tamper-evident record and not only in
-    // the summary file. Both are derived from this same episode, so they cannot disagree.
-    // The summary file is still written unconditionally: it is the only one of the two
-    // that can state "this session never dropped".
     let appended = false;
     for (const episode of result.newEpisodes) {
       if (this.pilot?.snapshot().status !== "RUNNING") continue;
@@ -367,12 +323,10 @@ export class ShadowOperationalRuntime {
     this.applyMarketActions(result.actions);
   }
 
-  /** Read-only. Null until a connection supervisor has reported (WO-0034-A4L). */
   marketConnectionDiagnostics(): MarketConnectionDiagnostics | null {
     return this.marketData.marketConnectionDiagnostics();
   }
 
-  /** Connection episodes recorded for the current session, in order. */
   marketConnectionEpisodes(): readonly MarketConnectionEpisode[] {
     return this.marketData.marketConnectionEpisodes();
   }
@@ -381,10 +335,6 @@ export class ShadowOperationalRuntime {
     return this.marketData.marketFreshness(this.lastClosedCandleTime, this.deps.marketFreshnessToleranceMs, this.now());
   }
 
-  /**
-   * Whether a resume looks available. A hint for the UI and nothing more: `resume()` re-runs
-   * the whole precheck and may still refuse.
-   */
   private resumeSuggestedAfterMarketRecovery(): boolean {
     if (this.lifecycle !== "PAUSED" || this.blockers.length === 0) return false;
     if (!this.blockers.every((code) => MARKET_RECOVERABLE_PAUSE_BLOCKERS.has(code))) return false;
@@ -392,15 +342,6 @@ export class ShadowOperationalRuntime {
     return state === "CONNECTED" || state === "RECOVERED";
   }
 
-  /**
-   * Returns a session paused solely by a feed drop to RUNNING, keeping the SAME sessionId,
-   * pilot, and evidence bus -- a reconnection is not a new observation.
-   *
-   * Called from the data path rather than from the connection callback on purpose: the
-   * question is not "did a socket open" but "is this feed delivering usable data again",
-   * and only an accepted market message answers that. The full precheck still runs, so
-   * every safety gate is re-evaluated and any non-market problem keeps the session paused.
-   */
   private tryResumeAfterMarketRecovery(): void {
     if (this.deps.autoResumeOnMarketRecovery !== true) return;
     if (!this.resumeSuggestedAfterMarketRecovery()) return;
@@ -413,21 +354,14 @@ export class ShadowOperationalRuntime {
     this.blockers = [];
   }
 
-  /** Real accepted public ticker, forwarded from main.ts's handleTicker. */
   onTicker(ticker: PublicTickerSample): void {
     const result = this.marketData.onTicker(ticker, this.now(), this.clockDriftToleranceMs);
     this.applyMarketActions(result.actions);
-    // A gap, out-of-order tick, or disconnect this round means no closed candle emitted this
-    // round should drive the strategy -- "gap detected 후 strategy execution 금지".
     if (result.adverse) return;
     for (const candle of result.emittedCandles) this.onClosedCandle(candle);
-    // Deliberately last. A resume takes effect from the NEXT candle, never the one being
-    // handled: that candle's warm-up contribution is what made the resume possible, and
-    // dispatching it in the same pass would let one arrival both satisfy the gate and clear it.
     this.tryResumeAfterMarketRecovery();
   }
 
-  /** Official closed-candle path. The legacy ticker adapter remains diagnostic only. */
   async syncOfficialCandles(source: UpbitMinuteCandleSource): Promise<void> {
     const result = await this.marketData.syncOfficialCandles(source);
     if ("error" in result) {
@@ -442,33 +376,6 @@ export class ShadowOperationalRuntime {
     this.tryResumeAfterMarketRecovery();
   }
 
-  /**
-   * Decides whether a closed candle may drive a Shadow dispatch (WO-0034-A4).
-   *
-   * Returns a reason code when the candle is refused. Refusal is counted and the candle is
-   * dropped -- it is never "fixed up" into an acceptable one, because a candle the runtime
-   * had to repair is not evidence of what the market did.
-   *
-   * Deliberately does NOT gate the production signal: the real Automatic Paper path has
-   * behaved one way since A2, and quietly changing which candles reach it would be a
-   * production behaviour change smuggled in under an observation-safety change.
-   */
-  private admitClosedCandle(candle: ClosedCandle): "OK" | "NOT_CLOSED" | "DUPLICATE" | "OUT_OF_ORDER" | "STALE" {
-    if (candle.closed !== true) return "NOT_CLOSED";
-    if (this.dispatchedCandleCloseTimes.has(candle.closeTime)) return "DUPLICATE";
-    if (this.lastAdmittedCandleCloseTime !== undefined && candle.closeTime < this.lastAdmittedCandleCloseTime) return "OUT_OF_ORDER";
-    if (this.deps.maxCandleAgeMs !== undefined && this.now() - candle.closeTime > this.deps.maxCandleAgeMs) return "STALE";
-    return "OK";
-  }
-
-  /**
-   * Ends the session once the configured ceiling is reached (WO-0034-A4). Returns true when
-   * the session was stopped, so the caller knows not to keep dispatching.
-   *
-   * This is a normal completion, not a halt: reaching a planned limit is the observation
-   * working as designed, and sealing it as ABORTED would make an ordinary end look like a
-   * fault in the evidence record.
-   */
   private stopIfSessionDurationExceeded(): boolean {
     if (this.deps.maxSessionDurationMs === undefined || this.sessionStartedAt === undefined) return false;
     if (this.lifecycle !== "RUNNING" && this.lifecycle !== "PAUSED") return false;
@@ -486,32 +393,18 @@ export class ShadowOperationalRuntime {
     this.lastClosedCandleTime = candle.closeTime;
     const position = this.deps.getPositionQuantity();
     const signal = this.deps.strategy.onTick({ market: this.deps.symbol, price: candle.close, timestamp: candle.closeTime }, position);
-    // Same production signal drives real Automatic Paper trading, unconditionally, exactly
-    // as it did when triggered per-ticker -- only the trigger cadence changed. The A4
-    // admission gate below deliberately sits AFTER this call: it governs what Shadow
-    // observes, and moving it earlier would change which candles reach the real Automatic
-    // Paper path, which is a production behaviour change, not an observation-safety one.
     this.deps.onProductionSignal({ market: this.deps.symbol, price: candle.close, positionQuantity: position, signal });
 
-    // The ceiling is checked per candle rather than on a timer: a timer would end the session
-    // between candles, at a moment no evidence event corresponds to.
     if (this.stopIfSessionDurationExceeded()) return;
     if (this.lifecycle !== "RUNNING") return;
 
-    const admission = this.admitClosedCandle(candle);
-    if (admission === "DUPLICATE") this.duplicateCandleCount += 1;
-    else if (admission === "OUT_OF_ORDER") this.outOfOrderCandleCount += 1;
-    else if (admission === "STALE") this.staleCandleCount += 1;
-    // Out-of-order means the stream's ordering guarantee is already broken, so every later
-    // candle's position in the sequence is in doubt -- the session cannot honestly continue.
-    // A duplicate or a stale candle is a single bad input: count it, drop it, keep observing.
+    const admission = this.candleAdmission.admit(candle);
     if (admission === "OUT_OF_ORDER") {
       this.haltActiveSession(["CANDLE_SEQUENCE_REGRESSION"]);
       return;
     }
     if (admission !== "OK") return;
-    this.lastAdmittedCandleCloseTime = candle.closeTime;
-    this.dispatchedCandleCloseTimes.add(candle.closeTime);
+    this.candleAdmission.commit(candle);
     if (signal.type === "HOLD") return;
     this.dispatchShadowSignal(candle, signal);
   }
@@ -535,12 +428,8 @@ export class ShadowOperationalRuntime {
       reasonCodes: Object.freeze([...decision.reasonCodes]),
       quantity,
       price: candle.close,
-      // Read from the pilot's own counter rather than assuming ALLOW implies a fill: a
-      // duplicate signal is ALLOW-shaped at the gate but records no fill.
       hypotheticalFill: this.pilot.snapshot().counters.hypotheticalFillCount > fillsBefore
     });
-    // Record what happened before publishing: a publish failure halts the runtime, and the
-    // Why panel still has to be able to explain the signal that was being handled when it did.
     this.publishPendingEvents();
     if (this.lifecycle !== "RUNNING") return;
     const integrityErrors = verifyShadowPilotEvents(this.pilot.eventLog(), this.deps.sourceCommitSha);
@@ -571,15 +460,10 @@ export class ShadowOperationalRuntime {
     return result.blockers;
   }
 
-  /**
-   * Read-only owner precheck shared by diagnostics and start(). It deliberately does not
-   * create a session, an evidence bus, or any market/broker mutation.
-   */
   startPrecheckBlockers(persistRecovery = true): readonly string[] {
     return Object.freeze([...this.computeReadinessBlockers(persistRecovery)]);
   }
 
-  /** Owner-explicit only. Never called automatically by this class. */
   start(): ShadowOperationalDiagnostics {
     if (this.lifecycle !== "IDLE") throw new Error(`shadow start requires IDLE, currently ${this.lifecycle}`);
     this.lifecycle = "PRECHECK";
@@ -587,8 +471,6 @@ export class ShadowOperationalRuntime {
     const blockers = this.startPrecheckBlockers();
     if (blockers.length > 0) {
       if (blockers.length === 1 && blockers[0] === "MARKET_DATA_WARMING_UP") {
-        // Not a hard failure: a normal not-ready-yet condition. Stay retryable at IDLE
-        // rather than burning a HALTED session on nothing but an elapsed-time condition.
         this.lifecycle = "IDLE";
         this.blockers = blockers;
         return this.diagnostics();
@@ -602,11 +484,6 @@ export class ShadowOperationalRuntime {
       sessionId, createdAt: now, sourceCommitSha: this.deps.sourceCommitSha,
       symbol: this.deps.symbol, strategyId: this.deps.strategyId, fingerprints: this.deps.fingerprints
     });
-    // ShadowPilotRuntime's own precheck is kept as a second confirmation of the conditions
-    // computeReadinessBlockers() checked above. It is only a confirmation if it is given the
-    // live state: passing literals meant it could only ever return READY, so a condition
-    // computeReadinessBlockers stopped covering would pass both gates unnoticed. Read the same
-    // state that produced the blockers, so the two can actually disagree.
     const pilotSafety = this.deps.getSafetyState();
     const pilotStatus = pilot.precheck({
       paperOnly: true,
@@ -624,8 +501,6 @@ export class ShadowOperationalRuntime {
       this.blockers = pilot.snapshot().blockers;
       return this.diagnostics();
     }
-    // A fresh bus per session: a halted bus is never reused, and no previous session's
-    // queued events can leak into this one.
     try {
       this.evidenceBus = this.deps.createEvidenceBus({
         sessionId,
@@ -638,15 +513,8 @@ export class ShadowOperationalRuntime {
       return this.diagnostics();
     }
     this.publishedSequence = 0;
-    // Per-session, not per-instance: a fresh session starts with a clean candle history, so
-    // last session's final candle can never look like this session's duplicate.
     this.sessionStartedAt = now;
-    this.lastAdmittedCandleCloseTime = undefined;
-    this.dispatchedCandleCloseTimes.clear();
-    this.outOfOrderCandleCount = 0;
-    this.duplicateCandleCount = 0;
-    this.staleCandleCount = 0;
-    // Per session: a previous session's outages are that session's evidence, not this one's.
+    this.candleAdmission.reset();
     this.marketData.resetForNewSession();
     pilot.start(now);
     this.lifecycle = "RUNNING";
@@ -656,7 +524,6 @@ export class ShadowOperationalRuntime {
     return this.diagnostics();
   }
 
-  /** Owner-explicit only. Immediately stops new signal dispatch; the underlying session stays open. */
   pause(): ShadowOperationalDiagnostics {
     if (this.lifecycle !== "RUNNING") throw new Error(`shadow pause requires RUNNING, currently ${this.lifecycle}`);
     this.lifecycle = "PAUSED";
@@ -664,7 +531,6 @@ export class ShadowOperationalRuntime {
     return this.diagnostics();
   }
 
-  /** Owner-explicit only. Re-runs the full precheck; a healthy market alone never triggers this. */
   resume(): ShadowOperationalDiagnostics {
     if (this.lifecycle !== "PAUSED") throw new Error(`shadow resume requires PAUSED, currently ${this.lifecycle}`);
     const blockers = this.startPrecheckBlockers();
@@ -690,13 +556,6 @@ export class ShadowOperationalRuntime {
     return this.diagnostics();
   }
 
-  /**
-   * Explicitly releases a completed session before a later owner start. This is deliberately
-   * narrower than a restart/recovery operation: halted, failed, or invalidated sessions cannot
-   * be cleared here, and every completion must be flushed before its bus and pilot references
-   * are released. A new candle adapter also prevents a prior session's high-water mark,
-   * duplicate set, or warm-up counters from crossing the session boundary.
-   */
   async prepareForNextSession(): Promise<ShadowOperationalDiagnostics> {
     if (this.lifecycle !== "COMPLETED") {
       throw new Error(`next shadow session requires COMPLETED, currently ${this.lifecycle}`);
@@ -711,15 +570,8 @@ export class ShadowOperationalRuntime {
     this.lastClosedCandleTime = undefined;
     this.lastSignalTime = undefined;
     this.lastSignal = undefined;
-    this.lastAdmittedCandleCloseTime = undefined;
     this.publishedSequence = 0;
-    this.outOfOrderCandleCount = 0;
-    this.duplicateCandleCount = 0;
-    this.staleCandleCount = 0;
-    this.dispatchedCandleCloseTimes.clear();
-    // The next owner start must observe a fresh connection lifecycle. Keeping the adapter
-    // "connected" while it is reset would make the next "connected" callback skip
-    // markReconnected and leave the adapter permanently disconnected.
+    this.candleAdmission.reset();
     this.marketData.resetForNextSession(this.now());
     this.lifecycle = "IDLE";
     this.blockers = [];
@@ -730,6 +582,7 @@ export class ShadowOperationalRuntime {
     this.reflectEvidenceHalt();
     const session: ShadowPilotSession | undefined = this.pilot?.snapshot();
     const candleState = this.marketData.candleAdapterState();
+    const admissionState = this.candleAdmission.snapshot();
     const closedCandleCount = Math.max(candleState.closedCandleCount, this.marketData.officialClosedCandleCountValue());
     return buildShadowOperationalDiagnostics({
       lifecycle: this.lifecycle,
@@ -745,9 +598,9 @@ export class ShadowOperationalRuntime {
       sessionStartedAt: this.sessionStartedAt,
       now: this.now(),
       maxSessionDurationMs: this.deps.maxSessionDurationMs,
-      outOfOrderCandleCount: this.outOfOrderCandleCount,
-      duplicateCandleCount: this.duplicateCandleCount,
-      staleCandleCount: this.staleCandleCount,
+      outOfOrderCandleCount: admissionState.outOfOrderCandleCount,
+      duplicateCandleCount: admissionState.duplicateCandleCount,
+      staleCandleCount: admissionState.staleCandleCount,
       lastSignal: this.lastSignal,
       marketRecoveryResumeAllowed: this.deps.autoResumeOnMarketRecovery === true,
       marketRecoveryResumeSuggested: this.resumeSuggestedAfterMarketRecovery(),
