@@ -5,29 +5,36 @@ const path = require("node:path");
 
 const mobile = path.resolve(__dirname, "../apps/mobile/src");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
-const occurrences = (source, needle) => source.split(needle).length - 1;
 
-test("Home presents a single compact authority state without repeating safety badges", () => {
-  const home = read("homeView.tsx");
+function occurrences(source, value) {
+  return source.split(value).length - 1;
+}
 
-  assert.equal(occurrences(home, 'statusLabel="PAPER ONLY"'), 1);
-  assert.equal(occurrences(home, 'StatusChip label="PAPER"'), 1);
-  assert.equal(occurrences(home, 'StatusChip label="LIVE NONE"'), 1);
-  assert.equal(occurrences(home, 'StatusChip label="AI READ ONLY"'), 1);
-  assert.doesNotMatch(home, /<AuthorityBanner/);
-  assert.doesNotMatch(home, /AI ZERO AUTHORITY/);
-  assert.doesNotMatch(home, /Production mutation/);
-});
-
-test("AI view keeps one explicit zero-authority statement and one compact authority row", () => {
+test("AI presents intelligence before one compact authority summary", () => {
   const ai = read("aiView.tsx");
+  const thesisIndex = ai.indexOf('testID="ai-thesis-card"');
+  const authorityIndex = ai.indexOf('testID="ai-authority-card"');
+  const evidenceIndex = ai.indexOf('testID="ai-evidence-card"');
 
-  assert.equal(occurrences(ai, 'statusLabel="READ ONLY"'), 1);
-  assert.equal(occurrences(ai, 'label="AI ZERO AUTHORITY"'), 1);
-  assert.equal(occurrences(ai, 'label="PAPER"'), 1);
-  assert.equal(occurrences(ai, 'label="LIVE"'), 1);
+  assert.ok(thesisIndex >= 0);
+  assert.ok(evidenceIndex > thesisIndex);
+  assert.ok(authorityIndex > evidenceIndex);
+  assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
+  assert.equal(occurrences(ai, "READ ONLY"), 1);
   assert.doesNotMatch(ai, /<AuthorityBanner/);
-  assert.doesNotMatch(ai, /AI READ ONLY/);
+  assert.match(ai, /testID="ai-authority-card"/);
+  assert.match(ai, /DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\}/);
+  assert.match(ai, /DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-"/);
+  assert.match(ai, /DataRow label="킬 스위치" value=\{killSwitchActive == null \? "-"/);
+
+  const confidenceIndex = ai.indexOf('testID="ai-trusted-confidence"');
+  const diagnosticsIndex = ai.indexOf('testID="ai-diagnostics-card"');
+  const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
+  assert.ok(confidenceIndex > thesisIndex, "trusted confidence must follow thesis");
+  assert.ok(diagnosticsIndex > evidenceIndex, "diagnostics must follow evidence/counter-evidence");
+  assert.ok(zeroAuthorityIndex > diagnosticsIndex, "authority boundary must follow detail/diagnostics, not interrupt it");
+  assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
 });
 
 test("PAPER exposes independent local simulation while cloud submit stays authority-gated and LIVE remains forbidden", () => {
@@ -42,12 +49,18 @@ test("PAPER exposes independent local simulation while cloud submit stays author
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /testID="paper-order-ticket"/);
-  assert.match(trading, /localTradingService\.placePaperOrder\(/);
-  assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity\(/);
+  assert.match(trading, /const requestSubmit = \(\) =>/);
+  assert.match(trading, /const submitBuiltIn = async \(\) =>/);
+  assert.match(trading, /setConfirming\(true\)/);
+});
+
+test("authority hierarchy closeout preserves AI zero-authority and PAPER-only mutation", () => {
+  const ai = read("aiView.tsx");
+  const trading = read("tradingView.tsx");
+
+  assert.doesNotMatch(ai, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(trading, /setConfirming\(true\)/);
-  assert.match(trading, /setOrderPhase\("REVIEW"\)/);
-  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
+  assert.match(trading, /liveMutationAllowed: false/);
+  assert.doesNotMatch(trading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
 });
