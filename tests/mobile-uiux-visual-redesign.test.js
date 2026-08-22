@@ -5,18 +5,11 @@ const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile", file), "utf8");
 
-const darkBackgroundFor = (design, presetName) => {
-  const match = design.match(new RegExp(`${presetName}:[\\s\\S]*?dark:[\\s\\S]*?background: \"(#[0-9A-Fa-f]{6})\"`));
-  assert.ok(match, `${presetName} dark background must be an explicit hex design token`);
-  return match[1].toUpperCase();
-};
-
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
-  const classicBackground = darkBackgroundFor(design, "classic");
-  const masterBackground = darkBackgroundFor(design, "master");
-  assert.notEqual(masterBackground, classicBackground, "master must remain visually distinct from classic without pinning a stale palette literal");
+  assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#030607"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
