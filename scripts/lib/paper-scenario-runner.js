@@ -69,11 +69,11 @@ function validateFixture(fixture) {
 function loadProductionModules(repositoryRoot) {
   const distRoot = path.join(repositoryRoot, "dist", "apps", "desktop", "src");
   return {
-    PaperBroker: require(path.join(distRoot, "paperBroker.js")).PaperBroker,
-    ControlPlane: require(path.join(distRoot, "controlPlane.js")).ControlPlane,
-    StrategyEngine: require(path.join(distRoot, "strategyEngine.js")).StrategyEngine,
-    SmaCrossoverStrategy: require(path.join(distRoot, "strategyEngine.js")).SmaCrossoverStrategy,
-    RuntimeCommandService: require(path.join(distRoot, "runtimeCommandService.js")).RuntimeCommandService
+    PaperBroker: require(path.join(distRoot, "paper", "paperBroker.js")).PaperBroker,
+    ControlPlane: require(path.join(distRoot, "control", "controlPlane.js")).ControlPlane,
+    StrategyEngine: require(path.join(distRoot, "strategy", "strategyEngine.js")).StrategyEngine,
+    SmaCrossoverStrategy: require(path.join(distRoot, "strategy", "strategyEngine.js")).SmaCrossoverStrategy,
+    RuntimeCommandService: require(path.join(distRoot, "control", "runtimeCommandService.js")).RuntimeCommandService
   };
 }
 

@@ -50,7 +50,7 @@ test("Trading model enforces balance, mode, and live mutation gates", () => {
   assert.ok(unsafe.blockedReasons.includes("LIVE_MUTATION_DISABLED"));
 });
 
-test("Market order uses verified current price and UI exposes only verified PAPER execution", () => {
+test("Market order uses verified current price and UI exposes only PAPER execution", () => {
   const model = buildTradingViewModel(input({ draft: { side: "BUY", orderType: "MARKET", priceInput: "", quantityInput: "2" } }));
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
@@ -59,7 +59,9 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
   assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
-  assert.match(source, /<StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
+  assert.match(source, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(source, /localTradingService\.placePaperOrder/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
@@ -71,8 +73,6 @@ test("Market order uses verified current price and UI exposes only verified PAPE
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /disabled=\{!submitEnabled\}/);
   assert.match(source, /RefreshControl/);

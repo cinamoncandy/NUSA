@@ -3,9 +3,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
-const { ShadowEvidenceArchive, findIncompleteShadowArchives, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
-const { buildShadowCompletionEvidence } = require("../dist/apps/desktop/src/shadowCompletionEvidence.js");
+const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
+const { ShadowEvidenceArchive, findIncompleteShadowArchives, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
+const { buildShadowCompletionEvidence } = require("../dist/apps/desktop/src/shadow/shadowCompletionEvidence.js");
 
 function metadata(sessionId) {
   return {

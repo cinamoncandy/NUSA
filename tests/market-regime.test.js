@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildRegimeTimeline, calculateRegimeClassifierId } = require("../dist/apps/desktop/src/marketRegime.js");
+const { buildRegimeTimeline, calculateRegimeClassifierId } = require("../dist/apps/desktop/src/strategy/marketRegime.js");
 
 const candle = (index, close, volume = 100) => ({
   market: "KRW-BTC",

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseKillSwitchReleaseIpc, parseKillSwitchActivateIpc } = require("../dist/apps/desktop/src/killSwitchIpcValidation.js");
+const { parseKillSwitchReleaseIpc, parseKillSwitchActivateIpc } = require("../dist/apps/desktop/src/ipc/killSwitchIpcValidation.js");
 
 test("parseKillSwitchReleaseIpc requires the exact confirmation phrase", () => {
   assert.throws(() => parseKillSwitchReleaseIpc({ confirmationText: "paper trading enable", reason: "test" }), /confirmation phrase/);

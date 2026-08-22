@@ -23,7 +23,7 @@ test("Home uses one truthful state-bound hero signal primitive", () => {
   const components = read("src/components.tsx");
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
-  assert.match(home, /const terrainLabel = snapshot \? `PAPER 상태 신호:/);
+  assert.match(home, /const terrainLabel = aiInsightAvailable/);
   assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
@@ -46,7 +46,7 @@ test("Bottom navigation uses a restrained active rail without changing route con
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
 });
 
 test("visual redesign keeps the authority boundary unchanged", () => {

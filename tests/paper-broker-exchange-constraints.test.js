@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 test("price must align to the configured tick size", () => {
   const broker = new PaperBroker(1_000_000, "KRW-BTC", 0, { priceTick: 1000 });

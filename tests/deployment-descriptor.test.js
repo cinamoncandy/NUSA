@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { buildDescriptor, hashTree, scanCapabilities } = require("../scripts/build-deployment-descriptor.js");
-const { evaluateDeploymentSafety } = require("../dist/apps/desktop/src/independentRiskGateway.js");
+const { evaluateDeploymentSafety } = require("../dist/apps/desktop/src/risk/independentRiskGateway.js");
 const { verifyDeploymentSafetyDecision } = require("../scripts/lib/paper-risk-gateway-verifier.js");
 
 test("the artifact tree hash is deterministic and content-sensitive", (t) => {

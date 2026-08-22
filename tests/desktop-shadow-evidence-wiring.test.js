@@ -4,10 +4,10 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { createShadowEvidenceBusFactory } = require("../dist/apps/desktop/src/shadowEvidenceComposition.js");
-const { verifyShadowEvidenceDirectory, findIncompleteShadowArchives, findIncompleteShadowArchivesSync } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { createShadowEvidenceBusFactory } = require("../dist/apps/desktop/src/shadow/shadowEvidenceComposition.js");
+const { verifyShadowEvidenceDirectory, findIncompleteShadowArchives, findIncompleteShadowArchivesSync } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
 const SYMBOL = "KRW-BTC";
@@ -173,7 +173,7 @@ test("main.ts composes the evidence bus through the module the tests drive", () 
   // If main.ts ever inlines its own composition again, the behavioural tests above stop
   // covering what the application actually runs.
   assert.match(source, /createEvidenceBus: createShadowEvidenceBusFactory\(\{/);
-  assert.doesNotMatch(source, /new DomainEventBus\(/);
+  assert.doesNotMatch(source, /new ShadowEvidenceBus\(/);
   assert.doesNotMatch(source, /ShadowEvidenceArchive\.create\(/);
 });
 

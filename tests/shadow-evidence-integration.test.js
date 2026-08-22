@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { DomainEventBus, InMemoryEvidenceSink, DurableEvidenceSink } = require("../dist/apps/desktop/src/domainEventBus.js");
-const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchives } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink, DurableEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
+const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchives } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;
@@ -55,7 +55,7 @@ function makeRuntime(overrides = {}) {
     }),
     now: () => now,
     createEvidenceBus: overrides.createEvidenceBus || (({ sessionId, onHalt }) => {
-      const bus = new DomainEventBus({ sessionId, sinks: overrides.sinks || [], capacity: overrides.capacity, onHalt });
+      const bus = new ShadowEvidenceBus({ sessionId, sinks: overrides.sinks || [], capacity: overrides.capacity, onHalt });
       buses.push(bus);
       return bus;
     }),
@@ -101,7 +101,7 @@ test("every pilot event reaches the sinks exactly once, in order", async () => {
 
 test("re-publishing an already-accepted sequence is dropped rather than written twice", async () => {
   const recorder = recordingSink();
-  const bus = new DomainEventBus({ sessionId: "s1", sinks: [recorder] });
+  const bus = new ShadowEvidenceBus({ sessionId: "s1", sinks: [recorder] });
   const event = { sequence: 1, sessionId: "s1", eventType: "SESSION_STARTED" };
   assert.equal(bus.publish(event), true);
   assert.equal(bus.publish(event), true, "a duplicate is accepted-and-ignored, not an error");
@@ -114,7 +114,7 @@ test("re-publishing an already-accepted sequence is dropped rather than written 
 test("the queue is bounded and overflow halts instead of dropping an event", async () => {
   // A sink that never resolves keeps the queue from draining, so capacity is reached.
   const stalled = { name: "stalled", deliver: () => new Promise(() => {}) };
-  const bus = new DomainEventBus({ sessionId: "s1", sinks: [stalled], capacity: 2 });
+  const bus = new ShadowEvidenceBus({ sessionId: "s1", sinks: [stalled], capacity: 2 });
   assert.equal(bus.publish({ sequence: 1, sessionId: "s1" }), true);
   assert.equal(bus.publish({ sequence: 2, sessionId: "s1" }), true);
   assert.equal(bus.publish({ sequence: 3, sessionId: "s1" }), false, "third must be refused, not silently dropped");
@@ -128,7 +128,7 @@ test("the queue is bounded and overflow halts instead of dropping an event", asy
 
 test("a writer failure halts the bus and leaves the failed event undelivered", async () => {
   const recorder = recordingSink({ failOnSequence: 2 });
-  const bus = new DomainEventBus({ sessionId: "s1", sinks: [recorder] });
+  const bus = new ShadowEvidenceBus({ sessionId: "s1", sinks: [recorder] });
   bus.publish({ sequence: 1, sessionId: "s1" });
   bus.publish({ sequence: 2, sessionId: "s1" });
   bus.publish({ sequence: 3, sessionId: "s1" });
@@ -141,7 +141,7 @@ test("a writer failure halts the bus and leaves the failed event undelivered", a
 });
 
 test("a halted bus never accepts another event", () => {
-  const bus = new DomainEventBus({ sessionId: "s1", sinks: [{ name: "x", deliver: () => new Promise(() => {}) }], capacity: 1 });
+  const bus = new ShadowEvidenceBus({ sessionId: "s1", sinks: [{ name: "x", deliver: () => new Promise(() => {}) }], capacity: 1 });
   bus.publish({ sequence: 1, sessionId: "s1" });
   assert.equal(bus.publish({ sequence: 2, sessionId: "s1" }), false);
   assert.equal(bus.publish({ sequence: 3, sessionId: "s1" }), false, "still refused after halting");
@@ -259,7 +259,7 @@ test("end to end: the durable archive verifies PASS and records zero actual muta
         append: async (event, receivedAt) => (await pending).append(event, receivedAt),
         finalize: async (reason, generatedAt, status) => (await pending).finalize(reason, generatedAt, status)
       };
-      return new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer, () => 1_700_000_000_000)], onHalt });
+      return new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer, () => 1_700_000_000_000)], onHalt });
     }
   });
 

@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { ShadowLongRunningDiagnosticsSampler } = require("../dist/apps/desktop/src/shadowLongRunningDiagnostics.js");
+const { ShadowLongRunningDiagnosticsSampler } = require("../dist/apps/desktop/src/shadow/shadowLongRunningDiagnostics.js");
 
 function source(state = "RUNNING") {
   return {
@@ -236,7 +236,7 @@ test("A4K: every real-mutation counter stays zero for the whole observation", ()
 });
 
 test("A4K: the sampler places no order and reaches no authenticated endpoint", () => {
-  const code = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadowLongRunningDiagnostics.ts"), "utf8")
+  const code = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadow", "shadowLongRunningDiagnostics.ts"), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["PaperBroker", "execute(", "api.upbit.com", "access_key", "secret_key", "node:http", "fetch(", "node:fs"]) {
     assert.equal(code.includes(forbidden), false, `the sampler must not reference ${forbidden}`);

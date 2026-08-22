@@ -2,9 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { DomainEventBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/domainEventBus.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;
@@ -35,7 +35,7 @@ function makeHarness(overrides = {}) {
     onProductionSignal: (input) => productionSignals.push(input),
     riskGate: { evaluate: (command) => { riskCalls.push(command); return riskDecision; } },
     getHypotheticalOrderQuantity: () => 1,
-    createEvidenceBus: ({ sessionId, onHalt }) => new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink()], onHalt }),
+    createEvidenceBus: ({ sessionId, onHalt }) => new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink()], onHalt }),
     findIncompleteEvidence: () => [],
     getSafetyState: () => safety,
     now: () => now
@@ -104,7 +104,7 @@ test("A5-A6: a real BUY signal reaches ShadowPilotRuntime as a hypothetical fill
 });
 
 test("shadowOperationalRuntime never imports PaperBroker or the risk-gate class at runtime", () => {
-  const compiled = fs.readFileSync(path.join(__dirname, "..", "dist", "apps", "desktop", "src", "shadowOperationalRuntime.js"), "utf8");
+  const compiled = fs.readFileSync(path.join(__dirname, "..", "dist", "apps", "desktop", "src", "shadow", "shadowOperationalRuntime.js"), "utf8");
   assert.equal(/paperBroker/.test(compiled), false, "compiled output must not reference paperBroker.js -- only a type-only import was allowed");
   assert.equal(/runtimeCommandService/.test(compiled), false, "compiled output must not reference runtimeCommandService.js -- only a type-only import was allowed");
 });
@@ -320,7 +320,7 @@ test("F53: a duplicate signalId within one session cannot double-dispatch a hypo
 });
 
 test("G54-G58: shadow:start payload validation", () => {
-  const { parseShadowStartIpc } = require("../dist/apps/desktop/src/shadowIpcValidation.js");
+  const { parseShadowStartIpc } = require("../dist/apps/desktop/src/ipc/shadowIpcValidation.js");
   const strategyVersion = "sma-crossover:closed-candle-1m-v1";
   assert.deepEqual(parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion }), { symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion });
   assert.throws(() => parseShadowStartIpc({ symbol: "KRW-BTC", strategyId: "sma-crossover", strategyVersion, extra: 1 }));
@@ -341,7 +341,7 @@ test("G61-G63: an unknown channel is never reachable and status() is read-only",
 test("H64-H68: closed-candle-adapter, ShadowPilotRuntime, and CanaryPilotRuntime unit suites are untouched and independent", () => {
   // This suite reuses ShadowPilotRuntime and ClosedCandleAdapter exactly as published by
   // WO-0034-A1/the parallel WO-0033 work, and does not modify either file.
-  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadowPilotRuntime.ts")), true);
-  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "closedCandleAdapter.ts")), true);
-  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "canaryPilotRuntime.ts")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadow", "shadowPilotRuntime.ts")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "strategy", "closedCandleAdapter.ts")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadow", "canaryPilotRuntime.ts")), true);
 });

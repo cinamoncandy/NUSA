@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, readFileSync, rmSync } = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { PaperSessionStore } = require("../dist/apps/desktop/src/paperSessionStore.js");
-const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { PaperSessionStore } = require("../dist/apps/desktop/src/paper/paperSessionStore.js");
+const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 
 test("paper broker buys, marks to market, and sells", () => {
   const broker = new PaperBroker(1_000_000, "KRW-BTC", 0.001);

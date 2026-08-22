@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
-const { buildPersistedResearchDashboardSection } = require("../dist/apps/desktop/src/researchDashboardProjection.js");
+const { buildPersistedResearchDashboardSection } = require("../dist/apps/desktop/src/cloud/researchDashboardProjection.js");
 
 const checkedAt = "2026-07-16T00:00:00.000Z";
 const now = Date.parse(checkedAt);

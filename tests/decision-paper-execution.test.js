@@ -8,8 +8,8 @@ const {
   createDecisionExecutionIntent,
   verifyDecisionExecutionReceipt
 } = require("../dist/packages/contracts/src/index.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { executeSpotPaperDecision } = require("../dist/apps/desktop/src/decisionPaperExecution.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { executeSpotPaperDecision } = require("../dist/apps/desktop/src/paper/decisionPaperExecution.js");
 
 function approved(action = DecisionAction.LONG, market = "KRW-BTC") {
   const result = evaluateDecision({

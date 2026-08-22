@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runParameterStability } = require("../dist/apps/desktop/src/parameterStability.js");
+const { runParameterStability } = require("../dist/apps/desktop/src/strategy/parameterStability.js");
 
 class RoundTrip {
   constructor(id) { this.id = id; this.name = id; this.index = 0; }

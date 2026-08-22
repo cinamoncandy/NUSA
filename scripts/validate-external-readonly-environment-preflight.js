@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const TARGET = path.join(process.cwd(), "apps", "desktop", "src", "externalReadOnlyEnvironmentPreflight.ts");
+const TARGET = path.join(process.cwd(), "apps", "desktop", "src", "exchange", "externalReadOnlyEnvironmentPreflight.ts");
 
 function validateExternalReadOnlyEnvironmentPreflight(source = fs.readFileSync(TARGET, "utf8")) {
   const failures = [];

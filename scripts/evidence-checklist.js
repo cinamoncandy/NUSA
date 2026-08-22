@@ -1,5 +1,5 @@
-const { readEvidenceStatus } = require("../dist/apps/desktop/src/evidenceOperator.js");
-const { formatEvidenceChecklist } = require("../dist/apps/desktop/src/evidenceChecklist.js");
+const { readEvidenceStatus } = require("../dist/apps/desktop/src/evidence/evidenceOperator.js");
+const { formatEvidenceChecklist } = require("../dist/apps/desktop/src/evidence/evidenceChecklist.js");
 
 function value(args, name) {
   const index = args.indexOf(name);

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { attributeWalkForwardOosByRegime, marketRegimeKey } = require("../dist/apps/desktop/src/regimeOosAttribution.js");
+const { attributeWalkForwardOosByRegime, marketRegimeKey } = require("../dist/apps/desktop/src/strategy/regimeOosAttribution.js");
 
 const regime = (timestamp, trend, volatility = "NORMAL_VOLATILITY", liquidity = "NORMAL_LIQUIDITY") => ({
   timestamp,

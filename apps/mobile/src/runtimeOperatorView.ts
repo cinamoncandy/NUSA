@@ -1,4 +1,4 @@
-import type { RuntimeOperatorViewModel } from "../../desktop/src/runtimeOperatorView";
+import type { RuntimeOperatorViewModel } from "../../desktop/src/cloud/runtimeOperatorView";
 
 export interface MobileRuntimeOperatorCard {
   readonly status: RuntimeOperatorViewModel["status"];

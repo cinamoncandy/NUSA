@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runBacktest } = require("../dist/apps/desktop/src/backtestEngine.js");
+const { runBacktest } = require("../dist/apps/desktop/src/strategy/backtestEngine.js");
 
 class BuyHoldSellStrategy {
   constructor() { this.id = "buy-hold-sell"; this.name = "Buy Hold Sell"; this.index = 0; }

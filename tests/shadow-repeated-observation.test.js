@@ -4,10 +4,10 @@ const fsp = require("node:fs/promises");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { createShadowEvidenceBusFactory } = require("../dist/apps/desktop/src/shadowEvidenceComposition.js");
-const { findIncompleteShadowArchivesSync } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { createShadowEvidenceBusFactory } = require("../dist/apps/desktop/src/shadow/shadowEvidenceComposition.js");
+const { findIncompleteShadowArchivesSync } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;
@@ -166,6 +166,6 @@ test("A4J: completed sessions cannot be restarted without explicit cleanup, and 
 });
 
 test("A4J: session runtime owns no timer or market listener that could duplicate across runs", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadowOperationalRuntime.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "shadow", "shadowOperationalRuntime.ts"), "utf8");
   assert.doesNotMatch(source, /setInterval|setTimeout|addEventListener|removeEventListener/);
 });

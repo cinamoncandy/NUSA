@@ -34,8 +34,10 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
   assert.match(home, /home-investable-cash/);
   assert.match(home, /home-reserved-cash/);
   assert.match(portfolio, /portfolio-investable-cash/);
-  assert.match(portfolio, /portfolio-reserved-cash/);
-  assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : snapshot\.account\.cash/);
+  // Trading may source its account from Cloud PAPER or the LOCAL PAPER fallback. In both cases
+  // the effective account is what the allocation envelope and SELL availability must use.
+  assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
+  assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
   assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);
   assert.match(trading, /신규 매수 비중이 0%입니다/);
 });

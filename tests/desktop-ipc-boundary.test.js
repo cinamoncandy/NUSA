@@ -4,14 +4,20 @@ const { readFileSync } = require("node:fs");
 
 test("desktop IPC rejects coerced control values and public market data remains observable during Paper recovery", () => {
   const source = readFileSync("apps/desktop/src/main.ts", "utf8");
-  assert.match(source, /typeof enabled !== "boolean"/);
-  assert.match(source, /typeof quantity !== "number" \|\| !Number\.isFinite\(quantity\)/);
-  assert.match(source, /typeof candidate\.quantity !== "number" \|\| !Number\.isFinite\(candidate\.quantity\)/);
-  assert.doesNotMatch(source, /setAutoTrade\(Boolean\(enabled\)\)/);
+  // control:auto/control:quantity input validation lives in registerControlIpcHandlers.ts.
+  const controlIpcSource = readFileSync("apps/desktop/src/ipc/registerControlIpcHandlers.ts", "utf8");
+  assert.match(controlIpcSource, /typeof enabled !== "boolean"/);
+  assert.match(controlIpcSource, /typeof quantity !== "number" \|\| !Number\.isFinite\(quantity\)/);
+  assert.doesNotMatch(controlIpcSource, /setAutoTrade\(Boolean\(enabled\)\)/);
+  // paper:order input validation lives in registerPaperIpcHandlers.ts.
+  const paperIpcSource = readFileSync("apps/desktop/src/ipc/registerPaperIpcHandlers.ts", "utf8");
+  assert.match(paperIpcSource, /typeof candidate\.quantity !== "number" \|\| !Number\.isFinite\(candidate\.quantity\)/);
   assert.match(source, /Public market data is safe to observe even while Paper execution is unavailable/);
   assert.match(source, /\n\s*stream\.start\(\);/);
   assert.doesNotMatch(source, /if \(paperTradingAvailable\) stream\.start\(\)/);
   assert.doesNotMatch(source, /fetch\(|axios|Authorization|jwt|withdraw/i);
+  assert.doesNotMatch(controlIpcSource, /fetch\(|axios|Authorization|jwt|withdraw/i);
+  assert.doesNotMatch(paperIpcSource, /fetch\(|axios|Authorization|jwt|withdraw/i);
 });
 
 test("mutating IPC commands are not automatically retried", () => {
@@ -34,14 +40,16 @@ test("desktop execution requires fresh connected market data and a runtime readi
   assert.match(source, /function assertFreshMarketData\(\)/);
   assert.match(source, /if \(!websocketConnected\) throw new Error\("market data connection is unavailable"\)/);
   assert.match(source, /market price is stale; wait for a fresh ticker/);
-  assert.match(source, /if \(enabled\) assertFreshMarketData\(\)/);
   assert.match(source, /evaluateOperationalReadiness\(input\)/);
   assert.doesNotMatch(source, /\}, undefined, evidenceRecorder\)/);
   assert.match(source, /status\.startsWith\("stale"\)/);
+  // control:auto's fresh-market-data gate lives in registerControlIpcHandlers.ts.
+  const controlIpcSource = readFileSync("apps/desktop/src/ipc/registerControlIpcHandlers.ts", "utf8");
+  assert.match(controlIpcSource, /if \(enabled\) ctx\.assertFreshMarketData\(\)/);
 });
 
 test("shadow start performs the same read-only preflight before creating a session", () => {
-  const source = readFileSync("apps/desktop/src/main.ts", "utf8");
-  assert.match(source, /ipcMain\.handle\("shadow:preflight", \(\) => shadowRuntime\.startPrecheckBlockers\(false\)\)/);
-  assert.match(source, /parseShadowStartIpc\(input\);\s*const blockers = shadowRuntime\.startPrecheckBlockers\(false\);\s*if \(blockers\.length > 0\) throw new Error/);
+  const source = readFileSync("apps/desktop/src/ipc/registerShadowIpcHandlers.ts", "utf8");
+  assert.match(source, /ipcMain\.handle\("shadow:preflight", \(\) => ctx\.shadowRuntime\.startPrecheckBlockers\(false\)\)/);
+  assert.match(source, /parseShadowStartIpc\(input\);\s*const blockers = ctx\.shadowRuntime\.startPrecheckBlockers\(false\);\s*if \(blockers\.length > 0\) throw new Error/);
 });

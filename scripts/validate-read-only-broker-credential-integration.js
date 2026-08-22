@@ -4,8 +4,8 @@ const crypto = require('crypto');
 
 const CONFIG = 'config/live/read-only-broker-credential-integration.json';
 const CAPABILITY_POLICY = 'config/live/restricted-live-capability-surface-policy.json';
-const SERVICE_SOURCE = 'apps/desktop/src/upbitReadOnlyService.ts';
-const CREDENTIAL_SOURCE = 'apps/desktop/src/upbitReadOnlyCredentialProvider.ts';
+const SERVICE_SOURCE = 'apps/desktop/src/exchange/upbitReadOnlyService.ts';
+const CREDENTIAL_SOURCE = 'apps/desktop/src/exchange/upbitReadOnlyCredentialProvider.ts';
 const LAYOUT_SOURCE = 'apps/desktop/src/userDataLayout.ts';
 
 function loadJson(root, file) {

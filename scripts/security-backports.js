@@ -54,6 +54,21 @@ function patchImageSizeIcns(text) {
   return patchExact(text, before, after, 2, "image-size/icns-offset");
 }
 
+// utils.js's findBox already guards its own internal box-skip loop against a zero-size box,
+// but that guard only fires when the box it lands on doesn't match the requested name. It
+// returns immediately on a name match, size included -- so a matching box with size 0 makes
+// findBox return the same offset it was given. jxl.js's extractPartialStreams then advances
+// its own scan offset by `jxlpBox.offset + jxlpBox.size`, which is unchanged when size is 0,
+// so the next findBox call starts over at the same offset and finds the same zero-size box
+// again: an unbounded loop pushing ever-larger buffers until the process runs out of memory
+// (confirmed with a crafted JXL container). This is the part of GHSA-5p2g-fcmc-qvqq the
+// upstream box-progress guard does not cover.
+function patchImageSizeJxlPartialStreams(text) {
+  const before = "offset = jxlpBox.offset + jxlpBox.size;";
+  const after = "offset = jxlpBox.offset + (jxlpBox.size > 0 ? jxlpBox.size : 8);";
+  return patchExact(text, before, after, 1, "image-size/jxl-partial-stream-offset");
+}
+
 function patchNanoidSync(text, label) {
   const before = "return (size = defaultSize) => {\n    let id = ''";
   const after = "return (size = defaultSize) => {\n    if (size <= 0) return ''\n    let id = ''";
@@ -83,6 +98,7 @@ function applyBackports() {
   const nanoidRoot = packageRoot("nanoid", EXPECTED.nanoid);
 
   writePatched(path.join(imageRoot, "dist", "types", "icns.js"), patchImageSizeIcns);
+  writePatched(path.join(imageRoot, "dist", "types", "jxl.js"), patchImageSizeJxlPartialStreams);
 
   const sync = ["index.js", "index.cjs", "index.browser.js", "index.browser.cjs"];
   for (const relative of sync) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
@@ -109,6 +125,8 @@ function verifyBackports() {
     if (guards !== 2) findings.push(`IMAGE_SIZE_ICNS_GUARD:${guards}`);
     const utils = fs.readFileSync(path.join(imageRoot, "dist", "types", "utils.js"), "utf8");
     if (!utils.includes("offset += box.size > 0 ? box.size : 8;")) findings.push("IMAGE_SIZE_BOX_PROGRESS_GUARD_MISSING");
+    const jxl = fs.readFileSync(path.join(imageRoot, "dist", "types", "jxl.js"), "utf8");
+    if (!jxl.includes("offset = jxlpBox.offset + (jxlpBox.size > 0 ? jxlpBox.size : 8);")) findings.push("IMAGE_SIZE_JXL_PARTIAL_STREAM_GUARD_MISSING");
   }
 
   if (nanoidRoot) {
@@ -129,10 +147,10 @@ function verifyBackports() {
     packages: { "image-size": EXPECTED.imageSize, nanoid: EXPECTED.nanoid },
     controls: {
       "GHSA-w3rx-r6r6-pgpr": findings.every((item) => !item.startsWith("IMAGE_SIZE_ICNS")),
-      "GHSA-5p2g-fcmc-qvqq": findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX")),
+      "GHSA-5p2g-fcmc-qvqq": findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX") && !item.startsWith("IMAGE_SIZE_JXL")),
       "GHSA-2v37-7h3g-55p8": findings.every((item) => !item.startsWith("NANOID"))
     }
   };
 }
 
-module.exports = { EXPECTED, resolvePackageRoots, packageRoot, patchExact, patchImageSizeIcns, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };
+module.exports = { EXPECTED, resolvePackageRoots, packageRoot, patchExact, patchImageSizeIcns, patchImageSizeJxlPartialStreams, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };

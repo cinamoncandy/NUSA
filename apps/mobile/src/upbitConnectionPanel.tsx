@@ -1,12 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { NusaButton, NusaTextField, StatusChip } from "./components";
 import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
-import { InMemoryUpbitCredentialSession } from "./upbitCredentialSession";
-import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
-import { normalizeUpbitReadOnlySnapshot } from "./upbitReadOnlyAccountModel";
-import { getUpbitReadOnlyState, setUpbitReadOnlyState, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import { UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
+import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 
 type ConnectionState =
   | Readonly<{ status: "DISCONNECTED"; detail: string }>
@@ -16,7 +14,6 @@ type ConnectionState =
 
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
-  const credentialSession = useMemo(() => new InMemoryUpbitCredentialSession(), []);
   const [endpointDraft, setEndpointDraft] = useState(UPBIT_LIVE_BASE_URL);
   const [tokenDraft, setTokenDraft] = useState("");
   const [state, setState] = useState<ConnectionState>({ status: "DISCONNECTED", detail: "Upbit bridge credential is not configured." });
@@ -28,29 +25,20 @@ export function UpbitConnectionPanel() {
 
   const connect = async (): Promise<void> => {
     if (busy) return;
-    credentialSession.clear();
-    setUpbitReadOnlyState({ status: "LOADING", snapshot: getUpbitReadOnlyState().snapshot, error: null });
     setState({ status: "CONNECTING", detail: "HTTPS read-only 계정 연결을 확인하고 있습니다." });
-    try {
-      credentialSession.connect(tokenDraft);
-      const snapshot = await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl: endpointDraft });
+    const result = await connectUpbitReadOnlyAccount(tokenDraft, endpointDraft);
+    if (result.status === "READY" && result.snapshot) {
       setTokenDraft("");
-      setUpbitReadOnlyState({ status: "READY", snapshot: normalizeUpbitReadOnlySnapshot(snapshot), error: null });
-      setState({ status: "READY", detail: `READ ONLY · ${snapshot.accounts.length} assets`, fetchedAt: snapshot.fetchedAt });
-    } catch (error) {
-      credentialSession.clear();
-      const detail = error instanceof Error ? error.message : "Upbit bridge connection failed.";
-      const previous = getUpbitReadOnlyState().snapshot;
-      setUpbitReadOnlyState({ status: previous ? "STALE" : "ERROR", snapshot: previous, error: detail });
-      setState({ status: "ERROR", detail });
+      setState({ status: "READY", detail: `READ ONLY · ${result.snapshot.assets.length + 1} assets · 30초 자동 갱신`, fetchedAt: result.snapshot.fetchedAt });
+      return;
     }
+    setState({ status: "ERROR", detail: result.error ?? "Upbit bridge connection failed." });
   };
 
   const disconnect = (): void => {
     if (busy) return;
-    credentialSession.clear();
-    setTokenDraft("");
     resetUpbitReadOnlyState();
+    setTokenDraft("");
     setState({ status: "DISCONNECTED", detail: "Upbit bridge credential cleared from process memory." });
   };
 
@@ -65,8 +53,8 @@ export function UpbitConnectionPanel() {
     <InlineNotice title={label} detail={state.detail} tone={tone} testID="settings-upbit-connection-summary" />
     <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Upbit bridge endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-upbit-endpoint" />
     <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="Bridge token" value={tokenDraft} onChangeText={setTokenDraft} placeholder="프로세스 메모리에만 유지" returnKeyType="done" secureTextEntry testID="settings-upbit-token" />
-    <Text style={[styles.hint, { color: theme.colors.textMuted }]}>토큰은 저장하지 않고 현재 앱 프로세스 메모리에만 유지합니다. 이 연결은 계정 조회 전용이며 주문·출금 권한을 제공하지 않습니다.</Text>
-    {state.status === "READY" ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-upbit-last-success">마지막 성공 조회: {new Date(state.fetchedAt).toLocaleString("ko-KR")}</Text> : null}
+    <Text style={[styles.hint, { color: theme.colors.textMuted }]}>토큰은 저장하지 않고 현재 앱 프로세스 메모리에만 유지합니다. 연결 후 계좌 상태는 30초마다 자동 갱신됩니다. 이 연결은 계정 조회 전용이며 주문·출금 권한을 제공하지 않습니다.</Text>
+    {state.status === "READY" ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-upbit-last-success">연결 확인 시각: {new Date(state.fetchedAt).toLocaleString("ko-KR")}</Text> : null}
     <View style={styles.row}>
       <NusaButton disabled={busy} label={busy ? "연결 확인 중..." : "연결 확인"} onPress={() => void connect()} testID="settings-upbit-connect" />
       <NusaButton disabled={busy || !connected} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-upbit-disconnect" />

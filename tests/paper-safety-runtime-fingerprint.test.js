@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { deriveRuntimeFingerprint } = require("../dist/apps/desktop/src/runtimeFingerprint.js");
-const { recoverPaperSafetySnapshot, createPaperSafetySnapshot } = require("../dist/apps/desktop/src/paperSafetySnapshot.js");
+const { recoverPaperSafetySnapshot, createPaperSafetySnapshot } = require("../dist/apps/desktop/src/paper/paperSafetySnapshot.js");
 
 const root = path.join(__dirname, "..");
 
