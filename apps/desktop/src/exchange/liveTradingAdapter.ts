@@ -10,6 +10,10 @@ import {
   type UpbitOrderQuery,
   type UpbitReadAdapter,
 } from "./upbitRestAdapter";
+import type {
+  UpbitOrderAdapter,
+  UpbitSubmitOrderRequest,
+} from "./upbitExecutionRestClient";
 
 export type TradingAdapterMode = "MOCK" | "LIVE";
 
@@ -31,11 +35,32 @@ export interface TradingAdapter {
 export interface TradingAdapterEnvironment {
   readonly mode: TradingAdapterMode;
   readonly liveAdapterEnabled: boolean;
+  readonly liveOrderMutationEnabled: boolean;
 }
 
 export interface TradingAdapterDependencies {
   readonly mockReadAdapter?: UpbitReadAdapter;
   readonly liveReadAdapter?: UpbitReadAdapter;
+  /** Must come from the separately authorized Restricted-LIVE runtime. Never auto-created here. */
+  readonly liveOrderAdapter?: UpbitOrderAdapter;
+}
+
+export interface LiveOrderAuthority {
+  readonly productionMutationAllowed: true;
+  readonly confirmation: "CONFIRM_UPBIT_LIVE_ORDER";
+}
+
+export interface LiveOrderExecutionAdapter {
+  readonly mode: "LIVE";
+  readonly readOnly: false;
+  readonly productionMutationAllowed: true;
+  getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]>;
+  getOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder>;
+  getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance>;
+  testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder>;
+  submitOrder(order: UpbitSubmitOrderRequest, authority: LiveOrderAuthority, signal?: AbortSignal): Promise<UpbitOrder>;
+  cancelOrder(uuid: string, authority: LiveOrderAuthority, signal?: AbortSignal): Promise<UpbitOrder>;
+  withdraw(): Promise<never>;
 }
 
 export class LiveAdapterSelectionError extends Error {
@@ -51,6 +76,7 @@ export function readTradingAdapterEnvironment(environment: Record<string, string
   return Object.freeze({
     mode: rawMode,
     liveAdapterEnabled: environment.NUSA_ENABLE_LIVE_ADAPTER?.trim().toLowerCase() === "true",
+    liveOrderMutationEnabled: environment.NUSA_ENABLE_LIVE_ORDER_MUTATION?.trim().toLowerCase() === "true",
   });
 }
 
@@ -91,6 +117,31 @@ export class MockTradingAdapter extends ReadOnlyTradingAdapter {
   }
 }
 
+export class UpbitLiveOrderExecutionAdapter implements LiveOrderExecutionAdapter {
+  public readonly mode = "LIVE" as const;
+  public readonly readOnly = false as const;
+  public readonly productionMutationAllowed = true as const;
+
+  constructor(private readonly orderAdapter: UpbitOrderAdapter) {}
+
+  public getAccounts(signal?: AbortSignal): Promise<readonly UpbitAccountBalance[]> { return this.orderAdapter.getAccounts(signal); }
+  public getOrder(uuid: string, signal?: AbortSignal): Promise<UpbitOrder> { return this.orderAdapter.getOrder(uuid, signal); }
+  public getOrderChance(market: string, signal?: AbortSignal): Promise<UpbitOrderChance> { return this.orderAdapter.getOrderChance(market, signal); }
+  public testOrder(order: UpbitSubmitOrderRequest, signal?: AbortSignal): Promise<UpbitOrder> { return this.orderAdapter.testOrder(order, signal); }
+
+  public submitOrder(order: UpbitSubmitOrderRequest, authority: LiveOrderAuthority, signal?: AbortSignal): Promise<UpbitOrder> {
+    assertLiveOrderAuthority(authority);
+    return this.orderAdapter.submitOrder(order, signal) as unknown as Promise<UpbitOrder>;
+  }
+
+  public cancelOrder(uuid: string, authority: LiveOrderAuthority, signal?: AbortSignal): Promise<UpbitOrder> {
+    assertLiveOrderAuthority(authority);
+    return this.orderAdapter.cancelOrder(uuid, signal) as unknown as Promise<UpbitOrder>;
+  }
+
+  public async withdraw(): Promise<never> { throw new LiveMutationDisabledError("LIVE:withdraw"); }
+}
+
 export function createTradingAdapter(
   environment: Record<string, string | undefined> = process.env,
   dependencies: TradingAdapterDependencies = {},
@@ -100,6 +151,26 @@ export function createTradingAdapter(
   if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("LIVE adapter requires NUSA_ENABLE_LIVE_ADAPTER=true");
   const readAdapter = dependencies.liveReadAdapter ?? new UpbitRestClient({ credentials: loadUpbitCredentials(environment) });
   return new LiveTradingAdapter(readAdapter);
+}
+
+export function createLiveOrderExecutionAdapter(
+  environment: Record<string, string | undefined> = process.env,
+  dependencies: TradingAdapterDependencies = {},
+): LiveOrderExecutionAdapter {
+  const configuration = readTradingAdapterEnvironment(environment);
+  if (configuration.mode !== "LIVE") throw new LiveAdapterSelectionError("Live order execution requires NUSA_TRADING_ADAPTER_MODE=LIVE");
+  if (!configuration.liveAdapterEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ADAPTER=true");
+  if (!configuration.liveOrderMutationEnabled) throw new LiveAdapterSelectionError("Live order execution requires NUSA_ENABLE_LIVE_ORDER_MUTATION=true");
+  if (!dependencies.liveOrderAdapter) {
+    throw new LiveAdapterSelectionError("Live order execution requires an explicitly injected Restricted-LIVE transport");
+  }
+  return new UpbitLiveOrderExecutionAdapter(dependencies.liveOrderAdapter);
+}
+
+function assertLiveOrderAuthority(authority: LiveOrderAuthority): void {
+  if (authority?.productionMutationAllowed !== true || authority.confirmation !== "CONFIRM_UPBIT_LIVE_ORDER") {
+    throw new LiveMutationDisabledError("LIVE:missing-explicit-order-authority");
+  }
 }
 
 /** Runtime mode switch. Switching is explicit, validated, and never enables mutation. */
