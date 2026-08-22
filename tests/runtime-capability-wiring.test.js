@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { evaluatePreTradeRisk } = require("../dist/apps/desktop/src/independentRiskGateway.js");
-const { RUNTIME_EXCHANGE_CAPABILITIES } = require("../dist/apps/desktop/src/runtimeExchangeCapabilities.js");
+const { evaluatePreTradeRisk } = require("../dist/apps/desktop/src/risk/independentRiskGateway.js");
+const { RUNTIME_EXCHANGE_CAPABILITIES } = require("../dist/apps/desktop/src/exchange/runtimeExchangeCapabilities.js");
 
 const IDENTITY = { strategyFingerprint: "s", configFingerprint: "c", runtimeFingerprint: "r", riskPolicyFingerprint: "p", seenSignalIds: new Set(), seenCommandIds: new Set(), seenClientOrderIds: new Set() };
 const LIMITS = { maxOrderNotional: 1e9, maxPositionNotional: 1e9, maxOpenOrders: 10, maxOrdersPerSecond: 10, maxOrdersPerMinute: 600, maxSameSideStreak: 100, maxSymbolExposureNotional: 1e9, maxPortfolioExposureNotional: 1e9, maxDailyBuyNotional: 1e9, maxDailySellNotional: 1e9, maxDailyLoss: 1e9, maxConsecutiveLosses: 100, maxSessionDrawdownRatio: 1, maxPriceDeviationRatio: 1 };

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const dataset = require("../dist/apps/desktop/src/researchDataset.js");
+const dataset = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 
 const candle = (openTime, overrides = {}) => ({ market: "KRW-BTC", interval: "1m", openTime, closeTime: openTime + 60_000, open: 100, high: 110, low: 90, close: 105, volume: 2, ...overrides });
 const candles = () => [candle(0), candle(60_000, { close: 106 }), candle(120_000, { close: 107 }), candle(180_000, { close: 108 }), candle(240_000, { close: 109 })];

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildPersistedCommitteeDashboardSection } = require("../dist/apps/desktop/src/committeeDashboardProjection.js");
+const { buildPersistedCommitteeDashboardSection } = require("../dist/apps/desktop/src/cloud/committeeDashboardProjection.js");
 
 const decision = (overrides = {}) => ({ outcome: "WAIT", confidence: 0.7, edge: 0.01, risk: 0.02, reasons: ["paper only"], decidedAt: 1_000, ...overrides });
 

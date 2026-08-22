@@ -6,15 +6,14 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 preserves stable six-tab keys while presenting product navigation", () => {
+test("UIUX-002 presents the canonical four-tab product navigation while preserving deeper routes", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Home: "HOME"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Order: "ORDER"/);
+  assert.match(app, /Markets: "MARKET"/);
+  assert.match(app, /Paper: "TRADE"/);
   assert.match(app, /Portfolio: "PORTFOLIO"/);
+  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
@@ -35,15 +34,17 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   assert.doesNotMatch(app, /94%/);
 });
 
-test("PAPER surface exposes verified PAPER-only execution without LIVE authority", () => {
+test("PAPER surface exposes local or verified cloud PAPER execution without LIVE authority", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /PAPER 주문 작업공간/);
-  assert.match(trading, /StatusChip label="PAPER ONLY"/);
+  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(trading, /MockTradingService/);
+  assert.match(trading, /loadUpbitPublicMarkets/);
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
@@ -57,18 +58,18 @@ test("PAPER surface exposes verified PAPER-only execution without LIVE authority
   assert.doesNotMatch(trading, /\/api\/(?:live|withdraw|transfer)/i);
 });
 
-test("dashboard credential flow remains Settings-owned and approved-session scoped", () => {
+test("optional Cloud credential flow remains Settings-owned and never gates local PAPER", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(settings, /InMemoryDashboardCredentialSession/);
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(settings, /Access token은 앱 메모리에만 유지/);
-  assert.match(settings, /rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
-  assert.match(settings, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);
+  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /LOCAL PAPER 거래에는 사용하지 않습니다/);
+  assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
   assert.match(settings, /testID="settings-paper-connect"/);
   assert.match(settings, /testID="settings-paper-disconnect"/);
+  assert.doesNotMatch(settings, /iOS 영구 세션 복원/);
   assert.match(app, /getConfiguredPaperEndpoint/);
   assert.match(app, /isPaperConnectionVerified\(endpoint\)/);
   assert.doesNotMatch(app, /dashboardTokenDraft|testID="dashboard-connect"|testID="dashboard-disconnect"/);

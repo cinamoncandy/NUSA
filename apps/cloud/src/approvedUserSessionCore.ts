@@ -139,12 +139,34 @@ export class ApprovedUserSessionService<Scope extends string> {
   }
 
   public bootstrap(token: string, now = Date.now()): ApprovedUserSessionTokens<Scope> | undefined {
-    if (!token) return undefined;
+    if (!token) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, undefined, undefined, "EMPTY_TOKEN", now);
+      return undefined;
+    }
     const hash = tokenHash(token);
     const row = this.db.connection.prepare(`SELECT * FROM ${this.prefix}_bootstrap_tokens WHERE token_hash=?`).get(hash) as Record<string, unknown> | undefined;
-    if (row == null || row.used_at != null || row.revoked_at != null || Number(row.expires_at) <= now) return undefined;
-    const user = this.users.get(String(row.target_user_id));
-    if (!isUserAllowed(user)) return undefined;
+    if (row == null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, undefined, undefined, "UNKNOWN_TOKEN", now);
+      return undefined;
+    }
+    const targetUserId = String(row.target_user_id);
+    if (row.used_at != null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "ALREADY_CONSUMED", now);
+      return undefined;
+    }
+    if (row.revoked_at != null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "REVOKED", now);
+      return undefined;
+    }
+    if (Number(row.expires_at) <= now) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "EXPIRED", now);
+      return undefined;
+    }
+    const user = this.users.get(targetUserId);
+    if (!isUserAllowed(user)) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "USER_NOT_ACTIVE", now);
+      return undefined;
+    }
     const scopes = this.decodeScopes(row.scopes_json);
     const familyId = randomUUID();
     const refreshExpiresAt = now + this.profile.refreshTtlMs;
@@ -162,20 +184,40 @@ export class ApprovedUserSessionService<Scope extends string> {
   }
 
   public refresh(refreshToken: string, now = Date.now()): ApprovedUserSessionTokens<Scope> | undefined {
-    if (!refreshToken) return undefined;
+    if (!refreshToken) {
+      this.audit("SESSION_REFRESH_REJECTED", undefined, undefined, undefined, "EMPTY_TOKEN", now);
+      return undefined;
+    }
     const hash = tokenHash(refreshToken);
     const row = this.db.connection.prepare(`SELECT r.*, f.user_id, f.scopes_json, f.expires_at AS family_expires_at, f.revoked_at AS family_revoked_at
       FROM ${this.prefix}_refresh_tokens r JOIN ${this.prefix}_session_families f ON f.id=r.family_id WHERE r.token_hash=?`).get(hash) as Record<string, unknown> | undefined;
-    if (row == null) return undefined;
-    const familyId = String(row.family_id);
-    if (row.consumed_at != null) {
-      this.revokeFamily(familyId, "REFRESH_REUSE_DETECTED", now);
+    if (row == null) {
+      this.audit("SESSION_REFRESH_REJECTED", undefined, undefined, undefined, "UNKNOWN_TOKEN", now);
       return undefined;
     }
-    if (row.family_revoked_at != null || Number(row.expires_at) <= now || Number(row.family_expires_at) <= now) return undefined;
-    const user = this.users.get(String(row.user_id));
+    const familyId = String(row.family_id);
+    const userId = String(row.user_id);
+    if (row.consumed_at != null) {
+      this.revokeFamily(familyId, "REFRESH_REUSE_DETECTED", now);
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "REFRESH_REUSE_DETECTED", now);
+      return undefined;
+    }
+    if (row.family_revoked_at != null) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "FAMILY_REVOKED", now);
+      return undefined;
+    }
+    if (Number(row.expires_at) <= now) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "TOKEN_EXPIRED", now);
+      return undefined;
+    }
+    if (Number(row.family_expires_at) <= now) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "FAMILY_EXPIRED", now);
+      return undefined;
+    }
+    const user = this.users.get(userId);
     if (!isUserAllowed(user)) {
       this.revokeFamily(familyId, "USER_NOT_ACTIVE", now);
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "USER_NOT_ACTIVE", now);
       return undefined;
     }
     const scopes = this.decodeScopes(row.scopes_json);

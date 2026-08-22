@@ -5,10 +5,10 @@ const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
-const { DesktopCloudSessionClient } = require("../dist/apps/desktop/src/desktopCloudSessionClient.js");
-const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/desktopCloudSessionStore.js");
-const { CloudPaperClient } = require("../dist/apps/desktop/src/cloudPaperClient.js");
-const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/desktopCloudPaperAuthority.js");
+const { DesktopCloudSessionClient } = require("../dist/apps/desktop/src/cloud/desktopCloudSessionClient.js");
+const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/cloud/desktopCloudSessionStore.js");
+const { CloudPaperClient } = require("../dist/apps/desktop/src/cloud/cloudPaperClient.js");
+const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/cloud/desktopCloudPaperAuthority.js");
 
 const OWNER_BOOTSTRAP_CREDENTIAL = "p".repeat(40);
 const OWNER_ID = "operator";

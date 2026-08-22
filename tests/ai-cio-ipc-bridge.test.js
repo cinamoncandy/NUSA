@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildAiCioCommandCenterEnvelope } = require("../dist/apps/desktop/src/aiCioCommandCenterAdapter.js");
-const { AI_CIO_SNAPSHOT_CHANNEL, InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } = require("../dist/apps/desktop/src/aiCioIpcBridge.js");
+const { buildAiCioCommandCenterEnvelope } = require("../dist/apps/desktop/src/ai/aiCioCommandCenterAdapter.js");
+const { AI_CIO_SNAPSHOT_CHANNEL, InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } = require("../dist/apps/desktop/src/ai/aiCioIpcBridge.js");
 
 const section = (overrides = {}) => ({ status: "HEALTHY", generatedAt: 1_000, reasons: [], ...overrides });
 const snapshot = (overrides = {}) => ({

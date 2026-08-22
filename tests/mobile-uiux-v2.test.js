@@ -6,11 +6,11 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through six-tab restructuring", () => {
+test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
+  assert.match(app, /Paper: "TRADE"/);
+  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
@@ -44,19 +44,19 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
-test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {
+test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gated", () => {
   const source = read("src/tradingView.tsx");
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(source, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
   assert.match(source, /statusLabel="LIVE NONE"/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {

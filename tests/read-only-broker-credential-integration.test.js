@@ -4,10 +4,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { ElectronSafeStorageReadOnlyCredentialProvider } = require('../dist/apps/desktop/src/upbitReadOnlyCredentialProvider.js');
-const { UpbitReadOnlyService } = require('../dist/apps/desktop/src/upbitReadOnlyService.js');
-const { reconcileReadOnlySnapshots } = require('../dist/apps/desktop/src/upbitReadOnlyReconciliation.js');
-const { UpbitApiError } = require('../dist/apps/desktop/src/upbitRestAdapter.js');
+const { ElectronSafeStorageReadOnlyCredentialProvider } = require('../dist/apps/desktop/src/exchange/upbitReadOnlyCredentialProvider.js');
+const { UpbitReadOnlyService } = require('../dist/apps/desktop/src/exchange/upbitReadOnlyService.js');
+const { reconcileReadOnlySnapshots } = require('../dist/apps/desktop/src/exchange/upbitReadOnlyReconciliation.js');
+const { UpbitApiError } = require('../dist/apps/desktop/src/exchange/upbitRestAdapter.js');
 const { resolveUserDataLayout, protectedPaths } = require('../dist/apps/desktop/src/userDataLayout.js');
 const { validate, buildEvidence } = require('../scripts/validate-read-only-broker-credential-integration.js');
 

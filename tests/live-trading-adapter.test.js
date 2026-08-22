@@ -7,14 +7,15 @@ const {
   TradingAdapterRuntime,
   createTradingAdapter,
   readTradingAdapterEnvironment,
-} = require("../dist/apps/desktop/src/liveTradingAdapter.js");
-const { LiveMutationDisabledError, MockUpbitRestAdapter } = require("../dist/apps/desktop/src/upbitRestAdapter.js");
+} = require("../dist/apps/desktop/src/exchange/liveTradingAdapter.js");
+const { LiveMutationDisabledError, MockUpbitRestAdapter } = require("../dist/apps/desktop/src/exchange/upbitRestAdapter.js");
 
 const environment = (overrides = {}) => ({ NUSA_TRADING_ADAPTER_MODE: "MOCK", ...overrides });
 
 test("adapter configuration defaults to Mock mode and rejects unknown modes", () => {
-  assert.deepEqual(readTradingAdapterEnvironment({}), { mode: "MOCK", liveAdapterEnabled: false });
-  assert.deepEqual(readTradingAdapterEnvironment({ NUSA_ENABLE_LIVE_ADAPTER: "true" }), { mode: "MOCK", liveAdapterEnabled: true });
+  assert.deepEqual(readTradingAdapterEnvironment({}), { mode: "MOCK", liveAdapterEnabled: false, liveOrderMutationEnabled: false });
+  assert.deepEqual(readTradingAdapterEnvironment({ NUSA_ENABLE_LIVE_ADAPTER: "true" }), { mode: "MOCK", liveAdapterEnabled: true, liveOrderMutationEnabled: false });
+  assert.deepEqual(readTradingAdapterEnvironment({ NUSA_ENABLE_LIVE_ORDER_MUTATION: "true" }), { mode: "MOCK", liveAdapterEnabled: false, liveOrderMutationEnabled: true });
   assert.throws(() => readTradingAdapterEnvironment({ NUSA_TRADING_ADAPTER_MODE: "unknown" }), LiveAdapterSelectionError);
 });
 

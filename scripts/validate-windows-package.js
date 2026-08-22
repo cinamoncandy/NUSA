@@ -50,8 +50,8 @@ if (fs.existsSync(cloudMainPath)) {
   required(!/(?:private-api|privateApi|apiKey|secretKey)\s*[:=]\s*["'][^"']+["']/i.test(cloudMainSource), "Cloud Desktop bootstrap must not hardcode a private credential or API key literal");
 }
 
-required(exists("apps/desktop/src/desktopCloudSessionRuntime.ts"), "Desktop safeStorage session runtime is missing");
-required(exists("apps/desktop/src/desktopCloudSessionStore.ts"), "Desktop secure session store is missing");
+required(exists("apps/desktop/src/cloud/desktopCloudSessionRuntime.ts"), "Desktop safeStorage session runtime is missing");
+required(exists("apps/desktop/src/cloud/desktopCloudSessionStore.ts"), "Desktop secure session store is missing");
 
 const result = Object.freeze({
   status: failures.length === 0 ? "PASS" : "FAIL",

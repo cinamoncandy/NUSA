@@ -1,5 +1,5 @@
 import type { SqliteDatabase } from "./index";
-import type { DailyLossState, PaperApproval, RiskIdempotencyRecord, RiskOrderRecord, RiskSafetyPersistence } from "../../../apps/execution/src/risk-safety-integration";
+import type { DailyLossState, PaperApproval, RiskIdempotencyRecord, RiskOrderRecord, RiskSafetyPersistence } from "../../contracts/src/risk-safety-integration";
 
 type Row = Record<string, string | number | bigint | null>;
 const text = (value: string | number | bigint | null): string => String(value);

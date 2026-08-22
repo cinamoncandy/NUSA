@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const mainSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
+// diagnostics:a4's activationSource field lives in registerDiagnosticsIpcHandlers.ts.
+const diagnosticsIpcSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "ipc", "registerDiagnosticsIpcHandlers.ts"), "utf8");
 
 test("A4F does not map generic FAULTED control status to Kill Switch or P0", () => {
   assert.match(mainSource, /getControl:\s*\(\)\s*=>\s*\(\{ killSwitchActive: persistedKillSwitchActive, openP0: persistedOpenP0Codes\.length > 0 \}\)/);
@@ -20,5 +22,5 @@ test("A4F starts public market data independently of Paper execution availabilit
 
 test("A4F preserves fail-closed recovery reconciliation", () => {
   assert.match(mainSource, /operationalPreflight\.reconciliation\.status === "PASS" && !safetyRecoveryBlocked/);
-  assert.match(mainSource, /activationSource: persistedKillSwitchActive \? "PERSISTED_PAPER_SAFETY_SNAPSHOT" : null/);
+  assert.match(diagnosticsIpcSource, /activationSource: ctx\.persistedKillSwitchActive \? "PERSISTED_PAPER_SAFETY_SNAPSHOT" : null/);
 });

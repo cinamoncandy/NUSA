@@ -1,10 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { PaperScenarioEvidenceRecorder } = require("../dist/apps/desktop/src/paperScenarioEvidenceRecorder.js");
-const { RuntimeCommandService, PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_RECOVERY_STEPS, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/runtimeCommandService.js");
-const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategyEngine.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { PaperScenarioEvidenceRecorder } = require("../dist/apps/desktop/src/paper/paperScenarioEvidenceRecorder.js");
+const { RuntimeCommandService, PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_RECOVERY_STEPS, PERSISTENCE_REPAIR_MESSAGE } = require("../dist/apps/desktop/src/control/runtimeCommandService.js");
+const { SmaCrossoverStrategy, StrategyEngine } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 

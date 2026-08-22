@@ -5,7 +5,7 @@ const { RuntimeEventBus } = require("../dist/apps/cloud/src/runtimeEventBus.js")
 const { buildRuntimeReplay } = require("../dist/apps/cloud/src/runtimeReplay.js");
 const { createRuntimeIncidentReport } = require("../dist/apps/cloud/src/runtimeIncidentReport.js");
 const { buildOperatorTimeline } = require("../dist/apps/cloud/src/operatorTimeline.js");
-const { buildRuntimeOperatorView } = require("../dist/apps/desktop/src/runtimeOperatorView.js");
+const { buildRuntimeOperatorView } = require("../dist/apps/desktop/src/cloud/runtimeOperatorView.js");
 const { buildMobileRuntimeOperatorCard } = require("../dist/apps/mobile/src/runtimeOperatorView.js");
 
 const events = [

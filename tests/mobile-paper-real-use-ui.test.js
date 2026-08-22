@@ -16,14 +16,14 @@ test("fresh install is a truthful local PAPER entry, not fake account authentica
   assert.doesNotMatch(app, /dashboard-credential/);
 });
 
-test("Settings is the single PAPER endpoint and approved secure-session setup path", () => {
+test("Settings keeps optional Cloud PAPER setup separate from immediate LOCAL PAPER", () => {
   const app = read("apps/mobile/App.tsx");
-  const home = read("apps/mobile/src/homeView.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(home, /dashboard-open-settings/);
-  assert.match(home, /PAPER 연결이 필요합니다/);
-  assert.match(home, /설정에서 연결/);
   assert.match(app, /<HomeView/);
+  assert.match(settings, /settings-local-paper/);
+  assert.match(settings, /01 · LOCAL PAPER/);
+  assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
+  assert.match(settings, /Cloud 연결 없이 LOCAL PAPER를 바로 사용할 수 있습니다/);
   assert.match(settings, /settings-paper-endpoint/);
   assert.match(settings, /settings-paper-token/);
   assert.match(settings, /settings-paper-connect/);
@@ -33,7 +33,7 @@ test("Settings is the single PAPER endpoint and approved secure-session setup pa
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /allowUnverifiedEndpoint: true/);
   assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(settings, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
+  assert.match(settings, /LOCAL PAPER 거래에는 사용하지 않습니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
@@ -68,7 +68,6 @@ test("verified PAPER connection is shared and invalidated when endpoint or sessi
   assert.match(connection, /markPaperConnectionVerified/);
   assert.match(connection, /isPaperConnectionVerified/);
   assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(trading, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
 });
 
 test("normal PAPER clients use only the Settings-configured verified endpoint", () => {
@@ -122,7 +121,6 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
 
-  // HOME MASTER is intentionally a calm single-flow hierarchy rather than the previous generic two-column card grid.
   assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
   assert.match(profile, /master:[\s\S]*maxWidth: 780/);

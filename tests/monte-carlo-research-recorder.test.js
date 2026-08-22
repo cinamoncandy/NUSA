@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
-const { persistMonteCarloResearch } = require("../dist/apps/desktop/src/monteCarloResearchRecorder.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
+const { persistMonteCarloResearch } = require("../dist/apps/desktop/src/strategy/monteCarloResearchRecorder.js");
 
 const input = Object.freeze({
   runId: "mc-recorded-1", strategyId: "strategy", strategyVersion: "1.0.0", parameterSet: { fast: 5 },

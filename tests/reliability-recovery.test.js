@@ -3,12 +3,12 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, writeFileSync, rmSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { RecoveryLedger, buildRecoveryHealthReport, retryWithTimeout } = require("../dist/apps/desktop/src/recovery.js");
-const { PaperSessionStore } = require("../dist/apps/desktop/src/paperSessionStore.js");
-const { ControlSessionStore } = require("../dist/apps/desktop/src/controlSessionStore.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { UpbitWebSocketClient } = require("../dist/apps/desktop/src/upbitWebSocket.js");
+const { RecoveryLedger, buildRecoveryHealthReport, retryWithTimeout } = require("../dist/apps/desktop/src/recovery/recovery.js");
+const { PaperSessionStore } = require("../dist/apps/desktop/src/paper/paperSessionStore.js");
+const { ControlSessionStore } = require("../dist/apps/desktop/src/control/controlSessionStore.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { UpbitWebSocketClient } = require("../dist/apps/desktop/src/exchange/upbitWebSocket.js");
 
 test("recovery ledger is immutable, idempotent, and bounded", () => {
   const ledger = new RecoveryLedger(2);
@@ -73,7 +73,9 @@ test("paper and control sessions restore a valid backup while returning a fail-c
 
 test("WebSocket recovery has a finite reconnect limit", () => {
   assert.throws(() => new UpbitWebSocketClient("KRW-BTC", () => undefined, () => undefined, 0), /positive safe integer/);
-  const source = require("node:fs").readFileSync("apps/desktop/src/upbitWebSocket.ts", "utf8");
+  // apps/desktop/src/exchange/upbitWebSocket.ts is a re-export shim; the real source lives in
+  // packages/core, shared with apps/cloud/src.
+  const source = require("node:fs").readFileSync("packages/core/src/upbitWebSocket.ts", "utf8");
   assert.match(source, /reconnect-exhausted/);
   assert.match(source, /maximumReconnectAttempts/);
 });

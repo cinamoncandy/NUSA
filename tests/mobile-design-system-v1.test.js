@@ -14,10 +14,12 @@ test("mobile presets keep brand actions monochrome and reserve chromatic colors 
   assert.match(source, /master:[\s\S]*?primary: "#F2EFE6"[\s\S]*?primary: "#17181B"/);
   assert.match(source, /primary: palette\.primary/);
 
-  // Chromatic accents remain confined to signal/AI semantics rather than brand actions.
-  assert.match(source, /aiSignalStart: "#9B6CFF"/);
-  assert.match(source, /aiSignalMid: "#5B8CFF"/);
-  assert.match(source, /aiSignalEnd: "#36D8CB"/);
+  // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
+  // resolves per mode -- the dark-tuned hues fall to as little as ~1.5:1 contrast on a light
+  // surface, so a light-mode variant exists for each rather than one value used unconditionally.
+  assert.match(source, /aiSignalStart: dark \? "#9B6CFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalMid: dark \? "#5B8CFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalEnd: dark \? "#36D8CB" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
 });
 

@@ -15,8 +15,8 @@ if (!databasePath || !path.isAbsolute(databasePath)) {
 } else {
   let store;
   try {
-    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
-    const { buildPersistedResearchDashboardSection } = require("../dist/apps/desktop/src/researchDashboardProjection.js");
+    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
+    const { buildPersistedResearchDashboardSection } = require("../dist/apps/desktop/src/cloud/researchDashboardProjection.js");
     store = new DesktopPersistenceStore(databasePath, { readOnly: true });
     const manifests = store.loadResearchRunManifests();
     const reports = store.loadResearchValidationReports();

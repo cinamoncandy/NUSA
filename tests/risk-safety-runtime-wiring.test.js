@@ -2,14 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { RuntimeCommandService } = require("../dist/apps/desktop/src/runtimeCommandService.js");
-const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paperDashboardProjection.js");
-const { createCanonicalOperationalPaperRiskGate } = require("../dist/apps/desktop/src/paperOperationalPreflight.js");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { RuntimeCommandService } = require("../dist/apps/desktop/src/control/runtimeCommandService.js");
+const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paper/paperDashboardProjection.js");
+const { createCanonicalOperationalPaperRiskGate } = require("../dist/apps/desktop/src/paper/paperOperationalPreflight.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 const { InMemoryRiskSafetyPersistence, CanonicalRiskSafetyGate } = require("../dist/apps/execution/src/risk-safety-integration.js");
-const { PaperApprovalService } = require("../dist/apps/desktop/src/paperApprovalService.js");
+const { PaperApprovalService } = require("../dist/apps/desktop/src/paper/paperApprovalService.js");
 const { InMemoryRiskEvidenceSink } = require("../dist/apps/execution/src/global-risk-gateway.js");
 
 const PASS = Object.freeze({ status: "PASS", method: "TEST", evidence: Object.freeze([]), blockers: Object.freeze([]) });
@@ -240,7 +240,7 @@ test("MAX_PRICE_DEVIATION and MAX_CONSECUTIVE_LOSSES limits are declared and enf
   // single-order snapshot; independent-risk-gateway.test.js exercises evaluatePreTradeRisk
   // directly for every declared reason code, including these two. This test only confirms the
   // limits this wiring restores are the same ones that module declares.
-  const { RISK_REASON_ORDER } = require("../dist/apps/desktop/src/independentRiskGateway.js");
+  const { RISK_REASON_ORDER } = require("../dist/apps/desktop/src/risk/independentRiskGateway.js");
   assert.ok(RISK_REASON_ORDER.includes("PRICE_DEVIATION_LIMIT"));
   assert.ok(RISK_REASON_ORDER.includes("CONSECUTIVE_LOSS_LIMIT"));
 });
@@ -342,18 +342,25 @@ test("Dashboard risk projection reports killSwitchActive true only when the real
 test("runtime source wires MANUAL/STRATEGY approval issuance through PaperApprovalService, kill-switch audit before state change, and the canonical adapter -- never a fabricated approvalId", () => {
   const root = path.join(__dirname, "..", "apps", "desktop", "src");
   const main = fs.readFileSync(path.join(root, "main.ts"), "utf8");
-  const service = fs.readFileSync(path.join(root, "runtimeCommandService.ts"), "utf8");
-  const approvalService = fs.readFileSync(path.join(root, "paperApprovalService.ts"), "utf8");
+  const service = fs.readFileSync(path.join(root, "control", "runtimeCommandService.ts"), "utf8");
+  // apps/desktop/src/paper/paperApprovalService.ts is a re-export shim; the real source lives
+  // in packages/core, shared with apps/cloud/src.
+  const approvalService = fs.readFileSync(path.join(root, "..", "..", "..", "packages", "core", "src", "paperApprovalService.ts"), "utf8");
+  // The ipcMain.handle(...) registrations that used to be inline in main.ts now live in these
+  // per-domain files.
+  const paperIpc = fs.readFileSync(path.join(root, "ipc", "registerPaperIpcHandlers.ts"), "utf8");
+  const controlIpc = fs.readFileSync(path.join(root, "ipc", "registerControlIpcHandlers.ts"), "utf8");
+  const safetyIpc = fs.readFileSync(path.join(root, "ipc", "registerSafetyIpcHandlers.ts"), "utf8");
   assert.match(main, /createCanonicalOperationalPaperRiskGate/);
   assert.doesNotMatch(main, /createOperationalPaperRiskGate\(/);
   assert.ok(service.indexOf("this.requireRiskApproval") < service.indexOf("this.broker.execute"));
   assert.match(service, /RECONNECT_REPLAY/);
-  assert.match(fs.readFileSync(path.join(root, "shadowOperationalRuntime.ts"), "utf8"), /path: "SHADOW"/);
+  assert.match(fs.readFileSync(path.join(root, "shadow", "shadowOperationalRuntime.ts"), "utf8"), /path: "SHADOW"/);
   // MANUAL: paper:order issues through PaperApprovalService, not a literal approvalId.
-  assert.match(main, /paperApprovalService\.issueManualApproval/);
+  assert.match(paperIpc, /paperApprovalService\.issueManualApproval/);
   // STRATEGY: control:start issues through PaperApprovalService, and control:stop revokes.
-  assert.match(main, /paperApprovalService\.issueStrategyApproval/);
-  assert.match(main, /paperApprovalService\.revoke/);
+  assert.match(controlIpc, /paperApprovalService\.issueStrategyApproval/);
+  assert.match(controlIpc, /paperApprovalService\.revoke/);
   // Kill switch: the audit write happens before the state assignment, in source order, inside
   // the same function -- so a thrown write can never be followed by the assignment.
   const auditFnStart = main.indexOf("function recordKillSwitchAudit");
@@ -361,21 +368,28 @@ test("runtime source wires MANUAL/STRATEGY approval issuance through PaperApprov
   const auditFnBody = main.slice(auditFnStart, auditFnEnd);
   assert.match(auditFnBody, /appendOperationsAudit\(auditRecord\)/);
   assert.doesNotMatch(auditFnBody, /persistedKillSwitchActive\s*=/);
-  assert.match(main, /recordKillSwitchAudit\("KILL_SWITCH_RELEASED"/);
-  assert.match(main, /recordKillSwitchAudit\("KILL_SWITCH_ACTIVATED"/);
-  const releaseStart = main.indexOf('ipcMain.handle("safety:kill-switch-release"');
-  const releaseEnd = main.indexOf("});", releaseStart);
-  const releaseBody = main.slice(releaseStart, releaseEnd);
+  assert.match(safetyIpc, /recordKillSwitchAudit\("KILL_SWITCH_RELEASED"/);
+  assert.match(safetyIpc, /recordKillSwitchAudit\("KILL_SWITCH_ACTIVATED"/);
+  const releaseStart = safetyIpc.indexOf('ipcMain.handle("safety:kill-switch-release"');
+  const releaseEnd = safetyIpc.indexOf("});", releaseStart);
+  const releaseBody = safetyIpc.slice(releaseStart, releaseEnd);
   assert.ok(releaseBody.indexOf("recordKillSwitchAudit(") < releaseBody.indexOf("persistedKillSwitchActive = false"));
   // approvalId must never be a literal string constant assigned directly in an IPC handler --
   // it must come from a PaperApprovalService call's return value.
   assert.doesNotMatch(main, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(paperIpc, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(controlIpc, /approvalId:\s*"[^"]+"/);
+  assert.doesNotMatch(safetyIpc, /approvalId:\s*"[^"]+"/);
   // PaperApprovalService is the only place in the desktop app allowed to call saveApproval.
   assert.match(approvalService, /gate\.saveApproval/);
-  for (const file of fs.readdirSync(root)) {
-    if (file === "paperApprovalService.ts" || !file.endsWith(".ts")) continue;
-    const source = fs.readFileSync(path.join(root, file), "utf8");
-    assert.doesNotMatch(source, /\.saveApproval\(/, `${file} must not call saveApproval directly; only PaperApprovalService may`);
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : [full];
+  });
+  for (const file of walk(root)) {
+    if (path.basename(file) === "paperApprovalService.ts" || !file.endsWith(".ts")) continue;
+    const source = fs.readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /\.saveApproval\(/, `${path.relative(root, file)} must not call saveApproval directly; only PaperApprovalService may`);
   }
 });
 

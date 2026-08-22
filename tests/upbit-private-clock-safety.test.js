@@ -2,10 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   evaluatePrivateRequestClockEligibility,
-} = require("../dist/apps/desktop/src/privateRequestClockSafety.js");
+} = require("../dist/apps/desktop/src/exchange/privateRequestClockSafety.js");
 const {
   UpbitReadOnlyService,
-} = require("../dist/apps/desktop/src/upbitReadOnlyService.js");
+} = require("../dist/apps/desktop/src/exchange/upbitReadOnlyService.js");
 
 function credentialsProvider(onLoad = () => {}) {
   return {
