@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { evaluateVenueConformance, sha256Json } = require("./venue-conformance-harness");
 
 const SUPPORTED_TRANSITIONS = new Set([
   "PAPER->SHADOW",
@@ -18,8 +19,7 @@ function validHash(value) {
   return typeof value === "string" && SHA256_RE.test(value);
 }
 
-function result(status, input, reasons, checks) {
-  const conformance = input?.venueConformance || {};
+function result(status, input, conformance, reasons, checks) {
   return Object.freeze({
     schemaVersion: 1,
     promotionId: nonEmpty(input?.promotionId) ? input.promotionId : null,
@@ -32,16 +32,24 @@ function result(status, input, reasons, checks) {
     liveAuthority: "NONE",
     strategyId: nonEmpty(input?.strategyId) ? input.strategyId : null,
     strategyHash: validHash(input?.strategyHash) ? input.strategyHash : null,
-    venueId: nonEmpty(conformance.venueId) ? conformance.venueId : null,
-    accountId: nonEmpty(conformance.accountId) ? conformance.accountId : null,
+    venueId: nonEmpty(conformance?.venueId) ? conformance.venueId : null,
+    accountId: nonEmpty(conformance?.accountId) ? conformance.accountId : null,
     reasons: Object.freeze([...new Set(reasons)].sort()),
     checks: Object.freeze(checks),
   });
 }
 
+function finalStatus(checks) {
+  if (checks.some((check) => check.status === "INVALID")) return "INVALID";
+  if (checks.some((check) => check.status === "BLOCK")) return "BLOCK";
+  if (checks.some((check) => check.status === "UNKNOWN")) return "UNKNOWN";
+  return "PASS";
+}
+
 function evaluateStrategyStagePromotion(input) {
   const reasons = [];
   const checks = [];
+  let recomputed = null;
 
   function add(id, status, reason) {
     checks.push(Object.freeze({ id, status, reason }));
@@ -50,75 +58,85 @@ function evaluateStrategyStagePromotion(input) {
 
   if (!input || typeof input !== "object" || input.schemaVersion !== 1) {
     add("request", "INVALID", "PROMOTION_REQUEST_INVALID");
-    return result("INVALID", input, reasons, checks);
+    return result("INVALID", input, recomputed, reasons, checks);
   }
 
   const transition = `${input.fromStage || ""}->${input.toStage || ""}`;
   if (!SUPPORTED_TRANSITIONS.has(transition)) {
     add("transition", "INVALID", "PROMOTION_TRANSITION_UNSUPPORTED");
-    return result("INVALID", input, reasons, checks);
+    return result("INVALID", input, recomputed, reasons, checks);
   }
   add("transition", "PASS", "PROMOTION_TRANSITION_SUPPORTED");
 
   if (!nonEmpty(input.promotionId) || !nonEmpty(input.strategyId)) {
     add("identity", "INVALID", "PROMOTION_IDENTITY_INVALID");
-    return result("INVALID", input, reasons, checks);
+    return result("INVALID", input, recomputed, reasons, checks);
   }
   if (!validHash(input.strategyHash) || !validHash(input.venuePolicyHash) || !validHash(input.accountPolicyHash)) {
     add("binding-request", "INVALID", "PROMOTION_BINDING_HASH_INVALID");
-    return result("INVALID", input, reasons, checks);
+    return result("INVALID", input, recomputed, reasons, checks);
   }
   add("identity", "PASS", "PROMOTION_IDENTITY_VALID");
   add("binding-request", "PASS", "PROMOTION_BINDING_HASH_VALID");
 
-  const conformance = input.venueConformance;
-  if (!conformance || typeof conformance !== "object") {
-    add("venue-conformance", "UNKNOWN", "VENUE_CONFORMANCE_MISSING");
-    return result("UNKNOWN", input, reasons, checks);
+  const current = input.conformanceInput;
+  if (!current || typeof current !== "object" || !current.strategy || !current.venue || !current.account) {
+    add("current-conformance-input", "UNKNOWN", "CURRENT_CONFORMANCE_INPUT_MISSING");
+    return result("UNKNOWN", input, recomputed, reasons, checks);
   }
 
-  if (!nonEmpty(conformance.strategyId) || !nonEmpty(conformance.venueId) || !nonEmpty(conformance.accountId)) {
-    add("conformance-identity", "UNKNOWN", "VENUE_CONFORMANCE_IDENTITY_UNKNOWN");
-  } else if (conformance.strategyId !== input.strategyId) {
-    add("conformance-identity", "BLOCK", "VENUE_CONFORMANCE_STRATEGY_ID_MISMATCH");
+  recomputed = evaluateVenueConformance(current);
+  add("current-conformance-input", "PASS", "CURRENT_CONFORMANCE_RECOMPUTED");
+
+  if (recomputed.strategyId !== input.strategyId) {
+    add("current-strategy-identity", "BLOCK", "CURRENT_STRATEGY_ID_MISMATCH");
   } else {
-    add("conformance-identity", "PASS", "VENUE_CONFORMANCE_IDENTITY_MATCH");
+    add("current-strategy-identity", "PASS", "CURRENT_STRATEGY_ID_MATCH");
   }
 
-  const binding = conformance.binding;
-  if (!binding || !validHash(binding.strategyHash) || !validHash(binding.venuePolicyHash) || !validHash(binding.accountPolicyHash)) {
-    add("conformance-binding", "UNKNOWN", "VENUE_CONFORMANCE_BINDING_UNKNOWN");
-  } else if (binding.strategyHash !== input.strategyHash) {
-    add("conformance-binding", "BLOCK", "VENUE_CONFORMANCE_STRATEGY_HASH_MISMATCH");
-  } else if (binding.venuePolicyHash !== input.venuePolicyHash) {
-    add("conformance-binding", "BLOCK", "VENUE_CONFORMANCE_VENUE_POLICY_STALE");
-  } else if (binding.accountPolicyHash !== input.accountPolicyHash) {
-    add("conformance-binding", "BLOCK", "VENUE_CONFORMANCE_ACCOUNT_POLICY_STALE");
+  if (recomputed.binding.strategyHash !== input.strategyHash) {
+    add("current-strategy-binding", "BLOCK", "CURRENT_STRATEGY_HASH_MISMATCH");
   } else {
-    add("conformance-binding", "PASS", "VENUE_CONFORMANCE_BINDING_MATCH");
+    add("current-strategy-binding", "PASS", "CURRENT_STRATEGY_HASH_MATCH");
+  }
+  if (recomputed.binding.venuePolicyHash !== input.venuePolicyHash) {
+    add("current-venue-binding", "BLOCK", "CURRENT_VENUE_POLICY_HASH_MISMATCH");
+  } else {
+    add("current-venue-binding", "PASS", "CURRENT_VENUE_POLICY_HASH_MATCH");
+  }
+  if (recomputed.binding.accountPolicyHash !== input.accountPolicyHash) {
+    add("current-account-binding", "BLOCK", "CURRENT_ACCOUNT_POLICY_HASH_MISMATCH");
+  } else {
+    add("current-account-binding", "PASS", "CURRENT_ACCOUNT_POLICY_HASH_MATCH");
   }
 
-  if (conformance.status === "BLOCK") {
+  const evidence = input.venueConformance;
+  if (!evidence || typeof evidence !== "object") {
+    add("venue-conformance-evidence", "UNKNOWN", "VENUE_CONFORMANCE_EVIDENCE_MISSING");
+    return result(finalStatus(checks), input, recomputed, reasons, checks);
+  }
+
+  const canonicalEvidenceHash = sha256Json(recomputed);
+  const suppliedEvidenceHash = sha256Json(evidence);
+  if (canonicalEvidenceHash !== suppliedEvidenceHash) {
+    add("venue-conformance-evidence", "BLOCK", "VENUE_CONFORMANCE_EVIDENCE_STALE_OR_TAMPERED");
+  } else {
+    add("venue-conformance-evidence", "PASS", "VENUE_CONFORMANCE_EVIDENCE_CANONICAL");
+  }
+
+  if (recomputed.status === "BLOCK") {
     add("conformance-result", "BLOCK", "VENUE_CONFORMANCE_BLOCKED");
-  } else if (conformance.status !== "PASS" || conformance.deployable !== true) {
+  } else if (recomputed.status !== "PASS" || recomputed.deployable !== true) {
     add("conformance-result", "UNKNOWN", "VENUE_CONFORMANCE_NOT_PASS");
-  } else if (!Array.isArray(conformance.checks) || conformance.checks.length === 0) {
+  } else if (!Array.isArray(recomputed.checks) || recomputed.checks.length === 0) {
     add("conformance-result", "UNKNOWN", "VENUE_CONFORMANCE_CHECKS_MISSING");
-  } else if (conformance.checks.some((check) => check?.status !== "PASS") || (Array.isArray(conformance.reasons) && conformance.reasons.length > 0)) {
+  } else if (recomputed.checks.some((check) => check?.status !== "PASS") || recomputed.reasons.length > 0) {
     add("conformance-result", "BLOCK", "VENUE_CONFORMANCE_RESULT_INCONSISTENT");
   } else {
     add("conformance-result", "PASS", "VENUE_CONFORMANCE_PASS");
   }
 
-  const finalStatus = checks.some((check) => check.status === "INVALID")
-    ? "INVALID"
-    : checks.some((check) => check.status === "BLOCK")
-      ? "BLOCK"
-      : checks.some((check) => check.status === "UNKNOWN")
-        ? "UNKNOWN"
-        : "PASS";
-
-  return result(finalStatus, input, reasons, checks);
+  return result(finalStatus(checks), input, recomputed, reasons, checks);
 }
 
 function main() {
