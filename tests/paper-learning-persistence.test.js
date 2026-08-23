@@ -69,7 +69,7 @@ test("PAPER learning persistence is bounded and malformed durable rows fail clos
     database.prepare("INSERT INTO paper_learning_observability_events (event_id, occurred_at, schema_version, payload_json) VALUES (?, ?, ?, ?)").run("future-schema", 10_000, 99, JSON.stringify({ mode: "PAPER" }));
     database.close();
 
-    const restarted = new PaperLearningEventRecorder({ persistencePath: filename, maximumEvents: 3 });
+    const restarted = new PaperLearningEventRecorder({ persistencePath: filename, maximumEvents: 4 });
     const replay = restarted.replay();
     assert.equal(replay.length, 3);
     assert.deepEqual(replay.map((event) => event.occurredAt), [2_002, 2_003, 2_004]);
