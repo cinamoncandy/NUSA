@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T13:54:09+09:00"
+updated_at: "2026-08-23T14:41:29+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -81,6 +81,17 @@ recent_repository_evidence:
     hypotheses: BOUNDED_EVIDENCE_BOUND_UNRESOLVED_CAUSALITY
     safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
     scope: "Read-only evidence ranking uses observable diagnostic factors and stable tie-breaking; bounded hypotheses preserve provenance and fail closed on contradiction or insufficiency without causal certainty, remediation, or execution authority."
+  remediation_proposals:
+    work_order: WO-0067
+    branch: agent/wo-0067-read-only-remediation-proposals
+    base_commit: 6faa69df665df25262d7f9de13ffe93275d6aa5e
+    implementation_commit: 892da407ef8fbd6bccb9102e4bd95c802f83ce47
+    focused_tests: PASS_4_OF_4
+    full_isolated_suite: PASS_572_FILES
+    repository_gates: PASS
+    proposal_contract: DETERMINISTIC_EVIDENCE_BOUND_READ_ONLY
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only remediation proposals carry exact evidence references, explicit rationale, bounded change surface and risk, reversibility and verification plans; contradiction, insufficiency and unsupported scope fail closed without executable mutation authority."
   autonomous_improvement_observer:
     work_order: WO-0063
     branch: agent/wo-0063-autonomous-improvement-observer
@@ -333,6 +344,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-0067
+    evidence: ".aipos/evidence/WO-0067-completion.json"
+    summary: "Deterministic read-only remediation proposals completed on agent/wo-0067-read-only-remediation-proposals at 892da407ef8fbd6bccb9102e4bd95c802f83ce47; focused 4/4 and full 572 isolated files pass, with explicit evidence/rationale, bounded scope and risk, reversibility/verification plans, fail-closed contradiction/insufficiency handling, and unchanged PAPER-only zero authority."
   - id: WO-0066
     evidence: ".aipos/evidence/WO-0066-completion.json"
     summary: "Deterministic diagnostic evidence ranking and bounded root-cause hypothesis preparation completed on agent/wo-0066-deterministic-evidence-ranking at ed3173cdea8b5df15f10080d0356508fd3407938; focused 7/7 and full 571 isolated files pass, with explicit observable factors, stable identities, contradiction/insufficiency fail-closed behavior, and unchanged PAPER-only zero authority."
