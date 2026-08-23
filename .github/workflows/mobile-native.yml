@@ -83,6 +83,11 @@ jobs:
           cmdline-tools-version: 11076708
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Generate canonical mobile build configuration
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: |
@@ -156,6 +161,11 @@ jobs:
           cmdline-tools-version: 11076708
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Generate canonical mobile build configuration
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
       - name: Build TypeScript output for UI contract tests
         run: pnpm run build
       - name: Verify canonical mobile UI contracts before RC packaging

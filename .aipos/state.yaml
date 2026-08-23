@@ -640,3 +640,25 @@ issue_661_paper_learning_code_gap_closure:
   android_preview_version_code: 69
   android_preview_sha256: 987ed80fb06c9daacaf2fc1085169c05952f5e8624a4aadf387452018e468b97
   external_validation: "PR #718 and #719 exact-head checks PASS; post-merge Actual PAPER Runtime Evidence PASS; physical Galaxy/ADB acceptance HUMAN_ENVIRONMENT_ONLY."
+
+production_cloud_origin_android_acceptance:
+  work_order: WO-PRODUCTION-CLOUD-ORIGIN-ANDROID-ACCEPTANCE
+  status: IMPLEMENTATION_VALIDATED_PENDING_PR
+  base_sha: 50b68722173f5a8f1a7087b2fe915a227febc13f
+  branch: codex/production-cloud-origin-android
+  canonical_origin: https://nusa-api.duckdns.org
+  origin_source: "GitHub variable NUSA_MOBILE_API_BASE_URL"
+  origin_health: PASS_200_OK_TRUE
+  implementation_scope: "Release-safe generated origin config, strict origin validation, and Mobile Native/build workflow sealing; no credential or authority change."
+  validation:
+    focused_mobile_tests: PASS_14_OF_14
+    full_isolated_suite: PASS_580_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    security_gate: PASS_SECRETS_0
+    architecture_truth: PASS
+    aipos_conformance: PASS
+    aipos_drift: PASS
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  physical_device_acceptance: PENDING_HUMAN_ENVIRONMENT
