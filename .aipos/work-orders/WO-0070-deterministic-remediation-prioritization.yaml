@@ -1,0 +1,68 @@
+id: WO-0070
+title: Deterministic Remediation Prioritization
+status: ready
+branch: agent/wo-0070-deterministic-remediation-prioritization
+base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+objective: >-
+  Extend the read-only improvement pipeline by deterministically prioritizing verified remediation proposals using explicit observable factors such as impact, evidence strength, risk, reversibility, implementation cost, regression surface, and operational urgency. Produce a bounded advisory queue only; do not grant code, Git, deployment, broker, Risk, LIVE, or AI execution authority.
+scope:
+  - reuse existing improvement observer, persistent recurrence memory, root-cause evidence, ranking/hypothesis, remediation proposal, and remediation verification contracts
+  - consume only verified remediation proposals that pass existing deterministic verification
+  - compute deterministic priority ordering from explicit testable factors
+  - expose factor breakdown, tie-break reasons, provenance, and insufficiency/contradiction states
+  - distinguish impact from urgency and implementation cost from regression surface
+  - preserve stable proposal identity across replay/restart
+  - bound queue size, retained history, lookup cost, and computation
+  - emit/read a read-only advisory prioritization projection using existing repository architecture
+  - fail closed on stale, malformed, contradictory, unverifiable, or insufficient inputs
+non_goals:
+  - automatic code modification
+  - self-modification
+  - automatic remediation execution
+  - automatic branch creation, commit, push, PR, merge, release, or deployment
+  - LLM-generated priority overrides
+  - strategy generation or promotion
+  - broker/order mutation
+  - Risk Authority changes
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and existing safety boundaries remain authoritative
+  - no parallel EventBus, persistence, planner, prioritization, queue, or DI framework
+  - identical canonical inputs must produce identical scores/order/tie-breaks
+  - scoring factors and weights must be explicit, bounded, explainable, and testable
+  - no fabricated confidence, expected return, probability of success, or unsupported financial value
+  - verified status does not imply authorization to execute
+  - contradictions and insufficient evidence cannot be silently averaged away
+  - all outputs are read-only advisory artifacts
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - only verified remediation proposals are eligible for prioritization
+  - priority result includes stable identity, deterministic score/order, explicit factor breakdown, and provenance
+  - tie-breaking is deterministic and covered by tests
+  - duplicate/replayed proposals are idempotent
+  - stale/malformed/contradictory/unverifiable/insufficient inputs fail closed
+  - impact, evidence strength, risk, reversibility, implementation cost, regression surface, and urgency are represented explicitly
+  - queue and history are bounded and deterministic
+  - restart/replay preserves stable ordering for identical canonical state
+  - no mutation/execution authority is introduced by prioritization output
+  - previous WO-0063 through WO-0069 behavior remains compatible
+  - focused tests pass
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and diff checks pass
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - previous remediation verification regression tests
+  - full repository test suite when required by repository policy
+  - git diff --check
+next_on_pass: human review and normal PR process
