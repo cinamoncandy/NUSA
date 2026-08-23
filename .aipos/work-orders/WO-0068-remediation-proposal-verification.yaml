@@ -1,0 +1,61 @@
+id: WO-0068
+title: Deterministic Remediation Proposal Verification Harness
+status: ready
+branch: agent/wo-0068-remediation-proposal-verification
+base_sha: d463c34e2b9eb809aee7a2c7c90a606fff314ee0
+objective: >-
+  Extend the WO-0067 read-only remediation proposal layer with a deterministic, non-mutating verification harness that can replay proposal preconditions, validate evidence references, check reversibility and verification-plan completeness, and produce bounded pass/fail advisory results without executing code, changing runtime state, creating PRs, deploying, or granting LIVE/AI authority.
+scope:
+  - reuse WO-0067 RemediationProposal contracts and existing improvement EventBus projections
+  - deterministically validate proposal evidence references, rationale consistency, change-surface bounds, risk class, reversibility plan, and verification-plan completeness
+  - support non-mutating dry-run/replay evaluation against repository/runtime facts where such facts are already exposed read-only
+  - produce a stable RemediationVerificationResult or repository-conventional equivalent
+  - preserve explicit reasons for PASS, BLOCKED, INSUFFICIENT, CONTRADICTED, or INVALID states
+  - bound replay inputs, validation fan-out, retained results, and computational work
+  - fail closed on stale, malformed, contradictory, missing, out-of-scope, or unverifiable inputs
+non_goals:
+  - applying fixes
+  - editing source code
+  - git mutation at runtime
+  - automatic branch/commit/PR/merge
+  - deployment or rollback execution
+  - broker/order/risk/strategy mutation
+  - LLM judgment or autonomous planning authority
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and safety boundaries remain authoritative
+  - no parallel verification framework if an existing validation/evidence mechanism can be reused
+  - identical canonical inputs must yield identical verification results and ordering
+  - verification may recommend no action; it may never execute the proposal
+  - unsupported environmental claims remain INSUFFICIENT rather than guessed
+  - actual external/human-environment gates remain HUMAN_ENVIRONMENT_ONLY
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - WO-0067 proposals can be deterministically validated without mutation
+  - evidence/rationale/change-surface/reversibility/verification-plan checks are explicit and testable
+  - stale, contradictory, malformed, missing, unsupported, and out-of-scope inputs fail closed
+  - dry-run/replay output has stable identity, deterministic ordering, and explicit reason codes
+  - runtime/repository state is unchanged by verification
+  - bounded retention/fan-out/work behavior is tested
+  - no code/git/deployment/broker/risk/strategy/LIVE mutation authority is introduced
+  - WO-0063 through WO-0067 behavior remains compatible
+  - focused tests pass
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and diff checks pass
+  - protected areas unchanged
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - full repository isolated suite when required by repository policy
+  - git diff --check
+next_on_pass: human review and normal PR process
