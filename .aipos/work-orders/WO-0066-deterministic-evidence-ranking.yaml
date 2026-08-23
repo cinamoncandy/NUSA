@@ -1,6 +1,6 @@
 id: WO-0066
 title: Deterministic Evidence Ranking and Root-Cause Hypothesis Preparation
-status: ready
+status: completed
 branch: agent/wo-0066-deterministic-evidence-ranking
 base_sha: c6fb0e907a32dc24c9f0119cb9cdec8588d665d2
 objective: >-
@@ -64,3 +64,19 @@ verification:
   - full repository test suite when required by repository policy
   - git diff --check
 next_on_pass: human review and normal PR process
+completion:
+  implementation_commit: ed3173cdea8b5df15f10080d0356508fd3407938
+  completed_at: "2026-08-23T13:54:09+09:00"
+  focused_tests: PASS_7_OF_7
+  full_isolated_suite: PASS_571_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  diff_check: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  protected_areas_changed: false
