@@ -1,6 +1,6 @@
 id: WO-0064
 title: Persistent Diagnostics and Recurrence Memory
-status: ready
+status: completed
 branch: agent/wo-0064-persistent-diagnostics-memory
 base_sha: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
 objective: >-
@@ -52,3 +52,18 @@ verification:
   - relevant focused tests
   - full repository test suite when required by repository policy
 next_on_pass: human review and normal PR process
+completion:
+  implementation_commit: a0ecad6047a096a1266a1d353a0700698f6c283d
+  completed_at: "2026-08-23T09:55:00+09:00"
+  focused_tests: PASS_20_OF_20
+  full_isolated_suite: PASS_568_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  protected_areas_changed: false
