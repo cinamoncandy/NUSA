@@ -376,7 +376,10 @@ function drawChart() {
     if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
   });
   context.lineWidth = 2;
-  context.strokeStyle = chartAccentColor();
+  // Use design token for chart stroke color: --color-focus from tokens.css
+  const cssVars = getComputedStyle(document.documentElement);
+  const focusColorHsl = cssVars.getPropertyValue("--color-focus").trim();
+  context.strokeStyle = focusColorHsl ? `hsl(${focusColorHsl})` : "#8f7cff"; // fallback for older themes
   context.stroke();
 }
 

@@ -138,6 +138,50 @@ function isAlignedToTick(value: number, tick: number): boolean {
   return Math.abs(units - Math.round(units)) < 1e-6;
 }
 
+/**
+ * Scaled-integer accounting core.
+ *
+ * `projectFromLedger` replays the entire ledger from scratch on every fill, so a naive
+ * `number` implementation is internally self-consistent (same inputs always produce the
+ * same IEEE-754 rounding) but each step still loses precision the way `(0.1 * 3)` does.
+ * Over a long-running session with thousands of fills that shows up as an average entry
+ * price or realized-PnL figure that is off by fractions of a won -- small per audit event,
+ * but a real drift the reconciliation checks (see apps/server's reference-ledger fold) can
+ * flag. Routing the additions and divisions that actually accumulate state (cash, position
+ * quantity, average entry price, realized PnL) through BigInt at a fixed 1e-8 scale makes
+ * each step exact; only the bps-based fill-price/cost model above (already single-shot per
+ * order, not accumulated) stays in `number` space.
+ */
+const QTY_SCALE = 100_000_000n; // 1e8 -- matches BTC's 8 decimal places
+const MONEY_SCALE = 100_000_000n; // 1e8 -- sub-unit precision for KRW cash/price/fee math
+
+function toScaledQty(value: number): bigint {
+  return BigInt(Math.round(value * Number(QTY_SCALE)));
+}
+
+function fromScaledQty(scaled: bigint): number {
+  return Number(scaled) / Number(QTY_SCALE);
+}
+
+function toScaledMoney(value: number): bigint {
+  return BigInt(Math.round(value * Number(MONEY_SCALE)));
+}
+
+function fromScaledMoney(scaled: bigint): number {
+  return Number(scaled) / Number(MONEY_SCALE);
+}
+
+/** Round-half-up scaled-integer division, exact for both signs and never subject to
+ * binary floating-point representation error. */
+function divRound(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) return 0n;
+  const negative = (numerator < 0n) !== (denominator < 0n);
+  const absNumerator = numerator < 0n ? -numerator : numerator;
+  const absDenominator = denominator < 0n ? -denominator : denominator;
+  const rounded = (absNumerator * 2n + absDenominator) / (absDenominator * 2n);
+  return negative ? -rounded : rounded;
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
@@ -226,31 +270,34 @@ export class PaperBroker {
   }
 
   private projectFromLedger(initialCash: number): void {
-    let cash = toScaledLedgerAmount(initialCash);
-    let quantity = 0n;
-    let costBasis = 0n;
-    let realizedPnl = 0n;
+    let cashScaled = toScaledMoney(initialCash);
+    let quantityScaled = 0n;
+    let averagePriceScaled = 0n;
+    let realizedPnlScaled = 0n;
     for (const entry of this.ledger) {
-      const entryQuantity = toScaledLedgerAmount(entry.quantity);
-      const entryPrice = toScaledLedgerAmount(entry.price);
-      const entryFee = toScaledLedgerAmount(entry.fee);
+      const entryQuantityScaled = toScaledQty(entry.quantity);
+      const entryPriceScaled = toScaledMoney(entry.price);
+      const entryFeeScaled = toScaledMoney(entry.fee);
+      const entryNotionalScaled = divRound(entryQuantityScaled * entryPriceScaled, QTY_SCALE);
       if (entry.side === "BUY") {
-        cash -= (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE + entryFee;
-        costBasis += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE;
-        quantity += entryQuantity;
+        cashScaled -= entryNotionalScaled + entryFeeScaled;
+        const nextQuantityScaled = quantityScaled + entryQuantityScaled;
+        averagePriceScaled = nextQuantityScaled === 0n
+          ? 0n
+          : divRound(averagePriceScaled * quantityScaled + entryPriceScaled * entryQuantityScaled, nextQuantityScaled);
+        quantityScaled = toScaledQty(this.normalizePositionQuantity(fromScaledQty(nextQuantityScaled)));
       } else {
-        const averagePrice = quantity === 0n ? 0n : (costBasis * LEDGER_REPLAY_SCALE) / quantity;
-        cash += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE - entryFee;
-        realizedPnl += ((entryPrice - averagePrice) * entryQuantity) / LEDGER_REPLAY_SCALE - entryFee;
-        costBasis -= (averagePrice * entryQuantity) / LEDGER_REPLAY_SCALE;
-        quantity -= entryQuantity;
-        if (quantity === 0n) costBasis = 0n;
+        cashScaled += entryNotionalScaled - entryFeeScaled;
+        const pnlScaled = divRound((entryPriceScaled - averagePriceScaled) * entryQuantityScaled, QTY_SCALE) - entryFeeScaled;
+        realizedPnlScaled += pnlScaled;
+        quantityScaled = toScaledQty(this.normalizePositionQuantity(fromScaledQty(quantityScaled - entryQuantityScaled)));
+        if (quantityScaled === 0n) averagePriceScaled = 0n;
       }
     }
-    this.cash = fromScaledLedgerAmount(cash);
-    this.position.quantity = this.normalizePositionQuantity(fromScaledLedgerAmount(quantity));
-    this.position.averagePrice = this.position.quantity === 0 ? 0 : fromScaledLedgerAmount((costBasis * LEDGER_REPLAY_SCALE) / quantity);
-    this.position.realizedPnl = fromScaledLedgerAmount(realizedPnl);
+    this.cash = fromScaledMoney(cashScaled);
+    this.position.quantity = fromScaledQty(quantityScaled);
+    this.position.averagePrice = fromScaledMoney(averagePriceScaled);
+    this.position.realizedPnl = fromScaledMoney(realizedPnlScaled);
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
