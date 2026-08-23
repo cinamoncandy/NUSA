@@ -557,7 +557,7 @@ issue_661_paper_learning_visibility:
   status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
   base_sha: e77582417f88efcd07e0806b5fc49c2e488730b0
   branch: feat/issue-661-paper-learning-visibility
-  implementation_commit: 527686ee
+  implementation_commit: 527686ee2fb8c9fb6233229cae07c25363b15068
   scope: "Connect canonical PAPER learning/runtime observations to the authenticated GET-only /api/paper-operations projection and the existing React Native PAPER learning monitor; add Home/Trade/Portfolio entry points."
   canonical_sources:
     runtime: apps/cloud/src/runtime.ts
