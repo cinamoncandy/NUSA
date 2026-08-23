@@ -84,7 +84,7 @@ test("Cloud runtime automatically processes a trusted public ticker without a ma
   });
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-paper-auto-runtime-"));
   const databasePath = path.join(directory, "state.sqlite");
-  const token = "paper-auto-runtime-test-token-32-bytes-min";
+  const dashboardCredential = "paper-auto-runtime-test-token-32-bytes-min";
   let stopped = false;
   const marketFactory = (_markets, onTicker, onConnectionState) => ({
     subscribe() {},
@@ -97,7 +97,7 @@ test("Cloud runtime automatically processes a trusted public ticker without a ma
   const handle = startCloudRuntime({
     NUSA_CLOUD_DASHBOARD_PORT: String(port),
     NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
-    NUSA_CLOUD_DASHBOARD_TOKEN: token,
+    NUSA_CLOUD_DASHBOARD_TOKEN: dashboardCredential,
     NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
     NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC",
     NUSA_CLOUD_STATE_DB_PATH: databasePath,
@@ -110,7 +110,7 @@ test("Cloud runtime automatically processes a trusted public ticker without a ma
     let snapshot;
     while (Date.now() < deadline) {
       try {
-        const response = await fetch(`http://127.0.0.1:${port}/api/paper-operations`, { headers: { authorization: `Bearer ${token}` } });
+        const response = await fetch(`http://127.0.0.1:${port}/api/paper-operations`, { headers: { authorization: `Bearer ${dashboardCredential}` } });
         if (response.ok) {
           const candidate = await response.json();
           if (candidate.operations?.heartbeat?.eventCount > 0) { snapshot = candidate; break; }
