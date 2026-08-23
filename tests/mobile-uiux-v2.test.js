@@ -17,6 +17,12 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
+  assert.match(app, /PaperLearningMonitorView/);
+  assert.match(app, /buildPaperLearningScreen/);
+  assert.match(app, /onOpenPaperLearning/);
+  assert.match(read("src/homeView.tsx"), /testID="home-paper-learning"/);
+  assert.match(read("src/tradingView.tsx"), /testID="trade-paper-learning"/);
+  assert.match(read("src/portfolioView.tsx"), /testID="portfolio-paper-learning"/);
 });
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
