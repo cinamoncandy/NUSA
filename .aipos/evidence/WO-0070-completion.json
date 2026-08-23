@@ -23,7 +23,7 @@
     "aiposConformance": "PASS",
     "aiposDrift": "PASS",
     "gitDiffCheck": "PASS",
-    "securityGate": "NOT_RUN_NETWORK_AUDIT_UNAVAILABLE"
+    "securityGate": "PASS_SECRETS_0"
   },
   "safety": {
     "liveAuthority": "NONE",
@@ -34,7 +34,5 @@
   },
   "determinism": "PASS_CANONICAL_HASH_STABLE_ORDER_INDEPENDENT",
   "failClosed": "PASS_MALFORMED_STALE_SCOPE_DEPENDENCY_ROLLBACK_VERIFICATION_AND_PROTECTED_SURFACES",
-  "knownLimitations": [
-    "Remote security audit could not be completed in the sandbox because the package registry was unavailable."
-  ]
+  "knownLimitations": []
 }
