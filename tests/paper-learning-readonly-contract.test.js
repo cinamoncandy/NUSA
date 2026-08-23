@@ -28,14 +28,14 @@ test('PAPER learning transport rejects duplicate ids and non-PAPER authority', (
 });
 
 test('PAPER learning transport rejects secret/account/order/fill identifier fields', () => {
-  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, accountId: 'acct-1' }]))), /prohibited/);
-  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, orderId: 'order-1' }]))), /prohibited/);
-  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, token: 'secret' }]))), /prohibited/);
+  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, accountId: 'acct-1' }])), /prohibited/);
+  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, orderId: 'order-1' }])), /prohibited/);
+  assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([{ ...baseEvent, token: 'secret' }])), /prohibited/);
 });
 
 test('PAPER learning transport requires deterministic newest-first order', () => {
   assert.throws(() => validatePaperLearningReadOnlySnapshot(snapshot([
     { ...baseEvent, id: 'older', occurredAt: 1000 },
     { ...baseEvent, id: 'newer', occurredAt: 1100 }
-  ]))), /deterministic newest-first/);
+  ])), /deterministic newest-first/);
 });
