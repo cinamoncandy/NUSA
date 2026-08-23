@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T09:31:00+09:00"
+updated_at: "2026-08-23T09:55:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -46,6 +46,18 @@ latest_verified_slice:
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
 recent_repository_evidence:
+  persistent_diagnostics_memory:
+    work_order: WO-0064
+    branch: agent/wo-0064-persistent-diagnostics-memory
+    base_commit: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
+    implementation_commit: a0ecad6047a096a1266a1d353a0700698f6c283d
+    focused_tests: PASS_20_OF_20
+    full_isolated_suite: PASS_568_FILES
+    repository_gates: PASS
+    migration: 016_improvement_candidate_memory
+    durability: PASS_CHECKSUM_RECOVERY_BOUNDED_RETENTION
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Durable bounded read-only diagnostic candidate memory with stable fingerprint recurrence, restart recovery, duplicate idempotency, checksum fail-closed behavior, and no remediation or execution authority."
   autonomous_improvement_observer:
     work_order: WO-0063
     branch: agent/wo-0063-autonomous-improvement-observer
@@ -298,6 +310,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-0064
+    evidence: ".aipos/evidence/WO-0064-completion.json"
+    summary: "Persistent diagnostic candidate memory completed on agent/wo-0064-persistent-diagnostics-memory at a0ecad6047a096a1266a1d353a0700698f6c283d; migration 016 provides checksum-verified durable history, stable recurrence, restart recovery, duplicate idempotency, and bounded retention. Focused 20/20, full 568 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
   - id: WO-0063
     evidence: ".aipos/evidence/WO-0063-completion.json"
     summary: "Deterministic read-only MarketConnectionSupervisor improvement observer completed on agent/wo-0063-autonomous-improvement-observer at b54c1a22; bounded signals/candidates, focused 6/6, full 567 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
