@@ -51,12 +51,16 @@ recent_repository_evidence:
     failed_head: d144455560a8ae652d47ffebe7568b4418675459
     failed_run: 32613539321
     repair_branch: fix/ci-701-typecheck
-    status: PENDING_EXACT_HEAD_CI
+    fixed_head: b0f89432acf377f877597459bd8fe5d14c70fd0b
+    fixed_run: 32615625189
+    base_commit: 40d6ce10df574764330bd60427ffa6d89165efdd
+    status: PASS_EXACT_HEAD_CI
     local_typecheck: PASS
     local_build: PASS
     local_lint: PASS
     isolated_suite: PASS_574_FILES
-    coverage_prepared: "574 isolated files PASS; Windows Vitest instrumentation blocked by worktree access permissions"
+    coverage_prepared: "CI_PASS; local Windows run reached 574 isolated files PASS, then Vitest instrumentation was blocked by worktree access permissions"
+    required_checks: PASS_CI_MOBILE_READONLY_BROKER_RESTRICTED_LIVE_4_OF_4
     safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
     scope: "Restored canonical Cloud/desktop boundaries and fixed Paper fixed-point accounting without changing LIVE authority or the WO-0051 human gate."
   persistent_diagnostics_memory:
