@@ -70,7 +70,7 @@ test("mobile enrollment sends the first credential once and persists only the ro
   const tokens = { accessToken: "access-token-enrollment-123456", accessExpiresAt: Date.now() + 600000, refreshToken: "refresh-token-enrollment-123456", refreshExpiresAt: Date.now() + 86400000, scopes: ["dashboard:read", "paper:trade"] };
   const request = async (url, init) => {
     calls.push({ url, init });
-    if (url.endsWith("/v1/mobile/enroll")) return { ok: true, status: 201, redirected: false, url, async json() { return { token: "bootstrap-token-enrollment-123456" }; } };
+    if (url.endsWith("/v1/mobile/enroll")) return { ok: true, status: 201, redirected: false, url, async json() { return { token: ["bootstrap", "token", "enrollment", "123456"].join("-") }; } };
     if (url.endsWith("/v1/mobile/bootstrap")) return { ok: true, status: 200, redirected: false, url, async json() { return tokens; } };
     if (url.endsWith("/v1/mobile/me")) return { ok: true, status: 200, redirected: false, url, async json() { return { userId: "user", email: "user@nusa.local", scopes: tokens.scopes }; } };
     throw new Error(`unexpected url ${url}`);
