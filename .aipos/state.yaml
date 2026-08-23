@@ -607,3 +607,28 @@ issue_661_paper_learning_visibility:
     production_mutation_allowed: false
     ai_authority: ZERO_AUTHORITY
   external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW
+
+issue_661_paper_learning_code_gap_closure:
+  issue: 661
+  work_order: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
+  status: IN_PROGRESS
+  base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
+  branch: feat/issue-661-code-gap-closure
+  scope: "Persist the existing sanitized PAPER learning timeline in the canonical Cloud state database and expose canonical risk observations without changing execution authority."
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    focused_paper_learning: PASS
+    focused_runtime_persistence: PASS
+    architecture: PASS
+    safety: PASS
+    security: PASS_SECRETS_0
+    full_isolated_suite: FAIL_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  safety:
+    mode: PAPER
+    read_only_projection: true
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+  external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW

@@ -257,6 +257,8 @@ export interface PaperExecutionResult {
   readonly orders: readonly PaperOrderRecord[];
   readonly fills: readonly PaperFillRecord[];
   readonly state: PaperAccountState;
+  /** Canonical risk result observed at the PAPER boundary; never grants authority. */
+  readonly risk?: Readonly<{ readonly status: "ALLOW" | "REJECT" | "HALT"; readonly reasonCodes: readonly string[] }>;
 }
 export interface PaperExecutionSafetyState { readonly openP0: boolean; }
 export interface PaperTradingExecutionLoopOptions {

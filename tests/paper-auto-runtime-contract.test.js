@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
+const { DatabaseSync } = require("node:sqlite");
 
 const runtimeSource = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
 const workflowSource = fs.readFileSync(".github/workflows/wo-0059-actual-paper-runtime.yml", "utf8");
@@ -126,6 +127,10 @@ test("Cloud runtime automatically processes a trusted public ticker without a ma
     assert.ok(snapshot.operations.heartbeat.decisionCount > 0);
     assert.equal(snapshot.liveAuthority, "NONE");
     assert.equal(snapshot.productionMutationAllowed, false);
+    const database = new DatabaseSync(databasePath);
+    const persisted = database.prepare("SELECT COUNT(*) AS count FROM paper_learning_observability_events").get();
+    database.close();
+    assert.ok(Number(persisted.count) > 0, "runtime must persist the read-only learning timeline in the configured Cloud database");
   } finally {
     await handle.stop();
     assert.equal(stopped, true);
