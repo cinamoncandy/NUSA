@@ -83,11 +83,11 @@ active_non_live_successor:
   title: Production Mobile Enrollment and PAPER Bootstrap
   source_work_order: .aipos/work-orders/WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP.yaml
   status: IN_PROGRESS
-  branch: feat/production-mobile-enrollment
+  branch: feat/cloud-paper-zero-config-autoconnect-v2
   base_commit: c06a4355c8301224f6d6a9fee35f78ee6ec237cf
   authority: PAPER_ONLY
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   note: "This non-LIVE successor adds authenticated first-run enrollment, canonical origin resolution, device-bound mobile refresh sessions, and automatic recovery. It does not complete, satisfy, weaken, or bypass WO-0051."
-next_recommended_task: "Complete WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP focused/security validation and exact-head CI; then resume WO-CLOUD-PAPER-ZERO-CONFIG-AUTOCONNECT. WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
+next_recommended_task: "Complete WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP exact-head CI for startup session restoration; production HTTPS origin remains deployment-configured and WO-0051 remains HUMAN_ENVIRONMENT_ONLY for LIVE and real-money transition."
