@@ -94,6 +94,8 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
+  const cornerStyle = { borderColor: theme.colors.aiSignalEnd } as const;
+
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
@@ -110,7 +112,7 @@ export function HomeView({
 
     <MotionReveal testID="home-hero-reveal">
       <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
-        <View style={styles.cornerTL} /><View style={styles.cornerTR} /><View style={styles.cornerBL} /><View style={styles.cornerBR} />
+        <View style={[styles.cornerTL, cornerStyle]} /><View style={[styles.cornerTR, cornerStyle]} /><View style={[styles.cornerBL, cornerStyle]} /><View style={[styles.cornerBR, cornerStyle]} />
         <View style={styles.deckHeader}>
           <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>01 // CAPITAL CORE</Text>
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
@@ -189,10 +191,10 @@ const styles = StyleSheet.create({
   brandUnderline: { width: 74, height: 3 },
   brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: 2.1 },
   commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
-  cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3, borderColor: "#A8FF00" },
-  cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3, borderColor: "#A8FF00" },
-  cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3, borderColor: "#A8FF00" },
-  cornerBR: { position: "absolute", right: -1, bottom: -1, width: 18, height: 18, borderRightWidth: 3, borderBottomWidth: 3, borderColor: "#A8FF00" },
+  cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
+  cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
+  cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3 },
+  cornerBR: { position: "absolute", right: -1, bottom: -1, width: 18, height: 18, borderRightWidth: 3, borderBottomWidth: 3 },
   deckHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   kicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.6 },
   heroLabel: { marginTop: 28, fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 2 },
