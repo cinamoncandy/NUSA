@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import type { ImprovementDiagnosticEvidence } from "../../core/src/improvement/improvementTypes";
 
 type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 type Recurrence = "NEW" | "RECURRING";
@@ -16,6 +17,7 @@ export interface ImprovementCandidateMemoryRecord {
   readonly firstSeenAt: number;
   readonly lastSeenAt: number;
   readonly occurrenceTimestamps: readonly number[];
+  readonly evidence?: readonly ImprovementDiagnosticEvidence[];
   readonly recurrence: Recurrence;
   readonly title: string;
   readonly status: Status;
@@ -37,14 +39,22 @@ function validate(record: ImprovementCandidateMemoryRecord): void {
   if (record.occurrenceTimestamps.some((value, index) => !Number.isSafeInteger(value) || value < 0 || (index > 0 && value <= record.occurrenceTimestamps[index - 1]!))) throw new Error("invalid improvement candidate timestamps");
   if (record.firstSeenAt !== record.occurrenceTimestamps[0] || record.lastSeenAt !== record.occurrenceTimestamps[record.occurrenceTimestamps.length - 1] || record.recurrence !== (record.occurrences > 1 ? "RECURRING" : "NEW")) throw new Error("improvement candidate chronology is inconsistent");
   if (!record.title.trim()) throw new Error("improvement candidate title is required");
+  for (const evidence of record.evidence ?? []) {
+    if (typeof evidence.id !== "string" || evidence.fingerprint !== record.fingerprint || evidence.type !== record.type || evidence.source !== record.source || !Number.isSafeInteger(evidence.observedAt) || !record.occurrenceTimestamps.includes(evidence.observedAt)) throw new Error("invalid improvement candidate evidence");
+  }
+}
+
+function normalized(record: ImprovementCandidateMemoryRecord): ImprovementCandidateMemoryRecord {
+  return Object.freeze({ ...record, evidence: Object.freeze([...(record.evidence ?? [])].sort((left, right) => left.observedAt - right.observedAt || left.id.localeCompare(right.id))) });
 }
 
 function decode(row: Record<string, unknown>): ImprovementCandidateMemoryRecord {
   const payload = String(row.payload_json);
   if (hash(payload) !== String(row.checksum)) throw new Error("improvement candidate integrity violation");
   const record = JSON.parse(payload) as ImprovementCandidateMemoryRecord;
-  validate(record);
-  return Object.freeze({ ...record, occurrenceTimestamps: Object.freeze([...record.occurrenceTimestamps]) });
+  const normalizedRecord = normalized(record);
+  validate(normalizedRecord);
+  return Object.freeze({ ...normalizedRecord, occurrenceTimestamps: Object.freeze([...normalizedRecord.occurrenceTimestamps]), evidence: Object.freeze([...(normalizedRecord.evidence ?? [])]) });
 }
 
 export class SqliteImprovementCandidateMemory {
@@ -58,12 +68,13 @@ export class SqliteImprovementCandidateMemory {
   }
 
   public save(record: ImprovementCandidateMemoryRecord): void {
-    validate(record);
-    const payload = JSON.stringify(record);
+    const normalizedRecord = normalized(record);
+    validate(normalizedRecord);
+    const payload = JSON.stringify(normalizedRecord);
     this.db.transaction(() => {
-      this.db.connection.prepare("INSERT INTO improvement_candidate_memory(fingerprint,payload_json,checksum,severity,score,occurrences,first_seen_at,last_seen_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(fingerprint) DO UPDATE SET payload_json=excluded.payload_json,checksum=excluded.checksum,severity=excluded.severity,score=excluded.score,occurrences=excluded.occurrences,first_seen_at=excluded.first_seen_at,last_seen_at=excluded.last_seen_at,updated_at=excluded.updated_at").run(record.fingerprint, payload, hash(payload), record.severity, record.score, record.occurrences, record.firstSeenAt, record.lastSeenAt, record.lastSeenAt);
+      this.db.connection.prepare("INSERT INTO improvement_candidate_memory(fingerprint,payload_json,checksum,severity,score,occurrences,first_seen_at,last_seen_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(fingerprint) DO UPDATE SET payload_json=excluded.payload_json,checksum=excluded.checksum,severity=excluded.severity,score=excluded.score,occurrences=excluded.occurrences,first_seen_at=excluded.first_seen_at,last_seen_at=excluded.last_seen_at,updated_at=excluded.updated_at").run(normalizedRecord.fingerprint, payload, hash(payload), normalizedRecord.severity, normalizedRecord.score, normalizedRecord.occurrences, normalizedRecord.firstSeenAt, normalizedRecord.lastSeenAt, normalizedRecord.lastSeenAt);
       this.db.connection.prepare("DELETE FROM improvement_candidate_memory WHERE fingerprint IN (SELECT fingerprint FROM improvement_candidate_memory ORDER BY score DESC, last_seen_at ASC, fingerprint ASC LIMIT -1 OFFSET ?)").run(this.maxRecords);
-      if (this.get(record.fingerprint) == null) throw new Error("improvement candidate was evicted during save");
+      if (this.get(normalizedRecord.fingerprint) == null) throw new Error("improvement candidate was evicted during save");
     });
   }
 
