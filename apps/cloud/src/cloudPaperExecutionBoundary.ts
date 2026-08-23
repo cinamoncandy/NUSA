@@ -83,7 +83,7 @@ export class CloudPaperExecutionBoundary {
       approvedBy
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
-    return this.options.loop.submitManualOrder(command, context);
+    return this.withRisk(this.options.loop.submitManualOrder(command, context), risk);
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
@@ -135,7 +135,7 @@ export class CloudPaperExecutionBoundary {
 
     // Canonical risk ALLOW plus the deterministic PAPER-only strategy checks above form the
     // strategy approval boundary. LIVE/production mutation authority is still absent by design.
-    return this.options.loop.processTick(tick);
+    return this.withRisk(this.options.loop.processTick(tick), { status: "ALLOW", reasonCodes: Object.freeze([]) });
   }
 
   private readOpenP0(): boolean | null {
@@ -149,11 +149,16 @@ export class CloudPaperExecutionBoundary {
       reason: `PAPER_RISK_${status}:${reasonCodes.join(",") || "UNSPECIFIED"}`,
       orders: Object.freeze([]),
       fills: Object.freeze([]),
-      state: this.options.loop.snapshot()
+      state: this.options.loop.snapshot(),
+      risk: Object.freeze({ status, reasonCodes: Object.freeze([...reasonCodes]) })
     });
   }
 
   private blocked(reason: string): PaperExecutionResult {
     return Object.freeze({ status: "BLOCKED", reason, orders: Object.freeze([]), fills: Object.freeze([]), state: this.options.loop.snapshot() });
+  }
+
+  private withRisk(result: PaperExecutionResult, risk: Readonly<{ readonly status: "ALLOW" | "REJECT" | "HALT"; readonly reasonCodes: readonly string[] }>): PaperExecutionResult {
+    return Object.freeze({ ...result, risk: Object.freeze({ status: risk.status, reasonCodes: Object.freeze([...risk.reasonCodes]) }) });
   }
 }

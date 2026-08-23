@@ -131,12 +131,16 @@ export function startCloudRuntime(
     paperFillCount: 0,
     lastError: null
   };
-  // This recorder observes the canonical PAPER boundary below. It is deliberately
-  // downstream-only: it never submits orders or mutates runtime state.
-  const paperLearningRecorder = new PaperLearningEventRecorder();
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
+  // This recorder observes the canonical PAPER boundary below. It is deliberately
+  // downstream-only: it never submits orders or mutates runtime state.
+  const paperLearningRecorder = new PaperLearningEventRecorder(
+    durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+      ? { persistencePath: config.cloudStateDbPath }
+      : {}
+  );
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
   const durableAuthDatabase = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? durableRepository.database() : undefined;
@@ -205,6 +209,7 @@ export function startCloudRuntime(
         paperLearningRecorder.record({ cycleId, stage: "MARKET_DATA", occurredAt: ticker.trade_timestamp, market: ticker.code, status: "PASS", reason: `source=UPBIT_PUBLIC_TICKER;observedAt=${ticker.trade_timestamp}` });
         const decisionSupported = canonicalDecision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(canonicalDecision.action);
         paperLearningRecorder.record({ cycleId, stage: "DECISION", occurredAt: now, market: ticker.code, status: canonicalDecision == null ? "SKIP" : "PASS", reason: canonicalDecision == null ? "NO_CANONICAL_DECISION" : decisionSupported ? undefined : `UNSUPPORTED_ACTION:${canonicalDecision.action}`, ...(canonicalDecision == null ? {} : { decision: canonicalDecision }) });
+        paperLearningRecorder.record({ cycleId, stage: "PERMISSION", occurredAt: now, market: ticker.code, status: "SKIP", reason: "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE" });
         if (result != null) {
           if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
           if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
@@ -212,6 +217,7 @@ export function startCloudRuntime(
           heartbeat.paperFillCount += result.fills.length;
           if (result.status === "FAILED") heartbeat.lastError = result.reason ?? "PAPER_EXECUTION_FAILED";
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
+          if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
           if (result.status === "DUPLICATE") paperLearningRecorder.record({ cycleId, stage: "IDEMPOTENCY", occurredAt: now, market: ticker.code, status: "SKIP", reason: result.reason ?? "PAPER_DUPLICATE" });
           for (const fill of result.fills) paperLearningRecorder.record({ cycleId, stage: "FILL", occurredAt: fill.filledAt, market: ticker.code, status: "PASS", fill, idSuffix: fill.id });
@@ -284,7 +290,7 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
-  return { ...handle, stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
+  return { ...handle, stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
 }
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {

@@ -1,0 +1,30 @@
+id: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
+title: "Issue #661 final PAPER learning code-gap closure"
+status: IN_PROGRESS
+mode: DETERMINISTIC_READ_ONLY
+issue: 661
+base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
+branch: feat/issue-661-code-gap-closure
+objective: "Persist the existing sanitized PAPER learning timeline in the canonical Cloud state database and expose canonical risk observations without changing execution authority."
+safety:
+  mode: PAPER
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+scope:
+  - "Use the existing PaperLearningEventRecorder and Cloud SQLite database."
+  - "Observe canonical CloudPaperExecutionBoundary risk results; do not recompute permission or risk in the monitor."
+  - "Preserve bounded deterministic replay, redaction, idempotency, and PAPER/REAL separation."
+verification:
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  focused_paper_learning: PASS
+  focused_runtime_persistence: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  full_suite: FAIL_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  full_suite_note: "Existing Windows bootstrap test expects unauthenticated /health 200; current runtime returns 401. No test was weakened or deleted."
+next: "Create PR, validate exact head, merge only through protected branch, then publish the canonical Android preview."
