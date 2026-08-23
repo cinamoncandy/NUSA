@@ -1,0 +1,69 @@
+id: WO-0064
+title: Persistent Diagnostics and Recurrence Memory
+status: completed
+branch: agent/wo-0064-persistent-diagnostics-memory
+base_sha: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
+objective: >-
+  Extend the deterministic read-only WO-0063 improvement observer with durable diagnostic candidate memory and recurrence lookup while preserving existing runtime, risk, broker, credential, and LIVE authority boundaries.
+scope:
+  - audit and reuse existing packages/storage persistence conventions
+  - persist bounded improvement candidate diagnostic records
+  - recover prior candidate history by stable fingerprint
+  - classify recurrence without creating duplicate historical identities
+  - retain first/last seen timestamps and occurrence history deterministically
+  - expose read-only recurrence evidence to future root-cause/planner work
+non_goals:
+  - automatic remediation
+  - AI root-cause analysis
+  - self-modifying code
+  - strategy generation
+  - broker or order mutation
+  - LIVE or real-money authority
+  - risk-authority changes
+constraints:
+  - repository architecture and AGENTS.md remain authoritative
+  - reuse existing EventBus, runtime, MarketConnectionSupervisor, and WO-0063 improvement types
+  - reuse existing storage abstractions where appropriate; do not create a parallel persistence framework
+  - storage growth must be bounded by explicit retention/compaction policy
+  - malformed or unavailable persistence must fail safely without granting mutation authority
+  - no protected-area changes
+  - no automatic merge
+acceptance_criteria:
+  - durable candidate record can be written and recovered deterministically
+  - stable fingerprint retrieves prior diagnostic history
+  - recurrence classification is tested
+  - duplicate recurrence does not create uncontrolled duplicate records
+  - retention or compaction behavior is bounded and tested
+  - restart/recovery behavior is tested using repository-standard storage test infrastructure
+  - existing WO-0063 in-process behavior remains compatible
+  - typecheck, build, architecture, safety, AIPOS and relevant tests pass
+  - full regression suite passes or is explicitly INCONCLUSIVE with no false PASS
+  - protected areas unchanged
+  - liveAuthority remains NONE
+  - AI authority remains ZERO_AUTHORITY
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - full repository test suite when required by repository policy
+next_on_pass: human review and normal PR process
+completion:
+  implementation_commit: a0ecad6047a096a1266a1d353a0700698f6c283d
+  completed_at: "2026-08-23T09:55:00+09:00"
+  focused_tests: PASS_20_OF_20
+  full_isolated_suite: PASS_568_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  protected_areas_changed: false
