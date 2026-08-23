@@ -78,25 +78,19 @@ export function HomeView({
   const contentStyle = {
     paddingHorizontal: profile.screen.horizontalPadding,
     paddingTop: profile.screen.topPadding,
-    gap: tablet ? 18 : profile.screen.sectionGap,
+    gap: tablet ? 24 : 18,
     paddingBottom: profile.screen.bottomPadding,
     maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth,
   } as const;
   const balanceStyle = {
-    fontSize: tablet ? profile.hero.tabletBalanceSize : profile.hero.balanceSize,
-    lineHeight: tablet ? profile.hero.tabletBalanceLineHeight : profile.hero.balanceLineHeight,
+    fontSize: tablet ? Math.max(profile.hero.tabletBalanceSize, 58) : Math.max(profile.hero.balanceSize, 42),
+    lineHeight: tablet ? Math.max(profile.hero.tabletBalanceLineHeight, 64) : Math.max(profile.hero.balanceLineHeight, 48),
     letterSpacing: profile.hero.balanceLetterSpacing,
     color: theme.colors.text,
   } as const;
 
   const blocked = Boolean(notConfigured || readOnlyError || !signalReady);
-  const primaryLabel = notConfigured
-    ? "PAPER 연결"
-    : readOnlyError
-      ? "다시 확인"
-      : aiInsightAvailable
-        ? "분석 보기"
-        : "시장 보기";
+  const primaryLabel = notConfigured ? "PAPER 연결" : readOnlyError ? "다시 확인" : aiInsightAvailable ? "분석 보기" : "시장 보기";
   const primaryDetail = notConfigured
     ? "PAPER 시장 데이터를 연결하면 NUSA가 분석을 시작합니다."
     : readOnlyError
@@ -114,11 +108,6 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  // notConfigured has its own single merged recovery block below (title + Signal Field +
-  // one CTA) instead of a separate notice -- see the `disconnected` branch. Duplicating that
-  // guidance here as a second OperationalNotice is exactly the repeated-explanation defect a
-  // real device surfaced: the same "connect PAPER" state described twice with two buttons that
-  // both call onGoSettings.
   const notice = readOnlyError
     ? { title: "시장 연결을 확인할 수 없습니다", detail: "NUSA는 안전하게 새로운 PAPER 판단을 보류하고 있습니다.", tone: "danger" as const }
     : null;
@@ -129,14 +118,20 @@ export function HomeView({
     testID="home-screen"
   >
     <View style={styles.wordmarkHeader}>
-      <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
+      <View style={styles.brandLockup}>
+        <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
+        <Text style={[styles.brandMeta, { color: theme.colors.textMuted }]}>INTELLIGENCE OS</Text>
+      </View>
       <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
     </View>
 
     <MotionReveal testID="home-hero-reveal">
       <View style={styles.equitySection} testID="account-hero-card">
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
-        {disconnected ? <Text style={[styles.body, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
+        <View style={styles.sectionEyebrow}>
+          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>01 / HOME</Text>
+          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
+        </View>
+        {disconnected ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">연결 후 표시</Text> : <>
           <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>
             {account ? krw(account.equity) : "-"}
           </Text>
@@ -149,42 +144,23 @@ export function HomeView({
         </>}
         {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
           <View style={styles.cashMetric} testID="home-investable-cash">
-            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>투자 가능 · {cashEnvelope.investmentPercent}%</Text>
+            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>INVESTABLE · {cashEnvelope.investmentPercent}%</Text>
             <Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text>
           </View>
           <View style={[styles.cashDivider, { backgroundColor: theme.colors.border }]} />
           <View style={styles.cashMetric} testID="home-reserved-cash">
-            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>보호 현금 · {cashEnvelope.reservePercent}%</Text>
+            <Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>RESERVE · {cashEnvelope.reservePercent}%</Text>
             <Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text>
           </View>
         </View> : null}
       </View>
     </MotionReveal>
 
-    {disconnected ? <View testID="ai-card">
-      <View style={[styles.decisionStage, styles.decisionStageCompact, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
-        <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
-        <View style={styles.terrainCompact}>
-          <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
-        </View>
-        <View style={styles.decisionCopy} testID="home-pending-decision">
-          <Text style={[styles.body, { color: theme.colors.textMuted }]}>시장 데이터가 아직 연결되지 않았습니다.</Text>
-        </View>
-      </View>
-      <OperationalNotice
-        title="PAPER를 연결하면 시장 분석과 모의거래를 시작합니다"
-        tone="warning"
-        actionLabel="PAPER 연결"
-        onAction={onGoSettings}
-        actionTestID="dashboard-open-settings"
-        testID="home-operational-notice"
-      />
-    </View> : <>
-      <View testID="ai-card">
-        <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
-        <View style={styles.decisionHeader}>
-          <View style={styles.decisionHeaderCopy}>
-            <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NOW</Text>
+    <View testID="ai-card">
+      <View style={[styles.signalStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
+        <View style={styles.signalTopRail}>
+          <View>
+            <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SIGNAL FIELD</Text>
             <Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text>
           </View>
           <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>
@@ -192,49 +168,69 @@ export function HomeView({
           </Text>
         </View>
 
-        <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
+        <View style={[styles.terrainHero, disconnected && styles.terrainHeroDisconnected]}>
+          <View style={[styles.axisLine, styles.axisLineTop, { backgroundColor: theme.colors.border }]} />
+          <View style={[styles.axisLine, styles.axisLineBottom, { backgroundColor: theme.colors.border }]} />
+          <View style={[styles.axisTick, styles.axisTickLeft, { backgroundColor: theme.colors.borderStrong }]} />
+          <View style={[styles.axisTick, styles.axisTickRight, { backgroundColor: theme.colors.borderStrong }]} />
+          <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
+          <View style={styles.signalLegend}>
+            <Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>RISK</Text>
+            <Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>NEUTRAL</Text>
+            <Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>OPPORTUNITY</Text>
+          </View>
+        </View>
 
-        {aiInsightAvailable ? <View style={styles.decisionCopy} testID="home-verified-decision">
+        {aiInsightAvailable ? <View style={[styles.decisionCopy, { borderTopColor: theme.colors.border }]} testID="home-verified-decision">
           <View style={styles.judgementRow}>
             <Text style={[styles.judgement, { color: theme.colors.text }]}>{ai?.thesis ?? ""}</Text>
             {calibratedConfidence ? <Text style={[styles.confidence, { color: theme.colors.aiSignalEnd }]}>{calibratedConfidence}</Text> : null}
           </View>
-          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {ai?.evidenceReferences.length ?? 0}개 · AI 분석은 READ ONLY</Text>
-        </View> : <View style={styles.decisionCopy} testID="home-pending-decision">
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {ai?.evidenceReferences.length ?? 0}개 · AI READ ONLY · ZERO AUTHORITY</Text>
+        </View> : <View style={[styles.decisionCopy, { borderTopColor: theme.colors.border }]} testID="home-pending-decision">
           <Text style={[styles.judgement, { color: theme.colors.text }]}>{blocked ? "시장 연결이 필요합니다" : "판단 보류"}</Text>
           <Text style={[styles.body, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
         </View>}
-        </View>
       </View>
 
-      {notice ? <OperationalNotice
-        title={notice.title}
-        detail={notice.detail}
-        tone={notice.tone}
-        actionLabel="설정에서 연결"
+      {disconnected ? <OperationalNotice
+        title="PAPER를 연결하면 시장 분석과 모의거래를 시작합니다"
+        tone="warning"
+        actionLabel="PAPER 연결"
         onAction={onGoSettings}
         actionTestID="dashboard-open-settings"
         testID="home-operational-notice"
       /> : null}
+    </View>
 
-      <View style={styles.primaryAction} testID="home-next-action">
-        <View style={styles.primaryCopy}>
-          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT</Text>
-          <Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={runPrimaryAction}
-          style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
-          testID="home-next-action-button"
-        >
-          <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
-        </Pressable>
+    {notice ? <OperationalNotice
+      title={notice.title}
+      detail={notice.detail}
+      tone={notice.tone}
+      actionLabel="설정에서 연결"
+      onAction={onGoSettings}
+      actionTestID="dashboard-open-settings"
+      testID="home-operational-notice"
+    /> : null}
+
+    {!disconnected ? <View style={styles.primaryAction} testID="home-next-action">
+      <View style={styles.primaryCopy}>
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>NEXT DECISION</Text>
+        <Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text>
       </View>
-      <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
-    </>}
+      <Pressable
+        accessibilityRole="button"
+        onPress={runPrimaryAction}
+        style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.borderStrong, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
+        testID="home-next-action-button"
+      >
+        <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
+      </Pressable>
+    </View> : null}
 
-    <View style={styles.secondaryDiagnostics} testID="safety-card">
+    {!disconnected ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" /> : null}
+
+    <View style={[styles.secondaryDiagnostics, { borderTopColor: theme.colors.border }]} testID="safety-card">
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: diagnosticsOpen }}
@@ -242,7 +238,7 @@ export function HomeView({
         style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
         testID="home-diagnostics-toggle"
       >
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>운영 진단</Text>
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text>
         <Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "진단 닫기" : "진단 보기"}</Text>
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
@@ -265,40 +261,48 @@ export function HomeView({
 
 const styles = StyleSheet.create({
   content: { width: "100%", alignSelf: "center" },
-  wordmarkHeader: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  wordmark: { fontSize: 18, lineHeight: 24, fontWeight: "800", letterSpacing: 2.2 },
-  equitySection: { gap: 7, paddingTop: 8, paddingBottom: 6 },
-  kicker: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.7 },
-  balance: { fontWeight: "800", fontVariant: ["tabular-nums"] },
+  wordmarkHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
+  brandLockup: { flexDirection: "row", alignItems: "baseline", gap: 9 },
+  wordmark: { fontSize: 20, lineHeight: 26, fontWeight: "900", letterSpacing: 3.2 },
+  brandMeta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 1.5 },
+  sectionEyebrow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  equitySection: { gap: 8, paddingTop: 10, paddingBottom: 4 },
+  kicker: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.8 },
+  balance: { fontWeight: "900", fontVariant: ["tabular-nums"] },
+  placeholderBalance: { fontSize: 32, lineHeight: 40, fontWeight: "700", paddingVertical: 8 },
   pnlRow: { minHeight: 22, flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" },
-  pnlValue: { fontSize: 14, lineHeight: 20, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  cashRail: { flexDirection: "row", alignItems: "stretch", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 3 },
-  cashMetric: { flex: 1, minWidth: 0, gap: 2 },
-  cashDivider: { width: StyleSheet.hairlineWidth, marginHorizontal: 12 },
-  cashLabel: { fontSize: 9, lineHeight: 13, fontWeight: "600" },
-  cashValue: { fontSize: 12, lineHeight: 17, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  meta: { fontSize: 11, lineHeight: 16 },
-  body: { fontSize: 13, lineHeight: 20 },
-  decisionStage: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 16, gap: 10 },
-  // Pre-connection only: the Signal Field has nothing real to show yet, so it is clipped down
-  // to a quiet sliver instead of standing at full hero height and reading as "analysis in
-  // progress" before there is any market data to analyze.
-  decisionStageCompact: { paddingBottom: 12, gap: 8 },
-  terrainCompact: { height: 72, overflow: "hidden", opacity: 0.7 },
-  decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
-  decisionHeaderCopy: { gap: 3 },
-  stageTitle: { fontSize: 20, lineHeight: 26, fontWeight: "700", letterSpacing: -0.5 },
-  decisionState: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.4 },
-  decisionCopy: { gap: 8, paddingTop: 2 },
+  pnlValue: { fontSize: 14, lineHeight: 20, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  cashRail: { flexDirection: "row", alignItems: "stretch", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, marginTop: 5 },
+  cashMetric: { flex: 1, minWidth: 0, gap: 3 },
+  cashDivider: { width: StyleSheet.hairlineWidth, marginHorizontal: 14 },
+  cashLabel: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 1 },
+  cashValue: { fontSize: 13, lineHeight: 18, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  meta: { fontSize: 10, lineHeight: 15 },
+  body: { fontSize: 12, lineHeight: 18 },
+  signalStage: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 4, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 12, overflow: "hidden" },
+  signalTopRail: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
+  stageTitle: { fontSize: 22, lineHeight: 28, fontWeight: "800", letterSpacing: -0.6 },
+  decisionState: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.5 },
+  terrainHero: { minHeight: 250, justifyContent: "center", overflow: "hidden", position: "relative" },
+  terrainHeroDisconnected: { minHeight: 190, opacity: 0.72 },
+  axisLine: { position: "absolute", left: 0, right: 0, height: StyleSheet.hairlineWidth, opacity: 0.55 },
+  axisLineTop: { top: 38 },
+  axisLineBottom: { bottom: 38 },
+  axisTick: { position: "absolute", top: 22, bottom: 22, width: StyleSheet.hairlineWidth, opacity: 0.55 },
+  axisTickLeft: { left: 12 },
+  axisTickRight: { right: 12 },
+  signalLegend: { position: "absolute", left: 8, right: 8, bottom: 8, flexDirection: "row", justifyContent: "space-between" },
+  signalLegendText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 1.1 },
+  decisionCopy: { gap: 7, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
   judgementRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  judgement: { flex: 1, fontSize: 17, lineHeight: 24, fontWeight: "700", letterSpacing: -0.25 },
-  confidence: { fontSize: 18, lineHeight: 24, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  primaryAction: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 4 },
+  judgement: { flex: 1, fontSize: 18, lineHeight: 25, fontWeight: "800", letterSpacing: -0.3 },
+  confidence: { fontSize: 18, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  primaryAction: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 2 },
   primaryCopy: { flex: 1, minWidth: 0, gap: 4 },
   actionDetail: { fontSize: 11, lineHeight: 16 },
-  primaryButton: { minHeight: 48, minWidth: 112, maxWidth: "46%", justifyContent: "center", alignItems: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14 },
-  primaryLabel: { fontSize: 12, lineHeight: 18, fontWeight: "800" },
-  secondaryDiagnostics: { gap: 6, paddingTop: 2 },
+  primaryButton: { minHeight: 48, minWidth: 112, maxWidth: "46%", justifyContent: "center", alignItems: "center", borderWidth: 1, borderRadius: 2, paddingHorizontal: 14, backgroundColor: "transparent" },
+  primaryLabel: { fontSize: 11, lineHeight: 17, fontWeight: "900", letterSpacing: 0.7 },
+  secondaryDiagnostics: { gap: 6, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth },
   diagnosticsToggle: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
   diagnosticsToggleLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
 });
