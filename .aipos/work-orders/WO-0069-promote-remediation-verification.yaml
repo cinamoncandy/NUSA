@@ -1,0 +1,66 @@
+id: WO-0069
+title: Promote Verified Remediation Verification into Repository
+status: ready
+branch: agent/wo-0069-promote-remediation-verification
+base_sha: 9284c0cfb0a00d7afe64a5f63fcc12ce355ee4cf
+objective: >-
+  Promote the already locally verified WO-0068 deterministic remediation proposal verification implementation into the canonical repository through a separate governed integration work order, without altering WO-0068's original no-push/no-PR constraint and without introducing remediation execution authority.
+source:
+  work_order: WO-0068
+  local_commit: cf0a9308e23003fc1a232c36b24289b3ba45f0c1
+  original_branch: agent/wo-0068-remediation-proposal-verification
+  original_designated_base: d463c34e2b9eb809aee7a2c7c90a606fff314ee0
+  validated_latest_base: 9284c0cfb0a00d7afe64a5f63fcc12ce355ee4cf
+scope:
+  - recover the exact WO-0068 local commit or reproduce its exact three-file patch if the commit is unavailable in the integration worktree
+  - apply the WO-0068 change onto this branch based on current main
+  - preserve deterministic RemediationVerificationResult semantics
+  - preserve evidence/rationale consistency checks
+  - preserve stale/malformed/contradictory/missing input fail-closed behavior
+  - preserve scope/risk/reversibility/verification-plan validation
+  - preserve deterministic dry-run/replay behavior
+  - run focused WO-0068 tests, WO-0067 regression tests, full tests, and repository gates
+  - record new AIPOS completion evidence for WO-0069 integration
+  - open a normal PR only after all required validation passes
+non_goals:
+  - changing WO-0068 historical constraints
+  - adding executable remediation
+  - code generation or self-modification
+  - automatic merge or deploy
+  - broker/order mutation
+  - Risk Authority changes
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS, and safety contracts remain authoritative
+  - do not weaken tests or acceptance criteria
+  - if recovered WO-0068 patch differs from the reported three-file implementation, stop and report BLOCKED
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+  - remediation verification output remains read-only/non-executable
+acceptance_criteria:
+  - exact WO-0068 semantics are present on current main-derived branch
+  - changed implementation scope remains limited to remediation verification core/export/test plus required AIPOS evidence metadata
+  - focused WO-0068 tests pass
+  - WO-0067 regression tests pass
+  - full repository tests pass
+  - preflight/typecheck/build/lint/architecture/safety/AIPOS/AI authority checks pass
+  - git diff --check passes
+  - no execution, broker, risk, LIVE, deployment, or git self-mutation authority is introduced by runtime code
+  - PR is created only after PASS
+  - automatic merge is not performed
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - WO-0068 focused tests
+  - WO-0067 regression tests
+  - pnpm test
+  - git diff --check
+next_on_pass: human review and normal PR process
