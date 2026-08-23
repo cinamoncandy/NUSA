@@ -1,6 +1,6 @@
 id: WO-0067
 title: Read-Only Remediation Proposal Contract
-status: ready
+status: completed
 branch: agent/wo-0067-read-only-remediation-proposals
 base_sha: 6faa69df665df25262d7f9de13ffe93275d6aa5e
 objective: >-
@@ -66,4 +66,23 @@ verification:
   - relevant focused tests
   - full repository test suite when required by repository policy
   - git diff --check
+completion:
+  completed_at: "2026-08-23T14:41:29+09:00"
+  implementation_commit: 892da407ef8fbd6bccb9102e4bd95c802f83ce47
+  focused_tests: PASS_4_OF_4
+  full_isolated_suite: PASS_572_FILES
+  standard_pnpm_test: BLOCKED_DEPENDENCY_REINSTALL_NETWORK
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  diff_check: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  execution_mutation: false
+  protected_areas_changed: false
 next_on_pass: human review and normal PR process
