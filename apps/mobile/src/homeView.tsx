@@ -133,6 +133,8 @@ export function HomeView({
       <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
     </View>
 
+    <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
+
     <MotionReveal testID="home-hero-reveal">
       <View style={styles.equitySection} testID="account-hero-card">
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
@@ -179,7 +181,6 @@ export function HomeView({
         actionTestID="dashboard-open-settings"
         testID="home-operational-notice"
       />
-      <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
     </View> : <>
       <View testID="ai-card">
         <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
@@ -232,7 +233,6 @@ export function HomeView({
           <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
         </Pressable>
       </View>
-      <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
     </>}
 
     <View style={styles.secondaryDiagnostics} testID="safety-card">
