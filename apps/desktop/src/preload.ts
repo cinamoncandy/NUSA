@@ -154,6 +154,7 @@ export interface ShadowPilotApi {
   resume(sessionId: string): Promise<unknown>;
   stop(sessionId: string): Promise<unknown>;
   status(): Promise<unknown>;
+  observability(): Promise<unknown>;
 }
 
 export interface NUSAOperationsApi {
@@ -180,7 +181,8 @@ const shadowPilot: ShadowPilotApi = Object.freeze({
   pause: (sessionId: string) => invokeMutation("shadow:pause", { sessionId }),
   resume: (sessionId: string) => invokeMutation("shadow:resume", { sessionId }),
   stop: (sessionId: string) => invokeMutation("shadow:stop", { sessionId }),
-  status: () => invokeReadWithRecovery("shadow:status")
+  status: () => invokeReadWithRecovery("shadow:status"),
+  observability: () => invokeReadWithRecovery("shadow:observability", {})
 });
 
 /**

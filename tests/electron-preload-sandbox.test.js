@@ -51,7 +51,7 @@ test("sandbox preload creates the restricted bridges without network or app runt
       "onSnapshot", "onStatus", "onTicker", "placeOrder", "releaseKillSwitch", "setAutoTrade",
       "setStrategyQuantity", "startStrategy", "stopStrategy"
     ]);
-    assert.deepEqual(bridge.shadowPilot, ["pause", "preflight", "resume", "start", "status", "stop"]);
+    assert.deepEqual(bridge.shadowPilot, ["observability", "pause", "preflight", "resume", "start", "status", "stop"]);
     assert.equal(bridge.hasIpcRenderer, false);
     assert.equal(bridge.hasNodeRequire, false);
   assert.equal(bridge.preflight, true);
@@ -60,6 +60,7 @@ test("sandbox preload creates the restricted bridges without network or app runt
   await exposed.nusa.getA4Diagnostics();
   await exposed.shadowPilot.preflight();
   await exposed.shadowPilot.status();
+  await exposed.shadowPilot.observability();
   assert.ok(ipcCalls.some((call) => call.kind === "invoke" || call.kind === "on"));
 });
 
