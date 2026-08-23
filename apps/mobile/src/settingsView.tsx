@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DataRow, NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
 import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
@@ -11,8 +12,9 @@ import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperCo
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
 import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import { getOrCreateInstallationId } from "./installationIdentity";
 
-interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; }
+interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; readonly credentialSession?: InMemoryDashboardCredentialSession; readonly canonicalEndpoint?: string | null; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
 const allocationPresets = Object.freeze([{ key: "25", label: "25%" }, { key: "50", label: "50%" }, { key: "75", label: "75%" }, { key: "100", label: "100%" }]);
 const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
@@ -21,7 +23,7 @@ const money = (value: number): string => `₩${Math.round(value).toLocaleString(
 const actionFor = (user: OperatorUserRecord): readonly OperatorUserAction[] => user.status === "PENDING" ? ["APPROVE", "REJECT"] : user.status === "ACTIVE" ? ["SUSPEND"] : ["RESTORE"];
 const actionLabel: Readonly<Record<OperatorUserAction, string>> = { APPROVE: "승인", REJECT: "거절", SUSPEND: "정지", RESTORE: "복구" };
 
-export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave, onInvestmentPercentChanged }: SettingsViewProps) {
+export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudInvestmentPercentSave, onInvestmentPercentChanged, credentialSession: sharedCredentialSession, canonicalEndpoint }: SettingsViewProps) {
   const { theme, setMode } = useTheme();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,9 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [operatorUsers, setOperatorUsers] = useState<readonly OperatorUserRecord[]>([]);
   const [operatorError, setOperatorError] = useState<string | null>(null);
   const [operatorBusy, setOperatorBusy] = useState(false);
-  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const [installationId, setInstallationId] = useState<string | null>(null);
+  const localCredentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const credentialSession = sharedCredentialSession ?? localCredentialSession;
   const savingRef = useRef(false);
   const connectionInFlightRef = useRef(false);
 
@@ -43,7 +47,8 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     let active = true;
     void repository.load().then(async (loaded) => {
       if (!active) return;
-      const next = normalizeSettings(loaded ?? DEFAULT_SETTINGS);
+      const loadedSettings = normalizeSettings(loaded ?? DEFAULT_SETTINGS);
+      const next = loadedSettings.paperEndpoint || !canonicalEndpoint ? loadedSettings : normalizeSettings({ ...loadedSettings, paperEndpoint: canonicalEndpoint });
       setConfiguredPaperEndpoint(next.paperEndpoint); setSettings(next); setEndpointDraft(next.paperEndpoint); setInvestmentPercentDraft(String(next.capitalAllocation.investmentPercent)); setMode(themePreference(next.theme)); onInvestmentPercentChanged?.(next.capitalAllocation.investmentPercent);
       if (!next.paperEndpoint || !credentialSession.isConfigured() || !isPaperConnectionVerified(next.paperEndpoint)) return;
       const result = await loadPersonalPaperOperations({ baseUrl: next.paperEndpoint, credentialProvider: credentialSession.credentialProvider });
@@ -52,7 +57,9 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       setConnection(result);
     }).catch((loadError) => { if (active) setError(loadError instanceof Error ? loadError.message : "Settings are unavailable."); });
     return () => { active = false; };
-  }, [credentialSession, onInvestmentPercentChanged, repository, setMode]);
+  }, [canonicalEndpoint, credentialSession, onInvestmentPercentChanged, repository, setMode]);
+
+  useEffect(() => { let active = true; void getOrCreateInstallationId(AsyncStorage).then((value) => { if (active) setInstallationId(value); }).catch(() => { if (active) setInstallationId(null); }); return () => { active = false; }; }, []);
 
   const persist = async (next: AppSettings): Promise<boolean> => {
     if (savingRef.current) return false;
@@ -79,10 +86,15 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const configuredEndpoint = getConfiguredPaperEndpoint();
       if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER endpoint is not configured." }); return; }
       credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER connection verification is in progress." }); credentialSession.connect(tokenDraft);
+      if (!tokenDraft.startsWith("legacy-bootstrap:")) {
+        if (installationId == null) throw new Error("Secure installation identity is unavailable.");
+        credentialSession.clear();
+        await credentialSession.enroll(tokenDraft, installationId);
+      }
       const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status === "READY") { markPaperConnectionVerified(configuredEndpoint); setTokenDraft(""); } else { credentialSession.clear(); clearPaperConnectionVerification(); }
       setConnection(result);
-    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "Cloud PAPER bootstrap token 또는 보안 세션이 유효하지 않습니다." }); }
+    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." }); }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };
@@ -125,7 +137,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <View style={styles.sectionBlock} testID="settings-local-paper"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>01 · LOCAL PAPER</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>즉시 사용</Text></View><StatusChip label="준비됨" tone="success" /></View><InlineNotice title="연결 없이 PAPER 가능" detail={`Upbit 공개 시세와 가상자금 ${money(LOCAL_PAPER_INITIAL_CASH)}으로 PAPER 탭에서 바로 매수·매도할 수 있습니다. bootstrap token과 Cloud endpoint는 필요하지 않습니다.`} tone="success" testID="settings-local-paper-ready" /></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>02 · OPTIONAL CLOUD</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Cloud PAPER 동기화</Text></View><StatusChip label={cloudConnectionLabel} tone={cloudConnectionTone} /></View><InlineNotice title={connection.status === "READY" ? "Cloud 연결 정상" : "Cloud 연결은 선택 사항"} detail={cloudConnectionDetail} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "warning" : "info"} testID="settings-connection-summary" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint (선택)" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="1회용 연결 토큰 (선택)" value={tokenDraft} onChangeText={setTokenDraft} placeholder="Cloud를 사용할 때만 입력" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>이 연결은 Cloud PAPER 동기화·운영자 기능용입니다. LOCAL PAPER 거래에는 사용하지 않습니다. 입력한 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다.</Text><View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "Cloud 연결"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="Cloud 연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View></View>
+    <View style={styles.sectionBlock} testID="settings-paper-connection"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>02 · CLOUD PAPER</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Cloud PAPER 동기화</Text></View><StatusChip label={cloudConnectionLabel} tone={cloudConnectionTone} /></View><InlineNotice title={connection.status === "READY" ? "Cloud 연결 정상" : "최초 인증 필요"} detail={canonicalEndpoint ? cloudConnectionDetail : "이 release에는 canonical Cloud HTTPS origin이 아직 주입되지 않았습니다."} tone={connection.status === "READY" ? "success" : connection.status === "UNAVAILABLE" ? "warning" : "info"} testID="settings-connection-summary" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && !canonicalEndpoint} keyboardType="url" label="Cloud endpoint (선택)" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" /><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="1회용 연결 토큰 (선택)" value={tokenDraft} onChangeText={setTokenDraft} placeholder="Cloud를 사용할 때만 입력" returnKeyType="done" secureTextEntry testID="settings-paper-token" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>최초 인증 토큰은 이 요청에서만 사용되고 저장되지 않습니다. bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. LOCAL PAPER 거래에는 사용하지 않습니다. 인증 후에는 Android Secure Storage의 회전 refresh 세션으로 endpoint/token 입력 없이 자동 복구합니다. endpoint 직접 입력과 legacy bootstrap token은 개발 진단 경로입니다.</Text><View style={styles.row}><NusaButton disabled={busy} label={connecting ? "연결 확인 중..." : "Cloud 연결"} onPress={() => void testConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="Cloud 연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <UpbitConnectionPanel />

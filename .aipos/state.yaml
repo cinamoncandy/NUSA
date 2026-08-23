@@ -1,11 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T14:41:29+09:00"
+updated_at: "2026-08-23T15:20:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
 active_branch: main
+active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
@@ -63,6 +64,31 @@ recent_repository_evidence:
     required_checks: PASS_CI_MOBILE_READONLY_BROKER_RESTRICTED_LIVE_4_OF_4
     safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
     scope: "Restored canonical Cloud/desktop boundaries and fixed Paper fixed-point accounting without changing LIVE authority or the WO-0051 human gate."
+  production_mobile_enrollment:
+    work_order: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
+    branch: feat/cloud-paper-zero-config-autoconnect-v2
+    base_commit: 5709dc2e2b48e0a82c9c1c795d91398b847a56a3
+    implementation_status: IMPLEMENTATION_VALIDATED_PENDING_PR
+    canonical_origin: DEPLOYMENT_CONFIG_PENDING
+    focused_enrollment_tests: PASS_12_OF_12
+    startup_restore_tests: PASS_2_OF_2
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    ai_zero_authority: PASS
+    restricted_live_governance: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    aipos_conformance: PASS
+    secret_scan: PASS_SECRETS_0
+    full_isolated_suite: FAIL_LOCAL_CLOUD_RUNTIME_BOOTSTRAP_HTTP_401
+    local_paper_regression: PASS_BY_EXISTING_SUITE_CONTRACT
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Authenticated active-user self-enrollment, device-bound PAPER bootstrap, Android Keystore refresh persistence, canonical HTTPS origin validation, and fail-closed session recovery; no LIVE or broker mutation authority."
   persistent_diagnostics_memory:
     work_order: WO-0064
     branch: agent/wo-0064-persistent-diagnostics-memory
