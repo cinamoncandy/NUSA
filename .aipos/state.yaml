@@ -8,6 +8,16 @@ base_branch: main
 active_branch: main
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
+current_non_live_work_order:
+  id: WO-0070
+  status: IN_PROGRESS
+  branch: agent/wo-0070-deterministic-remediation-prioritization
+  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+  implementation_commit: 3711390a
+  focused_tests: PASS_5_OF_5
+  full_isolated_suite: PASS_581_FILES
+  repository_gates: PASS
+  scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
   issue: 210
