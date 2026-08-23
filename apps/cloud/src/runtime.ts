@@ -24,7 +24,8 @@ import {
   type PersonalPaperMarketProjection,
   type PersonalPaperOperationsSnapshot,
   type PersonalPaperOrderProjection,
-  type PersonalPaperPortfolioProjection
+  type PersonalPaperPortfolioProjection,
+  type PersonalPaperRuntimeHeartbeat
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
@@ -102,6 +103,33 @@ export function startCloudRuntime(
   aiRuntime?: CloudAiRuntime
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
+  const runtimeStartedAt = Date.now();
+  const heartbeat: {
+    startedAt: number;
+    lastHeartbeatAt: number;
+    lastMarketEventAt: number | null;
+    lastPaperDecisionAt: number | null;
+    lastPaperOrderAt: number | null;
+    lastPaperFillAt: number | null;
+    eventCount: number;
+    decisionCount: number;
+    paperOrderCount: number;
+    paperFillCount: number;
+    lastError: string | null;
+  } = {
+    startedAt: runtimeStartedAt,
+    lastHeartbeatAt: runtimeStartedAt,
+    lastMarketEventAt: null,
+    lastPaperDecisionAt: null,
+    lastPaperOrderAt: null,
+    lastPaperFillAt: null,
+    eventCount: 0,
+    decisionCount: 0,
+    paperOrderCount: 0,
+    paperFillCount: 0,
+    lastError: null
+  };
+  const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
@@ -138,10 +166,13 @@ export function startCloudRuntime(
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
   let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
+    heartbeat.lastHeartbeatAt = Date.now();
+    heartbeat.lastMarketEventAt = ticker.trade_timestamp;
+    heartbeat.eventCount += 1;
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
-    if (!observation) { safeHydrate([]); return; }
+    if (!observation) { heartbeat.lastError = "PUBLIC_MARKET_EVENT_REJECTED"; safeHydrate([]); return; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
@@ -158,17 +189,33 @@ export function startCloudRuntime(
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
         const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent };
+        heartbeat.lastPaperDecisionAt = now;
+        heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
         // canonical Cloud PAPER risk boundary. Never let dependency injection create a
         // second mutation path for strategy ticks.
         const result = productionPaperBoundary?.processTick(tick);
+        if (result != null) {
+          if (result.orders.length > 0) heartbeat.lastPaperOrderAt = now;
+          if (result.fills.length > 0) heartbeat.lastPaperFillAt = now;
+          heartbeat.paperOrderCount += result.orders.length;
+          heartbeat.paperFillCount += result.fills.length;
+          if (result.status === "FAILED") heartbeat.lastError = result.reason ?? "PAPER_EXECUTION_FAILED";
+        }
         // Missing boundary means no strategy mutation; retain a verified read projection so
         // recovery/fixtures remain observable without turning the loop into a writer.
         if (result != null && result.status === "FAILED") clearPaperProjection(); else projectPaperAccount();
       }
     } else if (effectivePaperLoop != null) clearPaperProjection();
-  }, (state) => { marketConnectionState = state; if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); } }) : undefined;
+  }, (state) => {
+    heartbeat.lastHeartbeatAt = Date.now();
+    marketConnectionState = state;
+    heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); }
+  }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
+  const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
+  heartbeatTimer.unref?.();
 
   const loadPaperOperations = (principal: DashboardPrincipal): PersonalPaperOperationsSnapshot => {
     const input = effectiveProvider.read(principal);
@@ -178,9 +225,11 @@ export function startCloudRuntime(
     const transport = marketConnectionState === "CONNECTED" ? "ONLINE" as const : "OFFLINE" as const;
     const p0State = readAiP0State();
     const p0Halted = p0State === "OPEN" || p0State === "UNVERIFIABLE";
-    const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : effectivePaperLoop == null ? "STOPPED" as const : transport === "ONLINE" ? "READY" as const : "READY_OFFLINE" as const;
+    const autoRunning = effectivePaperLoop != null && config.upbitPublicDataEnabled;
+    const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
     const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
-    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), operations: { runtimeState, schedulerRunning: false, schedulerMode: "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: dashboard.generatedAt }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, dashboard.generatedAt);
+    const generatedAt = Math.max(dashboard.generatedAt, heartbeat.lastHeartbeatAt);
+    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), operations: { runtimeState, schedulerRunning: autoRunning, schedulerMode: autoRunning ? "ACTIVE" : "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: generatedAt, heartbeat: readHeartbeat() }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, generatedAt);
   };
 
   const submitPaperOrder = (principal: DashboardPrincipal, command: PersonalPaperOrderCommand): PersonalPaperOrderCommandResult => {
@@ -217,7 +266,7 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
-  return { ...handle, stop: async () => { try { marketDataClient?.stop(); await handle.stop(); } finally { effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
+  return { ...handle, stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
 }
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {

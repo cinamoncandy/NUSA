@@ -26,7 +26,7 @@ function krw(value: number): string {
 }
 
 function healthTone(health: string | undefined): "success" | "warning" | "danger" {
-  return health === "HEALTHY" || health === "READY" || health === "ONLINE"
+  return health === "HEALTHY" || health === "READY" || health === "ONLINE" || health === "RUNNING"
     ? "success"
     : health === "FAIL_CLOSED" || health === "DOWN"
       ? "danger"
@@ -59,8 +59,9 @@ export function HomeView({
     : undefined;
   const disconnected = notConfigured != null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
+  const runtimeState = snapshot?.operations.runtimeState;
   const statusLabel = snapshot
-    ? `PAPER · ${signalReady ? "READY" : "점검 필요"}`
+    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : signalReady ? "READY" : "점검 필요"}`
     : notConfigured
       ? "PAPER · 연결 필요"
       : "PAPER · 대기";
@@ -243,6 +244,12 @@ export function HomeView({
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
         <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={`PAPER 상태 신호: ${statusLabel}`} tone={snapshot ? "success" : "warning"} />
+        {snapshot?.operations.heartbeat ? <CompactMetric
+          label="PAPER runtime"
+          value={runtimeState ?? "UNKNOWN"}
+          detail={`heartbeat ${new Date(snapshot.operations.heartbeat.lastHeartbeatAt).toISOString()} · 시장 이벤트 ${snapshot.operations.heartbeat.eventCount}`}
+          tone={runtimeState === "RUNNING" ? "success" : runtimeState === "DEGRADED" ? "warning" : "default"}
+        /> : null}
         <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
         <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
