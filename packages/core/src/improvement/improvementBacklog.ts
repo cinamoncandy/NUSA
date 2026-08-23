@@ -1,5 +1,5 @@
 import { validateImprovementObserverPolicy } from "./problemDetector";
-import type { ImprovementCandidate, ImprovementCandidateHistory, ImprovementObserverPolicy, ImprovementRecurrence, ImprovementSeverity, ImprovementSignal } from "./improvementTypes";
+import type { ImprovementCandidate, ImprovementCandidateHistory, ImprovementDiagnosticEvidence, ImprovementObserverPolicy, ImprovementRecurrence, ImprovementSeverity, ImprovementSignal } from "./improvementTypes";
 
 interface Aggregate {
   readonly fingerprint: string;
@@ -11,6 +11,7 @@ interface Aggregate {
   firstSeenAt: number;
   lastSeenAt: number;
   occurrenceTimestamps: number[];
+  evidence: ImprovementDiagnosticEvidence[];
 }
 
 const SEVERITY_RANK: Record<ImprovementSeverity, number> = { INFO: 1, LOW: 2, MEDIUM: 3, HIGH: 4, CRITICAL: 5 };
@@ -33,12 +34,19 @@ export class ImprovementBacklog {
       occurrences: 0,
       firstSeenAt: signal.observedAt,
       lastSeenAt: signal.observedAt,
-      occurrenceTimestamps: []
+      occurrenceTimestamps: [],
+      evidence: []
     };
-    if (aggregate.occurrenceTimestamps.includes(signal.observedAt)) return this.toCandidate(aggregate);
+    const evidence: ImprovementDiagnosticEvidence = Object.freeze({ id: signal.id, fingerprint: signal.fingerprint, type: signal.type, source: signal.source, observedAt: signal.observedAt, ...signal.evidence });
+    if (aggregate.occurrenceTimestamps.includes(signal.observedAt)) {
+      if (!aggregate.evidence.some((item) => item.id === evidence.id)) aggregate.evidence.push(evidence);
+      return this.toCandidate(aggregate);
+    }
     aggregate.occurrences += 1;
     aggregate.occurrenceTimestamps.push(signal.observedAt);
     aggregate.occurrenceTimestamps.sort((left, right) => left - right);
+    aggregate.evidence.push(evidence);
+    aggregate.evidence.sort((left, right) => left.observedAt - right.observedAt || left.id.localeCompare(right.id));
     aggregate.lastSeenAt = Math.max(aggregate.lastSeenAt, signal.observedAt);
     if (SEVERITY_RANK[signal.severity] > SEVERITY_RANK[aggregate.severity]) aggregate.severity = signal.severity;
     aggregate.score = SEVERITY_RANK[aggregate.severity] * 1_000 + Math.min(aggregate.occurrences, 100);
@@ -62,7 +70,8 @@ export class ImprovementBacklog {
       occurrences: history.occurrences,
       firstSeenAt: history.firstSeenAt,
       lastSeenAt: history.lastSeenAt,
-      occurrenceTimestamps: [...history.occurrenceTimestamps]
+      occurrenceTimestamps: [...history.occurrenceTimestamps],
+      evidence: [...(history.evidence ?? [])]
     };
     this.aggregatesByFingerprint.set(history.fingerprint, aggregate);
     this.evictIfNeeded();
@@ -92,6 +101,7 @@ export class ImprovementBacklog {
       firstSeenAt: aggregate.firstSeenAt,
       lastSeenAt: aggregate.lastSeenAt,
       occurrenceTimestamps: Object.freeze([...aggregate.occurrenceTimestamps]),
+      evidence: Object.freeze([...aggregate.evidence]),
       recurrence,
       title: "Market reconnect instability detected",
       status: aggregate.occurrences >= this.policy.minOccurrences ? "PENDING_REVIEW" as const : "OBSERVED" as const
