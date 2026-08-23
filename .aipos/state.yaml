@@ -1,11 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T14:41:29+09:00"
+updated_at: "2026-08-23T15:20:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
 active_branch: main
+active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
@@ -46,6 +47,30 @@ latest_verified_slice:
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
 recent_repository_evidence:
+  production_mobile_enrollment:
+    work_order: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
+    branch: feat/production-mobile-enrollment
+    base_commit: c06a4355c8301224f6d6a9fee35f78ee6ec237cf
+    implementation_status: IMPLEMENTATION_VALIDATED_PENDING_PR
+    canonical_origin: DEPLOYMENT_CONFIG_PENDING
+    focused_enrollment_tests: PASS_9_OF_9
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    ai_zero_authority: PASS
+    restricted_live_governance: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    aipos_conformance: PASS
+    secret_scan: PENDING_SECURITY_AUDIT_NETWORK
+    full_isolated_suite: BLOCKED_LOCAL_PERSISTED_CLOUD_STATE_COLLISION
+    local_paper_regression: PASS_BY_EXISTING_SUITE_CONTRACT
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Authenticated active-user self-enrollment, device-bound PAPER bootstrap, Android Keystore refresh persistence, canonical HTTPS origin validation, and fail-closed session recovery; no LIVE or broker mutation authority."
   persistent_diagnostics_memory:
     work_order: WO-0064
     branch: agent/wo-0064-persistent-diagnostics-memory
