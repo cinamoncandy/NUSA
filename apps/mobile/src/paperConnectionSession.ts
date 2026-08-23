@@ -55,7 +55,8 @@ export function clearPaperConnectionVerification(): void { verifiedEndpoint = nu
 export function isPaperConnectionVerified(value = configuredEndpoint): boolean { return value != null && normalizeEndpoint(value) === verifiedEndpoint; }
 export async function restoreConfiguredPaperSession(value = configuredEndpoint): Promise<boolean> {
   const endpoint = value == null ? null : normalizeEndpoint(value);
-  if (endpoint == null || endpoint !== configuredEndpoint) return false;
+  if (endpoint == null) return true;
+  if (endpoint !== configuredEndpoint) return false;
   if (!isPaperConnectionVerified(endpoint)) {
     if (restoreInFlight != null) await restoreInFlight;
     else await restoreApprovedSession(endpoint);
