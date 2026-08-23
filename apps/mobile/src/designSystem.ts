@@ -94,15 +94,15 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
   master: Object.freeze({
     name: "master" as const,
     dark: Object.freeze({
-      background: "#0A0B0E", surface: "#101216", surfaceRaised: "#16191F", surfaceSunken: "#0D0F12",
-      text: "#F2EFE6", textMuted: "#9DA2AA", primary: "#F2EFE6", primarySoft: "#24211B", onPrimary: "#0A0B0E",
-      navSurface: "#0D0F12", border: "#292D34", borderStrong: "#4A505A", info: "#B4BAC4", focus: "#F2EFE6",
+      background: "#030607", surface: "#07100E", surfaceRaised: "#0B1714", surfaceSunken: "#020807",
+      text: "#F3F7F4", textMuted: "#7F918A", primary: "#F2EFE6", primarySoft: "#17230D", onPrimary: "#030607",
+      navSurface: "#040A08", border: "#14231E", borderStrong: "#2D443A", info: "#B4BAC4", focus: "#F2EFE6",
       neonGlow: "rgba(155, 108, 255, 0.14)",
     }),
     light: Object.freeze({
-      background: "#F1EEE6", surface: "#FAF8F2", surfaceRaised: "#E8E4DA", surfaceSunken: "#E2DDD1",
-      text: "#17181B", textMuted: "#59606A", primary: "#17181B", primarySoft: "#E5DFD1", onPrimary: "#FAF8F2",
-      navSurface: "#F7F4EC", border: "#CDC6B9", borderStrong: "#8F887C", info: "#4D5560", focus: "#17181B",
+      background: "#F1F3EE", surface: "#FAFCF7", surfaceRaised: "#E8ECE4", surfaceSunken: "#E1E6DD",
+      text: "#101512", textMuted: "#58645E", primary: "#17181B", primarySoft: "#DDEBCB", onPrimary: "#FAFCF7",
+      navSurface: "#F7F9F4", border: "#CBD3C8", borderStrong: "#87948B", info: "#4D5560", focus: "#17181B",
       neonGlow: "rgba(155, 108, 255, 0.08)",
     }),
     typography: Object.freeze({ micro: 9, caption: 11, body: 14, title: 20, heading: 29, display: 40, hero: 58 }),
@@ -140,9 +140,6 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       primary: palette.primary,
       primarySoft: palette.primarySoft,
       onPrimary: palette.onPrimary,
-      // Tuned for a dark surface. Used unconditionally against a light background, aiSignalEnd in
-      // particular fell to ~1.5:1 contrast -- well under WCAG's 3:1 non-text floor -- so the HOME
-      // hero's central convergence node was nearly invisible in light mode specifically.
       aiSignalStart: dark ? "#9B6CFF" : "#7C3AED",
       aiSignalMid: dark ? "#5B8CFF" : "#2563EB",
       aiSignalEnd: dark ? "#36D8CB" : "#0B6B60",
