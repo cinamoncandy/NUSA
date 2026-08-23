@@ -1,0 +1,45 @@
+{
+  "workOrder": "WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP",
+  "status": "IMPLEMENTATION_VALIDATED_PENDING_PR",
+  "branch": "feat/production-mobile-enrollment",
+  "baseCommit": "c06a4355c8301224f6d6a9fee35f78ee6ec237cf",
+  "canonicalOrigin": "DEPLOYMENT_CONFIG_PENDING",
+  "focusedEnrollmentTests": "PASS_9_OF_9",
+  "gates": {
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architectureTruth": "PASS",
+    "architectureCheck": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "aiZeroAuthority": "PASS",
+    "restrictedLiveGovernance": "PASS",
+    "restrictedLiveReadiness": "PASS",
+    "readOnlyBroker": "PASS",
+    "aiposConformance": "PASS",
+    "securityGate": "PENDING_NETWORK_DEPENDENCY_AUDIT",
+    "fullSuite": "PENDING_CLEAN_CI_ENVIRONMENT"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "brokerMutation": "NONE",
+    "mobileUsersManage": false,
+    "paperOnly": true
+  },
+  "implementation": {
+    "selfEnrollment": true,
+    "minimumPaperScopes": ["dashboard:read", "paper:trade"],
+    "androidSecureStorageRefreshOnly": true,
+    "deviceBinding": true,
+    "refreshRotation": true,
+    "revocation": true,
+    "manualEndpointAfterCanonicalConfig": false,
+    "manualTokenAfterEnrollment": false,
+    "anonymousEnrollment": false
+  },
+  "externalAcceptance": "HUMAN_ENVIRONMENT_ONLY",
+  "note": "No production hostname is present in the repository; release configuration must inject a real HTTPS origin. No APK secret or privileged token was added."
+}

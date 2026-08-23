@@ -34,6 +34,7 @@ import { MobileSessionService } from "./mobileSessionService";
 import {
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
+  handleMobileEnrollmentHttp,
   handleMobileMeHttp,
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
@@ -181,7 +182,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
       try {
-        const principal = mobileSessionService?.verifyAccess(token) ?? desktopSessionService?.verifyAccess(token) ?? options.tokenVerifier.verify(token);
+        // Session verifiers intentionally fail closed by throwing for malformed or
+        // unknown session material. Keep the legacy shared-secret verifier reachable
+        // when no mobile/desktop session matches, without treating a verifier error
+        // as permission to bypass the remaining checks.
+        let principal: DashboardPrincipal | undefined;
+        try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
+        if (principal == null) {
+          try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
+        }
+        if (principal == null) {
+          try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
+        }
         if (principal == null || !principal.userId.trim()) return undefined;
         const principalEmail = principal.email?.trim().toLowerCase();
         if (!principalEmail) return undefined;
@@ -274,6 +286,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/bootstrap") {
         respond("mobile_bootstrap", handleMobileBootstrapHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/enroll") {
+        respond("mobile_enroll", handleMobileEnrollmentHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {

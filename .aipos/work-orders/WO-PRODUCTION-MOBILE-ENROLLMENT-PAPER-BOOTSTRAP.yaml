@@ -1,0 +1,42 @@
+id: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
+title: Production Mobile Enrollment and PAPER Bootstrap
+status: IN_PROGRESS
+branch: feat/production-mobile-enrollment
+implementation_branch: feat/production-mobile-enrollment
+base_branch: main
+base_commit: c06a4355c8301224f6d6a9fee35f78ee6ec237cf
+objective: "Add first-run authenticated mobile enrollment and secure PAPER session recovery without weakening the LIVE boundary."
+scope:
+  - canonical HTTPS Cloud origin contract
+  - authenticated active-user self-enrollment
+  - minimum PAPER session scopes
+  - Android Keystore refresh-session persistence and device binding
+  - refresh, revoke, expiry, and fail-closed recovery
+  - mobile auto-resolution of the configured origin
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mobileUsersManage: false
+  brokerMutation: NONE
+  paperOnly: true
+constraints:
+  - no authentication bypass
+  - no static bearer or broker credential in APK
+  - no anonymous privileged enrollment
+  - no LIVE or real-money capability
+  - preserve OWNER-only operator bootstrap issuance
+acceptance:
+  - focused enrollment/bootstrap/security tests pass
+  - typecheck, build, lint, architecture and security gates pass
+  - exact-head CI and Mobile Native pass
+  - production hostname is supplied only by release configuration
+  - physical Galaxy acceptance is HUMAN_ENVIRONMENT_ONLY when unavailable
+verification_commands:
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:truth
+  - pnpm run safety:architecture
+  - pnpm run ai:architecture
+  - git diff --check

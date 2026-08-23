@@ -38,6 +38,14 @@ export class InMemoryDashboardCredentialSession {
     session.clearMemory();
   }
 
+  public async enroll(userCredential: string, deviceId: string): Promise<void> {
+    const endpoint = sharedEndpoint;
+    if (endpoint == null) throw new Error("Cloud PAPER origin is not configured for this build.");
+    pendingBootstrapToken = null;
+    const session = mobileApprovedSession();
+    await session.enroll(endpoint, userCredential, deviceId);
+  }
+
   public isConfigured(): boolean { return sharedEndpoint !== null; }
 
   public readonly credentialProvider: DashboardCredentialProvider = async () => {

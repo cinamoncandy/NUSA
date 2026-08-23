@@ -27,6 +27,7 @@ import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPubli
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import { PaperLearningMonitorView } from "./src/paperLearningMonitorView";
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
+import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -63,7 +64,8 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
     void settingsRepository.load().then((stored) => {
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
-      setConfiguredPaperEndpoint(settings.paperEndpoint);
+      const canonical = resolveCanonicalCloudOrigin();
+      setConfiguredPaperEndpoint(settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : ""));
       setMode(themePreference(settings.theme));
     }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
     return () => { active = false; };
@@ -303,7 +305,7 @@ function AuthenticatedApp() {
      {paperLearningOpen ? <PaperLearningMonitorView state={paperLearningState} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
        : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
-      : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
+      : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
        : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
        : activeTab === "Paper" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />

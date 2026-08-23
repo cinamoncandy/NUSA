@@ -41,6 +41,41 @@ function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessi
   return principal;
 }
 
+function authorizeActiveUser(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
+  const token = bearer(request.headers.authorization ?? request.headers.Authorization);
+  if (token == null) return undefined;
+  const principal = dependencies.legacyTokenVerifier.verify(token);
+  if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return undefined;
+  const user = dependencies.userAccessRepository.get(principal.userId.trim());
+  if (!isUserAllowed(user) || user!.email !== principal.email.trim().toLowerCase()) return undefined;
+  return principal;
+}
+
+/**
+ * First-run enrollment for an already authenticated, approved user. The
+ * caller's bearer is used only for this request; the issued capability is the
+ * existing one-time mobile bootstrap token and is never persisted by Cloud.
+ */
+export function handleMobileEnrollmentHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  let principal: DashboardPrincipal | undefined;
+  try { principal = authorizeActiveUser(request, dependencies); } catch { return dashboardJsonResponse(401, { error: "UNAUTHORIZED" }); }
+  if (principal == null) return dashboardJsonResponse(403, { error: "USER_NOT_ACTIVE" });
+  const input = jsonObject(request.body);
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  if (deviceId.length < 8 || deviceId.length > 256 || /[\r\n]/.test(deviceId)) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_ENROLLMENT_REQUEST" });
+  try {
+    const issued = dependencies.sessionService.issueSelfBootstrap({ actorUserId: principal.userId, deviceId });
+    return dashboardJsonResponse(201, issued);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("ACTIVE")) return dashboardJsonResponse(403, { error: "USER_NOT_ACTIVE" });
+    if (message.includes("scope")) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_SESSION_SCOPES" });
+    return dashboardJsonResponse(403, { error: "MOBILE_ENROLLMENT_REJECTED" });
+  }
+}
+
 export function handleMobileBootstrapIssueHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST");
   if (methodError) return methodError;
@@ -67,9 +102,10 @@ export function handleMobileBootstrapHttp(request: DashboardHttpRequest & { read
   if (methodError) return methodError;
   const input = jsonObject(request.body);
   const bootstrapToken = typeof input?.bootstrapToken === "string" ? input.bootstrapToken.trim() : "";
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : undefined;
   if (!bootstrapToken) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_BOOTSTRAP_REQUEST" });
   try {
-    const tokens = dependencies.sessionService.bootstrap(bootstrapToken);
+    const tokens = dependencies.sessionService.bootstrap(bootstrapToken, Date.now(), deviceId);
     return tokens == null ? dashboardJsonResponse(401, { error: "MOBILE_BOOTSTRAP_REJECTED" }) : dashboardJsonResponse(200, tokens);
   } catch { return dashboardJsonResponse(401, { error: "MOBILE_BOOTSTRAP_REJECTED" }); }
 }
@@ -79,9 +115,10 @@ export function handleMobileSessionRefreshHttp(request: DashboardHttpRequest & {
   if (methodError) return methodError;
   const input = jsonObject(request.body);
   const refreshToken = typeof input?.refreshToken === "string" ? input.refreshToken.trim() : "";
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : undefined;
   if (!refreshToken) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_REFRESH_REQUEST" });
   try {
-    const tokens = dependencies.sessionService.refresh(refreshToken);
+    const tokens = dependencies.sessionService.refresh(refreshToken, Date.now(), deviceId);
     return tokens == null ? dashboardJsonResponse(401, { error: "MOBILE_REFRESH_REJECTED" }) : dashboardJsonResponse(200, tokens);
   } catch { return dashboardJsonResponse(401, { error: "MOBILE_REFRESH_REJECTED" }); }
 }
