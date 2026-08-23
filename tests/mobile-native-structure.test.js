@@ -70,6 +70,8 @@ test("Android release networking fails closed without an unresolved manifest pla
   assert.match(manifest, /android:usesCleartextTraffic="\$\{usesCleartextTraffic\}"/);
   assert.match(gradle, /manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/);
   assert.equal((gradle.match(/manifestPlaceholders\s*=\s*\[usesCleartextTraffic:\s*"false"\]/g) ?? []).length, 2);
+  assert.match(gradle, /nusaCanonicalOrigin/);
+  assert.match(gradle, /nusa_canonical_origin/);
 });
 
 test("mobile foundation exposes a Home screen, theme, and four primary decision-flow tabs", () => {

@@ -36,6 +36,7 @@ def nusaBuildNumber = nusaBuildNumberRaw ? nusaBuildNumberRaw.toLong() : 0L
 def nusaVersionCode = Math.max(1L, Math.min(nusaBuildNumber, 2100000000L)).intValue()
 def nusaShortSha = nusaBuildSha.length() > 8 ? nusaBuildSha.substring(0, 8) : nusaBuildSha
 def nusaVersionName = "1.0.${nusaBuildNumber}-${nusaShortSha}"
+def nusaCanonicalOrigin = (System.getenv("NUSA_CANONICAL_ORIGIN") ?: "").trim()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -56,6 +57,9 @@ android {
         // with `aapt dump --values resources`, so this is the provenance anchor
         // that makes the exact 40-character source SHA independently visible.
         resValue "string", "nusa_build_sha", nusaBuildSha
+        // The HTTPS origin is non-secret deployment metadata. The release workflow
+        // supplies it only after the canonical-origin helper validates it.
+        if (nusaCanonicalOrigin) resValue "string", "nusa_canonical_origin", nusaCanonicalOrigin
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     buildFeatures {
