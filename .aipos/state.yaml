@@ -662,3 +662,23 @@ production_cloud_origin_android_acceptance:
     aipos_drift: PASS
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   physical_device_acceptance: PENDING_HUMAN_ENVIRONMENT
+
+issue_661_shadow_transport_unified_monitor:
+  work_order: WO-ISSUE-661-SHADOW-TRANSPORT-UNIFIED-MONITOR
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+  branch: agent/issue-661-shadow-transport-unified-monitor
+  scope: "Authenticated GET-only Shadow observability transport, verified sealed archive replay, and unified read-only PAPER/SHADOW mobile monitor using existing Shadow evidence and authority boundaries."
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    focused_shadow_archive_and_transport: PASS_17_OF_17
+    diff_check: PASS
+  safety:
+    mode: PAPER_AND_SHADOW_READ_ONLY
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    broker_mutation: NONE
+  external_validation: PENDING_EXACT_HEAD_CI_AND_REVIEW

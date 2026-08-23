@@ -38,6 +38,7 @@ import { SqliteNusaUserAccessRepository } from "./operatorUserAccess";
 import { DesktopSessionService } from "./desktopSessionService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
 import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
+import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -45,6 +46,7 @@ export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRu
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
 export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void) => CloudRuntimeMarketDataClientLike;
+export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 
 function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
@@ -102,7 +104,8 @@ export function startCloudRuntime(
   researchRuntime?: CloudRuntimeResearchRuntimeLike,
   researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike,
   researchAutomation?: CloudRuntimeResearchAutomationLike,
-  aiRuntime?: CloudAiRuntime
+  aiRuntime?: CloudAiRuntime,
+  shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider
 ): CloudDashboardServerHandle {
   const config = readCloudRuntimeConfig(env);
   const runtimeStartedAt = Date.now();
@@ -286,6 +289,7 @@ export function startCloudRuntime(
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
+    ...(shadowObservabilityProvider == null ? {} : { loadShadowOperations: shadowObservabilityProvider }),
     submitPaperOrder,
     investmentAllocationSettings
   });

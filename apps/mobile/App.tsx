@@ -22,11 +22,13 @@ import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllo
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
-import { PaperLearningMonitorView } from "./src/paperLearningMonitorView";
+import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
+// PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
@@ -116,6 +118,7 @@ function AuthenticatedApp() {
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
+  const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
@@ -152,6 +155,7 @@ function AuthenticatedApp() {
     const endpoint = getConfiguredPaperEndpoint();
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
+      setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       return Promise.resolve();
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
@@ -167,6 +171,8 @@ function AuthenticatedApp() {
       const currentEndpoint = getConfiguredPaperEndpoint();
       if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
       setOperations(result);
+      const shadowResult = await loadShadowOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setShadowOperations(shadowResult);
       if (result.status === "READY") {
         const nextVersion = runtimeCoordinator.current().lastPersistedVersion + 1;
         dispatchRuntime({ type: "RECOVERY_MATCHED", version: nextVersion });
@@ -241,7 +247,7 @@ function AuthenticatedApp() {
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {
@@ -317,7 +323,7 @@ function AuthenticatedApp() {
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
-     {paperLearningOpen ? <PaperLearningMonitorView state={paperLearningState} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
+     {paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : shadowOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
        : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
