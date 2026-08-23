@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 // `projectFromLedger` replays every fill from scratch, so a naive `number` implementation
 // is self-consistent but each averaging/division step still loses precision -- see

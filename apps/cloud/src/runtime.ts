@@ -4,8 +4,9 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository, type PaperExecutionRiskGate } from "./paperTradingExecutionLoop";
-import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
@@ -87,58 +88,6 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   } catch { return failed(); }
 }
 
-/**
- * Wires PaperTradingExecutionLoop's automated STRATEGY decisions to
- * independentRiskGateway.ts's evaluatePreTradeRisk() (WO-0032's exposure/rate/burst/
- * drawdown/consecutive-loss/price-deviation circuit breakers). Limits scale off the
- * account's own initial capital rather than a hardcoded absolute won figure, since cloud's
- * paper capital is operator-configured (NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW) and a fixed
- * number would either be meaningless for a small account or toothless for a large one.
- *
- * Identity fingerprints and the seen-id dedup sets reset on every runtime start -- there is
- * no persisted strategy/config/runtime build identity on the cloud path yet, unlike desktop's
- * PAPER_SAFETY_FINGERPRINTS. That means STRATEGY_FINGERPRINT_MISMATCH and its siblings can
- * never fire here; the circuit breakers that matter for an automated loop (exposure, rate,
- * daily loss, consecutive loss, drawdown) still do.
- */
-function buildCloudPaperRiskGate(initialCapital: number): PaperExecutionRiskGate {
-  const fingerprints = Object.freeze({
-    strategy: "cloud-paper-strategy-v1",
-    config: "cloud-paper-config-v1",
-    runtime: "cloud-paper-runtime-v1",
-    riskPolicy: "cloud-paper-risk-policy-v1"
-  });
-  const identity: RiskIdentityState = {
-    strategyFingerprint: fingerprints.strategy,
-    configFingerprint: fingerprints.config,
-    runtimeFingerprint: fingerprints.runtime,
-    riskPolicyFingerprint: fingerprints.riskPolicy,
-    seenSignalIds: new Set(),
-    seenCommandIds: new Set(),
-    seenClientOrderIds: new Set()
-  };
-  const limits: IndependentRiskLimits = {
-    maxOrderNotional: initialCapital * 0.2,
-    maxPositionNotional: initialCapital * 0.8,
-    maxOpenOrders: 20,
-    maxOrdersPerSecond: 2,
-    maxOrdersPerMinute: 30,
-    maxSameSideStreak: 10,
-    maxSymbolExposureNotional: initialCapital * 0.8,
-    maxPortfolioExposureNotional: initialCapital * 0.8,
-    maxDailyBuyNotional: initialCapital * 0.5,
-    maxDailySellNotional: initialCapital * 0.5,
-    maxDailyLoss: initialCapital * 0.1,
-    maxConsecutiveLosses: 5,
-    maxSessionDrawdownRatio: 0.25,
-    maxPriceDeviationRatio: 0.05
-  };
-  return Object.freeze({
-    fingerprints,
-    evaluate: (request: Parameters<typeof evaluatePreTradeRisk>[0]) => evaluatePreTradeRisk(request, identity, limits)
-  });
-}
-
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
@@ -174,25 +123,6 @@ export function startCloudRuntime(
   const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
     ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
     : undefined;
-  const readAiP0State = (): CloudRuntimeAiP0State => {
-    if (effectiveP0Repository == null) return "UNAVAILABLE";
-    try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; }
-    catch { return "UNVERIFIABLE"; }
-  };
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
-    ? new SqliteCloudPaperAccountRepository(durableRepository.database())
-    : undefined);
-  const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined
-    ? undefined
-    : new PaperTradingExecutionLoop({
-      initialCapital: config.paperInitialCapitalKrw,
-      repository: effectivePaperRepository,
-      readP0State: () => {
-        if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable");
-        return effectiveP0Repository.readState();
-      },
-      riskGate: buildCloudPaperRiskGate(config.paperInitialCapitalKrw)
-    }));
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research owns its fail-closed state. */ }
   const clearPaperProjection = (): void => { try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ } effectiveProvider.clear(); };
@@ -292,19 +222,8 @@ export function startCloudRuntime(
 
 const CRASH_CLEANUP_TIMEOUT_MS = 5_000;
 
-/**
- * Best-effort cleanup for an uncaught exception / unhandled rejection. Deliberately does NOT
- * call `controller.trigger()`: that path is ShutdownController's graceful-shutdown machinery,
- * and it exits 0 when `stop()` resolves -- correct for an intentional SIGTERM/SIGINT, wrong
- * here. server.ts's "EADDRINUSE ... must terminate the runtime" comment depends on an
- * unhandled bind-failure surfacing as an uncaughtException with a non-zero exit, so a second
- * runtime racing for an occupied port fails closed instead of exiting 0 and reading as a
- * clean, healthy shutdown to anything watching the process. This path always exits 1; the
- * only thing it changes versus letting Node's own default handler kill the process is giving
- * `handle.stop()` a bounded chance to flush/close before that exit.
- */
 export function crashCleanupAndExit(handle: CloudDashboardServerHandle, controller: ShutdownController, exit: (code: number) => void): void {
-  if (controller.isShuttingDown()) return; // a graceful shutdown is already in flight; let it finish and own the exit code
+  if (controller.isShuttingDown()) return;
   let settled = false;
   const finish = (): void => {
     if (settled) return;
@@ -318,17 +237,21 @@ export function crashCleanupAndExit(handle: CloudDashboardServerHandle, controll
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
-  process.on("SIGTERM", () => controller.trigger("SIGTERM"));
-  process.on("SIGINT", () => controller.trigger("SIGINT"));
-  process.on("uncaughtException", (error: Error) => {
-    process.stderr.write(`[cloud-runtime] uncaught exception: ${error.message}\n`);
-    crashCleanupAndExit(handle, controller, exit);
+  process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT"));
+
+  // Unrecoverable runtime faults must terminate the process so supervisors can restart
+  // from a fail-closed state instead of serving potentially stale mutation paths.
+  process.on("uncaughtException", (error) => {
+    process.stderr.write(`[cloud-runtime] uncaught exception: ${error instanceof Error ? error.message : "unknown error"}\n`);
+    crashCleanupAndExit(handle, controller, () => {});
+    exit(1);
   });
-  process.on("unhandledRejection", (reason: unknown) => {
-    const message = reason instanceof Error ? reason.message : String(reason);
-    process.stderr.write(`[cloud-runtime] unhandled rejection: ${message}\n`);
-    crashCleanupAndExit(handle, controller, exit);
+  process.on("unhandledRejection", (reason) => {
+    process.stderr.write(`[cloud-runtime] unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}\n`);
+    crashCleanupAndExit(handle, controller, () => {});
+    exit(1);
   });
+
   return controller;
 }
 function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }

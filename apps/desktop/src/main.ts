@@ -34,29 +34,25 @@ import type { MarketConnectionDiagnostics } from "./exchange/marketConnectionSup
 import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery/recovery";
 import { createHash } from "node:crypto";
 import { deriveRuntimeFingerprint } from "./runtimeFingerprint";
-import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
-import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
-import { findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
-import { SHADOW_OBSERVATION_PROFILE } from "./shadowObservationProfile";
-import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
-import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
-import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
-import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
-import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
-import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest, type AiSignalExplanation, type AiSignalFollowUpAnswer } from "./aiSignalExplainer";
-import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
-import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
-import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest, type AiSessionSummary } from "./aiSessionSummary";
-import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest, type AiRegimeExplanation } from "./aiRegimeExplainer";
-import { evaluateStrategyRegime } from "./regimePolicy";
-import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest, type AiRiskCommentary } from "./aiRiskCommentary";
-// import { ResearchAssistantGovernor, type ResearchAssistantId } from "./aiResearchAssistantGovernor"; // DEV OVERRIDE
+import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paper/paperSafetySnapshot";
+import { ShadowOperationalRuntime } from "./shadow/shadowOperationalRuntime";
+import { findIncompleteShadowArchivesSync } from "./shadow/shadowEvidenceArchive";
+import { SHADOW_OBSERVATION_PROFILE } from "./shadow/shadowObservationProfile";
+import { createShadowEvidenceBusFactory } from "./shadow/shadowEvidenceComposition";
+import { parseShadowSessionIpc } from "./ipc/shadowIpcValidation";
+import { UpbitMinuteCandleSource } from "./exchange/upbitMinuteCandleSource";
+import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paper/paperOperationalPreflight";
+import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paper/paperRiskState";
+import { createAnthropicSignalExplainerClient, type AiSignalExplainerClient, type SignalExplanationRequest } from "./ai/aiSignalExplainer";
+import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./ai/aiChallengerObserver";
+import { createAnthropicDisagreementExplainerClient, type AiDisagreementExplainerClient } from "./ai/aiChallengerDisagreementExplainer";
+import { createAnthropicSessionSummaryClient, type AiSessionSummaryClient } from "./ai/aiSessionSummary";
+import { createAnthropicRegimeExplainerClient, type AiRegimeExplainerClient } from "./ai/aiRegimeExplainer";
+import { createAnthropicRiskCommentaryClient, type AiRiskCommentaryClient } from "./ai/aiRiskCommentary";
+import { ResearchAssistantGovernor, type ResearchAssistantId } from "./ai/aiResearchAssistantGovernor";
 import { aiSha256 } from "../../../packages/contracts/src/aiInference";
-import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
-import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
-import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
-import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
-import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
+import type { CanonicalRiskDecision } from "../../../packages/contracts/src/risk-safety-integration";
+import { compareRecoveryState, RecoveryReviewState } from "./recovery/recoveryReconciliation";
 import { CrashRecoveryMarkerStore, type CrashRecoveryDiagnostic, type CrashRecoveryStartup } from "./crashRecoveryMarker";
 import { resolveUserDataLayout, writableDirectories, type UserDataLayout } from "./userDataLayout";
 import { AppSettingsStore, type AppSettings, type LogLevel } from "./appSettingsStore";
@@ -86,7 +82,7 @@ import { registerDiagnosticsIpcHandlers } from "./ipc/registerDiagnosticsIpcHand
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
 const FEE_RATE = 0.0005;
-const MAXIMUM_MARKET_DATA_AGE_MS = 300_000; // DEV OVERRIDE
+const MAXIMUM_MARKET_DATA_AGE_MS = 30_000;
 const RECONNECT_COOLDOWN_MS = 5_000;
 const REQUIRED_WARMUP_SAMPLES = 20;
 const SHADOW_STRATEGY_VERSION = "sma-crossover:closed-candle-1m-v1";
@@ -951,12 +947,12 @@ function initializeRuntime(): void {
     // or any halt is outside this entirely and still needs the owner.
     autoResumeOnMarketRecovery: true
   });
-  paperTradingAvailable = true; // DEV OVERRIDE
+  paperTradingAvailable = !crashRecoveryRequired && !safetyRecoveryBlocked && persistenceDiagnostic == null && paperLoad.diagnostic == null && controlLoad.diagnostic == null;
   if (control.snapshot().status === "RUNNING" && paperTradingAvailable) strategy.start();
   for (const diagnostic of [paperLoad.diagnostic, controlLoad.diagnostic, persistenceDiagnostic]) {
     if (diagnostic) control.fault(diagnostic);
   }
-  // // // if (!paperTradingAvailable) runtime.markUnavailable(); // DEV OVERRIDE // DEV OVERRIDE // DEV OVERRIDE
+  if (!paperTradingAvailable) runtime.markUnavailable();
   if (paperTradingAvailable) {
     try {
       if (!evidenceRecorder) throw new Error("Paper evidence recorder is unavailable");
@@ -970,146 +966,6 @@ function initializeRuntime(): void {
   updateCrashMarker();
 }
 
-/**
- * WO-0019. The renderer must show its confirmation UI (exact side/quantity/symbol) and only
- * invoke this channel once the user has passed it -- that confirmation is what "explicit user
- * confirmation" means here, and this handler trusts that it already happened. What this
- * handler does NOT trust is a renderer- or test-supplied approvalId: the approval is minted
- * right here, by PaperApprovalService, bound to a freshly generated commandId and the exact
- * side/quantity/symbol of this call, and is therefore usable for this order alone.
- */
-ipcMain.handle("paper:order", (_event, input: unknown) => {
-  // // // if (!paperTradingAvailable) throw new Error(PERSISTENCE_REPAIR_MESSAGE); // DEV OVERRIDE // DEV OVERRIDE // DEV OVERRIDE
-  if (input == null || typeof input !== "object") throw new Error("invalid paper order input");
-  const candidate = input as { side?: unknown; quantity?: unknown };
-  if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
-  const { side, quantity } = parsePaperOrderIpc(input);
-  const ticker = assertFreshMarketData();
-  if (!paperApprovalService) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
-  const nowMs = Date.now();
-  const commandId = `manual:${nowMs}:${randomUUID()}`;
-  const signalId = commandId;
-  const clientOrderId = `paper:${commandId}`;
-  // Approval issuance failure is fail-closed by construction: nothing below this line runs
-  // (manualOrder is never called) unless an approval was actually persisted.
-  const approval = paperApprovalService.issueManualApproval({ symbol: MARKET, side, commandId, policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, nowMs });
-  let order: PaperOrder;
-  try { order = runtime.manualOrder(side, quantity, ticker.trade_price, { approvalId: approval.approvalId, commandId, signalId, clientOrderId, nowMs }); }
-  finally { paperTradingAvailable = runtime.isAvailable(); }
-  publishControl();
-  publishAiCioDashboard();
-  return { order, snapshot: broker.snapshot(ticker.trade_price) };
-});
-
-ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
-ipcMain.handle("execution:list", () => executionRepository?.listActive() ?? Object.freeze([]));
-ipcMain.handle("execution:get", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.get(executionId) ?? null;
-});
-ipcMain.handle("execution:transitions", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.transitions(executionId) ?? Object.freeze([]);
-});
-ipcMain.handle("execution:fills", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.fills(executionId) ?? Object.freeze([]);
-});
-ipcMain.handle("execution:health", () => {
-  const active = executionRepository?.listActive() ?? [];
-  return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
-});
-ipcMain.handle("paper:preflight", () => operationalPreflight);
-ipcMain.handle("paper:risk-budget-usage", () => lastRiskBudgetUsage);
-ipcMain.handle("ai:explain-latest-signal", async () => {
-  const signal = strategy.getLatestSignal();
-  const request: SignalExplanationRequest | undefined = signal === undefined
-    ? undefined
-    : { market: MARKET, signal, recentPrices: strategy.getHistory(), signalHistory: strategy.getSignalHistory() };
-  const result = await governedAiAssistantCall<AiSignalExplanation>(
-    "SIGNAL_EXPLAINER",
-    { handler: "explain-latest-signal", request },
-    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() })
-  );
-  lastAiSignalExplanation = request !== undefined && result.status === "OK" ? Object.freeze({ request, explanation: result.explanation }) : undefined;
-  return result;
-});
-ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => {
-  if (typeof question !== "string") throw new Error("invalid follow-up question");
-  return governedAiAssistantCall<AiSignalFollowUpAnswer>(
-    "SIGNAL_EXPLAINER",
-    { handler: "ask-followup-question", request: lastAiSignalExplanation?.request, priorExplanation: lastAiSignalExplanation?.explanation, question },
-    () => Object.freeze({ status: "UNAVAILABLE" as const, answer: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => answerSignalFollowUp({
-      request: lastAiSignalExplanation?.request,
-      priorExplanation: lastAiSignalExplanation?.explanation,
-      question,
-      client: aiSignalExplainerClient,
-      nowMs: Date.now()
-    })
-  );
-});
-ipcMain.handle("ai:challenger-status", () => ({
-  configured: aiChallengerClient !== undefined,
-  latest: aiChallengerObserver.getLatestObservation() ?? null,
-  stats: aiChallengerObserver.getStats()
-}));
-ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChallengerDisagreement({
-  observation: aiChallengerObserver.getLatestObservation(),
-  client: aiDisagreementExplainerClient,
-  nowMs: Date.now()
-}));
-ipcMain.handle("ai:challenger-history", () => aiChallengerObserver.getHistory());
-ipcMain.handle("ai:summarize-session", async () => {
-  const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
-    market: MARKET,
-    account: (() => {
-      const account = broker.snapshot(latestTicker!.trade_price);
-      return { cash: account.cash, equity: account.equity, unrealizedPnl: account.unrealizedPnl, realizedPnl: account.position.realizedPnl };
-    })(),
-    latestSignal: strategy.getLatestSignal(),
-    signalHistory: strategy.getSignalHistory(),
-    challengerStats: aiChallengerObserver.getStats()
-  };
-  return governedAiAssistantCall<AiSessionSummary>(
-    "SESSION_SUMMARY",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, summary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("ai:explain-regime", async () => {
-  const signal = strategy.getLatestSignal();
-  const request: RegimeExplanationRequest | undefined = signal?.regime === undefined ? undefined : {
-    market: MARKET,
-    regime: signal.regime,
-    recentPrices: strategy.getHistory(),
-    decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
-  };
-  return governedAiAssistantCall<AiRegimeExplanation>(
-    "REGIME_EXPLAINER",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("ai:explain-risk", async () => {
-  const envelope = aiCioEnvelopeSource.current();
-  const request: RiskCommentaryRequest | undefined = envelope === null ? undefined : {
-    market: MARKET,
-    dashboardStatus: envelope.snapshot.status,
-    risk: envelope.snapshot.risk,
-    warnings: envelope.snapshot.warnings
-  };
-  return governedAiAssistantCall<AiRiskCommentary>(
-    "RISK_COMMENTARY",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, commentary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
@@ -1278,7 +1134,7 @@ app.whenReady().then(() => {
       path.join(userData, "recovery-records.jsonl")
     );
     crashRecoveryStartup = crashRecoveryStore.startRun({ startedAt: Date.now(), lastMarketConnectionState: marketDataStatus });
-    crashRecoveryRequired = false; // DEV OVERRIDE
+    crashRecoveryRequired = crashRecoveryStartup.recoveryRequired;
     if (crashRecoveryRequired) recoveryRecordId = crashRecoveryStartup.recoveryRecordId;
     crashRecoveryDiagnostic = crashRecoveryStore.diagnostic(crashRecoveryStartup);
     if (crashRecoveryRequired) {

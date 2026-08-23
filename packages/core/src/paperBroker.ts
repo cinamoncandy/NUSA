@@ -104,17 +104,6 @@ export interface PaperAccountSnapshot {
   orders: readonly PaperOrder[];
 }
 
-const LEDGER_REPLAY_SCALE = 100_000_000n;
-
-function toScaledLedgerAmount(amount: number): bigint {
-  if (!Number.isFinite(amount)) throw new Error("ledger amount must be finite");
-  return BigInt(Math.round(amount * Number(LEDGER_REPLAY_SCALE)));
-}
-
-function fromScaledLedgerAmount(amount: bigint): number {
-  return Number(amount) / Number(LEDGER_REPLAY_SCALE);
-}
-
 function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`);
 }

@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T09:31:00+09:00"
+updated_at: "2026-08-23T12:32:34+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -46,6 +46,19 @@ latest_verified_slice:
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
 recent_repository_evidence:
+  ci_701_failure_repair:
+    pull_request: 701
+    failed_head: d144455560a8ae652d47ffebe7568b4418675459
+    failed_run: 32613539321
+    repair_branch: fix/ci-701-typecheck
+    status: PENDING_EXACT_HEAD_CI
+    local_typecheck: PASS
+    local_build: PASS
+    local_lint: PASS
+    isolated_suite: PASS_574_FILES
+    coverage_prepared: "574 isolated files PASS; Windows Vitest instrumentation blocked by worktree access permissions"
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Restored canonical Cloud/desktop boundaries and fixed Paper fixed-point accounting without changing LIVE authority or the WO-0051 human gate."
   autonomous_improvement_observer:
     work_order: WO-0063
     branch: agent/wo-0063-autonomous-improvement-observer

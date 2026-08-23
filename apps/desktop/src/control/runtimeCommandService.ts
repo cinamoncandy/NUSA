@@ -78,7 +78,7 @@ export class RuntimeCommandService {
   }
 
   isAvailable(): boolean { return this.available; }
-  markUnavailable(): void { /* this.available = false; */ this.strategy.stop(); }
+  markUnavailable(): void { this.available = false; this.strategy.stop(); }
 
   manualOrder(side: PaperSide, quantity: number, price: number, metadata: Readonly<Partial<{ accountId: string; approvalId: string; commandId: string; signalId: string; clientOrderId: string; nowMs: number }>> = {}): PaperOrder {
     return this.commit("manual paper order", () => {
@@ -188,7 +188,7 @@ export class RuntimeCommandService {
   }
 
   private commit<T>(name: string, mutation: () => T, evidenceFactory?: (result: T) => ScenarioEvent | readonly ScenarioEvent[] | undefined): T {
-    // if (!this.available) throw new Error(PERSISTENCE_REPAIR_MESSAGE); // DEV OVERRIDE
+    if (!this.available) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
     const snapshot = this.capture();
     let result: T;
     try { result = mutation(); }

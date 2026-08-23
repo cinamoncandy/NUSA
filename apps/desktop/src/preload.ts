@@ -112,8 +112,8 @@ const subscribeCloudPaperSnapshot = (handler: (snapshot: PaperAccountSnapshot) =
 const automaticUnavailable = <T>(): Promise<T> => invokeMutation<T>("cloud-paper:automatic-unavailable");
 
 const api: NUSAApi = {
-  placeOrder: (side, quantity) => invokeMutation("paper:order", { side, quantity }),
-  getSnapshot: () => invokeRead("paper:snapshot"),
+  placeOrder: (side, quantity) => invokeMutation("cloud-paper:order", { side, quantity }),
+  getSnapshot: () => invokeReadWithRecovery("cloud-paper:snapshot"),
   getPreflight: () => invokeReadWithRecovery<OperationalPreflightState>("paper:preflight"),
   getA4Diagnostics: () => invokeReadWithRecovery<A4RuntimeDiagnostics>("diagnostics:a4"),
   getControlSnapshot: () => invokeReadWithRecovery("control:snapshot"),

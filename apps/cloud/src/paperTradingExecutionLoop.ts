@@ -4,60 +4,29 @@ import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } fro
 import type { CioDecision } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
+import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
 import type { PreTradeRiskDecision, PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
-const LEDGER_ROUND_SCALE = 100_000_000n;
 const round8 = (value: number): number => Number(value.toFixed(8));
-const toScaledLedgerAmount = (value: number): bigint => BigInt(Math.round(value * Number(LEDGER_ROUND_SCALE)));
-const fromScaledLedgerAmount = (value: bigint): number => Number(value) / Number(LEDGER_ROUND_SCALE);
-function divideRound8(numerator: bigint, denominator: bigint): number {
-  if (denominator <= 0n) throw new Error("division denominator must be positive");
-  return fromScaledLedgerAmount((numerator + denominator / 2n) / denominator);
-}
 const finiteNonNegative = (value: number, name: string): void => { if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`); };
 
-/**
- * Scaled-integer accounting core -- same pattern as apps/desktop/src/paperBroker.ts's (see
- * its comment for the full rationale). `round8` alone does not fix accumulation drift: it
- * rounds the *result* of a `number` computation to 8 decimals, but the computation itself
- * (the multiplications and divisions inside executeOrder/markToMarket below) still runs in
- * plain IEEE-754 doubles, so precision is already lost before round8 ever sees the value.
- * `Number(x.toFixed(8))` and `Math.round(x * 1e8) / 1e8` round to the same value -- neither
- * touches the arithmetic that produced x. Routing that arithmetic itself through BigInt at a
- * fixed 1e-8 scale is what actually removes the drift; round8 stays only as the boundary
- * conversion back to the `number` fields PaperAccountState persists.
- */
-const QTY_SCALE = 100_000_000n; // 1e8 -- matches BTC's 8 decimal places
-const MONEY_SCALE = 100_000_000n; // 1e8 -- sub-unit precision for KRW cash/price/fee math
-const RATE_SCALE = 100_000_000n; // 1e8 -- precision for the fee-rate ratio itself
+const QTY_SCALE = 100_000_000n;
+const MONEY_SCALE = 100_000_000n;
+const RATE_SCALE = 100_000_000n;
 
-function toScaledQty(value: number): bigint {
-  return BigInt(Math.round(value * Number(QTY_SCALE)));
-}
-
-function fromScaledQty(scaled: bigint): number {
-  return Number(scaled) / Number(QTY_SCALE);
-}
-
-function toScaledMoney(value: number): bigint {
-  return BigInt(Math.round(value * Number(MONEY_SCALE)));
-}
-
-function fromScaledMoney(scaled: bigint): number {
-  return Number(scaled) / Number(MONEY_SCALE);
-}
-
-/** Round-half-up scaled-integer division, exact for both signs and never subject to
- * binary floating-point representation error. */
+function toScaledQty(value: number): bigint { return BigInt(Math.round(value * Number(QTY_SCALE))); }
+function fromScaledQty(value: bigint): number { return Number(value) / Number(QTY_SCALE); }
+function toScaledMoney(value: number): bigint { return BigInt(Math.round(value * Number(MONEY_SCALE))); }
+function fromScaledMoney(value: bigint): number { return Number(value) / Number(MONEY_SCALE); }
 function divRound(numerator: bigint, denominator: bigint): bigint {
   if (denominator === 0n) return 0n;
   const negative = (numerator < 0n) !== (denominator < 0n);
-  const absNumerator = numerator < 0n ? -numerator : numerator;
-  const absDenominator = denominator < 0n ? -denominator : denominator;
-  const rounded = (absNumerator * 2n + absDenominator) / (absDenominator * 2n);
+  const absoluteNumerator = numerator < 0n ? -numerator : numerator;
+  const absoluteDenominator = denominator < 0n ? -denominator : denominator;
+  const rounded = (absoluteNumerator * 2n + absoluteDenominator) / (absoluteDenominator * 2n);
   return negative ? -rounded : rounded;
 }
 
@@ -301,49 +270,15 @@ export interface PaperExecutionResult {
   readonly fills: readonly PaperFillRecord[];
   readonly state: PaperAccountState;
 }
-
-export interface PaperExecutionSafetyState {
-  readonly openP0: boolean;
-}
-
-/**
- * Bridges this loop's automated STRATEGY decisions to independentRiskGateway.ts's
- * evaluatePreTradeRisk(). The loop assembles the request (it owns the account state that
- * request needs: cash, position, order history); the caller supplies `evaluate`, which
- * already has identity (fingerprints, seen-id dedup sets) and limits closed over -- exactly
- * the split runtimeCommandService.ts's PaperCommandRiskGate uses on the desktop side. Before
- * this hook existed, this loop's tick processing called `broker.execute()`-equivalent order
- * placement directly from `state.decisions`, with only the coarse mode/killSwitch/health/P0
- * gate above -- none of independentRiskGateway's exposure, rate, drawdown, or consecutive-loss
- * circuit breakers ever ran on the automated cloud path.
- */
+export interface PaperExecutionSafetyState { readonly openP0: boolean; }
 export interface PaperExecutionRiskGate {
   readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   evaluate(request: PreTradeRiskRequest): PreTradeRiskDecision;
 }
 
-export interface PaperTradingExecutionLoopOptions {
-  readonly initialCapital: number;
-  readonly feeRate?: number;
-  readonly staleWindowMs?: number;
-  readonly repository?: PaperAccountRepository;
-  readonly restoredState?: PaperAccountState;
-  readonly readP0State?: () => PaperExecutionSafetyState;
-  /** Independent pre-trade risk check, run once per actionable decision before it can fill. */
-  readonly riskGate?: PaperExecutionRiskGate;
-}
+function tradingDayOf(epochMs: number): string { return new Date(epochMs).toISOString().slice(0, 10); }
 
-function tradingDayOf(epochMs: number): string {
-  return new Date(epochMs).toISOString().slice(0, 10);
-}
-
-/** Same algorithm as paperRiskState.ts's computeOrderRateState, adapted to this loop's own
- * PaperOrderRecord (numeric `filledAt`, most-recent-first) instead of PaperBroker's PaperOrder. */
-function computeOrderRateState(
-  orders: readonly PaperOrderRecord[],
-  nowMs: number,
-  upcomingSide: "BUY" | "SELL"
-): Readonly<{ ordersInLastSecond: number; ordersInLastMinute: number; sameSideStreak: number }> {
+function computeOrderRateState(orders: readonly PaperOrderRecord[], nowMs: number, side: "BUY" | "SELL"): Readonly<{ ordersInLastSecond: number; ordersInLastMinute: number; sameSideStreak: number }> {
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
   for (const order of orders) {
@@ -353,16 +288,13 @@ function computeOrderRateState(
   }
   let sameSideStreak = 0;
   for (const order of orders) {
-    if (order.side !== upcomingSide) break;
+    if (order.side !== side) break;
     sameSideStreak += 1;
   }
   return Object.freeze({ ordersInLastSecond, ordersInLastMinute, sameSideStreak });
 }
 
-function computeDailyNotional(
-  orders: readonly PaperOrderRecord[],
-  tradingDay: string
-): Readonly<{ dailyBuyNotional: number; dailySellNotional: number }> {
+function computeDailyNotional(orders: readonly PaperOrderRecord[], tradingDay: string): Readonly<{ dailyBuyNotional: number; dailySellNotional: number }> {
   let dailyBuyNotional = 0;
   let dailySellNotional = 0;
   for (const order of orders) {
@@ -373,21 +305,26 @@ function computeDailyNotional(
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-/** This loop's orders carry no per-fill running realizedPnL (unlike PaperBroker's ledger), so
- * a losing streak is read off order-level notional deltas instead: consecutive SELL fills
- * whose (price - the account's average entry price at the time) implied a loss. Orders are
- * most-recent-first, so this walks forward from the newest fill and stops at the first
- * non-loss or non-SELL entry. */
 function computeConsecutiveLossCount(orders: readonly PaperOrderRecord[], positions: readonly PaperAccountPosition[]): number {
   let count = 0;
   for (const order of orders) {
     if (order.side !== "SELL") break;
     const position = positions.find((item) => item.market === order.market);
-    const referenceEntry = position?.averageEntryPrice ?? order.price;
-    if (order.price - referenceEntry >= 0) break;
+    const entry = position?.averageEntryPrice ?? order.price;
+    if (order.price - entry >= 0) break;
     count += 1;
   }
   return count;
+}
+
+export interface PaperTradingExecutionLoopOptions {
+  readonly initialCapital: number;
+  readonly feeRate?: number;
+  readonly staleWindowMs?: number;
+  readonly repository?: PaperAccountRepository;
+  readonly restoredState?: PaperAccountState;
+  readonly readP0State?: () => PaperExecutionSafetyState;
+  readonly riskGate?: PaperExecutionRiskGate;
 }
 
 export class PaperTradingExecutionLoop {
@@ -417,19 +354,16 @@ export class PaperTradingExecutionLoop {
 
   public snapshot(): PaperAccountState { return this.state; }
 
-  public processTick(tick: PaperExecutionTick): PaperExecutionResult {
-    if (!Number.isSafeInteger(tick.now) || tick.now < 0 || !Number.isFinite(tick.price) || tick.price <= 0) return this.result("FAILED", "invalid tick");
-    // Captured once and reused below (line ~360) rather than re-hardcoded: restating this
-    // verified value, not re-asserting a constant that was never actually checked at that point.
-    let verifiedOpenP0 = false;
-    if (tick.mode === "PAPER" && this.readP0State != null) {
-      try {
-        const p0State = this.readP0State();
-        verifiedOpenP0 = p0State.openP0;
-        if (verifiedOpenP0) return this.result("BLOCKED", "OPEN_P0_ALERT");
-      } catch {
-        return this.result("BLOCKED", "P0_STATE_UNVERIFIABLE");
-      }
+  public submitManualOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
+    let validatedCommand: PersonalPaperOrderCommand;
+    try { validatedCommand = validatePersonalPaperOrderCommand(command); } catch { return this.result("FAILED", "invalid PAPER order command"); }
+    command = validatedCommand;
+    const requestFingerprint = manualCommandFingerprint(command);
+    const prior = this.state.orders.find((order) => order.idempotencyKey === command.idempotencyKey);
+    if (prior != null) {
+      if (prior.requestFingerprint !== requestFingerprint) return this.result("REJECTED", "PAPER_IDEMPOTENCY_CONFLICT");
+      const fills = this.state.fills.filter((fill) => fill.orderId === prior.id);
+      return Object.freeze({ status: "DUPLICATE", reason: command.idempotencyKey, orders: Object.freeze([prior]), fills: Object.freeze(fills), state: this.state });
     }
     if (this.state.processedIdempotencyKeys.includes(command.idempotencyKey)) return this.result("REJECTED", "PAPER_IDEMPOTENCY_CONFLICT");
     const gate = this.executionGate(context);
@@ -458,6 +392,11 @@ export class PaperTradingExecutionLoop {
   }
 
   public processTick(tick: PaperExecutionTick): PaperExecutionResult {
+    let verifiedOpenP0 = false;
+    if (tick.mode === "PAPER" && this.readP0State != null) {
+      try { verifiedOpenP0 = this.readP0State().openP0; }
+      catch { return this.result("BLOCKED", "P0_STATE_UNVERIFIABLE"); }
+    }
     const gate = this.executionGate({ now: tick.now, marketPrice: tick.price, observedAt: tick.observedAt, mode: tick.mode, killSwitchActive: tick.killSwitchActive, tradingAllowed: tick.tradingAllowed, overallHealth: tick.overallHealth });
     if (gate != null) return this.result(gate === "invalid tick" ? "FAILED" : "BLOCKED", gate);
     if (tick.quantity !== undefined && (!Number.isFinite(tick.quantity) || tick.quantity <= 0)) return this.result("FAILED", "invalid order quantity");
@@ -476,11 +415,19 @@ export class PaperTradingExecutionLoop {
       let quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * (investmentPercent / 100) * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
       const side = decision.action === "BUY" ? "BUY" : "SELL";
-
+      if (side === "BUY") {
+        const treasury = { totalAssets: working.cash, tradingCapital: working.cash, reserveCapital: 0, pendingDepositCapital: 0, reservations: [], reservedWithdrawalCapital: 0, deployableCapital: working.cash, activeReservations: [] };
+        const requestedAmount = quantity * tick.price * (1 + this.feeRate);
+        try {
+          guardCashInvestmentAllocation(treasury, [{ id: key, bucket: "SPOT", amount: requestedAmount }], investmentPercent);
+        } catch (error) {
+          return this.result("REJECTED", error instanceof Error ? error.message : "cash investment allocation exceeded");
+        }
+      }
       if (this.riskGate != null) {
-        this.sessionPeakEquity = Number.isFinite(working.equity) && working.equity > this.sessionPeakEquity ? working.equity : this.sessionPeakEquity;
+        this.sessionPeakEquity = Math.max(this.sessionPeakEquity, working.equity);
         const tradingDay = tradingDayOf(tick.now);
-        const request: PreTradeRiskRequest = {
+        const riskRequest: PreTradeRiskRequest = {
           schemaVersion: 1,
           requestId: key,
           signalId: `${tick.market}:${decision.decidedAt}`,
@@ -497,12 +444,6 @@ export class PaperTradingExecutionLoop {
           requestedAt: tick.now,
           marketDataState: { status: "HEALTHY", price: tick.price },
           accountState: { cash: working.cash, positionQuantity: position?.quantity ?? 0, openOrderCount: working.orders.length },
-          // killSwitch/health/mode/staleness are already fail-closed above (BLOCKED before this
-          // point). liveCapabilityDetected/privateApiCapabilityDetected read the same declared
-          // state build-deployment-descriptor.js measures from source -- not a literal, which
-          // would make the risk gateway's LIVE_CAPABILITY_DETECTED / PRIVATE_API_CAPABILITY_DETECTED
-          // blocks unreachable no matter what the build actually contains (the exact defect this
-          // repository's check-safety-input-literals.js check exists to catch).
           controlState: { killSwitchActive: tick.killSwitchActive, liveCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, privateApiCapabilityDetected: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation },
           approvalState: { approved: true, expiresAt: tick.now + 1, symbols: [tick.market] },
           persistenceState: { healthy: true },
@@ -521,17 +462,8 @@ export class PaperTradingExecutionLoop {
             sessionEquity: working.equity
           }
         };
-        const riskDecision = this.riskGate.evaluate(request);
-        if (riskDecision.status !== "ALLOW") {
-          return this.result(riskDecision.status === "HALT" ? "BLOCKED" : "REJECTED", `risk gateway: ${riskDecision.reasonCodes.join(",") || riskDecision.status}`);
-        }
-      }
-
-      let order: ReturnType<typeof executeOrder>;
-      try {
-        order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate);
-      } catch (error) {
-        return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected");
+        const riskDecision = this.riskGate.evaluate(riskRequest);
+        if (riskDecision.status !== "ALLOW") return this.result(riskDecision.status === "HALT" ? "BLOCKED" : "REJECTED", `risk gateway: ${riskDecision.reasonCodes.join(",") || riskDecision.status}`);
       }
       let order: ReturnType<typeof executeOrder>;
       try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate); }
@@ -571,28 +503,21 @@ function cloneState(state: PaperAccountState): PaperAccountState { return { ...s
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
-  const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index];
-
+  const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
   const quantityScaled = toScaledQty(quantity);
   const priceScaled = toScaledMoney(price);
   const feeRateScaled = BigInt(Math.round(feeRate * Number(RATE_SCALE)));
-  // Exact, unrounded quantity*price at 1e16 scale -- used for the average-price accumulator
-  // below so that step doesn't compound the separate rounding already applied to `notional`
-  // (a `number` field this function also reports) into another rounding of its own.
   const exactNotionalScaled = quantityScaled * priceScaled;
   const notionalScaled = divRound(exactNotionalScaled, QTY_SCALE);
   const feeScaled = divRound(notionalScaled * feeRateScaled, RATE_SCALE);
-  const notional = fromScaledMoney(notionalScaled);
   const fee = fromScaledMoney(feeScaled);
-
   let cashScaled = toScaledMoney(state.cash);
   let position: PaperAccountPosition;
   let realizedPnLScaled = toScaledMoney(state.realizedPnL);
   const previousQuantityScaled = toScaledQty(previous.quantity);
   const previousAveragePriceScaled = toScaledMoney(previous.averageEntryPrice);
-
   if (side === "BUY") {
-    if (notional + fee > state.cash) throw new Error("insufficient paper cash");
+    if (notionalScaled + feeScaled > cashScaled) throw new Error("insufficient paper cash");
     const nextQuantityScaled = previousQuantityScaled + quantityScaled;
     const averageEntryPriceScaled = nextQuantityScaled === 0n
       ? 0n
@@ -606,17 +531,10 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
     const nextPositionRealizedScaled = toScaledMoney(previous.realizedPnL) + realizedScaled;
     realizedPnLScaled += realizedScaled;
     cashScaled += notionalScaled - feeScaled;
-    position = {
-      ...previous,
-      quantity: fromScaledQty(nextQuantityScaled),
-      averageEntryPrice: nextQuantityScaled === 0n ? 0 : previous.averageEntryPrice,
-      realizedPnL: fromScaledMoney(nextPositionRealizedScaled),
-      markPrice: price
-    };
+    position = { ...previous, quantity: fromScaledQty(nextQuantityScaled), averageEntryPrice: nextQuantityScaled === 0n ? 0 : previous.averageEntryPrice, realizedPnL: fromScaledMoney(nextPositionRealizedScaled), markPrice: price };
   }
   const cash = fromScaledMoney(cashScaled);
   const realizedPnL = fromScaledMoney(realizedPnLScaled);
-
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
@@ -630,13 +548,12 @@ function markToMarket(state: PaperAccountState, market: string, price: number, n
   const priceScaled = toScaledMoney(price);
   const positions = state.positions.map((position) => {
     if (position.market !== market) return position;
-    const quantityScaled = toScaledQty(position.quantity);
-    const averageEntryPriceScaled = toScaledMoney(position.averageEntryPrice);
-    const unrealizedPnLScaled = divRound(quantityScaled * (priceScaled - averageEntryPriceScaled), QTY_SCALE);
+    const unrealizedPnLScaled = divRound(toScaledQty(position.quantity) * (priceScaled - toScaledMoney(position.averageEntryPrice)), QTY_SCALE);
     return { ...position, markPrice: price, unrealizedPnL: fromScaledMoney(unrealizedPnLScaled) };
   });
   const unrealizedPnLScaled = positions.reduce((sum, position) => sum + toScaledMoney(position.unrealizedPnL), 0n);
   const marketValueScaled = positions.reduce((sum, position) => sum + divRound(toScaledQty(position.quantity) * toScaledMoney(position.markPrice), QTY_SCALE), 0n);
-  const equityScaled = toScaledMoney(state.cash) + marketValueScaled;
-  return Object.freeze({ ...state, positions: Object.freeze(positions), equity: fromScaledMoney(equityScaled), unrealizedPnL: fromScaledMoney(unrealizedPnLScaled), updatedAt: now });
+  const equity = fromScaledMoney(toScaledMoney(state.cash) + marketValueScaled);
+  const unrealizedPnL = fromScaledMoney(unrealizedPnLScaled);
+  return Object.freeze({ ...state, positions: Object.freeze(positions), equity, unrealizedPnL, updatedAt: now });
 }
