@@ -5,6 +5,7 @@ import type {
   RootCauseEvidenceBundle
 } from "./improvementTypes";
 import { prepareRootCauseHypotheses, rankRootCauseEvidence } from "./rootCauseEvidenceRanking";
+import { buildRemediationProposals } from "./remediationProposal";
 
 export interface RootCauseEvidenceCorrelationOptions {
   readonly maxEvidence?: number;
@@ -62,6 +63,7 @@ function invalidBundle(): RootCauseEvidenceBundle {
     contradictionCodes: Object.freeze(["CANDIDATE_INVALID"]),
     rankedEvidence: Object.freeze([]),
     hypotheses: Object.freeze([]),
+    remediationProposals: Object.freeze([]),
     generatedAt: 0
   });
 }
@@ -158,12 +160,17 @@ export function correlateRootCauseEvidence(
     contradictionCodes: contradictions,
     rankedEvidence: Object.freeze([]),
     hypotheses: Object.freeze([]),
+    remediationProposals: Object.freeze([]),
     generatedAt: candidateInput.lastSeenAt
   });
   const rankedEvidence = rankRootCauseEvidence(baseBundle);
-  return Object.freeze({
+  const rankedBundle: RootCauseEvidenceBundle = Object.freeze({
     ...baseBundle,
     rankedEvidence,
     hypotheses: prepareRootCauseHypotheses(baseBundle)
+  });
+  return Object.freeze({
+    ...rankedBundle,
+    remediationProposals: buildRemediationProposals(rankedBundle)
   });
 }

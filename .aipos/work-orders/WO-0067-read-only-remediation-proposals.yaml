@@ -1,0 +1,88 @@
+id: WO-0067
+title: Read-Only Remediation Proposal Contract
+status: completed
+branch: agent/wo-0067-read-only-remediation-proposals
+base_sha: 6faa69df665df25262d7f9de13ffe93275d6aa5e
+objective: >-
+  Extend the WO-0063 through WO-0066 improvement pipeline with deterministic, bounded, read-only remediation proposal records derived from evidence-ranked root-cause hypotheses, without granting any code mutation, branch/PR creation, deployment, broker, risk, LIVE, or AI execution authority.
+scope:
+  - reuse WO-0063 candidate/fingerprint contracts
+  - reuse WO-0064 persistent recurrence memory
+  - reuse WO-0065 correlated evidence bundles
+  - reuse WO-0066 deterministic evidence ranking and bounded hypotheses
+  - deterministically map eligible hypotheses into advisory remediation proposals
+  - include explicit rationale, supporting evidence references, unresolved assumptions, expected impact, change surface, risk class, reversibility, and verification requirements
+  - produce stable proposal identities and deterministic ordering
+  - expose read-only event/query projection using existing repository architecture
+  - bound proposal count, fan-out, retention, and computational work
+  - fail closed when hypothesis evidence is contradictory, insufficient, malformed, or outside allowed scope
+non_goals:
+  - executing remediation
+  - editing source code
+  - creating branches, commits, pull requests, releases, or deployments
+  - automatic module replacement
+  - self-modifying code
+  - LLM-generated patches
+  - broker/order mutation
+  - strategy promotion or trading decisions
+  - Risk Authority changes
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and safety boundaries remain authoritative
+  - do not create parallel planner, approval, EventBus, persistence, or DI frameworks
+  - identical canonical inputs must yield identical proposal identity and ordering
+  - every proposal must be evidence-bound and explicitly non-executable
+  - no fabricated confidence, expected return, causal certainty, or unsupported impact claims
+  - contradictory or insufficient evidence cannot produce an actionable proposal
+  - proposal change-surface and verification requirements must be explicit and bounded
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - eligible bounded hypotheses produce deterministic read-only remediation proposals
+  - proposal identity and ordering are stable for identical inputs
+  - proposal rationale references exact supporting evidence/hypothesis provenance
+  - unresolved assumptions and missing evidence are explicit
+  - change surface, risk class, reversibility, and verification requirements are represented deterministically
+  - contradiction/insufficiency/out-of-scope cases fail closed with no executable recommendation
+  - duplicate proposals are idempotent/deduplicated
+  - proposal count and processing work are bounded and tested
+  - WO-0063 through WO-0066 behavior remains compatible
+  - no mutation/execution/deployment authority is introduced
+  - focused tests cover determinism, bounds, deduplication, contradiction, insufficiency, out-of-scope handling, and stable ordering
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and diff checks pass
+  - protected areas unchanged
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - full repository test suite when required by repository policy
+  - git diff --check
+completion:
+  completed_at: "2026-08-23T14:41:29+09:00"
+  implementation_commit: 892da407ef8fbd6bccb9102e4bd95c802f83ce47
+  focused_tests: PASS_4_OF_4
+  full_isolated_suite: PASS_572_FILES
+  standard_pnpm_test: BLOCKED_DEPENDENCY_REINSTALL_NETWORK
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  diff_check: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  execution_mutation: false
+  protected_areas_changed: false
+next_on_pass: human review and normal PR process
