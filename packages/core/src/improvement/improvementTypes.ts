@@ -2,6 +2,7 @@ import type { EventMap } from "../eventBus";
 import type { MarketConnectionDiagnostics, MarketReconnectFailureReason } from "../marketConnectionSupervisor";
 
 export type ImprovementSeverity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ImprovementRecurrence = "NEW" | "RECURRING";
 
 export interface ImprovementDiagnosticsEvent {
   readonly observedAt: number;
@@ -35,8 +36,19 @@ export interface ImprovementCandidate {
   readonly occurrences: number;
   readonly firstSeenAt: number;
   readonly lastSeenAt: number;
+  readonly occurrenceTimestamps: readonly number[];
+  readonly recurrence: ImprovementRecurrence;
   readonly title: string;
   readonly status: "PENDING_REVIEW";
+}
+
+export interface ImprovementCandidateHistory extends Omit<ImprovementCandidate, "status"> {
+  readonly status: "OBSERVED" | "PENDING_REVIEW";
+}
+
+export interface ImprovementCandidateMemory {
+  load(): readonly ImprovementCandidateHistory[];
+  save(history: ImprovementCandidateHistory): void;
 }
 
 export interface ImprovementObserverPolicy {
@@ -64,5 +76,5 @@ export type ImprovementEventMap = {
 export interface ImprovementObservationResult {
   readonly signal: ImprovementSignal | null;
   readonly candidate: ImprovementCandidate | null;
-  readonly reason?: "MALFORMED_DIAGNOSTICS" | "BELOW_THRESHOLD";
+  readonly reason?: "MALFORMED_DIAGNOSTICS" | "BELOW_THRESHOLD" | "PERSISTENCE_UNAVAILABLE";
 }
