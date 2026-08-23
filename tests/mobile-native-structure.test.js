@@ -104,6 +104,9 @@ test("local entry guard still exposes Splash and Auth Context without claiming i
 
 test("mobile release workflow validates Android candidates and explicitly skips iOS delivery", () => {
   const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8");
+  assert.equal(fs.existsSync(path.join(repoRoot, "scripts", "prepare-mobile-build-config.js")), true);
+  assert.equal(fs.existsSync(path.join(mobile, "src", "generatedBuildConfig.ts")), true);
+  assert.equal((workflow.match(/prepare-mobile-build-config\.js/g) ?? []).length, 2);
   assert.match(workflow, /android-debug:/);
   assert.match(workflow, /:app:assembleDebug -PnusaEmbedDebugBundle/);
   assert.match(workflow, /android-release-candidate:/);

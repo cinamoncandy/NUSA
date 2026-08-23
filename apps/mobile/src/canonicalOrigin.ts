@@ -1,3 +1,5 @@
+import { CANONICAL_NUSA_ORIGIN } from "./generatedBuildConfig";
+
 export type CanonicalOriginResult =
   | Readonly<{ status: "READY"; origin: string }>
   | Readonly<{ status: "DEPLOYMENT_CONFIG_PENDING"; reason: string }>;
@@ -12,7 +14,7 @@ export function resolveCanonicalCloudOrigin(
   environment: Record<string, string | undefined> = process.env,
   development = false
 ): CanonicalOriginResult {
-  const raw = environment.EXPO_PUBLIC_NUSA_API_BASE_URL?.trim() ?? "";
+  const raw = environment.EXPO_PUBLIC_NUSA_API_BASE_URL?.trim() || CANONICAL_NUSA_ORIGIN.trim();
   if (!raw) return Object.freeze({ status: "DEPLOYMENT_CONFIG_PENDING", reason: "A canonical Cloud PAPER HTTPS origin is not configured for this build." });
   let url: URL;
   try { url = new URL(raw); } catch { return Object.freeze({ status: "DEPLOYMENT_CONFIG_PENDING", reason: "The configured Cloud origin is not a valid URL." }); }

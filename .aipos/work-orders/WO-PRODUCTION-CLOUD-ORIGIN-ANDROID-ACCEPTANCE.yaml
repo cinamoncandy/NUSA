@@ -1,0 +1,44 @@
+id: WO-PRODUCTION-CLOUD-ORIGIN-ANDROID-ACCEPTANCE
+title: "Production Cloud Origin and Android PAPER Auto-Restore Acceptance"
+status: IMPLEMENTATION_VALIDATED_PENDING_PR
+owner: nusa-human-authority
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 50b68722173f5a8f1a7087b2fe915a227febc13f
+implementation_branch: codex/production-cloud-origin-android
+objective: "Seal the verified production HTTPS Cloud origin into Android release builds so an enrolled mobile session can restore and connect to Cloud PAPER without endpoint or token entry."
+canonical_origin:
+  source: "GitHub repository variable NUSA_MOBILE_API_BASE_URL"
+  value: "https://nusa-api.duckdns.org"
+  health_probe: PASS
+  health_evidence: "HTTPS /health returned 200 with ok=true on 2026-08-23."
+implementation:
+  generated_config: apps/mobile/src/generatedBuildConfig.ts
+  packaging_helper: scripts/prepare-mobile-build-config.js
+  resolver: apps/mobile/src/canonicalOrigin.ts
+  android_workflow: .github/workflows/mobile-native.yml
+  release_workflow: .github/workflows/android-persistent-release.yml
+validation:
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  focused_mobile_tests: PASS_14_OF_14
+  full_isolated_suite: PASS_580_FILES
+  security_gate: PASS_SECRETS_0
+  architecture_truth: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  broker_mutation: NONE
+  embedded_secret: false
+  mobile_scope: "dashboard:read,paper:trade"
+acceptance:
+  session_auto_restore: CODE_PATH_READY
+  manual_endpoint_after_enrollment: false
+  manual_token_after_enrollment: false
+  manual_connect_after_enrollment: false
+  physical_galaxy_acceptance: PENDING_HUMAN_ENVIRONMENT
+completion_rule: "Do not claim Galaxy acceptance without an enrolled physical-device restart and fresh heartbeat evidence."
