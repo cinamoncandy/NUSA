@@ -22,6 +22,7 @@ export * from "./dataStrategyIdentity";
 export * from "./deploymentBundle";
 export * from "./safetyArchitecture";
 export * from "./shadowGovernance";
+export * from "./shadowObservabilityReadOnly";
 export * from "./restrictedLiveGovernance";
 export * from "./researchRuntime";
 export * from "./candidatePromotion";

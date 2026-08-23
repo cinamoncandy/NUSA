@@ -1,5 +1,6 @@
 import { parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
 import type { RuntimeContext } from "./runtimeContext";
+import { buildShadowReadOnlyProjection } from "../shadow/shadowReadOnlyProjection";
 
 export function registerShadowIpcHandlers(ctx: RuntimeContext): void {
   ctx.ipcMain.handle("shadow:start", (_event, input: unknown) => {
@@ -34,5 +35,9 @@ export function registerShadowIpcHandlers(ctx: RuntimeContext): void {
   ctx.ipcMain.handle("shadow:status", (_event, input: unknown) => {
     parseShadowStatusIpc(input);
     return ctx.shadowRuntime.diagnostics();
+  });
+  ctx.ipcMain.handle("shadow:observability", (_event, input: unknown) => {
+    parseShadowStatusIpc(input);
+    return buildShadowReadOnlyProjection({ diagnostics: ctx.shadowRuntime.diagnostics(), events: ctx.shadowRuntime.eventLog() });
   });
 }

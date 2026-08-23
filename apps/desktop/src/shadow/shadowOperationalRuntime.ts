@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ClosedCandle, PublicTickerSample } from "../strategy/closedCandleAdapter";
-import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotSession } from "./shadowPilotRuntime";
+import { ShadowPilotRuntime, verifyShadowPilotEvents, type ShadowPilotEvent, type ShadowPilotSession } from "./shadowPilotRuntime";
 import type { StrategyEngine, StrategySignal } from "../strategy/strategyEngine";
 import type { PaperCommandRiskGate } from "../control/runtimeCommandService";
 import type { UpbitMinuteCandleSource } from "../exchange/upbitMinuteCandleSource";
@@ -273,6 +273,11 @@ export class ShadowOperationalRuntime {
 
   evidenceDiagnostics(): ShadowEvidenceBusDiagnostics | null {
     return this.evidenceBus?.diagnostics() ?? null;
+  }
+
+  /** Read-only hash-chained evidence for the SHADOW observability projection. */
+  eventLog(): readonly ShadowPilotEvent[] {
+    return Object.freeze([...(this.pilot?.eventLog() ?? [])]);
   }
 
   evidenceRecoveryState(): ShadowEvidenceRecoveryState {
