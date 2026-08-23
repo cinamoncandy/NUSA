@@ -1,0 +1,38 @@
+{
+  "workOrder": "WO-0067",
+  "status": "COMPLETED",
+  "branch": "agent/wo-0067-read-only-remediation-proposals",
+  "baseSha": "6faa69df665df25262d7f9de13ffe93275d6aa5e",
+  "implementationCommit": "892da407ef8fbd6bccb9102e4bd95c802f83ce47",
+  "completedAt": "2026-08-23T14:41:29+09:00",
+  "scope": {
+    "proposalModel": "DETERMINISTIC_READ_ONLY_EVIDENCE_BOUND",
+    "rationaleAndEvidence": "EXACT_HYPOTHESIS_AND_EVIDENCE_IDS",
+    "changeSurface": "BOUNDED_OBSERVABILITY_ONLY",
+    "riskClass": "LOW_OR_BLOCKED",
+    "reversibility": "EXPLICIT_OPERATOR_ROLLBACK_PLAN",
+    "verification": "DETERMINISTIC_REPLAY_AND_SAFETY_CHECKS"
+  },
+  "verification": {
+    "focusedTests": "PASS_4_OF_4",
+    "fullIsolatedSuite": "PASS_572_FILES",
+    "standardPnpmTest": "BLOCKED_DEPENDENCY_REINSTALL_NETWORK",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architecture": "PASS",
+    "safety": "PASS",
+    "aiZeroAuthority": "PASS",
+    "aipos": "PASS",
+    "diffCheck": "PASS"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "executionMutation": false,
+    "codeMutation": false,
+    "autoPrOrDeploy": false,
+    "protectedAreasChanged": false
+  }
+}
