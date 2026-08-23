@@ -4,6 +4,7 @@ import type {
   ImprovementDiagnosticEvidence,
   RootCauseEvidenceBundle
 } from "./improvementTypes";
+import { prepareRootCauseHypotheses, rankRootCauseEvidence } from "./rootCauseEvidenceRanking";
 
 export interface RootCauseEvidenceCorrelationOptions {
   readonly maxEvidence?: number;
@@ -59,6 +60,8 @@ function invalidBundle(): RootCauseEvidenceBundle {
     provenance: Object.freeze([]),
     correlationReasons: Object.freeze([]),
     contradictionCodes: Object.freeze(["CANDIDATE_INVALID"]),
+    rankedEvidence: Object.freeze([]),
+    hypotheses: Object.freeze([]),
     generatedAt: 0
   });
 }
@@ -143,7 +146,7 @@ export function correlateRootCauseEvidence(
     ...(contradictions.includes("EVIDENCE_MISSING_FOR_OCCURRENCE") ? ["EVIDENCE_INCOMPLETE"] : [])
   ]);
   const provenance = Object.freeze(validEvidence.map((evidence) => Object.freeze({ evidenceId: evidence.id, source: evidence.source, observedAt: evidence.observedAt })));
-  return Object.freeze({
+  const baseBundle: RootCauseEvidenceBundle = Object.freeze({
     id: `root-cause:${candidateInput.fingerprint}`,
     candidateId: candidateInput.id,
     candidateFingerprint: candidateInput.fingerprint,
@@ -153,6 +156,14 @@ export function correlateRootCauseEvidence(
     provenance,
     correlationReasons: Object.freeze([...reasons].sort()),
     contradictionCodes: contradictions,
+    rankedEvidence: Object.freeze([]),
+    hypotheses: Object.freeze([]),
     generatedAt: candidateInput.lastSeenAt
+  });
+  const rankedEvidence = rankRootCauseEvidence(baseBundle);
+  return Object.freeze({
+    ...baseBundle,
+    rankedEvidence,
+    hypotheses: prepareRootCauseHypotheses(baseBundle)
   });
 }

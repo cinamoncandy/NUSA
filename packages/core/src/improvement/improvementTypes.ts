@@ -4,6 +4,7 @@ import type { MarketConnectionDiagnostics, MarketReconnectFailureReason } from "
 export type ImprovementSeverity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type ImprovementRecurrence = "NEW" | "RECURRING";
 export type RootCauseEvidenceStatus = "CORRELATED" | "INSUFFICIENT_EVIDENCE" | "CONTRADICTORY";
+export type RootCauseHypothesisStatus = "EVIDENCE_BOUND" | "UNRESOLVED" | "BLOCKED";
 
 export interface ImprovementDiagnosticsEvent {
   readonly observedAt: number;
@@ -40,6 +41,40 @@ export interface ImprovementDiagnosticEvidence {
   readonly failureReason: MarketReconnectFailureReason | null;
 }
 
+export type RootCauseEvidenceFactorCode =
+  | "STATE_FAILED"
+  | "FAILURE_REASON_PRESENT"
+  | "DOWNTIME_BUCKET"
+  | "RECONNECT_ATTEMPT_BUCKET"
+  | "RECENCY_BUCKET";
+
+export interface RootCauseEvidenceFactor {
+  readonly code: RootCauseEvidenceFactorCode;
+  readonly value: number;
+  readonly points: number;
+  readonly reason: string;
+}
+
+export interface RankedRootCauseEvidence {
+  readonly evidenceId: string;
+  readonly rank: number;
+  readonly score: number;
+  readonly factors: readonly RootCauseEvidenceFactor[];
+  readonly reasonCodes: readonly RootCauseEvidenceFactorCode[];
+}
+
+export interface RootCauseHypothesis {
+  readonly id: string;
+  readonly candidateFingerprint: string;
+  readonly status: RootCauseHypothesisStatus;
+  /** Describes observed evidence only; it never asserts a causal explanation. */
+  readonly statement: string;
+  readonly evidenceIds: readonly string[];
+  readonly rankingReasonCodes: readonly RootCauseEvidenceFactorCode[];
+  readonly unresolvedCodes: readonly string[];
+  readonly generatedAt: number;
+}
+
 export interface ImprovementCandidate {
   readonly id: string;
   readonly fingerprint: string;
@@ -72,6 +107,8 @@ export interface RootCauseEvidenceBundle {
   readonly provenance: readonly { readonly evidenceId: string; readonly source: string; readonly observedAt: number }[];
   readonly correlationReasons: readonly string[];
   readonly contradictionCodes: readonly string[];
+  readonly rankedEvidence: readonly RankedRootCauseEvidence[];
+  readonly hypotheses: readonly RootCauseHypothesis[];
   readonly generatedAt: number;
 }
 
