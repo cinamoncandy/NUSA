@@ -1,6 +1,7 @@
 import { EventBus, type Subscription } from "../eventBus";
 import { ImprovementBacklog } from "./improvementBacklog";
 import { detectImprovementSignal, validateImprovementObserverPolicy } from "./problemDetector";
+import { correlateRootCauseEvidence } from "./rootCauseEvidence";
 import {
   DEFAULT_IMPROVEMENT_OBSERVER_POLICY,
   type ImprovementDiagnosticsEvent,
@@ -8,6 +9,7 @@ import {
   type ImprovementEventMap,
   type ImprovementObservationResult,
   type ImprovementObserverPolicy,
+  type RootCauseEvidenceBundle,
   type ImprovementSignal
 } from "./improvementTypes";
 
@@ -28,20 +30,21 @@ export class ImprovementObserver {
   observe(event: ImprovementDiagnosticsEvent): ImprovementObservationResult {
     const signal = detectImprovementSignal(event.diagnostics, event.observedAt, this.policy);
     if (signal === null) {
-      return { signal: null, candidate: null, reason: "BELOW_THRESHOLD" };
+      return { signal: null, candidate: null, evidenceBundle: null, reason: "BELOW_THRESHOLD" };
     }
     this.signalHistory.push(signal);
     while (this.signalHistory.length > this.policy.maxSignals) this.signalHistory.shift();
-    if (this.memory != null && !this.persistenceAvailable) return { signal, candidate: null, reason: "PERSISTENCE_UNAVAILABLE" };
+    if (this.memory != null && !this.persistenceAvailable) return { signal, candidate: null, evidenceBundle: null, reason: "PERSISTENCE_UNAVAILABLE" };
     const candidate = this.backlog.record(signal);
     if (this.memory != null && this.persistenceAvailable) {
       try {
         const history = this.backlog.history(signal.fingerprint);
         if (history == null) throw new Error("improvement history missing after record");
         this.memory.save(history);
-      } catch { this.persistenceAvailable = false; return { signal, candidate: null, reason: "PERSISTENCE_UNAVAILABLE" }; }
+      } catch { this.persistenceAvailable = false; return { signal, candidate: null, evidenceBundle: null, reason: "PERSISTENCE_UNAVAILABLE" }; }
     }
-    return { signal, candidate };
+    const evidenceBundle = candidate == null ? null : correlateRootCauseEvidence(candidate);
+    return { signal, candidate, evidenceBundle };
   }
 
   attach(events: EventBus<ImprovementEventMap>): Subscription {
@@ -49,6 +52,7 @@ export class ImprovementObserver {
       const result = this.observe(event);
       if (result.signal !== null) await events.publish("improvement.signal", result.signal);
       if (result.candidate !== null) await events.publish("improvement.candidate", result.candidate);
+      if (result.evidenceBundle !== null) await events.publish("improvement.rootCauseEvidence", result.evidenceBundle);
     });
   }
 
@@ -57,6 +61,15 @@ export class ImprovementObserver {
   candidates() { return this.backlog.candidates(); }
 
   histories() { return this.backlog.histories(); }
+
+  rootCauseEvidence(fingerprint: string): RootCauseEvidenceBundle | null {
+    const history = this.backlog.history(fingerprint);
+    return history == null ? null : correlateRootCauseEvidence(history);
+  }
+
+  rootCauseEvidenceBundles(): readonly RootCauseEvidenceBundle[] {
+    return Object.freeze(this.backlog.histories().map((history) => correlateRootCauseEvidence(history)));
+  }
 
   persistenceStatus(): "AVAILABLE" | "UNAVAILABLE" | "DISABLED" { return this.memory == null ? "DISABLED" : this.persistenceAvailable ? "AVAILABLE" : "UNAVAILABLE"; }
 }
