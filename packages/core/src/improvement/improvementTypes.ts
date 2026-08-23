@@ -75,6 +75,32 @@ export interface RootCauseHypothesis {
   readonly generatedAt: number;
 }
 
+export type RemediationProposalStatus = "PROPOSED" | "BLOCKED";
+export type RemediationProposalRiskClass = "LOW" | "MEDIUM" | "HIGH" | "BLOCKED";
+export type RemediationProposalChangeSurface = "OBSERVABILITY" | "RECOVERY_CONFIGURATION" | "PERSISTENCE" | "UNKNOWN";
+
+export interface RemediationProposal {
+  readonly id: string;
+  readonly hypothesisId: string;
+  readonly candidateFingerprint: string;
+  readonly status: RemediationProposalStatus;
+  readonly title: string;
+  readonly rationale: string;
+  readonly supportingEvidenceIds: readonly string[];
+  readonly unresolvedAssumptions: readonly string[];
+  /** Always an unverified, human-reviewable outcome; never a promised return or fix. */
+  readonly expectedImpact: "UNVERIFIED_OBSERVABILITY_IMPROVEMENT" | "UNVERIFIED";
+  readonly changeSurface: RemediationProposalChangeSurface;
+  readonly riskClass: RemediationProposalRiskClass;
+  readonly reversible: boolean;
+  readonly reversibilityPlan: string;
+  readonly verificationPlan: readonly string[];
+  readonly requiresHumanReview: true;
+  readonly executable: false;
+  readonly reasonCodes: readonly string[];
+  readonly generatedAt: number;
+}
+
 export interface ImprovementCandidate {
   readonly id: string;
   readonly fingerprint: string;
@@ -109,6 +135,7 @@ export interface RootCauseEvidenceBundle {
   readonly contradictionCodes: readonly string[];
   readonly rankedEvidence: readonly RankedRootCauseEvidence[];
   readonly hypotheses: readonly RootCauseHypothesis[];
+  readonly remediationProposals: readonly RemediationProposal[];
   readonly generatedAt: number;
 }
 
@@ -138,6 +165,7 @@ export type ImprovementEventMap = {
   "improvement.signal": ImprovementSignal;
   "improvement.candidate": ImprovementCandidate;
   "improvement.rootCauseEvidence": RootCauseEvidenceBundle;
+  "improvement.remediationProposal": RemediationProposal;
 } & EventMap;
 
 export interface ImprovementObservationResult {
