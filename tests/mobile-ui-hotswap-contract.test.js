@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
+// HOME v2 MASTER geometry contract; keep in sync with the accepted visual source of truth.
 test("classic and master presets are materially distinct visual systems", () => {
   const profile = read("apps/mobile/src/homeVisualProfile.ts");
   assert.match(profile, /classic:[\s\S]*?horizontalPadding:\s*20/);
