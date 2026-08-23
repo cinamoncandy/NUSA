@@ -1,0 +1,82 @@
+id: WO-0066
+title: Deterministic Evidence Ranking and Root-Cause Hypothesis Preparation
+status: completed
+branch: agent/wo-0066-deterministic-evidence-ranking
+base_sha: c6fb0e907a32dc24c9f0119cb9cdec8588d665d2
+objective: >-
+  Extend the WO-0063 through WO-0065 read-only improvement pipeline with deterministic evidence ranking and bounded root-cause hypothesis preparation, producing reproducible advisory inputs for a future planner without granting remediation, code mutation, deployment, broker, risk, LIVE, or AI execution authority.
+scope:
+  - reuse WO-0063 improvement candidate and stable fingerprint contracts
+  - reuse WO-0064 persistent recurrence memory
+  - reuse WO-0065 RootCauseEvidenceBundle and provenance/contradiction semantics
+  - deterministically rank admissible evidence using explicit observable factors only
+  - prepare bounded root-cause hypothesis records from ranked evidence without claiming causality beyond evidence
+  - preserve provenance, contradiction state, missing-evidence state, timestamps, and stable identities
+  - expose read-only event/query projection using existing repository architecture
+  - bound ranking inputs, hypothesis count, retention, and computational work
+  - fail closed when evidence is contradictory, malformed, unverifiable, or insufficient
+non_goals:
+  - LLM-generated diagnosis
+  - autonomous remediation or repair
+  - code generation or self-modification
+  - automatic branch, PR, merge, release, or deployment actions
+  - strategy generation, promotion, or trading decisions
+  - broker/order mutation
+  - Risk Authority changes
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and safety boundaries remain authoritative
+  - do not create parallel EventBus, persistence, evidence, ranking, planner, or DI frameworks
+  - identical canonical inputs must yield identical ordering and hypothesis identity
+  - ranking factors and tie-breakers must be explicit, deterministic, testable, and explainable
+  - no fabricated probability, confidence, causal certainty, or unsupported inference
+  - contradictory evidence cannot be silently averaged away
+  - insufficient evidence must remain explicitly insufficient
+  - outputs are read-only advisory artifacts only
+  - all memory/storage/query/CPU fan-out must be bounded
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - RootCauseEvidenceBundle inputs can be ranked reproducibly with stable tie-breaking
+  - ranking exposes explicit factor/reason metadata and source provenance
+  - duplicate evidence remains idempotent
+  - contradiction, missing, malformed, or insufficient evidence fails closed
+  - bounded root-cause hypothesis preparation produces stable identities and deterministic ordering
+  - hypotheses clearly distinguish evidence-supported facts from unresolved possibilities
+  - no remediation recommendation is executable and no mutation authority is introduced
+  - WO-0063 observer, WO-0064 persistence, and WO-0065 correlation remain compatible
+  - focused tests cover determinism, tie-breaking, contradictions, insufficiency, deduplication, and bounds
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and diff checks pass
+  - protected areas unchanged
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - full repository test suite when required by repository policy
+  - git diff --check
+next_on_pass: human review and normal PR process
+completion:
+  implementation_commit: ed3173cdea8b5df15f10080d0356508fd3407938
+  completed_at: "2026-08-23T13:54:09+09:00"
+  focused_tests: PASS_7_OF_7
+  full_isolated_suite: PASS_571_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  diff_check: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  protected_areas_changed: false
