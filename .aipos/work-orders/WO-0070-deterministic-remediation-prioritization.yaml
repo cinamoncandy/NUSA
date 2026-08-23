@@ -1,6 +1,6 @@
 id: WO-0070
 title: Deterministic Remediation Prioritization
-status: ready
+status: in_progress
 branch: agent/wo-0070-deterministic-remediation-prioritization
 base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
 objective: >-
@@ -66,3 +66,26 @@ verification:
   - full repository test suite when required by repository policy
   - git diff --check
 next_on_pass: human review and normal PR process
+implementation:
+  module: packages/core/src/improvement/remediationPrioritization.ts
+  export: packages/core/src/improvement/index.ts
+  focused_tests: tests/remediation-prioritization.test.js
+  implementation_commit: 3711390a
+  authority: "ADVISORY_ONLY_READ_ONLY_NON_EXECUTABLE"
+  factors: "IMPACT_EVIDENCE_STRENGTH_RISK_REVERSIBILITY_IMPLEMENTATION_COST_REGRESSION_SURFACE_URGENCY"
+  bounds: "MAX_64_PROPOSALS_MAX_128_VERIFICATIONS_DEFAULT_QUEUE_16_MAX_QUEUE_64"
+validation:
+  focused_tests: PASS_5_OF_5
+  previous_remediation_regressions: PASS_21_OF_21
+  full_isolated_suite: PASS_581_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  truth: PASS
+  ai_zero_authority: PASS
+  safety: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  security_gate: PASS_SECRETS_0
+  diff_check: PASS
