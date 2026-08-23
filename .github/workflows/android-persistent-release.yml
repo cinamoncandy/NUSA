@@ -162,7 +162,11 @@ jobs:
           "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_SHA"
           BUNDLE_PATH="$(unzip -Z1 "$APK" | grep -E '(^|/)index\.android\.bundle$' | head -n 1)"
           test -n "$BUNDLE_PATH"
-          unzip -p "$APK" "$BUNDLE_PATH" | strings | grep -F "PAPER 학습 보기"
+          BUNDLE_FILE="$RUNNER_TEMP/index.android.bundle"
+          unzip -p "$APK" "$BUNDLE_PATH" > "$BUNDLE_FILE"
+          for UI_MARKER in home-paper-learning trade-paper-learning portfolio-paper-learning paper-learning-monitor; do
+            strings "$BUNDLE_FILE" | grep -F "$UI_MARKER"
+          done
           SEALED_ORIGIN="legacy-source-not-embedded"
           if [ "$CONFIG_MODE" = "sealed" ]; then
             "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_ORIGIN"
