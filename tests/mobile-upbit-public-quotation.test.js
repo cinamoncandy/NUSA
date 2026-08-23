@@ -54,13 +54,13 @@ test("HTTP failure is surfaced and quotation requests remain HTTPS GET-only with
   assert.equal(calls[0].init.headers["x-api-key"], undefined);
 });
 
-test("quotation requests carry an explicit User-Agent, matching desktop's Upbit WebSocket client", async () => {
-  // Upbit's public API sits behind bot protection that can reject a request with no (or a
-  // generic React Native default) User-Agent with a 400 -- observed live from a device on a
-  // real network. apps/desktop/src/exchange/upbitWebSocket.ts already sends an explicit one.
+test("quotation requests rely on the native User-Agent and do not duplicate it", async () => {
+  // React Native's networking stack supplies User-Agent. Upbit's 2026-07-31 header handling
+  // rejects duplicated request headers with HTTP 400, so the JS request must not add another.
   const calls = [];
   await loadUpbitPublicMarkets({ request: mockRequest([ticker()], 200, calls) });
-  assert.equal(calls[0].init.headers["user-agent"], "nusa-mobile/0.1");
+  assert.equal(calls[0].init.headers["user-agent"], undefined);
+  assert.equal(calls[0].init.headers.accept, "application/json");
 });
 
 test("App keeps public Markets state independent from PAPER configuration and exposes stale refresh state", () => {
