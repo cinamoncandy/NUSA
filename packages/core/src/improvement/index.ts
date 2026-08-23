@@ -5,3 +5,4 @@ export * from "./improvementObserver";
 export * from "./rootCauseEvidence";
 export * from "./rootCauseEvidenceRanking";
 export * from "./remediationProposal";
+export * from "./remediationVerification";
