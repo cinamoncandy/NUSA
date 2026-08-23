@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-18T14:25:00+09:00"
+updated_at: "2026-08-23T09:31:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -46,6 +46,16 @@ latest_verified_slice:
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
 recent_repository_evidence:
+  autonomous_improvement_observer:
+    work_order: WO-0063
+    branch: agent/wo-0063-autonomous-improvement-observer
+    commit: b54c1a22
+    evidence: .aipos/evidence/WO-0063-completion.json
+    focused_tests: PASS_6_OF_6
+    full_isolated_suite: PASS_567_FILES
+    repository_gates: PASS
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only reconnect-instability observation, deterministic fingerprints, thresholded aggregation, bounded candidate backlog, and existing EventBus projection; no runtime mutation authority."
   android_successor:
     work_order: WO-0053
     pull_request: 442
@@ -288,6 +298,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-0063
+    evidence: ".aipos/evidence/WO-0063-completion.json"
+    summary: "Deterministic read-only MarketConnectionSupervisor improvement observer completed on agent/wo-0063-autonomous-improvement-observer at b54c1a22; bounded signals/candidates, focused 6/6, full 567 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
   - id: WO-0057
     evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
     summary: "Desktop Cloud canonical PAPER authority migration completed in PR #552 at exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 and merged as f875980e4ff9111ab576f1e93294fae510d07167 with exact-head CI and required read-only/restricted-LIVE companion workflows PASS; PAPER-only and LIVE/real-money prohibitions remain unchanged."
