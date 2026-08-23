@@ -1,6 +1,6 @@
 id: WO-0065
 title: Deterministic Root-Cause Evidence Correlation
-status: ready
+status: completed
 branch: agent/wo-0065-root-cause-evidence-correlation
 base_sha: 40d6ce10df574764330bd60427ffa6d89165efdd
 objective: >-
@@ -62,3 +62,19 @@ verification:
   - full repository test suite when required by repository policy
   - git diff --check
 next_on_pass: human review and normal PR process
+completion:
+  implementation_commit: a8634d32fe8b1adb1785150c76a6dab393ef9a76
+  completed_at: "2026-08-23T13:26:24+09:00"
+  focused_tests: PASS_6_OF_6
+  full_isolated_suite: PASS_570_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  diff_check: PASS
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  protected_areas_changed: false
