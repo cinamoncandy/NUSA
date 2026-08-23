@@ -65,7 +65,8 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
       const canonical = resolveCanonicalCloudOrigin();
-      setConfiguredPaperEndpoint(settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : ""));
+      setConfiguredPaperEndpoint(settings.paperEndpoint);
+      if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
       setMode(themePreference(settings.theme));
     }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
     return () => { active = false; };
