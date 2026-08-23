@@ -25,6 +25,8 @@ import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRunt
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
+import { PaperLearningMonitorView } from "./src/paperLearningMonitorView";
+import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 
@@ -93,6 +95,7 @@ function AuthenticatedApp() {
   const { theme: appTheme } = useTheme();
   const upbitState = useUpbitReadOnlyState();
   const [activeTab, setActiveTab] = useState<Tab>("Home");
+  const [paperLearningOpen, setPaperLearningOpen] = useState(false);
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
@@ -217,10 +220,11 @@ function AuthenticatedApp() {
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const openPaperTrade = useCallback(() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Paper"); }, []);
+  const openPaperLearning = useCallback(() => { setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(true); }, []);
   const handleSignOut = useCallback(() => {
     refreshGenerationRef.current += 1; publicRefreshGenerationRef.current += 1; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setRefreshing(false); setPublicRefreshing(false);
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
-    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setActiveTab("Home"); signOut();
+    setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
 
   useEffect(() => {
@@ -287,23 +291,27 @@ function AuthenticatedApp() {
     && runtimeSnapshot.recovery === "READY";
   const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper";
   const homeShellActive = utilityView === null && activeTab === "Home";
+  const paperLearningRuntimeStatus = snapshot?.paperLearning?.runtimeStatus
+    ?? (snapshot?.operations.runtimeState === "HALTED" ? "HALTED" : snapshot?.operations.runtimeState === "ERROR" ? "ERROR" : snapshot?.operations.runtimeState === "RUNNING" ? "RUNNING" : "PAUSED");
+  const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
-    {requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
+     {paperLearningOpen ? <PaperLearningMonitorView state={paperLearningState} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
+       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
-      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
-      : activeTab === "Paper" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
+       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
+       : activeTab === "Paper" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} />}
+       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
 
-    <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner}>{tabs.map((tab) => { const active = utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); }} style={[styles.navItem, { opacity: active ? 1 : 0.72 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, width: active ? 22 : 4, opacity: active ? 0.95 : 0.35 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
+     <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner}>{tabs.map((tab) => { const active = !paperLearningOpen && utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); setPaperLearningOpen(false); }} style={[styles.navItem, { opacity: active ? 1 : 0.72 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, width: active ? 22 : 4, opacity: active ? 0.95 : 0.35 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
   </SafeAreaView>;
 }
 

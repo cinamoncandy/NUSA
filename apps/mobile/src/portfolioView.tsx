@@ -12,7 +12,7 @@ function money(value: number): string { return `₩${Math.round(value).toLocaleS
 function signedMoney(value: number): string { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }
 function pnlTone(value: number): "success" | "danger" { return value >= 0 ? "success" : "danger"; }
 function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"]; message: string; onRetry: () => void }>) { return <View style={styles.state} testID="portfolio-error"><View style={styles.stateInner}><InlineNotice title="자산 정보를 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
-export interface PortfolioViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly upbitSnapshot?: UpbitReadOnlyAccountSnapshot | null; readonly upbitStatus?: UpbitReadOnlyConnectionStatus; readonly upbitError?: string | null; }
+export interface PortfolioViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly upbitSnapshot?: UpbitReadOnlyAccountSnapshot | null; readonly upbitStatus?: UpbitReadOnlyConnectionStatus; readonly upbitError?: string | null; readonly onOpenPaperLearning?: () => void; }
 
 function monitorTone(status: UpbitReadOnlyMonitorStatus): "success" | "warning" | "danger" | "info" {
   return status === "CONNECTED" ? "success" : status === "AUTH_ERROR" || status === "RELAY_ERROR" ? "danger" : status === "STALE" ? "warning" : "info";
@@ -41,7 +41,7 @@ function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useT
   return <NusaCard testID="portfolio-position"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>OPEN POSITION</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View><View style={styles.positionMetrics}><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수량</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{model.position.quantity}</Text></View><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>평가가</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(model.position.currentPrice)}</Text></View></View><DataRow label="평균 단가" value={money(model.position.averagePrice)} /><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><DataRow label="미실현 손익" value={signedMoney(model.position.unrealizedPnl)} emphasis tone={pnlTone(model.position.unrealizedPnl)} /><DataRow label="실현 손익" value={signedMoney(model.position.realizedPnl)} tone={pnlTone(model.position.realizedPnl)} /></NusaCard>;
 }
 
-export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null }: PortfolioViewProps) {
+export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
   const { theme } = useTheme();
   if (snapshot === null) return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />{upbitStatus === "LOADING" ? <Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text> : null}<InlineNotice title={error ? "PAPER 자산을 표시할 수 없습니다" : "PAPER 연결 필요"} detail={error ?? "PAPER 서버에 연결하면 PAPER 계정의 평가자산과 손익을 표시합니다. Upbit 읽기 전용 잔고는 별도로 표시됩니다."} tone={error ? "danger" : "warning"} /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
   if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
@@ -52,6 +52,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
     <ScreenHeader eyebrow="MY ISLAND" title="자산" description="총자산, 손익과 현재 포지션을 한눈에 확인합니다." statusLabel="PAPER" statusTone="primary" />
+    {onOpenPaperLearning ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="portfolio-paper-learning" /> : null}
 
     <UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />
 

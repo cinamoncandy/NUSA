@@ -551,3 +551,33 @@ continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
   provider_private_context_dependency: prohibited
+
+issue_661_paper_learning_visibility:
+  issue: 661
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+  base_sha: e77582417f88efcd07e0806b5fc49c2e488730b0
+  branch: feat/issue-661-paper-learning-visibility
+  implementation_commit: 527686ee2fb8c9fb6233229cae07c25363b15068
+  scope: "Connect canonical PAPER learning/runtime observations to the authenticated GET-only /api/paper-operations projection and the existing React Native PAPER learning monitor; add Home/Trade/Portfolio entry points."
+  canonical_sources:
+    runtime: apps/cloud/src/runtime.ts
+    recorder: apps/cloud/src/paperLearningObservability.ts
+    projection: apps/cloud/src/paperLearningReadOnlyProjection.ts
+    transport_contract: packages/contracts/src/paperLearningReadOnly.ts
+    mobile_screen: apps/mobile/src/paperLearningScreen.ts
+    mobile_view: apps/mobile/src/paperLearningMonitorView.tsx
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture_truth: PASS
+    package_validate: PASS
+    full_isolated_suite: PASS_574_FILES
+    diff_check: PASS
+  safety:
+    mode: PAPER
+    read_only_projection: true
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+  external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW

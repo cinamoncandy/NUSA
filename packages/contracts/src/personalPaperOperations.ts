@@ -1,6 +1,7 @@
 import type { DashboardHealth, DashboardMode, MobileDashboardResponse } from "./mobileDashboard";
 import type { ResearchStatusProjection } from "./researchAutomation";
 import type { AiReadOnlyProjection } from "./aiInference";
+import { validatePaperLearningReadOnlySnapshot, type PaperLearningReadOnlySnapshot } from "./paperLearningReadOnly";
 
 export type PersonalPaperOperationsHealth = "HEALTHY" | "DEGRADED" | "FAIL_CLOSED";
 export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "RUNNING" | "DEGRADED" | "ERROR" | "STOPPING" | "STOPPED";
@@ -95,6 +96,8 @@ export interface PersonalPaperOperationsSnapshot {
   readonly portfolio: PersonalPaperPortfolioProjection | null;
   readonly orders: readonly PersonalPaperOrderProjection[];
   readonly markets: readonly PersonalPaperMarketProjection[];
+  /** Bounded, canonical PAPER learning evidence; observation only. */
+  readonly paperLearning?: PaperLearningReadOnlySnapshot | null;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
@@ -107,6 +110,7 @@ export interface PersonalPaperOperationsInput {
   readonly portfolio?: PersonalPaperPortfolioProjection | null;
   readonly orders?: readonly PersonalPaperOrderProjection[];
   readonly markets?: readonly PersonalPaperMarketProjection[];
+  readonly paperLearning?: PaperLearningReadOnlySnapshot | null;
 }
 
 const finite = (value: number, name: string): number => {
@@ -208,6 +212,9 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
   validateResearch(input.research);
   validateAi(input.ai ?? null);
   validateOperations(input.operations);
+  if (input.paperLearning != null) {
+    validatePaperLearningReadOnlySnapshot(input.paperLearning);
+  }
   finite(generatedAt, "generatedAt");
   const health = deriveHealth(input);
   const readyForPaperOperations = health !== "FAIL_CLOSED" && input.dashboard.mode === "PAPER" && input.dashboard.tradingAllowed && !input.dashboard.killSwitchActive && !input.operations.killSwitchActive && !input.operations.accountHalted && (input.operations.runtimeState === "READY" || input.operations.runtimeState === "RUNNING" || input.operations.runtimeState === "READY_OFFLINE");
@@ -224,6 +231,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     portfolio: input.portfolio ?? null,
     orders: input.orders ?? [],
     markets: input.markets ?? [],
+    paperLearning: input.paperLearning ?? null,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
   };
@@ -243,6 +251,9 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   validateResearch(snapshot.research);
   validateAi(snapshot.ai);
   validateOperations(snapshot.operations);
+  if (snapshot.paperLearning != null) {
+    validatePaperLearningReadOnlySnapshot(snapshot.paperLearning);
+  }
   validateReadOnlyProjections(snapshot);
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
