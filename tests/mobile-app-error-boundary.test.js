@@ -9,8 +9,16 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("native root mounts the application behind a last-resort render boundary", () => {
   const index = read("apps/mobile/index.js");
   assert.match(index, /import \{ AppErrorBoundary \} from "\.\/src\/AppErrorBoundary"/);
-  assert.match(index, /return <AppErrorBoundary><App \/><\/AppErrorBoundary>/);
+  assert.match(index, /return <AppErrorBoundary>[\s\S]*<App \/>[\s\S]*<\/AppErrorBoundary>/);
   assert.match(index, /AppRegistry\.registerComponent\(appName, \(\) => Root\)/);
+});
+
+test("native root exposes the packaged source fingerprint without moving App outside the error boundary", () => {
+  const index = read("apps/mobile/index.js");
+  assert.match(index, /import \{ BUILD_SOURCE_SHA \} from "\.\/src\/generatedBuildConfig"/);
+  assert.match(index, /testID="runtime-build-fingerprint"/);
+  assert.match(index, /NUSA BUILD \{shortBuildSha\}/);
+  assert.match(index, /<AppErrorBoundary>[\s\S]*<App \/>[\s\S]*runtime-build-fingerprint[\s\S]*<\/AppErrorBoundary>/);
 });
 
 test("render boundary exposes a minimal accessible manual recovery path", () => {
