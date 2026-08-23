@@ -17,7 +17,7 @@ export interface PaperLearningReadOnlyEvent {
   readonly risk?: PaperLearningEvent["risk"];
   readonly evidence?: PaperLearningEvent["evidence"];
   readonly decision?: Readonly<{
-    readonly action: PaperLearningEvent["decision"] extends infer T ? T extends { action: infer A } ? A : never : never;
+    readonly action: "BUY" | "SELL" | "HOLD" | "REDUCE" | "INCREASE";
     readonly allocation: number;
     readonly confidence: number;
   }>;
@@ -51,7 +51,8 @@ function sanitizeEvent(event: PaperLearningEvent): PaperLearningReadOnlyEvent {
 
   const gates = event.gates?.map((gate) => Object.freeze({ ...gate, reason: redactText(gate.reason) ?? "" }));
   const risk = event.risk == null ? undefined : Object.freeze({ ...event.risk, reason: redactText(event.risk.reason) ?? "" });
-  const decision = event.decision == null ? undefined : Object.freeze({ action: event.decision.action, allocation: event.decision.allocation, confidence: event.decision.confidence });
+  const decisionAction = event.decision != null && ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"].includes(event.decision.action) ? event.decision.action as "BUY" | "SELL" | "HOLD" | "REDUCE" | "INCREASE" : undefined;
+  const decision = event.decision == null || decisionAction == null ? undefined : Object.freeze({ action: decisionAction, allocation: event.decision.allocation, confidence: event.decision.confidence });
   // Never expose simulator order/fill identifiers. They are unnecessary for the mobile learning
   // surface and could become linkable identifiers if an execution implementation changes later.
   const fill = event.fill == null ? undefined : Object.freeze({ side: event.fill.side, quantity: event.fill.quantity, price: event.fill.price, fee: event.fill.fee, ...(event.fill.slippage == null ? {} : { slippage: event.fill.slippage }) });
