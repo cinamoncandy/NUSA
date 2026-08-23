@@ -10,6 +10,7 @@ import {
   type ImprovementObservationResult,
   type ImprovementObserverPolicy,
   type RootCauseEvidenceBundle,
+  type RemediationProposal,
   type ImprovementSignal
 } from "./improvementTypes";
 
@@ -52,7 +53,10 @@ export class ImprovementObserver {
       const result = this.observe(event);
       if (result.signal !== null) await events.publish("improvement.signal", result.signal);
       if (result.candidate !== null) await events.publish("improvement.candidate", result.candidate);
-      if (result.evidenceBundle !== null) await events.publish("improvement.rootCauseEvidence", result.evidenceBundle);
+      if (result.evidenceBundle !== null) {
+        await events.publish("improvement.rootCauseEvidence", result.evidenceBundle);
+        for (const proposal of result.evidenceBundle.remediationProposals) await events.publish("improvement.remediationProposal", proposal);
+      }
     });
   }
 
@@ -69,6 +73,14 @@ export class ImprovementObserver {
 
   rootCauseEvidenceBundles(): readonly RootCauseEvidenceBundle[] {
     return Object.freeze(this.backlog.histories().map((history) => correlateRootCauseEvidence(history)));
+  }
+
+  remediationProposals(fingerprint: string): readonly RemediationProposal[] {
+    return this.rootCauseEvidence(fingerprint)?.remediationProposals ?? Object.freeze([]);
+  }
+
+  remediationProposalRecords(): readonly RemediationProposal[] {
+    return Object.freeze(this.rootCauseEvidenceBundles().flatMap((bundle) => bundle.remediationProposals));
   }
 
   persistenceStatus(): "AVAILABLE" | "UNAVAILABLE" | "DISABLED" { return this.memory == null ? "DISABLED" : this.persistenceAvailable ? "AVAILABLE" : "UNAVAILABLE"; }
