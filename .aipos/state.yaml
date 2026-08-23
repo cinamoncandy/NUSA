@@ -49,11 +49,12 @@ latest_verified_slice:
 recent_repository_evidence:
   production_mobile_enrollment:
     work_order: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
-    branch: feat/production-mobile-enrollment
-    base_commit: c06a4355c8301224f6d6a9fee35f78ee6ec237cf
+    branch: feat/cloud-paper-zero-config-autoconnect-v2
+    base_commit: 5709dc2e2b48e0a82c9c1c795d91398b847a56a3
     implementation_status: IMPLEMENTATION_VALIDATED_PENDING_PR
     canonical_origin: DEPLOYMENT_CONFIG_PENDING
-    focused_enrollment_tests: PASS_9_OF_9
+    focused_enrollment_tests: PASS_12_OF_12
+    startup_restore_tests: PASS_2_OF_2
     typecheck: PASS
     build: PASS
     lint: PASS
@@ -66,8 +67,8 @@ recent_repository_evidence:
     restricted_live_readiness: PASS
     read_only_broker: PASS
     aipos_conformance: PASS
-    secret_scan: PENDING_SECURITY_AUDIT_NETWORK
-    full_isolated_suite: BLOCKED_LOCAL_PERSISTED_CLOUD_STATE_COLLISION
+    secret_scan: PASS_SECRETS_0
+    full_isolated_suite: FAIL_LOCAL_CLOUD_RUNTIME_BOOTSTRAP_HTTP_401
     local_paper_regression: PASS_BY_EXISTING_SUITE_CONTRACT
     safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
     scope: "Authenticated active-user self-enrollment, device-bound PAPER bootstrap, Android Keystore refresh persistence, canonical HTTPS origin validation, and fail-closed session recovery; no LIVE or broker mutation authority."

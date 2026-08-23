@@ -1,8 +1,8 @@
 id: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
 title: Production Mobile Enrollment and PAPER Bootstrap
 status: IN_PROGRESS
-branch: feat/production-mobile-enrollment
-implementation_branch: feat/production-mobile-enrollment
+branch: feat/cloud-paper-zero-config-autoconnect-v2
+implementation_branch: feat/cloud-paper-zero-config-autoconnect-v2
 base_branch: main
 base_commit: c06a4355c8301224f6d6a9fee35f78ee6ec237cf
 objective: "Add first-run authenticated mobile enrollment and secure PAPER session recovery without weakening the LIVE boundary."
@@ -28,6 +28,7 @@ constraints:
   - preserve OWNER-only operator bootstrap issuance
 acceptance:
   - focused enrollment/bootstrap/security tests pass
+  - enrolled session is restored during app startup without a second manual connect
   - typecheck, build, lint, architecture and security gates pass
   - exact-head CI and Mobile Native pass
   - production hostname is supplied only by release configuration
