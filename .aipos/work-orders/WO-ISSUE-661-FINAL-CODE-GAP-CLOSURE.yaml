@@ -1,6 +1,6 @@
 id: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
 title: "Issue #661 final PAPER learning code-gap closure"
-status: IN_PROGRESS
+status: COMPLETED_CODE_SCOPE
 mode: DETERMINISTIC_READ_ONLY
 issue: 661
 base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
@@ -27,4 +27,13 @@ verification:
   security: PASS_SECRETS_0
   full_suite: FAIL_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
   full_suite_note: "Existing Windows bootstrap test expects unauthenticated /health 200; current runtime returns 401. No test was weakened or deleted."
-next: "Create PR, validate exact head, merge only through protected branch, then publish the canonical Android preview."
+implementation_commit: 852592229e1dfc089ce713d25d835943a24934a0
+merge_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+android_preview_pointer_merge_sha: 3427861ef0ae283ecdfdf898bc09f77174f2d954
+android_preview_workflow: 32634946830
+android_preview_source_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+android_preview_version: 1.0.69-92894f96
+android_preview_version_code: 69
+android_preview_sha256: 987ed80fb06c9daacaf2fc1085169c05952f5e8624a4aadf387452018e468b97
+external_validation: "PR #718 exact-head checks PASS; PR #719 exact-head checks PASS; post-merge Actual PAPER Runtime Evidence PASS; physical Galaxy/ADB acceptance HUMAN_ENVIRONMENT_ONLY."
+next: "Human-only Galaxy/ADB visual acceptance; do not claim physical-device PASS without evidence."
