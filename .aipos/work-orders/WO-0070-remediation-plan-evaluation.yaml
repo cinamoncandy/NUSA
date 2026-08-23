@@ -1,0 +1,62 @@
+id: WO-0070
+title: Deterministic Remediation Plan Evaluation
+status: ready
+branch: agent/wo-0070-remediation-plan-evaluation
+base_sha: 030880026a091a34da4fa3dfb2ad3845436655e3
+objective: >-
+  Extend the WO-0063 through WO-0069 read-only improvement chain with deterministic, bounded remediation-plan evaluation. Consume verified remediation proposals and produce reproducible advisory plan-evaluation results that compare candidate remediation sequences, preconditions, rollback paths, verification coverage, blast radius, and expected operational cost without executing code changes, Git mutations, deployments, broker actions, Risk Authority changes, or LIVE actions.
+scope:
+  - reuse WO-0067 read-only remediation proposal contracts
+  - reuse WO-0068/WO-0069 RemediationVerificationResult and fail-closed semantics
+  - evaluate candidate remediation plans using explicit deterministic factors only
+  - validate preconditions, dependency ordering, rollback completeness, verification coverage, scope boundaries, and bounded blast radius
+  - provide stable ordering/tie-breaking for multiple admissible plans
+  - expose explicit reasons, provenance, rejected-plan reasons, and insufficiency states
+  - produce read-only RemediationPlanEvaluation or repository-conventional equivalent
+  - bound number of plans, steps per plan, evidence fan-out, retention, and computational work
+  - fail closed on stale, contradictory, malformed, unverifiable, insufficient, or authority-expanding inputs
+non_goals:
+  - autonomous remediation execution
+  - code generation or self-modification
+  - automatic patch application
+  - automatic branch/commit/PR/merge/release/deploy
+  - broker/order/cancel/withdraw/transfer actions
+  - strategy activation/promotion
+  - Risk Authority mutation
+  - LIVE or real-money authority
+  - LLM-generated causal certainty or fabricated confidence
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and existing safety boundaries remain authoritative
+  - no parallel planner, EventBus, persistence, DI, execution, or deployment framework
+  - identical canonical inputs must yield identical evaluation, ordering, and identity
+  - ranking factors, tie-breakers, rejection reasons, and insufficiency reasons must be explicit and testable
+  - verified proposal PASS does not imply execution permission
+  - all outputs remain advisory/read-only
+  - protected areas remain unchanged
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - valid verified remediation proposals can be converted into bounded candidate plans and deterministically evaluated
+  - evaluation checks preconditions, dependency order, rollback path, verification-plan coverage, scope, and blast radius
+  - invalid, stale, contradictory, malformed, unverifiable, insufficient, or authority-expanding inputs fail closed
+  - duplicate/replayed inputs are idempotent and deterministic
+  - multiple admissible plans have stable ordering with explicit factors and tie-breakers
+  - no output is executable and no mutation/execution authority is introduced
+  - WO-0063 through WO-0069 behavior remains compatible
+  - focused tests cover determinism, ordering, fail-closed cases, bounds, rollback completeness, dependency cycles, and zero authority
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift, and git diff checks pass
+verification:
+  - pnpm run preflight
+  - pnpm test
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - git diff --check
+next_on_pass: human review and normal PR process
