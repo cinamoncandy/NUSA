@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { MotionReveal, TerrainSignal } from "./components";
+import { MotionReveal, NusaButton, TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -19,6 +19,7 @@ interface HomeViewProps {
   readonly onRefresh: () => void;
   readonly onGoSettings: () => void;
   readonly onNavigate: (destination: HomeDestination) => void;
+  readonly onOpenPaperLearning: () => void;
 }
 
 function krw(value: number): string {
@@ -42,6 +43,7 @@ export function HomeView({
   onRefresh,
   onGoSettings,
   onNavigate,
+  onOpenPaperLearning,
 }: HomeViewProps) {
   const { theme } = useTheme();
   const profile = getHomeVisualProfile(theme.preset);
@@ -229,6 +231,7 @@ export function HomeView({
           <Text style={[styles.primaryLabel, { color: theme.colors.text }]}>{primaryLabel}</Text>
         </Pressable>
       </View>
+      <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
     </>}
 
     <View style={styles.secondaryDiagnostics} testID="safety-card">
