@@ -611,7 +611,7 @@ issue_661_paper_learning_visibility:
 issue_661_paper_learning_code_gap_closure:
   issue: 661
   work_order: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
-  status: IN_PROGRESS
+  status: CODE_COMPLETE_HUMAN_DEVICE_PENDING
   base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
   branch: feat/issue-661-code-gap-closure
   scope: "Persist the existing sanitized PAPER learning timeline in the canonical Cloud state database and expose canonical risk observations without changing execution authority."
@@ -631,4 +631,12 @@ issue_661_paper_learning_code_gap_closure:
     live_authority: NONE
     production_mutation_allowed: false
     ai_authority: ZERO_AUTHORITY
-  external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW
+  implementation_commit: 852592229e1dfc089ce713d25d835943a24934a0
+  merge_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+  android_preview_pointer_merge_sha: 3427861ef0ae283ecdfdf898bc09f77174f2d954
+  android_preview_workflow: 32634946830
+  android_preview_source_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+  android_preview_version: 1.0.69-92894f96
+  android_preview_version_code: 69
+  android_preview_sha256: 987ed80fb06c9daacaf2fc1085169c05952f5e8624a4aadf387452018e468b97
+  external_validation: "PR #718 and #719 exact-head checks PASS; post-merge Actual PAPER Runtime Evidence PASS; physical Galaxy/ADB acceptance HUMAN_ENVIRONMENT_ONLY."
