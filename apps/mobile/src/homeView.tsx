@@ -179,6 +179,7 @@ export function HomeView({
         actionTestID="dashboard-open-settings"
         testID="home-operational-notice"
       />
+      <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" />
     </View> : <>
       <View testID="ai-card">
         <View style={[styles.decisionStage, { borderColor: theme.colors.borderStrong }]} testID="home-decision-stage">
