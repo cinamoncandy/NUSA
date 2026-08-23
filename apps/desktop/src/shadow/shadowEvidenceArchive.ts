@@ -331,6 +331,59 @@ export async function verifyShadowEvidenceDirectory(directory: string, recompute
   return Object.freeze({ status: blockers.length === 0 ? "PASS" : "FAIL", sessionId: metadata.sessionId, eventCount: envelopes.length, sequenceContinuous, hashChainValid, sessionConsistent, actualBrokerCalls, actualOrders, actualFills, cashMutations, positionMutations, blockers: Object.freeze([...new Set(blockers)].sort()), recomputedAt });
 }
 
+/**
+ * Replays a sealed Shadow archive for read-only projections. Verification happens before any
+ * event is returned, so a corrupt or incomplete archive can never be mistaken for live truth.
+ * The archive remains an evidence record; replay does not hydrate or mutate a runtime.
+ */
+export async function replayShadowEvidenceArchive(directory: string, maximumEvents = 500): Promise<Readonly<{
+  readonly metadata: ShadowEvidenceSessionMetadata;
+  readonly events: readonly ShadowPilotEvent[];
+}>> {
+  if (!Number.isSafeInteger(maximumEvents) || maximumEvents < 1 || maximumEvents > 500) throw new Error("invalid Shadow archive replay limit");
+  const verification = await verifyShadowEvidenceDirectory(directory);
+  if (verification.status !== "PASS") throw new Error(`Shadow archive replay rejected: ${verification.status}:${verification.blockers.join(",")}`);
+  const metadata = JSON.parse(await readFile(path.join(directory, "session.json"), "utf8")) as ShadowEvidenceSessionMetadata;
+  if (metadata.schemaVersion !== SHADOW_EVIDENCE_SCHEMA_VERSION) throw new Error("unsupported Shadow archive schema");
+  const envelopes = parseEventLines(await readFile(path.join(directory, "events.ndjson"), "utf8"));
+  if (envelopes.length > maximumEvents) throw new Error("Shadow archive replay bound exceeded");
+  const events = envelopes.map((envelope) => envelope.event);
+  return Object.freeze({ metadata: Object.freeze(metadata), events: Object.freeze(events) });
+}
+
+/** Replays every sealed archive in deterministic directory/session order. */
+export async function replayShadowEvidenceArchives(root: string, maximumEvents = 500): Promise<Readonly<{
+  readonly archives: readonly (Readonly<{ readonly metadata: ShadowEvidenceSessionMetadata; readonly events: readonly ShadowPilotEvent[] }>)[];
+  readonly rejected: readonly string[];
+}>> {
+  const entries = await readdir(root, { withFileTypes: true }).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  });
+  const archives: Array<Readonly<{ readonly metadata: ShadowEvidenceSessionMetadata; readonly events: readonly ShadowPilotEvent[] }>> = [];
+  const rejected: string[] = [];
+  for (const entry of entries.filter((candidate) => candidate.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {
+    const directory = path.join(root, entry.name);
+    try { archives.push(await replayShadowEvidenceArchive(directory, maximumEvents)); }
+    catch { rejected.push(directory); }
+  }
+  return Object.freeze({ archives: Object.freeze(archives), rejected: Object.freeze(rejected) });
+}
+
+/** Flattens verified archives into one bounded, deterministic, duplicate-free observation timeline. */
+export async function replayShadowEvidenceTimeline(root: string, maximumEvents = 500): Promise<Readonly<{
+  readonly events: readonly ShadowPilotEvent[];
+  readonly rejectedArchives: readonly string[];
+}>> {
+  const replay = await replayShadowEvidenceArchives(root, maximumEvents);
+  const unique = new Map<string, ShadowPilotEvent>();
+  for (const archive of replay.archives) {
+    for (const event of archive.events) unique.set(`${event.sessionId}:${event.eventSha256}`, event);
+  }
+  const events = [...unique.values()].sort((left, right) => left.timestamp - right.timestamp || left.sessionId.localeCompare(right.sessionId) || left.sequence - right.sequence).slice(-maximumEvents);
+  return Object.freeze({ events: Object.freeze(events), rejectedArchives: replay.rejected });
+}
+
 export async function findIncompleteShadowArchives(root: string): Promise<readonly string[]> {
   try {
     const entries = await readdir(root, { withFileTypes: true });

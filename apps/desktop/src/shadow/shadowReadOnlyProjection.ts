@@ -65,15 +65,16 @@ function marketConnectionProjection(value: MarketConnectionDiagnostics | null): 
 export function buildShadowReadOnlyProjection(input: ShadowReadOnlyProjectionInput): ShadowObservabilitySnapshot {
   const diagnostics = input.diagnostics;
   const generatedAt = input.generatedAt ?? Date.now();
-  const bySequence = new Map<number, ShadowPilotEvent>();
+  const byIdentity = new Map<string, ShadowPilotEvent>();
   for (const event of input.events) {
-    const previous = bySequence.get(event.sequence);
+    const key = `${event.sessionId}:${event.sequence}`;
+    const previous = byIdentity.get(key);
     if (previous != null && previous.eventSha256 !== event.eventSha256) throw new Error("conflicting SHADOW observability event sequence");
-    bySequence.set(event.sequence, event);
+    byIdentity.set(key, event);
   }
-  const events = [...bySequence.values()]
-    .sort((left, right) => left.sequence - right.sequence)
-    .map((event) => Object.freeze({ ...eventToProjection(event), symbol: diagnostics.symbol }));
+  const events = [...byIdentity.values()]
+    .sort((left, right) => left.timestamp - right.timestamp || left.sessionId.localeCompare(right.sessionId) || left.sequence - right.sequence)
+    .map((event, index) => Object.freeze({ ...eventToProjection(event), sequence: index + 1, symbol: diagnostics.symbol }));
   return validateShadowObservabilitySnapshot({
     schemaVersion: 1,
     mode: "SHADOW",
