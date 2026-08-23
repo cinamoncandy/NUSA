@@ -1,0 +1,40 @@
+{
+  "workOrder": "WO-0070",
+  "status": "IMPLEMENTED_VALIDATED_LOCAL",
+  "baseSha": "030880026a091a34da4fa3dfb2ad3845436655e3",
+  "implementationSha": "f677c5eeb4cc294a1dbafade9d05d50e90a5faaa",
+  "scope": "Deterministic read-only remediation plan candidate evaluation with dependency ordering, scope and blast-radius validation, rollback/reversibility checks, verification coverage, bounded inputs, and stable ranking.",
+  "changedFiles": [
+    "packages/core/src/improvement/index.ts",
+    "packages/core/src/improvement/remediationPlanEvaluation.ts",
+    "tests/remediation-plan-evaluation.test.js"
+  ],
+  "validation": {
+    "focusedTests": "PASS_12_OF_12",
+    "wo0069Regression": "PASS_INCLUDED_IN_FOCUSED_SUITE",
+    "fullIsolatedSuite": "PASS_579_FILES_WITH_NUSA_CLOUD_STATE_DB_PATH_MEMORY",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architecture": "PASS",
+    "truth": "PASS",
+    "safety": "PASS",
+    "aiAuthority": "PASS",
+    "aiposConformance": "PASS",
+    "aiposDrift": "PASS",
+    "gitDiffCheck": "PASS",
+    "securityGate": "NOT_RUN_NETWORK_AUDIT_UNAVAILABLE"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "brokerRiskCredentialChanges": false,
+    "executionAuthority": false
+  },
+  "determinism": "PASS_CANONICAL_HASH_STABLE_ORDER_INDEPENDENT",
+  "failClosed": "PASS_MALFORMED_STALE_SCOPE_DEPENDENCY_ROLLBACK_VERIFICATION_AND_PROTECTED_SURFACES",
+  "knownLimitations": [
+    "Remote security audit could not be completed in the sandbox because the package registry was unavailable."
+  ]
+}
