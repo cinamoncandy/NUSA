@@ -6,18 +6,15 @@ import { RUNTIME_BUILD_IDENTITY } from "./src/runtimeBuildIdentity";
 import { name as appName } from "./app.json";
 
 function Root() {
-  return <AppErrorBoundary>
-    <View style={styles.root}>
-      <App />
-      <View pointerEvents="none" style={styles.runtimeBadge} testID="runtime-build-identity">
-        <Text style={styles.runtimeBadgeText}>{RUNTIME_BUILD_IDENTITY}</Text>
-      </View>
+  return <>
+    <AppErrorBoundary><App /></AppErrorBoundary>
+    <View pointerEvents="none" style={styles.runtimeBadge} testID="runtime-build-identity">
+      <Text style={styles.runtimeBadgeText}>{RUNTIME_BUILD_IDENTITY}</Text>
     </View>
-  </AppErrorBoundary>;
+  </>;
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   runtimeBadge: {
     position: "absolute",
     top: 2,
