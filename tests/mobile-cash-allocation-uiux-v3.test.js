@@ -9,7 +9,7 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
   const guard = read("apps/mobile/src/capitalAllocationGuard.ts");
   const app = read("apps/mobile/App.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
-  const trading = read("apps/mobile/src/tradingView.tsx");
+  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const client = read("apps/mobile/src/cloudInvestmentAllocationClient.ts");
 
@@ -34,6 +34,8 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
   assert.match(home, /home-investable-cash/);
   assert.match(home, /home-reserved-cash/);
   assert.match(portfolio, /portfolio-investable-cash/);
+  // tradingView.tsx is now a public-chart shell; the preserved PAPER execution workspace lives
+  // in tradingViewLegacy.tsx and remains the authority-bearing implementation under that shell.
   // Trading may source its account from Cloud PAPER or the LOCAL PAPER fallback. In both cases
   // the effective account is what the allocation envelope and SELL availability must use.
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
@@ -43,11 +45,11 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
 });
 
 test("allocation changes cannot grant LIVE or production authority", () => {
-  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/tradingView.tsx", "apps/mobile/src/settingsView.tsx"]) {
+  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/tradingView.tsx", "apps/mobile/src/tradingViewLegacy.tsx", "apps/mobile/src/settingsView.tsx"]) {
     const source = read(relative);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true|liveAuthority\s*=\s*["'](?!NONE)/);
   }
-  const trading = read("apps/mobile/src/tradingView.tsx");
+  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
 });
