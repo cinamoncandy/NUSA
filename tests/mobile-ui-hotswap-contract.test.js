@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
+// HOME v2 MASTER geometry contract; keep in sync with the accepted visual source of truth.
 test("classic and master presets are materially distinct visual systems", () => {
   const profile = read("apps/mobile/src/homeVisualProfile.ts");
   assert.match(profile, /classic:[\s\S]*?horizontalPadding:\s*20/);
@@ -27,11 +28,11 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
   assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 18 : profile\.screen\.sectionGap/);
+  assert.match(home, /gap:\s*tablet \? 24 : 18/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(home, /fontSize:\s*tablet \? profile\.hero\.tabletBalanceSize : profile\.hero\.balanceSize/);
-  assert.match(home, /lineHeight:\s*tablet \? profile\.hero\.tabletBalanceLineHeight : profile\.hero\.balanceLineHeight/);
+  assert.match(home, /fontSize:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceSize, 58\) : Math\.max\(profile\.hero\.balanceSize, 42\)/);
+  assert.match(home, /lineHeight:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceLineHeight, 64\) : Math\.max\(profile\.hero\.balanceLineHeight, 48\)/);
   assert.match(home, /letterSpacing:\s*profile\.hero\.balanceLetterSpacing/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-signal-trace"/);
