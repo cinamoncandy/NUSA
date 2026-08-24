@@ -5,6 +5,8 @@ const LOCAL_PAPER_MARKET = "KRW-BTC";
 const LOCAL_OBSERVER_STRATEGY = "LOCAL_PUBLIC_OBSERVER_V1";
 const MAX_LOCAL_EVENTS = 120;
 let localEvents: readonly PaperLearningUiEvent[] = Object.freeze([]);
+let localMarket: WatchlistMarket | null = null;
+const marketListeners = new Set<() => void>();
 
 function validObservedAt(value: string): number | null {
   const observedAt = Date.parse(value);
@@ -15,6 +17,11 @@ function boundedAppend(events: readonly PaperLearningUiEvent[]): void {
   const merged = new Map<string, PaperLearningUiEvent>();
   for (const event of [...localEvents, ...events]) merged.set(event.id, Object.freeze({ ...event }));
   localEvents = Object.freeze([...merged.values()].sort((a, b) => b.occurredAt - a.occurredAt || a.id.localeCompare(b.id)).slice(0, MAX_LOCAL_EVENTS));
+}
+
+function publishMarket(market: WatchlistMarket): void {
+  localMarket = Object.freeze({ ...market });
+  for (const listener of marketListeners) listener();
 }
 
 /**
@@ -28,6 +35,7 @@ export function recordLocalPaperPublicMarkets(markets: readonly WatchlistMarket[
   if (!market || !Number.isFinite(market.price) || market.price <= 0) return;
   const occurredAt = validObservedAt(market.observedAt);
   if (occurredAt === null) return;
+  publishMarket(market);
   const cycleId = `local-public-${market.market}-${occurredAt}`;
   const identity = `${market.market}:${occurredAt}`;
   boundedAppend([
@@ -53,6 +61,17 @@ export function getLocalPaperLearningEvents(): readonly PaperLearningUiEvent[] {
   return localEvents;
 }
 
+export function getLocalPaperObservedMarket(): WatchlistMarket | null {
+  return localMarket;
+}
+
+export function subscribeLocalPaperObservedMarket(listener: () => void): () => void {
+  marketListeners.add(listener);
+  return () => marketListeners.delete(listener);
+}
+
 export function resetLocalPaperLearningEventsForTest(): void {
   localEvents = Object.freeze([]);
+  localMarket = null;
+  for (const listener of marketListeners) listener();
 }
