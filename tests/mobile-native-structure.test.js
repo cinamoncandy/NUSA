@@ -119,6 +119,33 @@ test("mobile release workflow validates Android candidates and explicitly skips 
   assert.doesNotMatch(workflow, /xcodebuild/);
 });
 
+test("Android networking layer replaces (not appends) the User-Agent so Upbit's public API stops rejecting requests with HTTP 400", () => {
+  // Two prior JS-only fixes oscillated on this exact symptom: bd51b4a5 added a custom
+  // "user-agent" fetch header because Upbit rejected OkHttp's generic default; 5bc750f2 later
+  // removed it again because Upbit then rejected the duplicate that produced. Neither fix
+  // could work reliably because React Native's Android bridge does not guarantee a fetch()
+  // header replaces OkHttp's own rather than being sent alongside it. The single fix that
+  // actually guarantees one non-generic header is a native OkHttp interceptor using `.header()`
+  // (replace) instead of `.addHeader()` (append), registered before any request can be sent.
+  const mainApplication = fs.readFileSync(
+    path.join(mobile, "android", "app", "src", "main", "java", "com", "nusa", "mobile", "MainApplication.kt"),
+    "utf8"
+  );
+  assert.match(mainApplication, /import com\.facebook\.react\.modules\.network\.OkHttpClientProvider/);
+  assert.match(mainApplication, /class NusaUserAgentInterceptor : Interceptor/);
+  assert.match(mainApplication, /\.header\("User-Agent", "nusa-mobile\/0\.1"\)/);
+  assert.doesNotMatch(mainApplication, /\.addHeader\("User-Agent"/);
+  const onCreate = mainApplication.slice(mainApplication.indexOf("override fun onCreate"));
+  assert.match(onCreate, /OkHttpClientProvider\.setOkHttpClient/);
+  assert.ok(
+    onCreate.indexOf("OkHttpClientProvider.setOkHttpClient") < onCreate.indexOf("loadReactNative(this)"),
+    "the patched OkHttp client must be installed before loadReactNative(this) starts the networking stack"
+  );
+
+  const quotationClient = fs.readFileSync(path.join(mobile, "src", "upbitPublicQuotationClient.ts"), "utf8");
+  assert.doesNotMatch(quotationClient, /"user-agent"\s*:/);
+});
+
 test("Android mobile workflow cancels obsolete runs and reuses safe dependency caches", () => {
   const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(workflow.includes("group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"), true);

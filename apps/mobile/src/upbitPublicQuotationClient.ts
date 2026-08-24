@@ -104,9 +104,16 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
       method: "GET",
       redirect: "error",
       signal: controller.signal,
-      // Do not add JS-layer headers here. React Native/OkHttp already supplies its native
-      // request headers, and Upbit rejects duplicated headers with HTTP 400. The public GET
-      // endpoint does not require Authorization, Content-Type, User-Agent, or Accept overrides.
+      // Do not add JS-layer headers here. React Native's Android networking bridge does not
+      // guarantee a fetch() header replaces OkHttp's own default rather than being sent
+      // alongside it, so this file cannot reliably control any header from JS in either
+      // direction (adding a custom User-Agent got a 400 for OkHttp's generic default; a
+      // plain fetch header can also risk a 400 for a duplicate). The public GET endpoint
+      // needs no credential/Content-Type/Accept override, and the User-Agent's single
+      // source of truth is the native OkHttp interceptor in MainApplication.kt, which runs
+      // after RN's bridge builds the request and replaces the header outright -- see
+      // NusaUserAgentInterceptor there for why `.header()` (replace), not `.addHeader()`
+      // (append), is what actually fixes this.
     });
     if (!response.ok) throw await upstreamError(response);
     return await response.json();
