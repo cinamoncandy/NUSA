@@ -1,6 +1,7 @@
 import { parsePublicCandles, type PublicCandle } from "./chartViewModel";
 import type { WatchlistMarket } from "./watchlist";
 import { readNativeRequestDiagnostic } from "./androidNetworkDiagnostics";
+import { recordLocalPaperPublicMarkets } from "./localPaperLearningProjection";
 import {
   requestNativeAndroidUpbitCandles,
   requestNativeAndroidUpbitTicker,
@@ -219,6 +220,11 @@ export function normalizeUpbitTickerPayload(raw: unknown): readonly WatchlistMar
   return Object.freeze(raw.map((value, index) => parseUpbitTickerRow(value, "market", index)));
 }
 
+function recordAndReturnMarkets(markets: readonly WatchlistMarket[]): readonly WatchlistMarket[] {
+  recordLocalPaperPublicMarkets(markets);
+  return markets;
+}
+
 export async function loadUpbitPublicMarkets(options: UpbitPublicQuotationClientOptions = {}): Promise<readonly WatchlistMarket[]> {
   if (options.request === undefined && options.baseUrl === undefined) {
     let nativeResponse: NativeUpbitPublicQuotationResponse | null;
@@ -227,9 +233,9 @@ export async function loadUpbitPublicMarkets(options: UpbitPublicQuotationClient
     } catch {
       throw new Error("Upbit public quotation request failed.");
     }
-    if (nativeResponse != null) return normalizeUpbitTickerPayload(nativeResponseJson(nativeResponse));
+    if (nativeResponse != null) return recordAndReturnMarkets(normalizeUpbitTickerPayload(nativeResponseJson(nativeResponse)));
   }
-  return normalizeUpbitTickerPayload(await requestJson(UPBIT_PUBLIC_TICKER_PATH, options));
+  return recordAndReturnMarkets(normalizeUpbitTickerPayload(await requestJson(UPBIT_PUBLIC_TICKER_PATH, options)));
 }
 
 export function normalizeUpbitCandlePayload(raw: unknown, market: string): readonly PublicCandle[] {
