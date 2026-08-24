@@ -1,20 +1,22 @@
 import { parsePublicCandles, type PublicCandle } from "./chartViewModel";
 import type { WatchlistMarket } from "./watchlist";
 import { readNativeRequestDiagnostic } from "./androidNetworkDiagnostics";
-import { resolveCanonicalCloudOrigin } from "./canonicalOrigin";
+import {
+  requestNativeAndroidUpbitCandles,
+  requestNativeAndroidUpbitTicker,
+  type NativeUpbitPublicQuotationResponse,
+} from "./androidUpbitPublicQuotation";
 
 export const UPBIT_PUBLIC_QUOTATION_BASE_URL = "https://api.upbit.com";
 export const UPBIT_PUBLIC_TICKER_PATH = "/v1/ticker/all?quote_currencies=KRW";
 export const UPBIT_PUBLIC_CANDLE_PATH = "/v1/candles/minutes/1";
-export const NUSA_PUBLIC_TICKER_RELAY_PATH = "/api/public/upbit/ticker";
-export const NUSA_PUBLIC_CANDLE_RELAY_PATH = "/api/public/upbit/candles";
 export const DEFAULT_PUBLIC_CANDLE_COUNT = 120;
 export const MAX_PUBLIC_CANDLE_COUNT = 200;
 
 export interface UpbitPublicQuotationClientOptions {
   readonly request?: typeof fetch;
   readonly timeoutMs?: number;
-  /** Explicit test/development override. Production with no override uses the sealed NUSA Cloud relay. */
+  /** Explicit test/development override. */
   readonly baseUrl?: string;
 }
 
@@ -79,37 +81,20 @@ function compactErrorText(value: unknown): string | undefined {
   return compact.slice(0, 160);
 }
 
-function resolvedRequestUrl(path: string, options: UpbitPublicQuotationClientOptions): string {
-  // Explicit baseUrl remains a deterministic test/development override. Release builds do not
-  // provide it; they use the sealed canonical NUSA origin so Android never talks to Upbit REST.
-  if (options.baseUrl !== undefined) return `${normalizedBaseUrl(options.baseUrl)}${path}`;
-
-  const canonical = resolveCanonicalCloudOrigin();
-  if (canonical.status === "READY") {
-    if (path === UPBIT_PUBLIC_TICKER_PATH) return `${canonical.origin}${NUSA_PUBLIC_TICKER_RELAY_PATH}`;
-    if (path.startsWith(`${UPBIT_PUBLIC_CANDLE_PATH}?`) || path === UPBIT_PUBLIC_CANDLE_PATH) {
-      const upstream = new URL(path, UPBIT_PUBLIC_QUOTATION_BASE_URL);
-      const relay = new URL(`${canonical.origin}${NUSA_PUBLIC_CANDLE_RELAY_PATH}`);
-      const market = upstream.searchParams.get("market");
-      const count = upstream.searchParams.get("count");
-      if (market != null) relay.searchParams.set("market", market);
-      if (count != null) relay.searchParams.set("count", count);
-      return relay.toString();
-    }
-  }
-
-  // Local/test source trees intentionally have no generated deployment origin. Retain direct
-  // public Upbit access there so unit tests and developer tooling remain hermetic. Production
-  // packaging replaces CANONICAL_NUSA_ORIGIN, so sealed Android builds take the relay path above.
-  return `${UPBIT_PUBLIC_QUOTATION_BASE_URL}${path}`;
+function candleRequestPath(market: string, count: number): string {
+  // Do not build this with URL.searchParams. Real Android/Hermes evidence showed that mutating
+  // searchParams could leave url.search empty even though Node tests passed, causing the required
+  // market/count query to disappear on the wire. Construct the already-validated query directly.
+  return `${UPBIT_PUBLIC_CANDLE_PATH}?market=${encodeURIComponent(market)}&count=${count}`;
 }
 
-/**
- * Everything a real-device failure needs to confirm root cause without guessing again: the exact
- * URL/method this file actually asked fetch() for and the returned status/error detail. Deliberately
- * not a header dump -- every field is named individually so there is no path from diagnostics to
- * accidentally logging a credential header.
- */
+function resolvedRequestUrl(path: string, options: UpbitPublicQuotationClientOptions): string {
+  // Android production uses the isolated native transport before this fallback is reached.
+  // Tests, development overrides, iOS and old native binaries retain the ordinary public GET path.
+  return `${normalizedBaseUrl(options.baseUrl)}${path}`;
+}
+
+/** Everything a real-device failure needs to confirm root cause without credential exposure. */
 export interface PublicQuotationDiagnostic {
   readonly requestUrl: string;
   readonly method: "GET";
@@ -131,35 +116,64 @@ export class UpbitPublicQuotationError extends Error {
   }
 }
 
-async function upstreamDiagnostic(requestUrl: string, response: Response): Promise<PublicQuotationDiagnostic> {
-  let responseErrorName: string | undefined;
-  let responseErrorMessage: string | undefined;
-  try {
-    const payload = await response.json() as unknown;
-    if (payload != null && typeof payload === "object" && !Array.isArray(payload)) {
-      const record = payload as Record<string, unknown>;
-      if (record.error != null && typeof record.error === "object" && !Array.isArray(record.error)) {
-        const error = record.error as Record<string, unknown>;
-        responseErrorName = compactErrorText(error.name);
-        responseErrorMessage = compactErrorText(error.message);
-      } else {
-        responseErrorMessage = compactErrorText(record.error);
-      }
-    }
-  } catch {
-    // Status alone is still actionable if an upstream or relay does not return JSON.
+function errorDetail(payload: unknown): { readonly name?: string; readonly message?: string } {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return Object.freeze({});
+  const record = payload as Record<string, unknown>;
+  if (record.error != null && typeof record.error === "object" && !Array.isArray(record.error)) {
+    const error = record.error as Record<string, unknown>;
+    return Object.freeze({ name: compactErrorText(error.name), message: compactErrorText(error.message) });
   }
+  return Object.freeze({ message: compactErrorText(record.error) });
+}
+
+async function upstreamDiagnostic(requestUrl: string, response: Response): Promise<PublicQuotationDiagnostic> {
+  let payload: unknown;
+  try {
+    payload = await response.json() as unknown;
+  } catch {
+    payload = undefined;
+  }
+  const detail = errorDetail(payload);
   const nativeDiagnostic = await readNativeRequestDiagnostic().catch(() => null);
   return Object.freeze({
     requestUrl,
     method: "GET" as const,
     status: response.status,
-    responseErrorName,
-    responseErrorMessage,
+    responseErrorName: detail.name,
+    responseErrorMessage: detail.message,
     responseContentType: response.headers.get("content-type") ?? undefined,
     finalUserAgent: nativeDiagnostic?.userAgent ?? undefined,
     timestamp: new Date().toISOString(),
   });
+}
+
+function nativeResponseJson(response: NativeUpbitPublicQuotationResponse): unknown {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(response.body) as unknown;
+  } catch {
+    payload = undefined;
+  }
+  if (response.status < 200 || response.status >= 300) {
+    const detail = errorDetail(payload);
+    const diagnostic: PublicQuotationDiagnostic = Object.freeze({
+      requestUrl: response.requestUrl,
+      method: "GET" as const,
+      status: response.status,
+      responseErrorName: detail.name,
+      responseErrorMessage: detail.message,
+      responseContentType: response.contentType ?? undefined,
+      finalUserAgent: response.userAgent,
+      timestamp: new Date().toISOString(),
+    });
+    const suffix = [detail.name, detail.message].filter(Boolean).join(": ");
+    throw new UpbitPublicQuotationError(
+      `Upbit public quotation unavailable (${response.status}${suffix ? `: ${suffix}` : ""}).`,
+      diagnostic,
+    );
+  }
+  if (payload === undefined) throw new Error("Upbit public quotation response is invalid.");
+  return payload;
 }
 
 async function requestJson(path: string, options: UpbitPublicQuotationClientOptions): Promise<unknown> {
@@ -188,12 +202,7 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
   }
 }
 
-/**
- * Shared row shape between Upbit's REST ticker response (field `market`) and its DEFAULT-format
- * WebSocket ticker push (field `code`) -- both carry the same trade_price/signed_change_rate/
- * acc_trade_volume_24h/timestamp fields, just under a different market-code key. Exported so
- * upbitPublicWebSocketClient.ts can reuse the exact same validation instead of duplicating it.
- */
+/** Shared row shape between Upbit REST ticker and DEFAULT-format WebSocket ticker. */
 export function parseUpbitTickerRow(value: unknown, marketField: "market" | "code", index: number | string = 0): WatchlistMarket {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`Upbit ticker ${index} is invalid.`);
   const row = value as Record<string, unknown>;
@@ -211,6 +220,15 @@ export function normalizeUpbitTickerPayload(raw: unknown): readonly WatchlistMar
 }
 
 export async function loadUpbitPublicMarkets(options: UpbitPublicQuotationClientOptions = {}): Promise<readonly WatchlistMarket[]> {
+  if (options.request === undefined && options.baseUrl === undefined) {
+    let nativeResponse: NativeUpbitPublicQuotationResponse | null;
+    try {
+      nativeResponse = await requestNativeAndroidUpbitTicker(timeoutMs(options.timeoutMs));
+    } catch {
+      throw new Error("Upbit public quotation request failed.");
+    }
+    if (nativeResponse != null) return normalizeUpbitTickerPayload(nativeResponseJson(nativeResponse));
+  }
   return normalizeUpbitTickerPayload(await requestJson(UPBIT_PUBLIC_TICKER_PATH, options));
 }
 
@@ -220,8 +238,16 @@ export function normalizeUpbitCandlePayload(raw: unknown, market: string): reado
 
 export async function loadUpbitPublicCandles(options: UpbitPublicCandleOptions): Promise<readonly PublicCandle[]> {
   const market = normalizedMarket(options.market);
-  const url = new URL(`${UPBIT_PUBLIC_QUOTATION_BASE_URL}${UPBIT_PUBLIC_CANDLE_PATH}`);
-  url.searchParams.set("market", market);
-  url.searchParams.set("count", String(boundedCount(options.count)));
-  return normalizeUpbitCandlePayload(await requestJson(`${url.pathname}${url.search}`, options), market);
+  const count = boundedCount(options.count);
+  if (options.request === undefined && options.baseUrl === undefined) {
+    let nativeResponse: NativeUpbitPublicQuotationResponse | null;
+    try {
+      nativeResponse = await requestNativeAndroidUpbitCandles(market, count, timeoutMs(options.timeoutMs));
+    } catch {
+      throw new Error("Upbit public quotation request failed.");
+    }
+    if (nativeResponse != null) return normalizeUpbitCandlePayload(nativeResponseJson(nativeResponse), market);
+  }
+  const path = candleRequestPath(market, count);
+  return normalizeUpbitCandlePayload(await requestJson(path, options), market);
 }
