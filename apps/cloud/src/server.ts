@@ -40,6 +40,7 @@ import {
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
+import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -250,6 +251,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
         respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        return;
+      }
+
+      if (isPublicUpbitQuotationPath(path)) {
+        respond("public_upbit_quotation", await handlePublicUpbitQuotationHttp(req.url ?? path, req.method ?? "GET"));
         return;
       }
 
