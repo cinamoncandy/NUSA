@@ -40,7 +40,7 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /<OperationalNotice/);
   assert.match(home, /!disconnected \? <NusaButton label="PAPER 학습 보기"[\s\S]*?testID="home-paper-learning" \/> : null/);
   assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
-  assert.match(home, /SIGNAL FIELD/);
+  assert.match(home, /SIGNAL TERRAIN/);
   assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
 });
 
