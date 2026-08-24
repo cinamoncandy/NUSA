@@ -64,7 +64,7 @@ export function HomeView({
     ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : signalReady ? "READY" : "CHECK"}`
     : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
   const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
-  const terrainStrength = signalReady ? 0.96 : snapshot ? 0.5 : 0.22;
+  const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
 
   const contentStyle = {
