@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T21:24:00+09:00"
+updated_at: "2026-08-24T21:58:34+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
 active_branch: agent/issue-661-live-ready-observability
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: null
+active_pull_request: 770
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -765,5 +765,11 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: LOCAL_IMPLEMENTATION_IN_PROGRESS
-  next: "Validate exact-head protected checks; merge only after all read-only safety gates pass, then perform Issue #661 acceptance audit."
+  implementation_status: PR_770_OPEN_BLOCKED_ACTUAL_PAPER_RUNTIME_EVIDENCE
+  implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
+  pull_request: 770
+  exact_head_remote_validation: PARTIAL_ACTUAL_PAPER_RUNTIME_REPEAT_3_FAILURE
+  local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  blocker: "Actual PAPER Public-Market Runtime Evidence fails three exact-head attempts at restart recovery with PAPER position mismatch; no merge or Android promotion is permitted until this existing runtime evidence blocker is resolved."
+  next: "Do not merge PR #770. Diagnose/fix or conclusively classify the existing PAPER restart-recovery evidence failure, then rerun all exact-head checks before continuing Issue #661 audit."

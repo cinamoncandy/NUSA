@@ -49,11 +49,30 @@ acceptance:
   - four_modes_remain_accounting_isolated
   - no_activation_control_exists
 validation:
-  focused: IN_PROGRESS
-  typecheck: IN_PROGRESS
-  build: IN_PROGRESS
-  lint: PENDING
-  architecture_safety_security_aipos: PENDING
-  exact_head_remote_validation: PENDING
-  issue_661_final_audit: PENDING
-next: "Run full repository validation, publish focused PR, require exact-head gates, merge only when protected checks and safety invariants are green."
+  focused: PASS_8_OF_8
+  aipos_drift_regression: PASS_8_OF_8
+  full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety_architecture: PASS
+  safety_invariants: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  ai_zero_authority: PASS
+  security_gate: PASS_SECRETS_0
+  package_validation: PASS_MAP_FREE_PACKAGED_FILE_SET
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  aipos_provenance: PASS
+  git_diff_check: PASS
+  exact_head_remote_validation: BLOCKED_ACTUAL_PAPER_RUNTIME_EVIDENCE_REPEAT_3_FAILURE
+  protected_checks: "CI PASS; Mobile Native PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Actual PAPER Runtime FAIL x3"
+  issue_661_final_audit: BLOCKED_PENDING_EXACT_HEAD_AND_RUNTIME_EVIDENCE
+blockers:
+  - "Actual PAPER Public-Market Runtime Evidence fails three exact-head attempts at restart recovery with PAPER position mismatch; the existing harness and PAPER execution files were not changed by this PR."
+  - "PR #770 remains open and unmerged; Android promotion and Issue #661 closure are not permitted until the required runtime evidence check is green."
+next: "Do not merge PR #770. Diagnose/fix or conclusively classify the existing PAPER restart-recovery evidence failure, then rerun all exact-head checks before continuing Issue #661 audit."
