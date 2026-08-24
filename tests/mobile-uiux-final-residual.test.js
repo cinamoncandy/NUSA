@@ -12,12 +12,13 @@ test("Home exposes one real safety-first next action from verified runtime state
   assert.match(home, /testID="home-next-action-button"/);
   assert.match(home, /설정에서 연결/);
   assert.match(home, /PAPER 연결/);
-  assert.match(home, /분석 보기/);
-  assert.match(home, /시장 보기/);
-  assert.match(home, /const blocked = Boolean\(notConfigured \|\| readOnlyError \|\| !signalReady\)/);
+  assert.match(home, /OPEN SIGNAL/);
+  assert.match(home, /OPEN MARKET/);
+  assert.match(home, /const disconnected = notConfigured != null/);
+  assert.match(home, /\{!disconnected \? <View[\s\S]*testID="home-next-action"/);
   assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
-  assert.match(home, /aiInsightAvailable\s*\? "분석 보기"/s);
+  assert.match(home, /const primaryLabel = notConfigured \? "CONNECT PAPER" : readOnlyError \? "RECOVER" : aiInsightAvailable \? "OPEN SIGNAL" : "OPEN MARKET"/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
