@@ -24,6 +24,10 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
   const { theme } = useTheme();
   const [mode, setMode] = useState<MonitorMode>("PAPER");
   return <View style={styles.wrapper}>
+    <View style={[styles.runtimeDiagnostic, { backgroundColor: theme.colors.surfaceSunken, borderBottomColor: theme.colors.border }]} testID="paper-learning-runtime-diagnostic">
+      <Text style={[styles.runtimeDiagnosticTitle, { color: theme.colors.primary }]}>PAPER MONITOR RENDERED</Text>
+      <Text style={[styles.runtimeDiagnosticText, { color: theme.colors.textMuted }]}>mode={mode} · status={paper.status} · timeline={paper.timeline.length} · cycles={paper.recentCycles.length}</Text>
+    </View>
     <View style={[styles.switcher, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]} testID="paper-shadow-monitor-switcher">
       {MODES.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} onPress={() => setMode(item)} style={[styles.switch, { borderColor: mode === item ? theme.colors.primary : theme.colors.border, backgroundColor: mode === item ? theme.colors.primarySoft : theme.colors.surfaceSunken }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? theme.colors.primary : theme.colors.textMuted }]}>{item} · READ ONLY</Text></Pressable>)}
     </View>
@@ -33,4 +37,12 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
   </View>;
 }
 
-const styles = StyleSheet.create({ wrapper: { flex: 1 }, switcher: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth }, switch: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 10, alignItems: "center", justifyContent: "center" }, switchText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 } });
+const styles = StyleSheet.create({
+  wrapper: { flex: 1 },
+  runtimeDiagnostic: { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  runtimeDiagnosticTitle: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  runtimeDiagnosticText: { marginTop: 2, fontSize: 11, fontWeight: "700" },
+  switcher: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  switch: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  switchText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 }
+});
