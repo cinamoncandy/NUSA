@@ -24,6 +24,10 @@ import okhttp3.Response
  * value)` (unlike `.addHeader`) always replaces every prior value for that name, so applying it
  * here -- after RN's bridge has already built the request -- is the one place that can guarantee
  * a single, non-generic User-Agent regardless of what any JS caller does or does not set.
+ *
+ * Android Upbit public quotation no longer depends on this RN client. The dedicated
+ * NusaUpbitPublicQuotationModule uses HttpsURLConnection so ticker/candle requests bypass the
+ * React Native networking stack entirely.
  */
 private class NusaUserAgentInterceptor : Interceptor {
   override fun intercept(chain: Interceptor.Chain): Response {
@@ -47,6 +51,7 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           add(NusaSecureStoragePackage())
           add(NusaNetworkDiagnosticsPackage())
+          add(NusaUpbitPublicQuotationPackage())
         },
     )
   }
