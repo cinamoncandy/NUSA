@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T20:58:46+09:00"
+updated_at: "2026-08-24T21:24:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
-active_branch: main
+active_branch: agent/issue-661-live-ready-observability
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
@@ -65,11 +65,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
-  branch: main
-  base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
-  scope: "Terminal HUMAN_ENVIRONMENT_ONLY gate for LIVE and real-money transition; non-LIVE successors may be separately registered without satisfying or weakening this gate."
+  branch: agent/issue-661-live-ready-observability
+  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -460,6 +460,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
+  - id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
+    evidence: ".aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml"
+    summary: "Issue #661 GET-only LIVE-ready observability successor is in progress under the unchanged WO-0051 human/environment gate; no LIVE or real-money authority is introduced."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -486,8 +489,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-0057 repository work is complete. The standing WO-0051 human/environment gate remains the active serialized boundary for LIVE and real-money transition; any non-LIVE successor must be separately registered and cannot satisfy or weaken this gate."
+  work_order: .aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml
+  reason: "Complete Issue #661 LIVE-ready observability as a read-only successor under the standing WO-0051 human/environment gate; no LIVE activation, real-money mutation, or authority expansion is permitted."
 verification:
   wo_0057:
     parent_pull_request: 552
@@ -718,11 +721,14 @@ issue_661_shadow_transport_unified_monitor:
 issue_661_live_readiness_production_source:
   work_order: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
   issue: 661
-  status: IN_PROGRESS
+  status: COMPLETED
   base_sha: 83f312fb4bc1cd1a35cf53071556671a93913ca0
   branch: agent/live-readiness-production-source
   scope: "Canonical production read-only LiveReadinessSourceSnapshot provider and runtime accessor; no LIVE_READY transport/UI in this slice."
-  implementation_status: LOCAL_IMPLEMENTATION_VALIDATED_PENDING_PR
+  implementation_status: MERGED_PR_769
+  pull_request: 769
+  implementation_commit: 25188c7575a2c42421b40dd1eeb21f0892baa519
+  merge_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   local_validation:
     focused_provider: PASS_7_OF_7
     existing_readiness: PASS_16_OF_16
@@ -740,4 +746,24 @@ issue_661_live_readiness_production_source:
     production_mutation_allowed: false
     ai_authority: ZERO_AUTHORITY
     activation: READ_ONLY_UNAVAILABLE_BY_DEFAULT
-  remote_validation: PENDING_GITHUB_AUTH_AND_PR
+  remote_validation: PASS_6_OF_6_EXACT_HEAD
+
+issue_661_live_ready_observability:
+  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
+  issue: 661
+  status: IN_PROGRESS
+  base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  branch: agent/issue-661-live-ready-observability
+  scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
+  canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
+  evaluator: apps/cloud/src/liveReadinessGate.ts
+  transport: GET_ONLY_API_LIVE_READINESS
+  mobile_client: apps/mobile/src/liveReadinessOperationsClient.ts
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    order_cancel_withdraw_transfer: NONE
+    activation: NONE
+  implementation_status: LOCAL_IMPLEMENTATION_IN_PROGRESS
+  next: "Validate exact-head protected checks; merge only after all read-only safety gates pass, then perform Issue #661 acceptance audit."

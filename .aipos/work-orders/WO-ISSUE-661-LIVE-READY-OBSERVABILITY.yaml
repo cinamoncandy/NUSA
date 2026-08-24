@@ -1,0 +1,59 @@
+id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
+title: "Issue #661 LIVE-ready read-only observability"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 661
+base_branch: main
+base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+implementation_branch: agent/issue-661-live-ready-observability
+objective: "Expose canonical LIVE preparation readiness through a GET-only cloud projection and the existing unified mobile read-only cockpit without creating activation, order, risk, credential, or LIVE authority."
+canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
+canonical_evaluator: apps/cloud/src/liveReadinessGate.ts
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  activation: NONE
+architecture_impact:
+  acknowledged: true
+  analysis: "This non-LIVE successor adds a GET-only projection and read-only mobile view over the canonical LiveReadinessSourceProvider and existing LiveReadinessGate. It does not add an evaluator, activation path, execution authority, credential path, or cross-mode accounting; the WO-0051 constitutional human/environment gate remains preserved."
+  references:
+    - .aipos/architecture.md
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - apps/cloud/src/liveReadinessSourceProvider.ts
+    - apps/cloud/src/liveReadinessGate.ts
+    - apps/cloud/src/server.ts
+    - packages/contracts/src/liveReadinessObservability.ts
+scope:
+  - authenticated_get_only_live_readiness_projection
+  - canonical_blocker_and_freshness_visibility
+  - provenance_and_redaction_at_cloud_boundary
+  - mobile_live_ready_read_only_client
+  - unified_four_mode_cockpit
+prohibited:
+  - live_activation_or_lease_issuance
+  - order_cancel_withdrawal_or_transfer
+  - risk_or_trade_permission_mutation
+  - broker_credentials_in_mobile
+  - readiness_policy_reimplementation
+  - cross_mode_accounting_arithmetic
+acceptance:
+  - existing_live_readiness_source_provider_is_the_only_source
+  - existing_live_readiness_gate_is_the_only_policy_evaluator
+  - endpoint_is_authenticated_get_only_and_idempotent
+  - missing_or_stale_evidence_remains_fail_closed
+  - forbidden_fields_are_rejected_before_response
+  - mobile_uses_verified_dashboard_session_only
+  - four_modes_remain_accounting_isolated
+  - no_activation_control_exists
+validation:
+  focused: IN_PROGRESS
+  typecheck: IN_PROGRESS
+  build: IN_PROGRESS
+  lint: PENDING
+  architecture_safety_security_aipos: PENDING
+  exact_head_remote_validation: PENDING
+  issue_661_final_audit: PENDING
+next: "Run full repository validation, publish focused PR, require exact-head gates, merge only when protected checks and safety invariants are green."
