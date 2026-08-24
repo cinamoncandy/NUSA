@@ -1,13 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T22:13:58+09:00"
+updated_at: "2026-08-24T23:00:24+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
-active_branch: agent/issue-661-live-ready-observability
+active_branch: agent/issue-661-post-merge-validation
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: 770
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -66,10 +66,10 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: IN_PROGRESS
-  branch: agent/issue-661-live-ready-observability
-  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-  scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
+  status: VERIFYING
+  branch: agent/issue-661-post-merge-validation
+  base_commit: 5864d88ae7d4310eb79f8f5f8bbd9e6fd6b0ca7f
+  scope: "Post-merge Issue #661 acceptance audit over the merged canonical LIVE-ready provider and read-only cockpit; concrete code-side gaps remain and no LIVE or real-money authority is introduced."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -751,9 +751,9 @@ issue_661_live_readiness_production_source:
 issue_661_live_ready_observability:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   issue: 661
-  status: IN_PROGRESS
-  base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-  branch: agent/issue-661-live-ready-observability
+  status: VERIFYING
+  base_sha: 5864d88ae7d4310eb79f8f5f8bbd9e6fd6b0ca7f
+  branch: agent/issue-661-post-merge-validation
   scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
   canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
   evaluator: apps/cloud/src/liveReadinessGate.ts
@@ -765,13 +765,27 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
-  implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
+  implementation_status: PR_770_MERGED_POST_MERGE_AUDIT_PARTIAL
+  implementation_commit: f38172aac1df838516277188f7035726db59ddb5
   pull_request: 770
-  validation_head: 7e925445055d14d877baa1476291a9108e832bff
-  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
-  local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
+  merge_commit: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
+  validation_head: 5864d88ae7d4310eb79f8f5f8bbd9e6fd6b0ca7f
+  exact_head_remote_validation: PASS_ON_PR_770_HEAD; POST_MERGE_MAIN_RELEVANT_CHECKS_PASS
+  local_focused_acceptance: PASS_84_OF_84_CURRENT_MAIN
+  local_full_isolated_suite: PASS_590_FILES_CLEAN_HOME
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+  android_preview:
+    promotion_pr: 771
+    workflow_run: 32733484871
+    source_sha: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
+    version_name: 1.0.100-51f3b584
+    version_code: 100
+    apk_sha256: 01f46a0f8a6a31a964f16b866eeab12c4c5b19065f69f6a069ca9cb8d8195411
+    result: PASS
+  issue_661_final_audit: PARTIAL_CODE_SIDE_GAPS
+  remaining_gaps:
+    - "REAL_READ_ONLY has bounded in-process events but no canonical durable restart/replay timeline."
+    - "No canonical production mock/future LIVE submit-ack-fill-reconciliation lifecycle is available to project; LIVE_READY timeline remains truthfully empty."
+  next: "Keep #661 open for the two concrete code-side gaps; do not fabricate durable REAL replay or mock LIVE lifecycle evidence, and preserve the WO-0051 human/environment gate."

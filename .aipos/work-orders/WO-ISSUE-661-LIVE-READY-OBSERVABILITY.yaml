@@ -1,12 +1,12 @@
 id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
 title: "Issue #661 LIVE-ready read-only observability"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 661
 base_branch: main
-base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-implementation_branch: agent/issue-661-live-ready-observability
+base_commit: 5864d88ae7d4310eb79f8f5f8bbd9e6fd6b0ca7f
+implementation_branch: agent/issue-661-post-merge-validation
 objective: "Expose canonical LIVE preparation readiness through a GET-only cloud projection and the existing unified mobile read-only cockpit without creating activation, order, risk, credential, or LIVE authority."
 canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
 canonical_evaluator: apps/cloud/src/liveReadinessGate.ts
@@ -48,6 +48,17 @@ acceptance:
   - mobile_uses_verified_dashboard_session_only
   - four_modes_remain_accounting_isolated
   - no_activation_control_exists
+post_merge:
+  merge_sha: 51f3b584435fbe0fdf76f856803508a3f0a0cddd
+  current_main_sha: 5864d88ae7d4310eb79f8f5f8bbd9e6fd6b0ca7f
+  focused_current_main: PASS_84_OF_84
+  clean_home_full_suite: PASS_590_ISOLATED_FILES
+  normal_profile_cloud_bootstrap: FAIL_LOCAL_STATE_401
+  clean_ephemeral_cloud_bootstrap: PASS_3_OF_3
+  issue_661_final_audit: PARTIAL_CODE_SIDE_GAPS
+  concrete_gaps:
+    - "REAL_READ_ONLY durable restart/replay evidence is not available in the canonical production source."
+    - "Canonical mock/future LIVE submit-ack-fill-reconciliation lifecycle evidence is not available; empty LIVE_READY timeline is truthful."
 validation:
   focused: PASS_8_OF_8
   aipos_drift_regression: PASS_8_OF_8
@@ -71,6 +82,8 @@ validation:
   git_diff_check: PASS
   exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS_HEAD_7E925445
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  issue_661_final_audit: NOT_YET_RUN_POST_MERGE
-blockers: []
-next: "Merge PR #770 under repository policy, verify the merge on current main, then continue the Issue #661 acceptance audit and post-merge Android preview path."
+  issue_661_final_audit: PARTIAL_CODE_SIDE_GAPS
+blockers:
+  - "REAL_READ_ONLY durable restart/replay timeline remains unimplemented."
+  - "Canonical production mock/future LIVE lifecycle evidence remains unavailable for LIVE_READY timeline projection."
+next: "Keep Issue #661 open and resolve only the two concrete code-side gaps with canonical sources; do not invent lifecycle or durability evidence and do not add LIVE authority."
