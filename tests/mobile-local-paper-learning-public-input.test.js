@@ -30,7 +30,8 @@ test("LOCAL PAPER trusted public market input leaves PAUSED/NO DATA without inve
   assert.equal(screen.status, "RUNNING");
   assert.equal(screen.timeline.length, 3);
   assert.equal(screen.recentCycles.length, 1);
-  assert.equal(screen.performance.completedCycles, 1);
+  assert.equal(screen.performance.completedCycles, 0);
+  assert.ok(screen.timeline.some((event) => event.stage === "LEARNING"));
   assert.equal(screen.latestDecision.action, "HOLD");
   assert.equal(screen.latestDecision.allocation, 0);
   assert.equal(screen.latestFill, null);
