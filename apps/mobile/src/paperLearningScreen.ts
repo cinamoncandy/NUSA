@@ -1,5 +1,20 @@
 import { getLocalPaperLearningEvents } from "./localPaperLearningProjection";
 
+/**
+ * Why the PAPER learning timeline looks the way it does. Issue #755: an empty screen previously
+ * collapsed five genuinely different conditions into one silent "no data", so a real device could
+ * not tell "endpoint not configured" from "server projection missing" from "runtime produced
+ * nothing yet". The caller knows which one it is; the screen must not have to guess from runtime
+ * status alone.
+ */
+export type PaperLearningDataSource =
+  | "NOT_CONFIGURED"
+  | "UNAVAILABLE"
+  | "PROJECTION_ABSENT"
+  | "PROJECTION_EMPTY"
+  | "LOCAL_FALLBACK"
+  | "SERVER_STREAM";
+
 export type PaperLearningUiStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
 export interface PaperLearningGateUi { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
 export interface PaperLearningUiEvent {
@@ -45,6 +60,8 @@ export interface PaperLearningScreenState {
   readonly mode: "PAPER";
   readonly currentCycle: string | null;
   readonly status: "RUNNING" | "PAUSED" | "HALTED" | "ERROR";
+  /** Explicit provenance of `timeline`. Never inferred from `status`. */
+  readonly dataSource: PaperLearningDataSource;
   readonly latestMarket: string | null;
   readonly latestStrategy: { readonly strategyId: string | null; readonly candidateId: string | null; readonly championId: string | null };
   readonly latestSignal: PaperLearningUiEvent["signal"] | null;
@@ -82,9 +99,27 @@ function buildPerformance(timeline: readonly PaperLearningUiEvent[]): PaperLearn
   return freeze({ realizedPnL: latest.realizedPnL, unrealizedPnL: latest.unrealizedPnL, fees: fillEvents.reduce((sum, event) => sum + (event.fill?.fee ?? 0), 0), turnover: fillEvents.reduce((sum, event) => sum + ((event.fill?.price ?? 0) * (event.fill?.quantity ?? 0)), 0), completedCycles: completed.length, filledCycles: new Set(fillEvents.map((event) => event.cycleId)).size, winRate: pnlDeltas.length ? wins / pnlDeltas.length : null, expectancy: pnlDeltas.length ? pnlDeltas.reduce((sum, value) => sum + value, 0) / pnlDeltas.length : null, maxDrawdown });
 }
 
-export function buildPaperLearningScreen(events: readonly PaperLearningUiEvent[], runtimeStatus: PaperLearningScreenState["status"]): PaperLearningScreenState {
+/**
+ * `serverSource` describes what the caller actually observed upstream. It is optional so existing
+ * callers keep working, but when omitted the resulting dataSource can only be derived from what is
+ * visible here -- which is exactly the ambiguity issue #755 is about. Callers that know the real
+ * upstream condition should always pass it.
+ */
+export function buildPaperLearningScreen(
+  events: readonly PaperLearningUiEvent[],
+  runtimeStatus: PaperLearningScreenState["status"],
+  serverSource: Exclude<PaperLearningDataSource, "LOCAL_FALLBACK" | "SERVER_STREAM"> | "SERVER_STREAM" = events.length > 0 ? "SERVER_STREAM" : "PROJECTION_EMPTY"
+): PaperLearningScreenState {
   const localFallback = events.length === 0 ? getLocalPaperLearningEvents() : Object.freeze([] as PaperLearningUiEvent[]);
   const sourceEvents = events.length > 0 ? events : localFallback;
+  // Substituting on-device events for an empty server projection is legitimate, but it must be
+  // visible: a user looking at locally-derived rows should never believe they are seeing the
+  // server's PAPER runtime.
+  const dataSource: PaperLearningDataSource = events.length > 0
+    ? "SERVER_STREAM"
+    : localFallback.length > 0
+      ? "LOCAL_FALLBACK"
+      : serverSource;
   const deduped = new Map<string, PaperLearningUiEvent>();
   for (const event of sourceEvents) {
     if (!event.id.trim() || !event.cycleId.trim() || !event.market.trim()) throw new Error("invalid PAPER learning event identity");
@@ -106,6 +141,7 @@ export function buildPaperLearningScreen(events: readonly PaperLearningUiEvent[]
     mode: "PAPER",
     currentCycle: current?.cycleId ?? null,
     status: runtimeStatus,
+    dataSource,
     latestMarket: current?.market ?? null,
     latestStrategy: freeze({ strategyId: latestIdentity?.strategyId ?? null, candidateId: latestIdentity?.candidateId ?? null, championId: latestIdentity?.championId ?? null }),
     latestSignal: timeline.find((event) => event.signal)?.signal ?? null,
