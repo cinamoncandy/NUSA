@@ -38,8 +38,7 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
-  assert.match(home, /testID="home-paper-learning"/);
-  assert.doesNotMatch(home, /!disconnected \? <NusaButton[\s\S]*home-paper-learning/);
+  assert.match(home, /!disconnected \? <NusaButton label="PAPER 학습 보기"[\s\S]*?testID="home-paper-learning" \/> : null/);
   assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
   assert.match(home, /SIGNAL FIELD/);
   assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
