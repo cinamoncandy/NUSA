@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T12:34:00+09:00"
+updated_at: "2026-08-24T17:31:46+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -9,24 +9,30 @@ active_branch: main
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
-  id: WO-0070
-  # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
-  # never sufficient to resolve the active scope; automation must use this scope-qualified
-  # canonical lineage instead.
-  scope_id: WO-0070.deterministic-remediation-prioritization
-  canonical_work_order: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
-  canonical_pull_request: 738
-  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
-  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  id: WO-0072
   status: IN_PROGRESS
-  branch: agent/wo-0070-deterministic-remediation-prioritization
-  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
-  implementation_commit: 3711390a
-  implementation_commit_status: PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED
-  focused_tests: PASS_5_OF_5
-  full_isolated_suite: PASS_581_FILES
-  repository_gates: PASS
-  scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
+  branch: agent/wo-0072-deterministic-remediation-review-packet
+  base_sha: 108540e9820b5a411dc0d7c467d86eb284f89fa5
+  work_order: .aipos/work-orders/WO-0072-deterministic-remediation-review-packet.yaml
+  registration_status: REGISTERED_NOT_IMPLEMENTED
+  predecessor: WO-0071
+  scope: "Deterministic, bounded, read-only human-review preparation for readiness-qualified remediation candidates; no execution, Git, broker, Risk, LIVE, credential, or AI authority."
+historical_non_live_pointer_reconciliation:
+  former_current_pointer:
+    id: WO-0070
+    scope_id: WO-0070.deterministic-remediation-prioritization
+    canonical_work_order: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
+    canonical_pull_request: 738
+    canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+    canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+    status: IN_PROGRESS
+    branch: agent/wo-0070-deterministic-remediation-prioritization
+    base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+    implementation_commit: 3711390a
+    implementation_commit_status: PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED
+  resolution: PRESERVED_HISTORICAL_NOT_ACTIVE
+  evidence: .aipos/evidence/WO-0071-work-order-id-provenance-reconciliation.json
+  reason: "WO-0071 is the completed non-LIVE successor; the former WO-0070 pointer is retained as historical scope-qualified lineage only."
 wo_0071_validation:
   work_order: WO-0071
   pull_request: 744
@@ -39,6 +45,17 @@ wo_0071_validation:
   provenance_reconciliation: PASS_7_OF_7_NON_DESTRUCTIVE
   full_isolated_suite: PASS_586_FILES
   exact_head_ci: PASS_6_OF_6
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+wo_0072_registration:
+  work_order: WO-0072
+  status: IN_PROGRESS
+  registration_status: REGISTERED_NOT_IMPLEMENTED
+  branch: agent/wo-0072-deterministic-remediation-review-packet
+  base_sha: 108540e9820b5a411dc0d7c467d86eb284f89fa5
+  predecessor: WO-0071
+  scope: "Deterministic, bounded, read-only human-review preparation for readiness-qualified remediation candidates; implementation is not part of this registration task."
+  next_stage_gap: "A stable human-review packet is not yet represented as a distinct stage after WO-0071 readiness assessment."
+  duplicate_architecture_check: PASS_NO_EQUIVALENT_IMPLEMENTATION_FOUND
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
@@ -714,3 +731,4 @@ issue_661_shadow_transport_unified_monitor:
     ai_authority: ZERO_AUTHORITY
     broker_mutation: NONE
   external_validation: PENDING_EXACT_HEAD_CI_AND_REVIEW
+
