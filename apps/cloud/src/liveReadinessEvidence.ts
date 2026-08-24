@@ -1,7 +1,58 @@
-import type { LiveReadinessEvidence, LiveRiskLimits } from "./liveReadinessGate";
+import type {
+  LiveAuthorityState,
+  LiveReadinessEvidence,
+  LiveRiskLimits,
+  LiveRuntimeSafetyState,
+} from "./liveReadinessGate";
 
 export type EvidenceHealth = "PASS" | "FAIL" | "UNKNOWN";
-export type RealAccountMonitorHealth = "CONNECTED" | "STALE" | "AUTH_ERROR" | "RELAY_ERROR" | "OFFLINE";
+export type RealAccountMonitorHealth = "CONNECTED" | "STALE" | "AUTH_ERROR" | "RELAY_ERROR" | "OFFLINE" | "UNKNOWN";
+export type LiveReadinessFreshness = "FRESH" | "STALE" | "UNKNOWN";
+export type LiveReadinessSourceId =
+  | "currentHeadSha"
+  | "paperAutoLearning"
+  | "shadowReplay"
+  | "realAccountMonitor"
+  | "governance"
+  | "tradePermission"
+  | "riskAuthority"
+  | "reconciliationTests"
+  | "killSwitchTests"
+  | "idempotencyTests"
+  | "exchangeFaultTests"
+  | "workflows"
+  | "prohibitedFinancialMutationScan"
+  | "environmentFingerprint"
+  | "accountFingerprint"
+  | "riskLimits"
+  | "runtimeSafety"
+  | "authority"
+  | "activationState"
+  | "activationLeaseState";
+
+export interface LiveReadinessSourceProvenanceInput {
+  readonly sourceId: LiveReadinessSourceId;
+  readonly fingerprint: string;
+  readonly observedAt?: string;
+  readonly freshness: LiveReadinessFreshness;
+}
+
+export interface LiveReadinessSourceProvenance {
+  readonly generatedAt: string;
+  readonly sourceVersion: string;
+  readonly sourceFingerprint: string;
+  readonly inputs: readonly LiveReadinessSourceProvenanceInput[];
+}
+
+export type LiveActivationState = "NOT_CONFIGURED" | "PENDING" | "READY_FOR_MANUAL_ENABLE" | "ENABLED" | "HALTED" | "UNKNOWN";
+export type LiveActivationLeaseState = "ABSENT" | "VALID" | "EXPIRED" | "UNKNOWN";
+
+export const LIVE_READINESS_SOURCE_IDS: readonly LiveReadinessSourceId[] = Object.freeze([
+  "currentHeadSha", "paperAutoLearning", "shadowReplay", "realAccountMonitor", "governance",
+  "tradePermission", "riskAuthority", "reconciliationTests", "killSwitchTests", "idempotencyTests",
+  "exchangeFaultTests", "workflows", "prohibitedFinancialMutationScan", "environmentFingerprint",
+  "accountFingerprint", "riskLimits", "runtimeSafety", "authority", "activationState", "activationLeaseState",
+]);
 
 export interface ExactHeadWorkflowEvidence {
   readonly headSha: string;
@@ -29,6 +80,16 @@ export interface LiveReadinessSourceSnapshot {
   readonly environmentFingerprint: string;
   readonly accountFingerprint: string;
   readonly riskLimits?: LiveRiskLimits;
+  /** Populated by the production provider; legacy test fixtures may omit it. */
+  readonly freshness?: Readonly<Record<LiveReadinessSourceId, LiveReadinessFreshness>>;
+  /** Populated by the production provider; legacy test fixtures may omit it. */
+  readonly provenance?: LiveReadinessSourceProvenance;
+  /** Runtime authority is observed, never granted, by the source provider. */
+  readonly authority?: LiveAuthorityState;
+  /** Runtime safety state is read-only input to the existing evaluator. */
+  readonly runtimeSafety?: LiveRuntimeSafetyState;
+  readonly activationState?: LiveActivationState;
+  readonly activationLeaseState?: LiveActivationLeaseState;
 }
 
 const allRequiredWorkflowsPassOnExactHead = (
@@ -60,5 +121,8 @@ export function collectLiveReadinessEvidence(snapshot: LiveReadinessSourceSnapsh
     environmentFingerprint: snapshot.environmentFingerprint,
     accountFingerprint: snapshot.accountFingerprint,
     riskLimits: snapshot.riskLimits,
+    ...(snapshot.provenance == null || snapshot.freshness == null
+      ? {}
+      : { sourceEvidenceAvailable: LIVE_READINESS_SOURCE_IDS.every((sourceId) => snapshot.freshness?.[sourceId] === "FRESH") }),
   });
 }

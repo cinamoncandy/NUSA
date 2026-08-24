@@ -39,6 +39,13 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
 import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
+import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
+import { createDormantLiveAuthority } from "./liveReadinessGate";
+import {
+  createLiveReadinessSourceProvider,
+  type LiveReadinessProductionSourceSnapshot,
+  type LiveReadinessSourceReaders,
+} from "./liveReadinessSourceProvider";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -47,6 +54,9 @@ export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryR
 export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
+export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
+  readonly getLiveReadinessSourceSnapshot: () => LiveReadinessProductionSourceSnapshot;
+}
 
 function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
@@ -105,8 +115,9 @@ export function startCloudRuntime(
   researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike,
   researchAutomation?: CloudRuntimeResearchAutomationLike,
   aiRuntime?: CloudAiRuntime,
-  shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider
-): CloudDashboardServerHandle {
+  shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
+  liveReadinessSourceReaders?: LiveReadinessSourceReaders
+): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const runtimeStartedAt = Date.now();
   const heartbeat: {
@@ -163,6 +174,24 @@ export function startCloudRuntime(
   const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
     ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
     : undefined;
+  const operatorPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
+  const sourceCommit = env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "";
+  const sourceVersion = env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown";
+  const defaultLiveReadinessReaders: LiveReadinessSourceReaders = {
+    ...liveReadinessSourceReaders,
+    currentHeadSha: liveReadinessSourceReaders?.currentHeadSha ?? (() => sourceCommit),
+    authority: liveReadinessSourceReaders?.authority ?? (() => Object.freeze({ value: createDormantLiveAuthority(), freshness: "FRESH" as const, fingerprint: "dormant-authority-v1" })),
+    shadowReplay: liveReadinessSourceReaders?.shadowReplay ?? (shadowObservabilityProvider == null ? undefined : (() => {
+      try {
+        const snapshot = validateShadowObservabilitySnapshot(shadowObservabilityProvider(operatorPrincipal));
+        const value = snapshot.events.length === 0 ? "MISSING" as const : snapshot.blockers.length > 0 || ["HALTED", "FAILED", "INVALIDATED"].includes(snapshot.runtimeStatus) ? "INVALID" as const : "VALID" as const;
+        return Object.freeze({ value, freshness: snapshot.marketFreshness, observedAt: new Date(snapshot.generatedAt).toISOString() });
+      } catch {
+        return Object.freeze({ value: "MISSING" as const, freshness: "UNKNOWN" as const });
+      }
+    })),
+  };
+  const liveReadinessSourceProvider = createLiveReadinessSourceProvider({ now: () => new Date().toISOString(), sourceVersion, readers: defaultLiveReadinessReaders });
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
   try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research owns its fail-closed state. */ }
   const clearPaperProjection = (): void => { try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ } effectiveProvider.clear(); };
@@ -294,7 +323,7 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
-  return { ...handle, stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
+  return { ...handle, getLiveReadinessSourceSnapshot: () => liveReadinessSourceProvider.getSnapshot(), stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
 }
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
