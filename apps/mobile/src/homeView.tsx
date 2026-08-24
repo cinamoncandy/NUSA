@@ -32,6 +32,12 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const { theme } = useTheme();
   const profile = getHomeVisualProfile(theme.preset);
   const tablet = width >= 768;
+  const balanceStyle = {
+    fontSize: tablet ? Math.max(profile.hero.tabletBalanceSize, 58) : Math.max(profile.hero.balanceSize, 42),
+    lineHeight: tablet ? Math.max(profile.hero.tabletBalanceLineHeight, 64) : Math.max(profile.hero.balanceLineHeight, 48),
+    letterSpacing: profile.hero.balanceLetterSpacing,
+    color: theme.colors.text,
+  } as const;
   const account = snapshot?.portfolio?.account ?? null;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -57,7 +63,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
     <View style={[styles.equityField, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
       <Text style={[styles.sectionIndex, { color: theme.colors.aiSignalEnd }]}>CAPITAL / 01</Text>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>TOTAL PAPER EQUITY</Text>
-      <Text style={[styles.equity, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1} testID={disconnected ? "home-equity-placeholder" : undefined}>{disconnected ? "NO LINK" : account ? krw(account.equity) : "—"}</Text>
+      <Text style={[styles.equity, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={disconnected ? "home-equity-placeholder" : undefined}>{disconnected ? "NO LINK" : account ? krw(account.equity) : "—"}</Text>
       <View style={styles.pnlLine}><Text style={[styles.pnl, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text><Text style={[styles.micro, { color: theme.colors.textMuted }]}>CUMULATIVE P&L</Text></View>
       {cashEnvelope ? <View style={[styles.cashStrip, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation"><View style={styles.cashBlock} testID="home-investable-cash"><Text style={[styles.micro, { color: theme.colors.textMuted }]}>DEPLOYABLE {cashEnvelope.investmentPercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text></View><View style={styles.cashBlock} testID="home-reserved-cash"><Text style={[styles.micro, { color: theme.colors.textMuted }]}>RESERVE {cashEnvelope.reservePercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text></View></View> : null}
     </View>
@@ -90,7 +96,7 @@ const styles = StyleSheet.create({
   equityField: { borderWidth: 1, padding: 18, minHeight: 230 },
   sectionIndex: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.7 },
   label: { marginTop: 30, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
-  equity: { marginTop: 4, fontSize: 48, lineHeight: 56, fontWeight: "900", letterSpacing: -1.8, fontVariant: ["tabular-nums"] },
+  equity: { marginTop: 4, fontWeight: "900", fontVariant: ["tabular-nums"] },
   pnlLine: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 8 },
   pnl: { fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] },
   micro: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 1 },
