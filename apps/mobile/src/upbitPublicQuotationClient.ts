@@ -1,5 +1,6 @@
 import { parsePublicCandles, type PublicCandle } from "./chartViewModel";
 import type { WatchlistMarket } from "./watchlist";
+import { readNativeRequestDiagnostic } from "./androidNetworkDiagnostics";
 
 export const UPBIT_PUBLIC_QUOTATION_BASE_URL = "https://api.upbit.com";
 export const UPBIT_PUBLIC_TICKER_PATH = "/v1/ticker/all?quote_currencies=KRW";
@@ -74,33 +75,74 @@ function compactErrorText(value: unknown): string | undefined {
   return compact.slice(0, 160);
 }
 
-async function upstreamError(response: Response): Promise<Error> {
-  let detail: string | undefined;
+/**
+ * Everything a real-device failure needs to confirm root cause without guessing again: the exact
+ * URL/method this file actually asked fetch() for, what Upbit actually returned, and what the
+ * native OkHttp layer actually put on the wire. Deliberately not a header dump -- every field is
+ * named individually so there is no path from "add a diagnostic" to "accidentally log a
+ * credential header" the way a generic `for (header of response.headers)` loop would allow.
+ */
+export interface PublicQuotationDiagnostic {
+  readonly requestUrl: string;
+  readonly method: "GET";
+  readonly status: number | null;
+  readonly responseErrorName?: string;
+  readonly responseErrorMessage?: string;
+  readonly responseContentType?: string;
+  readonly finalUserAgent?: string;
+  readonly timestamp: string;
+}
+
+export class UpbitPublicQuotationError extends Error {
+  public readonly diagnostic: PublicQuotationDiagnostic;
+
+  public constructor(message: string, diagnostic: PublicQuotationDiagnostic) {
+    super(message);
+    this.name = "UpbitPublicQuotationError";
+    this.diagnostic = diagnostic;
+  }
+}
+
+async function upstreamDiagnostic(requestUrl: string, response: Response): Promise<PublicQuotationDiagnostic> {
+  let responseErrorName: string | undefined;
+  let responseErrorMessage: string | undefined;
   try {
     const payload = await response.json() as unknown;
     if (payload != null && typeof payload === "object" && !Array.isArray(payload)) {
       const record = payload as Record<string, unknown>;
       if (record.error != null && typeof record.error === "object" && !Array.isArray(record.error)) {
         const error = record.error as Record<string, unknown>;
-        const name = compactErrorText(error.name);
-        const message = compactErrorText(error.message);
-        detail = [name, message].filter(Boolean).join(": ") || undefined;
+        responseErrorName = compactErrorText(error.name);
+        responseErrorMessage = compactErrorText(error.message);
       } else {
-        detail = compactErrorText(record.error);
+        responseErrorMessage = compactErrorText(record.error);
       }
     }
   } catch {
     // Upbit normally returns JSON errors, but status alone is still actionable if it does not.
   }
-  return new Error(`Upbit public quotation unavailable (${response.status}${detail ? `: ${detail}` : ""}).`);
+  // Best-effort: the native module may not exist (non-Android, or a build without it), and this
+  // must never block or fail the diagnostic just because that lookup did not resolve.
+  const nativeDiagnostic = await readNativeRequestDiagnostic().catch(() => null);
+  return Object.freeze({
+    requestUrl,
+    method: "GET" as const,
+    status: response.status,
+    responseErrorName,
+    responseErrorMessage,
+    responseContentType: response.headers.get("content-type") ?? undefined,
+    finalUserAgent: nativeDiagnostic?.userAgent ?? undefined,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 async function requestJson(path: string, options: UpbitPublicQuotationClientOptions): Promise<unknown> {
   const request = options.request ?? fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs(options.timeoutMs));
+  const requestUrl = `${normalizedBaseUrl(options.baseUrl)}${path}`;
   try {
-    const response = await request(`${normalizedBaseUrl(options.baseUrl)}${path}`, {
+    const response = await request(requestUrl, {
       method: "GET",
       redirect: "error",
       signal: controller.signal,
@@ -115,10 +157,14 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
       // NusaUserAgentInterceptor there for why `.header()` (replace), not `.addHeader()`
       // (append), is what actually fixes this.
     });
-    if (!response.ok) throw await upstreamError(response);
+    if (!response.ok) {
+      const diagnostic = await upstreamDiagnostic(requestUrl, response);
+      const detail = [diagnostic.responseErrorName, diagnostic.responseErrorMessage].filter(Boolean).join(": ");
+      throw new UpbitPublicQuotationError(`Upbit public quotation unavailable (${response.status}${detail ? `: ${detail}` : ""}).`, diagnostic);
+    }
     return await response.json();
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Upbit public quotation")) throw error;
+    if (error instanceof UpbitPublicQuotationError) throw error;
     if (controller.signal.aborted) throw new Error("Upbit public quotation request timed out.");
     throw new Error("Upbit public quotation request failed.");
   } finally {

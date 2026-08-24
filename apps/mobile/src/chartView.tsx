@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, formatChartMove, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
+import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 
 interface ChartViewProps {
   readonly market: string;
@@ -13,8 +14,35 @@ interface ChartViewProps {
   readonly marketConnectionState: string;
   readonly stale: boolean;
   readonly error: string | null;
+  /** Set only when `error` came from a real Upbit public quotation request/response. Renders a
+   * read-only NETWORK DIAGNOSTICS panel below the existing fail-closed error card -- a runtime
+   * recovery diagnostic, not a permanent UX element -- so a real-device 400 can be confirmed
+   * from evidence instead of guessed at again. */
+  readonly diagnostic?: PublicQuotationDiagnostic | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
+}
+
+function DiagnosticRow({ label, value, testID }: Readonly<{ label: string; value: string; testID: string }>) {
+  const { theme } = useTheme();
+  return <View style={styles.diagnosticRow} testID={testID}>
+    <Text style={[styles.diagnosticLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+    <Text style={[styles.diagnosticValue, { color: theme.colors.text }]} selectable>{value}</Text>
+  </View>;
+}
+
+function NetworkDiagnosticsPanel({ diagnostic }: Readonly<{ diagnostic: PublicQuotationDiagnostic }>) {
+  const { theme } = useTheme();
+  return <View style={[styles.diagnosticsPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="network-diagnostics-panel">
+    <Text style={[styles.diagnosticsEyebrow, { color: theme.colors.textMuted }]}>NETWORK DIAGNOSTICS · 진단 전용, 실제 요청/응답 값</Text>
+    <DiagnosticRow label="URL" testID="network-diagnostics-url" value={diagnostic.requestUrl} />
+    <DiagnosticRow label="METHOD" testID="network-diagnostics-method" value={diagnostic.method} />
+    <DiagnosticRow label="STATUS" testID="network-diagnostics-status" value={diagnostic.status == null ? "-" : String(diagnostic.status)} />
+    <DiagnosticRow label="USER-AGENT" testID="network-diagnostics-user-agent" value={diagnostic.finalUserAgent ?? "확보되지 않음"} />
+    <DiagnosticRow label="UPBIT ERROR" testID="network-diagnostics-upbit-error" value={[diagnostic.responseErrorName, diagnostic.responseErrorMessage].filter(Boolean).join(": ") || "-"} />
+    <DiagnosticRow label="CONTENT-TYPE" testID="network-diagnostics-content-type" value={diagnostic.responseContentType ?? "-"} />
+    <DiagnosticRow label="TIMESTAMP" testID="network-diagnostics-timestamp" value={diagnostic.timestamp} />
+  </View>;
 }
 
 const intervals: readonly ChartInterval[] = ["1m", "5m", "15m", "1h"];
@@ -42,11 +70,14 @@ function ChartSummary({ model }: Readonly<{ model: ChartViewModel }>) {
   return <View style={styles.summary} testID="chart-summary"><View style={styles.summaryCopy}><Text style={[styles.label, { color: theme.colors.textMuted }]}>CURRENT PRICE</Text><View style={styles.priceRow}><Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text><Text style={[styles.move, { color: moveColor }]} testID="chart-move">{formatChartMove(model.move)}</Text></View><View style={styles.summaryMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>고가 {formatChartPrice(model.high)}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>저가 {formatChartPrice(model.low)}</Text></View></View><TerrainSignal variant="market" signalStrength={Math.min(1, model.candles.length / 80)} testID="chart-data-signal" /><View style={[styles.summaryDetails, { borderTopColor: theme.colors.border }]}><DataRow label="거래량" value={model.volume?.toLocaleString("ko-KR") ?? "-"} /><Text style={[styles.dataSource, { color: theme.colors.textMuted }]}>UPBIT 공개 시세 · 읽기 전용</Text></View></View>;
 }
 
-export function ChartView({ market, rawCandles, currentPrice, changeRate = null, marketConnectionState, stale, error, refreshing, onRefresh }: ChartViewProps) {
+export function ChartView({ market, rawCandles, currentPrice, changeRate = null, marketConnectionState, stale, error, diagnostic = null, refreshing, onRefresh }: ChartViewProps) {
   const { theme } = useTheme();
   const [interval, setInterval] = useState<ChartInterval>("1m");
   const model = useMemo(() => buildChartViewModel({ market, interval, rawCandles, currentPrice, connectionState: marketConnectionState, stale, changeRate }), [changeRate, currentPrice, interval, market, marketConnectionState, rawCandles, stale]);
-  if (error) return <StateCard color={theme.colors.danger} message={error} onRetry={onRefresh} testID="chart-error" title="차트를 표시할 수 없습니다" />;
+  if (error) return <>
+    <StateCard color={theme.colors.danger} message={error} onRetry={onRefresh} testID="chart-error" title="차트를 표시할 수 없습니다" />
+    {diagnostic ? <NetworkDiagnosticsPanel diagnostic={diagnostic} /> : null}
+  </>;
   if (model.state === "LOADING") return <View style={styles.state} testID="chart-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>차트를 불러오는 중</Text></View>;
   if (model.state === "ERROR") return <StateCard color={theme.colors.warning} message={model.error ?? "Market data is unavailable."} onRetry={onRefresh} testID="chart-error" title="차트 데이터 오류" />;
   if (model.state === "EMPTY") return <StateCard color={theme.colors.text} message="아직 완성된 공개 캔들 데이터가 없습니다." onRetry={onRefresh} testID="chart-empty" title="차트 데이터 없음" />;
@@ -87,4 +118,9 @@ const styles = StyleSheet.create({
   volumeBar: { width: "100%", opacity: 0.55 },
   priceLine: { position: "absolute", left: 0, right: 0, height: 1, zIndex: 2 },
   legend: { fontSize: 12, marginTop: 10 },
+  diagnosticsPanel: { marginHorizontal: 20, marginTop: 4, borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
+  diagnosticsEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 2 },
+  diagnosticRow: { gap: 2 },
+  diagnosticLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
+  diagnosticValue: { fontSize: 12, lineHeight: 17 },
 });

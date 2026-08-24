@@ -150,6 +150,44 @@ test("Android networking layer replaces (not appends) the User-Agent so Upbit's 
   assert.doesNotMatch(quotationClient, /"user-agent"\s*:/);
 });
 
+test("native network diagnostics capture only URL/method/User-Agent, read-only, without touching the response", () => {
+  const nativeDir = path.join(mobile, "android", "app", "src", "main", "java", "com", "nusa", "mobile");
+  const diagnosticsKt = fs.readFileSync(path.join(nativeDir, "NusaNetworkDiagnostics.kt"), "utf8");
+  const diagnosticsModule = fs.readFileSync(path.join(nativeDir, "NusaNetworkDiagnosticsModule.java"), "utf8");
+  const mainApplication = fs.readFileSync(path.join(nativeDir, "MainApplication.kt"), "utf8");
+
+  // The interceptor must capture the request it is about to send -- URL, method, the
+  // already-replaced User-Agent -- and nothing else. Real-device diagnosis needs to be able to
+  // tell "the interceptor never ran" (finalUserAgent comes back as OkHttp's own default, e.g.
+  // "okhttp/...") apart from "the interceptor ran but Upbit still rejected it" (finalUserAgent
+  // is "nusa-mobile/0.1" and the request still 400s) -- neither is possible without this.
+  assert.match(mainApplication, /NusaNetworkDiagnostics\.record\(request\.url\.toString\(\), request\.method, request\.header\("User-Agent"\)\)/);
+  assert.match(mainApplication, /add\(NusaNetworkDiagnosticsPackage\(\)\)/);
+
+  // Only a request-side snapshot exists; there is no method here that could be used to write,
+  // clear, or otherwise let JS influence what gets captured.
+  assert.match(diagnosticsKt, /fun record\(requestUrl: String, method: String, userAgent: String\?\)/);
+  assert.doesNotMatch(diagnosticsKt, /fun\s+(?!record|snapshot)\w+\(/);
+
+  // The bridge module is read-only (a getter, no setter) and only ever names the three
+  // non-secret fields -- it has no code path that could forward an arbitrary header map.
+  assert.match(diagnosticsModule, /@ReactMethod[\s\S]*?public void getLastRequest\(Promise promise\)/);
+  assert.doesNotMatch(diagnosticsModule, /@ReactMethod[\s\S]*?public void set\w*\(/i);
+  for (const source of [diagnosticsKt, diagnosticsModule, mainApplication]) {
+    assert.doesNotMatch(source, /Authorization|Cookie|Set-Cookie/i);
+  }
+
+  // The interceptor must return chain.proceed(request) directly -- reading the response body
+  // here (e.g. response.body?.string()) would consume the one-shot stream the JS fetch() caller
+  // still needs, breaking every successful request to add a diagnostic for failed ones.
+  const interceptorBody = mainApplication.slice(
+    mainApplication.indexOf("class NusaUserAgentInterceptor"),
+    mainApplication.indexOf("class MainApplication")
+  );
+  assert.doesNotMatch(interceptorBody, /\.body\b/);
+  assert.match(interceptorBody, /return chain\.proceed\(request\)/);
+});
+
 test("Android mobile workflow cancels obsolete runs and reuses safe dependency caches", () => {
   const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(workflow.includes("group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"), true);
