@@ -30,19 +30,34 @@ test("WO-0071: the repository's work-order provenance validates as reconciled", 
   assert.deepEqual([...result.collidingIds].sort(), ["WO-0063", "WO-0070"]);
 });
 
-test("WO-0071: current AIPOS state resolves the colliding WO-0070 by scope, not by bare id", () => {
+test("WO-0072: current AIPOS state points to the registered successor and retains stale history", () => {
   const state = fs.readFileSync(path.join(root, STATE_PATH), "utf8");
   const current = block(state, "current_non_live_work_order");
-  assert.equal(scalar(current, "id"), "WO-0070");
-  assert.equal(scalar(current, "scope_id"), "WO-0070.deterministic-remediation-prioritization");
-  assert.equal(scalar(current, "canonical_work_order"), ".aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml");
-  assert.equal(scalar(current, "canonical_pull_request"), "738");
-  assert.equal(scalar(current, "canonical_implementation_head"), "d83b7e0354681df3b1b86bee1e0d805d2108b970");
-  assert.equal(scalar(current, "canonical_merge_commit"), "43fdc4a12305d10c16e5c70ba0f20caa9b501188");
-  // The dangling historical short id remains visible, but can no longer be mistaken for the
-  // canonical implementation identity.
-  assert.equal(scalar(current, "implementation_commit"), "3711390a");
-  assert.equal(scalar(current, "implementation_commit_status"), "PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED");
+  assert.equal(scalar(current, "id"), "WO-0072");
+  assert.equal(scalar(current, "status"), "IN_PROGRESS");
+  assert.equal(scalar(current, "branch"), "agent/wo-0072-deterministic-remediation-review-packet");
+  assert.equal(scalar(current, "base_sha"), "108540e9820b5a411dc0d7c467d86eb284f89fa5");
+  assert.equal(scalar(current, "work_order"), ".aipos/work-orders/WO-0072-deterministic-remediation-review-packet.yaml");
+  assert.equal(scalar(current, "registration_status"), "REGISTERED_NOT_IMPLEMENTED");
+  assert.equal(scalar(current, "predecessor"), "WO-0071");
+
+  const registered = fs.readFileSync(path.join(root, ".aipos/work-orders/WO-0072-deterministic-remediation-review-packet.yaml"), "utf8");
+  assert.equal(scalar(registered, "id"), "WO-0072");
+  assert.equal(scalar(registered, "status"), "in_progress");
+  assert.equal(scalar(registered, "base_sha"), "108540e9820b5a411dc0d7c467d86eb284f89fa5");
+  assert.equal(scalar(registered, "registration_status"), "REGISTERED_NOT_IMPLEMENTED");
+
+  const reconciliation = block(state, "historical_non_live_pointer_reconciliation");
+  const former = block(reconciliation, "former_current_pointer");
+  assert.equal(scalar(former, "id"), "WO-0070");
+  assert.equal(scalar(former, "scope_id"), "WO-0070.deterministic-remediation-prioritization");
+  assert.equal(scalar(former, "canonical_work_order"), ".aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml");
+  assert.equal(scalar(former, "canonical_pull_request"), "738");
+  assert.equal(scalar(former, "canonical_implementation_head"), "d83b7e0354681df3b1b86bee1e0d805d2108b970");
+  assert.equal(scalar(former, "canonical_merge_commit"), "43fdc4a12305d10c16e5c70ba0f20caa9b501188");
+  assert.equal(scalar(former, "implementation_commit"), "3711390a");
+  assert.equal(scalar(former, "implementation_commit_status"), "PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED");
+  assert.equal(scalar(reconciliation, "resolution"), "PRESERVED_HISTORICAL_NOT_ACTIVE");
 });
 
 test("WO-0071: the canonical deterministic-remediation-prioritization lineage is preserved exactly", () => {
@@ -153,3 +168,4 @@ test("WO-0071: unresolvable recorded commits are annotated rather than deleted o
     }
   }
 });
+
