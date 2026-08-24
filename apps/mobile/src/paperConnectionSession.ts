@@ -53,6 +53,11 @@ export function markPaperConnectionVerified(value: string): void {
 
 export function clearPaperConnectionVerification(): void { verifiedEndpoint = null; restoreGeneration += 1; }
 export function isPaperConnectionVerified(value = configuredEndpoint): boolean { return value != null && normalizeEndpoint(value) === verifiedEndpoint; }
+/**
+ * Best-effort Cloud restore performed during app entry. LOCAL PAPER does not require
+ * a restored Cloud session, so entry readiness is independent from Cloud verification.
+ * Callers that need Cloud authority must still require isPaperConnectionVerified().
+ */
 export async function restoreConfiguredPaperSession(value = configuredEndpoint): Promise<boolean> {
   const endpoint = value == null ? null : normalizeEndpoint(value);
   if (endpoint == null) return true;
@@ -61,7 +66,7 @@ export async function restoreConfiguredPaperSession(value = configuredEndpoint):
     if (restoreInFlight != null) await restoreInFlight;
     else await restoreApprovedSession(endpoint);
   }
-  return isPaperConnectionVerified(endpoint);
+  return true;
 }
 export function clearConfiguredPaperEndpoint(): void {
   configuredEndpoint = null;
