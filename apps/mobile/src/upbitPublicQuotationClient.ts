@@ -1,16 +1,20 @@
 import { parsePublicCandles, type PublicCandle } from "./chartViewModel";
 import type { WatchlistMarket } from "./watchlist";
 import { readNativeRequestDiagnostic } from "./androidNetworkDiagnostics";
+import { resolveCanonicalCloudOrigin } from "./canonicalOrigin";
 
 export const UPBIT_PUBLIC_QUOTATION_BASE_URL = "https://api.upbit.com";
 export const UPBIT_PUBLIC_TICKER_PATH = "/v1/ticker/all?quote_currencies=KRW";
 export const UPBIT_PUBLIC_CANDLE_PATH = "/v1/candles/minutes/1";
+export const NUSA_PUBLIC_TICKER_RELAY_PATH = "/api/public/upbit/ticker";
+export const NUSA_PUBLIC_CANDLE_RELAY_PATH = "/api/public/upbit/candles";
 export const DEFAULT_PUBLIC_CANDLE_COUNT = 120;
 export const MAX_PUBLIC_CANDLE_COUNT = 200;
 
 export interface UpbitPublicQuotationClientOptions {
   readonly request?: typeof fetch;
   readonly timeoutMs?: number;
+  /** Explicit test/development override. Production with no override uses the sealed NUSA Cloud relay. */
   readonly baseUrl?: string;
 }
 
@@ -58,7 +62,7 @@ function boundedCount(value: number | undefined): number {
 function normalizedBaseUrl(value: string | undefined): string {
   const baseUrl = (value ?? UPBIT_PUBLIC_QUOTATION_BASE_URL).trim().replace(/\/+$/, "");
   const url = new URL(baseUrl);
-  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Error("Upbit public quotation base URL must be HTTPS without credentials or query state.");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Error("Public quotation base URL must be HTTPS without credentials or query state.");
   return baseUrl;
 }
 
@@ -75,12 +79,36 @@ function compactErrorText(value: unknown): string | undefined {
   return compact.slice(0, 160);
 }
 
+function resolvedRequestUrl(path: string, options: UpbitPublicQuotationClientOptions): string {
+  // Explicit baseUrl remains a deterministic test/development override. Release builds do not
+  // provide it; they use the sealed canonical NUSA origin so Android never talks to Upbit REST.
+  if (options.baseUrl !== undefined) return `${normalizedBaseUrl(options.baseUrl)}${path}`;
+
+  const canonical = resolveCanonicalCloudOrigin();
+  if (canonical.status === "READY") {
+    if (path === UPBIT_PUBLIC_TICKER_PATH) return `${canonical.origin}${NUSA_PUBLIC_TICKER_RELAY_PATH}`;
+    if (path.startsWith(`${UPBIT_PUBLIC_CANDLE_PATH}?`) || path === UPBIT_PUBLIC_CANDLE_PATH) {
+      const upstream = new URL(path, UPBIT_PUBLIC_QUOTATION_BASE_URL);
+      const relay = new URL(`${canonical.origin}${NUSA_PUBLIC_CANDLE_RELAY_PATH}`);
+      const market = upstream.searchParams.get("market");
+      const count = upstream.searchParams.get("count");
+      if (market != null) relay.searchParams.set("market", market);
+      if (count != null) relay.searchParams.set("count", count);
+      return relay.toString();
+    }
+  }
+
+  // Local/test source trees intentionally have no generated deployment origin. Retain direct
+  // public Upbit access there so unit tests and developer tooling remain hermetic. Production
+  // packaging replaces CANONICAL_NUSA_ORIGIN, so sealed Android builds take the relay path above.
+  return `${UPBIT_PUBLIC_QUOTATION_BASE_URL}${path}`;
+}
+
 /**
  * Everything a real-device failure needs to confirm root cause without guessing again: the exact
- * URL/method this file actually asked fetch() for, what Upbit actually returned, and what the
- * native OkHttp layer actually put on the wire. Deliberately not a header dump -- every field is
- * named individually so there is no path from "add a diagnostic" to "accidentally log a
- * credential header" the way a generic `for (header of response.headers)` loop would allow.
+ * URL/method this file actually asked fetch() for and the returned status/error detail. Deliberately
+ * not a header dump -- every field is named individually so there is no path from diagnostics to
+ * accidentally logging a credential header.
  */
 export interface PublicQuotationDiagnostic {
   readonly requestUrl: string;
@@ -119,10 +147,8 @@ async function upstreamDiagnostic(requestUrl: string, response: Response): Promi
       }
     }
   } catch {
-    // Upbit normally returns JSON errors, but status alone is still actionable if it does not.
+    // Status alone is still actionable if an upstream or relay does not return JSON.
   }
-  // Best-effort: the native module may not exist (non-Android, or a build without it), and this
-  // must never block or fail the diagnostic just because that lookup did not resolve.
   const nativeDiagnostic = await readNativeRequestDiagnostic().catch(() => null);
   return Object.freeze({
     requestUrl,
@@ -140,22 +166,12 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
   const request = options.request ?? fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs(options.timeoutMs));
-  const requestUrl = `${normalizedBaseUrl(options.baseUrl)}${path}`;
+  const requestUrl = resolvedRequestUrl(path, options);
   try {
     const response = await request(requestUrl, {
       method: "GET",
       redirect: "error",
       signal: controller.signal,
-      // Do not add JS-layer headers here. React Native's Android networking bridge does not
-      // guarantee a fetch() header replaces OkHttp's own default rather than being sent
-      // alongside it, so this file cannot reliably control any header from JS in either
-      // direction (adding a custom User-Agent got a 400 for OkHttp's generic default; a
-      // plain fetch header can also risk a 400 for a duplicate). The public GET endpoint
-      // needs no credential/Content-Type/Accept override, and the User-Agent's single
-      // source of truth is the native OkHttp interceptor in MainApplication.kt, which runs
-      // after RN's bridge builds the request and replaces the header outright -- see
-      // NusaUserAgentInterceptor there for why `.header()` (replace), not `.addHeader()`
-      // (append), is what actually fixes this.
     });
     if (!response.ok) {
       const diagnostic = await upstreamDiagnostic(requestUrl, response);
@@ -204,7 +220,7 @@ export function normalizeUpbitCandlePayload(raw: unknown, market: string): reado
 
 export async function loadUpbitPublicCandles(options: UpbitPublicCandleOptions): Promise<readonly PublicCandle[]> {
   const market = normalizedMarket(options.market);
-  const url = new URL(`${normalizedBaseUrl(options.baseUrl)}${UPBIT_PUBLIC_CANDLE_PATH}`);
+  const url = new URL(`${UPBIT_PUBLIC_QUOTATION_BASE_URL}${UPBIT_PUBLIC_CANDLE_PATH}`);
   url.searchParams.set("market", market);
   url.searchParams.set("count", String(boundedCount(options.count)));
   return normalizeUpbitCandlePayload(await requestJson(`${url.pathname}${url.search}`, options), market);
