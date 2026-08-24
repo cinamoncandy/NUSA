@@ -29,8 +29,8 @@ function healthTone(health: string | undefined): "success" | "warning" | "danger
 
 export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfigured, refreshing, onRefresh, onGoSettings, onNavigate, onOpenPaperLearning }: HomeViewProps) {
   const { width } = useWindowDimensions();
-  const { theme, preset } = useTheme();
-  const profile = getHomeVisualProfile(preset);
+  const { theme } = useTheme();
+  const profile = getHomeVisualProfile(theme.preset);
   const tablet = width >= 768;
   const account = snapshot?.portfolio?.account ?? null;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
