@@ -8,3 +8,4 @@ export * from "./remediationProposal";
 export * from "./remediationVerification";
 export * from "./remediationPlanEvaluation";
 export * from "./remediationPrioritization";
+export * from "./remediationReadiness";
