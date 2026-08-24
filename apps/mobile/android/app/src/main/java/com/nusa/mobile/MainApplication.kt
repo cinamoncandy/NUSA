@@ -30,6 +30,10 @@ private class NusaUserAgentInterceptor : Interceptor {
     val request = chain.request().newBuilder()
       .header("User-Agent", "nusa-mobile/0.1")
       .build()
+    // Record only after the header has been replaced, so this reflects the User-Agent actually
+    // about to go on the wire, not what any JS caller thinks it asked for. Read-only, request
+    // side only -- see NusaNetworkDiagnostics.kt for why this never touches the response.
+    NusaNetworkDiagnostics.record(request.url.toString(), request.method, request.header("User-Agent"))
     return chain.proceed(request)
   }
 }
@@ -42,6 +46,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(NusaSecureStoragePackage())
+          add(NusaNetworkDiagnosticsPackage())
         },
     )
   }
@@ -51,8 +56,8 @@ class MainApplication : Application(), ReactApplication {
     // Must run before React Native's own bootstrap call below: registering the factory only
     // changes what OkHttpClientProvider.createClient() builds afterwards, and RN's networking
     // module does not build its client until then. createClientBuilder(context) (not the no-arg
-    // overload) keeps RN's own defaults -- disk cache, cookie jar -- that a bare `OkHttpClient
-    // .Builder()` here would silently drop.
+    // overload) keeps RN's own defaults -- disk cache, session-state handling -- that a bare
+    // `OkHttpClient.Builder()` here would silently drop.
     OkHttpClientProvider.setOkHttpClientFactory {
       OkHttpClientProvider.createClientBuilder(this)
         .addInterceptor(NusaUserAgentInterceptor())

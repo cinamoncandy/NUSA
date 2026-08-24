@@ -25,7 +25,7 @@ import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } f
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
-import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./src/upbitPublicQuotationClient";
+import { loadUpbitPublicCandles, loadUpbitPublicMarkets, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
@@ -54,9 +54,12 @@ interface PublicMarketsState {
   readonly currentPrice: number | null;
   readonly error: string | null;
   readonly chartError: string | null;
+  /** Set only when chartError came from a real Upbit request/response, for the read-only
+   * NETWORK DIAGNOSTICS panel -- see ChartView. Never set for any other failure. */
+  readonly chartErrorDiagnostic: PublicQuotationDiagnostic | null;
 }
 
-const initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null });
+const initialPublicMarketsState = (): PublicMarketsState => ({ status: "LOADING", markets: null, candles: null, currentPrice: null, error: null, chartError: null, chartErrorDiagnostic: null });
 
 function themePreference(value: ThemeSetting): ThemePreference { return value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark"; }
 
@@ -201,8 +204,8 @@ function AuthenticatedApp() {
       const tickerError = tickerResult.status === "rejected" ? (tickerResult.reason instanceof Error ? tickerResult.reason.message : "Public ticker data is unavailable.") : null;
       if (tickerResult.status === "rejected") {
         const next = previous.markets === null
-          ? { ...previous, status: "ERROR" as const, error: tickerError, chartError: null }
-          : { ...previous, status: "STALE" as const, error: null, chartError: null };
+          ? { ...previous, status: "ERROR" as const, error: tickerError, chartError: null, chartErrorDiagnostic: null }
+          : { ...previous, status: "STALE" as const, error: null, chartError: null, chartErrorDiagnostic: null };
         publicMarketsRef.current = next;
         setPublicMarkets(next);
         return;
@@ -210,6 +213,9 @@ function AuthenticatedApp() {
       const markets = tickerResult.value;
       const selected = markets.find((market) => market.market === CHART_MARKET) ?? null;
       const chartError = candleResult.status === "rejected" ? (candleResult.reason instanceof Error ? candleResult.reason.message : "Public candle data is unavailable.") : null;
+      const chartErrorDiagnostic = candleResult.status === "rejected" && candleResult.reason instanceof UpbitPublicQuotationError
+        ? candleResult.reason.diagnostic
+        : null;
       const next: PublicMarketsState = {
         status: "READY",
         markets,
@@ -217,6 +223,7 @@ function AuthenticatedApp() {
         currentPrice: selected?.price ?? null,
         error: null,
         chartError,
+        chartErrorDiagnostic,
       };
       publicMarketsRef.current = next;
       setPublicMarkets(next);
@@ -329,7 +336,7 @@ function AuthenticatedApp() {
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
        : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
        : activeTab === "Paper" ? <TradingView error={readOnlyError} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
-      : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
+      : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} chartErrorDiagnostic={publicMarkets.chartErrorDiagnostic} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
        : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
