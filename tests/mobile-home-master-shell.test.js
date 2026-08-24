@@ -12,7 +12,8 @@ test("HOME uses one MASTER header instead of the legacy global shell header", ()
 
   assert.match(app, /const homeShellActive = utilityView === null && activeTab === "Home"/);
   assert.match(app, /\{!homeShellActive \? <View style=\{\[styles\.header/);
-  assert.match(home, /styles\.wordmarkHeader/);
+  assert.match(home, /styles\.masterRail/);
+  assert.match(home, /testID="home-master-rail"/);
   assert.match(home, />NUSA<\/Text>/);
 });
 

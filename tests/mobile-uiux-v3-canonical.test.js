@@ -21,7 +21,8 @@ test("App shell routes the canonical four-tab decision flow and preserves deeper
 test("Home uses MASTER hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, />NUSA<\/Text>/);
-  assert.match(source, /PAPER EQUITY/);
+  assert.match(source, /TOTAL EQUITY/);
+  assert.match(source, />PAPER ONLY<\/Text>/);
   assert.match(source, /NUSA VIEW/);
   assert.match(source, /<InsightPanel/);
   assert.match(source, /READ ONLY/);

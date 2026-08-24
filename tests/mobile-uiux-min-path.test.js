@@ -11,7 +11,8 @@ test("premium UI minimum path keeps one actionable Home next step and truthful P
   assert.match(home, /testID="home-next-action-button"/);
   assert.match(home, /<CompactMetric label="PAPER 연결"/);
   assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /PAPER 상태 신호:/);
+  assert.match(home, /const statusLabel = snapshot[\s\S]*PAPER · \$\{runtimeState[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
+  assert.match(home, /<QuietStatus label=\{statusLabel\} tone=\{statusTone\} testID="home-paper-status" \/>/);
   assert.match(home, /accessibilityLabel=\{terrainLabel\}/);
   assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);
   assert.doesNotMatch(home, /primaryActions/);
