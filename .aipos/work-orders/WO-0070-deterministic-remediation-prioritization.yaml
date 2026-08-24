@@ -3,6 +3,26 @@ title: Deterministic Remediation Prioritization
 status: in_progress
 branch: agent/wo-0070-deterministic-remediation-prioritization
 base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+# Added by WO-0071 (non-destructive). Two distinct work orders were both registered as WO-0070.
+# Nothing below rewrites this file's original history; it adds the scope identity that makes the
+# collision resolvable, so automation keys on `scope_id` instead of the bare work-order number.
+provenance:
+  scope_id: WO-0070.deterministic-remediation-prioritization
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0070-remediation-plan-evaluation.yaml
+  canonical_pull_request: 738
+  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  # `implementation.implementation_commit: 3711390a` below is preserved exactly as originally
+  # recorded, but it does not resolve to any object in this repository -- it is a pre-rebase
+  # identity that was rewritten before PR #738 merged. It is kept rather than deleted so the
+  # record is not falsified, and superseded by the two verified SHAs above.
+  unresolvable_recorded_commits:
+    - value: 3711390a
+      field: implementation.implementation_commit
+      reason: NOT_PRESENT_IN_REPOSITORY_PRE_REBASE_IDENTITY
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
 objective: >-
   Extend the read-only improvement pipeline by deterministically prioritizing verified remediation proposals using explicit observable factors such as impact, evidence strength, risk, reversibility, implementation cost, regression surface, and operational urgency. Produce a bounded advisory queue only; do not grant code, Git, deployment, broker, Risk, LIVE, or AI execution authority.
 scope:

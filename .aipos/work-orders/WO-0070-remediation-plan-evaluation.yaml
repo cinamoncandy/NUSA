@@ -3,6 +3,21 @@ title: Deterministic Remediation Plan Evaluation
 status: ready
 branch: agent/wo-0070-remediation-plan-evaluation
 base_sha: 030880026a091a34da4fa3dfb2ad3845436655e3
+# Added by WO-0071 (non-destructive). This is the EARLIER of two distinct work orders that were
+# both registered as WO-0070; it is preserved as historical evidence in its own right. The
+# existing .aipos/evidence/WO-0070-completion.json records THIS scope only (implementationSha
+# f677c5ee, remediationPlanEvaluation.ts) -- it is not completion evidence for the
+# deterministic-remediation-prioritization scope, and must not be read as such.
+provenance:
+  scope_id: WO-0070.remediation-plan-evaluation
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
+  canonical_pull_request: 731
+  canonical_implementation_head: f677c5eeb4cc294a1dbafade9d05d50e90a5faaa
+  canonical_merge_commit: e4655a8ce837d5327c855c0572d68477b9e2facc
+  completion_evidence: .aipos/evidence/WO-0070-completion.json
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
 objective: >-
   Extend the WO-0063 through WO-0069 read-only improvement chain with deterministic, bounded remediation-plan evaluation. Consume verified remediation proposals and produce reproducible advisory plan-evaluation results that compare candidate remediation sequences, preconditions, rollback paths, verification coverage, blast radius, and expected operational cost without executing code changes, Git mutations, deployments, broker actions, Risk Authority changes, or LIVE actions.
 scope:

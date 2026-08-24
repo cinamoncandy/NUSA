@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "id": "evidence-wo-0071-work-order-id-provenance-reconciliation",
+  "kind": "provenance_reconciliation",
+  "subject": {
+    "type": "work_order_id_collision",
+    "ids": ["WO-0063", "WO-0070"],
+    "collision": "TWO_DISTINCT_WORK_ORDERS_SHARE_EACH_OF_THESE_IDS"
+  },
+  "reconciled_by": "WO-0071",
+  "reconciliation": "NON_DESTRUCTIVE",
+  "observed_at": "2026-08-24T12:00:00+09:00",
+  "statement": "Distinct work orders were registered under the same id more than once. Nothing is deleted, renamed, or rewritten. Automation MUST key on scope_id rather than the bare work-order number whenever a colliding id is referenced, because the number alone does not identify a scope.",
+  "discovery_note": "WO-0070 was the reported collision. Enumerating every work order under .aipos/work-orders while implementing the enforcement found a second, previously unreported collision on WO-0063; it is reconciled here on the same terms rather than left latent.",
+  "scopes": [
+    {
+      "scope_id": "WO-0063.autonomous-improvement-observer",
+      "title": "Autonomous Improvement Observer Foundation",
+      "work_order": ".aipos/work-orders/WO-0063-autonomous-improvement-observer.yaml",
+      "pull_request": 698,
+      "implementation_head": "b54c1a22b311d9407eb139e34354eb7af0882f6f",
+      "merge_commit": "8e7302fe0745f919fc15f8dd5d58d5d25e387e47",
+      "implementation_module": "packages/core/src/improvement/improvementObserver.ts",
+      "focused_tests": "tests/improvement-observer.test.js",
+      "completion_evidence": ".aipos/evidence/WO-0063-completion.json",
+      "completion_evidence_note": "This existing record documents this scope only: 'reconnect-instability observer', implementationCommit b54c1a22.",
+      "implementation_head_note": "RESOLVABLE_BUT_SQUASHED_NOT_ANCESTOR_OF_MAIN",
+      "canonical": true
+    },
+    {
+      "scope_id": "WO-0063.mobile-master-ux-wave1",
+      "title": "Mobile MASTER UX Wave 1",
+      "work_order": ".aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml",
+      "pull_request": 619,
+      "implementation_head": "9c3af8021ec566484ef6ab548584a5990d772366",
+      "merge_commit": "10f5f7ceddff13efecc685ef971e2899cf677391",
+      "implementation_module": "apps/mobile/src/homeView.tsx",
+      "focused_tests": null,
+      "completion_evidence": null,
+      "completion_evidence_note": "No completion-evidence record exists for this scope. .aipos/evidence/WO-0063-completion.json belongs to the improvement-observer scope and MUST NOT be attributed here.",
+      "work_order_status_note": "Recorded status remains IN_PROGRESS. This reconciliation deliberately does not close it out: that is a separate verification decision, not a side effect of resolving an id collision.",
+      "canonical": true
+    },
+    {
+      "scope_id": "WO-0070.deterministic-remediation-prioritization",
+      "title": "Deterministic Remediation Prioritization",
+      "work_order": ".aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml",
+      "pull_request": 738,
+      "implementation_head": "d83b7e0354681df3b1b86bee1e0d805d2108b970",
+      "merge_commit": "43fdc4a12305d10c16e5c70ba0f20caa9b501188",
+      "implementation_module": "packages/core/src/improvement/remediationPrioritization.ts",
+      "focused_tests": "tests/remediation-prioritization.test.js",
+      "completion_evidence": null,
+      "completion_evidence_note": "No completion-evidence record exists for this scope. .aipos/evidence/WO-0070-completion.json belongs to the remediation-plan-evaluation scope and MUST NOT be attributed here.",
+      "canonical": true
+    },
+    {
+      "scope_id": "WO-0070.remediation-plan-evaluation",
+      "title": "Deterministic Remediation Plan Evaluation",
+      "work_order": ".aipos/work-orders/WO-0070-remediation-plan-evaluation.yaml",
+      "pull_request": 731,
+      "implementation_head": "f677c5eeb4cc294a1dbafade9d05d50e90a5faaa",
+      "merge_commit": "e4655a8ce837d5327c855c0572d68477b9e2facc",
+      "implementation_module": "packages/core/src/improvement/remediationPlanEvaluation.ts",
+      "focused_tests": "tests/remediation-plan-evaluation.test.js",
+      "completion_evidence": ".aipos/evidence/WO-0070-completion.json",
+      "completion_evidence_note": "This existing record documents this scope only: implementationSha f677c5ee, changedFiles remediationPlanEvaluation.ts.",
+      "canonical": true
+    }
+  ],
+  "unresolvable_recorded_commits": [
+    {
+      "value": "3711390a",
+      "recorded_in": [
+        ".aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml",
+        ".aipos/state.yaml"
+      ],
+      "field": "implementation_commit",
+      "reason": "NOT_PRESENT_IN_REPOSITORY_PRE_REBASE_IDENTITY",
+      "superseded_by": {
+        "implementation_head": "d83b7e0354681df3b1b86bee1e0d805d2108b970",
+        "merge_commit": "43fdc4a12305d10c16e5c70ba0f20caa9b501188"
+      },
+      "handling": "PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED"
+    }
+  ],
+  "guarantees": [
+    "no work order file was deleted",
+    "no work order file was renamed",
+    "no historical commit was rewritten",
+    "no completion evidence was overwritten",
+    "no completion metadata was invented for a scope that lacks it",
+    "every commit identity asserted here was verified to resolve in this repository, except those explicitly listed as unresolvable"
+  ],
+  "enforced_by": [
+    "scripts/validate-aipos-work-order-provenance.js",
+    "tests/aipos-work-order-provenance.test.js"
+  ]
+}
