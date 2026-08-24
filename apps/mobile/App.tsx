@@ -32,6 +32,7 @@ import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
+import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from "./src/localPaperLearningProjection";
 import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
@@ -247,6 +248,9 @@ function AuthenticatedApp() {
   }, []);
 
   const handleLiveTicker = useCallback((ticker: WatchlistMarket): void => {
+    // WebSocket observations are the same validated public-input boundary as REST observations.
+    // Record them before the UI market list guard so LOCAL PAPER does not depend on a Cloud state.
+    recordLocalPaperPublicMarkets([ticker]);
     const previous = publicMarketsRef.current;
     if (previous.markets === null) return;
     const index = previous.markets.findIndex((market) => market.market === ticker.market);
@@ -290,7 +294,8 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     publicRefreshGenerationRef.current += 1;
-    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    // Public quotation data is read-only and does not require a Cloud/bootstrap session.
+    if (authStatus === "CHECKING" || appState !== "active") return;
     const generation = publicRefreshGenerationRef.current;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -300,7 +305,9 @@ function AuthenticatedApp() {
   }, [appState, authStatus, refreshPublicMarkets]);
 
   useEffect(() => {
-    if (authStatus !== "SIGNED_IN" || appState !== "active") { liveTickerClient.disconnect(); return; }
+    // The WebSocket carries public ticker observations only; it must not inherit private
+    // dashboard/bridge credential requirements from the Cloud or REAL_READ_ONLY paths.
+    if (authStatus === "CHECKING" || appState !== "active") { liveTickerClient.disconnect(); return; }
     void liveTickerClient.connect();
     return () => liveTickerClient.disconnect();
   }, [appState, authStatus, liveTickerClient]);
@@ -313,7 +320,17 @@ function AuthenticatedApp() {
     liveTickerClient.setMarkets(codes);
   }, [publicMarkets.markets, liveTickerClient]);
 
-  const onRefresh = useCallback(async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } }, [refresh]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      // Cloud PAPER remains independently fail-closed; LOCAL PAPER also refreshes its
+      // credential-free public feed so recovery does not depend on an optional session.
+      await refreshPublicMarkets().catch(() => undefined);
+      setRefreshing(false);
+    }
+  }, [refresh, refreshPublicMarkets]);
 
   const entryProfile = getHomeVisualProfile(appTheme.preset);
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
@@ -333,8 +350,12 @@ function AuthenticatedApp() {
     && runtimeSnapshot.recovery === "READY";
   const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper";
   const homeShellActive = utilityView === null && activeTab === "Home";
-  const paperLearningRuntimeStatus = snapshot?.paperLearning?.runtimeStatus
-    ?? (snapshot?.operations.runtimeState === "HALTED" ? "HALTED" : snapshot?.operations.runtimeState === "ERROR" ? "ERROR" : snapshot?.operations.runtimeState === "RUNNING" ? "RUNNING" : "PAUSED");
+  const localPaperReadiness = getLocalPaperLearningReadiness();
+  const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length
+    ? snapshot.paperLearning.runtimeStatus
+    : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR"
+      ? snapshot.paperLearning.runtimeStatus
+      : localPaperReadiness.status;
   const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>

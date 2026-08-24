@@ -4,7 +4,15 @@ import type { WatchlistMarket } from "./watchlist";
 const LOCAL_PAPER_MARKET = "KRW-BTC";
 const LOCAL_OBSERVER_STRATEGY = "LOCAL_PUBLIC_OBSERVER_V1";
 const MAX_LOCAL_EVENTS = 120;
+const LOCAL_PUBLIC_DATA_MAX_AGE_MS = 120_000;
 let localEvents: readonly PaperLearningUiEvent[] = Object.freeze([]);
+
+export interface LocalPaperLearningReadiness {
+  readonly dataReady: boolean;
+  readonly status: "RUNNING" | "PAUSED";
+  readonly reason: "LOCAL_PUBLIC_MARKET_DATA_READY" | "LOCAL_PUBLIC_MARKET_DATA_UNAVAILABLE" | "LOCAL_PUBLIC_MARKET_DATA_STALE";
+  readonly lastObservedAt: number | null;
+}
 
 function validObservedAt(value: string): number | null {
   const observedAt = Date.parse(value);
@@ -51,6 +59,21 @@ export function recordLocalPaperPublicMarkets(markets: readonly WatchlistMarket[
 
 export function getLocalPaperLearningEvents(): readonly PaperLearningUiEvent[] {
   return localEvents;
+}
+
+/**
+ * LOCAL PAPER readiness is derived from the last validated public observation, never from a
+ * Cloud session or a private Upbit credential. A stale observation keeps the local pipeline
+ * paused until the bounded public-feed refresh supplies a new value.
+ */
+export function getLocalPaperLearningReadiness(now = Date.now()): LocalPaperLearningReadiness {
+  if (!Number.isSafeInteger(now) || now < 0) throw new Error("readiness clock must be a non-negative safe integer");
+  const latest = localEvents.find((event) => event.stage === "MARKET_DATA" && event.status === "PASS");
+  const lastObservedAt = latest?.occurredAt ?? null;
+  if (lastObservedAt == null) return Object.freeze({ dataReady: false, status: "PAUSED", reason: "LOCAL_PUBLIC_MARKET_DATA_UNAVAILABLE", lastObservedAt: null });
+  const age = now - lastObservedAt;
+  if (age < 0 || age > LOCAL_PUBLIC_DATA_MAX_AGE_MS) return Object.freeze({ dataReady: false, status: "PAUSED", reason: "LOCAL_PUBLIC_MARKET_DATA_STALE", lastObservedAt });
+  return Object.freeze({ dataReady: true, status: "RUNNING", reason: "LOCAL_PUBLIC_MARKET_DATA_READY", lastObservedAt });
 }
 
 export function resetLocalPaperLearningEventsForTest(): void {
