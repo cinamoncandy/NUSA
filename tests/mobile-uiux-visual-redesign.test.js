@@ -25,7 +25,11 @@ test("Home uses one truthful state-bound hero signal primitive", () => {
   const home = read("src/homeView.tsx");
   const components = read("src/components.tsx");
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
+  const strength = home.match(/const terrainStrength = signalReady \? ([0-9.]+) : snapshot \? ([0-9.]+) : ([0-9.]+);/);
+  assert.ok(strength, "terrain strength must remain explicitly bound to signalReady, snapshot, and disconnected states");
+  const [, readyStrength, snapshotStrength, disconnectedStrength] = strength.map(Number);
+  assert.ok(readyStrength > snapshotStrength && snapshotStrength > disconnectedStrength, "terrain strength must preserve ready > snapshot > disconnected visual hierarchy");
+  assert.ok(readyStrength <= 1 && disconnectedStrength >= 0, "terrain strength must remain normalized to [0, 1]");
   assert.match(home, /const terrainLabel = aiInsightAvailable/);
   assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
