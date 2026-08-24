@@ -79,22 +79,28 @@ function compactErrorText(value: unknown): string | undefined {
   return compact.slice(0, 160);
 }
 
+function candleRequestPath(market: string, count: number): string {
+  // Do not build this with URL.searchParams. Real Android/Hermes evidence showed that mutating
+  // searchParams could leave url.search empty even though Node tests passed, causing the required
+  // market/count query to disappear on the wire. Construct the already-validated query directly.
+  return `${UPBIT_PUBLIC_CANDLE_PATH}?market=${encodeURIComponent(market)}&count=${count}`;
+}
+
 function resolvedRequestUrl(path: string, options: UpbitPublicQuotationClientOptions): string {
-  // Explicit baseUrl remains a deterministic test/development override. Release builds do not
-  // provide it; they use the sealed canonical NUSA origin so Android never talks to Upbit REST.
+  // Explicit baseUrl remains a deterministic test/development override. Production with no
+  // override uses the sealed canonical NUSA origin so Android never talks to Upbit REST directly.
   if (options.baseUrl !== undefined) return `${normalizedBaseUrl(options.baseUrl)}${path}`;
 
   const canonical = resolveCanonicalCloudOrigin();
   if (canonical.status === "READY") {
     if (path === UPBIT_PUBLIC_TICKER_PATH) return `${canonical.origin}${NUSA_PUBLIC_TICKER_RELAY_PATH}`;
     if (path.startsWith(`${UPBIT_PUBLIC_CANDLE_PATH}?`) || path === UPBIT_PUBLIC_CANDLE_PATH) {
-      const upstream = new URL(path, UPBIT_PUBLIC_QUOTATION_BASE_URL);
-      const relay = new URL(`${canonical.origin}${NUSA_PUBLIC_CANDLE_RELAY_PATH}`);
-      const market = upstream.searchParams.get("market");
-      const count = upstream.searchParams.get("count");
-      if (market != null) relay.searchParams.set("market", market);
-      if (count != null) relay.searchParams.set("count", count);
-      return relay.toString();
+      // Preserve the validated query byte-for-byte. Avoid URL.searchParams here as well so the
+      // Android/Hermes compatibility fix applies to both direct development requests and the
+      // production Cloud relay path.
+      const queryIndex = path.indexOf("?");
+      const query = queryIndex >= 0 ? path.slice(queryIndex) : "";
+      return `${canonical.origin}${NUSA_PUBLIC_CANDLE_RELAY_PATH}${query}`;
     }
   }
 
@@ -220,8 +226,6 @@ export function normalizeUpbitCandlePayload(raw: unknown, market: string): reado
 
 export async function loadUpbitPublicCandles(options: UpbitPublicCandleOptions): Promise<readonly PublicCandle[]> {
   const market = normalizedMarket(options.market);
-  const url = new URL(`${UPBIT_PUBLIC_QUOTATION_BASE_URL}${UPBIT_PUBLIC_CANDLE_PATH}`);
-  url.searchParams.set("market", market);
-  url.searchParams.set("count", String(boundedCount(options.count)));
-  return normalizeUpbitCandlePayload(await requestJson(`${url.pathname}${url.search}`, options), market);
+  const path = candleRequestPath(market, boundedCount(options.count));
+  return normalizeUpbitCandlePayload(await requestJson(path, options), market);
 }
