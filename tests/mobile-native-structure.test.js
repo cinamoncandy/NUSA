@@ -135,11 +135,15 @@ test("Android networking layer replaces (not appends) the User-Agent so Upbit's 
   assert.match(mainApplication, /class NusaUserAgentInterceptor : Interceptor/);
   assert.match(mainApplication, /\.header\("User-Agent", "nusa-mobile\/0\.1"\)/);
   assert.doesNotMatch(mainApplication, /\.addHeader\("User-Agent"/);
+  // setOkHttpClient(OkHttpClient) does not exist on this API -- only the factory registration
+  // does; getting this wrong compiles in an IDE with stale caches but fails Gradle's real
+  // Kotlin compiler, which is exactly what happened here before this test existed.
+  assert.match(mainApplication, /OkHttpClientProvider\.setOkHttpClientFactory/);
+  assert.doesNotMatch(mainApplication, /OkHttpClientProvider\.setOkHttpClient\(/);
   const onCreate = mainApplication.slice(mainApplication.indexOf("override fun onCreate"));
-  assert.match(onCreate, /OkHttpClientProvider\.setOkHttpClient/);
   assert.ok(
-    onCreate.indexOf("OkHttpClientProvider.setOkHttpClient") < onCreate.indexOf("loadReactNative(this)"),
-    "the patched OkHttp client must be installed before loadReactNative(this) starts the networking stack"
+    onCreate.indexOf("OkHttpClientProvider.setOkHttpClientFactory") < onCreate.indexOf("loadReactNative(this)"),
+    "the patched OkHttp client factory must be installed before loadReactNative(this) starts the networking stack"
   );
 
   const quotationClient = fs.readFileSync(path.join(mobile, "src", "upbitPublicQuotationClient.ts"), "utf8");

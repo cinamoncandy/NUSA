@@ -48,14 +48,16 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
-    // Must run before React Native's own bootstrap call below: the client this replaces is
-    // the one RN's networking module hands every fetch()/XHR call to, and only requests made
-    // after this point pick up the replacement.
-    OkHttpClientProvider.setOkHttpClient(
-      OkHttpClientProvider.createClient().newBuilder()
+    // Must run before React Native's own bootstrap call below: registering the factory only
+    // changes what OkHttpClientProvider.createClient() builds afterwards, and RN's networking
+    // module does not build its client until then. createClientBuilder(context) (not the no-arg
+    // overload) keeps RN's own defaults -- disk cache, cookie jar -- that a bare `OkHttpClient
+    // .Builder()` here would silently drop.
+    OkHttpClientProvider.setOkHttpClientFactory {
+      OkHttpClientProvider.createClientBuilder(this)
         .addInterceptor(NusaUserAgentInterceptor())
         .build()
-    )
+    }
     loadReactNative(this)
   }
 }
