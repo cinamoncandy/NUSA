@@ -33,7 +33,11 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
 });
 
 test("PAPER exposes independent LOCAL execution while verified CLOUD execution remains runtime-gated", () => {
-  const trading = source("tradingView.tsx");
+  const tradingShell = source("tradingView.tsx");
+  const trading = source("tradingViewLegacy.tsx");
+
+  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
@@ -43,4 +47,10 @@ test("PAPER exposes independent LOCAL execution while verified CLOUD execution r
   assert.match(trading, /statusLabel="LIVE NONE"/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(trading, /liveMutationAllowed: false/);
+
+  for (const candidate of [tradingShell, trading]) {
+    assert.doesNotMatch(candidate, /productionMutationAllowed:\s*true/);
+    assert.doesNotMatch(candidate, /authority:\s*["']LIVE["']/);
+    assert.doesNotMatch(candidate, /\/(?:live|withdraw|transfer)(?:\/|["'`])/i);
+  }
 });
