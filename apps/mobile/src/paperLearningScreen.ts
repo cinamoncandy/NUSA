@@ -1,3 +1,5 @@
+import { getLocalPaperLearningEvents } from "./localPaperLearningProjection";
+
 export type PaperLearningUiStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
 export interface PaperLearningGateUi { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
 export interface PaperLearningUiEvent {
@@ -81,8 +83,11 @@ function buildPerformance(timeline: readonly PaperLearningUiEvent[]): PaperLearn
 }
 
 export function buildPaperLearningScreen(events: readonly PaperLearningUiEvent[], runtimeStatus: PaperLearningScreenState["status"]): PaperLearningScreenState {
+  const localFallback = events.length === 0 ? getLocalPaperLearningEvents() : Object.freeze([] as PaperLearningUiEvent[]);
+  const sourceEvents = events.length > 0 ? events : localFallback;
+  const effectiveRuntimeStatus = events.length === 0 && localFallback.length > 0 && runtimeStatus === "PAUSED" ? "RUNNING" : runtimeStatus;
   const deduped = new Map<string, PaperLearningUiEvent>();
-  for (const event of events) {
+  for (const event of sourceEvents) {
     if (!event.id.trim() || !event.cycleId.trim() || !event.market.trim()) throw new Error("invalid PAPER learning event identity");
     if (!Number.isSafeInteger(event.occurredAt) || event.occurredAt < 0) throw new Error("invalid PAPER learning event timestamp");
     deduped.set(event.id, freeze({ ...event }));
@@ -101,7 +106,7 @@ export function buildPaperLearningScreen(events: readonly PaperLearningUiEvent[]
     readOnly: true,
     mode: "PAPER",
     currentCycle: current?.cycleId ?? null,
-    status: runtimeStatus,
+    status: effectiveRuntimeStatus,
     latestMarket: current?.market ?? null,
     latestStrategy: freeze({ strategyId: latestIdentity?.strategyId ?? null, candidateId: latestIdentity?.candidateId ?? null, championId: latestIdentity?.championId ?? null }),
     latestSignal: timeline.find((event) => event.signal)?.signal ?? null,
