@@ -6,6 +6,22 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 1e22852eef772738bf89acffb8a62d74ce6fe2f9
 implementation_branch: agent/wo-0063-autonomous-improvement-observer
+# Added by WO-0071 (non-destructive). WO-0063 was registered twice for two different scopes.
+# This file is the improvement-observer scope; .aipos/evidence/WO-0063-completion.json belongs
+# to THIS scope ("reconnect-instability observer"), not to the Mobile MASTER UX scope.
+provenance:
+  scope_id: WO-0063.autonomous-improvement-observer
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
+  canonical_pull_request: 698
+  canonical_implementation_head: b54c1a22b311d9407eb139e34354eb7af0882f6f
+  canonical_merge_commit: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
+  completion_evidence: .aipos/evidence/WO-0063-completion.json
+  # The implementation head resolves in this repository but is not an ancestor of main: the
+  # branch was squashed on merge. The merge commit above is the identity present on main.
+  implementation_head_note: RESOLVABLE_BUT_SQUASHED_NOT_ANCESTOR_OF_MAIN
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
 objective: "Add the smallest deterministic, non-LIVE improvement-observation foundation by projecting existing runtime and market diagnostics into bounded improvement signals, deduplicated problem candidates, and an auditable backlog without creating a parallel runtime or granting AI execution authority."
 authority:
   mode: PAPER_ONLY
