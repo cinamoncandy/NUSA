@@ -73,6 +73,30 @@ const cloneSnapshot = (snapshot: TradingSnapshot): TradingSnapshot => Object.fre
   balances: Object.freeze(snapshot.balances.map((balance) => Object.freeze({ ...balance }))),
 });
 
+let latestObservedTradingSnapshot: TradingSnapshot | null = null;
+const observedTradingListeners = new Set<() => void>();
+
+function publishObservedTradingSnapshot(snapshot: TradingSnapshot): TradingSnapshot {
+  const cloned = cloneSnapshot(snapshot);
+  latestObservedTradingSnapshot = cloned;
+  for (const listener of observedTradingListeners) listener();
+  return cloned;
+}
+
+export function readObservedTradingSnapshot(): TradingSnapshot | null {
+  return latestObservedTradingSnapshot;
+}
+
+export function subscribeObservedTradingSnapshot(listener: () => void): () => void {
+  observedTradingListeners.add(listener);
+  return () => observedTradingListeners.delete(listener);
+}
+
+export function resetObservedTradingSnapshotForTest(): void {
+  latestObservedTradingSnapshot = null;
+  for (const listener of observedTradingListeners) listener();
+}
+
 export class MockTradingService implements TradingService {
   private readonly orders: Order[] = [];
   private readonly positions = new Map<string, Position>();
@@ -86,10 +110,11 @@ export class MockTradingService implements TradingService {
       if (this.balances.has(currency)) throw new Error(`duplicate balance: ${currency}`);
       this.balances.set(currency, Object.freeze({ currency, available: balance.available }));
     }
+    publishObservedTradingSnapshot({ orders: this.orders, positions: [...this.positions.values()], balances: [...this.balances.values()] });
   }
 
   public async getSnapshot(): Promise<TradingSnapshot> {
-    return cloneSnapshot({ orders: this.orders, positions: [...this.positions.values()], balances: [...this.balances.values()] });
+    return publishObservedTradingSnapshot({ orders: this.orders, positions: [...this.positions.values()], balances: [...this.balances.values()] });
   }
 
   public async placePaperOrder(request: PlaceOrderRequest): Promise<Order> {
@@ -114,6 +139,7 @@ export class MockTradingService implements TradingService {
     }
     const order = Object.freeze({ id: `paper-${this.nextOrderId++}`, market, side: request.side, quantity, price, status: "FILLED" as const, createdAtMs: nowMs });
     this.orders.push(order);
+    publishObservedTradingSnapshot({ orders: this.orders, positions: [...this.positions.values()], balances: [...this.balances.values()] });
     return order;
   }
 
