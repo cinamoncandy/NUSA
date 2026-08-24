@@ -33,7 +33,14 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
 });
 
 test("PAPER exposes local simulation independently while cloud submit stays authority-gated", () => {
-  const trading = source("tradingView.tsx");
+  const wrapper = source("tradingView.tsx");
+  const trading = source("tradingViewLegacy.tsx");
+
+  assert.match(wrapper, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(wrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(wrapper, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(wrapper, /authority:\s*["']LIVE["']/);
+
   assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
@@ -41,4 +48,8 @@ test("PAPER exposes local simulation independently while cloud submit stays auth
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /statusLabel="LIVE NONE"/);
+  assert.match(trading, /authority:\s*"PAPER_ONLY"/);
+  assert.match(trading, /productionMutationAllowed:\s*false/);
+  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(trading, /authority:\s*["']LIVE["']/);
 });
