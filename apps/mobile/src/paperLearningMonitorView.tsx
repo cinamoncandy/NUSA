@@ -33,11 +33,32 @@ const eventSummary = (event: PaperLearningUiEvent): string => {
   return parts.join(" · ") || "관측 세부 정보 없음";
 };
 
+const emptySourceMessage = (state: PaperLearningScreenState): Readonly<{ title: string; body: string }> | null => {
+  if (state.timeline.length > 0) return null;
+  if (state.status === "RUNNING") return Object.freeze({
+    title: "PAPER 런타임은 실행 중이지만 학습 이벤트가 없습니다",
+    body: "서버가 RUNNING 상태를 보고했지만 아직 MARKET_DATA/DECISION/LEARNING 이벤트가 수신되지 않았습니다. 잠시 후 새로고침해도 계속 비어 있으면 서버의 paperLearning projection을 점검해야 합니다."
+  });
+  if (state.status === "HALTED") return Object.freeze({
+    title: "PAPER 학습이 중단되어 있습니다",
+    body: "HALTED 상태에서는 새 학습 사이클이 생성되지 않습니다. PAPER 서버의 안전 게이트, kill switch, P0 상태와 최근 오류를 확인해 주세요."
+  });
+  if (state.status === "ERROR") return Object.freeze({
+    title: "PAPER 학습 데이터 오류",
+    body: "서버가 ERROR 상태를 보고했습니다. 현재 화면의 빈 값은 정상 학습 결과가 아니라 데이터 소스/런타임 오류 상태입니다."
+  });
+  return Object.freeze({
+    title: "PAPER 데이터 소스가 아직 준비되지 않았습니다",
+    body: "연결 또는 세션이 설정되지 않았거나 PAPER 런타임이 PAUSED 상태일 수 있습니다. Settings에서 PAPER 서버 연결을 검증한 뒤 다시 새로고침해 주세요."
+  });
+};
+
 export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose }: PaperLearningMonitorViewProps) {
   const { theme } = useTheme();
   const latestMarketEvent = useMemo(() => state.timeline.find((event) => event.stage === "MARKET_DATA") ?? null, [state.timeline]);
   const latestOrderEvent = useMemo(() => state.timeline.find((event) => event.stage === "ORDER_INTENT") ?? null, [state.timeline]);
   const latestTerminalEvent = useMemo(() => state.timeline.find((event) => event.stage === "HALT" || event.stage === "ERROR" || event.stage === "IDEMPOTENCY") ?? null, [state.timeline]);
+  const sourceMessage = useMemo(() => emptySourceMessage(state), [state]);
   const statusTone = state.status === "RUNNING" ? "primary" : state.status === "PAUSED" ? "warning" : "danger";
 
   return <ScrollView
@@ -54,6 +75,11 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       </View>
       <StatusChip label={state.status} tone={statusTone} />
     </View>
+
+    {sourceMessage ? <NusaCard raised>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]} testID="paper-learning-empty-source-title">{sourceMessage.title}</Text>
+      <Text style={[styles.empty, { color: theme.colors.textMuted }]} testID="paper-learning-empty-source-reason">{sourceMessage.body}</Text>
+    </NusaCard> : null}
 
     <NusaCard raised>
       <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>현재 사이클</Text>
