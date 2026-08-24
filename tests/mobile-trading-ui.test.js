@@ -55,9 +55,15 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+  const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
+  assert.match(shell, /TradingView as LegacyTradingView/);
+  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(source, /const usingLocalPaper = !builtInSubmitAvailable/);
@@ -96,7 +102,7 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   // contextual panel bounded by holdings, not cash (capitalAllocationGuard.ts's reservePercent
   // correctly never applies to SELL). BUY's "after order" figure was previously a static
   // reservedCash value that never actually changed with the order.
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
   assert.match(source, /testID="paper-holdings-panel"/);
   assert.match(source, /매도 가능 수량/);
   assert.match(source, /positionQuantity > 0 && Number\.isFinite\(sellQuantity\) && sellQuantity > 0/);
