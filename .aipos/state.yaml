@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T22:13:58+09:00"
+updated_at: "2026-08-24T22:28:17+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -752,7 +752,7 @@ issue_661_live_ready_observability:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   issue: 661
   status: IN_PROGRESS
-  base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  base_sha: 7097d9ebae40569dd47ede542f3ddcafd620c767
   branch: agent/issue-661-live-ready-observability
   scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
   canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
@@ -765,13 +765,13 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
+  implementation_status: PR_770_OPEN_PENDING_FINAL_EXACT_HEAD_AFTER_MAIN_INTEGRATION
   implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
   pull_request: 770
-  validation_head: 7e925445055d14d877baa1476291a9108e832bff
-  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
+  validation_head: d844d29132e7ae15b3f07ee73efcfc44d5bfb96
+  exact_head_remote_validation: INVALIDATED_BY_MAIN_INTEGRATION
   local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+  protected_checks: "PRIOR_HEAD_INVALIDATED_BY_MAIN_INTEGRATION; rerun required on final head"
+  next: "Publish the latest-main integration, rerun all exact-head protected checks, then merge only if the new head is green; Android promotion remains post-merge only."

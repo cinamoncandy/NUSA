@@ -5,7 +5,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 661
 base_branch: main
-base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+base_commit: 7097d9ebae40569dd47ede542f3ddcafd620c767
 implementation_branch: agent/issue-661-live-ready-observability
 objective: "Expose canonical LIVE preparation readiness through a GET-only cloud projection and the existing unified mobile read-only cockpit without creating activation, order, risk, credential, or LIVE authority."
 canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
@@ -69,8 +69,8 @@ validation:
   aipos_drift: PASS
   aipos_provenance: PASS
   git_diff_check: PASS
-  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS_HEAD_7E925445
-  protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
-  issue_661_final_audit: NOT_YET_RUN_POST_MERGE
+  exact_head_remote_validation: INVALIDATED_BY_MAIN_INTEGRATION
+  protected_checks: "PRIOR_HEAD_INVALIDATED_BY_MAIN_INTEGRATION; rerun required on final head"
+  issue_661_final_audit: BLOCKED_PENDING_FINAL_EXACT_HEAD_AND_MERGE
 blockers: []
-next: "Merge PR #770 under repository policy, verify the merge on current main, then continue the Issue #661 acceptance audit and post-merge Android preview path."
+next: "Publish latest-main integration, rerun all exact-head protected checks, merge only when green, then continue the Issue #661 acceptance audit and post-merge Android preview path."
