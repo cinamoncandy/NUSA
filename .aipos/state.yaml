@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T21:58:34+09:00"
+updated_at: "2026-08-24T22:13:58+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -765,11 +765,13 @@ issue_661_live_ready_observability:
     ai_authority: ZERO_AUTHORITY
     order_cancel_withdraw_transfer: NONE
     activation: NONE
-  implementation_status: PR_770_OPEN_BLOCKED_ACTUAL_PAPER_RUNTIME_EVIDENCE
+  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
   implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
   pull_request: 770
-  exact_head_remote_validation: PARTIAL_ACTUAL_PAPER_RUNTIME_REPEAT_3_FAILURE
+  validation_head: 7e925445055d14d877baa1476291a9108e832bff
+  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
   local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
+  actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  blocker: "Actual PAPER Public-Market Runtime Evidence fails three exact-head attempts at restart recovery with PAPER position mismatch; no merge or Android promotion is permitted until this existing runtime evidence blocker is resolved."
-  next: "Do not merge PR #770. Diagnose/fix or conclusively classify the existing PAPER restart-recovery evidence failure, then rerun all exact-head checks before continuing Issue #661 audit."
+  protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
+  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
