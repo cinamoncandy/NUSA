@@ -1,6 +1,6 @@
 id: WO-0070
 title: Deterministic Remediation Prioritization
-status: in_progress
+status: completed
 branch: agent/wo-0070-deterministic-remediation-prioritization
 base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
 objective: >-
@@ -89,3 +89,8 @@ validation:
   aipos_drift: PASS
   security_gate: PASS_SECRETS_0
   diff_check: PASS
+completion:
+  pull_request: 738
+  exact_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  merged: true
