@@ -91,13 +91,18 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
 });
 
 test("PAPER submit remains explicit two-step, idempotent, and never claims LIVE authority", () => {
-  const trading = read("apps/mobile/src/tradingView.tsx");
+  const tradingShell = read("apps/mobile/src/tradingView.tsx");
+  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const components = read("apps/mobile/src/components.tsx");
+  assert.match(tradingShell, /TradingView as LegacyTradingView/);
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /주문 검토/);
   assert.match(trading, /PAPER 주문 확정/);
   assert.match(trading, /PersonalPaperOrderRetryIdentity/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
+  assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
+  assert.doesNotMatch(trading, /productionMutationAllowed: true/);
   assert.match(components, /ZERO AUTHORITY/);
   assert.match(components, /AI는 주문, 이체, 출금 또는 운영 상태를 변경할 권한이 없습니다/);
   assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
@@ -109,18 +114,21 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   const bounded = {
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
-    "apps/mobile/src/tradingView.tsx": /maxWidth: 820/,
+    "apps/mobile/src/tradingViewLegacy.tsx": /maxWidth: 820/,
     "apps/mobile/src/portfolioView.tsx": /maxWidth: 1080/,
     "apps/mobile/src/aiView.tsx": /uxLayout\.maxWorkspaceWidth/,
   };
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
+  const tradingShell = read("apps/mobile/src/tradingView.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const profile = read("apps/mobile/src/homeVisualProfile.ts");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
 
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
   assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
   assert.match(profile, /master:[\s\S]*maxWidth: 780/);
