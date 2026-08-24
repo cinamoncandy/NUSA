@@ -1,10 +1,9 @@
 import React from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { MotionReveal, NusaButton, TerrainSignal } from "./components";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { NusaButton, TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
-import { getHomeVisualProfile } from "./homeVisualProfile";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -22,35 +21,14 @@ interface HomeViewProps {
   readonly onOpenPaperLearning: () => void;
 }
 
-function krw(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
+function krw(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function healthTone(health: string | undefined): "success" | "warning" | "danger" {
-  return health === "HEALTHY" || health === "READY" || health === "ONLINE" || health === "RUNNING"
-    ? "success"
-    : health === "FAIL_CLOSED" || health === "DOWN"
-      ? "danger"
-      : "warning";
+  return health === "HEALTHY" || health === "READY" || health === "ONLINE" || health === "RUNNING" ? "success" : health === "FAIL_CLOSED" || health === "DOWN" ? "danger" : "warning";
 }
 
-export function HomeView({
-  snapshot,
-  investmentPercent,
-  readOnlyError,
-  notConfigured,
-  refreshing,
-  onRefresh,
-  onGoSettings,
-  onNavigate,
-  onOpenPaperLearning,
-}: HomeViewProps) {
+export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfigured, refreshing, onRefresh, onGoSettings, onNavigate, onOpenPaperLearning }: HomeViewProps) {
   const { theme } = useTheme();
-  const profile = getHomeVisualProfile(theme.preset);
-  const { width } = useWindowDimensions();
-  const tablet = width >= 768;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
-
   const account = snapshot?.portfolio?.account ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
@@ -60,176 +38,76 @@ export function HomeView({
   const disconnected = notConfigured != null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const runtimeState = snapshot?.operations.runtimeState;
-  const statusLabel = snapshot
-    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : signalReady ? "READY" : "CHECK"}`
-    : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
-  const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
-  const terrainStrength = signalReady ? 0.96 : snapshot ? 0.5 : 0.22;
-  const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
+  const statusLabel = snapshot ? `PAPER · ${runtimeState ?? (signalReady ? "READY" : "CHECK")}` : disconnected ? "PAPER · OFFLINE" : "PAPER · STANDBY";
+  const primaryLabel = disconnected ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
+  const primaryDetail = disconnected ? "PAPER 연결 후 모의계좌와 시장 판단을 표시합니다." : readOnlyError ? "연결 상태를 복구한 뒤 판단을 다시 확인합니다." : aiInsightAvailable ? "검증된 근거와 현재 NUSA 판단을 확인합니다." : "시장 데이터는 읽기 전용으로 분석 중입니다.";
+  const runPrimaryAction = () => { if (disconnected || readOnlyError) return onGoSettings(); onNavigate(aiInsightAvailable ? "AiSignal" : "Markets"); };
 
-  const contentStyle = {
-    paddingHorizontal: profile.screen.horizontalPadding,
-    paddingTop: profile.screen.topPadding,
-    gap: tablet ? 24 : 18,
-    paddingBottom: profile.screen.bottomPadding,
-    maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth,
-  } as const;
-  const balanceStyle = {
-    fontSize: tablet ? Math.max(profile.hero.tabletBalanceSize, 58) : Math.max(profile.hero.balanceSize, 42),
-    lineHeight: tablet ? Math.max(profile.hero.tabletBalanceLineHeight, 64) : Math.max(profile.hero.balanceLineHeight, 48),
-    letterSpacing: profile.hero.balanceLetterSpacing,
-    color: theme.colors.text,
-  } as const;
-
-  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
-  const primaryDetail = notConfigured
-    ? "PAPER 연결 후 실제 시장 입력과 모의계좌 상태를 표시합니다."
-    : readOnlyError
-      ? "현재 연결 상태를 복구한 뒤 판단을 다시 확인합니다."
-      : aiInsightAvailable
-        ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
-        : "시장 데이터는 읽기 전용으로 분석 중입니다.";
-  const runPrimaryAction = () => {
-    if (notConfigured || readOnlyError) return onGoSettings();
-    onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
-  };
-
-  const cornerStyle = { borderColor: theme.colors.aiSignalEnd } as const;
-
-  return <ScrollView
-    contentContainerStyle={[styles.content, contentStyle]}
-    refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
-    testID="home-screen"
-  >
-    <View style={styles.masterRail} testID="home-master-rail">
-      <View style={styles.brandLockup}>
-        <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
-        <View style={[styles.brandUnderline, { backgroundColor: theme.colors.aiSignalEnd }]} />
-        <Text style={[styles.brandMeta, { color: theme.colors.textMuted }]}>INTELLIGENCE / PAPER CONTROL</Text>
-      </View>
-      <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
+  return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
+    <View style={[styles.v3Banner, { borderColor: theme.colors.aiSignalEnd }]} testID="home-v3-command-surface">
+      <View style={styles.v3Topline}><Text style={[styles.v3Mark, { color: theme.colors.aiSignalEnd }]}>NUSA // V3</Text><QuietStatus label={statusLabel} tone={snapshot ? healthTone(snapshot.health) : "warning"} testID="home-paper-status" /></View>
+      <Text style={[styles.v3Title, { color: theme.colors.text }]}>COMMAND{`\n`}HOME</Text>
+      <Text style={[styles.v3Subtitle, { color: theme.colors.textMuted }]}>PAPER INTELLIGENCE · READ ONLY · ZERO AUTHORITY</Text>
     </View>
 
-    <MotionReveal testID="home-hero-reveal">
-      <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
-        <View style={[styles.cornerTL, cornerStyle]} /><View style={[styles.cornerTR, cornerStyle]} /><View style={[styles.cornerBL, cornerStyle]} /><View style={[styles.cornerBR, cornerStyle]} />
-        <View style={styles.deckHeader}>
-          <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>01 // CAPITAL CORE</Text>
-          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
-        </View>
-        <Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
-        {disconnected ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text> : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>{account ? krw(account.equity) : "-"}</Text>}
-        <View style={styles.pnlRow}>
-          <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
-          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>CUMULATIVE PAPER P&L</Text>
-        </View>
-        {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
-          <View style={styles.cashMetric} testID="home-investable-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>DEPLOYABLE {cashEnvelope.investmentPercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text></View>
-          <View style={[styles.cashDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.cashMetric} testID="home-reserved-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>RESERVE {cashEnvelope.reservePercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text></View>
-        </View> : null}
-      </View>
-    </MotionReveal>
-
-    <View style={[styles.signalStage, { borderColor: theme.colors.borderStrong }]} testID="ai-card">
-      <View style={styles.deckHeader}>
-        <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>02 // SIGNAL TERRAIN</Text><Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text></View>
-        <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}</Text>
-      </View>
-      <View style={styles.terrainHero} testID="home-decision-stage">
-        <View style={[styles.crosshairH, { backgroundColor: theme.colors.border }]} />
-        <View style={[styles.crosshairV, { backgroundColor: theme.colors.border }]} />
-        <View style={[styles.scanlineA, { backgroundColor: theme.colors.aiSignalEnd }]} />
-        <View style={[styles.scanlineB, { backgroundColor: theme.colors.aiSignalEnd }]} />
-        <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
-        <View style={styles.signalLegend}><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.signalLegendText, { color: theme.colors.aiSignalEnd }]}>NEUTRAL</Text><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>OPPORTUNITY</Text></View>
-      </View>
-      <View style={[styles.decisionCopy, { borderTopColor: theme.colors.border }]} testID={aiInsightAvailable ? "home-verified-decision" : "home-pending-decision"}>
-        <Text style={[styles.judgement, { color: theme.colors.text }]}>{aiInsightAvailable ? (ai?.thesis ?? "") : disconnected ? "PAPER LINK REQUIRED" : "DECISION HOLD"}</Text>
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `EVIDENCE ${ai?.evidenceReferences.length ?? 0} · ${calibratedConfidence ?? "UNCALIBRATED"} · AI READ ONLY · ZERO AUTHORITY` : primaryDetail}</Text>
-      </View>
+    <View style={[styles.equityField, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
+      <Text style={[styles.sectionIndex, { color: theme.colors.aiSignalEnd }]}>CAPITAL / 01</Text>
+      <Text style={[styles.label, { color: theme.colors.textMuted }]}>TOTAL PAPER EQUITY</Text>
+      <Text style={[styles.equity, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1} testID={disconnected ? "home-equity-placeholder" : undefined}>{disconnected ? "NO LINK" : account ? krw(account.equity) : "—"}</Text>
+      <View style={styles.pnlLine}><Text style={[styles.pnl, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text><Text style={[styles.micro, { color: theme.colors.textMuted }]}>CUMULATIVE P&L</Text></View>
+      {cashEnvelope ? <View style={[styles.cashStrip, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation"><View style={styles.cashBlock} testID="home-investable-cash"><Text style={[styles.micro, { color: theme.colors.textMuted }]}>DEPLOYABLE {cashEnvelope.investmentPercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text></View><View style={styles.cashBlock} testID="home-reserved-cash"><Text style={[styles.micro, { color: theme.colors.textMuted }]}>RESERVE {cashEnvelope.reservePercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text></View></View> : null}
     </View>
 
-    <View style={styles.telemetryGrid} testID="home-telemetry-grid">
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.aiSignalEnd }]}>ZERO</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>LIVE AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>NONE</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>FALSE</Text></View>
+    <View style={[styles.intelligenceField, { borderColor: theme.colors.aiSignalEnd }]} testID="ai-card">
+      <View style={styles.signalHeader}><View><Text style={[styles.sectionIndex, { color: theme.colors.aiSignalEnd }]}>INTELLIGENCE / 02</Text><Text style={[styles.signalTitle, { color: theme.colors.text }]}>NUSA DECISION FIELD</Text></View><Text style={[styles.signalState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "HOLD"}</Text></View>
+      <View style={styles.signalCanvas} testID="home-decision-stage"><TerrainSignal variant="symbolic" signalStrength={signalReady ? 0.96 : snapshot ? 0.5 : 0.22} accessibilityLabel="NUSA decision signal field" testID="home-signal-trace" /></View>
+      <View style={[styles.decision, { borderTopColor: theme.colors.aiSignalEnd }]} testID={aiInsightAvailable ? "home-verified-decision" : "home-pending-decision"}><Text style={[styles.decisionText, { color: theme.colors.text }]}>{aiInsightAvailable ? ai?.thesis : disconnected ? "PAPER LINK REQUIRED" : "DECISION HOLD"}</Text><Text style={[styles.micro, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? `EVIDENCE ${ai?.evidenceReferences.length ?? 0} · ${calibratedConfidence ?? "UNCALIBRATED"} · AI READ ONLY` : primaryDetail}</Text></View>
     </View>
+
+    <View style={[styles.authorityStrip, { borderColor: theme.colors.borderStrong }]} testID="home-telemetry-grid"><View style={styles.authorityItem}><Text style={[styles.micro, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.authorityValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View><View style={styles.authorityItem}><Text style={[styles.micro, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.authorityValue, { color: theme.colors.aiSignalEnd }]}>ZERO</Text></View><View style={styles.authorityItem}><Text style={[styles.micro, { color: theme.colors.textMuted }]}>LIVE</Text><Text style={[styles.authorityValue, { color: theme.colors.text }]}>NONE</Text></View><View style={styles.authorityItem}><Text style={[styles.micro, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.authorityValue, { color: theme.colors.text }]}>FALSE</Text></View></View>
 
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
     {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
 
-    {!disconnected ? <View style={[styles.actionDeck, { borderColor: theme.colors.borderStrong }]} testID="home-next-action">
-      <View style={styles.primaryCopy}><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>NEXT DECISION</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View>
-      <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-next-action-button"><Text style={[styles.primaryLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text></Pressable>
-    </View> : null}
-
+    {!disconnected ? <View style={[styles.actionBar, { borderColor: theme.colors.aiSignalEnd }]} testID="home-next-action"><View style={styles.actionCopy}><Text style={[styles.sectionIndex, { color: theme.colors.aiSignalEnd }]}>NEXT COMMAND</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View><Pressable accessibilityRole="button" onPress={runPrimaryAction} style={[styles.actionButton, { borderColor: theme.colors.aiSignalEnd }]} testID="home-next-action-button"><Text style={[styles.actionLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text></Pressable></View> : null}
     {!disconnected ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" /> : null}
 
-    <View style={[styles.secondaryDiagnostics, { borderTopColor: theme.colors.border }]} testID="safety-card">
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: diagnosticsOpen }} onPress={() => setDiagnosticsOpen((open) => !open)} style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-diagnostics-toggle">
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text>
-      </Pressable>
-      {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
-        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : "warning"} />
-        <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
-        <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
-        <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
-        <CompactMetric label="Production mutation" value="false" detail="fail-closed" />
-        {aiInsightAvailable ? <InsightPanel title="NUSA VIEW" thesis={ai?.thesis ?? ""} meta={`근거 ${ai?.evidenceReferences.length ?? 0}개 · READ ONLY`} confidenceLabel={calibratedConfidence} /> : null}
-      </View> : null}
-    </View>
+    <View style={[styles.safety, { borderTopColor: theme.colors.border }]} testID="safety-card"><Pressable accessibilityRole="button" accessibilityState={{ expanded: diagnosticsOpen }} onPress={() => setDiagnosticsOpen(v => !v)} style={styles.safetyToggle} testID="home-diagnostics-toggle"><Text style={[styles.sectionIndex, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.actionLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text></Pressable>{diagnosticsOpen ? <View testID="home-secondary-diagnostics"><CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : disconnected ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : "warning"} /><CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} /><CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} /><CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" /><CompactMetric label="Production mutation" value="false" detail="fail-closed" />{aiInsightAvailable ? <InsightPanel title="NUSA VIEW" thesis={ai?.thesis ?? ""} meta={`근거 ${ai?.evidenceReferences.length ?? 0}개 · READ ONLY`} confidenceLabel={calibratedConfidence} /> : null}</View> : null}</View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { width: "100%", alignSelf: "center" },
-  masterRail: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingBottom: 4 },
-  brandLockup: { gap: 3 },
-  wordmark: { fontSize: 32, lineHeight: 34, fontWeight: "900", letterSpacing: 1.8 },
-  brandUnderline: { width: 74, height: 3 },
-  brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: 2.1 },
-  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
-  cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
-  cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
-  cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3 },
-  cornerBR: { position: "absolute", right: -1, bottom: -1, width: 18, height: 18, borderRightWidth: 3, borderBottomWidth: 3 },
-  deckHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  kicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.6 },
-  heroLabel: { marginTop: 28, fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 2 },
-  balance: { marginTop: 4, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  placeholderBalance: { marginTop: 12, fontSize: 42, lineHeight: 48, fontWeight: "900", letterSpacing: 1 },
-  pnlRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 8 },
-  pnlValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", letterSpacing: 0.3, fontVariant: ["tabular-nums"] },
-  meta: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 0.5 },
-  cashRail: { flexDirection: "row", borderTopWidth: 1, marginTop: 22, paddingTop: 14 },
-  cashMetric: { flex: 1, gap: 5 },
-  cashDivider: { width: 1, marginHorizontal: 14 },
-  cashLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.2 },
-  cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800" },
-  signalStage: { borderWidth: 1, padding: 14, overflow: "hidden" },
-  stageTitle: { marginTop: 3, fontSize: 24, lineHeight: 28, fontWeight: "900", letterSpacing: 0.6 },
-  decisionState: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 1.3 },
-  terrainHero: { position: "relative", height: 300, marginTop: 10, overflow: "hidden", justifyContent: "center" },
-  crosshairH: { position: "absolute", left: 0, right: 0, top: "50%", height: 1, opacity: 0.7 },
-  crosshairV: { position: "absolute", top: 0, bottom: 22, left: "50%", width: 1, opacity: 0.55 },
-  scanlineA: { position: "absolute", width: 1, height: 52, left: "28%", top: 70, opacity: 0.45 },
-  scanlineB: { position: "absolute", width: 1, height: 72, right: "23%", bottom: 58, opacity: 0.28 },
-  signalLegend: { position: "absolute", left: 4, right: 4, bottom: 2, flexDirection: "row", justifyContent: "space-between" },
-  signalLegendText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.4 },
-  decisionCopy: { borderTopWidth: 1, paddingTop: 14, gap: 6 },
-  judgement: { fontSize: 19, lineHeight: 26, fontWeight: "900" },
-  telemetryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between" },
-  telemetryLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.3 },
-  telemetryValue: { fontSize: 17, lineHeight: 21, fontWeight: "900", letterSpacing: 0.5 },
-  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
-  primaryCopy: { flex: 1, gap: 5 },
+  content: { width: "100%", maxWidth: 980, alignSelf: "center", paddingHorizontal: 14, paddingTop: 12, paddingBottom: 40, gap: 12 },
+  v3Banner: { borderLeftWidth: 5, borderBottomWidth: 1, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 18, minHeight: 190, justifyContent: "space-between" },
+  v3Topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  v3Mark: { fontSize: 11, fontWeight: "900", letterSpacing: 2.4 },
+  v3Title: { fontSize: 54, lineHeight: 50, fontWeight: "900", letterSpacing: -2.4 },
+  v3Subtitle: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.5 },
+  equityField: { borderWidth: 1, padding: 18, minHeight: 230 },
+  sectionIndex: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.7 },
+  label: { marginTop: 30, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
+  equity: { marginTop: 4, fontSize: 48, lineHeight: 56, fontWeight: "900", letterSpacing: -1.8, fontVariant: ["tabular-nums"] },
+  pnlLine: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 8 },
+  pnl: { fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  micro: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 1 },
+  cashStrip: { borderTopWidth: 1, flexDirection: "row", gap: 18, marginTop: 20, paddingTop: 14 },
+  cashBlock: { flex: 1, gap: 5 },
+  cashValue: { fontSize: 15, fontWeight: "900" },
+  intelligenceField: { borderWidth: 2, padding: 14, minHeight: 420 },
+  signalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+  signalTitle: { marginTop: 5, fontSize: 24, lineHeight: 28, fontWeight: "900" },
+  signalState: { fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  signalCanvas: { height: 270, justifyContent: "center", overflow: "hidden" },
+  decision: { borderTopWidth: 2, paddingTop: 14, gap: 8 },
+  decisionText: { fontSize: 20, lineHeight: 27, fontWeight: "900" },
+  authorityStrip: { borderWidth: 1, flexDirection: "row", flexWrap: "wrap" },
+  authorityItem: { width: "50%", minHeight: 70, padding: 11, justifyContent: "space-between" },
+  authorityValue: { fontSize: 17, fontWeight: "900" },
+  actionBar: { borderWidth: 2, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  actionCopy: { flex: 1, gap: 5 },
   actionDetail: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
-  primaryButton: { borderWidth: 1, minHeight: 44, minWidth: 112, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
-  primaryLabel: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 0.9 },
-  secondaryDiagnostics: { borderTopWidth: 1, paddingTop: 12 },
-  diagnosticsToggle: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  diagnosticsToggleLabel: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.8 },
+  actionButton: { minWidth: 108, minHeight: 48, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  actionLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  safety: { borderTopWidth: 1, paddingTop: 8 },
+  safetyToggle: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 });
