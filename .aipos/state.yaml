@@ -27,6 +27,19 @@ current_non_live_work_order:
   full_isolated_suite: PASS_581_FILES
   repository_gates: PASS
   scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
+wo_0071_validation:
+  work_order: WO-0071
+  pull_request: 744
+  branch: agent/wo-0071-remediation-readiness-and-aipos-reconciliation
+  starting_head: 208944181ba81ea82ce85c8f4a963c8331ae3858
+  implementation_commit: 0620c1315f5e700f982c2f7ec80301b117ddcae1
+  status: COMPLETED
+  evidence: .aipos/evidence/WO-0071-completion.json
+  remediation_readiness: PASS_13_OF_13
+  provenance_reconciliation: PASS_7_OF_7_NON_DESTRUCTIVE
+  full_isolated_suite: PASS_586_FILES
+  exact_head_ci: PASS_6_OF_6
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
   issue: 210

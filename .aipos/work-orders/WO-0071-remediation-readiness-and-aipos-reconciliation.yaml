@@ -1,8 +1,12 @@
 id: WO-0071
 title: Remediation Readiness and AIPOS Reconciliation
-status: in_progress
+status: COMPLETED
 branch: agent/wo-0071-remediation-readiness-and-aipos-reconciliation
 base_sha: 31bd6103263729f81a57e4f21a2b02aa431223f1
+pull_request: 744
+starting_head: 208944181ba81ea82ce85c8f4a963c8331ae3858
+implementation_commit: 0620c1315f5e700f982c2f7ec80301b117ddcae1
+completed_at: "2026-08-24T12:55:19+09:00"
 objective: >-
   Reconcile conflicting WO-0070 AIPOS records without deleting or overwriting valid historical evidence, then extend the read-only improvement pipeline with deterministic execution-readiness assessment for prioritized remediation proposals. The output remains advisory-only and non-executable.
 phases:
@@ -61,4 +65,30 @@ verification:
   - relevant focused remediation tests
   - full repository test suite when required by policy
   - git diff --check
+completion:
+  remediation_readiness_test: PASS_13_OF_13
+  provenance_reconciliation_test: PASS_7_OF_7
+  focused_combined_tests: PASS_20_OF_20
+  full_isolated_suite: PASS_586_FILES
+  aipos_provenance: PASS_RECONCILED_WO_0063_WO_0070
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  architecture_truth: PASS
+  ai_zero_authority: PASS
+  safety_architecture: PASS
+  safety_invariants: PASS
+  security_gate: PASS_SECRETS_0
+  git_diff_check: PASS
+  exact_head_ci:
+    ci: 32687604133
+    actual_paper_runtime: 32687604213
+    restricted_live_activation_rehearsal: 32687604179
+    restricted_live_transport_credential_readiness: 32687604130
+    restricted_live_capability_surface_guard: 32687604182
+    read_only_broker_credential_integration: 32687604186
+    conclusion: PASS
 next_on_pass: normal review and merge process
