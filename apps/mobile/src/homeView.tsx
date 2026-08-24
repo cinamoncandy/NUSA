@@ -1,10 +1,11 @@
 import React from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { NusaButton, TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
+import { getHomeVisualProfile } from "./homeVisualProfile";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -27,9 +28,12 @@ function healthTone(health: string | undefined): "success" | "warning" | "danger
 }
 
 export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfigured, refreshing, onRefresh, onGoSettings, onNavigate, onOpenPaperLearning }: HomeViewProps) {
-  const { theme } = useTheme();
-  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
+  const { width } = useWindowDimensions();
+  const { theme, preset } = useTheme();
+  const profile = getHomeVisualProfile(preset);
+  const tablet = width >= 768;
   const account = snapshot?.portfolio?.account ?? null;
+  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
@@ -43,7 +47,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
   const primaryDetail = disconnected ? "PAPER 연결 후 모의계좌와 시장 판단을 표시합니다." : readOnlyError ? "연결 상태를 복구한 뒤 판단을 다시 확인합니다." : aiInsightAvailable ? "검증된 근거와 현재 NUSA 판단을 확인합니다." : "시장 데이터는 읽기 전용으로 분석 중입니다.";
   const runPrimaryAction = () => { if (disconnected || readOnlyError) return onGoSettings(); onNavigate(aiInsightAvailable ? "AiSignal" : "Markets"); };
 
-  return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
+  return <ScrollView contentContainerStyle={[styles.content, { maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth, paddingHorizontal: profile.screen.horizontalPadding, paddingTop: profile.screen.topPadding, paddingBottom: profile.screen.bottomPadding, gap: profile.screen.sectionGap }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="home-screen">
     <View style={[styles.v3Banner, { borderColor: theme.colors.aiSignalEnd }]} testID="home-v3-command-surface">
       <View style={styles.v3Topline}><Text style={[styles.v3Mark, { color: theme.colors.aiSignalEnd }]}>NUSA // V3</Text><QuietStatus label={statusLabel} tone={snapshot ? healthTone(snapshot.health) : "warning"} testID="home-paper-status" /></View>
       <Text style={[styles.v3Title, { color: theme.colors.text }]}>COMMAND{`\n`}HOME</Text>
@@ -77,7 +81,7 @@ export function HomeView({ snapshot, investmentPercent, readOnlyError, notConfig
 }
 
 const styles = StyleSheet.create({
-  content: { width: "100%", maxWidth: 980, alignSelf: "center", paddingHorizontal: 14, paddingTop: 12, paddingBottom: 40, gap: 12 },
+  content: { width: "100%", alignSelf: "center" },
   v3Banner: { borderLeftWidth: 5, borderBottomWidth: 1, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 18, minHeight: 190, justifyContent: "space-between" },
   v3Topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   v3Mark: { fontSize: 11, fontWeight: "900", letterSpacing: 2.4 },
