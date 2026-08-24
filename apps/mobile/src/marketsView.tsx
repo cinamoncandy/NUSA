@@ -6,6 +6,7 @@ import { ChartView } from "./chartView";
 import { WatchlistView } from "./watchlistView";
 import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
+import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
@@ -17,6 +18,7 @@ interface MarketsViewProps {
   readonly stale: boolean;
   readonly marketsStale: boolean;
   readonly chartError: string | null;
+  readonly chartErrorDiagnostic: PublicQuotationDiagnostic | null;
   readonly error: string | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
@@ -25,7 +27,7 @@ interface MarketsViewProps {
 
 type Panel = "WATCHLIST" | "CHART";
 
-export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
+export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §6): the chart is the dominant/first
@@ -57,7 +59,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
   const watchlist = <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
-    <ChartView changeRate={changeRate} error={chartError ?? error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />
+    <ChartView changeRate={changeRate} diagnostic={chartError ? chartErrorDiagnostic : null} error={chartError ?? error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />
     <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]}>
       <View style={styles.tradeCopy}>
         <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>NEXT</Text>
