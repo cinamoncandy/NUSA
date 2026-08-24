@@ -46,21 +46,31 @@ test("malformed, non-finite, negative, invalid-market, and invalid-timestamp dat
 
 test("HTTP failure is surfaced and quotation requests remain HTTPS GET-only without authorization", async () => {
   const calls = [];
-  await assert.rejects(() => loadUpbitPublicMarkets({ request: mockRequest({ error: "rate limited" }, 429, calls) }), /unavailable \(429\)/);
+  await assert.rejects(() => loadUpbitPublicMarkets({ request: mockRequest({ error: "rate limited" }, 429, calls) }), /unavailable \(429: rate limited\)/);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /^https:\/\/api\.upbit\.com\/v1\/ticker\/all/);
   assert.equal(calls[0].init.method, "GET");
-  assert.equal(calls[0].init.headers.authorization, undefined);
-  assert.equal(calls[0].init.headers["x-api-key"], undefined);
+  assert.equal(calls[0].init.headers, undefined);
 });
 
-test("quotation requests rely on the native User-Agent and do not duplicate it", async () => {
-  // React Native's networking stack supplies User-Agent. Upbit's 2026-07-31 header handling
-  // rejects duplicated request headers with HTTP 400, so the JS request must not add another.
+test("quotation requests rely entirely on native networking headers", async () => {
+  // React Native/OkHttp supplies the platform headers. Upbit's 2026-07-31 handling can reject
+  // duplicated headers with HTTP 400, so the JS request supplies no header overrides at all.
   const calls = [];
   await loadUpbitPublicMarkets({ request: mockRequest([ticker()], 200, calls) });
-  assert.equal(calls[0].init.headers["user-agent"], undefined);
-  assert.equal(calls[0].init.headers.accept, "application/json");
+  assert.equal(calls[0].init.headers, undefined);
+});
+
+test("structured Upbit errors expose the server error code and message for real-device diagnosis", async () => {
+  const calls = [];
+  await assert.rejects(
+    () => loadUpbitPublicCandles({
+      market: "KRW-BTC",
+      request: mockRequest({ error: { name: "validation_error", message: "invalid request parameter" } }, 400, calls),
+    }),
+    /unavailable \(400: validation_error: invalid request parameter\)/,
+  );
+  assert.equal(calls.length, 1);
 });
 
 test("App keeps public Markets state independent from PAPER configuration and exposes stale refresh state", () => {

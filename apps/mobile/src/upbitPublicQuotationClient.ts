@@ -67,6 +67,34 @@ function timeoutMs(value: number | undefined): number {
   return timeout;
 }
 
+function compactErrorText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) return undefined;
+  return compact.slice(0, 160);
+}
+
+async function upstreamError(response: Response): Promise<Error> {
+  let detail: string | undefined;
+  try {
+    const payload = await response.json() as unknown;
+    if (payload != null && typeof payload === "object" && !Array.isArray(payload)) {
+      const record = payload as Record<string, unknown>;
+      if (record.error != null && typeof record.error === "object" && !Array.isArray(record.error)) {
+        const error = record.error as Record<string, unknown>;
+        const name = compactErrorText(error.name);
+        const message = compactErrorText(error.message);
+        detail = [name, message].filter(Boolean).join(": ") || undefined;
+      } else {
+        detail = compactErrorText(record.error);
+      }
+    }
+  } catch {
+    // Upbit normally returns JSON errors, but status alone is still actionable if it does not.
+  }
+  return new Error(`Upbit public quotation unavailable (${response.status}${detail ? `: ${detail}` : ""}).`);
+}
+
 async function requestJson(path: string, options: UpbitPublicQuotationClientOptions): Promise<unknown> {
   const request = options.request ?? fetch;
   const controller = new AbortController();
@@ -76,11 +104,11 @@ async function requestJson(path: string, options: UpbitPublicQuotationClientOpti
       method: "GET",
       redirect: "error",
       signal: controller.signal,
-      // React Native's native networking stack supplies User-Agent. Do not add another one:
-      // Upbit rejects duplicated request headers with HTTP 400 after its 2026-07-31 change.
-      headers: { accept: "application/json" },
+      // Do not add JS-layer headers here. React Native/OkHttp already supplies its native
+      // request headers, and Upbit rejects duplicated headers with HTTP 400. The public GET
+      // endpoint does not require Authorization, Content-Type, User-Agent, or Accept overrides.
     });
-    if (!response.ok) throw new Error(`Upbit public quotation unavailable (${response.status}).`);
+    if (!response.ok) throw await upstreamError(response);
     return await response.json();
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Upbit public quotation")) throw error;
