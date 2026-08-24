@@ -1,0 +1,64 @@
+id: WO-0071
+title: Remediation Readiness and AIPOS Reconciliation
+status: in_progress
+branch: agent/wo-0071-remediation-readiness-and-aipos-reconciliation
+base_sha: 31bd6103263729f81a57e4f21a2b02aa431223f1
+objective: >-
+  Reconcile conflicting WO-0070 AIPOS records without deleting or overwriting valid historical evidence, then extend the read-only improvement pipeline with deterministic execution-readiness assessment for prioritized remediation proposals. The output remains advisory-only and non-executable.
+phases:
+  - id: RECONCILE_WO_0070
+    requirements:
+      - preserve PR #738 exact head d83b7e0354681df3b1b86bee1e0d805d2108b970 and merge commit 43fdc4a12305d10c16e5c70ba0f20caa9b501188 as the canonical Deterministic Remediation Prioritization history
+      - preserve any pre-existing WO-0070 evidence with different scope as conflicting historical evidence; do not silently overwrite or delete it
+      - add explicit provenance/canonicalization notes so future automation cannot conflate distinct WO-0070 scopes
+      - mark the prioritization work order completed only when repository truth, PR history, and evidence references agree
+  - id: REMEDIATION_EXECUTION_READINESS
+    requirements:
+      - consume only verified and prioritized remediation proposals
+      - deterministically assess dependency readiness, implementation prerequisites, blast radius, rollback completeness, verification coverage, protected-surface impact, and human-approval requirements
+      - produce stable readiness status, reason codes, provenance and bounded advisory queue
+      - fail closed on stale, malformed, contradictory, insufficient, unverifiable, protected or unsupported inputs
+      - identical canonical inputs produce identical readiness results and ordering
+non_goals:
+  - automatic code modification
+  - self-modification
+  - automatic remediation execution
+  - automatic branch creation, commit, push, PR, merge, release or deployment from readiness output
+  - broker or order mutation
+  - Risk Authority mutation
+  - credential mutation
+  - LIVE or real-money authority
+constraints:
+  - reuse existing improvement pipeline and AIPOS architecture
+  - no duplicate EventBus, persistence, planner, queue or execution framework
+  - no fabricated probability of success, expected return, confidence or financial value
+  - outputs are read-only advisory artifacts only
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - WO-0070 provenance conflict is explicitly reconciled without destructive history rewriting
+  - canonical PR #738 prioritization lineage is preserved
+  - only verified+prioritized remediation proposals are eligible for readiness assessment
+  - readiness result exposes explicit prerequisites, dependencies, blast radius, rollback, verification coverage and approval requirements
+  - deterministic replay and tie-breaking are covered by tests
+  - duplicate inputs are idempotent
+  - protected/stale/malformed/contradictory/insufficient inputs fail closed
+  - no mutation or execution authority is introduced
+  - previous WO-0063 through WO-0070 behavior remains compatible
+  - focused tests pass
+  - full repository regression passes when required
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and git diff checks pass
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused remediation tests
+  - full repository test suite when required by policy
+  - git diff --check
+next_on_pass: normal review and merge process
