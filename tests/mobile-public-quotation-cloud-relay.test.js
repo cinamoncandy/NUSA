@@ -15,7 +15,7 @@ function mockRequest(payload, calls) {
   };
 }
 
-test("configured canonical Cloud origin removes direct Upbit REST from mobile", async () => {
+test("configured canonical Cloud origin does not reroute isolated public Upbit quotation", async () => {
   const previous = process.env.EXPO_PUBLIC_NUSA_API_BASE_URL;
   process.env.EXPO_PUBLIC_NUSA_API_BASE_URL = "https://nusa-api.example";
   try {
@@ -23,9 +23,9 @@ test("configured canonical Cloud origin removes direct Upbit REST from mobile", 
     await loadUpbitPublicMarkets({ request: mockRequest([ticker()], calls) });
     await loadUpbitPublicCandles({ market: "KRW-BTC", count: 120, request: mockRequest([candle()], calls) });
 
-    assert.equal(calls[0].url, "https://nusa-api.example/api/public/upbit/ticker");
-    assert.equal(calls[1].url, "https://nusa-api.example/api/public/upbit/candles?market=KRW-BTC&count=120");
-    assert.equal(calls.every((call) => !call.url.startsWith("https://api.upbit.com")), true);
+    assert.equal(calls[0].url, "https://api.upbit.com/v1/ticker/all?quote_currencies=KRW");
+    assert.equal(calls[1].url, "https://api.upbit.com/v1/candles/minutes/1?market=KRW-BTC&count=120");
+    assert.equal(calls.every((call) => !call.url.startsWith("https://nusa-api.example")), true);
     assert.equal(calls.every((call) => call.init.method === "GET"), true);
     assert.equal(calls.every((call) => call.init.headers === undefined), true);
   } finally {
