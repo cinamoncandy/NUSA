@@ -4,6 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile", file), "utf8");
+const withoutComments = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
 
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
@@ -55,5 +58,6 @@ test("visual redesign keeps the authority boundary unchanged", () => {
   assert.match(app, /label="PAPER ONLY"/);
   assert.match(app, /label="LIVE NONE"/);
   assert.match(components, /ZERO AUTHORITY/);
-  assert.doesNotMatch(read("src/upbitPublicQuotationClient.ts"), /Authorization|Access-Key|Secret-Key|JWT/);
+  const quotationRuntime = withoutComments(read("src/upbitPublicQuotationClient.ts"));
+  assert.doesNotMatch(quotationRuntime, /Authorization|Access-Key|Secret-Key|JWT/);
 });

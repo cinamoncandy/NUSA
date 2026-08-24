@@ -27,17 +27,21 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
   assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 18 : profile\.screen\.sectionGap/);
+  assert.match(home, /gap:\s*tablet \? 24 : 18/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(home, /fontSize:\s*tablet \? profile\.hero\.tabletBalanceSize : profile\.hero\.balanceSize/);
-  assert.match(home, /lineHeight:\s*tablet \? profile\.hero\.tabletBalanceLineHeight : profile\.hero\.balanceLineHeight/);
+  assert.match(home, /fontSize:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceSize, 58\) : Math\.max\(profile\.hero\.balanceSize, 42\)/);
+  assert.match(home, /lineHeight:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceLineHeight, 64\) : Math\.max\(profile\.hero\.balanceLineHeight, 48\)/);
   assert.match(home, /letterSpacing:\s*profile\.hero\.balanceLetterSpacing/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.doesNotMatch(home, /!disconnected \? <NusaButton[\s\S]*home-paper-learning/);
+  assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
+  assert.match(home, /SIGNAL FIELD/);
   assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
 });
 
