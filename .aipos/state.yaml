@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T12:34:00+09:00"
+updated_at: "2026-08-24T20:58:46+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -714,3 +714,30 @@ issue_661_shadow_transport_unified_monitor:
     ai_authority: ZERO_AUTHORITY
     broker_mutation: NONE
   external_validation: PENDING_EXACT_HEAD_CI_AND_REVIEW
+
+issue_661_live_readiness_production_source:
+  work_order: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
+  issue: 661
+  status: IN_PROGRESS
+  base_sha: 83f312fb4bc1cd1a35cf53071556671a93913ca0
+  branch: agent/live-readiness-production-source
+  scope: "Canonical production read-only LiveReadinessSourceSnapshot provider and runtime accessor; no LIVE_READY transport/UI in this slice."
+  implementation_status: LOCAL_IMPLEMENTATION_VALIDATED_PENDING_PR
+  local_validation:
+    focused_provider: PASS_7_OF_7
+    existing_readiness: PASS_16_OF_16
+    full_isolated_suite: PASS_589_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture: PASS
+    safety: PASS
+    security: PASS
+    aipos: PASS
+    package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    activation: READ_ONLY_UNAVAILABLE_BY_DEFAULT
+  remote_validation: PENDING_GITHUB_AUTH_AND_PR

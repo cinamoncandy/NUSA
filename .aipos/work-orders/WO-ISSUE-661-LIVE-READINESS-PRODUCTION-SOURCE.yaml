@@ -1,0 +1,52 @@
+id: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
+title: "Issue #661 canonical LIVE readiness production source"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 661
+base_branch: main
+base_commit: 83f312fb4bc1cd1a35cf53071556671a93913ca0
+implementation_branch: agent/live-readiness-production-source
+objective: "Provide the smallest production read-only LiveReadinessSourceSnapshot source for the existing LiveReadinessGate without adding LIVE activation or execution authority."
+canonical_sources:
+  readiness_evaluator: apps/cloud/src/liveReadinessGate.ts
+  source_contract: apps/cloud/src/liveReadinessEvidence.ts
+  production_runtime: apps/cloud/src/runtime.ts
+  paper_observability: apps/cloud/src/paperLearningObservability.ts
+  shadow_contract: packages/contracts/src/shadowObservabilityReadOnly.ts
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+scope:
+  - canonical_read_only_source_provider
+  - production_runtime_accessor
+  - deterministic_provenance_and_freshness
+  - fail_closed_unknown_missing_inputs
+  - existing_gate_integration
+prohibited:
+  - new_readiness_evaluator
+  - live_activation_or_lease_issuance
+  - order_cancel_withdrawal_or_transfer
+  - broker_credentials_or_private_api
+  - observability_ui_or_public_live_transport
+acceptance:
+  - provider_is_reachable_from_production_runtime
+  - canonical_inputs_are_read_only_and_explicit
+  - missing_or_stale_inputs_do_not_pass
+  - provenance_fingerprint_and_ordering_are_deterministic
+  - existing_live_readiness_gate_consumes_provider_projection
+  - no_authority_invariant_changes
+validation:
+  local_focused_provider: PASS_7_OF_7
+  existing_readiness_regression: PASS_16_OF_16
+  full_isolated_suite: PASS_589_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_safety_security_aipos: PASS
+  package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET_PREEXISTING_NORMAL_BUILD_MAP_MISMATCH
+  exact_head_remote_validation: PENDING
+  pull_request: PENDING
+next: "Publish only after final exact-head validation; resume Issue #661 LIVE_READY transport/UI only after this provider is merged."

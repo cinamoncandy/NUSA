@@ -36,6 +36,8 @@ export interface LiveReadinessEvidence {
   readonly environmentFingerprint: string;
   readonly accountFingerprint: string;
   readonly riskLimits?: LiveRiskLimits;
+  /** Production source providers set this false when any critical source is missing or stale. */
+  readonly sourceEvidenceAvailable?: boolean;
 }
 
 export interface LiveRuntimeSafetyState {
@@ -117,6 +119,7 @@ export function evaluateLiveReadiness(
   ];
   for (const [passed, reason] of checks) if (!passed) blockers.push(reason);
   blockers.push(...validateLiveRiskLimits(evidence.riskLimits));
+  if (evidence.sourceEvidenceAvailable === false) blockers.push("SOURCE_EVIDENCE_INCOMPLETE");
   if (!evidence.environmentFingerprint.trim()) blockers.push("ENVIRONMENT_FINGERPRINT_MISSING");
   if (!evidence.accountFingerprint.trim()) blockers.push("ACCOUNT_FINGERPRINT_MISSING");
 
