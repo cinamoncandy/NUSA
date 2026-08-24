@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-23T15:20:00+09:00"
+updated_at: "2026-08-24T12:34:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -10,10 +10,19 @@ active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
+  # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
+  # never sufficient to resolve the active scope; automation must use this scope-qualified
+  # canonical lineage instead.
+  scope_id: WO-0070.deterministic-remediation-prioritization
+  canonical_work_order: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
+  canonical_pull_request: 738
+  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
   status: IN_PROGRESS
   branch: agent/wo-0070-deterministic-remediation-prioritization
   base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
   implementation_commit: 3711390a
+  implementation_commit_status: PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED
   focused_tests: PASS_5_OF_5
   full_isolated_suite: PASS_581_FILES
   repository_gates: PASS

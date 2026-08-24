@@ -15,6 +15,7 @@ const { block, scalar } = require("./validate-aipos-drift.js");
 
 const RECONCILIATION_PATH = ".aipos/evidence/WO-0071-work-order-id-provenance-reconciliation.json";
 const WORK_ORDER_DIR = ".aipos/work-orders";
+const STATE_PATH = ".aipos/state.yaml";
 
 function workOrderFiles(root) {
   const directory = join(root, normalize(WORK_ORDER_DIR));
@@ -23,6 +24,52 @@ function workOrderFiles(root) {
     .filter((name) => /\.ya?ml$/i.test(name))
     .sort()
     .map((name) => ({ name, path: `${WORK_ORDER_DIR}/${name}`, source: readFileSync(join(directory, name), "utf8") }));
+}
+
+function validateStateBinding(root, reconciliation, failures) {
+  const statePath = join(root, normalize(STATE_PATH));
+  if (!existsSync(statePath)) {
+    failures.push(`RECONCILIATION_STATE_MISSING:${STATE_PATH}`);
+    return;
+  }
+
+  const state = readFileSync(statePath, "utf8");
+  const current = block(state, "current_non_live_work_order");
+  const id = scalar(current, "id");
+  const scopeId = scalar(current, "scope_id");
+  const collidingIds = new Set((reconciliation.scopes || []).map((scope) => String(scope?.scope_id || "").split(".")[0]));
+  if (!id || !collidingIds.has(id)) return;
+
+  if (!scopeId) {
+    failures.push(`RECONCILIATION_STATE_SCOPE_ID_MISSING:${id}`);
+    return;
+  }
+  const scope = (reconciliation.scopes || []).find((candidate) => candidate?.scope_id === scopeId);
+  if (!scope) {
+    failures.push(`RECONCILIATION_STATE_SCOPE_UNKNOWN:${scopeId}`);
+    return;
+  }
+  if (scope.scope_id !== `${id}.${scope.scope_id.slice(id.length + 1)}`) {
+    failures.push(`RECONCILIATION_STATE_SCOPE_ID_UNSCOPED:${scopeId}`);
+  }
+  for (const [stateKey, scopeKey] of [
+    ["canonical_work_order", "work_order"],
+    ["canonical_implementation_head", "implementation_head"],
+    ["canonical_merge_commit", "merge_commit"]
+  ]) {
+    if (scalar(current, stateKey) !== String(scope[scopeKey])) {
+      failures.push(`RECONCILIATION_STATE_CANONICAL_${stateKey.toUpperCase()}_MISMATCH:${scopeId}`);
+    }
+  }
+  if (scalar(current, "canonical_pull_request") !== String(scope.pull_request)) {
+    failures.push(`RECONCILIATION_STATE_CANONICAL_PULL_REQUEST_MISMATCH:${scopeId}`);
+  }
+
+  const legacyCommit = scalar(current, "implementation_commit");
+  const dangling = (reconciliation.unresolvable_recorded_commits || []).find((entry) => entry?.value === legacyCommit);
+  if (dangling && scalar(current, "implementation_commit_status") !== dangling.handling) {
+    failures.push(`RECONCILIATION_STATE_LEGACY_COMMIT_NOT_EXPLICITLY_PRESERVED:${legacyCommit}`);
+  }
 }
 
 function validateRepository(root = process.cwd()) {
@@ -86,6 +133,8 @@ function validateRepository(root = process.cwd()) {
   if (reconciliation.reconciled_by !== "WO-0071") failures.push("RECONCILIATION_OWNER_INVALID");
   if (!Array.isArray(reconciliation.scopes) || reconciliation.scopes.length < 2) failures.push("RECONCILIATION_SCOPES_INCOMPLETE");
 
+  validateStateBinding(root, reconciliation, failures);
+
   // Every colliding id observed on disk must actually be covered by the reconciliation record,
   // so a third artifact reusing the same number cannot slip in unreconciled.
   for (const [id, group] of colliding) {
@@ -128,4 +177,4 @@ if (require.main === module) {
   console.log(`AIPOS work-order provenance validation PASS (reconciled colliding ids: ${result.collidingIds.join(", ") || "none"})`);
 }
 
-module.exports = { RECONCILIATION_PATH, WORK_ORDER_DIR, workOrderFiles, validateRepository };
+module.exports = { RECONCILIATION_PATH, STATE_PATH, WORK_ORDER_DIR, workOrderFiles, validateRepository };

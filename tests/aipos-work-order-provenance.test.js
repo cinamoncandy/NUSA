@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const { RECONCILIATION_PATH, workOrderFiles, validateRepository } = require("../scripts/validate-aipos-work-order-provenance.js");
+const { RECONCILIATION_PATH, STATE_PATH, workOrderFiles, validateRepository } = require("../scripts/validate-aipos-work-order-provenance.js");
 const { block, scalar } = require("../scripts/validate-aipos-drift.js");
 
 const root = path.resolve(__dirname, "..");
@@ -28,6 +28,21 @@ test("WO-0071: the repository's work-order provenance validates as reconciled", 
   // The reported collision was WO-0070; WO-0063 was found while enforcing it. Both are covered,
   // and this assertion is what makes a newly-introduced third collision fail loudly here.
   assert.deepEqual([...result.collidingIds].sort(), ["WO-0063", "WO-0070"]);
+});
+
+test("WO-0071: current AIPOS state resolves the colliding WO-0070 by scope, not by bare id", () => {
+  const state = fs.readFileSync(path.join(root, STATE_PATH), "utf8");
+  const current = block(state, "current_non_live_work_order");
+  assert.equal(scalar(current, "id"), "WO-0070");
+  assert.equal(scalar(current, "scope_id"), "WO-0070.deterministic-remediation-prioritization");
+  assert.equal(scalar(current, "canonical_work_order"), ".aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml");
+  assert.equal(scalar(current, "canonical_pull_request"), "738");
+  assert.equal(scalar(current, "canonical_implementation_head"), "d83b7e0354681df3b1b86bee1e0d805d2108b970");
+  assert.equal(scalar(current, "canonical_merge_commit"), "43fdc4a12305d10c16e5c70ba0f20caa9b501188");
+  // The dangling historical short id remains visible, but can no longer be mistaken for the
+  // canonical implementation identity.
+  assert.equal(scalar(current, "implementation_commit"), "3711390a");
+  assert.equal(scalar(current, "implementation_commit_status"), "PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED");
 });
 
 test("WO-0071: the canonical deterministic-remediation-prioritization lineage is preserved exactly", () => {
