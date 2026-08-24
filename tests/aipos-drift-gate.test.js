@@ -45,6 +45,15 @@ test("valid synchronized Architecture/AIPOS state passes", () => {
   });
 });
 
+test("non-LIVE successor may run while the constitutional gate remains registered", () => {
+  withFixture({
+    ".aipos/state.yaml": `version: 1\nactive_branch: agent/p0-a-architecture-aipos-drift-gate\nin_progress:\n  - id: WO-0051\n  - id: WO-0020\nserialized_human_environment_gate:\n  work_order: WO-0051\nnext:\n  work_order: .aipos/work-orders/WO-0020.yaml\n`
+  }, (root) => {
+    const result = validateRepository(root);
+    assert.equal(result.ok, true, result.failures.join("\n"));
+  });
+});
+
 test("missing governing architecture path fails closed", () => {
   withFixture({ "docs/NUSA_AI_ARCHITECTURE_V1.md": null }, (root) => {
     const result = validateRepository(root);

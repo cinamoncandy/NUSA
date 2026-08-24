@@ -319,6 +319,7 @@ export function startCloudRuntime(
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
     ...(shadowObservabilityProvider == null ? {} : { loadShadowOperations: shadowObservabilityProvider }),
+    loadLiveReadiness: () => liveReadinessSourceProvider.getSnapshot(),
     submitPaperOrder,
     investmentAllocationSettings
   });

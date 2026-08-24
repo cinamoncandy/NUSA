@@ -4,9 +4,11 @@ import { useTheme } from "./ThemeProvider";
 import { PaperLearningMonitorView } from "./paperLearningMonitorView";
 import { ShadowObservabilityMonitorView } from "./shadowObservabilityMonitorView";
 import { RealReadOnlyMonitorView } from "./realReadOnlyMonitorView";
+import { LiveReadinessMonitorView } from "./liveReadinessMonitorView";
 import type { PaperLearningScreenState } from "./paperLearningScreen";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import type { RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
+import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
 
 /**
  * Unified read-only cockpit: PAPER, SHADOW and REAL_READ_ONLY.
@@ -16,11 +18,13 @@ import type { RealReadOnlyObservabilitySnapshot } from "../../../packages/contra
  * deliberately no cross-mode total anywhere, because summing a simulated PAPER ledger with an
  * observed real balance would produce a number that is true of no account that exists.
  */
-export type MonitorMode = "PAPER" | "SHADOW" | "REAL";
+export type MonitorMode = "PAPER" | "SHADOW" | "REAL" | "LIVE_READY";
 
-const MODES: readonly MonitorMode[] = ["PAPER", "SHADOW", "REAL"];
+const BASE_MODES = ["PAPER", "SHADOW", "REAL"] as const;
+const MODES: readonly MonitorMode[] = [...BASE_MODES, "LIVE_READY"];
+const modeLabel = (mode: MonitorMode): string => mode === "REAL" ? "REAL_READ_ONLY" : mode;
 
-export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, realReason, refreshing, onRefresh, onClose }: Readonly<{ paper: PaperLearningScreenState; shadow: ShadowObservabilitySnapshot | null; shadowReason?: string; real?: RealReadOnlyObservabilitySnapshot | null; realReason?: string; refreshing: boolean; onRefresh: () => void | Promise<void>; onClose: () => void }>) {
+export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, realReason, live, liveReason, refreshing, onRefresh, onClose }: Readonly<{ paper: PaperLearningScreenState; shadow: ShadowObservabilitySnapshot | null; shadowReason?: string; real?: RealReadOnlyObservabilitySnapshot | null; realReason?: string; live?: LiveReadinessObservabilitySnapshot | null; liveReason?: string; refreshing: boolean; onRefresh: () => void | Promise<void>; onClose: () => void }>) {
   const { theme } = useTheme();
   const [mode, setMode] = useState<MonitorMode>("PAPER");
   return <View style={styles.wrapper}>
@@ -29,11 +33,12 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
       <Text style={[styles.runtimeDiagnosticText, { color: theme.colors.textMuted }]}>mode={mode} · status={paper.status} · timeline={paper.timeline.length} · cycles={paper.recentCycles.length}</Text>
     </View>
     <View style={[styles.switcher, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]} testID="paper-shadow-monitor-switcher">
-      {MODES.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} onPress={() => setMode(item)} style={[styles.switch, { borderColor: mode === item ? theme.colors.primary : theme.colors.border, backgroundColor: mode === item ? theme.colors.primarySoft : theme.colors.surfaceSunken }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? theme.colors.primary : theme.colors.textMuted }]}>{item} · READ ONLY</Text></Pressable>)}
+      {MODES.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} onPress={() => setMode(item)} style={[styles.switch, { borderColor: mode === item ? theme.colors.primary : theme.colors.border, backgroundColor: mode === item ? theme.colors.primarySoft : theme.colors.surfaceSunken }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? theme.colors.primary : theme.colors.textMuted }]}>{modeLabel(item)} · READ ONLY</Text></Pressable>)}
     </View>
     {mode === "PAPER" ? <PaperLearningMonitorView state={paper} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />
       : mode === "SHADOW" ? <ShadowObservabilityMonitorView snapshot={shadow} unavailableReason={shadowReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />
-      : <RealReadOnlyMonitorView snapshot={real ?? null} unavailableReason={realReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />}
+      : mode === "REAL" ? <RealReadOnlyMonitorView snapshot={real ?? null} unavailableReason={realReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />
+      : <LiveReadinessMonitorView snapshot={live ?? null} unavailableReason={liveReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />}
   </View>;
 }
 
