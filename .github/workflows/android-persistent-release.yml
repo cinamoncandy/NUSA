@@ -107,22 +107,50 @@ jobs:
             test ! -f scripts/prepare-mobile-build-config.js
           fi
 
-      - name: Probe canonical NUSA Cloud health
+      - name: Probe canonical NUSA Cloud health (advisory)
         env:
           NUSA_MOBILE_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
         run: |
           node <<'NODE'
           (async () => {
             const origin = new URL(process.env.NUSA_MOBILE_API_BASE_URL);
-            const response = await fetch(new URL('/health', origin), {
-              redirect: 'manual',
-              signal: AbortSignal.timeout(15000),
-              headers: { 'user-agent': 'nusa-android-persistent-preview-origin-probe' }
-            });
-            if (response.status !== 200) throw new Error(`canonical NUSA /health expected 200, received ${response.status}`);
-            if (new URL(response.url).origin !== origin.origin) throw new Error('canonical NUSA /health changed origin');
-            const body = await response.json();
-            if (body?.ok !== true) throw new Error('canonical NUSA /health did not report ok=true');
+            if (origin.protocol !== 'https:' || origin.username || origin.password || origin.search || origin.hash) {
+              throw new Error('canonical NUSA origin must remain credential-free HTTPS');
+            }
+
+            let response;
+            try {
+              response = await fetch(new URL('/health', origin), {
+                redirect: 'manual',
+                signal: AbortSignal.timeout(15000),
+                headers: { 'user-agent': 'nusa-android-persistent-preview-origin-probe' }
+              });
+            } catch (error) {
+              console.warn(`::warning title=NUSA Cloud health unavailable::${error instanceof Error ? error.message : String(error)}`);
+              console.log(`[android-preview] canonical NUSA health unavailable; continuing standalone LOCAL PAPER/native public-quotation preview for ${origin.origin}`);
+              return;
+            }
+
+            if (new URL(response.url).origin !== origin.origin) {
+              throw new Error('canonical NUSA /health changed origin');
+            }
+            if (response.status !== 200) {
+              console.warn(`::warning title=NUSA Cloud health unavailable::canonical NUSA /health returned ${response.status}`);
+              console.log(`[android-preview] canonical NUSA health unavailable; continuing standalone LOCAL PAPER/native public-quotation preview for ${origin.origin}`);
+              return;
+            }
+
+            let body;
+            try {
+              body = await response.json();
+            } catch {
+              console.warn('::warning title=NUSA Cloud health unavailable::canonical NUSA /health did not return JSON');
+              return;
+            }
+            if (body?.ok !== true) {
+              console.warn('::warning title=NUSA Cloud health unavailable::canonical NUSA /health did not report ok=true');
+              return;
+            }
             console.log(`[android-preview] canonical NUSA health PASS ${origin.origin}`);
           })().catch((error) => {
             console.error(error);
