@@ -98,6 +98,18 @@ async function loadOperations(baseUrl, token) {
   return { httpStatus: response.status, body };
 }
 
+async function waitForRecoveredRuntime(baseUrl, token, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last;
+  while (Date.now() < deadline) {
+    last = await loadOperations(baseUrl, token);
+    if (last.httpStatus === 200 && last.body?.portfolio?.account != null) return last.body;
+    if (last.httpStatus !== 200 && last.httpStatus !== 503) throw new Error(`unexpected PAPER recovery response: ${JSON.stringify(last).slice(0, 2000)}`);
+    await sleep(250);
+  }
+  throw new Error(`timed out waiting for persisted PAPER recovery; last=${JSON.stringify(last).slice(0, 2000)}`);
+}
+
 async function waitForAutomaticRuntime(baseUrl, token, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let last;
@@ -194,6 +206,19 @@ async function run(options = {}) {
     if (!existsSync(databasePath) || statSync(databasePath).size <= 0) throw new Error("SQLite PAPER state database was not persisted");
     const dbHashAfterRuntime = sha256(readFileSync(databasePath));
 
+    // Recover with public market ingestion paused so persistence is verified before a
+    // legitimate new automatic PAPER decision can mutate the recovered account.
+    secondRuntime = startRuntime(root, { ...env, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" });
+    await waitForHealth(baseUrl, secondRuntime);
+    const recoverySnapshot = await waitForRecoveredRuntime(baseUrl, token);
+    if (recoverySnapshot.liveAuthority !== "NONE" || recoverySnapshot.productionMutationAllowed !== false) throw new Error("restart PAPER recovery snapshot violated authority invariant");
+    const recoverySummary = summarizeSnapshot(recoverySnapshot);
+    if (firstSummary.position?.quantity !== recoverySummary.position?.quantity) throw new Error("PAPER position did not recover identically after restart");
+    await stopRuntime(secondRuntime);
+    secondRuntime = undefined;
+
+    // Then resume the real public-data automatic runtime and independently prove that
+    // restart does not duplicate the durable order/fill while the scheduler is active.
     secondRuntime = startRuntime(root, env);
     await waitForHealth(baseUrl, secondRuntime);
     const secondSnapshot = await waitForAutomaticRuntime(baseUrl, token);
@@ -202,7 +227,6 @@ async function run(options = {}) {
     const repeatedOrders = firstOrder == null ? [] : secondSnapshot.orders.filter((order) => order.id === firstOrder.id);
     const repeatedFills = repeatedOrders.flatMap((order) => order.fills || []);
     if (firstOrder != null && (repeatedOrders.length !== 1 || repeatedFills.length !== 1)) throw new Error("restart created a duplicate PAPER order/fill");
-    if (firstSummary.position?.quantity !== secondSummary.position?.quantity) throw new Error("PAPER position did not recover identically after restart");
 
     const payload = {
       schema_version: 1,
@@ -216,7 +240,8 @@ async function run(options = {}) {
       execution: firstOrder == null ? { status: "NO_ACTIONABLE_SIGNAL", order_count: 0, fill_count: 0 } : { status: "AUTOMATICALLY_FILLED", order_id: firstOrder.id, fill_id: firstFill?.id, side: firstOrder.side, quantity: firstOrder.quantity, price: firstOrder.price, fee: firstOrder.fee },
       first_runtime: firstSummary,
       persistence: { sqlite_path: databasePath, sqlite_size_bytes: statSync(databasePath).size, sqlite_sha256_after_runtime: dbHashAfterRuntime },
-      restart_recovery: secondSummary,
+      restart_recovery: recoverySummary,
+      automatic_restart: secondSummary,
       idempotency_retry: { status: firstOrder == null ? "NOT_APPLICABLE_NO_AUTOMATIC_ORDER" : "AUTOMATIC_RESTART_RECONCILED", original_order_id: firstOrder?.id ?? null, matching_order_count: repeatedOrders.length, matching_fill_count: repeatedFills.length, double_fill: false },
       prohibited_capabilities: { upbit_private_credentials: false, live_order_endpoint: false, withdrawal_transfer: false, real_money_mutation: false },
     };
