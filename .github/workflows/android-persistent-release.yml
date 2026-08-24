@@ -12,6 +12,18 @@ on:
         description: "Exact source commit SHA to deploy (blank = pointer file)"
         required: false
         type: string
+      release_tag:
+        description: "Unique prerelease tag (blank = persistent preview)"
+        required: false
+        type: string
+      asset_prefix:
+        description: "Unique APK asset filename prefix (blank = persistent preview)"
+        required: false
+        type: string
+      version_code:
+        description: "Optional Android version code for exact preview provenance"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -55,6 +67,24 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
+
+      - name: Resolve preview delivery parameters
+        id: delivery
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_ASSET_PREFIX: ${{ inputs.asset_prefix }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${INPUT_RELEASE_TAG:-nusa-android-preview}"
+          ASSET_PREFIX="${INPUT_ASSET_PREFIX:-NUSA-Android}"
+          VERSION_CODE="${INPUT_VERSION_CODE:-${GITHUB_RUN_NUMBER}}"
+          printf '%s' "$RELEASE_TAG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
+          printf '%s' "$ASSET_PREFIX" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
+          printf '%s' "$VERSION_CODE" | grep -Eq '^[1-9][0-9]{0,9}$'
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "asset_prefix=$ASSET_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -164,7 +194,7 @@ jobs:
       - name: Build exact-source release APK from a clean JS/native output tree
         env:
           NUSA_BUILD_SHA: ${{ steps.source.outputs.sha }}
-          NUSA_BUILD_NUMBER: ${{ github.run_number }}
+          NUSA_BUILD_NUMBER: ${{ steps.delivery.outputs.version_code }}
           NUSA_CANONICAL_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
         run: ./gradlew clean :app:assembleRelease --no-build-cache
         working-directory: apps/mobile/android
@@ -172,19 +202,23 @@ jobs:
       - name: Verify APK exact-source provenance and bundled PAPER learning UI
         env:
           EXPECTED_SHA: ${{ steps.source.outputs.sha }}
-          EXPECTED_RUN_NUMBER: ${{ github.run_number }}
+          EXPECTED_RUN_NUMBER: ${{ steps.delivery.outputs.version_code }}
           EXPECTED_ORIGIN: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
           CONFIG_MODE: ${{ steps.canonical_config.outputs.mode }}
+          ASSET_PREFIX: ${{ steps.delivery.outputs.asset_prefix }}
         run: |
           set -euo pipefail
           APK="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
-          test -f "$APK"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
           EXPECTED_SHORT_SHA="${EXPECTED_SHA:0:8}"
           EXPECTED_VERSION_NAME="1.0.${EXPECTED_RUN_NUMBER}-${EXPECTED_SHORT_SHA}"
           EXPECTED_VERSION_CODE="$EXPECTED_RUN_NUMBER"
           AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
           test -x "$AAPT"
           BADGING="$("$AAPT" dump badging "$APK")"
+          PACKAGE_NAME="$(printf '%s\n' "$BADGING" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")"
+          test "$PACKAGE_NAME" = "com.nusa.mobile"
           printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION_CODE}'"
           printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
           "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_SHA"
@@ -200,27 +234,33 @@ jobs:
             "$AAPT" dump --values resources "$APK" | grep -F "$EXPECTED_ORIGIN"
             SEALED_ORIGIN="$EXPECTED_ORIGIN"
           fi
-          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=%s\nversion_name=%s\nversion_code=%s\nui_marker=paper-learning-present\n' \
-            "$EXPECTED_SHA" "$SEALED_ORIGIN" "$CONFIG_MODE" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" \
-            > NUSA-Android.provenance.txt
+          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=%s\npackage=%s\nversion_name=%s\nversion_code=%s\nbuild_variant=release\nworkflow_run=%s\nui_marker=paper-learning-present\n' \
+            "$EXPECTED_SHA" "$SEALED_ORIGIN" "$CONFIG_MODE" "$PACKAGE_NAME" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" "$GITHUB_RUN_ID" \
+            > "${ASSET_PREFIX}.provenance.txt"
 
       - name: Prepare persistent APK assets
+        env:
+          ASSET_PREFIX: ${{ steps.delivery.outputs.asset_prefix }}
         run: |
-          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk NUSA-Android.apk
-          sha256sum NUSA-Android.apk > NUSA-Android.apk.sha256
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "${ASSET_PREFIX}.apk"
+          sha256sum "${ASSET_PREFIX}.apk" > "${ASSET_PREFIX}.apk.sha256"
+          APK_SHA="$(awk '{print $1}' "${ASSET_PREFIX}.apk.sha256")"
+          printf 'apk_sha256=%s\n' "$APK_SHA" >> "${ASSET_PREFIX}.provenance.txt"
 
-      - name: Create or update persistent preview release
+      - name: Create unique preview release
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.source.outputs.sha }}
           SHORT_SHA: ${{ steps.source.outputs.short_sha }}
+          RELEASE_TAG: ${{ steps.delivery.outputs.release_tag }}
+          ASSET_PREFIX: ${{ steps.delivery.outputs.asset_prefix }}
         run: |
           NOTES="Standalone Android preview from exact source $SHORT_SHA. Exact source provenance and PAPER learning UI bundle marker verified. LOCAL PAPER remains usable without Cloud bootstrap; LIVE/withdraw/transfer safety boundaries remain unchanged."
-          if gh release view nusa-android-preview >/dev/null 2>&1; then
-            gh release upload nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --clobber
-            gh release edit nusa-android-preview --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "$NOTES" --prerelease
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release tag already exists: $RELEASE_TAG" >&2
+            exit 1
           else
-            gh release create nusa-android-preview NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt --target "$TARGET_SHA" --title "NUSA Android Preview" --notes "$NOTES" --prerelease
+            gh release create "$RELEASE_TAG" "${ASSET_PREFIX}.apk" "${ASSET_PREFIX}.apk.sha256" "${ASSET_PREFIX}.provenance.txt" --target "$TARGET_SHA" --title "NUSA Android Preview $SHORT_SHA" --notes "$NOTES" --prerelease
           fi
 
       - name: Prepare Firebase credentials
@@ -229,16 +269,19 @@ jobs:
         run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Install Firebase CLI
+        continue-on-error: true
         run: npm install --global firebase-tools
 
       - name: Distribute APK to Firebase App Distribution
         id: firebase
+        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           SHORT_SHA: ${{ steps.source.outputs.short_sha }}
+          ASSET_PREFIX: ${{ steps.delivery.outputs.asset_prefix }}
         run: |
-          firebase appdistribution:distribute NUSA-Android.apk \
+          firebase appdistribution:distribute "${ASSET_PREFIX}.apk" \
             --app "$FIREBASE_APP_ID" \
             --testers "desporin12@gmail.com" \
             --release-notes "NUSA Android LOCAL PAPER preview from exact source $SHORT_SHA; fresh bundle + PAPER learning marker verified"
@@ -254,24 +297,31 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
           FIREBASE_OUTCOME: ${{ steps.firebase.outcome }}
           JOB_STATUS: ${{ job.status }}
+          ASSET_PREFIX: ${{ steps.delivery.outputs.asset_prefix }}
         run: |
           set -u
           SOURCE="${SOURCE_SHA:-unresolved}"
           APK_SHA="unavailable"
           VERSION_NAME="unavailable"
           VERSION_CODE="unavailable"
+          PACKAGE_NAME="unavailable"
+          BUILD_VARIANT="unavailable"
+          WORKFLOW_RUN="${GITHUB_RUN_ID}"
           SEALED_ORIGIN="unavailable"
           CONFIG_MODE="unavailable"
           UI_MARKER="unavailable"
-          if [ -f NUSA-Android.apk.sha256 ]; then
-            APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
+          if [ -f "${ASSET_PREFIX}.apk.sha256" ]; then
+            APK_SHA="$(awk '{print $1}' "${ASSET_PREFIX}.apk.sha256")"
           fi
-          if [ -f NUSA-Android.provenance.txt ]; then
-            SEALED_ORIGIN="$(sed -n 's/^canonical_origin=//p' NUSA-Android.provenance.txt)"
-            CONFIG_MODE="$(sed -n 's/^config_mode=//p' NUSA-Android.provenance.txt)"
-            VERSION_NAME="$(sed -n 's/^version_name=//p' NUSA-Android.provenance.txt)"
-            VERSION_CODE="$(sed -n 's/^version_code=//p' NUSA-Android.provenance.txt)"
-            UI_MARKER="$(sed -n 's/^ui_marker=//p' NUSA-Android.provenance.txt)"
+          if [ -f "${ASSET_PREFIX}.provenance.txt" ]; then
+            SEALED_ORIGIN="$(sed -n 's/^canonical_origin=//p' "${ASSET_PREFIX}.provenance.txt")"
+            CONFIG_MODE="$(sed -n 's/^config_mode=//p' "${ASSET_PREFIX}.provenance.txt")"
+            VERSION_NAME="$(sed -n 's/^version_name=//p' "${ASSET_PREFIX}.provenance.txt")"
+            VERSION_CODE="$(sed -n 's/^version_code=//p' "${ASSET_PREFIX}.provenance.txt")"
+            PACKAGE_NAME="$(sed -n 's/^package=//p' "${ASSET_PREFIX}.provenance.txt")"
+            BUILD_VARIANT="$(sed -n 's/^build_variant=//p' "${ASSET_PREFIX}.provenance.txt")"
+            WORKFLOW_RUN="$(sed -n 's/^workflow_run=//p' "${ASSET_PREFIX}.provenance.txt")"
+            UI_MARKER="$(sed -n 's/^ui_marker=//p' "${ASSET_PREFIX}.provenance.txt")"
           fi
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           BODY=$(cat <<EOF
@@ -282,8 +332,11 @@ jobs:
           - source_sha: ${SOURCE}
           - canonical_origin: ${SEALED_ORIGIN}
           - config_mode: ${CONFIG_MODE}
+          - package: ${PACKAGE_NAME}
           - version_name: ${VERSION_NAME}
           - version_code: ${VERSION_CODE}
+          - build_variant: ${BUILD_VARIANT}
+          - workflow_run: ${WORKFLOW_RUN}
           - ui_marker: ${UI_MARKER}
           - apk_sha256: ${APK_SHA}
           - run: ${RUN_URL}
