@@ -14,6 +14,11 @@ if (!isPullRequestCi && !explicitBase) {
   process.exit(0);
 }
 
+if (!explicitBase && !process.env.GITHUB_BASE_REF) {
+  console.error("Changed-test fast gate requires GITHUB_BASE_REF in pull-request CI");
+  process.exit(1);
+}
+
 const base = explicitBase || `origin/${process.env.GITHUB_BASE_REF}`;
 const diff = spawnSync("git", ["diff", "--name-only", "--diff-filter=ACMRTUXB", `${base}...HEAD`], {
   cwd: root,
@@ -32,7 +37,7 @@ function toRunnableTest(relativePath) {
   const normalized = relativePath.trim().replaceAll("\\", "/");
   if (!normalized) return null;
   if (/\.test\.(?:js|cjs|mjs)$/.test(normalized)) return normalized;
-  if (/\.test\.ts$/.test(normalized)) return `dist/${normalized.slice(0, -3)}js`;
+  if (/\.test\.ts$/.test(normalized)) return `dist/${normalized.slice(0, -3)}.js`;
   return null;
 }
 
