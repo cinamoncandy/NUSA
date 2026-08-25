@@ -118,10 +118,20 @@ async function waitForHealth(baseUrl, runtime, timeoutMs = 30_000) {
 }
 
 async function loadOperations(baseUrl, token) {
-  const response = await fetch(`${baseUrl}/api/paper-operations`, { headers: { authorization: `Bearer ${token}`, accept: "application/json" } });
-  let body;
-  try { body = await response.json(); } catch { body = { error: "NON_JSON_RESPONSE" }; }
-  return { httpStatus: response.status, body };
+  try {
+    const response = await fetch(`${baseUrl}/api/paper-operations`, { headers: { authorization: `Bearer ${token}`, accept: "application/json" } });
+    let body;
+    try { body = await response.json(); } catch { body = { error: "NON_JSON_RESPONSE" }; }
+    return { httpStatus: response.status, body };
+  } catch (error) {
+    return {
+      httpStatus: 503,
+      body: {
+        error: "RUNTIME_TRANSIENTLY_UNAVAILABLE",
+        detail: error instanceof Error ? error.message : "fetch failed",
+      },
+    };
+  }
 }
 
 async function waitForRecoveredRuntime(baseUrl, token, timeoutMs = 30_000) {
