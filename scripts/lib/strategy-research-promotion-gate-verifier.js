@@ -4,8 +4,8 @@
  *
  * Does NOT call the runner's dimension evaluators or its decision helper. It re-derives
  * the blocking conditions and the gate outcome from the scorecard's own recorded
- * dimension statuses and manifest, so a runner that quietly upgraded a dimension or
- * softened a decision is caught rather than confirmed.
+ * dimension statuses and the original request evidence, so a runner that quietly
+ * upgrades evidence or softens a decision is caught rather than confirmed.
  */
 const { canonicalHash } = require("./canonical-hash.js");
 const { EVIDENCE_ORDER } = require("./strategy-research-evidence-manifest.js");
@@ -54,13 +54,31 @@ function verifyScorecard(request, result) {
   const anyInvalidEvidence = result.evidenceManifest.some((entry) => entry.trust === "INVALID");
   const anySynthetic = result.evidenceManifest.some((entry) => entry.present && entry.trust === "VERIFIED_SYNTHETIC");
   const dataIntegrity = byId["D-001"];
+  const datasetQualityEvidence = (request.manifest.evidence ?? []).find((entry) => entry.evidenceType === "DATASET_QUALITY");
+  const sourceSelectionBiasControlStatus = datasetQualityEvidence?.metrics?.selectionBiasControlStatus ?? "UNVERIFIED";
+  const sourceSurvivorshipBiasControlStatus = datasetQualityEvidence?.metrics?.survivorshipBiasControlStatus ?? "UNVERIFIED";
   const safety = byId["D-010"];
+
+  if (dataIntegrity) {
+    if (dataIntegrity.metrics?.selectionBiasControlStatus !== sourceSelectionBiasControlStatus) {
+      errors.push("D-001 selection-bias control status does not match original DATASET_QUALITY evidence");
+    }
+    if (dataIntegrity.metrics?.survivorshipBiasControlStatus !== sourceSurvivorshipBiasControlStatus) {
+      errors.push("D-001 survivorship-bias control status does not match original DATASET_QUALITY evidence");
+    }
+  }
 
   if (result.researchDecision === "PROMOTE_TO_EXTENDED_PAPER_REVIEW") {
     if (anyMissing) errors.push("PROMOTE decided with missing evidence");
     if (anyInvalidEvidence) errors.push("PROMOTE decided with INVALID evidence");
     if (anySynthetic) errors.push("PROMOTE decided on synthetic evidence");
     if (result.blockers.length > 0) errors.push("PROMOTE decided while blockers remain");
+    if (sourceSelectionBiasControlStatus !== "VERIFIED") {
+      errors.push("PROMOTE decided without VERIFIED selection-bias correction in original DATASET_QUALITY evidence");
+    }
+    if (sourceSurvivorshipBiasControlStatus !== "VERIFIED") {
+      errors.push("PROMOTE decided without VERIFIED survivorship-bias correction in original DATASET_QUALITY evidence");
+    }
     if (!dataIntegrity || dataIntegrity.metrics?.selectionBiasControlStatus !== "VERIFIED") {
       errors.push("PROMOTE decided without VERIFIED selection-bias correction evidence");
     }
