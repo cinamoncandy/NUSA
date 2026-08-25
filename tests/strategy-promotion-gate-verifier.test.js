@@ -119,8 +119,6 @@ test("the verifier rejects a missing-evidence entry that produced no blocker", (
 });
 
 test("the verifier does not accept a hash recomputed over tampered content", () => {
-  // Recomputing dimensionsSha256 after an upgrade hides the tampering from the hash
-  // check, so the verifier must also catch it through its re-derived rules.
   const request = load("operational-safety-failure");
   const result = runStrategyResearchScorecard(request);
   result.researchDecision = "PROMOTE_TO_EXTENDED_PAPER_REVIEW";
@@ -129,6 +127,32 @@ test("the verifier does not accept a hash recomputed over tampered content", () 
   const verification = verifyScorecard(request, result);
   assert.equal(verification.status, "FAIL");
   assert.ok(verification.errors.some((error) => error.includes("PROMOTE decided while")));
+});
+
+test("the verifier rejects forged VERIFIED bias controls not present in source evidence", () => {
+  const request = load("promote-review");
+  const dataset = request.manifest.evidence.find((entry) => entry.evidenceType === "DATASET_QUALITY");
+  delete dataset.metrics.selectionBiasControlStatus;
+  delete dataset.metrics.survivorshipBiasControlStatus;
+
+  const result = runStrategyResearchScorecard(request);
+  const dataIntegrity = result.dimensions.find((dimension) => dimension.id === "D-001");
+  dataIntegrity.status = "STRONG";
+  dataIntegrity.metrics.selectionBiasControlStatus = "VERIFIED";
+  dataIntegrity.metrics.survivorshipBiasControlStatus = "VERIFIED";
+  dataIntegrity.blockers = [];
+  result.blockers = [];
+  result.researchDecision = "PROMOTE_TO_EXTENDED_PAPER_REVIEW";
+
+  const { canonicalHash } = require("../scripts/lib/canonical-hash.js");
+  result.hashes.requestSha256 = canonicalHash(request);
+  result.hashes.dimensionsSha256 = canonicalHash(result.dimensions);
+  result.hashes.blockersSha256 = canonicalHash(result.blockers);
+  result.hashes.decisionSha256 = canonicalHash({ decision: result.researchDecision, reasons: result.decisionReasons });
+
+  const verification = verifyScorecard(request, result);
+  assert.equal(verification.status, "FAIL");
+  assert.ok(verification.errors.some((error) => error.includes("original DATASET_QUALITY evidence")));
 });
 
 test("a request-level validation failure verifies as a well-formed refusal", () => {
