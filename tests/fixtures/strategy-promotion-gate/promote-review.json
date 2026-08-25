@@ -41,7 +41,9 @@
           "invalidOhlcCount": 0,
           "duplicateCount": 0,
           "gapCount": 0,
-          "coverageRatio": 1
+          "coverageRatio": 1,
+          "selectionBiasControlStatus": "VERIFIED",
+          "survivorshipBiasControlStatus": "VERIFIED"
         }
       },
       {

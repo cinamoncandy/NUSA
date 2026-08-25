@@ -7,6 +7,7 @@ const { runStrategyResearchScorecard, PROHIBITED_ALWAYS } = require("../scripts/
 const dir = path.join(__dirname, "fixtures", "strategy-promotion-gate");
 const load = (name) => JSON.parse(fs.readFileSync(path.join(dir, `${name}.json`), "utf8"));
 const decide = (name) => runStrategyResearchScorecard(load(name)).researchDecision;
+const datasetMetrics = (request) => request.manifest.evidence.find((entry) => entry.evidenceType === "DATASET_QUALITY").metrics;
 
 test("each fixture reaches its intended gate decision", () => {
   assert.equal(decide("promote-review"), "PROMOTE_TO_EXTENDED_PAPER_REVIEW");
@@ -28,8 +29,6 @@ test("a failed independent verification cannot be downgraded to a warning", () =
 });
 
 test("a breached operational safety boundary is a hard stop, not a hold", () => {
-  // A discovered live-trading capability must not be parked as "revisit later" -- the
-  // whole exercise is invalidated until it is removed.
   const result = runStrategyResearchScorecard(load("operational-safety-failure"));
   assert.equal(result.researchDecision, "INVALID");
   assert.ok(result.decisionReasons.some((reason) => reason.includes("hard stop")));
@@ -57,9 +56,33 @@ test("synthetic evidence alone can never promote, however good the numbers are",
   assert.ok(result.blockers.some((blocker) => blocker.detail.includes("synthetic")));
 });
 
+test("missing selection-bias correction evidence fails closed", () => {
+  const request = load("promote-review");
+  delete datasetMetrics(request).selectionBiasControlStatus;
+  const result = runStrategyResearchScorecard(request);
+  assert.notEqual(result.researchDecision, "PROMOTE_TO_EXTENDED_PAPER_REVIEW");
+  assert.equal(result.dimensions.find((dimension) => dimension.id === "D-001").status, "INCONCLUSIVE");
+  assert.ok(result.blockers.some((blocker) => blocker.detail.includes("selection-bias correction")));
+});
+
+test("unverified survivorship-bias correction evidence fails closed", () => {
+  const request = load("promote-review");
+  datasetMetrics(request).survivorshipBiasControlStatus = "UNVERIFIED";
+  const result = runStrategyResearchScorecard(request);
+  assert.notEqual(result.researchDecision, "PROMOTE_TO_EXTENDED_PAPER_REVIEW");
+  assert.equal(result.dimensions.find((dimension) => dimension.id === "D-001").status, "INCONCLUSIVE");
+  assert.ok(result.blockers.some((blocker) => blocker.detail.includes("survivorship-bias correction")));
+});
+
+test("verified selection and survivorship controls keep promotion possible", () => {
+  const result = runStrategyResearchScorecard(load("promote-review"));
+  const dataIntegrity = result.dimensions.find((dimension) => dimension.id === "D-001");
+  assert.equal(dataIntegrity.metrics.selectionBiasControlStatus, "VERIFIED");
+  assert.equal(dataIntegrity.metrics.survivorshipBiasControlStatus, "VERIFIED");
+  assert.equal(result.researchDecision, "PROMOTE_TO_EXTENDED_PAPER_REVIEW");
+});
+
 test("technical execution status and research decision are separate fields", () => {
-  // The pipeline ran cleanly; the strategy still must not be promoted. Conflating the
-  // two is exactly the failure mode this scorecard exists to prevent.
   const result = runStrategyResearchScorecard(load("reject-strategy"));
   assert.equal(result.executionStatus, "PASS");
   assert.equal(result.researchDecision, "REJECT_STRATEGY");
@@ -109,8 +132,6 @@ test("limitations are always disclosed, including on the promotable fixture", ()
 });
 
 test("the current repository state honestly reports INSUFFICIENT_EVIDENCE", () => {
-  // This fixture describes this repository as it actually is: synthetic research only,
-  // no cost-stress evidence entry, no independent risk gateway.
   const result = runStrategyResearchScorecard(load("current-repository-state"));
   assert.equal(result.executionStatus, "PASS");
   assert.equal(result.researchDecision, "INSUFFICIENT_EVIDENCE");
