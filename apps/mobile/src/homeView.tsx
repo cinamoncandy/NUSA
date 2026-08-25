@@ -53,10 +53,6 @@ export function HomeView({
   const tablet = width >= 768;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
 
-  // Issue #637: when Cloud PAPER is not configured, fall back to the same one app-level LOCAL
-  // PAPER ledger Trade writes to, instead of showing a blank "NO LINK" equity card while a real
-  // LOCAL PAPER balance exists. Hooks stay unconditional; the mark-price poll is skipped once Cloud
-  // is active so Home does not keep polling public Upbit data it no longer needs.
   const localPaperActive = snapshot == null && isLocalPaperActive();
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
@@ -78,6 +74,7 @@ export function HomeView({
   const statusTone = snapshot ? healthTone(snapshot.health) : accountSource === "LOCAL" ? "info" as const : "warning" as const;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
+  const signal = "#B6FF2A";
 
   const contentStyle = {
     paddingHorizontal: profile.screen.horizontalPadding,
@@ -106,7 +103,8 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  const cornerStyle = { borderColor: theme.colors.aiSignalEnd } as const;
+  const cornerStyle = { borderColor: signal } as const;
+  const terminalBorder = { borderColor: theme.colors.borderStrong } as const;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
@@ -116,24 +114,43 @@ export function HomeView({
     <View style={styles.masterRail} testID="home-master-rail">
       <View style={styles.brandLockup}>
         <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
-        <View style={[styles.brandUnderline, { backgroundColor: theme.colors.aiSignalEnd }]} />
-        <Text style={[styles.brandMeta, { color: theme.colors.textMuted }]}>INTELLIGENCE / PAPER CONTROL</Text>
+        <View style={[styles.brandUnderline, { backgroundColor: signal }]} />
+        <Text style={[styles.brandMeta, { color: signal }]}>AI + MARKETS + OPERATIONS</Text>
       </View>
       <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
     </View>
 
+    <View style={styles.terminalGrid} testID="home-terminal-grid">
+      <View style={[styles.terminalPanel, styles.environmentPanel, terminalBorder]} testID="home-environment-panel">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>ENVIRONMENT</Text><Text style={[styles.panelCode, { color: signal }]}>01</Text></View>
+        <Text style={[styles.bigStatus, { color: signal }]}>{accountSource === "LOCAL" ? "PAPER / LOCAL" : snapshot ? "PAPER / CLOUD" : "PAPER / OFFLINE"}</Text>
+        <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>READ ONLY · ZERO AUTHORITY</Text>
+        <View style={styles.authorityMiniRow}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>LIVE</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>NONE</Text></View>
+        <View style={styles.authorityMiniRow}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>FALSE</Text></View>
+      </View>
+
+      <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.terminalPanel, styles.marketPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-market-pulse">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>MARKET PULSE</Text><Text style={[styles.panelCode, { color: signal }]}>PUBLIC</Text></View>
+        <Text style={[styles.marketHeadline, { color: theme.colors.text }]}>{signalReady ? "MARKET INPUT READY" : "MARKET INPUT WAITING"}</Text>
+        <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>OPEN LIVE PUBLIC-MARKET SCREEN →</Text>
+        <View style={styles.pulseBars} accessibilityLabel="system readiness pulse">
+          {[0.28, 0.46, 0.82, 0.54, 0.94, 0.63, 0.76, 0.41, 0.68, 0.88, 0.58, 0.72].map((v, i) => <View key={i} style={[styles.pulseBar, { height: 8 + v * 28, backgroundColor: signal, opacity: signalReady ? 0.85 : 0.28 }]} />)}
+        </View>
+      </Pressable>
+    </View>
+
     <MotionReveal testID="home-hero-reveal">
-      <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
+      <View style={[styles.commandDeck, terminalBorder]} testID="account-hero-card">
         <View style={[styles.cornerTL, cornerStyle]} /><View style={[styles.cornerTR, cornerStyle]} /><View style={[styles.cornerBL, cornerStyle]} /><View style={[styles.cornerBR, cornerStyle]} />
         <View style={styles.deckHeader}>
-          <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>01 // CAPITAL CORE</Text>
+          <Text style={[styles.kicker, { color: signal }]}>CAPITAL / PAPER PERFORMANCE</Text>
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
         </View>
         <Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
         {account == null ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text> : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={accountSource === "LOCAL" ? "home-equity-local" : "home-equity-cloud"}>{krw(account.equity)}</Text>}
         {accountSource === "LOCAL" ? <Text style={[styles.meta, { color: theme.colors.textMuted }]} testID="home-local-paper-note">Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다 · 실제 주문 아님</Text> : null}
         <View style={styles.pnlRow}>
-          <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
+          <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? signal : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
           <Text style={[styles.meta, { color: theme.colors.textMuted }]}>CUMULATIVE PAPER P&L</Text>
         </View>
         {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
@@ -144,18 +161,36 @@ export function HomeView({
       </View>
     </MotionReveal>
 
-    <View style={[styles.signalStage, { borderColor: theme.colors.borderStrong }]} testID="ai-card">
+    <View style={styles.terminalGrid}>
+      <View style={[styles.terminalPanel, terminalBorder]} testID="home-performance-cluster">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>PERFORMANCE</Text><Text style={[styles.panelCode, { color: signal }]}>PAPER</Text></View>
+        <View style={styles.metricMatrix}>
+          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>P&L</Text><Text style={[styles.metricNumber, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? signal : theme.colors.danger }]}>{totalPnl == null ? "—" : krw(totalPnl)}</Text></View>
+          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>EQUITY</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.equity) : "—"}</Text></View>
+          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.cash) : "—"}</Text></View>
+          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.metricNumber, { color: signal }]}>{accountSource ?? "NONE"}</Text></View>
+        </View>
+      </View>
+
+      <View style={[styles.terminalPanel, terminalBorder]} testID="home-context-panel">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>NEWS / ECON</Text><Text style={[styles.panelCode, { color: theme.colors.textMuted }]}>SOURCE</Text></View>
+        <Text style={[styles.unavailableTitle, { color: theme.colors.text }]}>NO VERIFIED FEED</Text>
+        <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>헤드라인과 경제지표는 검증된 소스 연결 전까지 표시하지 않습니다.</Text>
+      </View>
+    </View>
+
+    <View style={[styles.signalStage, terminalBorder]} testID="ai-card">
       <View style={styles.deckHeader}>
-        <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>02 // SIGNAL TERRAIN</Text><Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text></View>
-        <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}</Text>
+        <View><Text style={[styles.kicker, { color: signal }]}>ORDER FLOW / AI SIGNAL TERRAIN</Text><Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text></View>
+        <Text style={[styles.decisionState, { color: aiInsightAvailable ? signal : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}</Text>
       </View>
       <View style={styles.terrainHero} testID="home-decision-stage">
         <View style={[styles.crosshairH, { backgroundColor: theme.colors.border }]} />
         <View style={[styles.crosshairV, { backgroundColor: theme.colors.border }]} />
-        <View style={[styles.scanlineA, { backgroundColor: theme.colors.aiSignalEnd }]} />
-        <View style={[styles.scanlineB, { backgroundColor: theme.colors.aiSignalEnd }]} />
+        <View style={[styles.scanlineA, { backgroundColor: signal }]} />
+        <View style={[styles.scanlineB, { backgroundColor: signal }]} />
         <TerrainSignal variant="symbolic" signalStrength={terrainStrength} accessibilityLabel={terrainLabel} testID="home-signal-trace" />
-        <View style={styles.signalLegend}><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.signalLegendText, { color: theme.colors.aiSignalEnd }]}>NEUTRAL</Text><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>OPPORTUNITY</Text></View>
+        <View style={styles.signalLegend}><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.signalLegendText, { color: signal }]}>NEUTRAL</Text><Text style={[styles.signalLegendText, { color: theme.colors.textMuted }]}>OPPORTUNITY</Text></View>
       </View>
       <View style={[styles.decisionCopy, { borderTopColor: theme.colors.border }]} testID={aiInsightAvailable ? "home-verified-decision" : "home-pending-decision"}>
         <Text style={[styles.judgement, { color: theme.colors.text }]}>{aiInsightAvailable ? (ai?.thesis ?? "") : disconnected ? "PAPER LINK REQUIRED" : "DECISION HOLD"}</Text>
@@ -163,19 +198,45 @@ export function HomeView({
       </View>
     </View>
 
+    <View style={styles.terminalGrid}>
+      <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.terminalPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-portfolio-matrix">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>PORTFOLIO MATRIX</Text><Text style={[styles.panelCode, { color: signal }]}>OPEN →</Text></View>
+        <View style={styles.matrixRows}>
+          {["TREND", "MOMENTUM", "VOLATILITY", "LIQUIDITY"].map((label, row) => <View key={label} style={styles.matrixRow}><Text style={[styles.matrixLabel, { color: theme.colors.textMuted }]}>{label}</Text>{[0,1,2,3].map((cell) => <View key={cell} style={[styles.matrixCell, { backgroundColor: cell === row % 4 && account ? signal : theme.colors.border, opacity: cell === row % 4 && account ? 0.72 : 0.34 }]} />)}</View>)}
+        </View>
+        <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>GRID IS STATUS-ONLY · OPEN PORTFOLIO FOR ACTUAL POSITIONS</Text>
+      </Pressable>
+
+      <Pressable onPress={() => onNavigate("AiSignal")} style={({ pressed }) => [styles.terminalPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-ai-insights">
+        <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>AI INSIGHTS</Text><Text style={[styles.panelCode, { color: signal }]}>READ ONLY</Text></View>
+        <Text style={[styles.aiState, { color: aiInsightAvailable ? signal : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED THESIS" : "NO VERIFIED THESIS"}</Text>
+        <Text numberOfLines={3} style={[styles.panelMeta, { color: theme.colors.textMuted }]}>{aiInsightAvailable ? ai?.thesis : "NUSA는 검증된 근거가 없으면 판단을 만들어내지 않습니다."}</Text>
+      </Pressable>
+    </View>
+
+    <View style={[styles.riskPanel, terminalBorder]} testID="home-risk-authority">
+      <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>RISK AUTHORITY</Text><Text style={[styles.panelCode, { color: signal }]}>LEVEL 0</Text></View>
+      <View style={styles.riskRows}>
+        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>TRADE PERMISSION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>PAPER ONLY</Text></View>
+        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>AI AUTHORITY</Text><Text style={[styles.riskValue, { color: signal }]}>ZERO</Text></View>
+        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>LIVE AUTHORITY</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>NONE</Text></View>
+        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>PRODUCTION MUTATION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>FALSE</Text></View>
+      </View>
+    </View>
+
     <View style={styles.telemetryGrid} testID="home-telemetry-grid">
       <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.aiSignalEnd }]}>ZERO</Text></View>
+      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: signal }]}>ZERO</Text></View>
       <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>LIVE AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>NONE</Text></View>
       <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>FALSE</Text></View>
     </View>
 
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
-    {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
+    {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="home-operational-notice" /> : null}
 
-    {!disconnected ? <View style={[styles.actionDeck, { borderColor: theme.colors.borderStrong }]} testID="home-next-action">
-      <View style={styles.primaryCopy}><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>NEXT DECISION</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View>
-      <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-next-action-button"><Text style={[styles.primaryLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text></Pressable>
+    {!disconnected ? <View style={[styles.actionDeck, terminalBorder]} testID="home-next-action">
+      <View style={styles.primaryCopy}><Text style={[styles.kicker, { color: signal }]}>NEXT DECISION</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View>
+      <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: signal, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-next-action-button"><Text style={[styles.primaryLabel, { color: signal }]}>{primaryLabel}</Text></Pressable>
     </View> : null}
 
     {!disconnected ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" /> : null}
@@ -202,8 +263,23 @@ const styles = StyleSheet.create({
   brandLockup: { gap: 3 },
   wordmark: { fontSize: 32, lineHeight: 34, fontWeight: "900", letterSpacing: 1.8 },
   brandUnderline: { width: 74, height: 3 },
-  brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: 2.1 },
-  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
+  brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.8 },
+  terminalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  terminalPanel: { flexGrow: 1, flexBasis: 160, minHeight: 132, borderWidth: 1, padding: 12, gap: 8, backgroundColor: "#020504" },
+  environmentPanel: { minHeight: 154 },
+  marketPanel: { minHeight: 154 },
+  panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  panelTitle: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
+  panelCode: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
+  panelMeta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.45 },
+  bigStatus: { marginTop: 8, fontSize: 18, lineHeight: 22, fontWeight: "900", letterSpacing: 0.7 },
+  authorityMiniRow: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#172019", paddingTop: 5 },
+  authorityMini: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.8 },
+  authorityMiniValue: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.8 },
+  marketHeadline: { marginTop: 8, fontSize: 15, lineHeight: 18, fontWeight: "900", letterSpacing: 0.4 },
+  pulseBars: { height: 42, flexDirection: "row", alignItems: "flex-end", gap: 3, marginTop: 2 },
+  pulseBar: { flex: 1, minWidth: 2 },
+  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden", backgroundColor: "#020504" },
   cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
   cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
   cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3 },
@@ -221,10 +297,15 @@ const styles = StyleSheet.create({
   cashDivider: { width: 1, marginHorizontal: 14 },
   cashLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.2 },
   cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800" },
-  signalStage: { borderWidth: 1, padding: 14, overflow: "hidden" },
+  metricMatrix: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  metricTile: { width: "48%", borderWidth: 1, borderColor: "#172019", padding: 8, minHeight: 58, justifyContent: "space-between" },
+  metricKey: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
+  metricNumber: { fontSize: 12, lineHeight: 15, fontWeight: "900" },
+  unavailableTitle: { marginTop: 12, fontSize: 14, lineHeight: 18, fontWeight: "900", letterSpacing: 0.7 },
+  signalStage: { borderWidth: 1, padding: 14, overflow: "hidden", backgroundColor: "#020504" },
   stageTitle: { marginTop: 3, fontSize: 24, lineHeight: 28, fontWeight: "900", letterSpacing: 0.6 },
   decisionState: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 1.3 },
-  terrainHero: { position: "relative", height: 300, marginTop: 10, overflow: "hidden", justifyContent: "center" },
+  terrainHero: { position: "relative", height: 260, marginTop: 10, overflow: "hidden", justifyContent: "center" },
   crosshairH: { position: "absolute", left: 0, right: 0, top: "50%", height: 1, opacity: 0.7 },
   crosshairV: { position: "absolute", top: 0, bottom: 22, left: "50%", width: 1, opacity: 0.55 },
   scanlineA: { position: "absolute", width: 1, height: 52, left: "28%", top: 70, opacity: 0.45 },
@@ -233,11 +314,21 @@ const styles = StyleSheet.create({
   signalLegendText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.4 },
   decisionCopy: { borderTopWidth: 1, paddingTop: 14, gap: 6 },
   judgement: { fontSize: 19, lineHeight: 26, fontWeight: "900" },
+  matrixRows: { gap: 5, marginTop: 4 },
+  matrixRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  matrixLabel: { width: 58, fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.45 },
+  matrixCell: { flex: 1, height: 12 },
+  aiState: { marginTop: 16, fontSize: 15, lineHeight: 19, fontWeight: "900", letterSpacing: 0.6 },
+  riskPanel: { borderWidth: 1, padding: 12, gap: 10, backgroundColor: "#020504" },
+  riskRows: { gap: 7 },
+  riskRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#172019", paddingTop: 6 },
+  riskKey: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.65 },
+  riskValue: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
   telemetryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between" },
+  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between", backgroundColor: "#020504" },
   telemetryLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.3 },
   telemetryValue: { fontSize: 17, lineHeight: 21, fontWeight: "900", letterSpacing: 0.5 },
-  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
+  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#020504" },
   primaryCopy: { flex: 1, gap: 5 },
   actionDetail: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   primaryButton: { borderWidth: 1, minHeight: 44, minWidth: 112, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
