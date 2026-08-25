@@ -61,6 +61,7 @@
     "release:check:prepared": "node scripts/release-readiness.js",
     "release:manifest": "node scripts/release-manifest.js",
     "release:validate": "node scripts/validate-release-process.js",
+    "android:release-model:check": "node scripts/validate-android-release-model.js",
     "release:artifacts": "pnpm run release:manifest && node scripts/release-artifacts.js",
     "evidence:rehearse": "pnpm run preflight && pnpm run build && node scripts/evidence-rehearse.js",
     "evidence:status": "pnpm run preflight && pnpm run build && node scripts/evidence-cli.js status",

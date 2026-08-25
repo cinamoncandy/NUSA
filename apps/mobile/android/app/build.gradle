@@ -27,15 +27,40 @@ react {
 def enableProguardInReleaseBuilds = false
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Product version comes from the mobile package metadata. The CI run number is
+// provenance only; it must never become the product patch version or Android
+// versionCode.
+def nusaMobilePackage = new groovy.json.JsonSlurper().parse(file("../../package.json"))
+def nusaProductVersion = (nusaMobilePackage.version ?: "").toString().trim()
+def nusaProductParts = nusaProductVersion.tokenize(".")
+if (nusaProductParts.size() != 3 || !nusaProductParts.every { it ==~ /[0-9]+/ }) {
+    throw new GradleException("Invalid mobile product version: ${nusaProductVersion}")
+}
+def nusaProductMajor = nusaProductParts[0].toInteger()
+def nusaProductMinor = nusaProductParts[1].toInteger()
+def nusaProductPatch = nusaProductParts[2].toInteger()
+// Keep versionCode above historical run-number builds (the repository already
+// has RC artifacts in the 841+ range) while making every semver/channel pair
+// unique and monotonically ordered. The final digit is reserved for the
+// channel slot: debug=0, RC=1, release=2.
+def nusaProductVersionCodeBase = (nusaProductMajor * 10000000) + (nusaProductMinor * 100000) + (nusaProductPatch * 10)
+
 // Every installable build carries its source identity. CI supplies the exact
-// PR head SHA and run number; local builds intentionally fall back to a clear
-// development identity instead of pretending to be a release candidate.
+// source SHA and run number; the channel controls only the human-facing RC
+// identity. No channel can grant execution or production authority.
 def nusaBuildSha = (System.getenv("NUSA_BUILD_SHA") ?: "dev").trim()
 def nusaBuildNumberRaw = (System.getenv("NUSA_BUILD_NUMBER") ?: "0").replaceAll("[^0-9]", "")
 def nusaBuildNumber = nusaBuildNumberRaw ? nusaBuildNumberRaw.toLong() : 0L
-def nusaVersionCode = Math.max(1L, Math.min(nusaBuildNumber, 2100000000L)).intValue()
+def nusaBuildChannel = (System.getenv("NUSA_BUILD_CHANNEL") ?: "debug").trim().toLowerCase()
+if (!(nusaBuildChannel in ["debug", "rc", "release"])) {
+    throw new GradleException("Unsupported Android build channel: ${nusaBuildChannel}")
+}
+def nusaVersionCode = nusaProductVersionCodeBase + (nusaBuildChannel == "rc" ? 1 : nusaBuildChannel == "release" ? 2 : 0)
+if (nusaVersionCode < 1 || nusaVersionCode > 2100000000) {
+    throw new GradleException("Invalid Android versionCode derived from ${nusaProductVersion}/${nusaBuildChannel}: ${nusaVersionCode}")
+}
 def nusaShortSha = nusaBuildSha.length() > 8 ? nusaBuildSha.substring(0, 8) : nusaBuildSha
-def nusaVersionName = "1.0.${nusaBuildNumber}-${nusaShortSha}"
+def nusaVersionName = nusaBuildChannel == "rc" ? "${nusaProductVersion}-rc.${nusaBuildNumber}" : nusaProductVersion
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -49,12 +74,13 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode nusaVersionCode
         versionName nusaVersionName
+        buildConfigField "String", "NUSA_PRODUCT_VERSION", "\"${nusaProductVersion}\""
+        buildConfigField "String", "NUSA_BUILD_CHANNEL", "\"${nusaBuildChannel}\""
         buildConfigField "String", "NUSA_BUILD_SHA", "\"${nusaBuildSha}\""
         buildConfigField "String", "NUSA_BUILD_NUMBER", "\"${nusaBuildNumber}\""
         // Keep the complete source commit in the packaged Android resources as
-        // well as BuildConfig. The persistent preview workflow verifies the APK
-        // with `aapt dump --values resources`, so this is the provenance anchor
-        // that makes the exact 40-character source SHA independently visible.
+        // well as BuildConfig so exact-source provenance remains independently
+        // visible in the APK.
         resValue "string", "nusa_build_sha", nusaBuildSha
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
@@ -72,10 +98,11 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            // Evidence-only preview identity: installs beside the production NUSA app so a
-            // physical-device visual check cannot accidentally be reading a stale install.
-            applicationIdSuffix ".preview"
-            versionNameSuffix "-preview"
+            // Keep Metro development installs isolated from the installable
+            // com.nusa.mobile RC/release identity without reusing the retired
+            // installable artifact identity.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
         }
         release {
             signingConfig signingConfigs.debug

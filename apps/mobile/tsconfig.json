@@ -4,6 +4,7 @@
     "noEmit": true,
     "allowJs": true,
     "checkJs": false,
+    "resolveJsonModule": true,
     "types": ["node"],
     "typeRoots": ["../../node_modules/@types"]
   },

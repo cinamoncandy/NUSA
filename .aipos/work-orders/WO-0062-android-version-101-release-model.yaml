@@ -1,0 +1,71 @@
+id: WO-0062
+title: "Android Preview retirement and product version 101 release model"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 2703826ad3a31356b9080e64ff40db2dcb85f63e
+implementation_branch: fix/android-remove-preview-version-101
+parent_work_order: WO-0053
+objective: "Retire the active Android Preview build identity and separate product version 1.0.101 from CI run provenance while preserving the RC, physical-device acceptance, and final Release model."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Use apps/mobile/package.json as the single Android product-version source."
+  - "Derive Android versionCode from product semver plus deterministic channel slots, with product version 1.0.101 and no CI run-number patch substitution."
+  - "Retire active .preview, -preview, persistent-preview, and preview release automation."
+  - "Preserve exact source SHA, CI run number, APK checksum, and provenance metadata."
+  - "Provide RC and manual final Release channels with Galaxy physical acceptance between them."
+  - "Preserve historical Preview artifacts and evidence without rewriting or deleting them."
+constraints:
+  - "No Android runtime, PAPER execution, broker, Risk, credential, LIVE, or AI authority changes."
+  - "Firebase remains optional secondary distribution; GitHub source and artifact provenance remain canonical."
+  - "Physical Galaxy acceptance is HUMAN_ENVIRONMENT_ONLY and cannot be asserted by CI."
+architecture_impact:
+  acknowledged: true
+  analysis: "This is a packaging and release-model successor to WO-0053. It removes an active debug Preview identity, reuses the existing Mobile Native RC job, and adds one neutral RC/Release workflow. It introduces no execution path, authority, transport, or security boundary."
+  references:
+    - .aipos/architecture.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+    - .aipos/work-orders/WO-0053-android-real-use-successor.yaml
+    - docs/android-101-release-model.md
+acceptance:
+  repository:
+    - "Active Android packaging contains no .preview application suffix or -preview version suffix."
+    - "Active Android workflows contain no Preview release/artifact/tag semantics."
+    - "Product metadata is 1.0.101 and Android versionCode uses a deterministic monotonic semver/channel mapping (RC 10001011, Release 10001012)."
+    - "CI build/run number remains independent provenance."
+    - "RC and final Release channels retain exact source provenance and package com.nusa.mobile."
+    - "Focused release-model, mobile-native, typecheck, build, lint, architecture, safety, AI, AIPOS, and security validation is recorded honestly."
+  external:
+    status: HUMAN_ENVIRONMENT_ONLY
+    required: "Install exact 1.0.101 RC on Galaxy, complete cold start/session/MARKET/chart acceptance, and record evidence before final Release."
+verification:
+  focused_release_model: PASS
+  mobile_native_structure: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  preflight: PASS
+  architecture: PASS
+  safety_architecture: PASS
+  safety_invariants: NOT_CONFIGURED_REPOSITORY_SCRIPT
+  ai_authority: PASS
+  aipos_drift: PASS
+  aipos_conformance: PASS
+  security_gate: PASS
+  android_native: PENDING_JAVA_TOOLCHAIN
+  exact_head_ci: PENDING
+  physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+  automatic_live_activation: prohibited
+  automatic_completion: prohibited
+completion_rule: "Merge only after exact-head CI and Android RC packaging validation pass. Final Release remains manual and requires independent Galaxy physical acceptance evidence."

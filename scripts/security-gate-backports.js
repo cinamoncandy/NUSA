@@ -52,6 +52,10 @@ function trackedSecrets() {
   for (const relative of files) {
     if (ignored.test(relative) || !extensions.has(path.extname(relative).toLowerCase())) continue;
     const full = path.join(root, relative);
+    // `git ls-files` also lists a tracked file that is intentionally deleted in
+    // the working tree. A security scan must not turn that normal deletion into
+    // an ENOENT crash; absent files are not readable secret-bearing content.
+    if (!fs.existsSync(full)) continue;
     const bytes = fs.readFileSync(full);
     if (bytes.includes(0)) continue;
     findings.push(...core.scanText(bytes.toString("utf8"), relative));

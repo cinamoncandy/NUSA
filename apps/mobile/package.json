@@ -1,6 +1,6 @@
 {
   "name": "@nusa/mobile",
-  "version": "0.1.0",
+  "version": "1.0.101",
   "private": true,
   "description": "NUSA mobile Paper Trading client foundation",
   "main": "index.js",

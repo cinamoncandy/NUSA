@@ -74,12 +74,14 @@ jobs:
         env:
           NUSA_BUILD_SHA: ${{ github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
+          NUSA_BUILD_CHANNEL: rc
 
       - name: Seal exact source provenance
         shell: bash
         env:
           NUSA_BUILD_SHA: ${{ github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
+          NUSA_BUILD_CHANNEL: rc
           NUSA_RUN_ID: ${{ github.run_id }}
           NUSA_REPOSITORY: ${{ github.repository }}
         run: |

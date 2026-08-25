@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-18T14:25:00+09:00"
+updated_at: "2026-08-25T12:35:00+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -11,6 +11,13 @@ base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
   issue: 210
   objective: "Apply the actual NUSA mobile visual redesign without changing product authority or the WO-0053 physical-device gate."
+  android_version_101:
+    work_order: WO-0062
+    branch: fix/android-remove-preview-version-101
+    base_commit: 2703826ad3a31356b9080e64ff40db2dcb85f63e
+    status: VERIFYING
+    scope: "Retire active Android Preview packaging and separate product version 1.0.101 from CI build provenance; no runtime or authority change."
+    physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
   branch: agent/issue-210-visual-redesign
   pull_request: 532
   head_commit: 0c890ea92ce37bb3e9e3442d742d51c63ab8f1f2
