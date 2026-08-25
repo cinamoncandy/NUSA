@@ -107,10 +107,6 @@ function evaluateDimensions(manifest, request) {
   const sampleShortfalls = Object.entries(sampleChecks).filter(([, check]) => check.value < check.minimum).map(([key, check]) => `${key}: ${check.value} < ${check.minimum}`);
   const sampleSufficient = sampleShortfalls.length === 0;
 
-  // D-008 and D-009 have no evidence entry of their own -- they read numbers produced
-  // by other analyses. They must inherit the trust of what they actually consume,
-  // otherwise a synthetic benchmark comparison would escape the synthetic downgrade
-  // simply because it had no entry of its own.
   const DERIVED_TRUST_SOURCES = {
     "D-008": ["CROSS_MARKET_VALIDATION", "WALK_FORWARD", "REGIME_ANALYSIS"],
     "D-009": ["CROSS_MARKET_VALIDATION"]
@@ -127,9 +123,6 @@ function evaluateDimensions(manifest, request) {
     const dimension = dimensionShell(definition, entry);
     if (!definition.evidence) dimension.trust = inheritedTrust(definition.id);
     const metrics = entry?.entry?.metrics ?? {};
-    // A derived dimension cannot be more confident than the evidence it reads: if the
-    // inherited trust is synthetic, unverified, or invalid, it is capped at LOW exactly
-    // as an evidence-backed dimension would be.
     const derivedConfidence = !sampleSufficient || ["VERIFIED_SYNTHETIC", "UNVERIFIED_REAL", "INVALID", "MISSING"].includes(dimension.trust) ? "LOW" : "MEDIUM";
     dimension.confidence = definition.evidence ? deriveConfidence(entry, sampleSufficient) : derivedConfidence;
 
@@ -148,30 +141,44 @@ function evaluateDimensions(manifest, request) {
     const synthetic = entry ? entry.trust === "VERIFIED_SYNTHETIC" : false;
 
     switch (definition.id) {
-      case "D-001": { // Data Integrity
-        dimension.metrics = { qualityStatus: metrics.qualityStatus ?? null, invalidOhlcCount: metrics.invalidOhlcCount ?? null, duplicateCount: metrics.duplicateCount ?? null, gapCount: metrics.gapCount ?? null, coverageRatio: metrics.coverageRatio ?? null };
+      case "D-001": {
+        const selectionBiasControlStatus = metrics.selectionBiasControlStatus ?? "UNVERIFIED";
+        const survivorshipBiasControlStatus = metrics.survivorshipBiasControlStatus ?? "UNVERIFIED";
+        dimension.metrics = {
+          qualityStatus: metrics.qualityStatus ?? null,
+          invalidOhlcCount: metrics.invalidOhlcCount ?? null,
+          duplicateCount: metrics.duplicateCount ?? null,
+          gapCount: metrics.gapCount ?? null,
+          coverageRatio: metrics.coverageRatio ?? null,
+          selectionBiasControlStatus,
+          survivorshipBiasControlStatus
+        };
         if (metrics.qualityStatus === "FAIL" || metrics.invalidOhlcCount > 0 || metrics.duplicateCount > 0) {
           dimension.status = "FAIL";
           dimension.blockers.push("dataset quality FAIL, invalid OHLC, or duplicate conflict");
+        } else if (selectionBiasControlStatus !== "VERIFIED" || survivorshipBiasControlStatus !== "VERIFIED") {
+          dimension.status = "INCONCLUSIVE";
+          if (selectionBiasControlStatus !== "VERIFIED") dimension.blockers.push("selection-bias correction is missing, uncorrected, or unverified");
+          if (survivorshipBiasControlStatus !== "VERIFIED") dimension.blockers.push("survivorship-bias correction is missing, uncorrected, or unverified");
+          dimension.weaknesses.push("dataset bias controls are not independently established");
         } else if (synthetic) {
           dimension.status = "INCONCLUSIVE";
           dimension.notes.push("Only a synthetic dataset was supplied; data integrity of a real market dataset is unproven.");
         } else if (metrics.qualityStatus === "PASS" && (metrics.gapCount ?? 0) === 0 && (metrics.coverageRatio ?? 0) >= 0.99) {
           dimension.status = "STRONG";
-          dimension.strengths.push("quality PASS with no gaps and full coverage");
+          dimension.strengths.push("quality PASS with no gaps, full coverage, and verified selection/survivorship bias controls");
         } else {
           dimension.status = "ACCEPTABLE";
           dimension.weaknesses.push("quality PASS but with gaps or reduced coverage");
         }
         break;
       }
-      case "D-002": { // Backtest Integrity
+      case "D-002": {
         dimension.metrics = { closedCandlesOnly: metrics.closedCandlesOnly ?? null, lookAheadDetected: metrics.lookAheadDetected ?? null, deterministicRepeat: metrics.deterministicRepeat ?? null, benchmarkParity: metrics.benchmarkParity ?? null, sharedAccounting: metrics.sharedAccounting ?? null };
         if (metrics.lookAheadDetected === true) {
           dimension.status = "FAIL";
           dimension.blockers.push("look-ahead detected in the backtest path");
         } else if (metrics.closedCandlesOnly === true && metrics.deterministicRepeat === true && metrics.benchmarkParity === true && metrics.sharedAccounting === true) {
-          // Implementation correctness is exactly what synthetic evidence CAN establish.
           dimension.status = "STRONG";
           dimension.strengths.push("closed candles only, deterministic repeat, benchmark parity, shared PaperBroker accounting");
         } else {
@@ -180,7 +187,7 @@ function evaluateDimensions(manifest, request) {
         }
         break;
       }
-      case "D-003": { // Cost Resilience
+      case "D-003": {
         dimension.metrics = { baselinePositive: metrics.baselinePositive ?? null, moderateSurvival: metrics.moderateSurvivalRatio ?? null, severeSurvival: metrics.severeSurvivalRatio ?? null, costToGrossProfit: metrics.costToGrossProfitRatio ?? null };
         if (metrics.baselinePositive === false) {
           dimension.status = "FAIL";
@@ -196,14 +203,12 @@ function evaluateDimensions(manifest, request) {
         dimension.notes.push("The cost model has no spread, market-impact, or partial-fill component beyond the configured constants.");
         break;
       }
-      case "D-004": { // Out-of-Sample
+      case "D-004": {
         dimension.metrics = { oosWindowCount: oos.oosWindowCount ?? 0, profitableWindowRatio: oos.profitableWindowRatio ?? null, compoundedOosReturn: oos.compoundedOosReturn ?? null, purgeApplied: oos.purgeApplied ?? null, embargoApplied: oos.embargoApplied ?? null };
         if ((oos.oosWindowCount ?? 0) < policy.minimumOosWindowCount) {
           dimension.status = "INCONCLUSIVE";
           dimension.weaknesses.push(`only ${oos.oosWindowCount ?? 0} OOS windows, policy requires ${policy.minimumOosWindowCount}`);
         } else if (oos.purgeApplied !== true || oos.embargoApplied !== true) {
-          // Named explicitly because leakage across the train/test boundary silently
-          // inflates OOS results.
           dimension.status = "WEAK";
           dimension.warnings.push("purge/embargo was not applied at the train/test boundary; OOS results may be optimistic");
         } else if ((oos.compoundedOosReturn ?? 0) <= 0) {
@@ -216,7 +221,7 @@ function evaluateDimensions(manifest, request) {
         }
         break;
       }
-      case "D-005": { // Parameter Robustness
+      case "D-005": {
         const classification = metrics.plateauClassification ?? null;
         dimension.metrics = { plateauClassification: classification, immediateNeighborPositiveRatio: metrics.immediateNeighborPositiveRatio ?? null };
         const map = { BROAD_PLATEAU: "STRONG", NARROW_PLATEAU: "ACCEPTABLE", ISOLATED_PEAK: "WEAK", FLAT_WEAK: "FAIL", UNSTABLE: "FAIL" };
@@ -224,7 +229,7 @@ function evaluateDimensions(manifest, request) {
         if (classification === "ISOLATED_PEAK") dimension.weaknesses.push("performance depends on one isolated parameter point");
         break;
       }
-      case "D-006": { // Regime Robustness
+      case "D-006": {
         const dependency = metrics.strategyDependency ?? null;
         dimension.metrics = { strategyDependency: dependency, segmentCount: regime.segmentCount ?? 0, hostileRegimeCount: metrics.hostileRegimeCount ?? null, inconclusiveRegimeCount: metrics.inconclusiveRegimeCount ?? null };
         if ((regime.segmentCount ?? 0) < policy.minimumRegimeSegmentCount) {
@@ -242,7 +247,7 @@ function evaluateDimensions(manifest, request) {
         }
         break;
       }
-      case "D-007": { // Cross-Market Generalization
+      case "D-007": {
         const assessment = metrics.generalizationAssessment ?? null;
         dimension.metrics = { generalizationAssessment: assessment, marketCount: sample.marketCount ?? 0, periodCount: sample.periodCount ?? 0, validCellCount: sample.validCellCount ?? 0, sizingComparable: metrics.sizingComparable ?? null };
         const map = { BROADLY_GENERALIZABLE: "STRONG", MIXED: "ACCEPTABLE", MARKET_CONCENTRATED: "WEAK", PERIOD_CONCENTRATED: "WEAK", MARKET_AND_PERIOD_CONCENTRATED: "WEAK", BROADLY_WEAK: "FAIL", INCONSISTENT: "WEAK" };
@@ -253,13 +258,13 @@ function evaluateDimensions(manifest, request) {
         }
         break;
       }
-      case "D-008": { // Sample Sufficiency
+      case "D-008": {
         dimension.metrics = sampleChecks;
         dimension.status = sampleSufficient ? "ACCEPTABLE" : "INCONCLUSIVE";
         for (const shortfall of sampleShortfalls) dimension.weaknesses.push(shortfall);
         break;
       }
-      case "D-009": { // Benchmark Competitiveness
+      case "D-009": {
         const cross = byType.CROSS_MARKET_VALIDATION?.entry?.metrics ?? {};
         dimension.metrics = { cashOutperformRatio: cross.cashOutperformRatio ?? null, buyAndHoldOutperformRatio: cross.buyAndHoldOutperformRatio ?? null, fixed5x20OutperformRatio: cross.fixed5x20OutperformRatio ?? null };
         if (cross.buyAndHoldOutperformRatio == null) {
@@ -274,7 +279,7 @@ function evaluateDimensions(manifest, request) {
         }
         break;
       }
-      case "D-010": { // Operational Paper Safety
+      case "D-010": {
         dimension.metrics = {
           persistenceAtomicity: metrics.persistenceAtomicity ?? null,
           killSwitch: metrics.killSwitch ?? null,
@@ -303,8 +308,6 @@ function evaluateDimensions(manifest, request) {
           dimension.status = "FAIL";
           dimension.blockers.push("pilot verifier or promotion gate blocked operational Paper safety");
         } else if (metrics.independentRiskGatewayPresent !== true || metrics.actualPaperAcceptanceEvidence !== true) {
-          // WO-0031 section P: without an independent risk gateway and real Paper
-          // acceptance evidence, this dimension can never be STRONG.
           dimension.status = "INCONCLUSIVE";
           dimension.weaknesses.push("no independent risk gateway and/or no real Paper acceptance evidence; operational safety for strategy trial is unproven");
         } else if (metrics.pilotEvidenceType === "PAPER_PILOT_OPERATIONAL_EVIDENCE" && (metrics.operationalShadowEvidencePresent !== true || metrics.operationalCanaryEvidencePresent !== true || metrics.shadowCriteriaMet !== true || metrics.canaryCriteriaMet !== true || metrics.evidenceFresh !== true)) {
@@ -324,8 +327,6 @@ function evaluateDimensions(manifest, request) {
 
     const syntheticInput = synthetic || dimension.trust === "VERIFIED_SYNTHETIC";
     if (syntheticInput && ["D-001", "D-003", "D-004", "D-005", "D-006", "D-007", "D-009"].includes(definition.id)) {
-      // Performance dimensions cannot be established on invented candles, whatever the
-      // numbers say. Implementation-correctness dimensions (D-002) are exempt.
       if (["STRONG", "ACCEPTABLE"].includes(dimension.status)) {
         dimension.status = "INCONCLUSIVE";
         dimension.notes.push("Downgraded to INCONCLUSIVE: the underlying evidence is synthetic, which cannot establish market performance.");
@@ -366,9 +367,6 @@ function decide(dimensions, blockers, manifest, sampleSufficient) {
 
   if (anyInvalid) return { decision: "INVALID", reasons: ["at least one evidence source is INVALID or failed independent verification"] };
   if (byId["D-002"].status === "FAIL") return { decision: "INVALID", reasons: ["backtest integrity failed; no performance result can be trusted"] };
-  // A breached safety boundary is a hard stop, not a "hold". A discovered live-trading
-  // capability, a failing kill switch, or non-atomic persistence invalidates the whole
-  // exercise: nothing may be promoted and no result may be relied on until it is fixed.
   if (byId["D-010"].status === "FAIL") return { decision: "INVALID", reasons: ["operational Paper safety FAILED (live capability present, kill switch failing, or persistence not atomic); this is a hard stop"] };
   if (missing.length > 0) return { decision: "INSUFFICIENT_EVIDENCE", reasons: [`missing evidence: ${missing.map((entry) => entry.evidenceType).join(", ")}`] };
   if (!sampleSufficient) return { decision: "INSUFFICIENT_EVIDENCE", reasons: ["declared minimum sample thresholds are not met"] };
@@ -448,7 +446,7 @@ function runStrategyResearchScorecard(request, options = {}) {
     blockers,
     warnings,
     limitations: [
-      "Dataset selection and survivorship bias are present and uncorrected.",
+      "Selection and survivorship bias controls must be explicitly VERIFIED in DATASET_QUALITY evidence; residual methodology risk remains even when verified.",
       "Market coverage is limited and may be KRW-only.",
       "Listing-history differences shorten some symbols' usable range.",
       "The cost model omits spread, market impact, and partial fills beyond the configured constants.",
