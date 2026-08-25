@@ -4,6 +4,7 @@ const { createServer } = require("node:net");
 const { dirname, resolve } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
+const { PaperRuntimeProcessSupervisor } = require("./paper-runtime-supervisor.js");
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -89,6 +90,20 @@ async function stopRuntime(runtime) {
   }
 }
 
+async function stopSupervisor(supervisor) {
+  const child = supervisor.child;
+  supervisor.stop("SIGTERM");
+  if (child == null || child.exitCode != null) return;
+  const exited = await Promise.race([
+    new Promise((resolvePromise) => child.once("exit", () => resolvePromise(true))),
+    sleep(10_000).then(() => false),
+  ]);
+  if (!exited && child.exitCode == null) {
+    child.kill("SIGKILL");
+    await new Promise((resolvePromise) => child.once("exit", resolvePromise));
+  }
+}
+
 async function waitForHealth(baseUrl, runtime, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -137,6 +152,19 @@ async function waitForAutomaticRuntime(baseUrl, token, timeoutMs = 90_000) {
   throw new Error(`timed out waiting for automatic PAPER runtime; last=${JSON.stringify(last).slice(0, 2000)}`);
 }
 
+async function waitForHeartbeatAdvance(baseUrl, token, baselineEventCount, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last;
+  while (Date.now() < deadline) {
+    last = await loadOperations(baseUrl, token);
+    const heartbeat = last.body?.operations?.heartbeat;
+    if (last.httpStatus === 200 && heartbeat?.eventCount > baselineEventCount && heartbeat?.lastMarketEventAt != null) return last.body;
+    if (last.httpStatus !== 200 && last.httpStatus !== 503) throw new Error(`unexpected PAPER liveness response: ${JSON.stringify(last).slice(0, 2000)}`);
+    await sleep(500);
+  }
+  throw new Error(`timed out waiting for a second supervised PAPER market cycle; last=${JSON.stringify(last).slice(0, 2000)}`);
+}
+
 function summarizeSnapshot(snapshot) {
   const account = snapshot?.portfolio?.account;
   return {
@@ -149,6 +177,7 @@ function summarizeSnapshot(snapshot) {
     schedulerRunning: snapshot?.operations?.schedulerRunning,
     schedulerMode: snapshot?.operations?.schedulerMode,
     heartbeat: snapshot?.operations?.heartbeat,
+    supervisor: snapshot?.operations?.supervisor,
     markets: Array.isArray(snapshot?.markets) ? snapshot.markets.map((market) => ({ market: market.market, source: market.source, price: market.price, observedAt: market.observedAt })) : [],
     orderCount: Array.isArray(snapshot?.orders) ? snapshot.orders.length : 0,
     cash: account?.cash,
@@ -181,6 +210,7 @@ async function run(options = {}) {
 
   const token = randomBytes(32).toString("hex");
   const idempotencyKey = `wo0059:${Date.now()}:${randomBytes(8).toString("hex")}`;
+  void idempotencyKey;
   const port = await availablePort();
   const { env: cleanBaseEnv, removed: scrubbedPrivateKeys } = scrubPrivateExchangeEnv(process.env);
   const env = {
@@ -200,6 +230,7 @@ async function run(options = {}) {
   const baseUrl = `http://127.0.0.1:${port}`;
   let firstRuntime;
   let secondRuntime;
+  let supervisor;
   const startedAt = new Date().toISOString();
   try {
     firstRuntime = startRuntime(root, env);
@@ -212,17 +243,10 @@ async function run(options = {}) {
     const firstOrder = firstSnapshot.orders?.[0];
     const firstFill = firstOrder?.fills?.[0];
 
-    // Issue #755: a real device previously showed an always-empty PAPER learning timeline with no
-    // way to tell why. This is the closest thing this repo has to real-device evidence, so it must
-    // prove the canonical learning projection is actually populated, not just that trading works.
     if (firstSnapshot.paperLearning == null) throw new Error("paperLearning projection missing from automatic PAPER snapshot");
-    if (firstSnapshot.paperLearning.liveAuthority !== "NONE" || firstSnapshot.paperLearning.productionMutationAllowed !== false || firstSnapshot.paperLearning.readOnly !== true) {
-      throw new Error("paperLearning projection violated a read-only/authority invariant");
-    }
+    if (firstSnapshot.paperLearning.liveAuthority !== "NONE" || firstSnapshot.paperLearning.productionMutationAllowed !== false || firstSnapshot.paperLearning.readOnly !== true) throw new Error("paperLearning projection violated a read-only/authority invariant");
     const firstLearningStages = new Set((firstSnapshot.paperLearning.events || []).map((event) => event.stage));
-    if (!firstLearningStages.has("MARKET_DATA") || !firstLearningStages.has("DECISION")) {
-      throw new Error(`paperLearning did not expose the required MARKET_DATA -> DECISION chain (stages seen: ${[...firstLearningStages].join(",") || "none"})`);
-    }
+    if (!firstLearningStages.has("MARKET_DATA") || !firstLearningStages.has("DECISION")) throw new Error(`paperLearning did not expose the required MARKET_DATA -> DECISION chain (stages seen: ${[...firstLearningStages].join(",") || "none"})`);
     const firstLearningIds = (firstSnapshot.paperLearning.events || []).map((event) => event.id);
     if (new Set(firstLearningIds).size !== firstLearningIds.length) throw new Error("paperLearning exposed duplicate event ids before any restart");
 
@@ -234,31 +258,21 @@ async function run(options = {}) {
     if (new Set(persistedLearningIds).size !== persistedLearningIds.length) throw new Error("paperLearning persistence contained duplicate event ids before restart");
     const dbHashAfterRuntime = sha256(readFileSync(databasePath));
 
-    // Recover with public market ingestion paused so persistence is verified before a
-    // legitimate new automatic PAPER decision can mutate the recovered account.
     secondRuntime = startRuntime(root, { ...env, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" });
     await waitForHealth(baseUrl, secondRuntime);
     const recoverySnapshot = await waitForRecoveredRuntime(baseUrl, token);
     if (recoverySnapshot.liveAuthority !== "NONE" || recoverySnapshot.productionMutationAllowed !== false) throw new Error("restart PAPER recovery snapshot violated authority invariant");
     const recoverySummary = summarizeSnapshot(recoverySnapshot);
     if (firstSummary.position?.quantity !== recoverySummary.position?.quantity) throw new Error("PAPER position did not recover identically after restart");
-
-    // The first network snapshot can legitimately be followed by another PAPER-learning event
-    // before SIGTERM finishes. Compare recovery to the durable post-shutdown window itself so the
-    // restart assertion remains exact without racing the live scheduler.
     if (recoverySnapshot.paperLearning == null) throw new Error("paperLearning projection missing after restart recovery");
     const recoveredLearningIds = (recoverySnapshot.paperLearning.events || []).map((event) => event.id);
     if (recoveredLearningIds.length < 1) throw new Error("paperLearning did not durably replay any event after restart");
     if (new Set(recoveredLearningIds).size !== recoveredLearningIds.length) throw new Error("paperLearning replay produced duplicate event ids after restart");
-    if (recoveredLearningIds.length !== persistedLearningIds.length || recoveredLearningIds.some((id, index) => id !== persistedLearningIds[index])) {
-      throw new Error("paperLearning replay after restart did not reproduce the exact persisted event window");
-    }
+    if (recoveredLearningIds.length !== persistedLearningIds.length || recoveredLearningIds.some((id, index) => id !== persistedLearningIds[index])) throw new Error("paperLearning replay after restart did not reproduce the exact persisted event window");
 
     await stopRuntime(secondRuntime);
     secondRuntime = undefined;
 
-    // Then resume the real public-data automatic runtime and independently prove that
-    // restart does not duplicate the durable order/fill while the scheduler is active.
     secondRuntime = startRuntime(root, env);
     await waitForHealth(baseUrl, secondRuntime);
     const secondSnapshot = await waitForAutomaticRuntime(baseUrl, token);
@@ -267,6 +281,52 @@ async function run(options = {}) {
     const repeatedOrders = firstOrder == null ? [] : secondSnapshot.orders.filter((order) => order.id === firstOrder.id);
     const repeatedFills = repeatedOrders.flatMap((order) => order.fills || []);
     if (firstOrder != null && (repeatedOrders.length !== 1 || repeatedFills.length !== 1)) throw new Error("restart created a duplicate PAPER order/fill");
+    await stopRuntime(secondRuntime);
+    secondRuntime = undefined;
+
+    supervisor = new PaperRuntimeProcessSupervisor({
+      command: process.execPath,
+      args: ["dist/apps/cloud/src/runtime.js"],
+      cwd: root,
+      env,
+      initialBackoffMs: 100,
+      maxBackoffMs: 500,
+      stableWindowMs: 60_000,
+      write: () => {},
+    });
+    supervisor.start();
+    const supervisedStart = await waitForAutomaticRuntime(baseUrl, token);
+    const initialSupervisorProjection = supervisedStart.operations?.supervisor;
+    if (initialSupervisorProjection?.managed !== true || initialSupervisorProjection.restartCount !== 0 || initialSupervisorProjection.liveAuthority !== "NONE" || initialSupervisorProjection.productionMutationAllowed !== false || initialSupervisorProjection.aiAuthority !== "ZERO_AUTHORITY") throw new Error("PAPER supervisor projection missing or violated authority invariant");
+    const baselineEventCount = supervisedStart.operations.heartbeat?.eventCount ?? 0;
+    const secondCycleSnapshot = await waitForHeartbeatAdvance(baseUrl, token, baselineEventCount);
+    if ((secondCycleSnapshot.operations.heartbeat?.eventCount ?? 0) <= baselineEventCount) throw new Error("PAPER supervisor did not prove multi-cycle liveness");
+
+    const crashedChild = supervisor.child;
+    if (crashedChild == null) throw new Error("PAPER supervisor child unavailable for recovery evidence");
+    crashedChild.kill("SIGKILL");
+    const recoveryDeadline = Date.now() + 30_000;
+    while (Date.now() < recoveryDeadline && supervisor.snapshot().restartCount < 1) await sleep(50);
+    if (supervisor.snapshot().restartCount < 1) throw new Error("PAPER supervisor did not schedule recovery after child failure");
+    const supervisedRecovery = await waitForAutomaticRuntime(baseUrl, token);
+    const recoveryProjection = supervisedRecovery.operations?.supervisor;
+    if (recoveryProjection?.managed !== true || recoveryProjection.restartCount < 1 || recoveryProjection.lastExit == null) throw new Error("PAPER operations projection did not expose supervisor recovery evidence");
+    if (supervisedRecovery.operations.transport !== "ONLINE" || supervisedRecovery.operations.schedulerRunning !== true) throw new Error("PAPER supervisor recovery did not reconnect public market runtime");
+    const orderIds = (supervisedRecovery.orders || []).map((order) => order.id);
+    const fillIds = (supervisedRecovery.orders || []).flatMap((order) => (order.fills || []).map((fill) => fill.id));
+    if (new Set(orderIds).size !== orderIds.length || new Set(fillIds).size !== fillIds.length) throw new Error("PAPER supervisor recovery created duplicate order/fill identity");
+    if (firstOrder != null && orderIds.filter((id) => id === firstOrder.id).length !== 1) throw new Error("PAPER supervisor recovery duplicated the durable pre-recovery order");
+    const supervisorEvidence = {
+      first_cycle: summarizeSnapshot(supervisedStart),
+      second_cycle: summarizeSnapshot(secondCycleSnapshot),
+      recovered: summarizeSnapshot(supervisedRecovery),
+      restart_count: recoveryProjection.restartCount,
+      reconnect_transport: supervisedRecovery.operations.transport,
+      duplicate_order_ids: false,
+      duplicate_fill_ids: false,
+    };
+    await stopSupervisor(supervisor);
+    supervisor = undefined;
 
     const payload = {
       schema_version: 1,
@@ -280,16 +340,10 @@ async function run(options = {}) {
       execution: firstOrder == null ? { status: "NO_ACTIONABLE_SIGNAL", order_count: 0, fill_count: 0 } : { status: "AUTOMATICALLY_FILLED", order_id: firstOrder.id, fill_id: firstFill?.id, side: firstOrder.side, quantity: firstOrder.quantity, price: firstOrder.price, fee: firstOrder.fee },
       first_runtime: firstSummary,
       persistence: { sqlite_path: databasePath, sqlite_size_bytes: statSync(databasePath).size, sqlite_sha256_after_runtime: dbHashAfterRuntime },
-      paper_learning: {
-        stages_observed: [...firstLearningStages].sort(),
-        event_count_before_restart: firstLearningIds.length,
-        event_count_persisted_at_shutdown: persistedLearningIds.length,
-        event_count_after_restart_recovery: recoveredLearningIds.length,
-        duplicate_ids_after_restart: false,
-        persisted_window_matches_recovery: true
-      },
+      paper_learning: { stages_observed: [...firstLearningStages].sort(), event_count_before_restart: firstLearningIds.length, event_count_persisted_at_shutdown: persistedLearningIds.length, event_count_after_restart_recovery: recoveredLearningIds.length, duplicate_ids_after_restart: false, persisted_window_matches_recovery: true },
       restart_recovery: recoverySummary,
       automatic_restart: secondSummary,
+      supervisor: supervisorEvidence,
       idempotency_retry: { status: firstOrder == null ? "NOT_APPLICABLE_NO_AUTOMATIC_ORDER" : "AUTOMATIC_RESTART_RECONCILED", original_order_id: firstOrder?.id ?? null, matching_order_count: repeatedOrders.length, matching_fill_count: repeatedFills.length, double_fill: false },
       prohibited_capabilities: { upbit_private_credentials: false, live_order_endpoint: false, withdrawal_transfer: false, real_money_mutation: false },
     };
@@ -300,6 +354,7 @@ async function run(options = {}) {
   } finally {
     if (firstRuntime) await stopRuntime(firstRuntime);
     if (secondRuntime) await stopRuntime(secondRuntime);
+    if (supervisor) await stopSupervisor(supervisor);
   }
 }
 
