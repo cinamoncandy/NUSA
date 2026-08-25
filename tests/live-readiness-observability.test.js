@@ -73,7 +73,9 @@ test("#661 LIVE_READY projection reuses the canonical provider and existing gate
   assert.equal(projected.aiAuthority, "ZERO_AUTHORITY");
   assert.equal(projected.provenance.sourceFingerprint.length, 64);
   assert.equal(projected.provenance.inputs.length, 20);
-  assert.equal(projected.timeline.length, 0);
+  assert.deepEqual(projected.timeline.map((entry) => entry.stage), ["SUBMIT", "ACK", "FILL", "RECONCILIATION"]);
+  assert.equal(new Set(projected.timeline.map((entry) => entry.correlationId)).size, 1);
+  assert.equal(projected.timeline.every((entry) => entry.source === "CANONICAL_MOCK" && entry.brokerMutation === "NONE"), true);
   assert.equal(Object.isFrozen(projected), true);
 });
 
@@ -81,6 +83,7 @@ test("#661 LIVE_READY source is deterministic and missing evidence fails closed"
   const first = projectLiveReadinessObservabilitySnapshot(source().getSnapshot());
   const second = projectLiveReadinessObservabilitySnapshot(source().getSnapshot());
   assert.deepEqual(first, second);
+  assert.deepEqual(first.timeline, second.timeline);
   const missing = createLiveReadinessSourceProvider({ now: () => NOW, sourceVersion: "missing" }).getSnapshot();
   const blocked = projectLiveReadinessObservabilitySnapshot(missing);
   assert.equal(blocked.status, "NOT_READY");
@@ -167,4 +170,16 @@ test("#661 wire contract rejects authority expansion and secret-shaped fields", 
   assert.throws(() => validateLiveReadinessObservabilitySnapshot({ ...payload, provenance: { ...payload.provenance, inputs: [{ ...payload.provenance.inputs[0], authorization: "Bearer x" }] } }), /prohibited|invalid/);
   const serialized = JSON.stringify(payload).toLowerCase();
   for (const forbidden of ["orderrequest", "brokercredential", "leaseid", "authorization"]) assert.equal(serialized.includes(forbidden), false, forbidden);
+});
+
+test("#661 canonical future-LIVE lifecycle is replay-safe, ordered, and identity-stable", () => {
+  const payload = projectLiveReadinessObservabilitySnapshot(source().getSnapshot());
+  assert.deepEqual(payload.timeline.map((entry) => entry.sequence), [1, 2, 3, 4]);
+  assert.deepEqual(payload.timeline.map((entry) => entry.stage), ["SUBMIT", "ACK", "FILL", "RECONCILIATION"]);
+  assert.equal(new Set(payload.timeline.map((entry) => entry.eventId)).size, 4);
+  assert.equal(payload.timeline.every((entry) => /^[a-f0-9]{64}$/.test(entry.eventId) && /^[a-f0-9]{64}$/.test(entry.correlationId)), true);
+  assert.equal(JSON.stringify(payload).includes("brokerOrderId"), false);
+  assert.throws(() => validateLiveReadinessObservabilitySnapshot({ ...payload, timeline: [{ ...payload.timeline[0], brokerMutation: "ORDER_SUBMITTED" }] }), /authority|lifecycle/);
+  assert.throws(() => validateLiveReadinessObservabilitySnapshot({ ...payload, timeline: payload.timeline.slice(0, 3) }), /timeline/);
+  assert.throws(() => validateLiveReadinessObservabilitySnapshot({ ...payload, timeline: payload.timeline.map((entry, index) => index === 1 ? { ...entry, correlationId: "f".repeat(64) } : entry) }), /identity/);
 });

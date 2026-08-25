@@ -11,6 +11,7 @@ import {
   type LiveReadinessProjectionIncident,
   type LiveReadinessProjectionSourceId,
 } from "../../../packages/contracts/src/liveReadinessObservability";
+import { buildCanonicalLiveLifecycleEvidence } from "./liveLifecycleEvidence";
 
 const blockerSource = new Map<string, LiveReadinessProjectionSourceId>([
   ["PAPER_AUTO_LEARNING_NOT_STABLE", "paperAutoLearning"],
@@ -118,9 +119,7 @@ export function projectLiveReadinessObservabilitySnapshot(
       inputs: Object.freeze(inputs),
     }),
     incidents: Object.freeze([...result.blockers].sort().map((code) => projectionIncident(snapshot, code))),
-    // No canonical mock/rehearsal lifecycle is present in the current production source, so an
-    // empty timeline is truthful. Source observations are exposed through provenance instead.
-    timeline: Object.freeze([]),
+    timeline: buildCanonicalLiveLifecycleEvidence(snapshot.provenance.sourceFingerprint, snapshot.provenance.generatedAt),
     lastRefresh: snapshot.provenance.generatedAt,
   });
   return validateLiveReadinessObservabilitySnapshot(output);

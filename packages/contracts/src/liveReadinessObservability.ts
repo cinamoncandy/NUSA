@@ -81,9 +81,17 @@ export interface LiveReadinessProjectionIncident {
 }
 
 export interface LiveReadinessProjectionTimelineEntry {
-  readonly sourceId: LiveReadinessProjectionSourceId;
-  readonly freshness: LiveReadinessProjectionFreshness;
-  readonly observedAt?: string;
+  readonly kind: "LIFECYCLE";
+  readonly sequence: 1 | 2 | 3 | 4;
+  readonly stage: "SUBMIT" | "ACK" | "FILL" | "RECONCILIATION";
+  readonly status: "OBSERVED";
+  readonly source: "CANONICAL_MOCK";
+  readonly executionMode: "FUTURE_LIVE_MOCK";
+  readonly brokerMutation: "NONE";
+  readonly eventId: string;
+  readonly correlationId: string;
+  readonly occurredAt: string;
+  readonly reason: string;
 }
 
 export interface LiveReadinessObservabilitySnapshot {
@@ -118,7 +126,7 @@ export interface LiveReadinessObservabilitySnapshot {
   readonly freshness: Readonly<Record<LiveReadinessProjectionSourceId, LiveReadinessProjectionFreshness>>;
   readonly provenance: LiveReadinessProjectionProvenance;
   readonly incidents: readonly LiveReadinessProjectionIncident[];
-  /** Empty unless canonical mock/rehearsal lifecycle evidence exists. */
+  /** Canonical mock/future-LIVE evidence only; never a broker or accounting record. */
   readonly timeline: readonly LiveReadinessProjectionTimelineEntry[];
   readonly lastRefresh: string;
 }
@@ -198,10 +206,21 @@ export function validateLiveReadinessObservabilitySnapshot(snapshot: LiveReadine
     if (incident.sourceId !== undefined && !SOURCE_IDS.includes(incident.sourceId)) throw new Error("invalid LIVE_READY incident source");
     if (incident.observedAt !== undefined && (!ISO_DATE.test(incident.observedAt) || !Number.isFinite(Date.parse(incident.observedAt)))) throw new Error("invalid LIVE_READY incident time");
   }
-  for (const entry of snapshot.timeline) {
-    if (!SOURCE_IDS.includes(entry.sourceId) || !FRESHNESS.has(entry.freshness)) throw new Error("invalid LIVE_READY timeline entry");
-    if (entry.observedAt !== undefined && (!ISO_DATE.test(entry.observedAt) || !Number.isFinite(Date.parse(entry.observedAt)))) throw new Error("invalid LIVE_READY timeline time");
+  const expectedStages = ["SUBMIT", "ACK", "FILL", "RECONCILIATION"] as const;
+  if (!Array.isArray(snapshot.timeline) || snapshot.timeline.length !== 4) throw new Error("invalid LIVE_READY lifecycle timeline");
+  snapshot.timeline.forEach((entry, index) => {
+    if (entry.kind !== "LIFECYCLE" || entry.sequence !== index + 1 || entry.stage !== expectedStages[index] || entry.status !== "OBSERVED" || entry.source !== "CANONICAL_MOCK" || entry.executionMode !== "FUTURE_LIVE_MOCK" || entry.brokerMutation !== "NONE") throw new Error("invalid LIVE_READY lifecycle entry");
+    for (const name of ["eventId", "correlationId", "reason"] as const) {
+      safeText(entry[name], `timeline.${name}`);
+      if (!entry[name] || !SAFE_REFERENCE.test(entry[name])) throw new Error(`invalid LIVE_READY timeline ${name}`);
+    }
+    if (!/^[a-f0-9]{64}$/.test(entry.eventId) || !/^[a-f0-9]{64}$/.test(entry.correlationId)) throw new Error("invalid LIVE_READY lifecycle identity");
+    if (!ISO_DATE.test(entry.occurredAt) || !Number.isFinite(Date.parse(entry.occurredAt))) throw new Error("invalid LIVE_READY lifecycle time");
+  });
+  for (let i = 1; i < snapshot.timeline.length; i += 1) {
+    if (snapshot.timeline[i - 1].occurredAt > snapshot.timeline[i].occurredAt) throw new Error("LIVE_READY lifecycle ordering is invalid");
   }
+  if (new Set(snapshot.timeline.map((entry) => entry.eventId)).size !== 4 || new Set(snapshot.timeline.map((entry) => entry.correlationId)).size !== 1) throw new Error("LIVE_READY lifecycle identity is inconsistent");
   if (!ISO_DATE.test(snapshot.lastRefresh) || !Number.isFinite(Date.parse(snapshot.lastRefresh))) throw new Error("invalid LIVE_READY last refresh");
   assertSafeObject(snapshot);
   return Object.freeze(structuredClone(snapshot));
