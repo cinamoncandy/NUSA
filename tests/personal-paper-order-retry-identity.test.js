@@ -91,8 +91,16 @@ test("credential rotation makes an in-flight PAPER result ambiguous and preserve
 });
 
 test("TradingView keeps unresolved retry identity across tab unmount and remount", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
-  assert.match(source, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
-  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity\([\s\S]*processPaperOrderRetryIdentity/);
-  assert.doesNotMatch(source, /const retryIdentity = useMemo\(\(\) => new PersonalPaperOrderRetryIdentity\(\), \[\]\)/);
+  const shellSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const workspaceSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+  assert.match(shellSource, /TradingView as LegacyTradingView/);
+  assert.match(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(workspaceSource, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
+  assert.match(workspaceSource, /submitPersonalPaperOrderWithRetryIdentity\([\s\S]*processPaperOrderRetryIdentity/);
+  assert.doesNotMatch(workspaceSource, /const retryIdentity = useMemo\(\(\) => new PersonalPaperOrderRetryIdentity\(\), \[\]\)/);
+  for (const source of [shellSource, workspaceSource]) {
+    assert.doesNotMatch(source, /productionMutationAllowed\s*:\s*true/);
+    assert.doesNotMatch(source, /authority\s*:\s*["']LIVE["']/);
+    assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  }
 });

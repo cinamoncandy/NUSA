@@ -8,8 +8,11 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("mobile PAPER falls back to a 10M KRW local simulator without Cloud authority", () => {
   const app = read("apps/mobile/App.tsx");
-  const view = read("apps/mobile/src/tradingView.tsx");
+  const shell = read("apps/mobile/src/tradingView.tsx");
+  const view = read("apps/mobile/src/tradingViewLegacy.tsx");
   assert.match(app, /activeTab !== "Portfolio" && activeTab !== "Paper"/);
+  assert.match(shell, /TradingView as LegacyTradingView/);
+  assert.match(shell, /return <LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(view, /10_000_000/);
   assert.match(view, /MockTradingService/);
   assert.match(view, /currency: "KRW"/);
@@ -22,6 +25,8 @@ test("mobile PAPER falls back to a 10M KRW local simulator without Cloud authori
   assert.match(view, /productionMutationAllowed: false/);
   assert.doesNotMatch(view, /authority:\s*"LIVE"/);
   assert.doesNotMatch(view, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
 });
 
 test("MockTradingService parses KRW-BTC as KRW quote and BTC base", () => {

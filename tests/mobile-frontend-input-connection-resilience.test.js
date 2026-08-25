@@ -52,7 +52,7 @@ test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semant
 });
 
 test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {
-  const source = read("apps/mobile/src/tradingView.tsx");
+  const source = read("apps/mobile/src/tradingViewLegacy.tsx");
   assert.match(source, /keyboardType="decimal-pad" label="지정 가격"/);
   assert.match(source, /keyboardType="decimal-pad" label=\{`수량/);
   assert.equal((source.match(/editable=\{!submitting\}/g) ?? []).length, 2);

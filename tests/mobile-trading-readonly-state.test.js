@@ -4,7 +4,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 test("Trading permits only PAPER mutation while LIVE remains disabled", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const shellSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+
+  assert.match(shellSource, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(shellSource, /return <LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
 
   assert.match(source, /testID="trading-screen"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
@@ -20,7 +25,9 @@ test("Trading permits only PAPER mutation while LIVE remains disabled", () => {
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
 
-  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  for (const candidate of [shellSource, source]) {
+    assert.doesNotMatch(candidate, /authority:\s*"LIVE"/);
+    assert.doesNotMatch(candidate, /productionMutationAllowed:\s*true/);
+    assert.doesNotMatch(candidate, /\/api\/(?:live|withdraw|transfer)/i);
+  }
 });

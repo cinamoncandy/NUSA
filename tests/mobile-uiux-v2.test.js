@@ -8,6 +8,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
   const app = read("App.tsx");
+  const tradingShell = read("src/tradingView.tsx");
+  const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Paper: "TRADE"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
@@ -21,7 +23,9 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
   assert.match(read("src/homeView.tsx"), /testID="home-paper-learning"/);
-  assert.match(read("src/tradingView.tsx"), /testID="trade-paper-learning"/);
+  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingWorkspace, /testID="trade-paper-learning"/);
   assert.match(read("src/portfolioView.tsx"), /testID="portfolio-paper-learning"/);
 });
 
@@ -51,7 +55,10 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
 });
 
 test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gated", () => {
-  const source = read("src/tradingView.tsx");
+  const shell = read("src/tradingView.tsx");
+  const source = read("src/tradingViewLegacy.tsx");
+  assert.match(shell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
@@ -63,6 +70,8 @@ test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gat
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
   assert.match(source, /statusLabel="LIVE NONE"/);
+  assert.doesNotMatch(shell, /productionMutationAllowed: true/);
+  assert.doesNotMatch(source, /productionMutationAllowed: true/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {

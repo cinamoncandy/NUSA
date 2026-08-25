@@ -37,26 +37,31 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
 test("PAPER surface exposes local or verified cloud PAPER execution without LIVE authority", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
+  const legacyTrading = read("src/tradingViewLegacy.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
-  assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
-  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
-  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(trading, /statusLabel="LIVE NONE"/);
-  assert.match(trading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(trading, /MockTradingService/);
-  assert.match(trading, /loadUpbitPublicMarkets/);
-  assert.match(trading, /PersonalPaperOrderRetryIdentity/);
-  assert.match(trading, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(trading, /authority: "PAPER_ONLY"/);
-  assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(trading, /liveMutationAllowed: false/);
-  assert.match(trading, /이 PAPER 주문을 확정할까요/);
-  assert.match(trading, /PAPER 주문 확정/);
-  assert.doesNotMatch(trading, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(trading, /\/api\/(?:live|withdraw|transfer)/i);
+  assert.match(trading, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(legacyTrading, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(legacyTrading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(legacyTrading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
+  assert.match(legacyTrading, /statusLabel="LIVE NONE"/);
+  assert.match(legacyTrading, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  assert.match(legacyTrading, /MockTradingService/);
+  assert.match(legacyTrading, /loadUpbitPublicMarkets/);
+  assert.match(legacyTrading, /PersonalPaperOrderRetryIdentity/);
+  assert.match(legacyTrading, /submitPersonalPaperOrderWithRetryIdentity/);
+  assert.match(legacyTrading, /authority: "PAPER_ONLY"/);
+  assert.match(legacyTrading, /productionMutationAllowed: false/);
+  assert.match(legacyTrading, /liveMutationAllowed: false/);
+  assert.match(legacyTrading, /이 PAPER 주문을 확정할까요/);
+  assert.match(legacyTrading, /PAPER 주문 확정/);
+  for (const source of [trading, legacyTrading]) {
+    assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+    assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+    assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  }
 });
 
 test("optional Cloud credential flow remains Settings-owned and never gates local PAPER", () => {
