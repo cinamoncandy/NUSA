@@ -5,6 +5,7 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { PaperLearningEventRecorder } = require("../dist/apps/cloud/src/paperLearningObservability.js");
 
+// Reopening with a smaller retention limit reproduces an oversized durable history at startup.
 test("durable PAPER learning replay hydrates the newest retained window", () => {
   const directory = mkdtempSync(join(tmpdir(), "nusa-paper-learning-retention-"));
   const persistencePath = join(directory, "state.sqlite");
