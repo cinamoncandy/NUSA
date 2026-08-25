@@ -15,11 +15,13 @@ function toRunnableTest(relativePath) {
 function main() {
   const root = process.cwd();
   const registerDistPath = join(root, "tests", "register-dist.cjs");
-  const isPullRequestCi = process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_EVENT_NAME === "pull_request";
+  const isPrimaryPullRequestCi = process.env.GITHUB_ACTIONS === "true"
+    && process.env.GITHUB_EVENT_NAME === "pull_request"
+    && process.env.GITHUB_WORKFLOW === "CI";
   const explicitBase = process.env.NUSA_CHANGED_TEST_BASE?.trim();
 
-  if (!isPullRequestCi && !explicitBase) {
-    console.log("SKIP changed-test fast gate: not a pull-request CI run");
+  if (!isPrimaryPullRequestCi && !explicitBase) {
+    console.log("SKIP changed-test fast gate: not the primary pull-request CI workflow");
     return;
   }
 
