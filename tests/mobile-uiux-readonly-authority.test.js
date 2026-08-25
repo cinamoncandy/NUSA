@@ -42,13 +42,13 @@ test("PAPER surface exposes local or verified cloud PAPER execution without LIVE
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
   assert.match(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(legacyTrading, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(legacyTrading, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(legacyTrading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
   assert.match(legacyTrading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(legacyTrading, /statusLabel="LIVE NONE"/);
   assert.match(legacyTrading, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(legacyTrading, /MockTradingService/);
+  assert.match(read("src/localPaperLedger.ts"), /MockTradingService/);
   assert.match(legacyTrading, /loadUpbitPublicMarkets/);
   assert.match(legacyTrading, /PersonalPaperOrderRetryIdentity/);
   assert.match(legacyTrading, /submitPersonalPaperOrderWithRetryIdentity/);

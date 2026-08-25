@@ -60,9 +60,12 @@ test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gat
   assert.match(shell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
   assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
-  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  // Issue #637: the LOCAL-vs-Cloud activation rule moved into the shared ledger (isLocalPaperActive)
+  // so Home/Trade/Portfolio can never disagree about which ledger is authoritative.
+  assert.match(read("src/localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(source, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(source, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
   assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);

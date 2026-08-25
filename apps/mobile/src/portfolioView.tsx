@@ -6,6 +6,8 @@ import { useTheme } from "./ThemeProvider";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildPortfolioViewModel, type PortfolioAccountResponse, type PortfolioViewModel } from "./portfolioViewModel";
 import { useUpbitReadOnlyState, type UpbitReadOnlyAccountSnapshot, type UpbitReadOnlyConnectionStatus, type UpbitReadOnlyMonitorStatus } from "./upbitReadOnlyAccount";
+import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
@@ -43,15 +45,27 @@ function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useT
 
 export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
   const { theme } = useTheme();
-  if (snapshot === null) return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />{upbitStatus === "LOADING" ? <Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text> : null}<InlineNotice title={error ? "PAPER 자산을 표시할 수 없습니다" : "PAPER 연결 필요"} detail={error ?? "PAPER 서버에 연결하면 PAPER 계정의 평가자산과 손익을 표시합니다. Upbit 읽기 전용 잔고는 별도로 표시됩니다."} tone={error ? "danger" : "warning"} /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
-  if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
+  // Issue #637: when Cloud PAPER is not configured, fall back to the same one app-level LOCAL
+  // PAPER ledger Trade writes to, instead of always showing "PAPER 연결 필요" while a real LOCAL
+  // PAPER balance exists. Hooks stay unconditional; the mark-price poll is skipped once Cloud is
+  // active.
+  const localPaperActive = snapshot === null && isLocalPaperActive();
+  const localTradingSnapshot = useLocalPaperSnapshot();
+  const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
+  const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
+  const effectiveSnapshot = snapshot ?? localPortfolio;
+  const usingLocalPaper = snapshot === null && localPortfolio !== null;
+
+  if (effectiveSnapshot === null) return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />{upbitStatus === "LOADING" ? <Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text> : null}<InlineNotice title={error ? "PAPER 자산을 표시할 수 없습니다" : "PAPER 연결 필요"} detail={error ?? "PAPER 서버에 연결하면 PAPER 계정의 평가자산과 손익을 표시합니다. Upbit 읽기 전용 잔고는 별도로 표시됩니다."} tone={error ? "danger" : "warning"} /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
+  if (error && !usingLocalPaper) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
   let model: PortfolioViewModel;
-  try { model = buildPortfolioViewModel(snapshot); } catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
+  try { model = buildPortfolioViewModel(effectiveSnapshot); } catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
   const allocation = createCashInvestmentEnvelope(model.cash, investmentPercent);
   const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <ScreenHeader eyebrow="MY ISLAND" title="자산" description="총자산, 손익과 현재 포지션을 한눈에 확인합니다." statusLabel="PAPER" statusTone="primary" />
+    <ScreenHeader eyebrow="MY ISLAND" title="자산" description="총자산, 손익과 현재 포지션을 한눈에 확인합니다." statusLabel={usingLocalPaper ? "LOCAL PAPER" : "PAPER"} statusTone="primary" />
+    {usingLocalPaper ? <InlineNotice title="LOCAL PAPER 표시 중" detail="Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다. 실제 주문은 전송되지 않습니다." tone="info" testID="portfolio-local-paper-note" /> : null}
     {onOpenPaperLearning ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="portfolio-paper-learning" /> : null}
 
     <UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />
