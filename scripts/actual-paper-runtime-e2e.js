@@ -3,6 +3,7 @@ const { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } =
 const { createServer } = require("node:net");
 const { dirname, resolve } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
+const { DatabaseSync } = require("node:sqlite");
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -49,6 +50,16 @@ function gitRevision(root) {
 function assertBuilt(root) {
   const runtimePath = resolve(root, "dist/apps/cloud/src/runtime.js");
   if (!existsSync(runtimePath)) throw new Error("compiled Cloud runtime is missing; run `pnpm run build` before the E2E harness");
+}
+
+function readPersistedPaperLearningIds(databasePath) {
+  const database = new DatabaseSync(databasePath);
+  try {
+    const rows = database.prepare("SELECT event_id FROM paper_learning_observability_events WHERE schema_version = ? ORDER BY occurred_at DESC, event_id ASC").all(1);
+    return Object.freeze(rows.map((row) => String(row.event_id)));
+  } finally {
+    database.close();
+  }
 }
 
 function startRuntime(root, env) {
@@ -218,6 +229,9 @@ async function run(options = {}) {
     await stopRuntime(firstRuntime);
     firstRuntime = undefined;
     if (!existsSync(databasePath) || statSync(databasePath).size <= 0) throw new Error("SQLite PAPER state database was not persisted");
+    const persistedLearningIds = readPersistedPaperLearningIds(databasePath);
+    if (persistedLearningIds.length < 1) throw new Error("paperLearning did not persist any event before restart");
+    if (new Set(persistedLearningIds).size !== persistedLearningIds.length) throw new Error("paperLearning persistence contained duplicate event ids before restart");
     const dbHashAfterRuntime = sha256(readFileSync(databasePath));
 
     // Recover with public market ingestion paused so persistence is verified before a
@@ -229,14 +243,16 @@ async function run(options = {}) {
     const recoverySummary = summarizeSnapshot(recoverySnapshot);
     if (firstSummary.position?.quantity !== recoverySummary.position?.quantity) throw new Error("PAPER position did not recover identically after restart");
 
-    // With public ingestion paused, no new tick can occur: the durably replayed timeline must be
-    // exactly what was persisted, with no duplicate ids (acceptance: "재시작 후에도 durable replay로
-    // 최근 이벤트가 복구되고 duplicate event가 없어야 한다").
+    // The first network snapshot can legitimately be followed by another PAPER-learning event
+    // before SIGTERM finishes. Compare recovery to the durable post-shutdown window itself so the
+    // restart assertion remains exact without racing the live scheduler.
     if (recoverySnapshot.paperLearning == null) throw new Error("paperLearning projection missing after restart recovery");
     const recoveredLearningIds = (recoverySnapshot.paperLearning.events || []).map((event) => event.id);
     if (recoveredLearningIds.length < 1) throw new Error("paperLearning did not durably replay any event after restart");
     if (new Set(recoveredLearningIds).size !== recoveredLearningIds.length) throw new Error("paperLearning replay produced duplicate event ids after restart");
-    if (!recoveredLearningIds.every((id) => firstLearningIds.includes(id))) throw new Error("paperLearning replay after restart lost or altered a previously persisted event id");
+    if (recoveredLearningIds.length !== persistedLearningIds.length || recoveredLearningIds.some((id, index) => id !== persistedLearningIds[index])) {
+      throw new Error("paperLearning replay after restart did not reproduce the exact persisted event window");
+    }
 
     await stopRuntime(secondRuntime);
     secondRuntime = undefined;
@@ -267,8 +283,10 @@ async function run(options = {}) {
       paper_learning: {
         stages_observed: [...firstLearningStages].sort(),
         event_count_before_restart: firstLearningIds.length,
+        event_count_persisted_at_shutdown: persistedLearningIds.length,
         event_count_after_restart_recovery: recoveredLearningIds.length,
-        duplicate_ids_after_restart: false
+        duplicate_ids_after_restart: false,
+        persisted_window_matches_recovery: true
       },
       restart_recovery: recoverySummary,
       automatic_restart: secondSummary,
@@ -307,4 +325,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { availablePort, canonical, run, scrubPrivateExchangeEnv, sha256, summarizeSnapshot };
+module.exports = { availablePort, canonical, readPersistedPaperLearningIds, run, scrubPrivateExchangeEnv, sha256, summarizeSnapshot };
