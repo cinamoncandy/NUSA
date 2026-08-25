@@ -74,7 +74,7 @@ export function HomeView({
   const statusTone = snapshot ? healthTone(snapshot.health) : accountSource === "LOCAL" ? "info" as const : "warning" as const;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
-  const signal = "#B6FF2A";
+  const signal = theme.colors.aiSignalEnd;
 
   const contentStyle = {
     paddingHorizontal: profile.screen.horizontalPadding,
@@ -104,7 +104,7 @@ export function HomeView({
   };
 
   const cornerStyle = { borderColor: signal } as const;
-  const terminalBorder = { borderColor: theme.colors.borderStrong } as const;
+  const terminalBorder = { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface } as const;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
@@ -125,8 +125,8 @@ export function HomeView({
         <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>ENVIRONMENT</Text><Text style={[styles.panelCode, { color: signal }]}>01</Text></View>
         <Text style={[styles.bigStatus, { color: signal }]}>{accountSource === "LOCAL" ? "PAPER / LOCAL" : snapshot ? "PAPER / CLOUD" : "PAPER / OFFLINE"}</Text>
         <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>READ ONLY · ZERO AUTHORITY</Text>
-        <View style={styles.authorityMiniRow}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>LIVE</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>NONE</Text></View>
-        <View style={styles.authorityMiniRow}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>FALSE</Text></View>
+        <View style={[styles.authorityMiniRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>LIVE</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>NONE</Text></View>
+        <View style={[styles.authorityMiniRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.authorityMini, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.authorityMiniValue, { color: theme.colors.text }]}>FALSE</Text></View>
       </View>
 
       <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.terminalPanel, styles.marketPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-market-pulse">
@@ -165,10 +165,10 @@ export function HomeView({
       <View style={[styles.terminalPanel, terminalBorder]} testID="home-performance-cluster">
         <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>PERFORMANCE</Text><Text style={[styles.panelCode, { color: signal }]}>PAPER</Text></View>
         <View style={styles.metricMatrix}>
-          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>P&L</Text><Text style={[styles.metricNumber, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? signal : theme.colors.danger }]}>{totalPnl == null ? "—" : krw(totalPnl)}</Text></View>
-          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>EQUITY</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.equity) : "—"}</Text></View>
-          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.cash) : "—"}</Text></View>
-          <View style={styles.metricTile}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.metricNumber, { color: signal }]}>{accountSource ?? "NONE"}</Text></View>
+          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>P&L</Text><Text style={[styles.metricNumber, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? signal : theme.colors.danger }]}>{totalPnl == null ? "—" : krw(totalPnl)}</Text></View>
+          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>EQUITY</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.equity) : "—"}</Text></View>
+          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.cash) : "—"}</Text></View>
+          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.metricNumber, { color: signal }]}>{accountSource ?? "NONE"}</Text></View>
         </View>
       </View>
 
@@ -202,7 +202,7 @@ export function HomeView({
       <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.terminalPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-portfolio-matrix">
         <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>PORTFOLIO MATRIX</Text><Text style={[styles.panelCode, { color: signal }]}>OPEN →</Text></View>
         <View style={styles.matrixRows}>
-          {["TREND", "MOMENTUM", "VOLATILITY", "LIQUIDITY"].map((label, row) => <View key={label} style={styles.matrixRow}><Text style={[styles.matrixLabel, { color: theme.colors.textMuted }]}>{label}</Text>{[0,1,2,3].map((cell) => <View key={cell} style={[styles.matrixCell, { backgroundColor: cell === row % 4 && account ? signal : theme.colors.border, opacity: cell === row % 4 && account ? 0.72 : 0.34 }]} />)}</View>)}
+          {["TREND", "MOMENTUM", "VOLATILITY", "LIQUIDITY"].map((label, row) => <View key={label} style={styles.matrixRow}><Text style={[styles.matrixLabel, { color: theme.colors.textMuted }]}>{label}</Text>{[0, 1, 2, 3].map((cell) => <View key={cell} style={[styles.matrixCell, { backgroundColor: cell === row % 4 && account ? signal : theme.colors.border, opacity: cell === row % 4 && account ? 0.72 : 0.34 }]} />)}</View>)}
         </View>
         <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>GRID IS STATUS-ONLY · OPEN PORTFOLIO FOR ACTUAL POSITIONS</Text>
       </Pressable>
@@ -217,22 +217,22 @@ export function HomeView({
     <View style={[styles.riskPanel, terminalBorder]} testID="home-risk-authority">
       <View style={styles.panelHeader}><Text style={[styles.panelTitle, { color: theme.colors.text }]}>RISK AUTHORITY</Text><Text style={[styles.panelCode, { color: signal }]}>LEVEL 0</Text></View>
       <View style={styles.riskRows}>
-        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>TRADE PERMISSION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>PAPER ONLY</Text></View>
-        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>AI AUTHORITY</Text><Text style={[styles.riskValue, { color: signal }]}>ZERO</Text></View>
-        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>LIVE AUTHORITY</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>NONE</Text></View>
-        <View style={styles.riskRow}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>PRODUCTION MUTATION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>FALSE</Text></View>
+        <View style={[styles.riskRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>TRADE PERMISSION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>PAPER ONLY</Text></View>
+        <View style={[styles.riskRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>AI AUTHORITY</Text><Text style={[styles.riskValue, { color: signal }]}>ZERO</Text></View>
+        <View style={[styles.riskRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>LIVE AUTHORITY</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>NONE</Text></View>
+        <View style={[styles.riskRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.riskKey, { color: theme.colors.textMuted }]}>PRODUCTION MUTATION</Text><Text style={[styles.riskValue, { color: theme.colors.text }]}>FALSE</Text></View>
       </View>
     </View>
 
     <View style={styles.telemetryGrid} testID="home-telemetry-grid">
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: signal }]}>ZERO</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>LIVE AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>NONE</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>FALSE</Text></View>
+      <View style={[styles.telemetryCell, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View>
+      <View style={[styles.telemetryCell, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: signal }]}>ZERO</Text></View>
+      <View style={[styles.telemetryCell, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>LIVE AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>NONE</Text></View>
+      <View style={[styles.telemetryCell, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>FALSE</Text></View>
     </View>
 
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
-    {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="home-operational-notice" /> : null}
+    {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
 
     {!disconnected ? <View style={[styles.actionDeck, terminalBorder]} testID="home-next-action">
       <View style={styles.primaryCopy}><Text style={[styles.kicker, { color: signal }]}>NEXT DECISION</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View>
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   brandUnderline: { width: 74, height: 3 },
   brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.8 },
   terminalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  terminalPanel: { flexGrow: 1, flexBasis: 160, minHeight: 132, borderWidth: 1, padding: 12, gap: 8, backgroundColor: "#020504" },
+  terminalPanel: { flexGrow: 1, flexBasis: 160, minHeight: 132, borderWidth: 1, padding: 12, gap: 8 },
   environmentPanel: { minHeight: 154 },
   marketPanel: { minHeight: 154 },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
@@ -273,13 +273,13 @@ const styles = StyleSheet.create({
   panelCode: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
   panelMeta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.45 },
   bigStatus: { marginTop: 8, fontSize: 18, lineHeight: 22, fontWeight: "900", letterSpacing: 0.7 },
-  authorityMiniRow: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#172019", paddingTop: 5 },
+  authorityMiniRow: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 5 },
   authorityMini: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.8 },
   authorityMiniValue: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.8 },
   marketHeadline: { marginTop: 8, fontSize: 15, lineHeight: 18, fontWeight: "900", letterSpacing: 0.4 },
   pulseBars: { height: 42, flexDirection: "row", alignItems: "flex-end", gap: 3, marginTop: 2 },
   pulseBar: { flex: 1, minWidth: 2 },
-  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden", backgroundColor: "#020504" },
+  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
   cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
   cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
   cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3 },
@@ -298,11 +298,11 @@ const styles = StyleSheet.create({
   cashLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.2 },
   cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800" },
   metricMatrix: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metricTile: { width: "48%", borderWidth: 1, borderColor: "#172019", padding: 8, minHeight: 58, justifyContent: "space-between" },
+  metricTile: { width: "48%", borderWidth: 1, padding: 8, minHeight: 58, justifyContent: "space-between" },
   metricKey: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
   metricNumber: { fontSize: 12, lineHeight: 15, fontWeight: "900" },
   unavailableTitle: { marginTop: 12, fontSize: 14, lineHeight: 18, fontWeight: "900", letterSpacing: 0.7 },
-  signalStage: { borderWidth: 1, padding: 14, overflow: "hidden", backgroundColor: "#020504" },
+  signalStage: { borderWidth: 1, padding: 14, overflow: "hidden" },
   stageTitle: { marginTop: 3, fontSize: 24, lineHeight: 28, fontWeight: "900", letterSpacing: 0.6 },
   decisionState: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 1.3 },
   terrainHero: { position: "relative", height: 260, marginTop: 10, overflow: "hidden", justifyContent: "center" },
@@ -319,16 +319,16 @@ const styles = StyleSheet.create({
   matrixLabel: { width: 58, fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.45 },
   matrixCell: { flex: 1, height: 12 },
   aiState: { marginTop: 16, fontSize: 15, lineHeight: 19, fontWeight: "900", letterSpacing: 0.6 },
-  riskPanel: { borderWidth: 1, padding: 12, gap: 10, backgroundColor: "#020504" },
+  riskPanel: { borderWidth: 1, padding: 12, gap: 10 },
   riskRows: { gap: 7 },
-  riskRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#172019", paddingTop: 6 },
+  riskRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 6 },
   riskKey: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.65 },
   riskValue: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
   telemetryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between", backgroundColor: "#020504" },
+  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between" },
   telemetryLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.3 },
   telemetryValue: { fontSize: 17, lineHeight: 21, fontWeight: "900", letterSpacing: 0.5 },
-  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#020504" },
+  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
   primaryCopy: { flex: 1, gap: 5 },
   actionDetail: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   primaryButton: { borderWidth: 1, minHeight: 44, minWidth: 112, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
