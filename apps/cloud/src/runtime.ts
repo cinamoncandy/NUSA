@@ -46,6 +46,8 @@ import {
   type LiveReadinessProductionSourceSnapshot,
   type LiveReadinessSourceReaders,
 } from "./liveReadinessSourceProvider";
+import { RealReadOnlyEventRecorder } from "./realReadOnlyObservabilityPersistence";
+import type { RealReadOnlyEvent, RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -54,8 +56,10 @@ export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryR
 export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
+export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
 export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly getLiveReadinessSourceSnapshot: () => LiveReadinessProductionSourceSnapshot;
+  readonly recordRealReadOnlyEvent: (event: RealReadOnlyEvent) => RealReadOnlyEvent;
 }
 
 function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
@@ -116,7 +120,8 @@ export function startCloudRuntime(
   researchAutomation?: CloudRuntimeResearchAutomationLike,
   aiRuntime?: CloudAiRuntime,
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
-  liveReadinessSourceReaders?: LiveReadinessSourceReaders
+  liveReadinessSourceReaders?: LiveReadinessSourceReaders,
+  realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const runtimeStartedAt = Date.now();
@@ -154,6 +159,9 @@ export function startCloudRuntime(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
       : {}
+  );
+  const realReadOnlyEventRecorder = new RealReadOnlyEventRecorder(
+    durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? { persistencePath: config.cloudStateDbPath } : {}
   );
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
@@ -319,12 +327,13 @@ export function startCloudRuntime(
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
     ...(shadowObservabilityProvider == null ? {} : { loadShadowOperations: shadowObservabilityProvider }),
+    ...(realReadOnlyObservabilityProvider == null ? {} : { loadRealReadOnlyOperations: (principal: DashboardPrincipal) => realReadOnlyObservabilityProvider(principal, realReadOnlyEventRecorder.replay()) }),
     loadLiveReadiness: () => liveReadinessSourceProvider.getSnapshot(),
     submitPaperOrder,
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
-  return { ...handle, getLiveReadinessSourceSnapshot: () => liveReadinessSourceProvider.getSnapshot(), stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
+  return { ...handle, getLiveReadinessSourceSnapshot: () => liveReadinessSourceProvider.getSnapshot(), recordRealReadOnlyEvent: (event) => realReadOnlyEventRecorder.record(event), stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } } };
 }
 
 export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {

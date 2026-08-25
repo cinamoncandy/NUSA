@@ -1,0 +1,47 @@
+id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
+title: "Issue #661 REAL_READ_ONLY durable replay"
+status: PARTIAL_VALIDATED
+issue: 661
+base_branch: main
+base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
+implementation_branch: codex/real-readonly-durable-replay
+objective: "Persist the existing sanitized REAL_READ_ONLY event evidence in the existing Cloud SQLite boundary and replay it deterministically after restart without adding authority."
+safety:
+  mode: REAL_READ_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+scope:
+  - "Reuse the existing REAL_READ_ONLY contract and Cloud SQLite persistence pattern."
+  - "Persist only validated, redaction-safe event evidence with bounded deterministic replay."
+  - "Expose a runtime read-only recorder seam for a canonical snapshot provider; do not fabricate account data."
+prohibited:
+  - live_activation
+  - order_cancel_withdrawal_or_transfer
+  - broker_credentials_or_private_payloads
+  - paper_real_accounting_mixing
+  - generic_event_store
+acceptance:
+  - restart_replay
+  - deterministic_ordering_and_sequence_normalization
+  - duplicate_suppression
+  - conflicting_identity_fail_closed
+  - bounded_retention
+  - malformed_persisted_evidence_rejected
+  - runtime_recorder_wiring_is_read_only
+  - existing_get_only_transport_unchanged
+validation:
+  focused_replay: PASS_5_OF_5
+  existing_real_readonly_contract: PASS_22_OF_22
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  security: PASS_SECRETS_0
+  full_suite: BLOCKED_PREEXISTING_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  git_diff_check: PASS
+next: "Resolve the pre-existing cloud bootstrap test/endpoint contract under a separate approved work order before claiming full-suite completion; do not weaken authentication."
