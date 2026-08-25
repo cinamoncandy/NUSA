@@ -1,6 +1,7 @@
 const { readdirSync, writeFileSync, rmSync, existsSync } = require("node:fs");
 const { join, relative } = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { resolveShardConfig, selectDeterministicShard } = require("./lib/deterministic-test-shard.js");
 
 const testsDirectory = join(process.cwd(), "tests");
 const distDirectory = join(process.cwd(), "dist");
@@ -27,7 +28,7 @@ function collectCompiledTests(directory) {
   return found;
 }
 
-const files = [
+const allFiles = [
   ...readdirSync(testsDirectory)
     .filter((name) => name.endsWith(".test.js"))
     .sort((a, b) => a.localeCompare(b))
@@ -35,12 +36,30 @@ const files = [
   ...collectCompiledTests(distDirectory).sort((a, b) => a.localeCompare(b))
 ];
 
-if (files.length === 0) {
+if (allFiles.length === 0) {
   const message = "No test files were found.";
   writeFileSync(diagnosticPath, message, "utf8");
   console.error(message);
   process.exit(1);
 }
+
+let shard;
+try {
+  shard = resolveShardConfig(process.env);
+} catch (error) {
+  const message = `INVALID_TEST_SHARD ${error instanceof Error ? error.message : String(error)}`;
+  writeFileSync(diagnosticPath, message, "utf8");
+  console.error(message);
+  process.exit(1);
+}
+const files = selectDeterministicShard(allFiles, shard);
+if (files.length === 0) {
+  const message = `EMPTY_TEST_SHARD ${shard.index + 1}/${shard.count} from ${allFiles.length} test files`;
+  writeFileSync(diagnosticPath, message, "utf8");
+  console.error(message);
+  process.exit(1);
+}
+if (shard.count > 1) console.log(`SHARD ${shard.index + 1}/${shard.count}: ${files.length}/${allFiles.length} isolated test files`);
 
 for (const relativePath of files) {
   console.log(`RUN ${relativePath}`);
@@ -65,6 +84,7 @@ for (const relativePath of files) {
     const timedOut = result.error.code === "ETIMEDOUT";
     const diagnostic = [
       timedOut ? `TIMED_OUT_TEST_FILE ${relativePath} after ${testFileTimeoutMs}ms` : `FAILED_TO_START ${relativePath}`,
+      `SHARD ${shard.index + 1}/${shard.count}`,
       result.stdout || "",
       result.stderr || "",
       result.error.stack || result.error.message
@@ -77,6 +97,7 @@ for (const relativePath of files) {
   if (result.status !== 0) {
     const diagnostic = [
       `FAILED_TEST_FILE ${relativePath}`,
+      `SHARD ${shard.index + 1}/${shard.count}`,
       result.stdout || "",
       result.stderr || ""
     ].join("\n").trimEnd();
@@ -86,4 +107,4 @@ for (const relativePath of files) {
   }
 }
 
-console.log(`PASS ${files.length} isolated test files`);
+console.log(`PASS ${files.length} isolated test files${shard.count > 1 ? ` in shard ${shard.index + 1}/${shard.count}` : ""}`);
