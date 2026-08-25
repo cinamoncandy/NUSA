@@ -38,11 +38,17 @@ test("Markets rows use list rhythm instead of repeated cards", () => {
   assert.match(watchlist, /fontVariant: \["tabular-nums"\]/);
 });
 
-test("Chart prioritizes a wider plot and connects the signal only to real candles", () => {
+test("Chart prioritizes real candles before secondary market context", () => {
   const chart = read("src/chartView.tsx");
-  assert.match(chart, /plot: \{ height: 300/);
-  assert.match(chart, /<TerrainSignal variant="market" signalStrength=\{Math\.min\(1, model\.candles\.length \/ 80\)\}/);
+  assert.match(chart, /REAL CANDLES/);
+  assert.match(chart, /<CandlePlot/);
+  assert.match(chart, /<MarketHeatmap/);
   assert.match(chart, /label=\{stale \? "STALE" : "READ ONLY"\}/);
+  assert.doesNotMatch(chart, /<TerrainSignal/);
+  assert.ok(
+    chart.indexOf("<CandlePlot") < chart.indexOf("<MarketHeatmap"),
+    "real candles must render before secondary market context",
+  );
 });
 
 test("Bottom navigation uses a restrained active rail without changing route contracts", () => {
