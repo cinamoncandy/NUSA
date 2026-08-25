@@ -38,17 +38,15 @@ test("Markets rows use list rhythm instead of repeated cards", () => {
   assert.match(watchlist, /fontVariant: \["tabular-nums"\]/);
 });
 
-test("Chart prioritizes real candles before secondary market context", () => {
+test("Chart prioritizes real candles and removes decorative market context", () => {
   const chart = read("src/chartView.tsx");
   assert.match(chart, /REAL CANDLES/);
   assert.match(chart, /<CandlePlot/);
-  assert.match(chart, /<MarketHeatmap/);
   assert.match(chart, /label=\{stale \? "STALE" : "READ ONLY"\}/);
+  assert.match(chart, /<NusaCard testID="chart-plot-card">[\s\S]*?REAL CANDLES[\s\S]*?<CandlePlot/);
   assert.doesNotMatch(chart, /<TerrainSignal/);
-  assert.ok(
-    chart.indexOf("<CandlePlot") < chart.indexOf("<MarketHeatmap"),
-    "real candles must render before secondary market context",
-  );
+  assert.doesNotMatch(chart, /<MarketHeatmap/);
+  assert.doesNotMatch(chart, /signal data:/);
 });
 
 test("Bottom navigation uses a restrained active rail without changing route contracts", () => {
