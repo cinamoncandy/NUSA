@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 /**
  * WO-0019. main.ts's recordKillSwitchAudit() (source-verified in

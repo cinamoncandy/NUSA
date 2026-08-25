@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { runRegimeAnalysisRequest, buildSegments } = require("../scripts/lib/regime-analysis-runner.js");
-const { buildRegimeTimeline } = require("../dist/apps/desktop/src/marketRegime.js");
+const { buildRegimeTimeline } = require("../dist/apps/desktop/src/strategy/marketRegime.js");
 
 function candle(openTime, close) {
   return { market: "KRW-BTC", interval: "1m", openTime, closeTime: openTime + 60_000, open: close, high: close + 5, low: close - 5, close, volume: 1 };

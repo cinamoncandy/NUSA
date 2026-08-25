@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { LiveMarketRegimeObserver } = require("../dist/apps/desktop/src/liveMarketRegimeObserver.js");
+const { LiveMarketRegimeObserver } = require("../dist/apps/desktop/src/strategy/liveMarketRegimeObserver.js");
 
 function observeMany(observer, signedChangeRate, count) {
   const results = [];

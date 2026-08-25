@@ -1,18 +1,17 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { evaluateOperationalReadiness } from "../../cloud/src/operationalReadinessGate";
-import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./aiCioIpcBridge";
-import { AiCioSnapshotPublisher } from "./aiCioSnapshotPublisher";
-import { ControlPlane } from "./controlPlane";
-import { ControlSessionStore } from "./controlSessionStore";
-import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./desktopPersistenceStore";
-import { LiveMarketRegimeObserver } from "./liveMarketRegimeObserver";
-import { PaperBroker, type PaperOrder } from "./paperBroker";
-import { parsePaperOrderIpc } from "./paperIpcValidation";
-import { buildPaperDashboardSections } from "./paperDashboardProjection";
-import { buildPersistedResearchDashboardSection } from "./researchDashboardProjection";
-import { buildPersistedCommitteeDashboardSection } from "./committeeDashboardProjection";
-import { buildStrategyAnalytics } from "./strategyAnalytics";
+import { InMemoryAiCioEnvelopeSource, registerAiCioReadOnlyIpc } from "./ai/aiCioIpcBridge";
+import { AiCioSnapshotPublisher } from "./ai/aiCioSnapshotPublisher";
+import { ControlPlane } from "./control/controlPlane";
+import { ControlSessionStore } from "./control/controlSessionStore";
+import { DesktopPersistenceStore, type OperationsAlertRecord, type OperationsAuditRecord } from "./persistence/desktopPersistenceStore";
+import { LiveMarketRegimeObserver } from "./strategy/liveMarketRegimeObserver";
+import { PaperBroker } from "./paper/paperBroker";
+import { buildPaperDashboardSections } from "./paper/paperDashboardProjection";
+import { buildPersistedResearchDashboardSection } from "./cloud/researchDashboardProjection";
+import { buildPersistedCommitteeDashboardSection } from "./cloud/committeeDashboardProjection";
+import { buildStrategyAnalytics } from "./strategy/strategyAnalytics";
 import { resolveRendererIndexPath } from "./rendererPath";
 import {
   createPreloadErrorDiagnostic,
@@ -24,62 +23,61 @@ import {
   createRendererUnresponsiveDiagnostic,
   formatDesktopStartupDiagnostic
 } from "./desktopStartupDiagnostics";
-import { PERSISTENCE_FAULT_MESSAGE, PERSISTENCE_REPAIR_MESSAGE, RuntimeCommandService, type PaperCommandRiskGate } from "./runtimeCommandService";
-import { formatRuntimeMutationDiagnostic } from "./runtimeMutationDiagnostics";
-import { PaperSessionStore } from "./paperSessionStore";
-import { PaperScenarioEvidenceRecorder } from "./paperScenarioEvidenceRecorder";
-import { PaperRuntimeEvidenceState } from "./paperRuntimeEvidenceState";
-import { SmaCrossoverStrategy, StrategyEngine, type StrategySignal } from "./strategyEngine";
-import { UpbitWebSocketClient, type UpbitTicker } from "./upbitWebSocket";
-import type { MarketConnectionDiagnostics } from "./marketConnectionSupervisor";
-import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery";
+import { PERSISTENCE_FAULT_MESSAGE, RuntimeCommandService, type PaperCommandRiskGate } from "./control/runtimeCommandService";
+import { formatRuntimeMutationDiagnostic } from "./risk/runtimeMutationDiagnostics";
+import { PaperSessionStore } from "./paper/paperSessionStore";
+import { PaperScenarioEvidenceRecorder } from "./paper/paperScenarioEvidenceRecorder";
+import { PaperRuntimeEvidenceState } from "./paper/paperRuntimeEvidenceState";
+import { SmaCrossoverStrategy, StrategyEngine, type StrategySignal } from "./strategy/strategyEngine";
+import { UpbitWebSocketClient, type UpbitTicker } from "./exchange/upbitWebSocket";
+import type { MarketConnectionDiagnostics } from "./exchange/marketConnectionSupervisor";
+import { buildRecoveryHealthReport, RecoveryLedger, type RecoveryComponent, type RecoveryHealth } from "./recovery/recovery";
 import { createHash } from "node:crypto";
 import { deriveRuntimeFingerprint } from "./runtimeFingerprint";
-import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paperSafetySnapshot";
-import { ShadowOperationalRuntime } from "./shadowOperationalRuntime";
-import { findIncompleteShadowArchivesSync } from "./shadowEvidenceArchive";
-import { SHADOW_OBSERVATION_PROFILE } from "./shadowObservationProfile";
-import { createShadowEvidenceBusFactory } from "./shadowEvidenceComposition";
-import { parseShadowSessionIpc, parseShadowStartIpc, parseShadowStatusIpc } from "./shadowIpcValidation";
-import { UpbitMinuteCandleSource } from "./upbitMinuteCandleSource";
-import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paperOperationalPreflight";
-import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paperRiskState";
-import { answerSignalFollowUp, createAnthropicSignalExplainerClient, explainStrategySignal, type AiSignalExplainerClient, type SignalExplanationRequest, type AiSignalExplanation, type AiSignalFollowUpAnswer } from "./aiSignalExplainer";
-import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./aiChallengerObserver";
-import { createAnthropicDisagreementExplainerClient, explainChallengerDisagreement, type AiDisagreementExplainerClient } from "./aiChallengerDisagreementExplainer";
-import { createAnthropicSessionSummaryClient, summarizeSession, type AiSessionSummaryClient, type SessionSummaryRequest, type AiSessionSummary } from "./aiSessionSummary";
-import { createAnthropicRegimeExplainerClient, explainRegime, type AiRegimeExplainerClient, type RegimeExplanationRequest, type AiRegimeExplanation } from "./aiRegimeExplainer";
-import { evaluateStrategyRegime } from "./regimePolicy";
-import { createAnthropicRiskCommentaryClient, explainRiskCommentary, type AiRiskCommentaryClient, type RiskCommentaryRequest, type AiRiskCommentary } from "./aiRiskCommentary";
-import { ResearchAssistantGovernor, type ResearchAssistantId } from "./aiResearchAssistantGovernor";
+import { createPaperSafetySnapshot, recoverPaperSafetySnapshot } from "./paper/paperSafetySnapshot";
+import { ShadowOperationalRuntime } from "./shadow/shadowOperationalRuntime";
+import { findIncompleteShadowArchivesSync } from "./shadow/shadowEvidenceArchive";
+import { SHADOW_OBSERVATION_PROFILE } from "./shadow/shadowObservationProfile";
+import { createShadowEvidenceBusFactory } from "./shadow/shadowEvidenceComposition";
+import { parseShadowSessionIpc } from "./ipc/shadowIpcValidation";
+import { UpbitMinuteCandleSource } from "./exchange/upbitMinuteCandleSource";
+import { createCanonicalOperationalPaperRiskGate, verifyRuntimeDeployment, verifyRuntimePaperReconciliation, type OperationalPreflightState } from "./paper/paperOperationalPreflight";
+import { computeConsecutiveLossCount, createSessionPeakEquityTracker, type SessionPeakEquityTracker } from "./paper/paperRiskState";
+import { createAnthropicSignalExplainerClient, type AiSignalExplainerClient, type SignalExplanationRequest } from "./ai/aiSignalExplainer";
+import { AiChallengerObserver, createAnthropicChallengerClient, type AiChallengerClient } from "./ai/aiChallengerObserver";
+import { createAnthropicDisagreementExplainerClient, type AiDisagreementExplainerClient } from "./ai/aiChallengerDisagreementExplainer";
+import { createAnthropicSessionSummaryClient, type AiSessionSummaryClient } from "./ai/aiSessionSummary";
+import { createAnthropicRegimeExplainerClient, type AiRegimeExplainerClient } from "./ai/aiRegimeExplainer";
+import { createAnthropicRiskCommentaryClient, type AiRiskCommentaryClient } from "./ai/aiRiskCommentary";
+import { ResearchAssistantGovernor, type ResearchAssistantId } from "./ai/aiResearchAssistantGovernor";
 import { aiSha256 } from "../../../packages/contracts/src/aiInference";
-import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
-import type { CanonicalRiskDecision } from "../../../apps/execution/src/risk-safety-integration";
-import { buildA4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
-import { approveRecoveryReview, compareRecoveryState, completeRecovery, RecoveryReviewState } from "./recoveryReconciliation";
-import { parseRecoveryCompleteIpc, parseRecoveryOwnerReviewIpc, parseRecoveryReconcileIpc, parseRecoveryStatusIpc } from "./recoveryIpcValidation";
+import type { CanonicalRiskDecision } from "../../../packages/contracts/src/risk-safety-integration";
+import { compareRecoveryState, RecoveryReviewState } from "./recovery/recoveryReconciliation";
 import { CrashRecoveryMarkerStore, type CrashRecoveryDiagnostic, type CrashRecoveryStartup } from "./crashRecoveryMarker";
 import { resolveUserDataLayout, writableDirectories, type UserDataLayout } from "./userDataLayout";
 import { AppSettingsStore, type AppSettings, type LogLevel } from "./appSettingsStore";
 import { FirstRunNoticeStore } from "./firstRunNotice";
 import { AppLogger } from "./appLogger";
-import { buildAboutInfo, toRendererAboutInfo, type AboutInfo } from "./aboutInfo";
+import { buildAboutInfo, type AboutInfo } from "./aboutInfo";
 import { browserWindowSecurityOptions, clampLogLevel, resolveProductionPolicy, type ProductionPolicy } from "./productionHardening";
-import { updateChannelState } from "./updateChannel";
-import { writeDiagnosticsPackage } from "./diagnosticsExport";
 import { ShutdownSequence, type ShutdownProgress } from "./shutdownSequence";
-import { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc } from "./productIpcValidation";
 import { mkdirSync } from "node:fs";
-import { shell } from "electron";
 import os from "node:os";
 import { startMobileBridge, type MobileBridgeHandle, type MobileCandleDto, type MobileMarketDto } from "./mobileBridge";
 import { SqliteDurableExecutionRepository } from "../../../packages/storage/src/durable-execution";
 import { SqliteRiskEvidenceRepository } from "../../../packages/storage/src/risk-evidence";
-import { RISK_CAPABILITY_DESCRIPTOR } from "../../../apps/execution/src/global-risk-gateway";
-import { CanonicalRiskSafetyGate } from "../../../apps/execution/src/risk-safety-integration";
-import { PaperApprovalService } from "./paperApprovalService";
-import { parseKillSwitchReleaseIpc, parseKillSwitchActivateIpc } from "./killSwitchIpcValidation";
+import { CanonicalRiskSafetyGate } from "../../../packages/contracts/src/risk-safety-integration";
+import { PaperApprovalService } from "./paper/paperApprovalService";
 import { randomUUID } from "node:crypto";
+import type { RuntimeContext } from "./ipc/runtimeContext";
+import { registerPaperIpcHandlers } from "./ipc/registerPaperIpcHandlers";
+import { registerAiIpcHandlers } from "./ipc/registerAiIpcHandlers";
+import { registerControlIpcHandlers } from "./ipc/registerControlIpcHandlers";
+import { registerSafetyIpcHandlers } from "./ipc/registerSafetyIpcHandlers";
+import { registerShadowIpcHandlers } from "./ipc/registerShadowIpcHandlers";
+import { registerRecoveryIpcHandlers } from "./ipc/registerRecoveryIpcHandlers";
+import { registerAppIpcHandlers } from "./ipc/registerAppIpcHandlers";
+import { registerDiagnosticsIpcHandlers } from "./ipc/registerDiagnosticsIpcHandlers";
 
 const MARKET = "KRW-BTC";
 const INITIAL_CASH = 10_000_000;
@@ -968,146 +966,6 @@ function initializeRuntime(): void {
   updateCrashMarker();
 }
 
-/**
- * WO-0019. The renderer must show its confirmation UI (exact side/quantity/symbol) and only
- * invoke this channel once the user has passed it -- that confirmation is what "explicit user
- * confirmation" means here, and this handler trusts that it already happened. What this
- * handler does NOT trust is a renderer- or test-supplied approvalId: the approval is minted
- * right here, by PaperApprovalService, bound to a freshly generated commandId and the exact
- * side/quantity/symbol of this call, and is therefore usable for this order alone.
- */
-ipcMain.handle("paper:order", (_event, input: unknown) => {
-  if (!paperTradingAvailable) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
-  if (input == null || typeof input !== "object") throw new Error("invalid paper order input");
-  const candidate = input as { side?: unknown; quantity?: unknown };
-  if ((candidate.side !== "BUY" && candidate.side !== "SELL") || typeof candidate.quantity !== "number" || !Number.isFinite(candidate.quantity)) throw new Error("invalid paper order input");
-  const { side, quantity } = parsePaperOrderIpc(input);
-  const ticker = assertFreshMarketData();
-  if (!paperApprovalService) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
-  const nowMs = Date.now();
-  const commandId = `manual:${nowMs}:${randomUUID()}`;
-  const signalId = commandId;
-  const clientOrderId = `paper:${commandId}`;
-  // Approval issuance failure is fail-closed by construction: nothing below this line runs
-  // (manualOrder is never called) unless an approval was actually persisted.
-  const approval = paperApprovalService.issueManualApproval({ symbol: MARKET, side, commandId, policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, nowMs });
-  let order: PaperOrder;
-  try { order = runtime.manualOrder(side, quantity, ticker.trade_price, { approvalId: approval.approvalId, commandId, signalId, clientOrderId, nowMs }); }
-  finally { paperTradingAvailable = runtime.isAvailable(); }
-  publishControl();
-  publishAiCioDashboard();
-  return { order, snapshot: broker.snapshot(ticker.trade_price) };
-});
-
-ipcMain.handle("paper:snapshot", () => latestTicker ? broker.snapshot(latestTicker.trade_price) : null);
-ipcMain.handle("execution:list", () => executionRepository?.listActive() ?? Object.freeze([]));
-ipcMain.handle("execution:get", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.get(executionId) ?? null;
-});
-ipcMain.handle("execution:transitions", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.transitions(executionId) ?? Object.freeze([]);
-});
-ipcMain.handle("execution:fills", (_event, executionId: unknown) => {
-  if (typeof executionId !== "string" || executionId.trim().length === 0 || executionId.length > 128) throw new Error("invalid execution id");
-  return executionRepository?.fills(executionId) ?? Object.freeze([]);
-});
-ipcMain.handle("execution:health", () => {
-  const active = executionRepository?.listActive() ?? [];
-  return Object.freeze({ activeCount: active.length, states: Object.freeze(Object.fromEntries(active.map((record) => [record.state, (active.filter((candidate) => candidate.state === record.state).length)]))), observedAt: new Date().toISOString() });
-});
-ipcMain.handle("paper:preflight", () => operationalPreflight);
-ipcMain.handle("paper:risk-budget-usage", () => lastRiskBudgetUsage);
-ipcMain.handle("ai:explain-latest-signal", async () => {
-  const signal = strategy.getLatestSignal();
-  const request: SignalExplanationRequest | undefined = signal === undefined
-    ? undefined
-    : { market: MARKET, signal, recentPrices: strategy.getHistory(), signalHistory: strategy.getSignalHistory() };
-  const result = await governedAiAssistantCall<AiSignalExplanation>(
-    "SIGNAL_EXPLAINER",
-    { handler: "explain-latest-signal", request },
-    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainStrategySignal({ request, client: aiSignalExplainerClient, nowMs: Date.now() })
-  );
-  lastAiSignalExplanation = request !== undefined && result.status === "OK" ? Object.freeze({ request, explanation: result.explanation }) : undefined;
-  return result;
-});
-ipcMain.handle("ai:ask-followup-question", async (_event, question: unknown) => {
-  if (typeof question !== "string") throw new Error("invalid follow-up question");
-  return governedAiAssistantCall<AiSignalFollowUpAnswer>(
-    "SIGNAL_EXPLAINER",
-    { handler: "ask-followup-question", request: lastAiSignalExplanation?.request, priorExplanation: lastAiSignalExplanation?.explanation, question },
-    () => Object.freeze({ status: "UNAVAILABLE" as const, answer: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => answerSignalFollowUp({
-      request: lastAiSignalExplanation?.request,
-      priorExplanation: lastAiSignalExplanation?.explanation,
-      question,
-      client: aiSignalExplainerClient,
-      nowMs: Date.now()
-    })
-  );
-});
-ipcMain.handle("ai:challenger-status", () => ({
-  configured: aiChallengerClient !== undefined,
-  latest: aiChallengerObserver.getLatestObservation() ?? null,
-  stats: aiChallengerObserver.getStats()
-}));
-ipcMain.handle("ai:explain-challenger-disagreement", async () => explainChallengerDisagreement({
-  observation: aiChallengerObserver.getLatestObservation(),
-  client: aiDisagreementExplainerClient,
-  nowMs: Date.now()
-}));
-ipcMain.handle("ai:challenger-history", () => aiChallengerObserver.getHistory());
-ipcMain.handle("ai:summarize-session", async () => {
-  const request: SessionSummaryRequest | undefined = latestTicker === undefined ? undefined : {
-    market: MARKET,
-    account: (() => {
-      const account = broker.snapshot(latestTicker!.trade_price);
-      return { cash: account.cash, equity: account.equity, unrealizedPnl: account.unrealizedPnl, realizedPnl: account.position.realizedPnl };
-    })(),
-    latestSignal: strategy.getLatestSignal(),
-    signalHistory: strategy.getSignalHistory(),
-    challengerStats: aiChallengerObserver.getStats()
-  };
-  return governedAiAssistantCall<AiSessionSummary>(
-    "SESSION_SUMMARY",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, summary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => summarizeSession({ request, client: aiSessionSummaryClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("ai:explain-regime", async () => {
-  const signal = strategy.getLatestSignal();
-  const request: RegimeExplanationRequest | undefined = signal?.regime === undefined ? undefined : {
-    market: MARKET,
-    regime: signal.regime,
-    recentPrices: strategy.getHistory(),
-    decision: evaluateStrategyRegime(smaStrategy.id, signal.regime)
-  };
-  return governedAiAssistantCall<AiRegimeExplanation>(
-    "REGIME_EXPLAINER",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, explanation: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainRegime({ request, client: aiRegimeExplainerClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("ai:explain-risk", async () => {
-  const envelope = aiCioEnvelopeSource.current();
-  const request: RiskCommentaryRequest | undefined = envelope === null ? undefined : {
-    market: MARKET,
-    dashboardStatus: envelope.snapshot.status,
-    risk: envelope.snapshot.risk,
-    warnings: envelope.snapshot.warnings
-  };
-  return governedAiAssistantCall<AiRiskCommentary>(
-    "RISK_COMMENTARY",
-    request,
-    () => Object.freeze({ status: "UNAVAILABLE" as const, commentary: "AI 리서치 호출 한도에 도달했습니다. 잠시 후 다시 시도하세요.", generatedAt: Date.now() }),
-    () => explainRiskCommentary({ request, client: aiRiskCommentaryClient, nowMs: Date.now() })
-  );
-});
-ipcMain.handle("control:snapshot", () => control.snapshot());
 function runControlCommand(command: () => void): ReturnType<ControlPlane["snapshot"]> {
   try { command(); }
   finally { paperTradingAvailable = runtime.isAvailable(); }
@@ -1115,39 +973,6 @@ function runControlCommand(command: () => void): ReturnType<ControlPlane["snapsh
   publishAiCioDashboard();
   return control.snapshot();
 }
-/**
- * WO-0019. "Explicit user starts the strategy" is exactly this IPC call -- there is no other
- * path that reaches runtime.start(). A fresh STRATEGY approval is minted every time it fires,
- * and any approval left over from a previous start is revoked first, so at most one is ever
- * live. Nothing here re-issues automatically: a process restart calls neither this handler
- * nor issueStrategyApproval, so automaticSignal stays blocked with APPROVAL_MISSING until an
- * operator clicks start again.
- */
-ipcMain.handle("control:start", () => {
-  if (!paperApprovalService) throw new Error(PERSISTENCE_REPAIR_MESSAGE);
-  if (currentStrategyApprovalId !== undefined) {
-    try { paperApprovalService.revoke(currentStrategyApprovalId, "STRATEGY_RESTARTED"); } catch { /* best-effort: an already-expired/missing id is not an error */ }
-  }
-  const approval = paperApprovalService.issueStrategyApproval({ symbol: MARKET, strategyId: smaStrategy.id, policyFingerprint: PAPER_SAFETY_FINGERPRINTS.riskPolicy, nowMs: Date.now() });
-  currentStrategyApprovalId = approval.approvalId;
-  return runControlCommand(() => runtime.start());
-});
-ipcMain.handle("control:stop", () => {
-  if (currentStrategyApprovalId !== undefined && paperApprovalService) {
-    try { paperApprovalService.revoke(currentStrategyApprovalId, "STRATEGY_STOPPED"); } catch { /* best-effort */ }
-    currentStrategyApprovalId = undefined;
-  }
-  return runControlCommand(() => runtime.stop());
-});
-ipcMain.handle("control:auto", (_event, enabled: unknown) => {
-  if (typeof enabled !== "boolean") throw new Error("invalid auto-trade input");
-  if (enabled) assertFreshMarketData();
-  return runControlCommand(() => runtime.setAutoTrade(enabled));
-});
-ipcMain.handle("control:quantity", (_event, quantity: unknown) => {
-  if (typeof quantity !== "number" || !Number.isFinite(quantity)) throw new Error("invalid quantity input");
-  return runControlCommand(() => runtime.setOrderQuantity(quantity));
-});
 
 /**
  * WO-0019. The audit record is written BEFORE persistedKillSwitchActive changes. If the write
@@ -1168,52 +993,10 @@ function recordKillSwitchAudit(action: "KILL_SWITCH_RELEASED" | "KILL_SWITCH_ACT
   operationsAudit = persistenceStore.loadOperationsAudit();
 }
 
-ipcMain.handle("safety:kill-switch-release", (_event, input: unknown) => {
-  const { reason } = parseKillSwitchReleaseIpc(input);
-  const previousState = persistedKillSwitchActive;
-  recordKillSwitchAudit("KILL_SWITCH_RELEASED", reason, previousState, false);
-  persistedKillSwitchActive = false;
-  persistedKillSwitchReason = null;
-  persistedKillSwitchActivatedAt = null;
-  // Durable immediately: a crash right after this call must still recover to "released" on
-  // restart, not fall back to whatever the last order/command happened to persist.
-  try { saveSafety(broker.exportState(), control.exportState()); } catch { /* best-effort continuity; the audit record above is the authoritative account of this action */ }
-  publishControl();
-  publishAiCioDashboard();
-  return { killSwitchActive: persistedKillSwitchActive };
-});
-
-ipcMain.handle("safety:kill-switch-activate", (_event, input: unknown) => {
-  const { reason } = parseKillSwitchActivateIpc(input);
-  const previousState = persistedKillSwitchActive;
-  recordKillSwitchAudit("KILL_SWITCH_ACTIVATED", reason, previousState, true);
-  persistedKillSwitchActive = true;
-  persistedKillSwitchReason = reason;
-  persistedKillSwitchActivatedAt = Date.now();
-  if (currentStrategyApprovalId !== undefined && paperApprovalService) {
-    try { paperApprovalService.revoke(currentStrategyApprovalId, "KILL_SWITCH_ACTIVATED"); } catch { /* best-effort */ }
-    currentStrategyApprovalId = undefined;
-  }
-  try { saveSafety(broker.exportState(), control.exportState()); } catch { /* best-effort continuity; the audit record above is the authoritative account of this action */ }
-  publishControl();
-  publishAiCioDashboard();
-  return { killSwitchActive: persistedKillSwitchActive };
-});
-
 function requireCurrentShadowSession(input: unknown): void {
   const { sessionId } = parseShadowSessionIpc(input);
   if (shadowRuntime.diagnostics().sessionId !== sessionId) throw new Error("shadow session mismatch");
 }
-ipcMain.handle("shadow:start", (_event, input: unknown) => {
-  parseShadowStartIpc(input);
-  const blockers = shadowRuntime.startPrecheckBlockers(false);
-  if (blockers.length > 0) throw new Error(`shadow preflight blocked: ${blockers.join(",")}`);
-  const result = shadowRuntime.start();
-  lastEvidenceId = `session-start:${result.sessionId}`;
-  updateCrashMarker();
-  return result;
-});
-ipcMain.handle("shadow:preflight", () => shadowRuntime.startPrecheckBlockers(false));
 /**
  * WO-0034-A4H. Gathers everything the comparison needs from state the main process already
  * holds. The renderer supplies none of it -- a renderer that could name the numbers being
@@ -1239,258 +1022,103 @@ function buildRecoveryComparison(): ReturnType<typeof compareRecoveryState> {
   });
 }
 
-ipcMain.handle("recovery:status", (_event, input: unknown) => {
-  parseRecoveryStatusIpc(input);
-  return recoveryReview.status();
-});
-
-/** Read-only. Runs the comparison and records it; it cannot approve or clear anything. */
-ipcMain.handle("recovery:reconcile", (_event, input: unknown) => {
-  parseRecoveryReconcileIpc(input);
-  const comparison = buildRecoveryComparison();
-  recoveryReview.recordComparison(comparison);
-  control.record("SYSTEM", `Recovery reconciliation: ${comparison.outcome}${comparison.mismatchCodes.length > 0 ? ` (${comparison.mismatchCodes.join(",")})` : ""}${comparison.errorCodes.length > 0 ? ` (${comparison.errorCodes.join(",")})` : ""}`);
-  return recoveryReview.status();
-});
-
 /**
- * Records the owner's decision. Refuses unless a comparison has actually been run and
- * MATCHED -- the renderer cannot approve a comparison that never happened, and re-running
- * the comparison here rather than reusing a stale one would defeat the fingerprint binding.
+ * A live proxy over this module's own state, so the ~45 ipcMain handlers that used to be
+ * inlined here can live in per-domain files (registerPaperIpcHandlers.ts and its siblings)
+ * without duplicating any of the state above. Every property is a getter/setter into the
+ * bindings already declared in this file -- constructing this object introduces no new state
+ * and no snapshot-staleness risk, since accessing e.g. `runtimeContext.broker` always reads
+ * the current `broker` variable, exactly as the inline handler bodies this replaces did.
  */
-ipcMain.handle("recovery:owner-review", (_event, input: unknown) => {
-  parseRecoveryOwnerReviewIpc(input);
-  const comparison = recoveryReview.latestComparison();
-  if (comparison === null) throw new Error("recovery reconciliation has not been run");
-  const result = approveRecoveryReview({ comparison, explicitOwnerAction: true, reviewedAt: Date.now() });
-  if (!result.approved || result.approval === null) throw new Error(`owner review refused: ${result.refusal}`);
-  recoveryReview.recordApproval(result.approval);
-  control.record("SYSTEM", `Recovery owner review approved by ${result.approval.reviewer} for record ${result.approval.recoveryRecordId}`);
-  return recoveryReview.status();
-});
+const runtimeContext: RuntimeContext = {
+  ipcMain,
+  MARKET,
+  PAPER_SAFETY_FINGERPRINTS,
+  PAPER_SAFETY_SOURCE_COMMIT,
+  productRunId,
+  get broker() { return broker; },
+  get control() { return control; },
+  get runtime() { return runtime; },
+  get strategy() { return strategy; },
+  get smaStrategy() { return smaStrategy; },
+  get stream() { return stream; },
+  get latestTicker() { return latestTicker; },
+  get paperTradingAvailable() { return paperTradingAvailable; },
+  set paperTradingAvailable(value) { paperTradingAvailable = value; },
+  get operationalPreflight() { return operationalPreflight; },
+  get lastRiskBudgetUsage() { return lastRiskBudgetUsage; },
+  get executionRepository() { return executionRepository; },
+  get paperApprovalService() { return paperApprovalService; },
+  get currentStrategyApprovalId() { return currentStrategyApprovalId; },
+  set currentStrategyApprovalId(value) { currentStrategyApprovalId = value; },
+  get marketDataStatus() { return marketDataStatus; },
+  get websocketConnected() { return websocketConnected; },
+  get rendererHealthy() { return rendererHealthy; },
+  get persistedKillSwitchActive() { return persistedKillSwitchActive; },
+  set persistedKillSwitchActive(value) { persistedKillSwitchActive = value; },
+  get persistedKillSwitchReason() { return persistedKillSwitchReason; },
+  set persistedKillSwitchReason(value) { persistedKillSwitchReason = value; },
+  get persistedKillSwitchActivatedAt() { return persistedKillSwitchActivatedAt; },
+  set persistedKillSwitchActivatedAt(value) { persistedKillSwitchActivatedAt = value; },
+  get persistedOpenP0Codes() { return persistedOpenP0Codes; },
+  get lastCanonicalRiskDecision() { return lastCanonicalRiskDecision; },
+  get aiSignalExplainerClient() { return aiSignalExplainerClient; },
+  get lastAiSignalExplanation() { return lastAiSignalExplanation; },
+  set lastAiSignalExplanation(value) { lastAiSignalExplanation = value; },
+  get aiChallengerClient() { return aiChallengerClient; },
+  get aiChallengerObserver() { return aiChallengerObserver; },
+  get aiDisagreementExplainerClient() { return aiDisagreementExplainerClient; },
+  get aiSessionSummaryClient() { return aiSessionSummaryClient; },
+  get aiRegimeExplainerClient() { return aiRegimeExplainerClient; },
+  get aiRiskCommentaryClient() { return aiRiskCommentaryClient; },
+  get aiCioEnvelopeSource() { return aiCioEnvelopeSource; },
+  governedAiAssistantCall,
+  get shadowRuntime() { return shadowRuntime; },
+  get lastEvidenceId() { return lastEvidenceId; },
+  set lastEvidenceId(value) { lastEvidenceId = value; },
+  get diagnosticsEvidenceRoot() { return diagnosticsEvidenceRoot; },
+  get shadowIncompleteEvidence() { return shadowIncompleteEvidence; },
+  get shadowEvidenceScanBlocked() { return shadowEvidenceScanBlocked; },
+  get recoveryReview() { return recoveryReview; },
+  get recoveryRecordId() { return recoveryRecordId; },
+  get crashRecoveryRequired() { return crashRecoveryRequired; },
+  get crashRecoveryDiagnostic() { return crashRecoveryDiagnostic; },
+  buildRecoveryComparison,
+  get persistenceStore() { return persistenceStore; },
+  get paperRiskEvidenceRepository() { return paperRiskEvidenceRepository; },
+  get operationsAudit() { return operationsAudit; },
+  get operationsAlerts() { return operationsAlerts; },
+  get userDataLayout() { return userDataLayout; },
+  get settingsStore() { return settingsStore; },
+  get firstRunStore() { return firstRunStore; },
+  get appLogger() { return appLogger; },
+  get aboutInfo() { return aboutInfo; },
+  get productionPolicy() { return productionPolicy; },
+  get shutdownSequence() { return shutdownSequence; },
+  get recentErrorCodes() { return recentErrorCodes; },
+  publishControl,
+  publishPaper,
+  publishAiCioDashboard,
+  runControlCommand,
+  assertFreshMarketData,
+  requireLayout,
+  logProduct,
+  recordKillSwitchAudit,
+  saveSafety,
+  updateCrashMarker,
+  requireCurrentShadowSession
+};
 
-ipcMain.handle("recovery:complete", (_event, input: unknown) => {
-  parseRecoveryCompleteIpc(input);
-  const comparison = recoveryReview.latestComparison();
-  if (comparison === null) throw new Error("recovery reconciliation has not been run");
-  const result = completeRecovery({ comparison, approval: recoveryReview.latestApproval(), completedAt: Date.now() });
-  control.record("SYSTEM", `${result.auditEvent.kind}: ${result.auditEvent.detail}`);
-  if (result.refusal !== null) throw new Error(`recovery completion refused: ${result.refusal}`);
-  recoveryReview.markCompleted();
-  // The record is marked COMPLETED, never removed: what was recovered and who approved it is
-  // the audit trail, and deleting it would destroy the only account of this decision.
-  return recoveryReview.status();
-});
-
-ipcMain.handle("shadow:pause", (_event, input: unknown) => {
-  requireCurrentShadowSession(input);
-  const result = shadowRuntime.pause();
-  updateCrashMarker();
-  return result;
-});
-ipcMain.handle("shadow:resume", (_event, input: unknown) => {
-  requireCurrentShadowSession(input);
-  const result = shadowRuntime.resume();
-  updateCrashMarker();
-  return result;
-});
-ipcMain.handle("shadow:stop", (_event, input: unknown) => {
-  requireCurrentShadowSession(input);
-  const result = shadowRuntime.stop();
-  lastEvidenceId = `session-stop:${result.sessionId}`;
-  updateCrashMarker();
-  return result;
-});
-ipcMain.handle("shadow:status", (_event, input: unknown) => {
-  parseShadowStatusIpc(input);
-  return shadowRuntime.diagnostics();
-});
-/*
- * WO-0034-A4O productization channels. Every one is either read-only or writes ONLY
- * presentation state. None can enable an order path, reach an authenticated endpoint, or
- * store a credential -- there is no such channel to call.
- */
-ipcMain.handle("app:first-run", (_event, input: unknown) => {
-  parseProductIpc(input);
-  if (!firstRunStore) throw new Error("application data layout is not ready");
-  return firstRunStore.state();
-});
-ipcMain.handle("app:first-run-acknowledge", (_event, input: unknown) => {
-  const { confirmed } = parseFirstRunAcknowledgeIpc(input);
-  if (!firstRunStore) throw new Error("application data layout is not ready");
-  const state = firstRunStore.acknowledge(confirmed);
-  logProduct("INFO", "first-run notice acknowledged", { safetyPolicyVersion: state.acknowledgedPolicyVersion });
-  return state;
-});
-ipcMain.handle("app:settings", (_event, input: unknown) => {
-  parseProductIpc(input);
-  if (!settingsStore) throw new Error("application data layout is not ready");
-  return { settings: settingsStore.current(), maximumLogLevel: productionPolicy.maximumLogLevel };
-});
-ipcMain.handle("app:settings-save", (_event, input: unknown) => {
-  const parsed = parseAppSettingsIpc(input);
-  if (!settingsStore) throw new Error("application data layout is not ready");
-  const settings = settingsStore.save(parsed);
-  // The live logger follows the saved preference immediately, clamped by the production
-  // policy. A setting that only takes effect after a restart is a setting users distrust.
-  appLogger?.setLevel(clampLogLevel(settings.logLevel, productionPolicy));
-  logProduct("INFO", "settings saved", { logLevel: settings.logLevel, retentionDays: settings.logRetentionDays });
-  return { settings, maximumLogLevel: productionPolicy.maximumLogLevel };
-});
-ipcMain.handle("app:settings-reset", (_event, input: unknown) => {
-  parseProductIpc(input);
-  if (!settingsStore) throw new Error("application data layout is not ready");
-  const result = settingsStore.reset();
-  appLogger?.setLevel(clampLogLevel(result.settings.logLevel, productionPolicy));
-  logProduct("WARN", "settings reset to defaults", { removedCount: result.removed.length });
-  // Absolute paths are not returned: the renderer is told WHAT was preserved, not where.
-  return { settings: result.settings, preservedCount: result.preserved.length, removedCount: result.removed.length };
-});
-ipcMain.handle("app:about", (_event, input: unknown) => {
-  parseProductIpc(input);
-  if (!aboutInfo) throw new Error("application data layout is not ready");
-  // Paths are stripped here, not in the renderer: a screenshot of an About box should not
-  // carry the account name of whoever took it.
-  return { about: toRendererAboutInfo(aboutInfo), update: updateChannelState(aboutInfo.appVersion) };
-});
-ipcMain.handle("app:open-folder", async (_event, input: unknown) => {
-  const { folder } = parseOpenFolderIpc(input);
-  const layout = requireLayout();
-  const target = folder === "LOGS" ? layout.logsDirectory : folder === "EVIDENCE" ? layout.evidenceDirectory : layout.root;
-  try { mkdirSync(target, { recursive: true }); } catch { /* opening a missing folder simply fails below */ }
-  const failure = await shell.openPath(target);
-  if (failure) throw new Error("폴더를 열지 못했습니다");
-  return { opened: folder };
-});
-ipcMain.handle("app:export-diagnostics", async (_event, input: unknown) => {
-  parseProductIpc(input);
-  const layout = requireLayout();
-  if (!aboutInfo) throw new Error("application data layout is not ready");
-  const shadow = shadowRuntime?.diagnostics();
-  const result = writeDiagnosticsPackage({
-    layout,
-    runtime: {
-      appName: aboutInfo.appName, appVersion: aboutInfo.appVersion, commitSha: aboutInfo.commitSha,
-      electronVersion: aboutInfo.electronVersion, nodeVersion: aboutInfo.nodeVersion,
-      chromeVersion: aboutInfo.chromeVersion, platform: process.platform, osRelease: os.release(),
-      arch: process.arch, environment: layout.environment, mode: aboutInfo.mode
-    },
-    runId: productRunId,
-    sessionId: shadow?.sessionId ?? null,
-    logFiles: appLogger?.recentFiles() ?? [],
-    safety: {
-      // Named for what is absent rather than for the feature it would be: this process has no
-      // authenticated-endpoint capability at all, and the packaging scanner reads main.ts for
-      // exactly the identifiers a credential path would introduce.
-      capabilities: { liveTrading: RUNTIME_EXCHANGE_CAPABILITIES.liveTrading, authenticatedEndpoint: RUNTIME_EXCHANGE_CAPABILITIES.authenticatedMutation, credentialStorage: RUNTIME_EXCHANGE_CAPABILITIES.credentialStorage },
-      killSwitchActive: persistedKillSwitchActive,
-      openP0Codes: persistedOpenP0Codes,
-      paperTradingAvailable,
-      shadowState: shadow?.state ?? null,
-      shadowBlockers: shadow?.blockers ?? [],
-      marketDataStatus
-    },
-    recovery: {
-      crashRecovery: crashRecoveryDiagnostic,
-      recoveryRecordId,
-      health: buildRecoveryHealthReport({
-        now: Date.now(), ipcHealthy: rendererHealthy, websocketConnected, rendererHealthy,
-        storageHealthy: persistenceStore !== undefined, lastMarketDataAt: latestTicker?.trade_timestamp,
-        maximumMarketDataAgeMs: 60_000, heapUsedBytes: process.memoryUsage().heapUsed,
-        maximumHeapUsedBytes: 768 * 1024 * 1024
-      })
-    },
-    marketConnection: shadow?.marketConnection ?? null,
-    evidenceMetadata: {
-      // Metadata only. The archives themselves stay on this machine: they are the record the
-      // observation exists to produce, and a support bundle is not the place to copy them.
-      incompleteArchiveCount: shadowIncompleteEvidence.length,
-      scanBlocked: shadowEvidenceScanBlocked,
-      completionHistory: (shadow?.completionHistory ?? []).map((entry) => ({ sessionId: entry.sessionId, completionReason: entry.completionReason, safety: entry.safety, finalState: entry.finalState }))
-    },
-    recentErrorCodes: [...recentErrorCodes]
-  });
-  logProduct("INFO", "diagnostics package exported", { bytes: result.byteLength, entries: result.manifest.contents.length });
-  // The path is returned so the UI can offer "open folder"; the renderer displays the file
-  // NAME only.
-  return { fileName: result.manifest.contents.length > 0 ? result.filePath.split(/[\\/]/).pop() : null, byteLength: result.byteLength, manifest: result.manifest };
-});
-ipcMain.handle("app:shutdown-progress", (_event, input: unknown) => {
-  parseProductIpc(input);
-  return shutdownSequence?.progress() ?? null;
-});
-
-ipcMain.handle("diagnostics:a4", () => buildA4RuntimeDiagnostics({
-  preflight: operationalPreflight,
-  shadow: shadowRuntime.diagnostics(),
-  evidenceRoot: diagnosticsEvidenceRoot,
-  incompleteArchives: shadowEvidenceScanBlocked ? ["UNREADABLE_SHADOW_EVIDENCE"] : shadowIncompleteEvidence,
-  evidenceBus: shadowRuntime.evidenceDiagnostics(),
-  mutationCounters: { broker: 0, orders: 0, fills: 0, cash: 0, position: 0 },
-  startPrecheckBlockers: shadowRuntime.startPrecheckBlockers(false),
-  market: {
-    connected: websocketConnected,
-    lastHeartbeatAt: stream ? stream.connectionDiagnostics().lastMarketMessageAt : null,
-    source: "UPBIT_PUBLIC_CLOSED_CANDLE"
-  },
-  safety: {
-    killSwitchActive: persistedKillSwitchActive,
-    openP0Count: persistedOpenP0Codes.length,
-    reasonCode: persistedKillSwitchReason,
-    activatedAt: persistedKillSwitchActivatedAt,
-    activationSource: persistedKillSwitchActive ? "PERSISTED_PAPER_SAFETY_SNAPSHOT" : null,
-    openP0Codes: persistedOpenP0Codes
-  },
-  crashRecovery: crashRecoveryDiagnostic
-}));
-
-// Operations is intentionally a read-only projection of facts already owned by the main
-// process. It exposes no execution, credential, or arbitrary IPC capability to the renderer.
-ipcMain.handle("operations:snapshot", () => {
-  const recoveryReviewStatus = recoveryReview.status();
-  return Object.freeze({
-  applicationVersion: aboutInfo?.appVersion ?? app.getVersion(),
-  buildVersion: PAPER_SAFETY_SOURCE_COMMIT,
-  gitCommit: PAPER_SAFETY_SOURCE_COMMIT,
-  mode: "PAPER",
-  liveTradingDisabled: true,
-  productionMutationAllowed: false,
-  exchange: Object.freeze({ name: "UPBIT", status: marketDataStatus }),
-  marketData: Object.freeze({
-    symbol: MARKET,
-    status: marketDataStatus,
-    connected: websocketConnected,
-    lastMessageAt: stream ? stream.connectionDiagnostics().lastMarketMessageAt : null
-  }),
-  warmup: Object.freeze({ ready: marketDataStatus === "HEALTHY", status: marketDataStatus }),
-  shadow: shadowRuntime ? shadowRuntime.diagnostics() : null,
-  preflight: operationalPreflight,
-  control: control ? control.snapshot() : null,
-  recovery: Object.freeze({
-    required: crashRecoveryRequired,
-    recordId: recoveryRecordId,
-    diagnostic: crashRecoveryDiagnostic,
-    review: recoveryReviewStatus
-  }),
-  reconciliation: Object.freeze({
-    status: recoveryReviewStatus.reconciliation,
-    mismatchCodes: recoveryReviewStatus.mismatchCodes,
-    errorCodes: recoveryReviewStatus.errorCodes,
-    checkedAt: recoveryReviewStatus.checkedAt,
-    gate: recoveryReviewStatus.gate
-  }),
-  execution: Object.freeze({ activeCount: executionRepository?.listActive().length ?? 0 }),
-  audit: persistenceStore?.loadOperationsAudit() ?? operationsAudit,
-  alerts: persistenceStore?.loadOperationsAlerts() ?? operationsAlerts,
-  risk: Object.freeze({ status: operationalPreflight.riskGate.status, capability: RISK_CAPABILITY_DESCRIPTOR }),
-  killSwitch: Object.freeze({ active: persistedKillSwitchActive, reasonCode: persistedKillSwitchReason }),
-  openP0Codes: persistedOpenP0Codes,
-  // This process has no authenticated endpoint capability. The neutral counter name also
-  // avoids turning a read-only diagnostics field into a capability-looking API surface.
-  mutationCounters: Object.freeze({ orders: 0, fills: 0, cash: 0, position: 0, broker: 0, authenticatedEndpointCalls: 0 }),
-  observedAt: new Date().toISOString()
-  });
-});
+// registerAiCioReadOnlyIpc(ipcMain, aiCioEnvelopeSource) is called separately, near the top of
+// this file, alongside the other IPC-wiring bootstrap code.
+registerPaperIpcHandlers(runtimeContext);
+registerAiIpcHandlers(runtimeContext);
+registerControlIpcHandlers(runtimeContext);
+registerSafetyIpcHandlers(runtimeContext);
+registerShadowIpcHandlers(runtimeContext);
+registerRecoveryIpcHandlers(runtimeContext);
+registerAppIpcHandlers(runtimeContext);
+registerDiagnosticsIpcHandlers(runtimeContext);
 
 app.whenReady().then(() => {
   // First, before any subsystem asks for a path of its own.

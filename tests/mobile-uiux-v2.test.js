@@ -6,17 +6,27 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through six-tab restructuring", () => {
+test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
+  const tradingShell = read("src/tradingView.tsx");
+  const tradingWorkspace = read("src/tradingViewLegacy.tsx");
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
+  assert.match(app, /Paper: "TRADE"/);
+  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
+  assert.match(app, /PaperLearningMonitorView/);
+  assert.match(app, /buildPaperLearningScreen/);
+  assert.match(app, /onOpenPaperLearning/);
+  assert.match(read("src/homeView.tsx"), /testID="home-paper-learning"/);
+  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingWorkspace, /testID="trade-paper-learning"/);
+  assert.match(read("src/portfolioView.tsx"), /testID="portfolio-paper-learning"/);
 });
 
 test("AI destination is evidence-backed and explicitly zero authority", () => {
@@ -44,19 +54,27 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
-test("PAPER submit is available only through a ready runtime and verified local PAPER session", () => {
-  const source = read("src/tradingView.tsx");
+test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gated", () => {
+  const shell = read("src/tradingView.tsx");
+  const source = read("src/tradingViewLegacy.tsx");
+  assert.match(shell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
-  assert.match(source, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(source, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  // Issue #637: the LOCAL-vs-Cloud activation rule moved into the shared ledger (isLocalPaperActive)
+  // so Home/Trade/Portfolio can never disagree about which ledger is authoritative.
+  assert.match(read("src/localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(source, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
+  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(source, /testID="paper-runtime-blocked"/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
   assert.match(source, /statusLabel="LIVE NONE"/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
+  assert.doesNotMatch(shell, /productionMutationAllowed: true/);
+  assert.doesNotMatch(source, /productionMutationAllowed: true/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {

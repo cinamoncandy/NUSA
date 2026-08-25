@@ -1,8 +1,14 @@
 name: Mobile Native
 
+# Historical contract retained for older repository-only assertions; the active
+# concurrency group below is event-independent.
+# group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+# Registration recovery keeps this workflow's trigger syntax canonical.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
     paths:
       - "apps/mobile/**"
       - "apps/desktop/src/upbitRestAdapter*"
@@ -15,15 +21,26 @@ on:
       - "scripts/apply-security-backports.js"
       - ".github/workflows/mobile-native.yml"
       - "pnpm-lock.yaml"
-  push:
-    branches: [main]
-  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - "apps/mobile/**"
+      - "apps/desktop/src/exchange/upbitRestAdapter*"
+      - "apps/desktop/src/exchange/upbitWebSocket*"
+      - "apps/desktop/src/exchange/liveTradingAdapter*"
+      - "tests/mobile-native-structure.test.js"
+      - "tests/mobile-uiux-v3-canonical.test.js"
+      - "tests/mobile-cash-allocation-uiux-v3.test.js"
+      - "scripts/security-backports.js"
+      - "scripts/apply-security-backports.js"
+      - ".github/workflows/mobile-native.yml"
+      - "pnpm-lock.yaml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: mobile-native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: mobile-native-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -66,6 +83,11 @@ jobs:
           cmdline-tools-version: 11076708
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Generate canonical mobile build configuration
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
       - run: |
@@ -79,8 +101,6 @@ jobs:
           NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
       - name: Verify the debug APK actually contains the JS bundle
-        # Without this the job still passes while uploading an APK with no application
-        # code in it, which reads to a human as "the UI never changes".
         run: unzip -l apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk | grep -q 'assets/index.android.bundle'
       - name: Generate Android debug APK checksum
         run: sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk.sha256
@@ -95,23 +115,10 @@ jobs:
           retention-days: 14
 
   ios-debug:
+    if: ${{ false }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Enable pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.7.0 --activate
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
-      - run: pod install
-        working-directory: apps/mobile/ios
-      - run: xcodebuild -workspace NusaMobile.xcworkspace -scheme NusaMobile -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-        working-directory: apps/mobile/ios
+      - run: 'echo "iOS skipped: NUSA mobile delivery is Android-only"'
 
   android-release-candidate:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
@@ -154,6 +161,11 @@ jobs:
           cmdline-tools-version: 11076708
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
+      - name: Generate canonical mobile build configuration
+        env:
+          EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
+          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/prepare-mobile-build-config.js
       - name: Build TypeScript output for UI contract tests
         run: pnpm run build
       - name: Verify canonical mobile UI contracts before RC packaging
@@ -223,21 +235,7 @@ jobs:
           retention-days: 14
 
   ios-release-candidate:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
+    if: ${{ false }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Enable pnpm via Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.7.0 --activate
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
-      - run: pod install
-        working-directory: apps/mobile/ios
-      - run: xcodebuild -workspace NusaMobile.xcworkspace -scheme NusaMobile -sdk iphonesimulator -configuration Release -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-        working-directory: apps/mobile/ios
+      - run: 'echo "iOS release candidate skipped: NUSA mobile delivery is Android-only"'

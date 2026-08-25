@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { existsSync, mkdtempSync, readFileSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
-const { runEvidenceRehearsal } = require("../dist/apps/desktop/src/evidenceRehearsal.js");
+const { runEvidenceRehearsal } = require("../dist/apps/desktop/src/evidence/evidenceRehearsal.js");
 
 test("rehearsal uses temporary SQLite path and remains ineligible for release", () => {
   const report = runEvidenceRehearsal({ generatedAt: Date.UTC(2026, 6, 15), codeVersion: "test-rehearsal" });

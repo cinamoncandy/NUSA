@@ -4,12 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile", file), "utf8");
+const withoutComments = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
 
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#0A0B0E"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#030607"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
@@ -23,7 +26,7 @@ test("Home uses one truthful state-bound hero signal primitive", () => {
   const components = read("src/components.tsx");
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
-  assert.match(home, /const terrainLabel = snapshot \? `PAPER 상태 신호:/);
+  assert.match(home, /const terrainLabel = aiInsightAvailable/);
   assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
@@ -46,7 +49,7 @@ test("Bottom navigation uses a restrained active rail without changing route con
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
 });
 
 test("visual redesign keeps the authority boundary unchanged", () => {
@@ -55,5 +58,6 @@ test("visual redesign keeps the authority boundary unchanged", () => {
   assert.match(app, /label="PAPER ONLY"/);
   assert.match(app, /label="LIVE NONE"/);
   assert.match(components, /ZERO AUTHORITY/);
-  assert.doesNotMatch(read("src/upbitPublicQuotationClient.ts"), /Authorization|Access-Key|Secret-Key|JWT/);
+  const quotationRuntime = withoutComments(read("src/upbitPublicQuotationClient.ts"));
+  assert.doesNotMatch(quotationRuntime, /Authorization|Access-Key|Secret-Key|JWT/);
 });

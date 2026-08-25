@@ -12,14 +12,14 @@ const {
   marketReconnectDelay,
   validateMarketReconnectPolicy,
   evaluateMarketFreshness
-} = require("../dist/apps/desktop/src/marketConnectionSupervisor.js");
-const { buildMarketConnectionEvidence } = require("../dist/apps/desktop/src/marketConnectionEvidence.js");
-const { UpbitWebSocketClient } = require("../dist/apps/desktop/src/upbitWebSocket.js");
-const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
-const { DomainEventBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/domainEventBus.js");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
+} = require("../dist/apps/desktop/src/exchange/marketConnectionSupervisor.js");
+const { buildMarketConnectionEvidence } = require("../dist/apps/desktop/src/exchange/marketConnectionEvidence.js");
+const { UpbitWebSocketClient } = require("../dist/apps/desktop/src/exchange/upbitWebSocket.js");
+const { ShadowOperationalRuntime } = require("../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
+const { ShadowEvidenceBus, InMemoryEvidenceSink } = require("../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
 
 const SYMBOL = "KRW-BTC";
 const MINUTE = 60_000;
@@ -339,7 +339,7 @@ function makeRuntime(overrides = {}) {
     onProductionSignal: (input) => productionSignals.push(input),
     riskGate: { evaluate: () => ({ status: "ALLOW", reasonCodes: [] }) },
     getHypotheticalOrderQuantity: () => 1,
-    createEvidenceBus: ({ sessionId, onHalt }) => new DomainEventBus({ sessionId, sinks: [new InMemoryEvidenceSink(), recordingSink], onHalt }),
+    createEvidenceBus: ({ sessionId, onHalt }) => new ShadowEvidenceBus({ sessionId, sinks: [new InMemoryEvidenceSink(), recordingSink], onHalt }),
     findIncompleteEvidence: () => [],
     getSafetyState: () => ({ deploymentIntegrity: true, reconciliation: true, killSwitch: false, openP0: false, automaticTrading: false, currentModeIsCanaryOrExtended: false }),
     now: () => now,
@@ -646,12 +646,14 @@ test("A4L: the reconnect path adds no order, authenticated endpoint, or credenti
     /PaperBroker|manualOrder|automaticSignal/
   ];
   for (const file of files) {
-    const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", file), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "exchange", file), "utf8");
     for (const pattern of forbidden) assert.doesNotMatch(source, pattern, `${file} must not reach ${pattern}`);
   }
-  const transport = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "upbitWebSocket.ts"), "utf8");
+  // apps/desktop/src/exchange/upbitWebSocket.ts is a re-export shim; the real source lives in
+  // packages/core, shared with apps/cloud/src.
+  const transport = fs.readFileSync(path.join(__dirname, "..", "packages", "core", "src", "upbitWebSocket.ts"), "utf8");
   assert.match(transport, /wss:\/\/api\.upbit\.com\/websocket\/v1/, "the only endpoint remains the public ticker stream");
-  const supervisor = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "marketConnectionSupervisor.ts"), "utf8");
+  const supervisor = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "exchange", "marketConnectionSupervisor.ts"), "utf8");
   assert.doesNotMatch(supervisor, /setInterval|setTimeout|require\(|https?:/, "the supervisor owns no timer and reaches no network; the transport owns the single timer");
 });
 

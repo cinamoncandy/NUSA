@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "issue": 661,
+  "status": "IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR",
+  "baseSha": "e77582417f88efcd07e0806b5fc49c2e488730b0",
+  "branch": "feat/issue-661-paper-learning-visibility",
+  "implementationCommit": "527686ee2fb8c9fb6233229cae07c25363b15068",
+  "scope": "Canonical PAPER learning/runtime evidence is projected through authenticated GET-only /api/paper-operations and rendered by the existing React Native PAPER learning monitor with Home, Trade, and Portfolio entry points.",
+  "validation": {
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architectureTruth": "PASS",
+    "packageValidate": "PASS",
+    "fullIsolatedSuite": "PASS_574_FILES",
+    "diffCheck": "PASS"
+  },
+  "safety": {
+    "mode": "PAPER",
+    "readOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "externalValidation": "PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW"
+}

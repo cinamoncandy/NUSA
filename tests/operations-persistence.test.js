@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { mkdtempSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 const dbPath = () => join(mkdtempSync(join(tmpdir(), "nusa-operations-")), "runtime.db");
 

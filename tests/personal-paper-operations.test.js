@@ -8,7 +8,7 @@ const { handlePersonalPaperOperationsHttp } = require("../dist/apps/cloud/src/pe
 const {
   buildPersonalPaperOperationsEnvelope,
   validatePersonalPaperOperationsEnvelope
-} = require("../dist/apps/desktop/src/personalPaperOperationsAdapter.js");
+} = require("../dist/apps/desktop/src/paper/personalPaperOperationsAdapter.js");
 const {
   loadPersonalPaperOperations,
   unavailableDashboardCredentialProvider
@@ -86,7 +86,8 @@ const operations = (overrides = {}) => ({
 const snapshot = (overrides = {}) => buildPersonalPaperOperationsSnapshot({
   dashboard: dashboard(overrides.dashboard),
   research: overrides.research === null ? null : research(overrides.research),
-  operations: operations(overrides.operations)
+  operations: operations(overrides.operations),
+  paperLearning: overrides.paperLearning ?? null
 }, 1_000);
 
 test.beforeEach(() => clearConfiguredPaperEndpoint());
@@ -104,6 +105,18 @@ test("builds one immutable read-only PAPER operations snapshot", () => {
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.dashboard));
   assert.ok(Object.isFrozen(result.research));
+});
+
+test("carries bounded canonical PAPER learning evidence without granting authority", () => {
+  const result = snapshot({ paperLearning: {
+    schemaVersion: 1, mode: "PAPER", readOnly: true, liveAuthority: "NONE", productionMutationAllowed: false,
+    runtimeStatus: "RUNNING", generatedAt: 1_000,
+    events: [{ id: "cycle-event", cycleId: "cycle-1", mode: "PAPER", stage: "MARKET_DATA", occurredAt: 999, market: "KRW-BTC", status: "PASS", reason: "public ticker" }]
+  } });
+  assert.equal(result.paperLearning.runtimeStatus, "RUNNING");
+  assert.equal(result.paperLearning.events[0].stage, "MARKET_DATA");
+  assert.equal(result.liveAuthority, "NONE");
+  assert.equal(result.productionMutationAllowed, false);
 });
 
 test("fails closed on kill switch and Research fail-closed state", () => {

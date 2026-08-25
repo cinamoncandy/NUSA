@@ -14,7 +14,7 @@ const { buildAboutInfo, toRendererAboutInfo } = require("../dist/apps/desktop/sr
 const { resolveProductionPolicy, browserWindowSecurityOptions, clampLogLevel } = require("../dist/apps/desktop/src/productionHardening.js");
 const { evaluateUpdateCandidate, updateChannelState } = require("../dist/apps/desktop/src/updateChannel.js");
 const { ShutdownSequence } = require("../dist/apps/desktop/src/shutdownSequence.js");
-const { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc } = require("../dist/apps/desktop/src/productIpcValidation.js");
+const { parseAppSettingsIpc, parseFirstRunAcknowledgeIpc, parseOpenFolderIpc, parseProductIpc } = require("../dist/apps/desktop/src/ipc/productIpcValidation.js");
 
 function temporaryLayout(packaged = true) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "a4o-"));
@@ -486,7 +486,7 @@ const sourceOf = (...parts) => fs.readFileSync(path.join(__dirname, "..", ...par
 test("A4O: no screen or channel added here can take an API key or enable live trading", () => {
   const files = [
     ["apps", "desktop", "renderer", "product-screens.js"],
-    ["apps", "desktop", "src", "productIpcValidation.ts"],
+    ["apps", "desktop", "src", "ipc", "productIpcValidation.ts"],
     ["apps", "desktop", "src", "appSettingsStore.ts"],
     ["apps", "desktop", "src", "firstRunNotice.ts"],
     ["apps", "desktop", "src", "updateChannel.ts"]
@@ -536,8 +536,8 @@ test("A4O: every real-mutation counter stays zero across the whole productizatio
 
     // Nothing in this work order constructs a broker, a risk gate, or an order. The modules
     // are asserted not to import them at all, which is a stronger statement than a zero count.
-    for (const file of ["userDataLayout.ts", "appSettingsStore.ts", "firstRunNotice.ts", "appLogger.ts", "diagnosticsExport.ts", "zipArchive.ts", "aboutInfo.ts", "productionHardening.ts", "updateChannel.ts", "shutdownSequence.ts", "productIpcValidation.ts"]) {
-      const source = sourceOf("apps", "desktop", "src", file);
+    for (const file of ["userDataLayout.ts", "appSettingsStore.ts", "firstRunNotice.ts", "appLogger.ts", "diagnosticsExport.ts", "zipArchive.ts", "aboutInfo.ts", "productionHardening.ts", "updateChannel.ts", "shutdownSequence.ts", "ipc/productIpcValidation.ts"]) {
+      const source = sourceOf("apps", "desktop", "src", ...file.split("/"));
       assert.doesNotMatch(source, /PaperBroker|manualOrder|automaticSignal|riskGate/, `${file} must not touch the execution path`);
     }
   } finally {

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const {
   buildAiCioCommandCenterEnvelope,
   validateAiCioCommandCenterEnvelope
-} = require("../dist/apps/desktop/src/aiCioCommandCenterAdapter.js");
+} = require("../dist/apps/desktop/src/ai/aiCioCommandCenterAdapter.js");
 
 const section = (extra = {}) => ({ status: "HEALTHY", generatedAt: 1_000, reasons: [], ...extra });
 const snapshot = (overrides = {}) => ({

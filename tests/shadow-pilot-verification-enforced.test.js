@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");
-const { ShadowPilotRuntime, verifyShadowPilotEvents } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
+const { ShadowPilotRuntime, verifyShadowPilotEvents } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
 
 const CLI = path.resolve(__dirname, "..", "scripts", "run-shadow-paper-pilot.js");
 

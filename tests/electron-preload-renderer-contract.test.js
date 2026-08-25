@@ -9,7 +9,14 @@ const rendererSource = fs.readFileSync(path.join(root, "apps/desktop/renderer/re
 const preloadSource = fs.readFileSync(path.join(root, "apps/desktop/src/preload.ts"), "utf8");
 const mainSource = fs.readFileSync(path.join(root, "apps/desktop/src/main.ts"), "utf8");
 const cloudMainSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloudMain.ts"), "utf8");
-const cloudPaperIpcSource = fs.readFileSync(path.join(root, "apps/desktop/src/desktopCloudPaperIpc.ts"), "utf8");
+const cloudPaperIpcSource = fs.readFileSync(path.join(root, "apps/desktop/src/cloud/desktopCloudPaperIpc.ts"), "utf8");
+// The ipcMain.handle(...) registrations that used to live inline in main.ts now live in these
+// per-domain files, registered from main.ts via registerXxxIpcHandlers(runtimeContext).
+const ipcHandlerModuleSources = [
+  "registerPaperIpcHandlers.ts", "registerAiIpcHandlers.ts", "registerControlIpcHandlers.ts",
+  "registerSafetyIpcHandlers.ts", "registerShadowIpcHandlers.ts", "registerRecoveryIpcHandlers.ts",
+  "registerAppIpcHandlers.ts", "registerDiagnosticsIpcHandlers.ts"
+].map((name) => fs.readFileSync(path.join(root, "apps/desktop/src/ipc", name), "utf8"));
 const contractsSource = fs.readFileSync(path.join(root, "packages/contracts/src/aiCioDashboard.ts"), "utf8");
 const compiledPreloadPath = path.join(root, "dist/apps/desktop/src/preload.js");
 const cloudCanonicalDisabledLegacyChannels = new Set(["paper:order", "paper:snapshot", "control:start", "control:quantity"]);
@@ -195,10 +202,10 @@ test("Cloud canonical entrypoint structurally removes legacy local PAPER mutatio
 });
 
 test("main process IPC owners and preload channels are the same fixed canonical contract", () => {
-  const { handled, sent } = extractMainChannels(mainSource, cloudPaperIpcSource);
+  const { handled, sent } = extractMainChannels(mainSource, cloudPaperIpcSource, ...ipcHandlerModuleSources);
   const preloadChannels = extractPreloadChannels(preloadSource);
 
-  // ai-cio:dashboard:get is registered by registerAiCioReadOnlyIpc (apps/desktop/src/aiCioIpcBridge.ts),
+  // ai-cio:dashboard:get is registered by registerAiCioReadOnlyIpc (apps/desktop/src/ai/aiCioIpcBridge.ts),
   // not by a literal ipcMain.handle(...) call in either source inspected here -- already covered
   // by tests/ai-cio-ipc-bridge.test.js, so it is excluded from this literal-string comparison.
   const requestResponseChannels = [...preloadChannels].filter((channel) => channel !== "ai-cio:dashboard:get");

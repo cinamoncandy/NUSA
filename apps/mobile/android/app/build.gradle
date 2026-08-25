@@ -39,10 +39,9 @@ if (nusaProductParts.size() != 3 || !nusaProductParts.every { it ==~ /[0-9]+/ })
 def nusaProductMajor = nusaProductParts[0].toInteger()
 def nusaProductMinor = nusaProductParts[1].toInteger()
 def nusaProductPatch = nusaProductParts[2].toInteger()
-// Keep versionCode above historical run-number builds (the repository already
-// has RC artifacts in the 841+ range) while making every semver/channel pair
-// unique and monotonically ordered. The final digit is reserved for the
-// channel slot: debug=0, RC=1, release=2.
+// Keep versionCode above historical run-number builds while making every
+// semver/channel pair unique and monotonically ordered. The final digit is
+// reserved for the channel slot: debug=0, RC=1, release=2.
 def nusaProductVersionCodeBase = (nusaProductMajor * 10000000) + (nusaProductMinor * 100000) + (nusaProductPatch * 10)
 
 // Every installable build carries its source identity. CI supplies the exact
@@ -61,6 +60,7 @@ if (nusaVersionCode < 1 || nusaVersionCode > 2100000000) {
 }
 def nusaShortSha = nusaBuildSha.length() > 8 ? nusaBuildSha.substring(0, 8) : nusaBuildSha
 def nusaVersionName = nusaBuildChannel == "rc" ? "${nusaProductVersion}-rc.${nusaBuildNumber}" : nusaProductVersion
+def nusaCanonicalOrigin = (System.getenv("NUSA_CANONICAL_ORIGIN") ?: "").trim()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -80,8 +80,11 @@ android {
         buildConfigField "String", "NUSA_BUILD_NUMBER", "\"${nusaBuildNumber}\""
         // Keep the complete source commit in the packaged Android resources as
         // well as BuildConfig so exact-source provenance remains independently
-        // visible in the APK.
+        // visible.
         resValue "string", "nusa_build_sha", nusaBuildSha
+        // The HTTPS origin is non-secret deployment metadata. The release workflow
+        // supplies it only after the canonical-origin helper validates it.
+        if (nusaCanonicalOrigin) resValue "string", "nusa_canonical_origin", nusaCanonicalOrigin
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     buildFeatures {

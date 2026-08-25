@@ -1,0 +1,33 @@
+{
+  "workOrder": "WO-0066",
+  "status": "COMPLETED",
+  "branch": "agent/wo-0066-deterministic-evidence-ranking",
+  "baseSha": "c6fb0e907a32dc24c9f0119cb9cdec8588d665d2",
+  "implementationCommit": "ed3173cdea8b5df15f10080d0356508fd3407938",
+  "completedAt": "2026-08-23T13:54:09+09:00",
+  "scope": {
+    "ranking": "DETERMINISTIC_EXPLICIT_FACTORS_STABLE_TIE_BREAKING",
+    "hypotheses": "BOUNDED_EVIDENCE_BOUND_UNRESOLVED_CAUSALITY",
+    "contradictionHandling": "FAIL_CLOSED",
+    "insufficiencyHandling": "FAIL_CLOSED"
+  },
+  "verification": {
+    "focusedTests": "PASS_7_OF_7",
+    "fullIsolatedSuite": "PASS_571_FILES",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architecture": "PASS",
+    "safety": "PASS",
+    "aiZeroAuthority": "PASS",
+    "aipos": "PASS",
+    "diffCheck": "PASS"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "executionMutation": false,
+    "protectedAreasChanged": false
+  }
+}

@@ -8,6 +8,7 @@ const {
   loadUpbitPublicMarkets,
   normalizeUpbitCandlePayload,
   normalizeUpbitTickerPayload,
+  UpbitPublicQuotationError,
 } = require("../dist/apps/mobile/src/upbitPublicQuotationClient.js");
 
 const ticker = (overrides = {}) => ({ market: "KRW-BTC", trade_price: 100, signed_change_rate: -0.01, acc_trade_volume_24h: 12, timestamp: 1_700_000_000_000, ...overrides });
@@ -46,12 +47,90 @@ test("malformed, non-finite, negative, invalid-market, and invalid-timestamp dat
 
 test("HTTP failure is surfaced and quotation requests remain HTTPS GET-only without authorization", async () => {
   const calls = [];
-  await assert.rejects(() => loadUpbitPublicMarkets({ request: mockRequest({ error: "rate limited" }, 429, calls) }), /unavailable \(429\)/);
+  await assert.rejects(() => loadUpbitPublicMarkets({ request: mockRequest({ error: "rate limited" }, 429, calls) }), /unavailable \(429: rate limited\)/);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /^https:\/\/api\.upbit\.com\/v1\/ticker\/all/);
   assert.equal(calls[0].init.method, "GET");
-  assert.equal(calls[0].init.headers.authorization, undefined);
-  assert.equal(calls[0].init.headers["x-api-key"], undefined);
+  assert.equal(calls[0].init.headers, undefined);
+});
+
+test("quotation requests rely entirely on native networking headers", async () => {
+  // React Native/OkHttp supplies the platform headers. Upbit's 2026-07-31 handling can reject
+  // duplicated headers with HTTP 400, so the JS request supplies no header overrides at all.
+  const calls = [];
+  await loadUpbitPublicMarkets({ request: mockRequest([ticker()], 200, calls) });
+  assert.equal(calls[0].init.headers, undefined);
+});
+
+test("structured Upbit errors expose the server error code and message for real-device diagnosis", async () => {
+  const calls = [];
+  await assert.rejects(
+    () => loadUpbitPublicCandles({
+      market: "KRW-BTC",
+      request: mockRequest({ error: { name: "validation_error", message: "invalid request parameter" } }, 400, calls),
+    }),
+    /unavailable \(400: validation_error: invalid request parameter\)/,
+  );
+  assert.equal(calls.length, 1);
+});
+
+test("a failed request carries a read-only diagnostic with the real URL, status, and error detail", async () => {
+  const calls = [];
+  const error = await loadUpbitPublicCandles({
+    market: "KRW-BTC",
+    count: 120,
+    request: mockRequest({ error: { name: "validation_error", message: "invalid request parameter" } }, 400, calls),
+  }).then(() => null, (rejection) => rejection);
+  assert.ok(error instanceof UpbitPublicQuotationError);
+  assert.equal(error.diagnostic.requestUrl, "https://api.upbit.com/v1/candles/minutes/1?market=KRW-BTC&count=120");
+  assert.equal(error.diagnostic.method, "GET");
+  assert.equal(error.diagnostic.status, 400);
+  assert.equal(error.diagnostic.responseErrorName, "validation_error");
+  assert.equal(error.diagnostic.responseErrorMessage, "invalid request parameter");
+  assert.equal(error.diagnostic.responseContentType, "application/json");
+  assert.equal(typeof error.diagnostic.timestamp, "string");
+  assert.ok(!Number.isNaN(Date.parse(error.diagnostic.timestamp)));
+});
+
+test("a non-JSON error body fails safe instead of throwing out of the diagnostic path", async () => {
+  const request = async () => new Response("not json", { status: 400, headers: { "content-type": "text/plain" } });
+  const error = await loadUpbitPublicMarkets({ request }).then(() => null, (rejection) => rejection);
+  assert.ok(error instanceof UpbitPublicQuotationError);
+  assert.equal(error.diagnostic.status, 400);
+  assert.equal(error.diagnostic.responseErrorName, undefined);
+  assert.equal(error.diagnostic.responseErrorMessage, undefined);
+  assert.equal(error.diagnostic.responseContentType, "text/plain");
+  assert.match(error.message, /unavailable \(400\)\.$/);
+});
+
+test("an oversized upstream error message is truncated, not passed through verbatim", async () => {
+  const longMessage = "x".repeat(500);
+  const error = await loadUpbitPublicMarkets({
+    request: mockRequest({ error: { name: "validation_error", message: longMessage } }, 400),
+  }).then(() => null, (rejection) => rejection);
+  assert.ok(error.diagnostic.responseErrorMessage.length <= 160);
+});
+
+test("the diagnostic never carries a credential-shaped field, even by field name", async () => {
+  const error = await loadUpbitPublicMarkets({
+    request: mockRequest({ error: { name: "validation_error", message: "invalid request parameter" } }, 400),
+  }).then(() => null, (rejection) => rejection);
+  const serialized = JSON.stringify(error.diagnostic).toLowerCase();
+  for (const forbidden of ["authorization", "cookie", "token", "api-key", "apikey", "secret", "account", "session"]) {
+    assert.equal(serialized.includes(forbidden), false, `diagnostic must not mention "${forbidden}"`);
+  }
+});
+
+test("the diagnostic exposes a finalUserAgent field even when no native module is present", async () => {
+  // This test runs under plain Node, where the react-native module cannot resolve, so
+  // readNativeRequestDiagnostic() always falls back to null -- exactly the fail-safe path a
+  // non-Android build or a native lookup failure also takes. The field must still exist (as
+  // undefined) rather than being silently dropped from the diagnostic shape.
+  const error = await loadUpbitPublicMarkets({
+    request: mockRequest({ error: { name: "validation_error", message: "invalid request parameter" } }, 400),
+  }).then(() => null, (rejection) => rejection);
+  assert.ok("finalUserAgent" in error.diagnostic);
+  assert.equal(error.diagnostic.finalUserAgent, undefined);
 });
 
 test("App keeps public Markets state independent from PAPER configuration and exposes stale refresh state", () => {

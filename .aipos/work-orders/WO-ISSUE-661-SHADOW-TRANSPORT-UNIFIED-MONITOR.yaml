@@ -1,0 +1,38 @@
+id: WO-ISSUE-661-SHADOW-TRANSPORT-UNIFIED-MONITOR
+title: "Issue #661 Shadow transport, durable replay, and unified PAPER/SHADOW monitor"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 0caf8b310a268fbd337453cf23965efbaefc90d6
+implementation_branch: agent/issue-661-shadow-transport-unified-monitor
+objective: "Expose canonical read-only Shadow observability over authenticated GET transport, replay sealed evidence archives after restart, and present PAPER/SHADOW in one mobile monitor without adding authority."
+canonical_sources:
+  shadow_contract: packages/contracts/src/shadowObservabilityReadOnly.ts
+  shadow_projection: apps/desktop/src/shadow/shadowReadOnlyProjection.ts
+  shadow_archive: apps/desktop/src/shadow/shadowEvidenceArchive.ts
+  cloud_server: apps/cloud/src/server.ts
+  mobile_monitor: apps/mobile/src/paperLearningMonitorView.tsx
+safety:
+  mode: PAPER_AND_SHADOW_READ_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  broker_mutation: NONE
+scope:
+  - authenticated_get_only_shadow_operations_transport
+  - sealed_archive_hash_verified_replay
+  - unified_mobile_paper_shadow_monitor
+  - deterministic_dedup_and_fail_closed_validation
+prohibited:
+  - second_execution_engine
+  - second_ledger
+  - broker_or_live_mutation
+  - monitoring_recomputation_of_risk_or_permission
+  - workflow_or_test_bypass
+acceptance:
+  - shadow_transport_is_read_only_and_authenticated
+  - corrupt_archives_fail_closed
+  - replay_is_bounded_and_deterministic
+  - mobile_displays_paper_and_shadow_without_mutation
+  - focused_and_repository_validation_pass

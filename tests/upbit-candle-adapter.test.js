@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/upbitCandleAdapter.js");
-const { validateResearchCandles, createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/researchDataset.js");
+const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
+const { validateResearchCandles, createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 
 // Shaped like real responses from Upbit's public GET /v1/candles/days -- most recent first,
 // exactly as the live API returns them. No network call in this test.

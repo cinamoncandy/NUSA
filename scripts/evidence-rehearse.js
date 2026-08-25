@@ -1,4 +1,4 @@
-const { runEvidenceRehearsal } = require("../dist/apps/desktop/src/evidenceRehearsal.js");
+const { runEvidenceRehearsal } = require("../dist/apps/desktop/src/evidence/evidenceRehearsal.js");
 
 const args = process.argv.slice(2);
 const outputIndex = args.indexOf("--output");

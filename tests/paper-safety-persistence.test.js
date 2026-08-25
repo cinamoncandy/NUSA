@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const path = require("node:path");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
-const { createPaperSafetySnapshot, recoverPaperSafetySnapshot } = require("../dist/apps/desktop/src/paperSafetySnapshot.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
+const { createPaperSafetySnapshot, recoverPaperSafetySnapshot } = require("../dist/apps/desktop/src/paper/paperSafetySnapshot.js");
 
 function snapshot(id, killSwitch = { active: false, activatedAt: null, reason: null }) {
   return createPaperSafetySnapshot({

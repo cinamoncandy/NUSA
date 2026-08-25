@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculatePositionQuantity, buildCapitalSnapshot, evaluateCapitalProtection } = require("../dist/apps/desktop/src/positionSizing.js");
+const { calculatePositionQuantity, buildCapitalSnapshot, evaluateCapitalProtection } = require("../dist/apps/desktop/src/paper/positionSizing.js");
 
 const base = { equity: 100_000, availableBuyingPower: 80_000, price: 100, riskLimits: { maxOrderNotional: 10_000, maxQuantity: 200 } };
 

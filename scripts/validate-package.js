@@ -65,9 +65,9 @@ check("the productization modules are compiled into dist", () => {
   const modules = [
     "userDataLayout", "appSettingsStore", "firstRunNotice", "appLogger",
     "diagnosticsExport", "zipArchive", "aboutInfo", "productionHardening",
-    "updateChannel", "shutdownSequence", "productIpcValidation"
+    "updateChannel", "shutdownSequence", "ipc/productIpcValidation"
   ];
-  const missing = modules.filter((name) => !exists("dist", "apps", "desktop", "src", `${name}.js`));
+  const missing = modules.filter((name) => !exists("dist", "apps", "desktop", "src", ...name.split("/").slice(0, -1), `${name.split("/").pop()}.js`));
   if (missing.length > 0) throw new Error(`not compiled: ${missing.join(", ")}`);
   return `${modules.length} modules compiled`;
 });

@@ -7,9 +7,9 @@ const {
   verifyRuntimeDeployment,
   verifyRuntimePaperReconciliation,
   createOperationalPaperRiskGate
-} = require("../dist/apps/desktop/src/paperOperationalPreflight.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { createSessionPeakEquityTracker } = require("../dist/apps/desktop/src/paperRiskState.js");
+} = require("../dist/apps/desktop/src/paper/paperOperationalPreflight.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { createSessionPeakEquityTracker } = require("../dist/apps/desktop/src/paper/paperRiskState.js");
 
 function assets(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-preflight-"));

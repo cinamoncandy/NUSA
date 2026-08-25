@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseShadowStartIpc, parseShadowSessionIpc, parseShadowStatusIpc, SHADOW_ALLOWED_SYMBOL, SHADOW_ALLOWED_STRATEGY_ID, SHADOW_ALLOWED_STRATEGY_VERSION } = require("../dist/apps/desktop/src/shadowIpcValidation.js");
+const { parseShadowStartIpc, parseShadowSessionIpc, parseShadowStatusIpc, SHADOW_ALLOWED_SYMBOL, SHADOW_ALLOWED_STRATEGY_ID, SHADOW_ALLOWED_STRATEGY_VERSION } = require("../dist/apps/desktop/src/ipc/shadowIpcValidation.js");
 const start = (extra = {}) => ({ symbol: SHADOW_ALLOWED_SYMBOL, strategyId: SHADOW_ALLOWED_STRATEGY_ID, strategyVersion: SHADOW_ALLOWED_STRATEGY_VERSION, ...extra });
 
 test("shadow:start accepts exactly the allowed symbol and strategyId", () => {

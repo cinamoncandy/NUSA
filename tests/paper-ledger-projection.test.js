@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
-const { replayPaperLedger } = require("../dist/apps/desktop/src/paperSafetyGates.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
+const { replayPaperLedger } = require("../dist/apps/desktop/src/paper/paperSafetyGates.js");
 
 test("ledger replay matches the PaperBroker snapshot after buy and sell", () => {
   const broker = new PaperBroker(1_000, "KRW-BTC", 0.001);

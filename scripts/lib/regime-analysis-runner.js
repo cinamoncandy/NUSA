@@ -2,7 +2,7 @@
 /**
  * Deterministic market-regime performance analysis runner (WO-0029).
  *
- * SCOPE NOTE: apps/desktop/src/marketRegime.ts ALREADY implements the trailing-only
+ * SCOPE NOTE: apps/desktop/src/strategy/marketRegime.ts ALREADY implements the trailing-only
  * regime classifier this work order describes (trend from a trailing log return over
  * `trendLookback`, realized volatility from trailing log returns, warm-up -> UNKNOWN,
  * a SHA-256 classifier id over the canonical config, and transition counting). It is
@@ -40,10 +40,10 @@ const VOLATILITY_REGIMES = ["LOW_VOLATILITY", "NORMAL_VOLATILITY", "HIGH_VOLATIL
 function loadProductionModules(repositoryRoot) {
   const distRoot = path.join(repositoryRoot, "dist", "apps", "desktop", "src");
   return {
-    researchDataset: require(path.join(distRoot, "researchDataset.js")),
-    backtestEngine: require(path.join(distRoot, "backtestEngine.js")),
-    strategyEngine: require(path.join(distRoot, "strategyEngine.js")),
-    marketRegime: require(path.join(distRoot, "marketRegime.js"))
+    researchDataset: require(path.join(distRoot, "cloud", "researchDataset.js")),
+    backtestEngine: require(path.join(distRoot, "strategy", "backtestEngine.js")),
+    strategyEngine: require(path.join(distRoot, "strategy", "strategyEngine.js")),
+    marketRegime: require(path.join(distRoot, "strategy", "marketRegime.js"))
   };
 }
 

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { calculateFixedFractionalQuantity } = require("../dist/apps/desktop/src/positionSizing.js");
+const { calculateFixedFractionalQuantity } = require("../dist/apps/desktop/src/paper/positionSizing.js");
 
 test("scales quantity with equity: doubling equity doubles the sized quantity", () => {
   const small = calculateFixedFractionalQuantity({ equity: 1_000_000, price: 100_000_000, riskFraction: 0.01 });

@@ -4,7 +4,7 @@ const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
 test("desktop SQLite persists immutable research manifests and reports", () => {

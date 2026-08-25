@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { evaluatePreTradeRisk, evaluateDeploymentSafety } = require("../dist/apps/desktop/src/independentRiskGateway.js");
+const { evaluatePreTradeRisk, evaluateDeploymentSafety } = require("../dist/apps/desktop/src/risk/independentRiskGateway.js");
 const { identity, limits, request, descriptor } = require("./fixtures/risk-gateway-baseline.js");
 
 test("allows a fully healthy Paper request without granting production authority", () => {

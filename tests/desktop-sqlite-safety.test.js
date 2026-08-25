@@ -4,7 +4,7 @@ const { mkdtempSync, rmSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 function withTempDirectory(operation) {
   const directory = mkdtempSync(path.join(tmpdir(), "nusa-desktop-sqlite-"));

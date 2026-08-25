@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { evaluatePreTradeRisk, evaluateDeploymentSafety, RISK_REASON_ORDER, DEPLOYMENT_REASON_ORDER } = require("../dist/apps/desktop/src/independentRiskGateway.js");
+const { evaluatePreTradeRisk, evaluateDeploymentSafety, RISK_REASON_ORDER, DEPLOYMENT_REASON_ORDER } = require("../dist/apps/desktop/src/risk/independentRiskGateway.js");
 const { verifyPreTradeRiskDecision, verifyDeploymentSafetyDecision, REASON_ORDER, DEPLOYMENT_ORDER } = require("../scripts/lib/paper-risk-gateway-verifier.js");
 const { identity, limits, request, descriptor } = require("./fixtures/risk-gateway-baseline.js");
 

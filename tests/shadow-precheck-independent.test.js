@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
+const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
 
 const READY_INPUT = Object.freeze({
   paperOnly: true, deploymentIntegrity: true, reconciliation: true, killSwitch: false,

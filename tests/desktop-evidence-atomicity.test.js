@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { mkdtempSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 const path = () => join(mkdtempSync(join(tmpdir(), "nusa-atomic-evidence-")), "runtime.db");
 const state = () => ({ paper: { version: 1, market: "KRW-BTC", cash: 1000, feeRate: 0.001, position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 0 }, orders: [] }, control: { version: 1, strategyId: "sma-crossover", status: "STOPPED", autoTradeEnabled: false, orderQuantity: 1, events: [], processedSignalKeys: [] } });

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { CloudPaperClient } = require("../dist/apps/desktop/src/cloudPaperClient.js");
+const { CloudPaperClient } = require("../dist/apps/desktop/src/cloud/cloudPaperClient.js");
 const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 
 const ACCESS_VALUE = "x".repeat(40);

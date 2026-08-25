@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { projectReadOnlyOperatorState } = require('../dist/apps/desktop/src/readOnlyOperatorProjection.js');
+const { projectReadOnlyOperatorState } = require('../dist/apps/desktop/src/cloud/readOnlyOperatorProjection.js');
 const { validate, buildEvidence } = require('../scripts/validate-read-only-operator-projection.js');
 
 test('projection is read-only and secret-free', () => {

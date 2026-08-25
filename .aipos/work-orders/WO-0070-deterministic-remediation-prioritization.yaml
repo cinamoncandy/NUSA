@@ -1,0 +1,111 @@
+id: WO-0070
+title: Deterministic Remediation Prioritization
+status: in_progress
+branch: agent/wo-0070-deterministic-remediation-prioritization
+base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+# Added by WO-0071 (non-destructive). Two distinct work orders were both registered as WO-0070.
+# Nothing below rewrites this file's original history; it adds the scope identity that makes the
+# collision resolvable, so automation keys on `scope_id` instead of the bare work-order number.
+provenance:
+  scope_id: WO-0070.deterministic-remediation-prioritization
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0070-remediation-plan-evaluation.yaml
+  canonical_pull_request: 738
+  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  # `implementation.implementation_commit: 3711390a` below is preserved exactly as originally
+  # recorded, but it does not resolve to any object in this repository -- it is a pre-rebase
+  # identity that was rewritten before PR #738 merged. It is kept rather than deleted so the
+  # record is not falsified, and superseded by the two verified SHAs above.
+  unresolvable_recorded_commits:
+    - value: 3711390a
+      field: implementation.implementation_commit
+      reason: NOT_PRESENT_IN_REPOSITORY_PRE_REBASE_IDENTITY
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
+objective: >-
+  Extend the read-only improvement pipeline by deterministically prioritizing verified remediation proposals using explicit observable factors such as impact, evidence strength, risk, reversibility, implementation cost, regression surface, and operational urgency. Produce a bounded advisory queue only; do not grant code, Git, deployment, broker, Risk, LIVE, or AI execution authority.
+scope:
+  - reuse existing improvement observer, persistent recurrence memory, root-cause evidence, ranking/hypothesis, remediation proposal, and remediation verification contracts
+  - consume only verified remediation proposals that pass existing deterministic verification
+  - compute deterministic priority ordering from explicit testable factors
+  - expose factor breakdown, tie-break reasons, provenance, and insufficiency/contradiction states
+  - distinguish impact from urgency and implementation cost from regression surface
+  - preserve stable proposal identity across replay/restart
+  - bound queue size, retained history, lookup cost, and computation
+  - emit/read a read-only advisory prioritization projection using existing repository architecture
+  - fail closed on stale, malformed, contradictory, unverifiable, or insufficient inputs
+non_goals:
+  - automatic code modification
+  - self-modification
+  - automatic remediation execution
+  - automatic branch creation, commit, push, PR, merge, release, or deployment
+  - LLM-generated priority overrides
+  - strategy generation or promotion
+  - broker/order mutation
+  - Risk Authority changes
+  - LIVE or real-money authority
+constraints:
+  - repository architecture, AGENTS.md, AIPOS contracts, and existing safety boundaries remain authoritative
+  - no parallel EventBus, persistence, planner, prioritization, queue, or DI framework
+  - identical canonical inputs must produce identical scores/order/tie-breaks
+  - scoring factors and weights must be explicit, bounded, explainable, and testable
+  - no fabricated confidence, expected return, probability of success, or unsupported financial value
+  - verified status does not imply authorization to execute
+  - contradictions and insufficient evidence cannot be silently averaged away
+  - all outputs are read-only advisory artifacts
+  - no protected-area changes
+  - liveAuthority remains NONE
+  - productionMutationAllowed remains false
+  - AI authority remains ZERO_AUTHORITY
+acceptance_criteria:
+  - only verified remediation proposals are eligible for prioritization
+  - priority result includes stable identity, deterministic score/order, explicit factor breakdown, and provenance
+  - tie-breaking is deterministic and covered by tests
+  - duplicate/replayed proposals are idempotent
+  - stale/malformed/contradictory/unverifiable/insufficient inputs fail closed
+  - impact, evidence strength, risk, reversibility, implementation cost, regression surface, and urgency are represented explicitly
+  - queue and history are bounded and deterministic
+  - restart/replay preserves stable ordering for identical canonical state
+  - no mutation/execution authority is introduced by prioritization output
+  - previous WO-0063 through WO-0069 behavior remains compatible
+  - focused tests pass
+  - full repository regression passes when required by repository policy
+  - typecheck, build, lint, architecture, truth, safety, AI zero-authority, AIPOS conformance/drift and diff checks pass
+verification:
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run architecture:check
+  - pnpm run ai:architecture
+  - pnpm run safety:architecture
+  - pnpm run safety:invariants
+  - relevant focused tests
+  - previous remediation verification regression tests
+  - full repository test suite when required by repository policy
+  - git diff --check
+next_on_pass: human review and normal PR process
+implementation:
+  module: packages/core/src/improvement/remediationPrioritization.ts
+  export: packages/core/src/improvement/index.ts
+  focused_tests: tests/remediation-prioritization.test.js
+  implementation_commit: 3711390a
+  authority: "ADVISORY_ONLY_READ_ONLY_NON_EXECUTABLE"
+  factors: "IMPACT_EVIDENCE_STRENGTH_RISK_REVERSIBILITY_IMPLEMENTATION_COST_REGRESSION_SURFACE_URGENCY"
+  bounds: "MAX_64_PROPOSALS_MAX_128_VERIFICATIONS_DEFAULT_QUEUE_16_MAX_QUEUE_64"
+validation:
+  focused_tests: PASS_5_OF_5
+  previous_remediation_regressions: PASS_21_OF_21
+  full_isolated_suite: PASS_581_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  truth: PASS
+  ai_zero_authority: PASS
+  safety: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  security_gate: PASS_SECRETS_0
+  diff_check: PASS

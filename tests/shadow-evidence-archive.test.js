@@ -3,9 +3,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadowPilotRuntime.js");
-const { ShadowEvidenceArchive, findIncompleteShadowArchives, verifyShadowEvidenceDirectory } = require("../dist/apps/desktop/src/shadowEvidenceArchive.js");
-const { buildShadowCompletionEvidence } = require("../dist/apps/desktop/src/shadowCompletionEvidence.js");
+const { ShadowPilotRuntime } = require("../dist/apps/desktop/src/shadow/shadowPilotRuntime.js");
+const { ShadowEvidenceArchive, findIncompleteShadowArchives, verifyShadowEvidenceDirectory, replayShadowEvidenceArchive, replayShadowEvidenceArchives, replayShadowEvidenceTimeline } = require("../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
+const { buildShadowCompletionEvidence } = require("../dist/apps/desktop/src/shadow/shadowCompletionEvidence.js");
 
 function metadata(sessionId) {
   return {
@@ -52,6 +52,32 @@ test("archive writes an append-only hash chain and independently verifies zero m
   assert.equal(verification.actualFills, 0);
   assert.equal(verification.cashMutations, 0);
   assert.equal(verification.positionMutations, 0);
+});
+
+test("sealed archives replay deterministically without hydrating execution", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-replay-"));
+  const sessionId = "shadow-replay-1";
+  const archive = await ShadowEvidenceArchive.create(root, metadata(sessionId));
+  for (const event of pilot(sessionId).eventLog()) await archive.append(event, event.timestamp + 1);
+  await archive.finalize("OWNER_STOP", 1400);
+  const first = await replayShadowEvidenceArchive(archive.directoryPath());
+  const second = await replayShadowEvidenceArchive(archive.directoryPath());
+  assert.deepEqual(first.events, second.events);
+  assert.equal(first.events.length, 3);
+  assert.equal(first.events[0].actualBrokerCallCount, 0);
+  const all = await replayShadowEvidenceArchives(root);
+  assert.equal(all.archives.length, 1);
+  assert.deepEqual(all.rejected, []);
+  const timeline = await replayShadowEvidenceTimeline(root);
+  assert.equal(timeline.events.length, 3);
+  assert.deepEqual(timeline.rejectedArchives, []);
+});
+
+test("corrupt or open archives fail closed during replay", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nusa-shadow-replay-invalid-"));
+  const archive = await ShadowEvidenceArchive.create(root, metadata("shadow-replay-open"));
+  await archive.append(pilot("shadow-replay-open").eventLog()[0]);
+  await assert.rejects(() => replayShadowEvidenceArchive(archive.directoryPath()), /replay rejected/);
 });
 
 test("completed observation persists an independently hashed SAFE_COMPLETION summary", async () => {

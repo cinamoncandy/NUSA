@@ -98,6 +98,8 @@ function validateRepository(root = process.cwd()) {
   const stateInProgress = listValues(state, "in_progress")
     .map((value) => value.match(/^id:\s*(.+)$/)?.[1])
     .filter(Boolean);
+  const serializedGate = block(state, "serialized_human_environment_gate");
+  const serializedGateId = scalar(serializedGate, "work_order");
   const nextBlock = block(state, "next");
   const workOrderPath = scalar(nextBlock, "work_order");
 
@@ -112,7 +114,15 @@ function validateRepository(root = process.cwd()) {
   const implementationBranch = scalar(workOrder, "implementation_branch");
 
   if (!workOrderId) failures.push("WORK_ORDER_ID_MISSING");
-  if (stateInProgress.length !== 1 || stateInProgress[0] !== workOrderId) {
+  const activeWorkOrderRegistered = stateInProgress.includes(workOrderId);
+  const serializedGatePreserved = !serializedGateId || stateInProgress.includes(serializedGateId);
+  const validSingleWorkOrder = stateInProgress.length === 1 && activeWorkOrderRegistered;
+  const validSuccessorWithGate = stateInProgress.length === 2
+    && activeWorkOrderRegistered
+    && serializedGateId
+    && serializedGateId !== workOrderId
+    && serializedGatePreserved;
+  if ((!validSingleWorkOrder && !validSuccessorWithGate) || !serializedGatePreserved) {
     failures.push(`STATE_WORK_ORDER_ID_DRIFT:${stateInProgress.join(",") || "none"}:${workOrderId || "none"}`);
   }
   if (!new Set(["IN_PROGRESS", "VERIFYING"]).has(workOrderStatus)) {

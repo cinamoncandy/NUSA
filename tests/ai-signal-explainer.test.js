@@ -6,7 +6,7 @@ const {
   explainStrategySignal,
   answerSignalFollowUp,
   createAnthropicSignalExplainerClient
-} = require("../dist/apps/desktop/src/aiSignalExplainer.js");
+} = require("../dist/apps/desktop/src/ai/aiSignalExplainer.js");
 
 function signal(overrides = {}) {
   return { type: "BUY", reason: "short-SMA crossed above long-SMA", confidence: 0.4, timestamp: 1000, ...overrides };

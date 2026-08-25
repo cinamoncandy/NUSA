@@ -2,9 +2,9 @@
   "extends": "./node_modules/@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
+    "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
-    "resolveJsonModule": true,
     "types": ["node"],
     "typeRoots": ["../../node_modules/@types"]
   },

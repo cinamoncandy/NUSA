@@ -3,12 +3,19 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Trading permits only explicit verified PAPER mutation while LIVE remains disabled", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+test("Trading permits only PAPER mutation while LIVE remains disabled", () => {
+  const shellSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+
+  assert.match(shellSource, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
+  assert.match(shellSource, /return <LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
 
   assert.match(source, /testID="trading-screen"/);
-  assert.match(source, /StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(source, /statusLabel="LIVE NONE"/);
+  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(source, /await placeLocalPaperOrder\(/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(source, /PAPER 주문 연결이 필요합니다/);
   assert.match(source, /02 · 주문 검토/);
@@ -18,7 +25,9 @@ test("Trading permits only explicit verified PAPER mutation while LIVE remains d
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
 
-  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  for (const candidate of [shellSource, source]) {
+    assert.doesNotMatch(candidate, /authority:\s*"LIVE"/);
+    assert.doesNotMatch(candidate, /productionMutationAllowed:\s*true/);
+    assert.doesNotMatch(candidate, /\/api\/(?:live|withdraw|transfer)/i);
+  }
 });

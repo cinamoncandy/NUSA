@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildStrategyAnalytics, verifyStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
+const { buildStrategyAnalytics, verifyStrategyAnalytics } = require("../dist/apps/desktop/src/strategy/strategyAnalytics.js");
 
 const order = (overrides = {}) => ({
   id: "1", market: "KRW-BTC", side: "BUY", quantity: 1, price: 100, fee: 1,

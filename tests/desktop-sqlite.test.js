@@ -3,9 +3,9 @@ const assert = require("node:assert/strict");
 const { mkdtempSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
-const { ControlPlane } = require("../dist/apps/desktop/src/controlPlane.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
+const { ControlPlane } = require("../dist/apps/desktop/src/control/controlPlane.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 const state = () => {
   const broker = new PaperBroker();

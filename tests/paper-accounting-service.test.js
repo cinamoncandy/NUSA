@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { FixedPrecision, PaperAccountingService } = require("../dist/apps/desktop/src/paperAccountingService.js");
+const { FixedPrecision, PaperAccountingService } = require("../dist/apps/desktop/src/paper/paperAccountingService.js");
 
 test("isolates ledger-backed accounting projections per account", () => {
   const service = new PaperAccountingService(new FixedPrecision({ scale: 100 }));

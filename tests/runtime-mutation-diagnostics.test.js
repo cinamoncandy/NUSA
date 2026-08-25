@@ -8,7 +8,7 @@ const {
   createPersistenceRollbackFailedDiagnostic,
   createPaperTradingDisabledDiagnostic,
   createAutomaticExecutionBlockedDiagnostic
-} = require("../dist/apps/desktop/src/runtimeMutationDiagnostics.js");
+} = require("../dist/apps/desktop/src/risk/runtimeMutationDiagnostics.js");
 
 const LOG_PREFIX = "[NUSA_DESKTOP] ";
 
@@ -35,7 +35,7 @@ test("PERSISTENCE_ROLLBACK_COMPLETED reports rollbackSucceeded true", () => {
 });
 
 test("PERSISTENCE_ROLLBACK_FAILED reports rollbackSucceeded false and a sanitized, single-line restore error", () => {
-  const multilineError = "TypeError: cannot read state\n    at restoreState (/app/dist/apps/desktop/src/paperBroker.js:1:1)";
+  const multilineError = "TypeError: cannot read state\n    at restoreState (/app/dist/apps/desktop/src/paper/paperBroker.js:1:1)";
   const diagnostic = createPersistenceRollbackFailedDiagnostic({ mutationName: "automatic signal", restoreErrorMessage: multilineError }, 3_000);
   assert.equal(diagnostic.kind, "PERSISTENCE_ROLLBACK_FAILED");
   assert.equal(diagnostic.details.rollbackSucceeded, false);

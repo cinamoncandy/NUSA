@@ -4,7 +4,7 @@ const {
   buildDisagreementExplanationPrompt,
   explainChallengerDisagreement,
   createAnthropicDisagreementExplainerClient
-} = require("../dist/apps/desktop/src/aiChallengerDisagreementExplainer.js");
+} = require("../dist/apps/desktop/src/ai/aiChallengerDisagreementExplainer.js");
 
 function observation(overrides = {}) {
   return {

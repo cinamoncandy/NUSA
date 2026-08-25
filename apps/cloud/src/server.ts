@@ -14,6 +14,8 @@ import {
   handlePersonalPaperOperationsHttp,
   type PersonalPaperOperationsHttpDependencies
 } from "./personalPaperOperationsHttp";
+import { handleShadowOperationsHttp, type ShadowOperationsHttpDependencies } from "./shadowOperationsHttp";
+import { handleRealReadOnlyOperationsHttp, type RealReadOnlyOperationsHttpDependencies } from "./realReadOnlyOperationsHttp";
 import { handlePersonalPaperOrderHttp, type PersonalPaperOrderHttpDependencies } from "./personalPaperOrderHttp";
 import { operationalLog } from "./structuredOperationalLog";
 import { handleInvestmentAllocationHttp } from "./investmentAllocationHttp";
@@ -34,10 +36,13 @@ import { MobileSessionService } from "./mobileSessionService";
 import {
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
+  handleMobileEnrollmentHttp,
   handleMobileMeHttp,
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
+import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
+import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -55,6 +60,9 @@ export interface CloudDashboardServerOptions {
   readonly tokenVerifier: DashboardTokenVerifier;
   readonly loadDashboard: MobileDashboardHttpDependencies["loadDashboard"];
   readonly loadPaperOperations?: PersonalPaperOperationsHttpDependencies["loadSnapshot"];
+  readonly loadShadowOperations?: ShadowOperationsHttpDependencies["loadSnapshot"];
+  readonly loadRealReadOnlyOperations?: RealReadOnlyOperationsHttpDependencies["loadSnapshot"];
+  readonly loadLiveReadiness?: LiveReadinessHttpDependencies["loadSnapshot"];
   readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
   readonly userAccessRepository?: NusaUserAccessRepository;
@@ -181,7 +189,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
       try {
-        const principal = mobileSessionService?.verifyAccess(token) ?? desktopSessionService?.verifyAccess(token) ?? options.tokenVerifier.verify(token);
+        // Session verifiers intentionally fail closed by throwing for malformed or
+        // unknown session material. Keep the legacy shared-secret verifier reachable
+        // when no mobile/desktop session matches, without treating a verifier error
+        // as permission to bypass the remaining checks.
+        let principal: DashboardPrincipal | undefined;
+        try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
+        if (principal == null) {
+          try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
+        }
+        if (principal == null) {
+          try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
+        }
         if (principal == null || !principal.userId.trim()) return undefined;
         const principalEmail = principal.email?.trim().toLowerCase();
         if (!principalEmail) return undefined;
@@ -239,6 +258,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
 
+      if (isPublicUpbitQuotationPath(path)) {
+        respond("public_upbit_quotation", await handlePublicUpbitQuotationHttp(req.url ?? path, req.method ?? "GET"));
+        return;
+      }
+
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
 
@@ -274,6 +298,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/bootstrap") {
         respond("mobile_bootstrap", handleMobileBootstrapHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
+        return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/enroll") {
+        respond("mobile_enroll", handleMobileEnrollmentHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
@@ -321,6 +349,9 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         return;
       }
       if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/real-readonly-operations") { respond("real_readonly_operations", handleRealReadOnlyOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadRealReadOnlyOperations ?? (() => { throw new Error("REAL_READ_ONLY operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
       if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {

@@ -20,3 +20,4 @@ outputs/
 work/
 release/
 coverage/
+storybook-static/

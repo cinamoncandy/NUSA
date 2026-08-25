@@ -8,7 +8,7 @@ function loadJson(file) {
 function evaluate(profile) {
   const failures = [];
   const counters = profile.mutationCounters || {};
-  const approvers = Array.isArray(profile.approvers) ? profile.approvers : [];
+  const ownerApproval = profile.ownerApproval || {};
   const scope = profile.scope || {};
   const safety = profile.safety || {};
   const auth = profile.authorization || {};
@@ -23,8 +23,9 @@ function evaluate(profile) {
   if (profile.automaticActivationAllowed !== false) failures.push('AUTOMATIC_ACTIVATION_ALLOWED');
 
   if (!profile.requester || profile.requester.kind !== 'HUMAN' || !profile.requester.principalId) failures.push('REQUESTER_NOT_HUMAN');
-  if (approvers.length !== 2 || approvers.some((a) => a.kind !== 'HUMAN' || !a.principalId)) failures.push('TWO_HUMAN_APPROVERS_REQUIRED');
-  if (approvers.length === 2 && approvers[0].principalId === approvers[1].principalId) failures.push('DUPLICATE_APPROVER');
+  if (ownerApproval.kind !== 'HUMAN' || ownerApproval.role !== 'OWNER' || ownerApproval.explicit !== true || !ownerApproval.principalId) {
+    failures.push('OWNER_APPROVAL_REQUIRED');
+  }
 
   const requiredStrings = ['deploymentBundleId','capabilityContract','strategyIdentity','startsAt','expiresAt','rollbackBundleId'];
   for (const key of requiredStrings) if (!scope[key]) failures.push(`SCOPE_MISSING:${key}`);

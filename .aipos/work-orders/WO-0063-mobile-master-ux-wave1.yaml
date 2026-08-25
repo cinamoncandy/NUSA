@@ -1,0 +1,67 @@
+id: WO-0063
+title: "Mobile MASTER UX Wave 1"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 9eb9afbd5a7019210cab3c79541d5ef64a3c8507
+implementation_branch: agent/master-ux-wave1
+# Added by WO-0071 (non-destructive). WO-0063 was registered twice for two different scopes.
+# This file is the Mobile MASTER UX scope. It has no completion-evidence record of its own;
+# .aipos/evidence/WO-0063-completion.json documents the improvement-observer scope and MUST NOT
+# be attributed here. `status: IN_PROGRESS` above is left exactly as recorded and is NOT changed
+# by this reconciliation, even though PR #619 merged -- closing out a work order is a separate
+# decision that needs its own verification, not a side effect of reconciling an id collision.
+provenance:
+  scope_id: WO-0063.mobile-master-ux-wave1
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0063-autonomous-improvement-observer.yaml
+  canonical_pull_request: 619
+  canonical_implementation_head: 9c3af8021ec566484ef6ab548584a5990d772366
+  canonical_merge_commit: 10f5f7ceddff13efecc685ef971e2899cf677391
+  completion_evidence: null
+  completion_evidence_note: NO_COMPLETION_EVIDENCE_RECORD_EXISTS_FOR_THIS_SCOPE
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
+objective: "Reframe the Android default experience around truthful PAPER equity, a single decision stage, centralized UX-state mapping, and a simplified navigation path without changing trading, risk, credential, or authority semantics."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Add a presentation-only mobile UX-state adapter over existing runtime and PAPER snapshot truth."
+  - "Replace the operations-dashboard-style Home hierarchy with PAPER equity, NUSA VIEW, Signal Field, and one primary next action."
+  - "Progressively reduce top-level navigation toward HOME, MARKET, TRADE, PORTFOLIO while reusing existing AiView, MarketsView, TradingView, PortfolioView, and order history capabilities."
+  - "Preserve calibrated-confidence gating and never fabricate signal, confidence, market, execution, or PnL data."
+architecture_impact:
+  acknowledged: true
+  analysis: "Presentation/navigation only. Existing MobileRuntimeCoordinator remains authoritative for runtime/recovery, PAPER execution and ledger remain unchanged, and the UI remains a consumer rather than a source of authority truth."
+  references:
+    - AGENTS.md
+    - .aipos/architecture.md
+    - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+    - nusa.md
+blocked:
+  - "LIVE broker activation"
+  - "real-money order/cancel"
+  - "risk-policy weakening or bypass"
+  - "credential or authentication boundary changes"
+  - "fabricated AI confidence, market data, execution status, or PnL"
+serialization:
+  parent_gate: WO-0051
+  scope: LIVE_AND_REAL_MONEY_TRANSITION_ONLY
+  allowed_under_gate: true
+safety:
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+verification:
+  focused_mobile_tests: PENDING
+  typecheck: PENDING
+  required_ci: PENDING
+  mobile_native: PENDING
+  physical_galaxy_visual_acceptance: PENDING
+completion_rule: "Wave 1 is complete only after the implementation is present, exact-head repository checks pass, the Android build preserves provenance and authority boundaries, and the resulting Galaxy UI truthfully exposes PAPER state without default-surface diagnostic overload."

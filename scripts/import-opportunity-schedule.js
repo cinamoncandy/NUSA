@@ -16,7 +16,7 @@ if (!databasePath || !inputPath || !path.isAbsolute(databasePath) || !path.isAbs
   try {
     const payload = JSON.parse(fs.readFileSync(inputPath, "utf8"));
     if (!payload || typeof payload.scheduleId !== "string" || typeof payload.source !== "string" || !Number.isSafeInteger(payload.generatedAt) || payload.schedule == null) throw new Error("input must contain scheduleId, source, generatedAt, and schedule");
-    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
     store = new DesktopPersistenceStore(databasePath);
     store.appendOpportunitySchedule(payload);
     const loaded = store.loadLatestOpportunitySchedule();

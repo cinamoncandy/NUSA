@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { matchTrades, calculateExposure } = require("../dist/apps/desktop/src/backtestAnalytics.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { matchTrades, calculateExposure } = require("../dist/apps/desktop/src/strategy/backtestAnalytics.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 const order = (side, quantity, price, minute, fee = 0) => ({
   id: `${minute}-${side}`,

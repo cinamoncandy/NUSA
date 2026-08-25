@@ -14,7 +14,7 @@ test("primary financial values use stable tabular numerals outside DataRow", () 
   const home = read("apps/mobile/src/homeView.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
-  const trading = read("apps/mobile/src/tradingView.tsx");
+  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
   for (const style of ["balance", "pnlValue"]) expectTabularStyle(home, style);
@@ -37,14 +37,25 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
-test("closeout does not change authority or mutation semantics", () => {
+test("closeout preserves PAPER-only mutation semantics while local PAPER stays independent of cloud runtime", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  const trading = read("apps/mobile/src/tradingView.tsx");
+  const tradingShell = read("apps/mobile/src/tradingView.tsx");
+  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
 
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
+  assert.match(tradingShell, /TradingView as LegacyTradingView/);
+  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /Production mutation 금지/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
+  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /liveMutationAllowed: false/);
+  assert.match(trading, /productionMutationAllowed: false/);
+  for (const source of [tradingShell, trading]) {
+    assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+    assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+    assert.doesNotMatch(source, /\/(?:live|withdraw|transfer)\b/i);
+  }
 });

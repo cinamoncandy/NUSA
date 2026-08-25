@@ -1,10 +1,10 @@
 "use strict";
 const { canonicalHash } = require("./canonical-hash.js");
-const { RuntimeCommandService } = require("../../dist/apps/desktop/src/runtimeCommandService.js");
-const { PaperBroker } = require("../../dist/apps/desktop/src/paperBroker.js");
-const { ControlPlane } = require("../../dist/apps/desktop/src/controlPlane.js");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategyEngine.js");
-const { evaluatePreTradeRisk } = require("../../dist/apps/desktop/src/independentRiskGateway.js");
+const { RuntimeCommandService } = require("../../dist/apps/desktop/src/control/runtimeCommandService.js");
+const { PaperBroker } = require("../../dist/apps/desktop/src/paper/paperBroker.js");
+const { ControlPlane } = require("../../dist/apps/desktop/src/control/controlPlane.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { evaluatePreTradeRisk } = require("../../dist/apps/desktop/src/risk/independentRiskGateway.js");
 
 const REQUIRED=Object.freeze(["NORMAL_MANUAL_BUY","NORMAL_MANUAL_SELL","NORMAL_AUTOMATIC","KILL_SWITCH","APPROVAL_MISSING","APPROVAL_EXPIRED","APPROVAL_SCOPE","STRATEGY_FINGERPRINT","CONFIG_FINGERPRINT","RUNTIME_FINGERPRINT","RISK_FINGERPRINT","DEPLOYMENT_MISMATCH","STALE_DATA","WARMING_UP","GAP","OUT_OF_ORDER","DUPLICATE_SIGNAL","DUPLICATE_COMMAND","DUPLICATE_CLIENT_ORDER","DAILY_LOSS","DRAWDOWN","CONSECUTIVE_LOSS","OPEN_P0","ACKNOWLEDGED_P0","RECONCILIATION_REQUIRED","RECONCILIATION_FAIL","SHADOW_MANUAL","SHADOW_AUTOMATIC","SHADOW_CASH_MUTATION","SHADOW_POSITION_MUTATION","CANARY_VALID","CANARY_SYMBOL","CANARY_STRATEGY","CANARY_ORDER_LIMIT","CANARY_TRADE_LIMIT","CANARY_DURATION","CANARY_LOSS","CANARY_DRAWDOWN","CANARY_RESTART","PERSISTENCE_FAILURE","SNAPSHOT_HASH","MALFORMED_SNAPSHOT","FUTURE_SCHEMA","RESTART_AUTO_OFF","VALID_APPROVAL_NO_AUTOSTART","KILL_SWITCH_RESTORED","P0_RESTORED","IDEMPOTENCY_RESTORED","RECONCILIATION_PASS","CASH_MISMATCH","QUANTITY_MISMATCH","AVERAGE_PRICE_MISMATCH","FEE_MISMATCH","REALIZED_PNL_MISMATCH","UNREALIZED_PNL_MISMATCH","EQUITY_MISMATCH","DUPLICATE_FILL","ORPHAN_FILL","MISSING_FILL","MISSING_ORDER_LINK","LIVE_CAPABILITY_ABSENT","PRIVATE_API_CAPABILITY_ABSENT","CREDENTIAL_CAPABILITY_ABSENT"]);
 const LIMITS=Object.freeze({maxOrderNotional:1000,maxPositionNotional:1000,maxOpenOrders:10,maxOrdersPerSecond:10,maxOrdersPerMinute:10,maxSameSideStreak:10,maxSymbolExposureNotional:1000,maxPortfolioExposureNotional:1000,maxDailyBuyNotional:1000,maxDailySellNotional:1000,maxDailyLoss:100,maxConsecutiveLosses:3,maxSessionDrawdownRatio:.2,maxPriceDeviationRatio:.1});

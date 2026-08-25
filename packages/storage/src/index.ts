@@ -13,6 +13,8 @@ export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, Re
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
 export { SqliteResilienceControlPlaneStore } from "./resilienceControlPlaneStore";
+export { SqliteImprovementCandidateMemory } from "./improvementCandidateMemory";
+export type { ImprovementCandidateMemoryDatabase, ImprovementCandidateMemoryRecord } from "./improvementCandidateMemory";
 export { SqliteRulesControlPlaneStore } from "./rulesControlPlaneStore";
 export type { RulesDatabase } from "./rulesControlPlaneStore";
 export { SqliteMultiAgentGovernanceStore } from "./multiAgentGovernanceStore";
@@ -394,4 +396,17 @@ CREATE TABLE IF NOT EXISTS cloud_paper_writer_leases (
   lease_until_ms INTEGER NOT NULL,
   heartbeat_at_ms INTEGER NOT NULL
 );
+` }, { id: "016_improvement_candidate_memory", sql: `
+CREATE TABLE IF NOT EXISTS improvement_candidate_memory (
+  fingerprint TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  occurrences INTEGER NOT NULL,
+  first_seen_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_improvement_candidate_memory_retention ON improvement_candidate_memory (score ASC, last_seen_at DESC, fingerprint DESC);
 ` }];

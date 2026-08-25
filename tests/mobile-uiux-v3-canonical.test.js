@@ -6,10 +6,10 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("App shell routes canonical Home and preserves six primary jobs", () => {
+test("App shell routes the canonical four-tab decision flow and preserves deeper jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper"/);
   assert.match(app, /<TradingView/);
@@ -22,6 +22,8 @@ test("Home uses MASTER hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   assert.match(source, />NUSA<\/Text>/);
   assert.match(source, /TOTAL EQUITY/);
+  assert.match(source, />PAPER ONLY<\/Text>/);
+  assert.match(source, /NUSA VIEW/);
   assert.match(source, /<InsightPanel/);
   assert.match(source, /READ ONLY/);
   assert.match(source, /testID="home-signal-trace"/);
@@ -37,11 +39,13 @@ test("Home uses MASTER hierarchy and keeps AI read-only", () => {
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {
   const markets = read("src/marketsView.tsx");
   const trading = read("src/tradingView.tsx");
+  const tradingLegacy = read("src/tradingViewLegacy.tsx");
   const settings = read("src/settingsView.tsx");
   const history = read("src/orderHistoryView.tsx");
   assert.match(markets, /markets-panel-segmented-control/);
-  assert.match(trading, /paper-side-segmented-control/);
-  assert.match(trading, /paper-type-segmented-control/);
+  assert.match(trading, /LegacyTradingView/);
+  assert.match(tradingLegacy, /paper-side-segmented-control/);
+  assert.match(tradingLegacy, /paper-type-segmented-control/);
   assert.match(settings, /settings-theme-segmented-control/);
   assert.match(history, /order-history-filters/);
   assert.match(history, /order-history-periods/);
@@ -70,7 +74,7 @@ test("Notification utility is honest about unavailable runtime capability", () =
 });
 
 test("UI v3 never introduces live execution authority", () => {
-  const files = ["App.tsx", "src/homeView.tsx", "src/marketsView.tsx", "src/tradingView.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
+  const files = ["App.tsx", "src/homeView.tsx", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
   const source = files.map(read).join("\n");
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);

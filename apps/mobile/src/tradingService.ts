@@ -59,6 +59,14 @@ const timestamp = (value: number): number => {
   return value;
 };
 
+const marketCurrencies = (market: string): Readonly<{ quote: string; base: string }> => {
+  const separator = market.includes("/") ? "/" : market.includes("-") ? "-" : null;
+  if (separator === null) throw new Error("market must contain base and quote currencies");
+  const [quote, base, ...rest] = market.split(separator);
+  if (!quote || !base || rest.length > 0) throw new Error("market must contain base and quote currencies");
+  return Object.freeze({ quote, base });
+};
+
 const cloneSnapshot = (snapshot: TradingSnapshot): TradingSnapshot => Object.freeze({
   orders: Object.freeze(snapshot.orders.map((order) => Object.freeze({ ...order }))),
   positions: Object.freeze(snapshot.positions.map((position) => Object.freeze({ ...position }))),
@@ -89,9 +97,7 @@ export class MockTradingService implements TradingService {
     const quantity = positive(request.quantity, "quantity");
     const price = positive(request.price, "price");
     const nowMs = timestamp(request.nowMs);
-    const base = market.split("/")[1] ?? market.split("-")[1];
-    const quote = market.split("/")[0] ?? market.split("-")[0];
-    if (!base || !quote) throw new Error("market must contain base and quote currencies");
+    const { base, quote } = marketCurrencies(market);
     const quoteBalance = this.balances.get(quote);
     const baseBalance = this.balances.get(base);
     const cost = quantity * price;

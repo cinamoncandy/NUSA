@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createWalkForwardWindows, runWalkForward } = require("../dist/apps/desktop/src/walkForwardEngine.js");
+const { createWalkForwardWindows, runWalkForward } = require("../dist/apps/desktop/src/strategy/walkForwardEngine.js");
 
 class FirstBuy { constructor() { this.id = "first-buy"; this.name = "First Buy"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : "HOLD", reason: "first", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
 class FirstRoundTrip { constructor() { this.id = "round-trip"; this.name = "Round Trip"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : this.index === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }

@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { AI_CIO_DASHBOARD_CHANNEL } = require("../dist/packages/contracts/src/aiCioDashboard.js");
-const { AiCioDashboardService } = require("../dist/apps/desktop/src/aiCioDashboardService.js");
-const { registerAiCioReadOnlyIpc } = require("../dist/apps/desktop/src/aiCioIpcBridge.js");
+const { AiCioDashboardService } = require("../dist/apps/desktop/src/ai/aiCioDashboardService.js");
+const { registerAiCioReadOnlyIpc } = require("../dist/apps/desktop/src/ai/aiCioIpcBridge.js");
 
 const section = (overrides = {}) => ({ status: "BLOCKED", availability: "UNAVAILABLE", generatedAt: 900, reasons: ["SOURCE_NOT_CONNECTED"], ...overrides });
 const snapshot = (overrides = {}) => ({

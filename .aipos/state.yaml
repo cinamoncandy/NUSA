@@ -1,12 +1,45 @@
 version: 1
 project: nusa
-updated_at: "2026-08-25T12:35:00+09:00"
+updated_at: "2026-08-24T22:13:58+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
-active_branch: main
-active_pull_request: null
+active_branch: agent/issue-661-live-ready-observability
+active_successor_branch: feat/production-mobile-enrollment
+active_pull_request: 770
+current_non_live_work_order:
+  id: WO-0070
+  # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
+  # never sufficient to resolve the active scope; automation must use this scope-qualified
+  # canonical lineage instead.
+  scope_id: WO-0070.deterministic-remediation-prioritization
+  canonical_work_order: .aipos/work-orders/WO-0070-deterministic-remediation-prioritization.yaml
+  canonical_pull_request: 738
+  canonical_implementation_head: d83b7e0354681df3b1b86bee1e0d805d2108b970
+  canonical_merge_commit: 43fdc4a12305d10c16e5c70ba0f20caa9b501188
+  status: IN_PROGRESS
+  branch: agent/wo-0070-deterministic-remediation-prioritization
+  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+  implementation_commit: 3711390a
+  implementation_commit_status: PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED
+  focused_tests: PASS_5_OF_5
+  full_isolated_suite: PASS_581_FILES
+  repository_gates: PASS
+  scope: "Deterministic read-only prioritization of verified remediation proposals with bounded advisory output; no execution, Git, broker, Risk, LIVE, or AI authority."
+wo_0071_validation:
+  work_order: WO-0071
+  pull_request: 744
+  branch: agent/wo-0071-remediation-readiness-and-aipos-reconciliation
+  starting_head: 208944181ba81ea82ce85c8f4a963c8331ae3858
+  implementation_commit: 0620c1315f5e700f982c2f7ec80301b117ddcae1
+  status: COMPLETED
+  evidence: .aipos/evidence/WO-0071-completion.json
+  remediation_readiness: PASS_13_OF_13
+  provenance_reconciliation: PASS_7_OF_7_NON_DESTRUCTIVE
+  full_isolated_suite: PASS_586_FILES
+  exact_head_ci: PASS_6_OF_6
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 base_commit: f875980e4ff9111ab576f1e93294fae510d07167
 repository_maintenance:
   issue: 210
@@ -14,7 +47,7 @@ repository_maintenance:
   android_version_101:
     work_order: WO-0062
     branch: fix/android-remove-preview-version-101
-    base_commit: 2703826ad3a31356b9080e64ff40db2dcb85f63e
+    base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
     status: VERIFYING
     scope: "Retire active Android Preview packaging and separate product version 1.0.101 from CI build provenance; no runtime or authority change."
     physical_android_acceptance: HUMAN_ENVIRONMENT_ONLY_PENDING
@@ -39,11 +72,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0051
+  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
-  branch: main
-  base_commit: 585d660b5eb8bcefb443ca34261779aa99f55fd1
-  scope: "Terminal HUMAN_ENVIRONMENT_ONLY gate for LIVE and real-money transition; non-LIVE successors may be separately registered without satisfying or weakening this gate."
+  branch: agent/issue-661-live-ready-observability
+  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -53,6 +86,87 @@ latest_verified_slice:
   evidence: ".aipos/evidence/WO-AI-010-completion.json"
   summary: "WO-AI-010 enforces deterministic claim-evidence support, contradiction, provenance, counterevidence, calibration, disagreement and attribution consistency with unchanged read-only zero authority."
 recent_repository_evidence:
+  production_mobile_enrollment:
+    work_order: WO-PRODUCTION-MOBILE-ENROLLMENT-PAPER-BOOTSTRAP
+    branch: feat/cloud-paper-zero-config-autoconnect-v2
+    base_commit: 5709dc2e2b48e0a82c9c1c795d91398b847a56a3
+    implementation_status: IMPLEMENTATION_VALIDATED_PENDING_PR
+    canonical_origin: DEPLOYMENT_CONFIG_PENDING
+    focused_enrollment_tests: PASS_12_OF_12
+    startup_restore_tests: PASS_2_OF_2
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    ai_zero_authority: PASS
+    restricted_live_governance: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    aipos_conformance: PASS
+    secret_scan: PASS_SECRETS_0
+    full_isolated_suite: FAIL_LOCAL_CLOUD_RUNTIME_BOOTSTRAP_HTTP_401
+    local_paper_regression: PASS_BY_EXISTING_SUITE_CONTRACT
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Authenticated active-user self-enrollment, device-bound PAPER bootstrap, Android Keystore refresh persistence, canonical HTTPS origin validation, and fail-closed session recovery; no LIVE or broker mutation authority."
+  persistent_diagnostics_memory:
+    work_order: WO-0064
+    branch: agent/wo-0064-persistent-diagnostics-memory
+    base_commit: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
+    implementation_commit: a0ecad6047a096a1266a1d353a0700698f6c283d
+    focused_tests: PASS_20_OF_20
+    full_isolated_suite: PASS_568_FILES
+    repository_gates: PASS
+    migration: 016_improvement_candidate_memory
+    durability: PASS_CHECKSUM_RECOVERY_BOUNDED_RETENTION
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Durable bounded read-only diagnostic candidate memory with stable fingerprint recurrence, restart recovery, duplicate idempotency, checksum fail-closed behavior, and no remediation or execution authority."
+  root_cause_evidence_correlation:
+    work_order: WO-0065
+    branch: agent/wo-0065-root-cause-evidence-correlation
+    base_commit: 40d6ce10df574764330bd60427ffa6d89165efdd
+    implementation_commit: a8634d32fe8b1adb1785150c76a6dab393ef9a76
+    focused_tests: PASS_6_OF_6
+    full_isolated_suite: PASS_570_FILES
+    repository_gates: PASS
+    correlation: DETERMINISTIC_PROVENANCE_CONTRADICTION_BOUNDED
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only root-cause evidence bundles correlate persisted diagnostic recurrence by stable fingerprint, preserve provenance, fail closed on contradiction or missing evidence, and bound fan-out without remediation or execution authority."
+  root_cause_evidence_ranking:
+    work_order: WO-0066
+    branch: agent/wo-0066-deterministic-evidence-ranking
+    base_commit: c6fb0e907a32dc24c9f0119cb9cdec8588d665d2
+    implementation_commit: ed3173cdea8b5df15f10080d0356508fd3407938
+    focused_tests: PASS_7_OF_7
+    full_isolated_suite: PASS_571_FILES
+    repository_gates: PASS
+    ranking: DETERMINISTIC_EXPLICIT_FACTORS_STABLE_TIE_BREAKING
+    hypotheses: BOUNDED_EVIDENCE_BOUND_UNRESOLVED_CAUSALITY
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only evidence ranking uses observable diagnostic factors and stable tie-breaking; bounded hypotheses preserve provenance and fail closed on contradiction or insufficiency without causal certainty, remediation, or execution authority."
+  remediation_proposals:
+    work_order: WO-0067
+    branch: agent/wo-0067-read-only-remediation-proposals
+    base_commit: 6faa69df665df25262d7f9de13ffe93275d6aa5e
+    implementation_commit: 892da407ef8fbd6bccb9102e4bd95c802f83ce47
+    focused_tests: PASS_4_OF_4
+    full_isolated_suite: PASS_572_FILES
+    repository_gates: PASS
+    proposal_contract: DETERMINISTIC_EVIDENCE_BOUND_READ_ONLY
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only remediation proposals carry exact evidence references, explicit rationale, bounded change surface and risk, reversibility and verification plans; contradiction, insufficiency and unsupported scope fail closed without executable mutation authority."
+  autonomous_improvement_observer:
+    work_order: WO-0063
+    branch: agent/wo-0063-autonomous-improvement-observer
+    commit: b54c1a22
+    evidence: .aipos/evidence/WO-0063-completion.json
+    focused_tests: PASS_6_OF_6
+    full_isolated_suite: PASS_567_FILES
+    repository_gates: PASS
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+    scope: "Read-only reconnect-instability observation, deterministic fingerprints, thresholded aggregation, bounded candidate backlog, and existing EventBus projection; no runtime mutation authority."
   android_successor:
     work_order: WO-0053
     pull_request: 442
@@ -295,6 +409,21 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-0067
+    evidence: ".aipos/evidence/WO-0067-completion.json"
+    summary: "Deterministic read-only remediation proposals completed on agent/wo-0067-read-only-remediation-proposals at 892da407ef8fbd6bccb9102e4bd95c802f83ce47; focused 4/4 and full 572 isolated files pass, with explicit evidence/rationale, bounded scope and risk, reversibility/verification plans, fail-closed contradiction/insufficiency handling, and unchanged PAPER-only zero authority."
+  - id: WO-0066
+    evidence: ".aipos/evidence/WO-0066-completion.json"
+    summary: "Deterministic diagnostic evidence ranking and bounded root-cause hypothesis preparation completed on agent/wo-0066-deterministic-evidence-ranking at ed3173cdea8b5df15f10080d0356508fd3407938; focused 7/7 and full 571 isolated files pass, with explicit observable factors, stable identities, contradiction/insufficiency fail-closed behavior, and unchanged PAPER-only zero authority."
+  - id: WO-0065
+    evidence: ".aipos/evidence/WO-0065-completion.json"
+    summary: "Deterministic read-only root-cause evidence correlation completed on agent/wo-0065-root-cause-evidence-correlation at a8634d32fe8b1adb1785150c76a6dab393ef9a76; provenance, contradiction handling, bounded fan-out, restart recovery and idempotency are covered by focused 6/6 and full 570 isolated files, with LIVE and AI authority unchanged."
+  - id: WO-0064
+    evidence: ".aipos/evidence/WO-0064-completion.json"
+    summary: "Persistent diagnostic candidate memory completed on agent/wo-0064-persistent-diagnostics-memory at a0ecad6047a096a1266a1d353a0700698f6c283d; migration 016 provides checksum-verified durable history, stable recurrence, restart recovery, duplicate idempotency, and bounded retention. Focused 20/20, full 568 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
+  - id: WO-0063
+    evidence: ".aipos/evidence/WO-0063-completion.json"
+    summary: "Deterministic read-only MarketConnectionSupervisor improvement observer completed on agent/wo-0063-autonomous-improvement-observer at b54c1a22; bounded signals/candidates, focused 6/6, full 567 isolated files, architecture/safety/AIPOS gates PASS, with liveAuthority=NONE and AI ZERO_AUTHORITY unchanged."
   - id: WO-0057
     evidence: ".aipos/work-orders/WO-0057-desktop-cloud-paper-authority.yaml"
     summary: "Desktop Cloud canonical PAPER authority migration completed in PR #552 at exact head 03eef24c4abbba91920c0063a3e2af95088eb9d0 and merged as f875980e4ff9111ab576f1e93294fae510d07167 with exact-head CI and required read-only/restricted-LIVE companion workflows PASS; PAPER-only and LIVE/real-money prohibitions remain unchanged."
@@ -338,6 +467,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
+  - id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
+    evidence: ".aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml"
+    summary: "Issue #661 GET-only LIVE-ready observability successor is in progress under the unchanged WO-0051 human/environment gate; no LIVE or real-money authority is introduced."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -364,8 +496,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "WO-0057 repository work is complete. The standing WO-0051 human/environment gate remains the active serialized boundary for LIVE and real-money transition; any non-LIVE successor must be separately registered and cannot satisfy or weaken this gate."
+  work_order: .aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml
+  reason: "Complete Issue #661 LIVE-ready observability as a read-only successor under the standing WO-0051 human/environment gate; no LIVE activation, real-money mutation, or authority expansion is permitted."
 verification:
   wo_0057:
     parent_pull_request: 552
@@ -487,3 +619,166 @@ continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
   provider_private_context_dependency: prohibited
+
+issue_661_paper_learning_visibility:
+  issue: 661
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+  base_sha: e77582417f88efcd07e0806b5fc49c2e488730b0
+  branch: feat/issue-661-paper-learning-visibility
+  implementation_commit: 527686ee2fb8c9fb6233229cae07c25363b15068
+  scope: "Connect canonical PAPER learning/runtime observations to the authenticated GET-only /api/paper-operations projection and the existing React Native PAPER learning monitor; add Home/Trade/Portfolio entry points."
+  canonical_sources:
+    runtime: apps/cloud/src/runtime.ts
+    recorder: apps/cloud/src/paperLearningObservability.ts
+    projection: apps/cloud/src/paperLearningReadOnlyProjection.ts
+    transport_contract: packages/contracts/src/paperLearningReadOnly.ts
+    mobile_screen: apps/mobile/src/paperLearningScreen.ts
+    mobile_view: apps/mobile/src/paperLearningMonitorView.tsx
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture_truth: PASS
+    package_validate: PASS
+    full_isolated_suite: PASS_574_FILES
+    diff_check: PASS
+  safety:
+    mode: PAPER
+    read_only_projection: true
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+  external_validation: PENDING_EXACT_HEAD_CI_AND_ANDROID_PREVIEW
+
+issue_661_paper_learning_code_gap_closure:
+  issue: 661
+  work_order: WO-ISSUE-661-FINAL-CODE-GAP-CLOSURE
+  status: CODE_COMPLETE_HUMAN_DEVICE_PENDING
+  base_sha: ea363ca068e94d01e644f595a6ac495a34f52948
+  branch: feat/issue-661-code-gap-closure
+  scope: "Persist the existing sanitized PAPER learning timeline in the canonical Cloud state database and expose canonical risk observations without changing execution authority."
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    focused_paper_learning: PASS
+    focused_runtime_persistence: PASS
+    architecture: PASS
+    safety: PASS
+    security: PASS_SECRETS_0
+    full_isolated_suite: FAIL_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  safety:
+    mode: PAPER
+    read_only_projection: true
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+  implementation_commit: 852592229e1dfc089ce713d25d835943a24934a0
+  merge_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+  android_preview_pointer_merge_sha: 3427861ef0ae283ecdfdf898bc09f77174f2d954
+  android_preview_workflow: 32634946830
+  android_preview_source_sha: 92894f962c845009cdfa29dbf248e463b8c9f05e
+  android_preview_version: 1.0.69-92894f96
+  android_preview_version_code: 69
+  android_preview_sha256: 987ed80fb06c9daacaf2fc1085169c05952f5e8624a4aadf387452018e468b97
+  external_validation: "PR #718 and #719 exact-head checks PASS; post-merge Actual PAPER Runtime Evidence PASS; physical Galaxy/ADB acceptance HUMAN_ENVIRONMENT_ONLY."
+
+production_cloud_origin_android_acceptance:
+  work_order: WO-PRODUCTION-CLOUD-ORIGIN-ANDROID-ACCEPTANCE
+  status: IMPLEMENTATION_VALIDATED_PENDING_PR
+  base_sha: 50b68722173f5a8f1a7087b2fe915a227febc13f
+  branch: codex/production-cloud-origin-android
+  canonical_origin: https://nusa-api.duckdns.org
+  origin_source: "GitHub variable NUSA_MOBILE_API_BASE_URL"
+  origin_health: PASS_200_OK_TRUE
+  implementation_scope: "Release-safe generated origin config, strict origin validation, and Mobile Native/build workflow sealing; no credential or authority change."
+  validation:
+    focused_mobile_tests: PASS_14_OF_14
+    full_isolated_suite: PASS_580_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    security_gate: PASS_SECRETS_0
+    architecture_truth: PASS
+    aipos_conformance: PASS
+    aipos_drift: PASS
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  physical_device_acceptance: PENDING_HUMAN_ENVIRONMENT
+
+issue_661_shadow_transport_unified_monitor:
+  work_order: WO-ISSUE-661-SHADOW-TRANSPORT-UNIFIED-MONITOR
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+  base_sha: 0caf8b310a268fbd337453cf23965efbaefc90d6
+  branch: agent/issue-661-shadow-transport-unified-monitor
+  scope: "Authenticated GET-only Shadow observability transport, verified sealed archive replay, and unified read-only PAPER/SHADOW mobile monitor using existing Shadow evidence and authority boundaries."
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    focused_shadow_archive_and_transport: PASS_17_OF_17
+    diff_check: PASS
+  safety:
+    mode: PAPER_AND_SHADOW_READ_ONLY
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    broker_mutation: NONE
+  external_validation: PENDING_EXACT_HEAD_CI_AND_REVIEW
+
+issue_661_live_readiness_production_source:
+  work_order: WO-ISSUE-661-LIVE-READINESS-PRODUCTION-SOURCE
+  issue: 661
+  status: COMPLETED
+  base_sha: 83f312fb4bc1cd1a35cf53071556671a93913ca0
+  branch: agent/live-readiness-production-source
+  scope: "Canonical production read-only LiveReadinessSourceSnapshot provider and runtime accessor; no LIVE_READY transport/UI in this slice."
+  implementation_status: MERGED_PR_769
+  pull_request: 769
+  implementation_commit: 25188c7575a2c42421b40dd1eeb21f0892baa519
+  merge_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  local_validation:
+    focused_provider: PASS_7_OF_7
+    existing_readiness: PASS_16_OF_16
+    full_isolated_suite: PASS_589_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    architecture: PASS
+    safety: PASS
+    security: PASS
+    aipos: PASS
+    package_validation: PASS_AFTER_MAP_FREE_PACKAGED_FILE_SET
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    activation: READ_ONLY_UNAVAILABLE_BY_DEFAULT
+  remote_validation: PASS_6_OF_6_EXACT_HEAD
+
+issue_661_live_ready_observability:
+  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
+  issue: 661
+  status: IN_PROGRESS
+  base_sha: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
+  branch: agent/issue-661-live-ready-observability
+  scope: "GET-only canonical LIVE preparation observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
+  canonical_source: apps/cloud/src/liveReadinessSourceProvider.ts
+  evaluator: apps/cloud/src/liveReadinessGate.ts
+  transport: GET_ONLY_API_LIVE_READINESS
+  mobile_client: apps/mobile/src/liveReadinessOperationsClient.ts
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY
+    order_cancel_withdraw_transfer: NONE
+    activation: NONE
+  implementation_status: PR_770_OPEN_READY_EXACT_HEAD_VALIDATION_PASS
+  implementation_commit: cba248aa8f2c5e07767b6e4e4435a7be9c659075
+  pull_request: 770
+  validation_head: 7e925445055d14d877baa1476291a9108e832bff
+  exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
+  local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
+  actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
+  next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."

@@ -41,7 +41,7 @@ const valid = () => ({
     shadow_evidence_sufficient_for_live_authorization: false,
     autonomous_production_mutation: false,
   },
-  runtime_binding: { implementation: "apps/desktop/src/shadowPilotRuntime.ts", verification_entrypoint: "scripts/run-shadow-paper-pilot.js" },
+  runtime_binding: { implementation: "apps/desktop/src/shadow/shadowPilotRuntime.ts", verification_entrypoint: "scripts/run-shadow-paper-pilot.js" },
 });
 
 test("valid Shadow governance contract passes", () => {

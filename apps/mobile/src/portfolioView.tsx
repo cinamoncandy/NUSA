@@ -5,24 +5,35 @@ import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildPortfolioViewModel, type PortfolioAccountResponse, type PortfolioViewModel } from "./portfolioViewModel";
-import type { UpbitReadOnlyAccountSnapshot, UpbitReadOnlyConnectionStatus } from "./upbitReadOnlyAccount";
+import { useUpbitReadOnlyState, type UpbitReadOnlyAccountSnapshot, type UpbitReadOnlyConnectionStatus, type UpbitReadOnlyMonitorStatus } from "./upbitReadOnlyAccount";
+import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 function signedMoney(value: number): string { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }
 function pnlTone(value: number): "success" | "danger" { return value >= 0 ? "success" : "danger"; }
 function ErrorState({ theme, message, onRetry }: Readonly<{ theme: ReturnType<typeof useTheme>["theme"]; message: string; onRetry: () => void }>) { return <View style={styles.state} testID="portfolio-error"><View style={styles.stateInner}><InlineNotice title="자산 정보를 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
-export interface PortfolioViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly upbitSnapshot?: UpbitReadOnlyAccountSnapshot | null; readonly upbitStatus?: UpbitReadOnlyConnectionStatus; readonly upbitError?: string | null; }
+export interface PortfolioViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly upbitSnapshot?: UpbitReadOnlyAccountSnapshot | null; readonly upbitStatus?: UpbitReadOnlyConnectionStatus; readonly upbitError?: string | null; readonly onOpenPaperLearning?: () => void; }
 
-function UpbitReadOnlySection({ upbitSnapshot: snapshot, upbitStatus: status = "DISCONNECTED", upbitError: error = null }: Readonly<Pick<PortfolioViewProps, "upbitSnapshot" | "upbitStatus" | "upbitError">>) {
+function monitorTone(status: UpbitReadOnlyMonitorStatus): "success" | "warning" | "danger" | "info" {
+  return status === "CONNECTED" ? "success" : status === "AUTH_ERROR" || status === "RELAY_ERROR" ? "danger" : status === "STALE" ? "warning" : "info";
+}
+
+function UpbitReadOnlySection({ upbitSnapshot: snapshotProp, upbitStatus: statusProp = "DISCONNECTED", upbitError: errorProp = null }: Readonly<Pick<PortfolioViewProps, "upbitSnapshot" | "upbitStatus" | "upbitError">>) {
   const { theme } = useTheme();
-  const state = status === "LOADING" ? "불러오는 중" : status === "READY" ? "연결됨" : status === "STALE" ? "오래된 데이터" : status === "ERROR" ? "조회 실패" : "연결 필요";
-  const tone = status === "READY" ? "success" : status === "ERROR" ? "danger" : "info";
-  return <NusaCard testID="portfolio-upbit-read-only"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.info }]}>UPBIT · READ ONLY</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>실거래소 계정 잔고</Text></View><StatusChip label={state} tone={tone} /></View>
+  const live = useUpbitReadOnlyState();
+  const snapshot = live.snapshot ?? snapshotProp;
+  const status = live.status === "DISCONNECTED" && statusProp !== "DISCONNECTED" ? statusProp : live.status;
+  const monitorStatus = live.monitorStatus;
+  const error = live.error ?? errorProp;
+  const lastSuccessAt = live.lastSuccessAt ?? snapshot?.fetchedAt ?? null;
+  const state = status === "LOADING" ? "불러오는 중" : monitorStatus;
+  return <NusaCard testID="portfolio-upbit-read-only"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.info }]}>UPBIT · READ ONLY</Text><Text style={[styles.cardTitle, { color: theme.colors.text }]}>실거래소 계정 잔고</Text></View><StatusChip label={state} tone={monitorTone(monitorStatus)} /></View>
     {status === "DISCONNECTED" ? <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>설정에서 Upbit 읽기 전용 연결을 확인하면 실제 계정 잔고를 표시합니다.</Text>
       : status === "LOADING" ? <View style={styles.inlineState}><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>Upbit 계정 잔고를 조회하는 중입니다.</Text></View>
-      : status === "ERROR" ? <Text style={[styles.stateMessage, { color: theme.colors.danger }]}>{error ?? "Upbit 잔고를 표시할 수 없습니다."}</Text>
-      : snapshot ? <><View style={styles.upbitBalanceGrid}><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>KRW 사용 가능</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(snapshot.cash.available)}</Text></View><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>KRW 잠금</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(snapshot.cash.locked)}</Text></View></View><View style={[styles.divider, { backgroundColor: theme.colors.border }]} />{snapshot.assets.length === 0 ? <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>보유 디지털 자산 없음</Text> : snapshot.assets.map((asset) => <View key={asset.currency} style={styles.upbitAssetRow} testID={`portfolio-upbit-asset-${asset.currency}`}><View><Text style={[styles.cardTitle, { color: theme.colors.text }]}>{asset.currency}</Text><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{asset.unitCurrency} 기준 평균 매수가</Text></View><View style={styles.upbitAssetValues}><Text style={[styles.positionValue, { color: theme.colors.text }]}>{asset.available}</Text><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>잠금 {asset.locked}</Text></View></View>)}<Text style={[styles.upbitFetchedAt, { color: theme.colors.textMuted }]}>조회 시각: {new Date(snapshot.fetchedAt).toLocaleString("ko-KR")} · 실제 잔고와 PAPER는 합산하지 않습니다.</Text></>
+      : status === "ERROR" && !snapshot ? <Text style={[styles.stateMessage, { color: theme.colors.danger }]}>{error ?? "Upbit 잔고를 표시할 수 없습니다."}</Text>
+      : snapshot ? <><View style={styles.upbitBalanceGrid}><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>KRW 사용 가능</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(snapshot.cash.available)}</Text></View><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>KRW 잠금</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(snapshot.cash.locked)}</Text></View></View><View style={[styles.divider, { backgroundColor: theme.colors.border }]} />{snapshot.assets.length === 0 ? <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>보유 디지털 자산 없음</Text> : snapshot.assets.map((asset) => <View key={asset.currency} style={styles.upbitAssetRow} testID={`portfolio-upbit-asset-${asset.currency}`}><View><Text style={[styles.cardTitle, { color: theme.colors.text }]}>{asset.currency}</Text><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{asset.unitCurrency} 기준 평균 매수가 · {money(asset.avgBuyPrice)}</Text></View><View style={styles.upbitAssetValues}><Text style={[styles.positionValue, { color: theme.colors.text }]}>{asset.available}</Text><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>잠금 {asset.locked}</Text></View></View>)}<Text style={[styles.upbitFetchedAt, { color: theme.colors.textMuted }]} testID="portfolio-upbit-last-success">마지막 성공 조회: {lastSuccessAt == null ? "없음" : new Date(lastSuccessAt).toLocaleString("ko-KR")} · {monitorStatus} · 실제 잔고와 PAPER는 합산하지 않습니다.</Text>{error && monitorStatus !== "CONNECTED" ? <Text style={[styles.stateMessage, { color: monitorStatus === "AUTH_ERROR" || monitorStatus === "RELAY_ERROR" ? theme.colors.danger : theme.colors.textMuted }]} testID="portfolio-upbit-monitor-error">{error}</Text> : null}</>
       : <Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>Upbit 잔고가 없습니다.</Text>}
   </NusaCard>;
 }
@@ -32,17 +43,30 @@ function renderPosition(model: PortfolioViewModel, theme: ReturnType<typeof useT
   return <NusaCard testID="portfolio-position"><View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: theme.colors.primary }]}>OPEN POSITION</Text><Text style={[styles.positionMarket, { color: theme.colors.text }]}>{model.position.market}</Text></View><StatusChip label="PAPER" tone="primary" /></View><View style={styles.positionMetrics}><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수량</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{model.position.quantity}</Text></View><View style={styles.positionMetric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>평가가</Text><Text style={[styles.positionValue, { color: theme.colors.text }]}>{money(model.position.currentPrice)}</Text></View></View><DataRow label="평균 단가" value={money(model.position.averagePrice)} /><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><DataRow label="미실현 손익" value={signedMoney(model.position.unrealizedPnl)} emphasis tone={pnlTone(model.position.unrealizedPnl)} /><DataRow label="실현 손익" value={signedMoney(model.position.realizedPnl)} tone={pnlTone(model.position.realizedPnl)} /></NusaCard>;
 }
 
-export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null }: PortfolioViewProps) {
+export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
   const { theme } = useTheme();
-  if (snapshot === null) return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />{upbitStatus === "LOADING" ? <Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text> : null}<InlineNotice title={error ? "PAPER 자산을 표시할 수 없습니다" : "PAPER 연결 필요"} detail={error ?? "PAPER 서버에 연결하면 PAPER 계정의 평가자산과 손익을 표시합니다. Upbit 읽기 전용 잔고는 별도로 표시됩니다."} tone={error ? "danger" : "warning"} /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
-  if (error) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
+  // Issue #637: when Cloud PAPER is not configured, fall back to the same one app-level LOCAL
+  // PAPER ledger Trade writes to, instead of always showing "PAPER 연결 필요" while a real LOCAL
+  // PAPER balance exists. Hooks stay unconditional; the mark-price poll is skipped once Cloud is
+  // active.
+  const localPaperActive = snapshot === null && isLocalPaperActive();
+  const localTradingSnapshot = useLocalPaperSnapshot();
+  const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
+  const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
+  const effectiveSnapshot = snapshot ?? localPortfolio;
+  const usingLocalPaper = snapshot === null && localPortfolio !== null;
+
+  if (effectiveSnapshot === null) return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen"><UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />{upbitStatus === "LOADING" ? <Text style={[styles.stateTitle, { color: theme.colors.text }]}>자산 정보를 불러오는 중</Text> : null}<InlineNotice title={error ? "PAPER 자산을 표시할 수 없습니다" : "PAPER 연결 필요"} detail={error ?? "PAPER 서버에 연결하면 PAPER 계정의 평가자산과 손익을 표시합니다. Upbit 읽기 전용 잔고는 별도로 표시됩니다."} tone={error ? "danger" : "warning"} /><NusaButton label="PAPER 다시 불러오기" onPress={onRefresh} /></ScrollView>;
+  if (error && !usingLocalPaper) return <ErrorState theme={theme} message={error} onRetry={onRefresh} />;
   let model: PortfolioViewModel;
-  try { model = buildPortfolioViewModel(snapshot); } catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
+  try { model = buildPortfolioViewModel(effectiveSnapshot); } catch (validationError) { return <ErrorState theme={theme} message={validationError instanceof Error ? validationError.message : "Portfolio data is invalid."} onRetry={onRefresh} />; }
   const allocation = createCashInvestmentEnvelope(model.cash, investmentPercent);
   const allocationWidth = `${allocation.investmentPercent}%` as `${number}%`;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="portfolio-screen">
-    <ScreenHeader eyebrow="MY ISLAND" title="자산" description="총자산, 손익과 현재 포지션을 한눈에 확인합니다." statusLabel="PAPER" statusTone="primary" />
+    <ScreenHeader eyebrow="MY ISLAND" title="자산" description="총자산, 손익과 현재 포지션을 한눈에 확인합니다." statusLabel={usingLocalPaper ? "LOCAL PAPER" : "PAPER"} statusTone="primary" />
+    {usingLocalPaper ? <InlineNotice title="LOCAL PAPER 표시 중" detail="Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다. 실제 주문은 전송되지 않습니다." tone="info" testID="portfolio-local-paper-note" /> : null}
+    {onOpenPaperLearning ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="portfolio-paper-learning" /> : null}
 
     <UpbitReadOnlySection upbitSnapshot={upbitSnapshot} upbitStatus={upbitStatus} upbitError={upbitError} />
 

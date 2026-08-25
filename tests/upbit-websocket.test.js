@@ -7,7 +7,7 @@ const {
   UpbitWebSocketClient,
   shouldAcceptUpbitTicker,
   upbitReconnectDelay
-} = require("../dist/apps/desktop/src/upbitWebSocket.js");
+} = require("../dist/apps/desktop/src/exchange/upbitWebSocket.js");
 
 const ticker = (overrides = {}) => ({
   type: "ticker",

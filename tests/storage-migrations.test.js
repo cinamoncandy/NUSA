@@ -59,11 +59,11 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const filename = join(mkdtempSync(join(tmpdir(), "nusa-storage-")), "positions.db");
   const db = new SqliteDatabase(filename);
   try {
-    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control", "004_compliance_control_plane", "005_resilience_control_plane", "006_rules_control_plane", "007_multi_agent_governance", "008_cloud_dashboard_snapshots", "009_cloud_paper_accounts", "010_risk_safety_integration", "011_research_evaluation_ledger", "012_candidate_promotion_runtime", "013_research_automation_sessions", "014_research_hypothesis_events", "015_cloud_paper_writer_lease"]);
-    assert.equal(db.migrationResult.currentVersion, "015_cloud_paper_writer_lease");
+    assert.deepEqual(db.migrationResult.applied, ["001_position_accounting", "002_research_memory", "003_governance_control", "004_compliance_control_plane", "005_resilience_control_plane", "006_rules_control_plane", "007_multi_agent_governance", "008_cloud_dashboard_snapshots", "009_cloud_paper_accounts", "010_risk_safety_integration", "011_research_evaluation_ledger", "012_candidate_promotion_runtime", "013_research_automation_sessions", "014_research_hypothesis_events", "015_cloud_paper_writer_lease", "016_improvement_candidate_memory"]);
+    assert.equal(db.migrationResult.currentVersion, "016_improvement_candidate_memory");
     const names = db.connection.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY name"
-    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events", "compliance_events", "compliance_state", "rules_events", "rules_state", "multi_agent_governance_events", "multi_agent_governance_state", "cloud_dashboard_snapshots", "cloud_paper_accounts", "risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state", "research_evaluation_ledger", "research_candidates", "research_champion_pointer", "research_promotion_commands", "research_promotion_audit", "research_sessions", "research_hypothesis_events")
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY name"
+    ).all("schema_migrations", "position_ledger_entries", "wallet_position_snapshots", "strategy_position_snapshots", "applied_ledger_markers", "research_hypotheses", "research_experiment_records", "strategy_governance_commands", "investment_committee_events", "compliance_events", "compliance_state", "improvement_candidate_memory", "rules_events", "rules_state", "multi_agent_governance_events", "multi_agent_governance_state", "cloud_dashboard_snapshots", "cloud_paper_accounts", "risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state", "research_evaluation_ledger", "research_candidates", "research_champion_pointer", "research_promotion_commands", "research_promotion_audit", "research_sessions", "research_hypothesis_events")
       .map((row) => row.name);
     assert.deepEqual(names, [
       "applied_ledger_markers",
@@ -71,6 +71,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
       "cloud_paper_accounts",
       "compliance_events",
       "compliance_state",
+      "improvement_candidate_memory",
       "investment_committee_events",
       "multi_agent_governance_events",
       "multi_agent_governance_state",
@@ -103,7 +104,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
   const reopened = new SqliteDatabase(filename);
   try {
     assert.deepEqual(reopened.migrationResult.applied, []);
-    assert.equal(reopened.migrationResult.currentVersion, "015_cloud_paper_writer_lease");
+    assert.equal(reopened.migrationResult.currentVersion, "016_improvement_candidate_memory");
     assert.equal(reopened.connection.prepare("SELECT id FROM position_ledger_entries WHERE id = ?").get("persisted").id, "persisted");
   } finally { reopened.close(); }
 });

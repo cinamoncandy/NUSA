@@ -95,10 +95,12 @@ test("main startup keeps recovery fail-closed and does not auto-resume", () => {
   assert.match(source, /crashRecoveryRequired/);
   assert.match(source, /runtime\.markUnavailable\(\)/);
   assert.doesNotMatch(source, /if \(crashRecoveryRequired\)[^]*shadowRuntime\.start\(/);
-  assert.match(source, /recovery:reconcile/);
-  assert.match(source, /recovery:owner-review/);
-  assert.match(source, /recovery:complete/);
   assert.match(source, /credentialStorageCapabilityPresent: false/);
+  // The recovery:* IPC channels live in registerRecoveryIpcHandlers.ts, registered from main.ts.
+  const recoveryIpcSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "ipc", "registerRecoveryIpcHandlers.ts"), "utf8");
+  assert.match(recoveryIpcSource, /recovery:reconcile/);
+  assert.match(recoveryIpcSource, /recovery:owner-review/);
+  assert.match(recoveryIpcSource, /recovery:complete/);
 });
 
 test("crash recovery itself has no mutation or private capability", () => {

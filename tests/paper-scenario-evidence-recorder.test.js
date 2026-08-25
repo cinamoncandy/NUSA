@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperScenarioEvidenceRecorder } = require("../dist/apps/desktop/src/paperScenarioEvidenceRecorder.js");
+const { PaperScenarioEvidenceRecorder } = require("../dist/apps/desktop/src/paper/paperScenarioEvidenceRecorder.js");
 
 test("recorder binds every runtime event to the explicit Paper session", () => {
   const events = [];

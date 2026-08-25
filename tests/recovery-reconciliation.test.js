@@ -2,11 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { compareRecoveryState, approveRecoveryReview, completeRecovery, RecoveryReviewState } = require("../dist/apps/desktop/src/recoveryReconciliation.js");
-const { parseRecoveryOwnerReviewIpc, parseRecoveryStatusIpc, parseRecoveryReconcileIpc, parseRecoveryCompleteIpc } = require("../dist/apps/desktop/src/recoveryIpcValidation.js");
-const { PaperBroker } = require("../dist/apps/desktop/src/paperBroker.js");
+const { compareRecoveryState, approveRecoveryReview, completeRecovery, RecoveryReviewState } = require("../dist/apps/desktop/src/recovery/recoveryReconciliation.js");
+const { parseRecoveryOwnerReviewIpc, parseRecoveryStatusIpc, parseRecoveryReconcileIpc, parseRecoveryCompleteIpc } = require("../dist/apps/desktop/src/ipc/recoveryIpcValidation.js");
+const { PaperBroker } = require("../dist/apps/desktop/src/paper/paperBroker.js");
 
 const mainSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "main.ts"), "utf8");
+// The recovery:* IPC channels live in registerRecoveryIpcHandlers.ts, registered from main.ts.
+const recoveryIpcSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "ipc", "registerRecoveryIpcHandlers.ts"), "utf8");
 const preloadSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "preload.ts"), "utf8");
 const CHECKED_AT = Date.UTC(2026, 6, 28, 6, 0, 0);
 const INITIAL_CASH = 10_000_000;
@@ -146,7 +148,7 @@ test("7: a comparison that throws reports a specific code, not a generic error",
 test("7b: main.ts registers all four recovery handlers", () => {
   // A missing handler is the difference between a specific blocker and an opaque IPC failure.
   for (const channel of ["recovery:status", "recovery:reconcile", "recovery:owner-review", "recovery:complete"]) {
-    assert.ok(mainSource.includes(`ipcMain.handle("${channel}"`), `${channel} handler must be registered`);
+    assert.ok(recoveryIpcSource.includes(`ipcMain.handle("${channel}"`), `${channel} handler must be registered`);
   }
 });
 
@@ -249,7 +251,7 @@ test("12: a completed recovery record is marked COMPLETED, never deleted", () =>
 });
 
 test("13: no code path in this module deletes a record or an evidence archive", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recoveryReconciliation.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recovery", "recoveryReconciliation.ts"), "utf8");
   const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["rm(", "rmSync", "unlink", "removeShadowArchive", "DELETE FROM", "truncate"]) {
     assert.equal(code.includes(forbidden), false, `reconciliation must never reference ${forbidden}`);
@@ -259,7 +261,7 @@ test("13: no code path in this module deletes a record or an evidence archive", 
 // --------------------------------------------------------- 14-17. safety posture
 
 test("14-16: the module starts no Shadow session, calls no private API, and mutates nothing", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recoveryReconciliation.ts"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recovery", "recoveryReconciliation.ts"), "utf8");
   const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["shadowRuntime", ".start(", "api.upbit.com", "access_key", "secret_key", "node:http", "fetch(", ".buy(", ".sell("]) {
     assert.equal(code.includes(forbidden), false, `reconciliation must never reference ${forbidden}`);
@@ -353,7 +355,7 @@ test("20b: main.ts derives the comparison from its own state, never from the ren
   assert.match(builder[0], /function buildRecoveryComparison\(\): /);
   assert.equal(/buildRecoveryComparison\(\s*\w+/.test(mainSource), false, "the builder must take no caller input");
 
-  const approveHandler = mainSource.match(/ipcMain\.handle\("recovery:owner-review"[\s\S]*?\n\}\);/);
+  const approveHandler = recoveryIpcSource.match(/ipcMain\.handle\("recovery:owner-review"[\s\S]*?\n\s*\}\);/);
   assert.ok(approveHandler, "the owner-review handler must exist");
   // The approval is bound to the stored comparison, and refuses when none was run.
   assert.match(approveHandler[0], /recoveryReview\.latestComparison\(\)/);

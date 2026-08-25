@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { shouldStopLoss, shouldTimeStop } = require("../dist/apps/desktop/src/exitRules.js");
+const { shouldStopLoss, shouldTimeStop } = require("../dist/apps/desktop/src/strategy/exitRules.js");
 
 test("shouldStopLoss triggers once price falls to or below the stop threshold", () => {
   assert.equal(shouldStopLoss({ entryPrice: 100, currentPrice: 95, stopLossFraction: 0.05 }), true); // exactly at the stop (95)

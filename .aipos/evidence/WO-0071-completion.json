@@ -1,0 +1,89 @@
+{
+  "workOrder": "WO-0071",
+  "status": "COMPLETED",
+  "branch": "agent/wo-0071-remediation-readiness-and-aipos-reconciliation",
+  "pullRequest": 744,
+  "startingHead": "208944181ba81ea82ce85c8f4a963c8331ae3858",
+  "implementationCommit": "0620c1315f5e700f982c2f7ec80301b117ddcae1",
+  "completedAt": "2026-08-24T12:55:19+09:00",
+  "scope": {
+    "readiness": "Deterministic read-only execution-readiness assessment for verified and prioritized remediation proposals.",
+    "provenance": "Non-destructive scope-qualified reconciliation of colliding WO-0063 and WO-0070 records, including the reported canonical WO-0070 prioritization lineage."
+  },
+  "changedFilesForThisClosure": [
+    ".aipos/evidence/WO-0071-completion.json",
+    ".aipos/state.yaml",
+    ".aipos/work-orders/WO-0071-remediation-readiness-and-aipos-reconciliation.yaml",
+    "scripts/validate-aipos-work-order-provenance.js",
+    "tests/aipos-work-order-provenance.test.js"
+  ],
+  "readinessImplementation": {
+    "module": "packages/core/src/improvement/remediationReadiness.ts",
+    "tests": "tests/remediation-readiness.test.js",
+    "focusedTests": "PASS_13_OF_13",
+    "properties": [
+      "deterministic replay",
+      "canonical stable hashing",
+      "order-independent tie breaking",
+      "idempotent duplicate handling",
+      "contradictory duplicate rejection",
+      "upstream verification and prioritization gates",
+      "dependency, protected-surface, rollback, verification and bound fail-closed gates",
+      "read-only zero-authority output"
+    ]
+  },
+  "provenanceReconciliation": {
+    "focusedTests": "PASS_7_OF_7",
+    "validator": "scripts/validate-aipos-work-order-provenance.js",
+    "status": "PASS_NON_DESTRUCTIVE_SCOPE_QUALIFIED",
+    "canonicalScope": "WO-0070.deterministic-remediation-prioritization",
+    "canonicalPullRequest": 738,
+    "canonicalImplementationHead": "d83b7e0354681df3b1b86bee1e0d805d2108b970",
+    "canonicalMergeCommit": "43fdc4a12305d10c16e5c70ba0f20caa9b501188",
+    "legacyIdentity": {
+      "value": "3711390a",
+      "handling": "PRESERVED_NOT_DELETED_EXPLICITLY_ANNOTATED",
+      "supersededBy": "d83b7e0354681df3b1b86bee1e0d805d2108b970"
+    },
+    "additionalCollisionDiscoveredAndReconciled": "WO-0063"
+  },
+  "validation": {
+    "focusedCombinedTests": "PASS_20_OF_20",
+    "fullIsolatedSuite": "PASS_586_FILES",
+    "preflight": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architecture": "PASS",
+    "architectureTruth": "PASS",
+    "aiZeroAuthority": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "aiposConformance": "PASS",
+    "aiposDrift": "PASS",
+    "securityGate": "PASS_SECRETS_0",
+    "gitDiffCheck": "PASS"
+  },
+  "exactHeadCi": {
+    "head": "0620c1315f5e700f982c2f7ec80301b117ddcae1",
+    "conclusion": "PASS_6_OF_6",
+    "ci": 32687604133,
+    "actualPaperRuntime": 32687604213,
+    "restrictedLiveActivationRehearsal": 32687604179,
+    "restrictedLiveTransportCredentialReadiness": 32687604130,
+    "restrictedLiveCapabilitySurfaceGuard": 32687604182,
+    "readOnlyBrokerCredentialIntegration": 32687604186
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "executionAuthority": false,
+    "brokerRiskCredentialChanges": false,
+    "automaticMutation": false
+  },
+  "knownLimitations": [
+    "No LIVE, broker, Risk, credential, Git automation, deployment, Android, Galaxy, or physical-device work is part of WO-0071.",
+    "PR #744 remains subject to normal human review and merge authorization."
+  ]
+}

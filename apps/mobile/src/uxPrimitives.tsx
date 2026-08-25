@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   compactMetricCopy: { flex: 1, minWidth: 0, gap: 2 },
   compactMetricLabel: { fontSize: 12, lineHeight: 17, fontWeight: "700", letterSpacing: 0.1 },
   compactMetricDetail: { fontSize: 10, lineHeight: 15 },
-  compactMetricValue: { maxWidth: "48%", textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  compactMetricValue: { minWidth: 0, maxWidth: "48%", flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
   quietStatus: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
   quietStatusDot: { width: 6, height: 6, borderRadius: 3 },
   quietStatusLabel: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 1.05 },

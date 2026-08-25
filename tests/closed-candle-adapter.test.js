@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createClosedCandleAdapter } = require("../dist/apps/desktop/src/closedCandleAdapter.js");
+const { createClosedCandleAdapter } = require("../dist/apps/desktop/src/strategy/closedCandleAdapter.js");
 
 const tick = (overrides = {}) => ({
   code: "KRW-BTC",

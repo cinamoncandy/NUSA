@@ -9,10 +9,12 @@
   "realMoneyExecutionAllowed": false,
   "automaticActivationAllowed": false,
   "requester": {"principalId": "human-requester-rehearsal", "kind": "HUMAN"},
-  "approvers": [
-    {"principalId": "human-approver-a-rehearsal", "kind": "HUMAN"},
-    {"principalId": "human-approver-b-rehearsal", "kind": "HUMAN"}
-  ],
+  "ownerApproval": {
+    "principalId": "owner-rehearsal",
+    "kind": "HUMAN",
+    "role": "OWNER",
+    "explicit": true
+  },
   "scope": {
     "deploymentBundleId": "rehearsal-bundle",
     "capabilityContract": "restricted-live-rehearsal",

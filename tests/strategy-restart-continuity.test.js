@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const { mkdtempSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 const dbPath = () => join(mkdtempSync(join(tmpdir(), "nusa-strategy-state-")), "runtime.db");
 

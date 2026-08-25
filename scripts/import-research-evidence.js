@@ -26,7 +26,7 @@ if (!databasePath || !inputPath || !path.isAbsolute(databasePath) || !path.isAbs
     if (payload == null || typeof payload !== "object" || payload.manifest == null || payload.report == null) {
       throw new Error("input must contain manifest and report");
     }
-    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
     store = new DesktopPersistenceStore(databasePath);
     store.appendResearchEvidence(payload.manifest, payload.report);
     const manifests = store.loadResearchRunManifests();

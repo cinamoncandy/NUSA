@@ -1,17 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AiCioDashboardReadResult } from "../../../packages/contracts/src/aiCioDashboard";
-import type { AiCioCommandCenterEnvelopeV1 } from "./aiCioCommandCenterAdapter";
-import type { ControlSnapshot } from "./controlPlane";
-import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paperBroker";
-import type { UpbitTicker } from "./upbitWebSocket";
-import type { OperationalPreflightState } from "./paperOperationalPreflight";
-import type { A4RuntimeDiagnostics } from "./a4RuntimeDiagnostics";
-import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./aiSignalExplainer";
-import type { AiSessionSummary } from "./aiSessionSummary";
-import type { AiRegimeExplanation } from "./aiRegimeExplainer";
-import type { AiRiskCommentary } from "./aiRiskCommentary";
-import type { AiChallengerObservation } from "./aiChallengerObserver";
-import type { AiDisagreementExplanation } from "./aiChallengerDisagreementExplainer";
+import type { AiCioCommandCenterEnvelopeV1 } from "./ai/aiCioCommandCenterAdapter";
+import type { ControlSnapshot } from "./control/controlPlane";
+import type { PaperAccountSnapshot, PaperOrder, PaperSide } from "./paper/paperBroker";
+import type { UpbitTicker } from "./exchange/upbitWebSocket";
+import type { OperationalPreflightState } from "./paper/paperOperationalPreflight";
+import type { A4RuntimeDiagnostics } from "./diagnostics/a4RuntimeDiagnostics";
+import type { AiSignalExplanation, AiSignalFollowUpAnswer } from "./ai/aiSignalExplainer";
+import type { AiSessionSummary } from "./ai/aiSessionSummary";
+import type { AiRegimeExplanation } from "./ai/aiRegimeExplainer";
+import type { AiRiskCommentary } from "./ai/aiRiskCommentary";
+import type { AiChallengerObservation } from "./ai/aiChallengerObserver";
+import type { AiDisagreementExplanation } from "./ai/aiChallengerDisagreementExplainer";
 
 export interface ChartPoint { time: number; value: number; }
 
@@ -154,6 +154,7 @@ export interface ShadowPilotApi {
   resume(sessionId: string): Promise<unknown>;
   stop(sessionId: string): Promise<unknown>;
   status(): Promise<unknown>;
+  observability(): Promise<unknown>;
 }
 
 export interface NUSAOperationsApi {
@@ -180,7 +181,8 @@ const shadowPilot: ShadowPilotApi = Object.freeze({
   pause: (sessionId: string) => invokeMutation("shadow:pause", { sessionId }),
   resume: (sessionId: string) => invokeMutation("shadow:resume", { sessionId }),
   stop: (sessionId: string) => invokeMutation("shadow:stop", { sessionId }),
-  status: () => invokeReadWithRecovery("shadow:status")
+  status: () => invokeReadWithRecovery("shadow:status"),
+  observability: () => invokeReadWithRecovery("shadow:observability", {})
 });
 
 /**

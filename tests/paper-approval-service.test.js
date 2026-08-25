@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PaperApprovalService, MANUAL_APPROVAL_TTL_MS, STRATEGY_APPROVAL_TTL_MS } = require("../dist/apps/desktop/src/paperApprovalService.js");
+const { PaperApprovalService, MANUAL_APPROVAL_TTL_MS, STRATEGY_APPROVAL_TTL_MS } = require("../dist/apps/desktop/src/paper/paperApprovalService.js");
 const { CanonicalRiskSafetyGate, InMemoryRiskSafetyPersistence } = require("../dist/apps/execution/src/risk-safety-integration.js");
 
 const NOW = 1_750_000_000_000;

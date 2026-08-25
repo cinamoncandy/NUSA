@@ -6,7 +6,7 @@ const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
 const { DesktopSessionService, DESKTOP_ACCESS_TTL_MS } = require("../dist/apps/cloud/src/desktopSessionService.js");
-const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/desktopCloudSessionStore.js");
+const { DesktopCloudSessionStore } = require("../dist/apps/desktop/src/cloud/desktopCloudSessionStore.js");
 
 function fixture() {
   const db = new SqliteDatabase(":memory:");

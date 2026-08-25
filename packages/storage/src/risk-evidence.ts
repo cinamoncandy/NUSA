@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { RiskDecision, RiskEvidenceRepository, RiskResult } from "../../../apps/execution/src/global-risk-gateway";
+import type { RiskDecision, RiskEvidenceRepository, RiskResult } from "../../contracts/src/global-risk-gateway";
 
 type Row = { decision_id: string; result: string; policy_version: string; reason_codes: string; observed_at: string; execution_id: string; rule_id: string; input_parameters: string; account_state: string; market_state: string; correlation_id: string };
 export interface RiskEvidenceDatabase { readonly connection: DatabaseSync; }

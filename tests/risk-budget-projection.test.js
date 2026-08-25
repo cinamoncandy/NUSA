@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { projectRiskBudgetUsage } = require("../dist/apps/desktop/src/riskBudgetProjection.js");
+const { projectRiskBudgetUsage } = require("../dist/apps/desktop/src/risk/riskBudgetProjection.js");
 
 const request = (overrides = {}) => ({
   schemaVersion: 1, requestId: "r", signalId: "s", commandId: "c", clientOrderId: "o",

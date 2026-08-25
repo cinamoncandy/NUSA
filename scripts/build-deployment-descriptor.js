@@ -193,7 +193,7 @@ function buildDescriptor(options = {}) {
     credentialStoragePresent: scan.findings.credentialStoragePresent.length > 0,
     killSwitchReachable: scan.killSwitchReachable,
     autoTradeDefaultEnabled: options.autoTradeDefaultEnabled === true,
-    riskGatewayPresent: fs.existsSync(path.join(REPO_ROOT, "apps", "desktop", "src", "independentRiskGateway.ts"))
+    riskGatewayPresent: fs.existsSync(path.join(REPO_ROOT, "apps", "desktop", "src", "risk", "independentRiskGateway.ts"))
   };
 
   return {

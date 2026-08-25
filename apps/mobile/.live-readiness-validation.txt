@@ -1,0 +1,1 @@
+Issue #659 LIVE readiness validation marker. This file carries no runtime configuration, credentials, or authority.

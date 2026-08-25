@@ -6,6 +6,41 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.facebook.react.modules.network.OkHttpClientProvider
+import okhttp3.Interceptor
+import okhttp3.Response
+
+/**
+ * Upbit's public REST API has, at different times, rejected both (a) OkHttp's generic default
+ * User-Agent and (b) a duplicated User-Agent header, each with HTTP 400 -- observed live on a
+ * real Android device even after two prior JS-only fixes in upbitPublicQuotationClient.ts
+ * (bd51b4a5 added a custom "user-agent" fetch header; 5bc750f2 later removed it again because
+ * Upbit was rejecting the duplicate that produced).
+ *
+ * The JS-level header never reliably resolves this: React Native's Android networking bridge
+ * does not guarantee a fetch() header replaces OkHttp's own default rather than being sent
+ * alongside it, so neither "add a header" nor "don't add a header" from JS can, by itself,
+ * guarantee exactly one non-default User-Agent reaches the wire. `Request.Builder.header(name,
+ * value)` (unlike `.addHeader`) always replaces every prior value for that name, so applying it
+ * here -- after RN's bridge has already built the request -- is the one place that can guarantee
+ * a single, non-generic User-Agent regardless of what any JS caller does or does not set.
+ *
+ * Android Upbit public quotation no longer depends on this RN client. The dedicated
+ * NusaUpbitPublicQuotationModule uses HttpsURLConnection so ticker/candle requests bypass the
+ * React Native networking stack entirely.
+ */
+private class NusaUserAgentInterceptor : Interceptor {
+  override fun intercept(chain: Interceptor.Chain): Response {
+    val request = chain.request().newBuilder()
+      .header("User-Agent", "nusa-mobile/0.1")
+      .build()
+    // Record only after the header has been replaced, so this reflects the User-Agent actually
+    // about to go on the wire, not what any JS caller thinks it asked for. Read-only, request
+    // side only -- see NusaNetworkDiagnostics.kt for why this never touches the response.
+    NusaNetworkDiagnostics.record(request.url.toString(), request.method, request.header("User-Agent"))
+    return chain.proceed(request)
+  }
+}
 
 class MainApplication : Application(), ReactApplication {
 
@@ -15,12 +50,24 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(NusaSecureStoragePackage())
+          add(NusaNetworkDiagnosticsPackage())
+          add(NusaUpbitPublicQuotationPackage())
         },
     )
   }
 
   override fun onCreate() {
     super.onCreate()
+    // Must run before React Native's own bootstrap call below: registering the factory only
+    // changes what OkHttpClientProvider.createClient() builds afterwards, and RN's networking
+    // module does not build its client until then. createClientBuilder(context) (not the no-arg
+    // overload) keeps RN's own defaults -- disk cache, session-state handling -- that a bare
+    // `OkHttpClient.Builder()` here would silently drop.
+    OkHttpClientProvider.setOkHttpClientFactory {
+      OkHttpClientProvider.createClientBuilder(this)
+        .addInterceptor(NusaUserAgentInterceptor())
+        .build()
+    }
     loadReactNative(this)
   }
 }

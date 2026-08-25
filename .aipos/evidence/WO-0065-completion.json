@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-0065",
+  "status": "COMPLETED",
+  "baseSha": "40d6ce10df574764330bd60427ffa6d89165efdd",
+  "branch": "agent/wo-0065-root-cause-evidence-correlation",
+  "implementationCommit": "a8634d32fe8b1adb1785150c76a6dab393ef9a76",
+  "completedAt": "2026-08-23T13:26:24+09:00",
+  "scope": {
+    "diagnosticEvidenceCorrelation": true,
+    "provenance": true,
+    "contradictionHandling": true,
+    "boundedFanout": true,
+    "restartRecovery": true,
+    "automaticRemediation": false,
+    "executionAuthority": false
+  },
+  "verification": {
+    "focusedTests": "PASS_6_OF_6",
+    "fullIsolatedSuite": "PASS_570_FILES",
+    "preflight": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architectureCheck": "PASS",
+    "aiZeroAuthority": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "diffCheck": "PASS"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "paperOnly": true,
+    "protectedAreasChanged": false
+  }
+}

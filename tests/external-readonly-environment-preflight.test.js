@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const {
   EXTERNAL_READ_ONLY_PREFLIGHT_DESCRIPTOR,
   runExternalReadOnlyEnvironmentPreflight,
-} = require("../dist/apps/desktop/src/externalReadOnlyEnvironmentPreflight.js");
+} = require("../dist/apps/desktop/src/exchange/externalReadOnlyEnvironmentPreflight.js");
 const { validateExternalReadOnlyEnvironmentPreflight } = require("../scripts/validate-external-readonly-environment-preflight.js");
 
 const REV = "1".repeat(40);

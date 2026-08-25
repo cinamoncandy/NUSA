@@ -5,7 +5,7 @@
  * This exists because the only way to start a Shadow session before A4 was to click a button
  * in the Electron GUI. That makes the observation path impossible to exercise in CI and
  * impossible to rehearse before a real six-hour run. This runner drives the SAME
- * ShadowOperationalRuntime, the SAME DomainEventBus, and the SAME on-disk
+ * ShadowOperationalRuntime, the SAME ShadowEvidenceBus, and the SAME on-disk
  * ShadowEvidenceArchive the desktop uses -- only the market data and the clock are
  * substituted, and both are substituted with fixed values rather than randomised ones so a
  * failure reproduces exactly.
@@ -20,13 +20,13 @@
  * being a scratch directory; this runner will not write into the repository.
  */
 const path = require("node:path");
-const { ShadowOperationalRuntime } = require("../../dist/apps/desktop/src/shadowOperationalRuntime.js");
-const { DomainEventBus, DurableEvidenceSink, InMemoryEvidenceSink } = require("../../dist/apps/desktop/src/domainEventBus.js");
-const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchivesSync } = require("../../dist/apps/desktop/src/shadowEvidenceArchive.js");
-const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategyEngine.js");
-const { SHADOW_OBSERVATION_PROFILE, withShortenedObservation } = require("../../dist/apps/desktop/src/shadowObservationProfile.js");
-const { evaluateShadowObservationPreflight } = require("../../dist/apps/desktop/src/shadowObservationPreflight.js");
-const { buildShadowObservationSummary } = require("../../dist/apps/desktop/src/shadowObservationSummary.js");
+const { ShadowOperationalRuntime } = require("../../dist/apps/desktop/src/shadow/shadowOperationalRuntime.js");
+const { ShadowEvidenceBus, DurableEvidenceSink, InMemoryEvidenceSink } = require("../../dist/apps/desktop/src/shadow/shadowEvidenceBus.js");
+const { ShadowEvidenceArchive, verifyShadowEvidenceDirectory, findIncompleteShadowArchivesSync } = require("../../dist/apps/desktop/src/shadow/shadowEvidenceArchive.js");
+const { StrategyEngine, SmaCrossoverStrategy } = require("../../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SHADOW_OBSERVATION_PROFILE, withShortenedObservation } = require("../../dist/apps/desktop/src/shadow/shadowObservationProfile.js");
+const { evaluateShadowObservationPreflight } = require("../../dist/apps/desktop/src/shadow/shadowObservationPreflight.js");
+const { buildShadowObservationSummary } = require("../../dist/apps/desktop/src/shadow/shadowObservationSummary.js");
 const { scanCapabilities } = require("../build-deployment-descriptor.js");
 
 const MINUTE = 60_000;
@@ -94,7 +94,7 @@ async function runShadowObservationSmoke(options) {
       append: async (event, receivedAt) => (await pending).append(event, receivedAt),
       finalize: async (reason, generatedAt, status) => (await pending).finalize(reason, generatedAt, status)
     };
-    const bus = new DomainEventBus({
+    const bus = new ShadowEvidenceBus({
       sessionId,
       capacity: profile.maxQueueDepth,
       sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer, now)],

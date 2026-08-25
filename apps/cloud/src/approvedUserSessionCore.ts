@@ -35,6 +35,11 @@ export interface ApprovedUserSessionMe<Scope extends string> {
 }
 
 const tokenHash = (token: string): string => createHash("sha256").update(token, "utf8").digest("hex");
+const deviceDigest = (deviceId: string): string => {
+  const normalized = deviceId.trim();
+  if (normalized.length < 8 || normalized.length > 256 || /[\r\n]/.test(normalized)) throw new Error("device enrollment identifier is invalid");
+  return createHash("sha256").update(normalized, "utf8").digest("hex");
+};
 const issueOpaqueToken = (): string => randomBytes(32).toString("base64url");
 
 function validateProfile<Scope extends string>(profile: ApprovedUserSessionProfile<Scope>): void {
@@ -105,6 +110,8 @@ export class ApprovedUserSessionService<Scope extends string> {
       );
       CREATE INDEX IF NOT EXISTS idx_${this.prefix}_session_audit_created ON ${this.prefix}_session_audit(created_at DESC);
     `);
+    try { this.db.connection.exec(`ALTER TABLE ${this.prefix}_bootstrap_tokens ADD COLUMN device_id_hash TEXT`); } catch { /* existing schema already migrated */ }
+    try { this.db.connection.exec(`ALTER TABLE ${this.prefix}_session_families ADD COLUMN device_id_hash TEXT`); } catch { /* existing schema already migrated */ }
   }
 
   public issueBootstrap(input: Readonly<{ actorUserId: string; targetUserId: string; scopes?: readonly string[]; now?: number }>): ApprovedUserBootstrapIssue<Scope> {
@@ -113,14 +120,32 @@ export class ApprovedUserSessionService<Scope extends string> {
     if (actor?.role !== "OWNER" || !isUserAllowed(actor)) throw new Error("owner authority required");
     const target = this.users.get(input.targetUserId.trim());
     if (!isUserAllowed(target)) throw new Error("target user must be ACTIVE");
-    const scopes = this.normalizeScopes(input.scopes);
+    return this.issueBootstrapForActiveUser(actor!.id, target!.id, input.scopes, now, "BOOTSTRAP_ISSUED");
+  }
+
+  /**
+   * Issues a single-use bootstrap token to the already authenticated user.
+   * This is intentionally separate from operator issuance: self-enrollment
+   * never grants users:manage and can only target the caller's active account.
+   */
+  public issueSelfBootstrap(input: Readonly<{ actorUserId: string; deviceId: string; scopes?: readonly string[]; now?: number }>): ApprovedUserBootstrapIssue<Scope> {
+    const now = input.now ?? Date.now();
+    const actor = this.users.get(input.actorUserId.trim());
+    if (!isUserAllowed(actor)) throw new Error("target user must be ACTIVE");
+    return this.issueBootstrapForActiveUser(actor!.id, actor!.id, input.scopes, now, "SELF_BOOTSTRAP_ISSUED", deviceDigest(input.deviceId));
+  }
+
+  private issueBootstrapForActiveUser(actorUserId: string, targetUserId: string, requestedScopes: readonly string[] | undefined, now: number, auditEvent: string, deviceIdHash?: string): ApprovedUserBootstrapIssue<Scope> {
+    const target = this.users.get(targetUserId);
+    if (!isUserAllowed(target)) throw new Error("target user must be ACTIVE");
+    const scopes = this.normalizeScopes(requestedScopes);
     const id = randomUUID();
     const token = issueOpaqueToken();
     const expiresAt = now + this.profile.bootstrapTtlMs;
     this.db.transaction(() => {
-      this.db.connection.prepare(`INSERT INTO ${this.prefix}_bootstrap_tokens(id,token_hash,target_user_id,scopes_json,created_by_user_id,created_at,expires_at) VALUES(?,?,?,?,?,?,?)`)
-        .run(id, tokenHash(token), target!.id, JSON.stringify(scopes), actor.id, now, expiresAt);
-      this.audit("BOOTSTRAP_ISSUED", actor.id, target!.id, undefined, undefined, now);
+      this.db.connection.prepare(`INSERT INTO ${this.prefix}_bootstrap_tokens(id,token_hash,target_user_id,scopes_json,created_by_user_id,created_at,expires_at,device_id_hash) VALUES(?,?,?,?,?,?,?,?)`)
+        .run(id, tokenHash(token), target!.id, JSON.stringify(scopes), actorUserId, now, expiresAt, deviceIdHash ?? null);
+      this.audit(auditEvent, actorUserId, target!.id, undefined, undefined, now);
     });
     return Object.freeze({ id, token, expiresAt, targetUserId: target!.id, scopes });
   }
@@ -138,13 +163,40 @@ export class ApprovedUserSessionService<Scope extends string> {
     return true;
   }
 
-  public bootstrap(token: string, now = Date.now()): ApprovedUserSessionTokens<Scope> | undefined {
-    if (!token) return undefined;
+  public bootstrap(token: string, now = Date.now(), deviceId?: string): ApprovedUserSessionTokens<Scope> | undefined {
+    if (!token) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, undefined, undefined, "EMPTY_TOKEN", now);
+      return undefined;
+    }
     const hash = tokenHash(token);
     const row = this.db.connection.prepare(`SELECT * FROM ${this.prefix}_bootstrap_tokens WHERE token_hash=?`).get(hash) as Record<string, unknown> | undefined;
-    if (row == null || row.used_at != null || row.revoked_at != null || Number(row.expires_at) <= now) return undefined;
-    const user = this.users.get(String(row.target_user_id));
-    if (!isUserAllowed(user)) return undefined;
+    if (row == null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, undefined, undefined, "UNKNOWN_TOKEN", now);
+      return undefined;
+    }
+    const targetUserId = String(row.target_user_id);
+    const requestedDeviceHash = row.device_id_hash == null ? undefined : deviceDigest(deviceId ?? "");
+    if (row.device_id_hash != null && requestedDeviceHash !== String(row.device_id_hash)) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "DEVICE_MISMATCH", now);
+      return undefined;
+    }
+    if (row.used_at != null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "ALREADY_CONSUMED", now);
+      return undefined;
+    }
+    if (row.revoked_at != null) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "REVOKED", now);
+      return undefined;
+    }
+    if (Number(row.expires_at) <= now) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "EXPIRED", now);
+      return undefined;
+    }
+    const user = this.users.get(targetUserId);
+    if (!isUserAllowed(user)) {
+      this.audit("BOOTSTRAP_REJECTED", undefined, targetUserId, undefined, "USER_NOT_ACTIVE", now);
+      return undefined;
+    }
     const scopes = this.decodeScopes(row.scopes_json);
     const familyId = randomUUID();
     const refreshExpiresAt = now + this.profile.refreshTtlMs;
@@ -152,8 +204,8 @@ export class ApprovedUserSessionService<Scope extends string> {
     this.db.transaction(() => {
       const consumed = this.db.connection.prepare(`UPDATE ${this.prefix}_bootstrap_tokens SET used_at=? WHERE token_hash=? AND used_at IS NULL AND revoked_at IS NULL AND expires_at>?`).run(now, hash, now);
       if (Number(consumed.changes) !== 1) throw new Error("bootstrap token already consumed");
-      this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at) VALUES(?,?,?,?,?)`)
-        .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt);
+      this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at,device_id_hash) VALUES(?,?,?,?,?,?)`)
+        .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt, row.device_id_hash == null ? null : String(row.device_id_hash));
       this.persistTokens(tokens, familyId, 0, now);
       this.audit("BOOTSTRAP_CONSUMED", user!.id, user!.id, familyId, undefined, now);
       try { this.users.markLogin(user!.id, now); } catch { throw new Error("user login state unavailable"); }
@@ -161,21 +213,45 @@ export class ApprovedUserSessionService<Scope extends string> {
     return tokens;
   }
 
-  public refresh(refreshToken: string, now = Date.now()): ApprovedUserSessionTokens<Scope> | undefined {
-    if (!refreshToken) return undefined;
+  public refresh(refreshToken: string, now = Date.now(), deviceId?: string): ApprovedUserSessionTokens<Scope> | undefined {
+    if (!refreshToken) {
+      this.audit("SESSION_REFRESH_REJECTED", undefined, undefined, undefined, "EMPTY_TOKEN", now);
+      return undefined;
+    }
     const hash = tokenHash(refreshToken);
     const row = this.db.connection.prepare(`SELECT r.*, f.user_id, f.scopes_json, f.expires_at AS family_expires_at, f.revoked_at AS family_revoked_at
       FROM ${this.prefix}_refresh_tokens r JOIN ${this.prefix}_session_families f ON f.id=r.family_id WHERE r.token_hash=?`).get(hash) as Record<string, unknown> | undefined;
-    if (row == null) return undefined;
-    const familyId = String(row.family_id);
-    if (row.consumed_at != null) {
-      this.revokeFamily(familyId, "REFRESH_REUSE_DETECTED", now);
+    if (row == null) {
+      this.audit("SESSION_REFRESH_REJECTED", undefined, undefined, undefined, "UNKNOWN_TOKEN", now);
       return undefined;
     }
-    if (row.family_revoked_at != null || Number(row.expires_at) <= now || Number(row.family_expires_at) <= now) return undefined;
-    const user = this.users.get(String(row.user_id));
+    const familyId = String(row.family_id);
+    const userId = String(row.user_id);
+    if (row.device_id_hash != null && deviceDigest(deviceId ?? "") !== String(row.device_id_hash)) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "DEVICE_MISMATCH", now);
+      return undefined;
+    }
+    if (row.consumed_at != null) {
+      this.revokeFamily(familyId, "REFRESH_REUSE_DETECTED", now);
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "REFRESH_REUSE_DETECTED", now);
+      return undefined;
+    }
+    if (row.family_revoked_at != null) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "FAMILY_REVOKED", now);
+      return undefined;
+    }
+    if (Number(row.expires_at) <= now) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "TOKEN_EXPIRED", now);
+      return undefined;
+    }
+    if (Number(row.family_expires_at) <= now) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "FAMILY_EXPIRED", now);
+      return undefined;
+    }
+    const user = this.users.get(userId);
     if (!isUserAllowed(user)) {
       this.revokeFamily(familyId, "USER_NOT_ACTIVE", now);
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "USER_NOT_ACTIVE", now);
       return undefined;
     }
     const scopes = this.decodeScopes(row.scopes_json);

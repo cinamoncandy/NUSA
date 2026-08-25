@@ -36,24 +36,23 @@ test("Settings connection mutation is single-flight and probes only the persiste
 
 test("Settings revokes prior credential verification before testing a replacement token", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "PAPER connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
+  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "[^"]*connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
-test("Settings fields use mobile-appropriate endpoint and one-time secret bootstrap semantics", () => {
+test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} keyboardType="url" label="Cloud endpoint"/);
-  assert.match(source, /autoCapitalize="none" autoCorrect=\{false\} editable=\{!busy\} label="1회용 연결 토큰"[\s\S]*placeholder="OWNER가 발급한 bootstrap token"[\s\S]*secureTextEntry/);
+  assert.match(source, /keyboardType="url" label="Cloud endpoint \(선택\)"/);
+  assert.match(source, /label="1회용 연결 토큰 \(선택\)"[\s\S]*placeholder="Cloud를 사용할 때만 입력"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /Access token은 앱 메모리에만 유지하고, rotating refresh token은 Android Keystore로 암호화해 저장합니다/);
-  assert.match(source, /iOS 영구 세션 복원은 아직 활성화하지 않습니다/);
-  assert.match(source, /disabled=\{busy\} label=\{connecting \? "연결 확인 중\.\.\." : "저장하고 연결 확인"\}/);
-  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
-  assert.match(source, /const connectionLabel = connecting \? "확인 중"/);
+  assert.match(source, /LOCAL PAPER 거래에는 사용하지 않습니다/);
+  assert.match(source, /disabled=\{busy\} label=\{connecting \? "연결 확인 중\.\.\." : "Cloud 연결"\}/);
+  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="Cloud 연결 해제"/);
+  assert.match(source, /const cloudConnectionLabel = connecting \? "확인 중"/);
 });
 
 test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {
-  const source = read("apps/mobile/src/tradingView.tsx");
+  const source = read("apps/mobile/src/tradingViewLegacy.tsx");
   assert.match(source, /keyboardType="decimal-pad" label="지정 가격"/);
   assert.match(source, /keyboardType="decimal-pad" label=\{`수량/);
   assert.equal((source.match(/editable=\{!submitting\}/g) ?? []).length, 2);

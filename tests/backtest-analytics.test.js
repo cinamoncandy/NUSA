@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { analyzeEquityCurve, calculateExposure, calculatePerformanceMetrics, matchTrades } = require("../dist/apps/desktop/src/backtestAnalytics.js");
-const { runBacktest } = require("../dist/apps/desktop/src/backtestEngine.js");
+const { analyzeEquityCurve, calculateExposure, calculatePerformanceMetrics, matchTrades } = require("../dist/apps/desktop/src/strategy/backtestAnalytics.js");
+const { runBacktest } = require("../dist/apps/desktop/src/strategy/backtestEngine.js");
 
 const order = (id, side, quantity, price, fee, time) => ({ id, market: "KRW-BTC", side, quantity, price, fee, filledAt: new Date(time).toISOString() });
 

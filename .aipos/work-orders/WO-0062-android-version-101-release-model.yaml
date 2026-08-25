@@ -4,7 +4,7 @@ status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 2703826ad3a31356b9080e64ff40db2dcb85f63e
+base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
 implementation_branch: fix/android-remove-preview-version-101
 parent_work_order: WO-0053
 objective: "Retire the active Android Preview build identity and separate product version 1.0.101 from CI run provenance while preserving the RC, physical-device acceptance, and final Release model."
@@ -52,7 +52,7 @@ verification:
   preflight: PASS
   architecture: PASS
   safety_architecture: PASS
-  safety_invariants: NOT_CONFIGURED_REPOSITORY_SCRIPT
+  safety_invariants: PENDING_LATEST_MAIN_REVALIDATION
   ai_authority: PASS
   aipos_drift: PASS
   aipos_conformance: PASS

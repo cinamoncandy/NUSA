@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/index";
 import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
-import { CanonicalRiskSafetyGate } from "../../../apps/execution/src/risk-safety-integration";
+import { CanonicalRiskSafetyGate } from "../../../packages/contracts/src/risk-safety-integration";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";

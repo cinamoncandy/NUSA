@@ -17,7 +17,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { runShadowObservationSmoke } = require("./lib/shadow-observation-smoke.js");
-const { formatShadowObservationSummary } = require("../dist/apps/desktop/src/shadowObservationSummary.js");
+const { formatShadowObservationSummary } = require("../dist/apps/desktop/src/shadow/shadowObservationSummary.js");
 
 function parseArgs(argv) {
   const args = {};

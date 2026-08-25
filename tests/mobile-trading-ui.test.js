@@ -50,29 +50,36 @@ test("Trading model enforces balance, mode, and live mutation gates", () => {
   assert.ok(unsafe.blockedReasons.includes("LIVE_MUTATION_DISABLED"));
 });
 
-test("Market order uses verified current price and UI exposes only verified PAPER execution", () => {
+test("Market order uses verified current price and UI exposes only PAPER execution", () => {
   const model = buildTradingViewModel(input({ draft: { side: "BUY", orderType: "MARKET", priceInput: "", quantityInput: "2" } }));
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+  const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
+  assert.match(shell, /TradingView as LegacyTradingView/);
+  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
-  assert.match(source, /<StatusChip label="PAPER ONLY"/);
+  assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
+  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(source, /await placeLocalPaperOrder\(/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(source, /credentialSession\.isConfigured\(\)/);
+  // Issue #637: the LOCAL-vs-Cloud activation check moved into the shared ledger.
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "localPaperLedger.ts"), "utf8"), /session\.isConfigured\(\)/);
   assert.match(source, /PAPER 주문 연결이 필요합니다/);
   assert.match(source, /02 · 주문 검토/);
   assert.match(source, /이 PAPER 주문을 확정할까요/);
   assert.match(source, /PAPER 주문 확정/);
   assert.match(source, /PersonalPaperOrderRetryIdentity/);
   assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /liveMutationAllowed: false/);
   assert.match(source, /disabled=\{!submitEnabled\}/);
   assert.match(source, /RefreshControl/);
@@ -96,7 +103,7 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   // contextual panel bounded by holdings, not cash (capitalAllocationGuard.ts's reservePercent
   // correctly never applies to SELL). BUY's "after order" figure was previously a static
   // reservedCash value that never actually changed with the order.
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
   assert.match(source, /testID="paper-holdings-panel"/);
   assert.match(source, /매도 가능 수량/);
   assert.match(source, /positionQuantity > 0 && Number\.isFinite\(sellQuantity\) && sellQuantity > 0/);

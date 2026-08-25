@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { formatEvidenceChecklist } = require("../dist/apps/desktop/src/evidenceChecklist.js");
+const { formatEvidenceChecklist } = require("../dist/apps/desktop/src/evidence/evidenceChecklist.js");
 
 const notEvaluated = Object.freeze({
   database: "not evaluated",

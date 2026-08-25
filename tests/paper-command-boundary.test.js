@@ -8,13 +8,17 @@ const read = (file) => fs.readFileSync(path.join(process.cwd(), file), "utf8");
 test("packaged Desktop PAPER execution uses Cloud canonical IPC while legacy RuntimeCommandService remains local-simulation only", () => {
   const main = read("apps/desktop/src/main.ts");
   const cloudMain = read("apps/desktop/src/cloudMain.ts");
-  const runtime = read("apps/desktop/src/runtimeCommandService.ts");
+  const runtime = read("apps/desktop/src/control/runtimeCommandService.ts");
   const preload = read("apps/desktop/src/preload.ts");
   const renderer = read("apps/desktop/renderer/renderer.js");
+  // paper:order's runtime.manualOrder(...) call now lives in registerPaperIpcHandlers.ts,
+  // registered from main.ts.
+  const paperIpc = read("apps/desktop/src/ipc/registerPaperIpcHandlers.ts");
 
   // The mature legacy runtime remains available for an explicit LOCAL_SIMULATION entrypoint.
-  assert.match(main, /runtime\.manualOrder\(/);
+  assert.match(paperIpc, /runtime\.manualOrder\(/);
   assert.doesNotMatch(main, /broker\.execute\(/);
+  assert.doesNotMatch(paperIpc, /broker\.execute\(/);
   assert.match(runtime, /requireRiskApproval\(/);
   assert.match(runtime, /broker\.execute\(/);
 

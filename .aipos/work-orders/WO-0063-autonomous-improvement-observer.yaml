@@ -1,0 +1,101 @@
+id: WO-0063
+title: "Autonomous Improvement Observer Foundation"
+status: COMPLETED
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 1e22852eef772738bf89acffb8a62d74ce6fe2f9
+implementation_branch: agent/wo-0063-autonomous-improvement-observer
+# Added by WO-0071 (non-destructive). WO-0063 was registered twice for two different scopes.
+# This file is the improvement-observer scope; .aipos/evidence/WO-0063-completion.json belongs
+# to THIS scope ("reconnect-instability observer"), not to the Mobile MASTER UX scope.
+provenance:
+  scope_id: WO-0063.autonomous-improvement-observer
+  work_order_id_collision: true
+  collides_with: .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
+  canonical_pull_request: 698
+  canonical_implementation_head: b54c1a22b311d9407eb139e34354eb7af0882f6f
+  canonical_merge_commit: 8e7302fe0745f919fc15f8dd5d58d5d25e387e47
+  completion_evidence: .aipos/evidence/WO-0063-completion.json
+  # The implementation head resolves in this repository but is not an ancestor of main: the
+  # branch was squashed on merge. The merge commit above is the identity present on main.
+  implementation_head_note: RESOLVABLE_BUT_SQUASHED_NOT_ANCESTOR_OF_MAIN
+  reconciled_by: WO-0071
+  reconciliation: NON_DESTRUCTIVE
+objective: "Add the smallest deterministic, non-LIVE improvement-observation foundation by projecting existing runtime and market diagnostics into bounded improvement signals, deduplicated problem candidates, and an auditable backlog without creating a parallel runtime or granting AI execution authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Reuse packages/core/src/eventBus.ts and the existing NusaRuntime lifecycle"
+  - "Reuse MarketConnectionSupervisor diagnostics as the first vertical-slice signal source"
+  - "Define bounded ImprovementSignal and ImprovementCandidate domain types"
+  - "Implement deterministic normalization, fingerprinting, aggregation, and thresholding"
+  - "Implement an in-process bounded ImprovementBacklog suitable for later persistence integration"
+  - "Emit structured audit/evidence events through existing runtime surfaces where appropriate"
+  - "Add focused tests for reconnect-instability detection, deduplication, bounded retention, and false-positive suppression"
+non_goals:
+  - "No AI planner or coding agent"
+  - "No autonomous code modification"
+  - "No automatic PR or merge"
+  - "No LIVE or real-money execution"
+  - "No broker, credential, authentication, permission, or withdrawal changes"
+  - "No replacement runtime, scheduler kernel, plugin system, service container, or lifecycle framework"
+  - "No external telemetry export"
+architecture_impact:
+  acknowledged: true
+  analysis: "This work extends the existing core runtime with a narrow observation capability. It must integrate through the current EventBus/EngineRegistry/NusaRuntime model, preserve existing architecture and safety boundaries, and treat existing market diagnostics as evidence rather than duplicating connection supervision."
+  references:
+    - .aipos/architecture.md
+    - .aipos/architecture-summary.md
+    - .aipos/AI_HANDOFF_CONTRACT.md
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+protected_areas:
+  - packages/core/src/independentRiskGateway.ts
+  - packages/core/src/paperBroker.ts
+  - packages/core/src/paperSafetyGates.ts
+  - packages/core/src/paperRiskState.ts
+  - "authentication / credentials / permissions"
+  - "LIVE / real-money execution boundaries"
+implementation_notes:
+  preferred_location: packages/core/src/improvement
+  initial_signal_source: packages/core/src/marketConnectionSupervisor.ts
+  first_vertical_slice: "Detect repeated or prolonged public-market reconnect instability from existing MarketConnectionDiagnostics; aggregate identical fingerprints into one candidate."
+  boundedness: "All in-memory signal/candidate retention must have explicit finite limits. No unbounded retry or unbounded history."
+acceptance_criteria:
+  - "Existing EventBus and NusaRuntime are reused; no parallel kernel is introduced"
+  - "Existing MarketConnectionSupervisor remains the sole owner of reconnect policy/state"
+  - "A reconnect-instability observation can produce a deterministic ImprovementSignal"
+  - "Equivalent observations produce a stable fingerprint and aggregate into one candidate"
+  - "Configured thresholds suppress one-off reconnect noise"
+  - "Candidate severity/score is deterministic for identical inputs"
+  - "Signal and candidate retention is explicitly bounded"
+  - "No protected-area implementation changes"
+  - "No LIVE, real-money, broker, credential, authentication, or permission authority is added"
+  - "Focused tests pass"
+  - "pnpm run preflight passes"
+  - "pnpm run typecheck passes"
+  - "pnpm run build passes"
+  - "pnpm run architecture:check passes"
+  - "pnpm run safety:architecture passes"
+  - "pnpm run safety:invariants passes"
+  - "pnpm run ai:architecture passes"
+verification:
+  commands:
+    - pnpm run preflight
+    - pnpm run typecheck
+    - pnpm run build
+    - pnpm run architecture:check
+    - pnpm run safety:architecture
+    - pnpm run safety:invariants
+    - pnpm run ai:architecture
+    - "run the focused WO-0063 test target added by implementation"
+  status: PASS
+  focused_test: "PASS_6_OF_6"
+  full_test: "PASS_567_ISOLATED_FILES"
+  evidence: .aipos/evidence/WO-0063-completion.json
+  implementation_commit: b54c1a22
+completion_rule: "Implementation, focused tests, required repository validation, durable verification evidence, and AIPOS state/handoff update are complete. No LIVE, broker, credential, or AI execution authority was added."
+next_permitted_action: "Human review may inspect the bounded observer foundation. Any persistence, planner, or automated remediation work requires a separate work order."

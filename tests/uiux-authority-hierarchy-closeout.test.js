@@ -28,11 +28,6 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.match(ai, /DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-"/);
   assert.match(ai, /DataRow label="킬 스위치" value=\{killSwitchActive == null \? "-"/);
 
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §9): full order is thesis -> trusted
-  // confidence -> evidence/counter-evidence -> detail/diagnostics -> authority boundary last.
-  // The zero-authority notice/chip previously sat between evidence and diagnostics,
-  // interrupting that run; it must now come after diagnostics, immediately before the final
-  // authority card.
   const confidenceIndex = ai.indexOf('testID="ai-trusted-confidence"');
   const diagnosticsIndex = ai.indexOf('testID="ai-diagnostics-card"');
   const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
@@ -42,28 +37,39 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
 });
 
-test("PAPER exposes mutation only after verified connection while LIVE remains forbidden", () => {
-  const trading = read("tradingView.tsx");
+test("PAPER exposes independent local simulation while cloud submit stays authority-gated and LIVE remains forbidden", () => {
+  const tradingWrapper = read("tradingView.tsx");
+  const trading = read("tradingViewLegacy.tsx");
+  const combinedTrading = `${tradingWrapper}\n${trading}`;
 
-  assert.equal(occurrences(trading, 'label="PAPER ONLY"'), 1);
+  assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
+  assert.match(tradingWrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
-  assert.doesNotMatch(trading, /<AuthorityBanner/);
-  assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const submitAvailable = runtimeCanSubmit && \(onSubmit !== undefined \|\| builtInSubmitAvailable\)/);
-  assert.match(trading, /!submitAvailable \? <InlineNotice title=/);
+  assert.doesNotMatch(combinedTrading, /<AuthorityBanner/);
+  assert.match(read("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
+  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
+  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /testID="paper-order-ticket"/);
   assert.match(trading, /const requestSubmit = \(\) =>/);
   assert.match(trading, /const submitBuiltIn = async \(\) =>/);
   assert.match(trading, /setConfirming\(true\)/);
+  assert.doesNotMatch(combinedTrading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
 });
 
 test("authority hierarchy closeout preserves AI zero-authority and PAPER-only mutation", () => {
   const ai = read("aiView.tsx");
-  const trading = read("tradingView.tsx");
+  const tradingWrapper = read("tradingView.tsx");
+  const trading = read("tradingViewLegacy.tsx");
+  const combinedTrading = `${tradingWrapper}\n${trading}`;
 
   assert.doesNotMatch(ai, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
+  assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(trading, /liveMutationAllowed: false/);
-  assert.doesNotMatch(trading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
+  assert.doesNotMatch(combinedTrading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
+  assert.doesNotMatch(combinedTrading, /\/live(?:\/|\b)|\/withdraw(?:\/|\b)|\/transfer(?:\/|\b)/i);
 });

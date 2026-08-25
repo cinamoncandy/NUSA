@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paperDashboardProjection.js");
-const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/aiCioSnapshotPublisher.js");
-const { buildStrategyAnalytics } = require("../dist/apps/desktop/src/strategyAnalytics.js");
+const { buildPaperDashboardSections } = require("../dist/apps/desktop/src/paper/paperDashboardProjection.js");
+const { AiCioSnapshotPublisher } = require("../dist/apps/desktop/src/ai/aiCioSnapshotPublisher.js");
+const { buildStrategyAnalytics } = require("../dist/apps/desktop/src/strategy/strategyAnalytics.js");
 
 const input = (overrides = {}) => ({
   generatedAt: 10_000,

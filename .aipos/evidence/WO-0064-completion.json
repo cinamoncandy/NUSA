@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-0064",
+  "status": "COMPLETED",
+  "baseSha": "8e7302fe0745f919fc15f8dd5d58d5d25e387e47",
+  "branch": "agent/wo-0064-persistent-diagnostics-memory",
+  "implementationCommit": "a0ecad6047a096a1266a1d353a0700698f6c283d",
+  "completedAt": "2026-08-23T09:55:00+09:00",
+  "scope": {
+    "durableCandidateMemory": true,
+    "stableFingerprintHistory": true,
+    "recurrenceDetection": true,
+    "restartRecovery": true,
+    "duplicateIdempotency": true,
+    "boundedRetention": true,
+    "automaticRemediation": false,
+    "executionAuthority": false
+  },
+  "storage": {
+    "migration": "016_improvement_candidate_memory",
+    "checksumVerified": true,
+    "malformedPersistenceFailsClosed": true,
+    "retentionLimit": 64
+  },
+  "verification": {
+    "focusedTests": "PASS_20_OF_20",
+    "fullIsolatedSuite": "PASS_568_FILES",
+    "preflight": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architectureCheck": "PASS",
+    "architectureTruth": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "aiZeroAuthority": "PASS",
+    "aiposConformance": "PASS",
+    "aiposDrift": "PASS",
+    "diffCheck": "PASS"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "paperOnly": true,
+    "protectedAreasChanged": false
+  }
+}

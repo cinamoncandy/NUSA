@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createPaperSafetySnapshot, serializePaperSafetySnapshot, validatePaperSafetySnapshot, recoverPaperSafetySnapshot } = require("../dist/apps/desktop/src/paperSafetySnapshot.js");
+const { createPaperSafetySnapshot, serializePaperSafetySnapshot, validatePaperSafetySnapshot, recoverPaperSafetySnapshot } = require("../dist/apps/desktop/src/paper/paperSafetySnapshot.js");
 
 const fingerprints = Object.freeze({ strategy: "strategy", config: "config", runtime: "runtime", riskPolicy: "risk" });
 function input(overrides = {}) { return {

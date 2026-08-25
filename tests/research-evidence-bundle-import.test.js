@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 const { createResearchRunManifest, validateIntegrity, validateMonteCarlo, validateCostStress, validateWalkForward } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
 function setup() {

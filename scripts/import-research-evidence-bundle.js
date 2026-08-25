@@ -22,7 +22,7 @@ if (!databasePath || !inputPath || !path.isAbsolute(databasePath) || !path.isAbs
     if (!payload || !Array.isArray(payload.entries) || payload.entries.length !== 4) throw new Error("input must contain exactly four manifest/report entries");
     const types = payload.entries.map((entry) => entry?.manifest?.runType);
     if (new Set(types).size !== 4 || !["WALK_FORWARD", "COST_STRESS", "MONTE_CARLO", "INTEGRITY_CHECK"].every((type) => types.includes(type))) throw new Error("bundle must contain one entry for each research gate");
-    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+    const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
     store = new DesktopPersistenceStore(databasePath);
     store.appendResearchEvidenceBundle(payload.entries);
     const manifests = store.loadResearchRunManifests();

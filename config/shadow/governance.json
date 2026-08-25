@@ -37,7 +37,7 @@
     "autonomous_production_mutation": false
   },
   "runtime_binding": {
-    "implementation": "apps/desktop/src/shadowPilotRuntime.ts",
+    "implementation": "apps/desktop/src/shadow/shadowPilotRuntime.ts",
     "verification_entrypoint": "scripts/run-shadow-paper-pilot.js"
   }
 }

@@ -2,11 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { resolveDesktopPaperMode } = require("../dist/apps/desktop/src/paperMode.js");
-const { activateCloudCanonicalDesktopAuthority } = require("../dist/apps/desktop/src/desktopPaperAuthorityPolicy.js");
-const { parsePaperOrderIpc } = require("../dist/apps/desktop/src/paperIpcValidation.js");
-const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/desktopCloudPaperAuthority.js");
-const { provisionDesktopCloudPaperSession } = require("../dist/apps/desktop/src/desktopCloudPaperIpc.js");
+const { resolveDesktopPaperMode } = require("../dist/apps/desktop/src/paper/paperMode.js");
+const { activateCloudCanonicalDesktopAuthority } = require("../dist/apps/desktop/src/paper/desktopPaperAuthorityPolicy.js");
+const { parsePaperOrderIpc } = require("../dist/apps/desktop/src/ipc/paperIpcValidation.js");
+const { DesktopCloudPaperAuthority } = require("../dist/apps/desktop/src/cloud/desktopCloudPaperAuthority.js");
+const { provisionDesktopCloudPaperSession } = require("../dist/apps/desktop/src/cloud/desktopCloudPaperIpc.js");
 const { buildPersonalPaperOperationsSnapshot } = require("../dist/packages/contracts/src/personalPaperOperations.js");
 
 function canonicalSnapshot(now = Date.now()) {
@@ -136,7 +136,7 @@ test("packaging and preload expose Cloud PAPER rather than legacy local order/re
   const desktopPackage = JSON.parse(fs.readFileSync(path.join(process.cwd(), "apps/desktop/package.json"), "utf8"));
   const preload = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/preload.ts"), "utf8");
   const bootstrap = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/cloudMain.ts"), "utf8");
-  const ipc = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/desktopCloudPaperIpc.ts"), "utf8");
+  const ipc = fs.readFileSync(path.join(process.cwd(), "apps/desktop/src/cloud/desktopCloudPaperIpc.ts"), "utf8");
   assert.equal(rootPackage.main, "dist/apps/desktop/src/cloudMain.js");
   assert.equal(rootPackage.build.extraMetadata.main, "dist/apps/desktop/src/cloudMain.js");
   assert.equal(desktopPackage.main, "../../dist/apps/desktop/src/cloudMain.js");

@@ -1,10 +1,25 @@
 import type { DashboardHealth, DashboardMode, MobileDashboardResponse } from "./mobileDashboard";
 import type { ResearchStatusProjection } from "./researchAutomation";
 import type { AiReadOnlyProjection } from "./aiInference";
+import { validatePaperLearningReadOnlySnapshot, type PaperLearningReadOnlySnapshot } from "./paperLearningReadOnly";
 
 export type PersonalPaperOperationsHealth = "HEALTHY" | "DEGRADED" | "FAIL_CLOSED";
-export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "STOPPING" | "STOPPED";
+export type PersonalPaperRuntimeState = "HALTED" | "READY_OFFLINE" | "READY" | "RUNNING" | "DEGRADED" | "ERROR" | "STOPPING" | "STOPPED";
 export type PersonalPaperSchedulerMode = "OFF" | "OBSERVE" | "ACTIVE";
+
+export interface PersonalPaperRuntimeHeartbeat {
+  readonly startedAt: number;
+  readonly lastHeartbeatAt: number;
+  readonly lastMarketEventAt: number | null;
+  readonly lastPaperDecisionAt: number | null;
+  readonly lastPaperOrderAt: number | null;
+  readonly lastPaperFillAt: number | null;
+  readonly eventCount: number;
+  readonly decisionCount: number;
+  readonly paperOrderCount: number;
+  readonly paperFillCount: number;
+  readonly lastError: string | null;
+}
 
 export interface PersonalPaperRuntimeProjection {
   readonly runtimeState: PersonalPaperRuntimeState;
@@ -17,6 +32,7 @@ export interface PersonalPaperRuntimeProjection {
   readonly pendingWrites: number;
   readonly lastEventAt?: number;
   readonly updatedAt: number;
+  readonly heartbeat?: PersonalPaperRuntimeHeartbeat;
 }
 
 export interface PersonalPaperPortfolioProjection {
@@ -80,6 +96,8 @@ export interface PersonalPaperOperationsSnapshot {
   readonly portfolio: PersonalPaperPortfolioProjection | null;
   readonly orders: readonly PersonalPaperOrderProjection[];
   readonly markets: readonly PersonalPaperMarketProjection[];
+  /** Bounded, canonical PAPER learning evidence; observation only. */
+  readonly paperLearning?: PaperLearningReadOnlySnapshot | null;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
 }
@@ -92,6 +110,7 @@ export interface PersonalPaperOperationsInput {
   readonly portfolio?: PersonalPaperPortfolioProjection | null;
   readonly orders?: readonly PersonalPaperOrderProjection[];
   readonly markets?: readonly PersonalPaperMarketProjection[];
+  readonly paperLearning?: PaperLearningReadOnlySnapshot | null;
 }
 
 const finite = (value: number, name: string): number => {
@@ -124,12 +143,20 @@ function validateAi(ai: AiReadOnlyProjection | null): void {
 }
 
 function validateOperations(operations: PersonalPaperRuntimeProjection): void {
-  if (!["HALTED", "READY_OFFLINE", "READY", "STOPPING", "STOPPED"].includes(operations.runtimeState)) throw new Error("invalid PAPER runtime state");
+  if (!["HALTED", "READY_OFFLINE", "READY", "RUNNING", "DEGRADED", "ERROR", "STOPPING", "STOPPED"].includes(operations.runtimeState)) throw new Error("invalid PAPER runtime state");
   if (!["OFF", "OBSERVE", "ACTIVE"].includes(operations.schedulerMode)) throw new Error("invalid PAPER scheduler mode");
   if (operations.transport !== "ONLINE" && operations.transport !== "OFFLINE") throw new Error("invalid PAPER transport state");
   nonNegativeInteger(operations.pendingWrites, "operations.pendingWrites");
   finite(operations.updatedAt, "operations.updatedAt");
   if (operations.lastEventAt != null) finite(operations.lastEventAt, "operations.lastEventAt");
+  if (operations.heartbeat != null) {
+    const heartbeat = operations.heartbeat;
+    for (const [name, value] of [["startedAt", heartbeat.startedAt], ["lastHeartbeatAt", heartbeat.lastHeartbeatAt]] as const) finite(value, `operations.heartbeat.${name}`);
+    for (const [name, value] of [["lastMarketEventAt", heartbeat.lastMarketEventAt], ["lastPaperDecisionAt", heartbeat.lastPaperDecisionAt], ["lastPaperOrderAt", heartbeat.lastPaperOrderAt], ["lastPaperFillAt", heartbeat.lastPaperFillAt]] as const) if (value != null) finite(value, `operations.heartbeat.${name}`);
+    for (const [name, value] of [["eventCount", heartbeat.eventCount], ["decisionCount", heartbeat.decisionCount], ["paperOrderCount", heartbeat.paperOrderCount], ["paperFillCount", heartbeat.paperFillCount]] as const) nonNegativeInteger(value, `operations.heartbeat.${name}`);
+    if (heartbeat.lastError != null && !heartbeat.lastError.trim()) throw new Error("operations.heartbeat.lastError must be non-empty when present");
+    if (heartbeat.lastHeartbeatAt < heartbeat.startedAt) throw new Error("operations.heartbeat clock regressed");
+  }
 }
 
 function validateReadOnlyProjections(input: Pick<PersonalPaperOperationsSnapshot, "portfolio" | "orders" | "markets">): void {
@@ -166,7 +193,7 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
     input.research?.health === "FAIL_CLOSED" || input.research?.recoveryStatus === "FAIL_CLOSED"
   ) return "FAIL_CLOSED";
   if (
-    input.dashboard.overallHealth === "DEGRADED" || input.operations.runtimeState !== "READY" || input.operations.transport !== "ONLINE" ||
+    input.dashboard.overallHealth === "DEGRADED" || !["READY", "RUNNING"].includes(input.operations.runtimeState) || input.operations.transport !== "ONLINE" ||
     input.operations.pendingWrites > 0 || (input.research != null && (input.research.health !== "HEALTHY" || input.research.recoveryStatus !== "READY"))
   ) return "DEGRADED";
   return "HEALTHY";
@@ -185,9 +212,12 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
   validateResearch(input.research);
   validateAi(input.ai ?? null);
   validateOperations(input.operations);
+  if (input.paperLearning != null) {
+    validatePaperLearningReadOnlySnapshot(input.paperLearning);
+  }
   finite(generatedAt, "generatedAt");
   const health = deriveHealth(input);
-  const readyForPaperOperations = health !== "FAIL_CLOSED" && input.dashboard.mode === "PAPER" && input.dashboard.tradingAllowed && !input.dashboard.killSwitchActive && !input.operations.killSwitchActive && !input.operations.accountHalted && (input.operations.runtimeState === "READY" || input.operations.runtimeState === "READY_OFFLINE");
+  const readyForPaperOperations = health !== "FAIL_CLOSED" && input.dashboard.mode === "PAPER" && input.dashboard.tradingAllowed && !input.dashboard.killSwitchActive && !input.operations.killSwitchActive && !input.operations.accountHalted && (input.operations.runtimeState === "READY" || input.operations.runtimeState === "RUNNING" || input.operations.runtimeState === "READY_OFFLINE");
   const snapshot = {
     schemaVersion: 1 as const,
     generatedAt,
@@ -201,6 +231,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     portfolio: input.portfolio ?? null,
     orders: input.orders ?? [],
     markets: input.markets ?? [],
+    paperLearning: input.paperLearning ?? null,
     liveAuthority: "NONE" as const,
     productionMutationAllowed: false as const
   };
@@ -220,6 +251,9 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   validateResearch(snapshot.research);
   validateAi(snapshot.ai);
   validateOperations(snapshot.operations);
+  if (snapshot.paperLearning != null) {
+    validatePaperLearningReadOnlySnapshot(snapshot.paperLearning);
+  }
   validateReadOnlyProjections(snapshot);
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");

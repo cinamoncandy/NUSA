@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { classifyPriceRegime, evaluateStrategyRegime } = require("../dist/apps/desktop/src/regimePolicy.js");
+const { classifyPriceRegime, evaluateStrategyRegime } = require("../dist/apps/desktop/src/strategy/regimePolicy.js");
 
 const prices = (start, step, count = 21) => Array.from({ length: count }, (_, index) => start + step * index);
 

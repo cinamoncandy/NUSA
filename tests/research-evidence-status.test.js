@@ -4,7 +4,7 @@ const { mkdtempSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/desktopPersistenceStore.js");
+const { DesktopPersistenceStore } = require("../dist/apps/desktop/src/persistence/desktopPersistenceStore.js");
 
 test("research evidence status is read-only and blocks when no reports exist", () => {
   const directory = mkdtempSync(join(tmpdir(), "nusa-research-status-"));

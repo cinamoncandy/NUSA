@@ -1,8 +1,8 @@
 "use strict";
 
-const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/upbitCandleAdapter.js");
-const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/researchDataset.js");
-const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategyEngine.js");
+const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
+const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 
 const MARKET = "KRW-BTC";
 const CANDLE_COUNT = 200;

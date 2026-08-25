@@ -16,25 +16,26 @@ function jobBlock(name) {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
-test("Mobile Native supports explicit release intent and label changes", () => {
-  assert.match(workflow, /workflow_dispatch:\n/);
+test("Mobile Native supports explicit Android release intent and label changes", () => {
+  assert.match(workflow, /workflow_dispatch:(?: \{\})?\n/);
   assert.match(workflow, /types: \[opened, synchronize, reopened, labeled, unlabeled\]/);
-  assert.equal(workflow.split(releaseIntent).length - 1, 2);
+  assert.equal(workflow.split(releaseIntent).length - 1, 1);
 });
 
-test("ordinary pull requests keep foundation and both debug jobs unconditional", () => {
-  for (const name of ["foundation-smoke", "android-debug", "ios-debug"]) {
+test("ordinary pull requests keep foundation and Android debug unconditional while iOS is disabled", () => {
+  for (const name of ["foundation-smoke", "android-debug"]) {
     assert.doesNotMatch(jobBlock(name), /^    if:/m, `${name} must not be gated by release intent`);
   }
   assert.match(jobBlock("android-debug"), /assembleDebug/);
-  assert.match(jobBlock("ios-debug"), /-configuration Debug/);
+  assert.match(jobBlock("ios-debug"), /^    if: \$\{\{ false \}\}/m);
+  assert.match(jobBlock("ios-debug"), /iOS skipped: NUSA mobile delivery is Android-only/);
 });
 
-test("release candidate jobs are gated but preserve release build commands", () => {
+test("Android release candidate remains gated while iOS release candidate stays disabled", () => {
   const android = jobBlock("android-release-candidate");
   const ios = jobBlock("ios-release-candidate");
   assert.ok(android.includes(releaseIntent));
-  assert.ok(ios.includes(releaseIntent));
   assert.match(android, /assembleRelease/);
-  assert.match(ios, /-configuration Release/);
+  assert.match(ios, /^    if: \$\{\{ false \}\}/m);
+  assert.match(ios, /iOS release candidate skipped: NUSA mobile delivery is Android-only/);
 });
