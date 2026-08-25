@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
+import type { PublicCandle } from "./chartViewModel";
 import { WatchlistView } from "./watchlistView";
 import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
-import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
+import { loadUpbitPublicCandles, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
@@ -30,16 +31,68 @@ type Panel = "WATCHLIST" | "CHART";
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §6): the chart is the dominant/first
-  // region -- it is always reachable and defaults first, even when no real candle data is
-  // wired yet. ChartView's own LOADING/EMPTY/ERROR states render truthfully instead of the
-  // chart being silently hidden behind the watchlist.
   const [panel, setPanel] = useState<Panel>("CHART");
+  const [selectedMarket, setSelectedMarket] = useState(market);
+  const [selectedCandles, setSelectedCandles] = useState<readonly PublicCandle[] | null>(null);
+  const [selectedChartError, setSelectedChartError] = useState<string | null>(null);
+  const [selectedChartDiagnostic, setSelectedChartDiagnostic] = useState<PublicQuotationDiagnostic | null>(null);
+  const [selectedChartLoading, setSelectedChartLoading] = useState(false);
+  const selectionRequestRef = useRef(0);
   const tabletWorkspace = width >= 768;
-  const changeRate = useMemo(() => {
-    if (!Array.isArray(rawMarkets)) return null;
-    try { return parseWatchlistMarkets(rawMarkets).find((item) => item.market === market)?.changeRate ?? null; } catch { return null; }
-  }, [market, rawMarkets]);
+
+  const parsedMarkets = useMemo(() => {
+    if (!Array.isArray(rawMarkets)) return [];
+    try { return parseWatchlistMarkets(rawMarkets); } catch { return []; }
+  }, [rawMarkets]);
+  const selectedQuote = useMemo(() => parsedMarkets.find((item) => item.market === selectedMarket) ?? null, [parsedMarkets, selectedMarket]);
+  const changeRate = selectedQuote?.changeRate ?? null;
+  const selectedCurrentPrice = selectedMarket === market ? currentPrice : selectedQuote?.price ?? null;
+  const displayedCandles = selectedMarket === market ? rawCandles : selectedCandles;
+  const displayedChartError = selectedMarket === market ? chartError : selectedChartError;
+  const displayedDiagnostic = selectedMarket === market ? chartErrorDiagnostic : selectedChartDiagnostic;
+  const displayedStale = selectedMarket === market ? stale : selectedChartLoading || selectedCandles === null;
+
+  const loadSelectedCandles = useCallback(async (nextMarket: string): Promise<void> => {
+    if (nextMarket === market) {
+      setSelectedCandles(null);
+      setSelectedChartError(null);
+      setSelectedChartDiagnostic(null);
+      setSelectedChartLoading(false);
+      return;
+    }
+    const request = selectionRequestRef.current + 1;
+    selectionRequestRef.current = request;
+    setSelectedCandles(null);
+    setSelectedChartError(null);
+    setSelectedChartDiagnostic(null);
+    setSelectedChartLoading(true);
+    try {
+      const candles = await loadUpbitPublicCandles({ market: nextMarket });
+      if (selectionRequestRef.current !== request) return;
+      setSelectedCandles(candles);
+    } catch (loadError) {
+      if (selectionRequestRef.current !== request) return;
+      setSelectedChartError(loadError instanceof Error ? loadError.message : "선택한 시장의 공개 캔들을 불러올 수 없습니다.");
+      setSelectedChartDiagnostic(loadError instanceof UpbitPublicQuotationError ? loadError.diagnostic : null);
+    } finally {
+      if (selectionRequestRef.current === request) setSelectedChartLoading(false);
+    }
+  }, [market]);
+
+  const handleSelectMarket = useCallback((nextMarket: string): void => {
+    if (nextMarket === selectedMarket) {
+      setPanel("CHART");
+      return;
+    }
+    setSelectedMarket(nextMarket);
+    setPanel("CHART");
+    void loadSelectedCandles(nextMarket);
+  }, [loadSelectedCandles, selectedMarket]);
+
+  const refreshMarketView = useCallback((): void => {
+    onRefresh();
+    if (selectedMarket !== market) void loadSelectedCandles(selectedMarket);
+  }, [loadSelectedCandles, market, onRefresh, selectedMarket]);
 
   const segment = (value: Panel, label: string, testID: string) => {
     const selected = panel === value;
@@ -57,15 +110,15 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
     ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted, fontWeight: selected ? theme.typography.weights.bold : theme.typography.weights.semibold }]} numberOfLines={1}>{label}</Text></Pressable>;
   };
 
-  const watchlist = <WatchlistView error={error} onRefresh={onRefresh} rawMarkets={rawMarkets} refreshing={refreshing} repository={repository} stale={marketsStale} />;
+  const watchlist = <WatchlistView error={error} onRefresh={refreshMarketView} rawMarkets={rawMarkets} refreshing={refreshing || selectedChartLoading} repository={repository} selectedMarket={selectedMarket} onSelectMarket={handleSelectMarket} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
-    <ChartView changeRate={changeRate} diagnostic={chartError ? chartErrorDiagnostic : null} error={chartError ?? error} currentPrice={currentPrice} market={market} marketConnectionState={marketConnectionState} onRefresh={onRefresh} rawCandles={rawCandles} refreshing={refreshing} stale={stale} />
+    <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
     <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]}>
       <View style={styles.tradeCopy}>
         <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>NEXT</Text>
-        <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>현재 시장을 유지한 채 기존 PAPER 주문 검토 흐름으로 이동합니다.</Text>
+        <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>PAPER 워크스페이스를 엽니다. 현재 선택 종목은 차트 탐색 상태이며 주문 화면으로 자동 전달하지 않습니다.</Text>
       </View>
-      <NusaButton label="PAPER TRADE" onPress={onPaperTrade} testID="market-paper-trade" />
+      <NusaButton label="PAPER 열기" onPress={onPaperTrade} testID="market-paper-trade" />
     </View>
   </View>;
 
