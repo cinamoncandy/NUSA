@@ -187,7 +187,7 @@ export class PaperLearningEventRecorder {
       database.exec("PRAGMA synchronous = FULL");
       database.exec("CREATE TABLE IF NOT EXISTS paper_learning_observability_events (event_id TEXT PRIMARY KEY, occurred_at INTEGER NOT NULL, schema_version INTEGER NOT NULL, payload_json TEXT NOT NULL)");
       database.exec("CREATE INDEX IF NOT EXISTS idx_paper_learning_observability_order ON paper_learning_observability_events(occurred_at DESC, event_id ASC)");
-      const rows = database.prepare("SELECT event_id, payload_json FROM paper_learning_observability_events WHERE schema_version = ? ORDER BY occurred_at ASC, event_id ASC LIMIT ?").all(PERSISTENCE_SCHEMA_VERSION, this.maximumEvents) as Array<Record<string, unknown>>;
+      const rows = database.prepare("SELECT event_id, payload_json FROM paper_learning_observability_events WHERE schema_version = ? ORDER BY occurred_at DESC, event_id ASC LIMIT ?").all(PERSISTENCE_SCHEMA_VERSION, this.maximumEvents) as Array<Record<string, unknown>>;
       for (const row of rows) {
         try {
           const decoded = decodePersisted(JSON.parse(String(row.payload_json ?? "")));
