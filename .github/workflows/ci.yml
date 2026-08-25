@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: test
+  validation:
+    name: validation
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -192,6 +192,38 @@ jobs:
         run: node --test --test-reporter=spec tests/scenario-paper-validation.test.js tests/scenario-evidence-bundle.test.js tests/operational-completion-gate.test.js tests/profitability-claim-gate.test.js tests/release-readiness-audit.test.js
       - name: Repository-wide security and readiness audit tests
         run: node --test --test-reporter=spec tests/repository-hardening.test.js tests/architecture-audit.test.js tests/desktop-sqlite-safety.test.js tests/storage-migrations.test.js tests/sqlite-recovery-drill.test.js tests/research-dataset.test.js tests/backtest-analytics.test.js tests/release-readiness-audit.test.js
+      - name: Upload isolated test failure
+        if: failure() && hashFiles('isolated-test-failure.txt') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: isolated-test-failure
+          path: isolated-test-failure.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: coverage
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Preflight
+        run: pnpm run preflight
+      - name: Build for coverage
+        run: pnpm run build
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium
       - name: Coverage baseline (isolated + UI + E2E)
         run: pnpm run coverage:prepared
       - name: Upload coverage baseline
@@ -206,7 +238,19 @@ jobs:
         if: failure() && hashFiles('isolated-test-failure.txt') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: isolated-test-failure
+          name: coverage-isolated-test-failure
           path: isolated-test-failure.txt
           if-no-files-found: error
           retention-days: 7
+
+  test:
+    name: test
+    needs: [validation, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require validation and coverage
+        shell: bash
+        run: |
+          test "${{ needs.validation.result }}" = "success"
+          test "${{ needs.coverage.result }}" = "success"
