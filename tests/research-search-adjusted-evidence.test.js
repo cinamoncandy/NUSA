@@ -1,9 +1,131 @@
 "use strict";
-const test=require("node:test");const assert=require("node:assert/strict");const{appendResearchTrial}=require("../dist/apps/desktop/src/cloud/researchTrialLedger.js");const{ResearchStatisticalEvidenceError,calculateDeflatedSharpeEvidence,estimateProbabilityBacktestOverfitting}=require("../dist/apps/desktop/src/cloud/researchSearchAdjustedEvidence.js");const HASH="b".repeat(64);
-function trial({trialId,ordinal,sharpeRatio,outcome="COMPLETED"}){return{trialId,familyId:"momentum-family",hypothesis:`trial ${trialId}`,createdAt:`2026-08-25T00:00:0${ordinal}.000Z`,dataset:{datasetId:"dataset-1",contentSha256:HASH,market:"KRW-BTC",interval:"1d"},candidateIds:[`candidate-${trialId}`],search:{searchId:"search-1",attemptOrdinal:ordinal},outcome,...(sharpeRatio==null?{}:{metrics:{sharpeRatio}})};}
-function ledgerWithAttempts(extra=false){let l=appendResearchTrial([],trial({trialId:"trial-1",ordinal:1,sharpeRatio:.2}));l=appendResearchTrial(l,trial({trialId:"trial-2",ordinal:2,sharpeRatio:.4}));l=appendResearchTrial(l,trial({trialId:"trial-3",ordinal:3,outcome:"FAILED"}));if(extra)l=appendResearchTrial(l,trial({trialId:"trial-4",ordinal:4,outcome:"FAILED"}));return l;}
-test("DSR uses full recorded search count including failures",()=>{const a=calculateDeflatedSharpeEvidence({ledger:ledgerWithAttempts(),searchId:"search-1",selectedTrialId:"trial-2",sampleLength:100,skewness:0,kurtosis:3});const b=calculateDeflatedSharpeEvidence({ledger:ledgerWithAttempts(true),searchId:"search-1",selectedTrialId:"trial-2",sampleLength:100,skewness:0,kurtosis:3});assert.equal(a.searchTrialCount,3);assert.equal(a.completedSharpeTrialCount,2);assert.equal(a.observedSharpe,.4);assert.ok(a.deflatedSharpeProbability>0&&a.deflatedSharpeProbability<1);assert.equal(a.passes,a.deflatedSharpeProbability>=.95);assert.equal(b.searchTrialCount,4);assert.ok(b.expectedMaximumSharpe>a.expectedMaximumSharpe);assert.ok(b.deflatedSharpeProbability<a.deflatedSharpeProbability);});
-test("DSR fails closed on insufficient evidence",()=>{const one=appendResearchTrial([],trial({trialId:"trial-1",ordinal:1,sharpeRatio:.4}));assert.throws(()=>calculateDeflatedSharpeEvidence({ledger:one,searchId:"search-1",selectedTrialId:"trial-1",sampleLength:100,skewness:0,kurtosis:3}),e=>e instanceof ResearchStatisticalEvidenceError&&e.code==="INSUFFICIENT_SEARCH_TRIALS");assert.throws(()=>calculateDeflatedSharpeEvidence({ledger:ledgerWithAttempts(),searchId:"search-1",selectedTrialId:"trial-3",sampleLength:100,skewness:0,kurtosis:3}),e=>e instanceof ResearchStatisticalEvidenceError&&e.code==="SELECTED_TRIAL_NOT_COMPLETED");});
-test("CSCV PBO is zero for robust dominance",()=>{const e=estimateProbabilityBacktestOverfitting({partitions:4,strategies:[{strategyId:"robust",returns:[.02,.01,.018,.012,.021,.009,.019,.011,.022,.008,.017,.013,.02,.01,.018,.012]},{strategyId:"weak",returns:[.005,-.005,.004,-.004,.006,-.006,.003,-.003,.005,-.005,.004,-.004,.006,-.006,.003,-.003]}]});assert.equal(e.splitCount,6);assert.equal(e.probabilityBacktestOverfitting,0);assert.ok(e.splits.every(s=>s.selectedStrategyId==="robust"&&s.logit>0));});
-test("CSCV PBO flags regime reversal",()=>{const e=estimateProbabilityBacktestOverfitting({partitions:4,strategies:[{strategyId:"left",returns:[.05,.04,.04,.03,-.04,-.05,-.03,-.04]},{strategyId:"right",returns:[-.05,-.04,-.04,-.03,.04,.05,.03,.04]}]});assert.equal(e.splitCount,6);assert.equal(e.probabilityBacktestOverfitting,1);assert.equal(e.overfitSplitCount,6);assert.ok(e.medianLogit<=0);});
-test("CSCV rejects malformed evidence",()=>{assert.throws(()=>estimateProbabilityBacktestOverfitting({partitions:4,strategies:[{strategyId:"a",returns:[.1,.2,.1,.2,.1,.2,.1,.2]},{strategyId:"b",returns:[.1,.2,.1,.2,.1,.2,.1]}]}),e=>e instanceof ResearchStatisticalEvidenceError&&e.code==="UNEQUAL_RETURN_LENGTHS");assert.throws(()=>estimateProbabilityBacktestOverfitting({partitions:6,strategies:[{strategyId:"a",returns:Array.from({length:16},(_,i)=>i%2?.01:.02)},{strategyId:"b",returns:Array.from({length:16},(_,i)=>i%2?-.01:.01)}]}),e=>e instanceof ResearchStatisticalEvidenceError&&e.code==="UNEQUAL_PARTITIONS");});
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { appendResearchTrial } = require("../dist/apps/desktop/src/cloud/researchTrialLedger.js");
+const {
+  ResearchStatisticalEvidenceError,
+  calculateDeflatedSharpeEvidence,
+  estimateProbabilityBacktestOverfitting
+} = require("../dist/apps/desktop/src/cloud/researchSearchAdjustedEvidence.js");
+
+const HASH = "b".repeat(64);
+
+function trial({ trialId, ordinal, sharpeRatio, outcome = "COMPLETED" }) {
+  return {
+    trialId,
+    familyId: "momentum-family",
+    hypothesis: `trial ${trialId}`,
+    createdAt: `2026-08-25T00:00:0${ordinal}.000Z`,
+    dataset: { datasetId: "dataset-1", contentSha256: HASH, market: "KRW-BTC", interval: "1d" },
+    candidateIds: [`candidate-${trialId}`],
+    search: { searchId: "search-1", attemptOrdinal: ordinal },
+    outcome,
+    ...(sharpeRatio == null ? {} : { metrics: { sharpeRatio } })
+  };
+}
+
+function ledgerWithAttempts(includeExtraFailure = false) {
+  let ledger = appendResearchTrial([], trial({ trialId: "trial-1", ordinal: 1, sharpeRatio: 0.2 }));
+  ledger = appendResearchTrial(ledger, trial({ trialId: "trial-2", ordinal: 2, sharpeRatio: 0.4 }));
+  ledger = appendResearchTrial(ledger, trial({ trialId: "trial-3", ordinal: 3, outcome: "FAILED" }));
+  if (includeExtraFailure) ledger = appendResearchTrial(ledger, trial({ trialId: "trial-4", ordinal: 4, outcome: "FAILED" }));
+  return ledger;
+}
+
+test("DSR uses the full recorded search count, including failed attempts", () => {
+  const base = calculateDeflatedSharpeEvidence({
+    ledger: ledgerWithAttempts(false),
+    searchId: "search-1",
+    selectedTrialId: "trial-2",
+    sampleLength: 100,
+    skewness: 0,
+    kurtosis: 3
+  });
+  const withHiddenFailurePrevented = calculateDeflatedSharpeEvidence({
+    ledger: ledgerWithAttempts(true),
+    searchId: "search-1",
+    selectedTrialId: "trial-2",
+    sampleLength: 100,
+    skewness: 0,
+    kurtosis: 3
+  });
+
+  assert.equal(base.searchTrialCount, 3);
+  assert.equal(base.completedSharpeTrialCount, 2);
+  assert.equal(base.observedSharpe, 0.4);
+  assert.ok(base.deflatedSharpeProbability > 0 && base.deflatedSharpeProbability < 1);
+  assert.equal(base.passes, base.deflatedSharpeProbability >= 0.95);
+  assert.equal(withHiddenFailurePrevented.searchTrialCount, 4);
+  assert.ok(withHiddenFailurePrevented.expectedMaximumSharpe > base.expectedMaximumSharpe);
+  assert.ok(withHiddenFailurePrevented.deflatedSharpeProbability < base.deflatedSharpeProbability);
+});
+
+test("DSR fails closed when selected evidence or search breadth is insufficient", () => {
+  const one = appendResearchTrial([], trial({ trialId: "trial-1", ordinal: 1, sharpeRatio: 0.4 }));
+  assert.throws(
+    () => calculateDeflatedSharpeEvidence({ ledger: one, searchId: "search-1", selectedTrialId: "trial-1", sampleLength: 100, skewness: 0, kurtosis: 3 }),
+    (error) => error instanceof ResearchStatisticalEvidenceError && error.code === "INSUFFICIENT_SEARCH_TRIALS"
+  );
+
+  const ledger = ledgerWithAttempts(false);
+  assert.throws(
+    () => calculateDeflatedSharpeEvidence({ ledger, searchId: "search-1", selectedTrialId: "trial-3", sampleLength: 100, skewness: 0, kurtosis: 3 }),
+    (error) => error instanceof ResearchStatisticalEvidenceError && error.code === "SELECTED_TRIAL_NOT_COMPLETED"
+  );
+});
+
+test("CSCV PBO is zero when one strategy dominates every symmetric split", () => {
+  const evidence = estimateProbabilityBacktestOverfitting({
+    partitions: 4,
+    strategies: [
+      { strategyId: "robust", returns: [0.02, 0.01, 0.018, 0.012, 0.021, 0.009, 0.019, 0.011, 0.022, 0.008, 0.017, 0.013, 0.02, 0.01, 0.018, 0.012] },
+      { strategyId: "weak", returns: [0.005, -0.005, 0.004, -0.004, 0.006, -0.006, 0.003, -0.003, 0.005, -0.005, 0.004, -0.004, 0.006, -0.006, 0.003, -0.003] }
+    ]
+  });
+
+  assert.equal(evidence.partitions, 4);
+  assert.equal(evidence.splitCount, 6);
+  assert.equal(evidence.overfitSplitCount, 0);
+  assert.equal(evidence.probabilityBacktestOverfitting, 0);
+  assert.ok(evidence.splits.every((split) => split.selectedStrategyId === "robust" && split.logit > 0));
+});
+
+test("CSCV PBO flags regime-fit strategies that reverse out of sample", () => {
+  const evidence = estimateProbabilityBacktestOverfitting({
+    partitions: 4,
+    strategies: [
+      { strategyId: "left", returns: [0.05, 0.04, 0.04, 0.03, -0.04, -0.05, -0.03, -0.04] },
+      { strategyId: "right", returns: [-0.05, -0.04, -0.04, -0.03, 0.04, 0.05, 0.03, 0.04] }
+    ]
+  });
+
+  assert.equal(evidence.splitCount, 6);
+  assert.equal(evidence.probabilityBacktestOverfitting, 1);
+  assert.equal(evidence.overfitSplitCount, 6);
+  assert.ok(evidence.medianLogit <= 0);
+});
+
+test("CSCV rejects asymmetric or under-specified evidence", () => {
+  assert.throws(
+    () => estimateProbabilityBacktestOverfitting({
+      partitions: 4,
+      strategies: [
+        { strategyId: "a", returns: [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2] },
+        { strategyId: "b", returns: [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1] }
+      ]
+    }),
+    (error) => error instanceof ResearchStatisticalEvidenceError && error.code === "UNEQUAL_RETURN_LENGTHS"
+  );
+
+  assert.throws(
+    () => estimateProbabilityBacktestOverfitting({
+      partitions: 6,
+      strategies: [
+        { strategyId: "a", returns: Array.from({ length: 16 }, (_, index) => index % 2 ? 0.01 : 0.02) },
+        { strategyId: "b", returns: Array.from({ length: 16 }, (_, index) => index % 2 ? -0.01 : 0.01) }
+      ]
+    }),
+    (error) => error instanceof ResearchStatisticalEvidenceError && error.code === "UNEQUAL_PARTITIONS"
+  );
+});
