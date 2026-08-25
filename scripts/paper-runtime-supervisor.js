@@ -11,6 +11,23 @@ function boundedBackoffMs(attempt, initialMs = DEFAULT_INITIAL_BACKOFF_MS, maxMs
   return Math.min(maxMs, initialMs * (2 ** Math.min(attempt, 30)));
 }
 
+function supervisorChildEnv(baseEnv, snapshot) {
+  const env = {
+    ...baseEnv,
+    NUSA_PAPER_SUPERVISOR_MANAGED: "true",
+    NUSA_PAPER_SUPERVISOR_RESTART_ATTEMPT: String(snapshot.restartAttempt),
+    NUSA_PAPER_SUPERVISOR_RESTART_COUNT: String(snapshot.restartCount),
+    NUSA_PAPER_SUPERVISOR_STARTED_AT: String(snapshot.startedAt),
+  };
+  if (snapshot.lastExit != null) {
+    env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_CODE = snapshot.lastExit.code == null ? "" : String(snapshot.lastExit.code);
+    env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_SIGNAL = snapshot.lastExit.signal == null ? "" : String(snapshot.lastExit.signal);
+    env.NUSA_PAPER_SUPERVISOR_LAST_EXITED_AT = String(snapshot.lastExit.exitedAt);
+    env.NUSA_PAPER_SUPERVISOR_LAST_UPTIME_MS = String(snapshot.lastExit.uptimeMs);
+  }
+  return env;
+}
+
 class PaperRuntimeProcessSupervisor {
   constructor(options = {}) {
     this.spawnFn = options.spawn ?? spawn;
@@ -36,6 +53,7 @@ class PaperRuntimeProcessSupervisor {
 
   snapshot() {
     return Object.freeze({
+      mode: "PAPER_ONLY",
       status: this.stopping ? "STOPPING" : this.child == null ? (this.restartTimer == null ? "OFFLINE" : "RECOVERING") : "RUNNING",
       restartAttempt: this.restartAttempt,
       restartCount: this.restartCount,
@@ -43,6 +61,7 @@ class PaperRuntimeProcessSupervisor {
       lastExit: this.lastExit == null ? null : Object.freeze({ ...this.lastExit }),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
     });
   }
 
@@ -67,9 +86,10 @@ class PaperRuntimeProcessSupervisor {
   launch() {
     if (this.stopping) return;
     this.startedAt = this.now();
+    const launchSnapshot = this.snapshot();
     const child = this.spawnFn(this.command, this.args, {
       cwd: this.cwd,
-      env: this.env,
+      env: supervisorChildEnv(this.env, { ...launchSnapshot, startedAt: this.startedAt }),
       stdio: "inherit",
       shell: false,
     });
@@ -118,4 +138,5 @@ module.exports = {
   PaperRuntimeProcessSupervisor,
   boundedBackoffMs,
   run,
+  supervisorChildEnv,
 };
