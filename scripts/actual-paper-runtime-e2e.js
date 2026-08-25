@@ -201,6 +201,20 @@ async function run(options = {}) {
     const firstOrder = firstSnapshot.orders?.[0];
     const firstFill = firstOrder?.fills?.[0];
 
+    // Issue #755: a real device previously showed an always-empty PAPER learning timeline with no
+    // way to tell why. This is the closest thing this repo has to real-device evidence, so it must
+    // prove the canonical learning projection is actually populated, not just that trading works.
+    if (firstSnapshot.paperLearning == null) throw new Error("paperLearning projection missing from automatic PAPER snapshot");
+    if (firstSnapshot.paperLearning.liveAuthority !== "NONE" || firstSnapshot.paperLearning.productionMutationAllowed !== false || firstSnapshot.paperLearning.readOnly !== true) {
+      throw new Error("paperLearning projection violated a read-only/authority invariant");
+    }
+    const firstLearningStages = new Set((firstSnapshot.paperLearning.events || []).map((event) => event.stage));
+    if (!firstLearningStages.has("MARKET_DATA") || !firstLearningStages.has("DECISION")) {
+      throw new Error(`paperLearning did not expose the required MARKET_DATA -> DECISION chain (stages seen: ${[...firstLearningStages].join(",") || "none"})`);
+    }
+    const firstLearningIds = (firstSnapshot.paperLearning.events || []).map((event) => event.id);
+    if (new Set(firstLearningIds).size !== firstLearningIds.length) throw new Error("paperLearning exposed duplicate event ids before any restart");
+
     await stopRuntime(firstRuntime);
     firstRuntime = undefined;
     if (!existsSync(databasePath) || statSync(databasePath).size <= 0) throw new Error("SQLite PAPER state database was not persisted");
@@ -214,6 +228,16 @@ async function run(options = {}) {
     if (recoverySnapshot.liveAuthority !== "NONE" || recoverySnapshot.productionMutationAllowed !== false) throw new Error("restart PAPER recovery snapshot violated authority invariant");
     const recoverySummary = summarizeSnapshot(recoverySnapshot);
     if (firstSummary.position?.quantity !== recoverySummary.position?.quantity) throw new Error("PAPER position did not recover identically after restart");
+
+    // With public ingestion paused, no new tick can occur: the durably replayed timeline must be
+    // exactly what was persisted, with no duplicate ids (acceptance: "재시작 후에도 durable replay로
+    // 최근 이벤트가 복구되고 duplicate event가 없어야 한다").
+    if (recoverySnapshot.paperLearning == null) throw new Error("paperLearning projection missing after restart recovery");
+    const recoveredLearningIds = (recoverySnapshot.paperLearning.events || []).map((event) => event.id);
+    if (recoveredLearningIds.length < 1) throw new Error("paperLearning did not durably replay any event after restart");
+    if (new Set(recoveredLearningIds).size !== recoveredLearningIds.length) throw new Error("paperLearning replay produced duplicate event ids after restart");
+    if (!recoveredLearningIds.every((id) => firstLearningIds.includes(id))) throw new Error("paperLearning replay after restart lost or altered a previously persisted event id");
+
     await stopRuntime(secondRuntime);
     secondRuntime = undefined;
 
@@ -240,6 +264,12 @@ async function run(options = {}) {
       execution: firstOrder == null ? { status: "NO_ACTIONABLE_SIGNAL", order_count: 0, fill_count: 0 } : { status: "AUTOMATICALLY_FILLED", order_id: firstOrder.id, fill_id: firstFill?.id, side: firstOrder.side, quantity: firstOrder.quantity, price: firstOrder.price, fee: firstOrder.fee },
       first_runtime: firstSummary,
       persistence: { sqlite_path: databasePath, sqlite_size_bytes: statSync(databasePath).size, sqlite_sha256_after_runtime: dbHashAfterRuntime },
+      paper_learning: {
+        stages_observed: [...firstLearningStages].sort(),
+        event_count_before_restart: firstLearningIds.length,
+        event_count_after_restart_recovery: recoveredLearningIds.length,
+        duplicate_ids_after_restart: false
+      },
       restart_recovery: recoverySummary,
       automatic_restart: secondSummary,
       idempotency_retry: { status: firstOrder == null ? "NOT_APPLICABLE_NO_AUTOMATIC_ORDER" : "AUTOMATIC_RESTART_RECONCILED", original_order_id: firstOrder?.id ?? null, matching_order_count: repeatedOrders.length, matching_fill_count: repeatedFills.length, double_fill: false },
