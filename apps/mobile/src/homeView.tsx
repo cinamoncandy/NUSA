@@ -6,6 +6,8 @@ import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
+import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -51,7 +53,17 @@ export function HomeView({
   const tablet = width >= 768;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
 
-  const account = snapshot?.portfolio?.account ?? null;
+  // Issue #637: when Cloud PAPER is not configured, fall back to the same one app-level LOCAL
+  // PAPER ledger Trade writes to, instead of showing a blank "NO LINK" equity card while a real
+  // LOCAL PAPER balance exists. Hooks stay unconditional; the mark-price poll is skipped once Cloud
+  // is active so Home does not keep polling public Upbit data it no longer needs.
+  const localPaperActive = snapshot == null && isLocalPaperActive();
+  const localTradingSnapshot = useLocalPaperSnapshot();
+  const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
+  const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
+
+  const account = snapshot?.portfolio?.account ?? localPortfolio?.account ?? null;
+  const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
@@ -62,8 +74,8 @@ export function HomeView({
   const runtimeState = snapshot?.operations.runtimeState;
   const statusLabel = snapshot
     ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : signalReady ? "READY" : "CHECK"}`
-    : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
-  const statusTone = snapshot ? healthTone(snapshot.health) : "warning" as const;
+    : accountSource === "LOCAL" ? "PAPER · LOCAL" : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
+  const statusTone = snapshot ? healthTone(snapshot.health) : accountSource === "LOCAL" ? "info" as const : "warning" as const;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
 
@@ -118,7 +130,8 @@ export function HomeView({
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
         </View>
         <Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
-        {disconnected ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text> : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1}>{account ? krw(account.equity) : "-"}</Text>}
+        {account == null ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text> : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={accountSource === "LOCAL" ? "home-equity-local" : "home-equity-cloud"}>{krw(account.equity)}</Text>}
+        {accountSource === "LOCAL" ? <Text style={[styles.meta, { color: theme.colors.textMuted }]} testID="home-local-paper-note">Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다 · 실제 주문 아님</Text> : null}
         <View style={styles.pnlRow}>
           <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
           <Text style={[styles.meta, { color: theme.colors.textMuted }]}>CUMULATIVE PAPER P&L</Text>
@@ -172,7 +185,7 @@ export function HomeView({
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text>
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
-        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : notConfigured ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : "warning"} />
+        <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : accountSource === "LOCAL" ? "LOCAL PAPER" : notConfigured ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : accountSource === "LOCAL" ? "info" : "warning"} />
         <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
         <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />

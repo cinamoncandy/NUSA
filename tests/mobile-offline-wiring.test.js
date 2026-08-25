@@ -19,7 +19,7 @@ test("mobile app feeds Cloud PAPER availability from the runtime recovery coordi
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /runtimeCanSubmit\?: boolean/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /testID="paper-runtime-blocked"/);
 });

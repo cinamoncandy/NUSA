@@ -49,7 +49,7 @@ test("closeout preserves PAPER-only mutation semantics while local PAPER stays i
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /Production mutation 금지/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /liveMutationAllowed: false/);
   assert.match(trading, /productionMutationAllowed: false/);

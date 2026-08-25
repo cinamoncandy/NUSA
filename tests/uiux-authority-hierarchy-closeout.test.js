@@ -46,10 +46,10 @@ test("PAPER exposes independent local simulation while cloud submit stays author
   assert.match(tradingWrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
   assert.doesNotMatch(combinedTrading, /<AuthorityBanner/);
-  assert.match(trading, /const builtInSubmitAvailable = Boolean\(configuredEndpoint && credentialSession\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const usingLocalPaper = !builtInSubmitAvailable/);
+  assert.match(read("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
+  assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable/);
+  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
   assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
   assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(trading, /testID="paper-order-ticket"/);

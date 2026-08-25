@@ -9,9 +9,10 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 import { PersonalPaperOrderRetryIdentity, submitPersonalPaperOrderWithRetryIdentity } from "./personalPaperOrderClient";
-import { MockTradingService, type TradingSnapshot } from "./tradingService";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./upbitPublicQuotationClient";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
+import { LOCAL_PAPER_INITIAL_CASH, LOCAL_PAPER_MARKET, buildLocalPortfolio, isLocalPaperActive, placeLocalPaperOrder } from "./localPaperLedger";
+import { useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 
 interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; readonly onOpenPaperLearning?: () => void; }
 type OrderPhase = "IDLE" | "REVIEW" | "SUBMITTING" | "FILLED" | "ERROR";
@@ -21,21 +22,6 @@ const idempotencyKey = (): string => `paper-mobile-${Date.now()}-${Math.random()
 const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
 const SIDE_ITEMS = Object.freeze([{ key: "BUY", label: "매수" }, { key: "SELL", label: "매도" }]);
 const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, { key: "LIMIT", label: "지정가" }]);
-const LOCAL_PAPER_MARKET = "KRW-BTC";
-const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
-const initialLocalTradingSnapshot = (): TradingSnapshot => Object.freeze({ orders: Object.freeze([]), positions: Object.freeze([]), balances: Object.freeze([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]) });
-const localTradingService = new MockTradingService([{ currency: "KRW", available: LOCAL_PAPER_INITIAL_CASH }]);
-
-function buildLocalPortfolio(trading: TradingSnapshot, markPrice: number | null): PortfolioAccountResponse {
-  const cash = trading.balances.find((balance) => balance.currency === "KRW")?.available ?? 0;
-  const position = trading.positions.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
-  const quantity = position?.quantity ?? 0;
-  const averagePrice = position?.averageEntryPrice ?? 0;
-  const validMarkPrice = markPrice != null && Number.isFinite(markPrice) && markPrice > 0 ? markPrice : 0;
-  const assetValue = quantity * validMarkPrice;
-  const unrealizedPnl = quantity > 0 && validMarkPrice > 0 ? (validMarkPrice - averagePrice) * quantity : 0;
-  return Object.freeze({ observedAt: new Date().toISOString(), mode: "PAPER" as const, account: Object.freeze({ available: true, cash, equity: cash + assetValue, unrealizedPnl, assetValue, realizedPnl: 0, markPrice: validMarkPrice, position: Object.freeze({ market: LOCAL_PAPER_MARKET, quantity, averagePrice, realizedPnl: 0, unrealizedPnl }), orders: trading.orders }), openOrderCount: 0 });
-}
 
 export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit, runtimeCanSubmit = true, onOpenPaperLearning }: TradingViewProps) {
   const { theme } = useTheme();
@@ -47,27 +33,19 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [orderPhase, setOrderPhase] = useState<OrderPhase>("IDLE");
-  const [localTradingSnapshot, setLocalTradingSnapshot] = useState<TradingSnapshot>(() => initialLocalTradingSnapshot());
+  const localTradingSnapshot = useLocalPaperSnapshot();
   const [localMarkPrice, setLocalMarkPrice] = useState<number | null>(null);
   const [localCandles, setLocalCandles] = useState<readonly PublicCandle[] | null>(null);
   const [localPriceError, setLocalPriceError] = useState<string | null>(null);
   const [localChartError, setLocalChartError] = useState<string | null>(null);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const configuredEndpoint = getConfiguredPaperEndpoint();
-  const builtInSubmitAvailable = Boolean(configuredEndpoint && credentialSession.isConfigured() && isPaperConnectionVerified(configuredEndpoint));
-  const usingLocalPaper = !builtInSubmitAvailable;
+  const usingLocalPaper = isLocalPaperActive();
   const effectiveMarkPrice = localMarkPrice ?? (snapshot?.account.markPrice && snapshot.account.markPrice > 0 ? snapshot.account.markPrice : null);
   const effectiveSnapshot = usingLocalPaper ? buildLocalPortfolio(localTradingSnapshot, effectiveMarkPrice) : snapshot;
   const effectiveConnectionState = usingLocalPaper ? (effectiveMarkPrice != null ? "CONNECTED" : "UNKNOWN") : marketConnectionState;
   const effectiveStale = usingLocalPaper ? effectiveMarkPrice == null : stale;
   const draft = useMemo(() => ({ side, orderType, priceInput, quantityInput }), [orderType, priceInput, quantityInput, side]);
-
-  useEffect(() => {
-    if (!usingLocalPaper) return;
-    let active = true;
-    void localTradingService.getSnapshot().then((next) => { if (active) setLocalTradingSnapshot(next); });
-    return () => { active = false; };
-  }, [usingLocalPaper]);
 
   useEffect(() => {
     if (!usingLocalPaper) return;
@@ -99,7 +77,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
 
   const cashEnvelope = createCashInvestmentEnvelope(effectiveSnapshot.account.cash, investmentPercent);
   const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null;
-  const cloudPaperSubmitAvailable = runtimeCanSubmit && builtInSubmitAvailable;
+  const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper;
   const submitAvailable = onSubmit !== undefined || localPaperSubmitAvailable || cloudPaperSubmitAvailable;
   const modelCash = side === "BUY" ? cashEnvelope.investableCash : effectiveSnapshot.account.cash;
   const model = buildTradingViewModel({ market: { market: effectiveSnapshot.account.position.market, connectionState: effectiveConnectionState, stale: effectiveStale, price: effectiveSnapshot.account.markPrice }, account: { mode: effectiveSnapshot.mode, liveMutationAllowed: false, cash: modelCash, assetQuantity: effectiveSnapshot.account.position.quantity, market: effectiveSnapshot.account.position.market }, draft, submitAvailable });
@@ -122,8 +100,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
       if (usingLocalPaper) {
         const price = limitPrice ?? model.currentPrice;
         if (!Number.isFinite(quantity) || quantity <= 0 || price == null || !Number.isFinite(price) || price <= 0) { setSubmitMessage("수량과 공개 시세를 확인하세요."); setOrderPhase("ERROR"); return; }
-        const order = await localTradingService.placePaperOrder({ market: model.market, side, quantity, price, nowMs: Date.now() });
-        setLocalTradingSnapshot(await localTradingService.getSnapshot());
+        const order = await placeLocalPaperOrder({ market: model.market, side, quantity, price, nowMs: Date.now() });
         setSubmitMessage(`LOCAL PAPER 체결 완료 · ${order.id}`); setOrderPhase("FILLED");
         setQuantityInput(""); setPriceInput(""); return;
       }

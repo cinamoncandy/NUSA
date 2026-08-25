@@ -66,13 +66,14 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(source, /const usingLocalPaper = !builtInSubmitAvailable/);
-  assert.match(source, /localTradingService\.placePaperOrder/);
+  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(source, /await placeLocalPaperOrder\(/);
   assert.match(source, /statusLabel="LIVE NONE"/);
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  assert.match(source, /credentialSession\.isConfigured\(\)/);
+  // Issue #637: the LOCAL-vs-Cloud activation check moved into the shared ledger.
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "localPaperLedger.ts"), "utf8"), /session\.isConfigured\(\)/);
   assert.match(source, /PAPER 주문 연결이 필요합니다/);
   assert.match(source, /02 · 주문 검토/);
   assert.match(source, /이 PAPER 주문을 확정할까요/);
