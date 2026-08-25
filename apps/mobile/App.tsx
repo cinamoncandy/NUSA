@@ -356,7 +356,18 @@ function AuthenticatedApp() {
     : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR"
       ? snapshot.paperLearning.runtimeStatus
       : localPaperReadiness.status;
-  const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus);
+  // Issue #755: report the observed upstream condition instead of letting an empty timeline be
+  // explained by a guess. Only this component knows which of these actually happened.
+  const paperLearningServerSource = operations.status === "NOT_CONFIGURED"
+    ? "NOT_CONFIGURED" as const
+    : operations.status === "UNAVAILABLE"
+      ? "UNAVAILABLE" as const
+      : snapshot?.paperLearning == null
+        ? "PROJECTION_ABSENT" as const
+        : (snapshot.paperLearning.events?.length ?? 0) > 0
+          ? "SERVER_STREAM" as const
+          : "PROJECTION_EMPTY" as const;
+  const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}

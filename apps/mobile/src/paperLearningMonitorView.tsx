@@ -33,7 +33,35 @@ const eventSummary = (event: PaperLearningUiEvent): string => {
   return parts.join(" · ") || "관측 세부 정보 없음";
 };
 
-const emptySourceMessage = (state: PaperLearningScreenState): Readonly<{ title: string; body: string }> | null => {
+/**
+ * Issue #755: an empty PAPER learning screen used to explain itself from `state.status` alone,
+ * which meant the four genuinely different upstream conditions -- endpoint not configured, the
+ * operations request failing, the server snapshot arriving without a paperLearning projection, and
+ * the projection existing but still empty -- all rendered the same guessed sentence. The caller
+ * now supplies the observed condition explicitly, so the screen reports what is actually true.
+ */
+const dataSourceMessage = (state: PaperLearningScreenState): Readonly<{ title: string; body: string }> | null => {
+  switch (state.dataSource) {
+    case "NOT_CONFIGURED":
+      return Object.freeze({
+        title: "PAPER 서버가 연결되지 않았습니다",
+        body: "PAPER endpoint 또는 세션이 설정되지 않아 학습 데이터를 요청하지 못했습니다. 이 화면이 비어 있는 것은 학습 결과가 없다는 뜻이 아닙니다. Settings에서 PAPER 서버 연결을 완료해 주세요."
+      });
+    case "UNAVAILABLE":
+      return Object.freeze({
+        title: "PAPER 운영 데이터를 가져오지 못했습니다",
+        body: "/api/paper-operations 응답이 실패했거나 유효하지 않거나 오래되었습니다. 네트워크와 서버 상태를 확인한 뒤 새로고침해 주세요. 표시된 빈 값은 서버가 보고한 학습 결과가 아닙니다."
+      });
+    case "PROJECTION_ABSENT":
+      return Object.freeze({
+        title: "서버 응답에 PAPER 학습 projection이 없습니다",
+        body: "PAPER 운영 snapshot은 정상 수신됐지만 paperLearning projection 자체가 포함되지 않았습니다. 서버의 paperLearning projection 구성을 점검해야 합니다 (mobile 문제가 아닙니다)."
+      });
+    case "LOCAL_FALLBACK":
+      return null;
+    default:
+      break;
+  }
   if (state.timeline.length > 0) return null;
   if (state.status === "RUNNING") return Object.freeze({
     title: "PAPER 런타임은 실행 중이지만 학습 이벤트가 없습니다",
@@ -58,7 +86,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const latestMarketEvent = useMemo(() => state.timeline.find((event) => event.stage === "MARKET_DATA") ?? null, [state.timeline]);
   const latestOrderEvent = useMemo(() => state.timeline.find((event) => event.stage === "ORDER_INTENT") ?? null, [state.timeline]);
   const latestTerminalEvent = useMemo(() => state.timeline.find((event) => event.stage === "HALT" || event.stage === "ERROR" || event.stage === "IDEMPOTENCY") ?? null, [state.timeline]);
-  const sourceMessage = useMemo(() => emptySourceMessage(state), [state]);
+  const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
   const statusTone = state.status === "RUNNING" ? "primary" : state.status === "PAUSED" ? "warning" : "danger";
 
   return <ScrollView
@@ -75,6 +103,20 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       </View>
       <StatusChip label={state.status} tone={statusTone} />
     </View>
+
+    {/* Always visible, even on the happy path: an operator reading rows needs to know whether they
+        came from the server runtime or from the on-device fallback projection. */}
+    <View style={styles.sourceRow}>
+      <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
+      <StatusChip
+        label={state.dataSource}
+        tone={state.dataSource === "SERVER_STREAM" ? "primary" : state.dataSource === "LOCAL_FALLBACK" ? "warning" : "danger"}
+        testID="paper-learning-data-source"
+      />
+    </View>
+    {state.dataSource === "LOCAL_FALLBACK" ? <Text style={[styles.empty, { color: theme.colors.warning }]} testID="paper-learning-local-fallback-note">
+      서버 PAPER 학습 이벤트가 비어 있어 기기 내 공개 시세 기반 관측을 대신 표시하고 있습니다. 서버 런타임의 학습 결과가 아닙니다.
+    </Text> : null}
 
     {sourceMessage ? <NusaCard raised>
       <Text style={[styles.sectionTitle, { color: theme.colors.text }]} testID="paper-learning-empty-source-title">{sourceMessage.title}</Text>
@@ -182,6 +224,7 @@ function Metric({ label, value, compact = false }: Readonly<{ label: string; val
 }
 
 const styles = StyleSheet.create({
+  sourceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 960, alignSelf: "center", padding: 18, gap: 12, paddingBottom: 32 },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
