@@ -53,10 +53,6 @@ export function HomeView({
   const tablet = width >= 768;
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(false);
 
-  // Issue #637: when Cloud PAPER is not configured, fall back to the same one app-level LOCAL
-  // PAPER ledger Trade writes to, instead of showing a blank "NO LINK" equity card while a real
-  // LOCAL PAPER balance exists. Hooks stay unconditional; the mark-price poll is skipped once Cloud
-  // is active so Home does not keep polling public Upbit data it no longer needs.
   const localPaperActive = snapshot == null && isLocalPaperActive();
   const localTradingSnapshot = useLocalPaperSnapshot();
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
@@ -130,7 +126,9 @@ export function HomeView({
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
         </View>
         <Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
-        {account == null ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text> : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={accountSource === "LOCAL" ? "home-equity-local" : "home-equity-cloud"}>{krw(account.equity)}</Text>}
+        {account == null
+          ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text>
+          : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={accountSource === "LOCAL" ? "home-equity-local" : "home-equity-cloud"}>{krw(account.equity)}</Text>}
         {accountSource === "LOCAL" ? <Text style={[styles.meta, { color: theme.colors.textMuted }]} testID="home-local-paper-note">Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다 · 실제 주문 아님</Text> : null}
         <View style={styles.pnlRow}>
           <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
@@ -163,13 +161,6 @@ export function HomeView({
       </View>
     </View>
 
-    <View style={styles.telemetryGrid} testID="home-telemetry-grid">
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>RUNTIME</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>{runtimeState ?? "STANDBY"}</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>AI AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.aiSignalEnd }]}>ZERO</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>LIVE AUTH</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>NONE</Text></View>
-      <View style={[styles.telemetryCell, { borderColor: theme.colors.border }]}><Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>MUTATION</Text><Text style={[styles.telemetryValue, { color: theme.colors.text }]}>FALSE</Text></View>
-    </View>
-
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
     {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
 
@@ -186,6 +177,7 @@ export function HomeView({
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
         <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : accountSource === "LOCAL" ? "LOCAL PAPER" : notConfigured ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : accountSource === "LOCAL" ? "info" : "warning"} />
+        <CompactMetric label="Runtime" value={runtimeState ?? "STANDBY"} detail="현재 PAPER runtime 상태" tone={runtimeState === "RUNNING" ? "success" : runtimeState === "HALTED" ? "danger" : "default"} />
         <CompactMetric label="안전 게이트" value={snapshot?.readyForPaperOperations ? "준비됨" : "차단"} detail="PAPER-only · Kill Switch 보호" tone={snapshot?.readyForPaperOperations ? "success" : "warning"} />
         <CompactMetric label="AI 분석" value={aiInsightAvailable ? "검증됨" : "판단 보류"} detail="AI ZERO AUTHORITY · READ ONLY" tone={aiInsightAvailable ? "info" : "default"} />
         <CompactMetric label="LIVE 권한" value="NONE" detail="실거래 mutation 없음" />
@@ -233,10 +225,6 @@ const styles = StyleSheet.create({
   signalLegendText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.4 },
   decisionCopy: { borderTopWidth: 1, paddingTop: 14, gap: 6 },
   judgement: { fontSize: 19, lineHeight: 26, fontWeight: "900" },
-  telemetryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  telemetryCell: { width: "48.7%", borderWidth: 1, minHeight: 72, padding: 11, justifyContent: "space-between" },
-  telemetryLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.3 },
-  telemetryValue: { fontSize: 17, lineHeight: 21, fontWeight: "900", letterSpacing: 0.5 },
   actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
   primaryCopy: { flex: 1, gap: 5 },
   actionDetail: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
