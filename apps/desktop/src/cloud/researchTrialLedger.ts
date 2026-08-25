@@ -116,11 +116,12 @@ function validateInput(input: ResearchTrialInput): ResearchTrialInput {
     throw new ResearchTrialLedgerError("UNEXPECTED_REJECTION_REASON", "only rejected trials may contain rejection reasons");
   }
   if (input.parentTrialId != null) assertNonEmpty(input.parentTrialId, "parentTrialId");
+  const metrics = input.metrics == null ? undefined : freeze({ ...input.metrics });
   return freeze({
-    ...input,
     trialId: input.trialId.trim(),
     familyId: input.familyId.trim(),
     hypothesis: input.hypothesis.trim(),
+    createdAt: input.createdAt,
     dataset: freeze({
       datasetId: input.dataset.datasetId.trim(),
       contentSha256: input.dataset.contentSha256,
@@ -129,10 +130,12 @@ function validateInput(input: ResearchTrialInput): ResearchTrialInput {
     }),
     candidateIds,
     search: freeze({ searchId: input.search.searchId.trim(), attemptOrdinal: input.search.attemptOrdinal }),
-    parentTrialId: input.parentTrialId?.trim(),
-    metrics: input.metrics == null ? undefined : freeze({ ...input.metrics }),
-    rejectionReasons,
-    tags
+    outcome: input.outcome,
+    ...(input.parentTrialId != null ? { parentTrialId: input.parentTrialId.trim() } : {}),
+    ...(input.score != null ? { score: input.score } : {}),
+    ...(metrics != null ? { metrics } : {}),
+    ...(rejectionReasons != null ? { rejectionReasons } : {}),
+    ...(tags != null ? { tags } : {})
   });
 }
 
