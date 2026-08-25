@@ -77,7 +77,7 @@ claimed_state:
   base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
   scope: "Durable, bounded, deterministic REAL_READ_ONLY observability event replay using existing Cloud SQLite patterns; no LIVE, broker, Risk, Paper accounting, or AI authority change."
   safety: "REAL_READ_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused replay 5/5; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety/security PASS; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
+  validation: "focused replay 6/6 including runtime GET integration; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety PASS; security gate previously PASS but rerun interrupted; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED

@@ -32,7 +32,7 @@ acceptance:
   - runtime_recorder_wiring_is_read_only
   - existing_get_only_transport_unchanged
 validation:
-  focused_replay: PASS_5_OF_5
+  focused_replay: PASS_6_OF_6
   existing_real_readonly_contract: PASS_22_OF_22
   preflight: PASS
   typecheck: PASS
@@ -43,5 +43,6 @@ validation:
   ai_zero_authority: PASS
   security: PASS_SECRETS_0
   full_suite: BLOCKED_PREEXISTING_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  runtime_get_integration: PASS
   git_diff_check: PASS
 next: "Resolve the pre-existing cloud bootstrap test/endpoint contract under a separate approved work order before claiming full-suite completion; do not weaken authentication."
