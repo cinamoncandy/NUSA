@@ -5,7 +5,7 @@ phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 base_branch: main
-active_branch: agent/issue-661-live-ready-observability
+active_branch: fix/issue-661-real-readonly-durable-replay
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: 770
 current_non_live_work_order:
@@ -64,7 +64,7 @@ repository_maintenance:
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
-previous_claimed_state:
+historical_claim:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
   branch: agent/issue-661-live-ready-observability
@@ -72,12 +72,12 @@ previous_claimed_state:
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
 claimed_state:
   work_order: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
-  status: PARTIAL_VALIDATED
-  branch: codex/real-readonly-durable-replay
+  status: IN_PROGRESS
+  branch: fix/issue-661-real-readonly-durable-replay
   base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
   scope: "Durable, bounded, deterministic REAL_READ_ONLY observability event replay using existing Cloud SQLite patterns; no LIVE, broker, Risk, Paper accounting, or AI authority change."
   safety: "REAL_READ_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused replay 6/6 including runtime GET integration; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety PASS; security gate previously PASS but rerun interrupted; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
+  validation: "focused replay 6/6 including runtime GET integration; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety/AIPOS PASS; security gate previously PASS with secrets 0, current dependency audit unavailable; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -468,9 +468,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-    evidence: ".aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml"
-    summary: "Issue #661 GET-only LIVE-ready observability successor is in progress under the unchanged WO-0051 human/environment gate; no LIVE or real-money authority is introduced."
+  - id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
+    evidence: ".aipos/work-orders/WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY.yaml"
+    summary: "Issue #661 REAL_READ_ONLY durable replay is in progress under the unchanged WO-0051 human/environment gate; no LIVE or real-money authority is introduced."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -497,7 +497,7 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml
+  work_order: .aipos/work-orders/WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY.yaml
   reason: "Complete Issue #661 LIVE-ready observability as a read-only successor under the standing WO-0051 human/environment gate; no LIVE activation, real-money mutation, or authority expansion is permitted."
 verification:
   wo_0057:

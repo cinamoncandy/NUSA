@@ -1,10 +1,10 @@
 id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
 title: "Issue #661 REAL_READ_ONLY durable replay"
-status: PARTIAL_VALIDATED
+status: IN_PROGRESS
 issue: 661
 base_branch: main
 base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
-implementation_branch: codex/real-readonly-durable-replay
+implementation_branch: fix/issue-661-real-readonly-durable-replay
 objective: "Persist the existing sanitized REAL_READ_ONLY event evidence in the existing Cloud SQLite boundary and replay it deterministically after restart without adding authority."
 safety:
   mode: REAL_READ_ONLY
@@ -22,6 +22,16 @@ prohibited:
   - broker_credentials_or_private_payloads
   - paper_real_accounting_mixing
   - generic_event_store
+architecture_impact:
+  acknowledged: true
+  analysis: "This read-only successor extends the existing REAL_READ_ONLY contract with bounded SQLite event replay and injects the replay history into the existing GET-only snapshot loader. It adds no evaluator, broker, accounting, mutation, activation, or mobile authority."
+  references:
+    - .aipos/architecture.md
+    - packages/contracts/src/realReadOnlyObservability.ts
+    - apps/cloud/src/paperLearningObservability.ts
+    - apps/cloud/src/realReadOnlyObservabilityPersistence.ts
+    - apps/cloud/src/runtime.ts
+    - apps/cloud/src/realReadOnlyOperationsHttp.ts
 acceptance:
   - restart_replay
   - deterministic_ordering_and_sequence_normalization
@@ -41,8 +51,8 @@ validation:
   architecture: PASS
   safety: PASS
   ai_zero_authority: PASS
-  security: PASS_SECRETS_0
+  security: PASS_SECRETS_0_PREVIOUS_RUN; CURRENT_AUDIT_UNAVAILABLE_EXTERNAL
   full_suite: BLOCKED_PREEXISTING_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
   runtime_get_integration: PASS
   git_diff_check: PASS
-next: "Resolve the pre-existing cloud bootstrap test/endpoint contract under a separate approved work order before claiming full-suite completion; do not weaken authentication."
+next: "Publish the focused replay commits when GitHub access is available; keep the existing bootstrap 401 and dependency-audit availability as separate external/pre-existing blockers."
