@@ -1,0 +1,3 @@
+Issue #773 APK validation trigger only.
+Canonical app source is inherited unchanged from main 2d8d5d57b4d72ee9624e276544b6e93ec7db810f.
+This marker is not runtime code and must not be merged.
