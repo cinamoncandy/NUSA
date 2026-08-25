@@ -1,0 +1,52 @@
+id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
+title: "Issue #661 REAL_READ_ONLY durable replay"
+status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+issue: 661
+base_branch: main
+base_commit: 1d3716f7beeb6c1eeb3d2efa2ea7cec8a5c59d48
+implementation_branch: codex/issue-661-real-readonly-durable-replay
+objective: "Persist the existing sanitized REAL_READ_ONLY event evidence in the existing Cloud SQLite boundary and replay it deterministically after restart without adding authority."
+safety:
+  mode: REAL_READ_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+scope:
+  - "Reuse the existing REAL_READ_ONLY contract and Cloud SQLite persistence pattern."
+  - "Persist only validated, redaction-safe event evidence with bounded deterministic replay."
+  - "Expose a runtime read-only recorder seam for a canonical snapshot provider; do not fabricate account data."
+prohibited:
+  - live_activation
+  - order_cancel_withdrawal_or_transfer
+  - broker_credentials_or_private_payloads
+  - paper_real_accounting_mixing
+  - generic_event_store
+acceptance:
+  - restart_replay
+  - deterministic_ordering_and_sequence_normalization
+  - duplicate_suppression
+  - conflicting_identity_fail_closed
+  - bounded_retention
+  - malformed_persisted_evidence_rejected
+  - runtime_recorder_wiring_is_read_only
+  - existing_get_only_transport_unchanged
+validation:
+  focused_replay: PASS_6_OF_6
+  existing_real_readonly_contract: PASS_22_OF_22
+  focused_combined: PASS_39_OF_39
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  package_validate: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  security: PASS_SECRETS_0
+  full_suite: PASS_597_ISOLATED_TEST_FILES
+  runtime_get_integration: PASS
+  git_diff_check: PASS
+next: "Push this exact implementation for PR review; validate the new exact head before merge."
