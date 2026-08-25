@@ -164,6 +164,17 @@ export interface RealReadOnlyObservabilitySnapshot {
   }>;
 }
 
+export function validateRealReadOnlyEvent(event: RealReadOnlyEvent): RealReadOnlyEvent {
+  if (event.mode !== "REAL_READ_ONLY" || typeof event.id !== "string" || !event.id.trim()) throw new Error("invalid REAL_READ_ONLY event identity");
+  if (!Number.isSafeInteger(event.sequence) || event.sequence < 1) throw new Error("invalid REAL_READ_ONLY event sequence");
+  if (!Number.isFinite(event.occurredAt) || event.occurredAt < 0) throw new Error("invalid REAL_READ_ONLY event timestamp");
+  if (!EVENT_TYPES.has(event.eventType)) throw new Error("invalid REAL_READ_ONLY event type");
+  safeText(event.reason, "event.reason");
+  if (!Array.isArray(event.reasonCodes) || event.reasonCodes.some((reason) => typeof reason !== "string" || !reason.trim() || FORBIDDEN_VALUE.test(reason))) throw new Error("REAL_READ_ONLY reason codes are invalid");
+  assertSafeObject(event);
+  return Object.freeze(structuredClone(event));
+}
+
 const MAX_EVENTS = 500;
 const MAX_ALERTS = 64;
 const MAX_ASSETS = 256;

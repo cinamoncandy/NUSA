@@ -64,12 +64,20 @@ repository_maintenance:
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
-claimed_state:
+previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
   branch: agent/issue-661-live-ready-observability
   base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
+claimed_state:
+  work_order: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
+  status: PARTIAL_VALIDATED
+  branch: codex/real-readonly-durable-replay
+  base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
+  scope: "Durable, bounded, deterministic REAL_READ_ONLY observability event replay using existing Cloud SQLite patterns; no LIVE, broker, Risk, Paper accounting, or AI authority change."
+  safety: "REAL_READ_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
+  validation: "focused replay 5/5; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety/security PASS; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
