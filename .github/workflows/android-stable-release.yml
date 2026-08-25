@@ -99,7 +99,7 @@ jobs:
         run: ./gradlew clean :app:assembleRelease --no-build-cache
         working-directory: apps/mobile/android
 
-      - name: Verify stable APK provenance and PAPER safety markers
+      - name: Verify stable APK provenance, PAPER safety, and MARKET chart markers
         env:
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
@@ -124,7 +124,10 @@ jobs:
           for UI_MARKER in home-paper-learning trade-paper-learning portfolio-paper-learning paper-learning-monitor; do
             strings "$BUNDLE_FILE" | grep -F "$UI_MARKER"
           done
-          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=sealed\nversion_name=%s\nversion_code=%s\nui_marker=paper-learning-present\n' \
+          for CHART_MARKER in markets-chart-tab market-detail-workspace chart-screen chart-candles; do
+            strings "$BUNDLE_FILE" | grep -F "$CHART_MARKER"
+          done
+          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=sealed\nversion_name=%s\nversion_code=%s\nui_marker=paper-learning-present\nchart_marker=market-chart-present\n' \
             "$EXPECTED_SHA" "$EXPECTED_ORIGIN" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION" \
             > NUSA-Android.provenance.txt
 
@@ -187,11 +190,13 @@ jobs:
           SOURCE="${SOURCE_SHA:-unresolved}"
           APK_SHA="unavailable"
           VERSION_NAME="unavailable"
+          CHART_MARKER="unavailable"
           if [ -f NUSA-Android.apk.sha256 ]; then
             APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
           fi
           if [ -f NUSA-Android.provenance.txt ]; then
             VERSION_NAME="$(sed -n 's/^version_name=//p' NUSA-Android.provenance.txt)"
+            CHART_MARKER="$(sed -n 's/^chart_marker=//p' NUSA-Android.provenance.txt)"
           fi
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           BODY=$(cat <<EOF
@@ -202,6 +207,7 @@ jobs:
           - source_sha: ${SOURCE}
           - version_name: ${VERSION_NAME}
           - version_code: ${RELEASE_VERSION:-unavailable}
+          - chart_marker: ${CHART_MARKER}
           - apk_sha256: ${APK_SHA}
           - run: ${RUN_URL}
           EOF
