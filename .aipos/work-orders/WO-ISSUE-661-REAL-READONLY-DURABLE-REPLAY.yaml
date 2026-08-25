@@ -1,10 +1,10 @@
 id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
 title: "Issue #661 REAL_READ_ONLY durable replay"
-status: PARTIAL_VALIDATED
+status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
 issue: 661
 base_branch: main
-base_commit: 2d8d5d57b4d72ee9624e276544b6e93ec7db810f
-implementation_branch: codex/real-readonly-durable-replay
+base_commit: 1d3716f7beeb6c1eeb3d2efa2ea7cec8a5c59d48
+implementation_branch: codex/issue-661-real-readonly-durable-replay
 objective: "Persist the existing sanitized REAL_READ_ONLY event evidence in the existing Cloud SQLite boundary and replay it deterministically after restart without adding authority."
 safety:
   mode: REAL_READ_ONLY
@@ -34,15 +34,19 @@ acceptance:
 validation:
   focused_replay: PASS_6_OF_6
   existing_real_readonly_contract: PASS_22_OF_22
+  focused_combined: PASS_39_OF_39
   preflight: PASS
   typecheck: PASS
   build: PASS
   lint: PASS
   architecture: PASS
+  package_validate: PASS
   safety: PASS
   ai_zero_authority: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
   security: PASS_SECRETS_0
-  full_suite: BLOCKED_PREEXISTING_WINDOWS_CLOUD_RUNTIME_BOOTSTRAP_HEALTH_401
+  full_suite: PASS_597_ISOLATED_TEST_FILES
   runtime_get_integration: PASS
   git_diff_check: PASS
-next: "Resolve the pre-existing cloud bootstrap test/endpoint contract under a separate approved work order before claiming full-suite completion; do not weaken authentication."
+next: "Push this exact implementation for PR review; validate the new exact head before merge."

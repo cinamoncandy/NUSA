@@ -18,6 +18,8 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
+const os = require("node:os");
+const fs = require("node:fs");
 
 const RUNTIME_ENTRY = path.join(__dirname, "..", "dist", "apps", "cloud", "src", "runtime.js");
 const STARTUP_TIMEOUT_MS = 5_000;
@@ -26,6 +28,8 @@ const isWindows = process.platform === "win32";
 const posixOnly = isWindows
   ? "Windows does not deliver SIGTERM/SIGINT to a child process's signal handler (child.kill() terminates it directly instead), so a graceful signal-triggered shutdown cannot be exercised via a real OS signal here. See cloud-runtime-shutdown-controller.test.js for platform-independent coverage of the same shutdown logic."
   : false;
+
+let runtimeStateSequence = 0;
 
 function get(port, path_, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -54,8 +58,9 @@ function waitForListening(child, port, deadlineMs) {
 }
 
 function spawnRuntime(env) {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-cloud-bootstrap-"));
   return spawn(process.execPath, [RUNTIME_ENTRY], {
-    env: { ...process.env, ...env },
+    env: { ...process.env, NUSA_CLOUD_STATE_DB_PATH: path.join(stateDir, `state-${runtimeStateSequence++}.sqlite`), ...env },
     stdio: ["ignore", "pipe", "pipe"]
   });
 }

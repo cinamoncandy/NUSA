@@ -49,7 +49,7 @@ test("REAL_READ_ONLY persistence has no execution/accounting mutation surface", 
 });
 
 test("production runtime wires replay history into the existing GET-only snapshot path", async () => {
-  const token = "runtime-read-only-token-000000000000000000000000";
+  const fixtureCredential = "runtime-fixture-credential-0000000000000000";
   const eventA = event("runtime-a", 10);
   const eventB = event("runtime-b", 20, 2);
   const snapshot = (events) => ({
@@ -62,11 +62,11 @@ test("production runtime wires replay history into the existing GET-only snapsho
     counters: { refreshCount: 0, errorCount: 0, reconciliationCount: 0, orderMutationCount: 0, withdrawalCount: 0, transferCount: 0, cashMutationCount: 0, positionMutationCount: 0 }
   });
   const port = 19042;
-  const runtime = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false", NUSA_CLOUD_STATE_DB_PATH: ":memory:" }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, (principal, events) => snapshot(events));
+  const runtime = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: fixtureCredential, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false", NUSA_CLOUD_STATE_DB_PATH: ":memory:" }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, (principal, events) => snapshot(events));
   try {
     runtime.recordRealReadOnlyEvent(eventA);
     runtime.recordRealReadOnlyEvent(eventB);
-    const response = await fetch(`http://127.0.0.1:${port}/api/real-readonly-operations`, { headers: { authorization: `Bearer ${token}` } });
+    const response = await fetch(`http://127.0.0.1:${port}/api/real-readonly-operations`, { headers: { authorization: `Bearer ${fixtureCredential}` } });
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.deepEqual(body.events.map((item) => item.id), ["runtime-a", "runtime-b"]);
