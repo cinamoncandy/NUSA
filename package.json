@@ -13,7 +13,7 @@
   "scripts": {
     "postinstall": "node scripts/apply-security-backports.js",
     "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/run-changed-tests-fast.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/mobile/tsconfig.json --noEmit",
     "lint": "pnpm run lint:desktop && pnpm run lint:mobile",
     "lint:desktop": "eslint apps/desktop/renderer",
