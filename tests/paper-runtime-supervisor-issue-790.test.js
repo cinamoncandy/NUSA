@@ -26,11 +26,14 @@ function harness() {
   let now = 1_000;
   let nextPid = 10;
   const children = [];
+  const launches = [];
   const timers = [];
   const logs = [];
   const supervisor = new PaperRuntimeProcessSupervisor({
     now: () => now,
-    spawn: () => {
+    env: { NUSA_MODE: "PAPER" },
+    spawn: (command, args, options) => {
+      launches.push({ command, args, options });
       const child = new FakeChild(nextPid++);
       children.push(child);
       return child;
@@ -49,6 +52,7 @@ function harness() {
   return {
     supervisor,
     children,
+    launches,
     timers,
     logs,
     advance(ms) { now += ms; },
@@ -69,6 +73,9 @@ test("supervisor restarts a failed PAPER runtime with bounded backoff", () => {
   const initial = h.supervisor.start();
   assert.equal(initial.status, "RUNNING");
   assert.equal(h.children.length, 1);
+  assert.equal(h.launches[0].options.env.NUSA_PAPER_SUPERVISOR_MANAGED, "true");
+  assert.equal(h.launches[0].options.env.NUSA_PAPER_SUPERVISOR_RESTART_COUNT, "0");
+  assert.equal(h.launches[0].options.env.NUSA_PAPER_SUPERVISOR_STARTED_AT, "1000");
 
   h.advance(100);
   h.children[0].exit(1);
@@ -80,6 +87,10 @@ test("supervisor restarts a failed PAPER runtime with bounded backoff", () => {
   h.fire(0);
   assert.equal(h.children.length, 2);
   assert.equal(h.supervisor.snapshot().status, "RUNNING");
+  assert.equal(h.launches[1].options.env.NUSA_PAPER_SUPERVISOR_RESTART_COUNT, "1");
+  assert.equal(h.launches[1].options.env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_CODE, "1");
+  assert.equal(h.launches[1].options.env.NUSA_PAPER_SUPERVISOR_LAST_EXITED_AT, "1100");
+  assert.equal(h.launches[1].options.env.NUSA_PAPER_SUPERVISOR_LAST_UPTIME_MS, "100");
 
   h.advance(100);
   h.children[1].exit(1);
@@ -113,10 +124,12 @@ test("intentional stop cancels recovery and never restarts", () => {
   assert.equal(h.supervisor.snapshot().status, "STOPPING");
 });
 
-test("supervisor surface cannot grant LIVE or production mutation authority", () => {
+test("supervisor surface cannot grant LIVE, production mutation, or AI authority", () => {
   const h = harness();
   h.supervisor.start();
   const snapshot = h.supervisor.snapshot();
+  assert.equal(snapshot.mode, "PAPER_ONLY");
   assert.equal(snapshot.liveAuthority, "NONE");
   assert.equal(snapshot.productionMutationAllowed, false);
+  assert.equal(snapshot.aiAuthority, "ZERO_AUTHORITY");
 });

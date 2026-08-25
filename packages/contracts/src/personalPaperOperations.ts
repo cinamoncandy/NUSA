@@ -21,6 +21,23 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly lastError: string | null;
 }
 
+export interface PersonalPaperSupervisorProjection {
+  readonly managed: true;
+  readonly status: "RUNNING";
+  readonly restartAttempt: number;
+  readonly restartCount: number;
+  readonly startedAt: number;
+  readonly lastExit: Readonly<{
+    readonly code: number | null;
+    readonly signal: string | null;
+    readonly exitedAt: number;
+    readonly uptimeMs: number;
+  }> | null;
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+  readonly aiAuthority: "ZERO_AUTHORITY";
+}
+
 export interface PersonalPaperRuntimeProjection {
   readonly runtimeState: PersonalPaperRuntimeState;
   readonly schedulerRunning: boolean;
@@ -33,6 +50,7 @@ export interface PersonalPaperRuntimeProjection {
   readonly lastEventAt?: number;
   readonly updatedAt: number;
   readonly heartbeat?: PersonalPaperRuntimeHeartbeat;
+  readonly supervisor?: PersonalPaperSupervisorProjection;
 }
 
 export interface PersonalPaperPortfolioProjection {
@@ -156,6 +174,20 @@ function validateOperations(operations: PersonalPaperRuntimeProjection): void {
     for (const [name, value] of [["eventCount", heartbeat.eventCount], ["decisionCount", heartbeat.decisionCount], ["paperOrderCount", heartbeat.paperOrderCount], ["paperFillCount", heartbeat.paperFillCount]] as const) nonNegativeInteger(value, `operations.heartbeat.${name}`);
     if (heartbeat.lastError != null && !heartbeat.lastError.trim()) throw new Error("operations.heartbeat.lastError must be non-empty when present");
     if (heartbeat.lastHeartbeatAt < heartbeat.startedAt) throw new Error("operations.heartbeat clock regressed");
+  }
+  if (operations.supervisor != null) {
+    const supervisor = operations.supervisor;
+    if (supervisor.managed !== true || supervisor.status !== "RUNNING") throw new Error("invalid PAPER supervisor state");
+    if (supervisor.liveAuthority !== "NONE" || supervisor.productionMutationAllowed !== false || supervisor.aiAuthority !== "ZERO_AUTHORITY") throw new Error("PAPER supervisor authority invariant violated");
+    nonNegativeInteger(supervisor.restartAttempt, "operations.supervisor.restartAttempt");
+    nonNegativeInteger(supervisor.restartCount, "operations.supervisor.restartCount");
+    finite(supervisor.startedAt, "operations.supervisor.startedAt");
+    if (supervisor.lastExit != null) {
+      if (supervisor.lastExit.code != null && !Number.isSafeInteger(supervisor.lastExit.code)) throw new Error("invalid PAPER supervisor exit code");
+      if (supervisor.lastExit.signal != null && !supervisor.lastExit.signal.trim()) throw new Error("invalid PAPER supervisor exit signal");
+      finite(supervisor.lastExit.exitedAt, "operations.supervisor.lastExit.exitedAt");
+      nonNegativeInteger(supervisor.lastExit.uptimeMs, "operations.supervisor.lastExit.uptimeMs");
+    }
   }
 }
 
