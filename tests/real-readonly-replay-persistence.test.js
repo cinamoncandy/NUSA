@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { RealReadOnlyEventRecorder, mergeRealReadOnlyEvents } = require("../dist/apps/cloud/src/realReadOnlyObservabilityPersistence.js");
+const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 
 const event = (id, occurredAt, sequence = 1) => ({ id, sequence, mode: "REAL_READ_ONLY", eventType: "ACCOUNT_REFRESH", occurredAt, reason: "safe observation", reasonCodes: ["REFRESH_OK"] });
 const dbPath = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "nusa-real-readonly-")), "cloud.sqlite");
@@ -45,4 +46,31 @@ test("malformed or unsafe persisted REAL_READ_ONLY evidence is rejected", () => 
 test("REAL_READ_ONLY persistence has no execution/accounting mutation surface", () => {
   const source = fs.readFileSync(path.join(process.cwd(), "apps/cloud/src/realReadOnlyObservabilityPersistence.ts"), "utf8");
   assert.doesNotMatch(source, /OrderRequest|placeOrder|cancelOrder|withdraw|transfer|productionMutationAllowed\s*=\s*true/);
+});
+
+test("production runtime wires replay history into the existing GET-only snapshot path", async () => {
+  const token = "runtime-read-only-token-000000000000000000000000";
+  const eventA = event("runtime-a", 10);
+  const eventB = event("runtime-b", 20, 2);
+  const snapshot = (events) => ({
+    schemaVersion: 1, mode: "REAL_READ_ONLY", readOnly: true, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+    runtimeStatus: "HEALTHY", generatedAt: 20,
+    connection: { code: "CONNECTED", connected: true, lastSuccessfulRefreshAt: 20, lastErrorAt: null, lastErrorReason: null },
+    freshness: "FRESH", account: { maskedAccountReference: null, observedAt: 20, observedCashKrw: null, observedLockedKrw: null, observedAssets: [], openOrderCount: null },
+    reconciliation: { status: "UNKNOWN", observedAt: null, reason: "not observed", changedCurrencies: [], openOrderDifferenceCount: null },
+    credentialReadiness: { configured: false, provider: null, maskedCredentialHint: null }, blockers: [], alerts: [], events,
+    counters: { refreshCount: 0, errorCount: 0, reconciliationCount: 0, orderMutationCount: 0, withdrawalCount: 0, transferCount: 0, cashMutationCount: 0, positionMutationCount: 0 }
+  });
+  const port = 19042;
+  const runtime = startCloudRuntime({ NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: token, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false", NUSA_CLOUD_STATE_DB_PATH: ":memory:" }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, (principal, events) => snapshot(events));
+  try {
+    runtime.recordRealReadOnlyEvent(eventA);
+    runtime.recordRealReadOnlyEvent(eventB);
+    const response = await fetch(`http://127.0.0.1:${port}/api/real-readonly-operations`, { headers: { authorization: `Bearer ${token}` } });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.events.map((item) => item.id), ["runtime-a", "runtime-b"]);
+    assert.equal(body.liveAuthority, "NONE");
+    assert.equal(body.productionMutationAllowed, false);
+  } finally { await runtime.stop(); }
 });
