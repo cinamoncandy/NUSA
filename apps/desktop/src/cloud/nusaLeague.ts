@@ -180,11 +180,6 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
     if (candidate.ghostExecution.schemaVersion !== 1) throw new NusaLeagueError("UNSUPPORTED_GHOST_SCHEMA", `candidate ${candidate.id} ghost execution schema is unsupported`);
     assertProvenanceCovers(datasetId, candidate.ghostExecution.sourceDatasetIds, "GHOST_EXECUTION_PROVENANCE_MISMATCH", `candidate ${candidate.id} ghost execution`);
     if (candidate.ghostExecution.status === "SIMULATED") assertFinite(candidate.ghostExecution.netReturn!, "NON_FINITE_GHOST_EVIDENCE", `candidate ${candidate.id} ghost netReturn must be finite`);
-    // Ghost execution's own status is derived from an abstention decision (simulateGhostExecution
-    // only ever produces SIMULATED for PROCEED_RESEARCH and SKIPPED for ABSTAIN). If this candidate
-    // also carries an abstention assessment, the two must agree, or one of the two evidence objects
-    // does not actually describe this candidate's real decision -- fail closed rather than silently
-    // scoring a self-contradictory record as if it were coherent.
     if (candidate.abstention != null) {
       const expectedStatus = candidate.abstention.decision === "PROCEED_RESEARCH" ? "SIMULATED" : "SKIPPED";
       if (candidate.ghostExecution.status !== expectedStatus) {
@@ -275,8 +270,6 @@ function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<League
     reasons.push("NARROW_REGIME_ROBUSTNESS_EVIDENCE");
   }
   const robustnessClass = classifyRegimeRobustness(candidate, policy.regimeRobustnessThreshold);
-  // A headline OOS return earned in one regime and given back in another is not evidence of a
-  // durable edge, so it must not be allowed to buy a top League rank on size alone.
   const regimeEvidenceDiscount = robustnessClass === "FRAGILE"
     ? policy.fragileEvidenceDiscount
     : robustnessClass === "INSUFFICIENT" ? policy.insufficientRegimeEvidenceDiscount : 1;
@@ -295,12 +288,6 @@ function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<League
     benchmarkExcess: candidate.benchmark.averageOutperformance,
     maximumDrawdown: candidate.benchmark.maximumDrawdown,
     ...(candidate.deflatedSharpe == null ? {} : { riskAdjusted: candidate.deflatedSharpe.deflatedSharpeProbability }),
-    // Once a candidate carries real multi-regime OOS evaluation, that evidence -- not the single
-    // current-market-state snapshot -- is authoritative for regimeRobustness. If that deeper
-    // evaluation itself concluded there is not yet enough regime diversity/robustness evidence
-    // (regimeRobustnessScore undefined), the component stays absent rather than quietly falling
-    // back to the unrelated, weaker snapshot score -- narrow evidence must not be repackaged as
-    // if it were robust.
     ...(candidate.regimeAwareEvaluation != null
       ? (candidate.regimeAwareEvaluation.regimeRobustnessScore == null
         ? {}
@@ -318,14 +305,15 @@ function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<League
     }),
   });
 
-  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.regimeAwareEvaluation, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
+  // Evidence breadth is an allocation-readiness signal, not a count of non-null objects. A
+  // regime-aware result that explicitly says its cross-regime sample is INSUFFICIENT remains
+  // useful provenance/risk evidence, but must not increase breadth or help unlock allocation.
+  const sufficientRegimeAwareEvidence = candidate.regimeAwareEvaluation != null && robustnessClass !== "INSUFFICIENT"
+    ? candidate.regimeAwareEvaluation
+    : undefined;
+  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, sufficientRegimeAwareEvidence, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
   const evidenceBreadth = evidenceCategories.filter((value) => value != null).length / evidenceCategories.length;
 
-  // Only the *backtest-derived* return credit is discounted by regime evidence, and only when it
-  // is positive: a fragile edge must not be able to buy rank with a headline return, but a losing
-  // candidate must never be rewarded by having its losses shrunk. Drawdown, reliability penalties,
-  // regret, and real forward PAPER performance are deliberately left undiscounted -- they are
-  // either risk that stands on its own or forward evidence that is not a regime-selection artifact.
   const backtestReturnCredit = components.outOfSamplePerformance * 1_000 + components.benchmarkExcess * 500;
   const discountedBacktestReturnCredit = backtestReturnCredit > 0
     ? backtestReturnCredit * regimeEvidenceDiscount
@@ -388,7 +376,6 @@ export function evaluateLeague(
       throw new NusaLeagueError("INVALID_POLICY", `${field} must be finite and between 0 and 1`);
     }
   }
-  // A fragile edge must never be credited more generously than a merely under-evidenced one.
   if (policy.fragileEvidenceDiscount > policy.insufficientRegimeEvidenceDiscount) {
     throw new NusaLeagueError("INVALID_POLICY", "fragileEvidenceDiscount must not exceed insufficientRegimeEvidenceDiscount");
   }
@@ -404,8 +391,6 @@ export function evaluateLeague(
 
   const scored = candidates.map((candidate) => {
     const entry = scoreCandidate(candidate, policy);
-    // PBO reflects overfitting risk in the selection process across the whole league, not one
-    // candidate in isolation, so every eligible entry shares the same penalty.
     if (pbo == null || entry.leagueScore == null) return entry;
     return freeze({ ...entry, leagueScore: entry.leagueScore - pbo.probabilityBacktestOverfitting * policy.probabilityBacktestOverfittingPenaltyWeight });
   });
