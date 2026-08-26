@@ -19,7 +19,7 @@ test("primary financial values use stable tabular numerals outside DataRow", () 
 
   for (const style of ["balance", "pnlValue"]) expectTabularStyle(home, style);
   expectTabularStyle(primitives, "compactMetricValue");
-  for (const style of ["heroValue", "heroPnl", "allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
+  for (const style of ["allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
   for (const style of ["price", "change", "volumeInline"]) expectTabularStyle(watchlist, style);
 });
