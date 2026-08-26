@@ -237,10 +237,9 @@ export function HomeView({
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
     {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
 
-    {!disconnected ? <View style={[styles.actionDeck, { borderColor: theme.colors.borderStrong }]} testID="home-next-action">
-      <View style={styles.primaryCopy}><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>NEXT DECISION</Text><Text style={[styles.actionDetail, { color: theme.colors.textMuted }]}>{primaryDetail}</Text></View>
-      <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-next-action-button"><Text style={[styles.primaryLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text></Pressable>
-    </View> : null}
+    {/* The one actionable next step already lives in the NOW/WHY/RESULT/LEARNING supervisor deck
+        above (home-supervisor-primary-action) -- a second "NEXT DECISION" card here duplicated the
+        same action and a near-duplicate of the WHY reasoning. Removed rather than repeated. */}
 
     {!disconnected ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" /> : null}
 
@@ -306,9 +305,6 @@ const styles = StyleSheet.create({
   signalLegendText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.4 },
   decisionCopy: { borderTopWidth: 1, paddingTop: 14, gap: 6 },
   judgement: { fontSize: 19, lineHeight: 26, fontWeight: "900" },
-  actionDeck: { borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
-  primaryCopy: { flex: 1, gap: 5 },
-  actionDetail: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
   primaryButton: { borderWidth: 1, minHeight: 44, minWidth: 112, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   primaryLabel: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 0.9 },
   secondaryDiagnostics: { borderTopWidth: 1, paddingTop: 12 },

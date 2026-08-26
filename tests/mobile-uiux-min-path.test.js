@@ -8,7 +8,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("premium UI minimum path keeps one actionable Home next step and truthful PAPER naming", () => {
   const home = read("src/homeView.tsx");
-  assert.match(home, /testID="home-next-action-button"/);
+  assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.match(home, /<CompactMetric label="PAPER 연결"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /const statusLabel = snapshot[\s\S]*PAPER · \$\{runtimeState[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
