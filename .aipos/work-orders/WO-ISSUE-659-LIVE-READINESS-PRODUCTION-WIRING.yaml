@@ -5,7 +5,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 659
 base_branch: main
-base_commit: c7168ff9ee89f50b4d640cfcd48431f50d103fbf
+base_commit: e7bd650a0c3ca3e146958aff77289728b19e2297
 implementation_branch: codex/live-readiness-production-wiring
 objective: "Connect only objective canonical Cloud runtime evidence to the existing LiveReadinessSourceReaders contract while keeping unavailable evidence fail-closed."
 architecture_impact:
@@ -82,5 +82,5 @@ validation:
   aipos_drift: PASS
   aipos_provenance: PASS
   package_validation: PASS
-  exact_head_remote_validation: PENDING_PR_PUBLICATION
+  exact_head_remote_validation: PENDING_PUBLICATION
 next: "Complete remaining reader mapping only when an objective canonical source exists; do not turn unavailable external or exact-head evidence into PASS."
