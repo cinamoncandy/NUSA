@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { admitPaperForwardEvidence, PaperForwardEvidenceAdmissionError, type PaperForwardPeriodEvidence } from "./paperForwardEvidenceAdmission";
 
 const period = (index: number, overrides: Partial<PaperForwardPeriodEvidence> = {}): PaperForwardPeriodEvidence => ({
@@ -29,48 +30,48 @@ const code = (fn: () => unknown): string => {
 describe("PAPER forward evidence admission", () => {
   it("keeps narrow longitudinal evidence insufficient", () => {
     const result = admitPaperForwardEvidence([period(0), period(1)]);
-    expect(result.strength).toBe("INSUFFICIENT");
-    expect(result.periodCount).toBe(2);
-    expect(result.reasons).toContain("NARROW_LONGITUDINAL_EVIDENCE");
+    assert.equal(result.strength, "INSUFFICIENT");
+    assert.equal(result.periodCount, 2);
+    assert.ok(result.reasons.includes("NARROW_LONGITUDINAL_EVIDENCE"));
   });
 
   it("admits 30 explicit chronological periods while retaining failed periods", () => {
     const periods = Array.from({ length: 30 }, (_, index) => period(index, index === 7 ? { status: "HALTED" } : {}));
     const result = admitPaperForwardEvidence(periods);
-    expect(result.strength).toBe("VERIFIED");
-    expect(result.periodCount).toBe(30);
-    expect(result.completedPeriodCount).toBe(29);
-    expect(result.rejectedOrHaltedPeriodCount).toBe(1);
-    expect(result.reasons).toContain("FAILED_PERIODS_RETAINED");
+    assert.equal(result.strength, "VERIFIED");
+    assert.equal(result.periodCount, 30);
+    assert.equal(result.completedPeriodCount, 29);
+    assert.equal(result.rejectedOrHaltedPeriodCount, 1);
+    assert.ok(result.reasons.includes("FAILED_PERIODS_RETAINED"));
   });
 
   it("rejects candidate identity drift", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0), period(1, { candidateId: "other" })]))).toBe("CANDIDATE_IDENTITY_MISMATCH");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { candidateId: "other" })])), "CANDIDATE_IDENTITY_MISMATCH");
   });
 
   it("rejects dataset provenance drift", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0), period(1, { datasetContentSha256: "different" })]))).toBe("DATASET_PROVENANCE_MISMATCH");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { datasetContentSha256: "different" })])), "DATASET_PROVENANCE_MISMATCH");
   });
 
   it("rejects same-period or future advisory look-ahead", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0, { advisoryGeneratedAt: 1_000 })]))).toBe("LOOK_AHEAD_EVIDENCE");
-    expect(code(() => admitPaperForwardEvidence([period(0, { advisoryGeneratedAt: 2_000 })]))).toBe("LOOK_AHEAD_EVIDENCE");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0, { advisoryGeneratedAt: 1_000 })])), "LOOK_AHEAD_EVIDENCE");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0, { advisoryGeneratedAt: 2_000 })])), "LOOK_AHEAD_EVIDENCE");
   });
 
   it("rejects overlapping chronology", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0), period(1, { periodStartAt: 8_000 })]))).toBe("NON_MONOTONIC_PERIODS");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { periodStartAt: 8_000 })])), "NON_MONOTONIC_PERIODS");
   });
 
   it("rejects duplicate periods for replay idempotency", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0), period(1, { periodId: "period-0" })]))).toBe("DUPLICATE_PERIOD");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { periodId: "period-0" })])), "DUPLICATE_PERIOD");
   });
 
   it("subtracts explicit fee, spread and slippage cost", () => {
     const result = admitPaperForwardEvidence([period(0, { grossReturn: 0.02, turnover: 1, feeRate: 0.001, spreadRate: 0.002, slippageRate: 0.003 })], { minimumLongitudinalPeriods: 1 });
-    expect(result.cumulativeNetReturn).toBeCloseTo(0.014, 12);
+    assert.ok(Math.abs(result.cumulativeNetReturn - 0.014) < 1e-12);
   });
 
   it("rejects omitted cost evidence represented by non-finite values", () => {
-    expect(code(() => admitPaperForwardEvidence([period(0, { slippageRate: Number.NaN })]))).toBe("NON_FINITE_VALUE");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0, { slippageRate: Number.NaN })])), "NON_FINITE_VALUE");
   });
 });
