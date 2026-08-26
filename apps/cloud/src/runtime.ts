@@ -49,6 +49,7 @@ import {
 } from "./liveReadinessSourceProvider";
 import { RealReadOnlyEventRecorder } from "./realReadOnlyObservabilityPersistence";
 import type { RealReadOnlyEvent, RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
+import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveReadinessRuntimeReaders";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -187,10 +188,22 @@ export function startCloudRuntime(
   const operatorPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
   const sourceCommit = env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "";
   const sourceVersion = env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown";
+  let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const defaultLiveReadinessReaders: LiveReadinessSourceReaders = {
     ...liveReadinessSourceReaders,
     currentHeadSha: liveReadinessSourceReaders?.currentHeadSha ?? (() => sourceCommit),
     authority: liveReadinessSourceReaders?.authority ?? (() => Object.freeze({ value: createDormantLiveAuthority(), freshness: "FRESH" as const, fingerprint: "dormant-authority-v1" })),
+    paperAutoLearning: liveReadinessSourceReaders?.paperAutoLearning ?? (() => readPaperAutoLearningReadiness({
+      configured: effectivePaperLoop != null,
+      publicMarketDataEnabled: config.upbitPublicDataEnabled,
+      connectionState: marketConnectionState,
+      state: effectiveProvider.read(operatorPrincipal),
+      heartbeat: readHeartbeat(),
+    }, Date.now())),
+    runtimeSafety: liveReadinessSourceReaders?.runtimeSafety ?? (() => readCloudRuntimeSafety({
+      state: effectiveProvider.read(operatorPrincipal),
+      connectionState: marketConnectionState,
+    })),
     shadowReplay: liveReadinessSourceReaders?.shadowReplay ?? (shadowObservabilityProvider == null ? undefined : (() => {
       try {
         const snapshot = validateShadowObservabilitySnapshot(shadowObservabilityProvider(operatorPrincipal));
@@ -215,7 +228,6 @@ export function startCloudRuntime(
   const observations = new Map<string, IntelligenceObservation>();
   const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
-  let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
