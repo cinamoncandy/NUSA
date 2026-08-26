@@ -1,0 +1,58 @@
+id: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
+title: "Carry point-in-time regime evidence into the real research run"
+status: COMPLETED
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: null
+base_branch: main
+base_commit: d9b162e72df75675a950478ed5ab3a980e9488fb
+implementation_branch: feat/research-real-run-regime-evidence
+implementation_head: 7692c4258be0382f60b799e9fe1a7ab13a036c1a
+objective: "Prevent regime look-ahead in the canonical real-market research run and preserve regime evidence through the existing League bridge."
+architecture_impact:
+  acknowledged: true
+  analysis: "The implementation extends the existing MarketStateFrame with an optional point-in-time cutoff, adds a thin regime-evidence adapter, and passes the resulting evidence to the existing League evaluator. It creates no research engine, execution path, broker path, accounting state, or authority."
+  references:
+    - apps/desktop/src/cloud/marketStateFrame.ts
+    - apps/desktop/src/cloud/regimeAwareStrategyEvaluation.ts
+    - apps/desktop/src/cloud/researchRunRegimeEvidence.ts
+    - apps/desktop/src/cloud/researchRunLeagueBridge.ts
+    - scripts/research-real-market-run.js
+scope:
+  - point_in_time_market_state_cutoff
+  - strict_pre_oos_regime_evidence
+  - regime_evidence_provenance_preservation
+  - real_run_league_bridge_integration
+prohibited:
+  - future_data_lookahead
+  - order_or_broker_mutation
+  - PAPER_or_LIVE_promotion
+  - credentials_withdrawal_transfer_or_LIVE_activation
+acceptance:
+  - first_oos_candle_and_later_data_cannot_change_pre_oos_regime_evidence
+  - regime_evidence_must_be_strictly_earlier_than_first_oos_timestamp
+  - inadequate_lookback_and_thin_regime_diversity_fail_closed
+  - dataset_provenance_is_preserved
+  - existing_league_and_allocation_evidence_gate_remains_intact
+  - research_output_has_no_execution_or_LIVE_authority
+validation:
+  focused_regime_and_bridge: PASS_PR_854
+  ci_validation: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  exact_head_remote_validation: PASS_6_OF_6_PR_854_HEAD_7692C425_MERGED_A5F0EDB
+implementation_status: MERGED_PR_854
+merge_sha: a5f0edb2712106401d8581ca98b42d550779d65c
+post_merge_main: a5f0edb2712106401d8581ca98b42d550779d65c
+next: "Additional independent PAPER and longitudinal OOS evidence remains required before any research allocation can be treated as stronger evidence; missing evidence stays fail-closed."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
