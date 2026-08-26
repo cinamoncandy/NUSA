@@ -99,6 +99,7 @@ export function HomeView({
   const disconnected = notConfigured != null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const runtimeState = snapshot?.operations.runtimeState;
+  const runtimeNeedsSupervision = runtimeState === "HALTED" || runtimeState === "ERROR" || runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING";
   const statusLabel = snapshot
     ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
     : accountSource === "LOCAL" ? "PAPER · LOCAL" : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
@@ -120,16 +121,19 @@ export function HomeView({
     color: theme.colors.text,
   } as const;
 
-  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
+  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : runtimeNeedsSupervision ? "SUPERVISE PAPER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
   const primaryDetail = notConfigured
     ? "PAPER 연결 후 실제 시장 입력과 모의계좌 상태를 표시합니다."
     : readOnlyError
       ? "현재 연결 상태를 복구한 뒤 판단을 다시 확인합니다."
-      : aiInsightAvailable
-        ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
-        : "시장 데이터는 읽기 전용으로 분석 중입니다.";
+      : runtimeNeedsSupervision
+        ? "현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다."
+        : aiInsightAvailable
+          ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
+          : "시장 데이터는 읽기 전용으로 분석 중입니다.";
   const runPrimaryAction = () => {
     if (notConfigured || readOnlyError) return onGoSettings();
+    if (runtimeNeedsSupervision) return onNavigate("Portfolio");
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
@@ -164,20 +168,20 @@ export function HomeView({
                 : signalReady
                   ? "PAPER DECISION READY"
                   : "DECISION HOLD";
-  const supervisorWhy = aiInsightAvailable
-    ? (ai?.thesis ?? "")
-    : disconnected
-      ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
-      : readOnlyError
-        ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
-        : runtimeState === "HALTED"
-          ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
-          : runtimeState === "ERROR"
-            ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
-            : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-              ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
-              : runtimeState === "DEGRADED"
-                ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+  const supervisorWhy = disconnected
+    ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
+    : readOnlyError
+      ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
+      : runtimeState === "HALTED"
+        ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
+        : runtimeState === "ERROR"
+          ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
+          : runtimeState === "STOPPED" || runtimeState === "STOPPING"
+            ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
+            : runtimeState === "DEGRADED"
+              ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+              : aiInsightAvailable
+                ? (ai?.thesis ?? "")
                 : signalReady
                   ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
                   : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";

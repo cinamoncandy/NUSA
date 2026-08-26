@@ -23,7 +23,7 @@ test("Home exposes exactly one real safety-first next action from verified runti
   assert.match(home, /const disconnected = notConfigured != null/);
   assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
   assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
-  assert.match(home, /const primaryLabel = notConfigured \? "CONNECT PAPER" : readOnlyError \? "RECOVER" : aiInsightAvailable \? "OPEN SIGNAL" : "OPEN MARKET"/);
+  assert.match(home, /const primaryLabel = notConfigured \? "CONNECT PAPER" : readOnlyError \? "RECOVER" : runtimeNeedsSupervision \? "SUPERVISE PAPER" : aiInsightAvailable \? "OPEN SIGNAL" : "OPEN MARKET"/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
