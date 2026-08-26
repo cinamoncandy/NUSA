@@ -5,6 +5,7 @@ const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require(".
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
+const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/researchRunPboEvidence.js");
 
 // Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
 // strategy. They therefore share a family id, so the allocation advisory's family concentration
@@ -102,7 +103,11 @@ async function main() {
       regimeAwareEvaluation
     };
   });
-  const league = buildResearchRunLeague(leagueCandidates, { generatedAt });
+
+  // Search-overfitting evidence is computed only from the candidates' already-produced, cost-aware
+  // OOS equity paths. Training returns are excluded, and window boundaries are never bridged.
+  const probabilityBacktestOverfitting = buildResearchRunPboEvidence(leagueCandidates);
+  const league = buildResearchRunLeague(leagueCandidates, { generatedAt, probabilityBacktestOverfitting });
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -135,9 +140,18 @@ async function main() {
       profitableWindowRatio: oos.profitableWindowRatio,
       benchmarkOutperformanceWindowRatio: oos.benchmarkOutperformanceWindowRatio
     },
+    searchOverfitting: {
+      strategyCount: probabilityBacktestOverfitting.strategyCount,
+      observationCount: probabilityBacktestOverfitting.observationCount,
+      partitions: probabilityBacktestOverfitting.partitions,
+      splitCount: probabilityBacktestOverfitting.splitCount,
+      probabilityBacktestOverfitting: probabilityBacktestOverfitting.probabilityBacktestOverfitting,
+      medianLogit: probabilityBacktestOverfitting.medianLogit
+    },
     league: {
       evidenceMode: league.evidenceMode,
       reasons: league.reasons,
+      probabilityBacktestOverfitting: league.standing.probabilityBacktestOverfitting ?? null,
       allocationUnavailableReason: league.allocationUnavailableReason ?? null,
       standing: league.standing.entries.map((entry) => ({
         id: entry.id,
