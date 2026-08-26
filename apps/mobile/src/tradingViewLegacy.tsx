@@ -13,8 +13,9 @@ import { loadUpbitPublicCandles, loadUpbitPublicMarkets } from "./upbitPublicQuo
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { LOCAL_PAPER_INITIAL_CASH, LOCAL_PAPER_MARKET, buildLocalPortfolio, isLocalPaperActive, placeLocalPaperOrder } from "./localPaperLedger";
 import { useLocalPaperSnapshot } from "./localPaperLedgerHooks";
+import type { PaperLearningScreenState } from "./paperLearningScreen";
 
-interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; readonly onOpenPaperLearning?: () => void; }
+interface TradingViewProps { readonly snapshot: PortfolioAccountResponse | null; readonly investmentPercent: number; readonly marketConnectionState: string; readonly stale: boolean; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; readonly onSubmit?: (draft: TradingDraft) => void; readonly runtimeCanSubmit?: boolean; readonly onOpenPaperLearning?: () => void; readonly paperLearning?: PaperLearningScreenState | null; }
 type OrderPhase = "IDLE" | "REVIEW" | "SUBMITTING" | "FILLED" | "ERROR";
 
 function ErrorState({ message, onRetry }: Readonly<{ message: string; onRetry: () => void }>) { const { theme } = useTheme(); return <View style={styles.state}><View style={styles.stateInner}><InlineNotice title="PAPER 화면을 표시할 수 없습니다" detail={message} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRetry} /></View></View>; }
@@ -23,7 +24,34 @@ const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity();
 const SIDE_ITEMS = Object.freeze([{ key: "BUY", label: "매수" }, { key: "SELL", label: "매도" }]);
 const ORDER_TYPE_ITEMS = Object.freeze([{ key: "MARKET", label: "시장가" }, { key: "LIMIT", label: "지정가" }]);
 
-export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit, runtimeCanSubmit = true, onOpenPaperLearning }: TradingViewProps) {
+/**
+ * PAPER is NUSA's own behavior observatory first, a manual order ticket second (product
+ * principle: "PAPER = 사람이 주문을 넣는 화면이 아니라 NUSA의 PAPER 행동을 감독하는 공간").
+ * This renders what NUSA has actually observed/decided at the top of the screen, truthfully --
+ * never a fabricated activity count -- with the full observatory one tap away.
+ */
+function PaperActivitySummary({ paperLearning, onOpenPaperLearning }: Readonly<{ paperLearning?: PaperLearningScreenState | null; onOpenPaperLearning?: () => void }>) {
+  const { theme } = useTheme();
+  if (!onOpenPaperLearning) return null;
+  const hasActivity = paperLearning != null && paperLearning.timeline.length > 0;
+  const decision = paperLearning?.latestDecision;
+  const statusTone = paperLearning == null ? "info" : paperLearning.status === "RUNNING" ? "success" : paperLearning.status === "HALTED" || paperLearning.status === "ERROR" ? "danger" : "warning";
+  return <View style={[styles.activityPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="paper-ai-activity-summary">
+    <View style={styles.panelHeader}>
+      <View>
+        <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>NUSA PAPER ACTIVITY</Text>
+        <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{hasActivity ? `관측 이벤트 ${paperLearning!.timeline.length}건` : "관측된 PAPER 행동 없음"}</Text>
+      </View>
+      <StatusChip label={paperLearning?.status ?? "대기"} tone={statusTone} />
+    </View>
+    <Text style={[styles.smallCopy, { color: theme.colors.textMuted }]} testID="paper-ai-activity-latest">
+      {hasActivity && decision ? `최근 판단: ${decision.action} · 배분 ${Math.round(decision.allocation * 100)}%` : "아직 검증된 PAPER 판단 evidence가 없습니다."}
+    </Text>
+    <NusaButton label="전체 관측 기록 보기" tone="neutral" onPress={onOpenPaperLearning} testID="trade-paper-learning" />
+  </View>;
+}
+
+export function TradingView({ snapshot, investmentPercent, marketConnectionState, stale, error, refreshing, onRefresh, onSubmit, runtimeCanSubmit = true, onOpenPaperLearning, paperLearning }: TradingViewProps) {
   const { theme } = useTheme();
   const [side, setSide] = useState<TradingOrderSide>("BUY");
   const [orderType, setOrderType] = useState<TradingOrderType>("MARKET");
@@ -117,7 +145,7 @@ export function TradingView({ snapshot, investmentPercent, marketConnectionState
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={usingLocalPaper ? () => undefined : onRefresh} />} testID="trading-screen">
     <ScreenHeader eyebrow="PAPER" title="주문" description="조건을 입력하고 검토한 뒤 PAPER 주문을 확정합니다." statusLabel="LIVE NONE" statusTone="primary" />
-    {onOpenPaperLearning ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="trade-paper-learning" /> : null}
+    <PaperActivitySummary paperLearning={paperLearning} onOpenPaperLearning={onOpenPaperLearning} />
     <View style={styles.quoteHero} testID="paper-quote-hero"><View style={styles.quoteTop}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>현재 시장</Text><Text style={[styles.market, { color: theme.colors.text }]}>{model.market}</Text></View><View style={styles.statusRow}><StatusChip label={usingLocalPaper ? "LOCAL PAPER" : "CLOUD PAPER"} tone="primary" /><StatusChip label={marketReady ? "UPBIT PUBLIC LIVE" : "UPBIT 대기"} tone={marketReady ? "success" : "warning"} />{effectiveStale ? <StatusChip label="데이터 점검" tone="warning" /> : null}</View></View><Text style={[styles.price, { color: theme.colors.text }]}>{model.currentPrice === null ? "-" : formatTradingAmount(model.currentPrice, "KRW")}</Text><Text style={[styles.quoteMeta, { color: theme.colors.textMuted }]}>Upbit 공개 시세 연결 · 실제 주문 권한 없음 · Production mutation 금지</Text></View>
 
     {usingLocalPaper ? <View style={[styles.marketPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="paper-upbit-market-panel"><View style={styles.panelHeader}><View><Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>UPBIT PUBLIC MARKET</Text><Text style={[styles.panelTitle, { color: theme.colors.text }]}>KRW-BTC 1분 차트</Text></View><StatusChip label={chartModel.state === "READY" ? "차트 LIVE" : "차트 대기"} tone={chartModel.state === "READY" ? "success" : "warning"} /></View>{chartModel.state === "READY" ? <View style={styles.miniChart} testID="paper-upbit-chart">{chartBars.map((bar) => <View key={bar.openTime} style={styles.chartColumn}><View style={[styles.chartWick, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} /><View style={[styles.chartBody, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.bodyTop}%`, height: `${bar.bodyHeight}%` }]} /></View>)}</View> : <InlineNotice title="차트를 불러오는 중" detail={localChartError ?? chartModel.error ?? "Upbit 1분 캔들을 기다리고 있습니다."} tone="warning" />}{localPriceError ? <InlineNotice title="Upbit 공개 시세 확인 필요" detail={localPriceError} tone="warning" /> : null}</View> : null}
@@ -144,7 +172,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 44, width: "100%", maxWidth: 820, alignSelf: "center" },
   state: { flex: 1, justifyContent: "center", padding: 20, gap: 14, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, stateTitle: { fontSize: 18, fontWeight: "700" },
   quoteHero: { paddingVertical: 6, gap: 7 }, quoteTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, statusRow: { flexDirection: "row", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, market: { marginTop: 4, fontSize: 18, lineHeight: 23, fontWeight: "800" }, price: { fontSize: 38, lineHeight: 45, fontWeight: "800", letterSpacing: -1.4, fontVariant: ["tabular-nums"] }, quoteMeta: { fontSize: 11, lineHeight: 17 },
-  marketPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 }, panelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, panelTitle: { marginTop: 4, fontSize: 18, lineHeight: 24, fontWeight: "800" }, miniChart: { height: 180, flexDirection: "row", alignItems: "stretch", gap: 1, overflow: "hidden", position: "relative" }, chartColumn: { flex: 1, minWidth: 2, position: "relative" }, chartWick: { position: "absolute", left: "50%", width: 1 }, chartBody: { position: "absolute", left: "15%", right: "15%", minHeight: 2 },
+  marketPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 }, activityPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 }, panelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, panelTitle: { marginTop: 4, fontSize: 18, lineHeight: 24, fontWeight: "800" }, miniChart: { height: 180, flexDirection: "row", alignItems: "stretch", gap: 1, overflow: "hidden", position: "relative" }, chartColumn: { flex: 1, minWidth: 2, position: "relative" }, chartWick: { position: "absolute", left: "50%", width: 1 }, chartBody: { position: "absolute", left: "15%", right: "15%", minHeight: 2 },
   ticket: { gap: 24 }, ticketSection: { gap: 10 }, stepLabel: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.15 }, progressPanel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 14, gap: 10 }, progressRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   allocationPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 }, allocationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, allocationValue: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationPercent: { fontSize: 18, lineHeight: 24, fontWeight: "800" }, allocationTrack: { height: 6, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }, smallCopy: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
   preview: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 4 }, confirmPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 }, confirmTitle: { fontSize: 19, lineHeight: 25, fontWeight: "800" }, confirmCopy: { fontSize: 13, lineHeight: 20, fontWeight: "600" }, confirmActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 4 },
