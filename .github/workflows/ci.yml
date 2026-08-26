@@ -158,8 +158,6 @@ jobs:
           retention-days: 14
       - name: Lint
         run: pnpm run lint
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium
       - name: Package validation
         run: pnpm run package:validate
       - name: Release validation
