@@ -79,7 +79,7 @@ test("mobile foundation exposes a Home screen, theme, and four primary decision-
   assert.match(app, /useState<Tab>\("Home"\)/);
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
-  assert.match(app, /Home: "HOME", Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE"/);
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });
@@ -196,3 +196,4 @@ test("Android mobile workflow cancels obsolete runs and reuses safe dependency c
   assert.equal((workflow.match(/cache: gradle/g) ?? []).length, 2);
   assert.equal(workflow.includes("if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')"), true);
 });
+

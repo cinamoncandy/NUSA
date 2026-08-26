@@ -11,7 +11,7 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
-  assert.match(app, /Paper: "TRADE"/);
+  assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
@@ -89,3 +89,4 @@ test("market discovery uses compact accessible favorite and sort controls", () =
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.doesNotMatch(source, /★|☆/);
 });
+

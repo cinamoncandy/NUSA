@@ -1,7 +1,7 @@
 import type { DashboardScreenState } from "./dashboardScreenState";
-import { normalizeMobileTab, PRIMARY_MOBILE_TABS, type LegacyMobileTab, type PrimaryMobileTab } from "./mobileNavigation";
+import { normalizeMobileTab, PRIMARY_MOBILE_TABS, type LegacyMobileTab, type PrimaryMobileTab, type SecondaryMobileTab } from "./mobileNavigation";
 
-export type MobileTab = PrimaryMobileTab | LegacyMobileTab;
+export type MobileTab = PrimaryMobileTab | SecondaryMobileTab | LegacyMobileTab;
 export type MobileSessionState = "SIGNED_OUT" | "AUTHENTICATING" | "SIGNED_IN" | "EXPIRED";
 
 export interface MobileAppShellInput {
@@ -14,7 +14,7 @@ export interface MobileAppShellInput {
 
 export interface MobileAppShellState {
   readonly route: "AUTH" | "APP";
-  readonly activeTab: PrimaryMobileTab;
+  readonly activeTab: PrimaryMobileTab | SecondaryMobileTab;
   readonly primaryTabs: readonly PrimaryMobileTab[];
   readonly title: string;
   readonly canRefresh: boolean;
@@ -29,10 +29,10 @@ export interface MobileAppShellState {
 
 const TITLES: Readonly<Record<string, string>> = Object.freeze({
   HOME: "NUSA",
-  MARKET: "시장",
-  PORTFOLIO: "포트폴리오",
-  CONTROL: "거래 제어",
-  SETTINGS: "설정"
+  OBSERVE: "관찰",
+  PAPER: "PAPER",
+  SUPERVISE: "감독",
+  MORE: "도구"
 });
 
 export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellState {
@@ -85,3 +85,4 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
     ...(input.lastSuccessfulSyncAt === undefined ? {} : { lastSuccessfulSyncAt: input.lastSuccessfulSyncAt })
   });
 }
+

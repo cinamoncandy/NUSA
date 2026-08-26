@@ -1,12 +1,18 @@
-export type PrimaryMobileTab = "HOME" | "MARKET" | "TRADE" | "PORTFOLIO" | "MORE";
+/**
+ * The visible navigation is organized around the user's supervision jobs, not legacy
+ * trading-product nouns. Screen implementations keep their existing route keys so this
+ * contract changes the information architecture without creating parallel screens.
+ */
+export type PrimaryMobileTab = "HOME" | "OBSERVE" | "PAPER" | "SUPERVISE";
+export type SecondaryMobileTab = "MORE";
 export type LegacyMobileTab = "CONTROL" | "SETTINGS";
 
-export const PRIMARY_MOBILE_TABS: readonly PrimaryMobileTab[] = Object.freeze(["HOME", "MARKET", "TRADE", "PORTFOLIO", "MORE"]);
+export const PRIMARY_MOBILE_TABS: readonly PrimaryMobileTab[] = Object.freeze(["HOME", "OBSERVE", "PAPER", "SUPERVISE"]);
 export const MORE_NAVIGATION_ITEMS = Object.freeze(["STRATEGIES", "ANALYTICS", "HISTORY", "JOURNAL", "SETTINGS", "AI_ASSISTANT", "BACKUP", "ABOUT"] as const);
 export const GLOBAL_NAVIGATION_ACTIONS = Object.freeze(["SEARCH", "NOTIFICATIONS", "SYSTEM_STATUS", "EMERGENCY_STOP", "ACCOUNT_STATUS"] as const);
 
 export interface MobileNavigationMemory {
-  readonly activeTab: PrimaryMobileTab;
+  readonly activeTab: PrimaryMobileTab | SecondaryMobileTab;
   readonly moreItem?: typeof MORE_NAVIGATION_ITEMS[number];
   readonly searchQuery?: string;
   readonly selectedMarket?: string;
@@ -15,15 +21,16 @@ export interface MobileNavigationMemory {
 }
 
 export interface MobileNavigationState {
-  readonly activeTab: PrimaryMobileTab;
+  readonly activeTab: PrimaryMobileTab | SecondaryMobileTab;
   readonly moreItem?: typeof MORE_NAVIGATION_ITEMS[number];
   readonly depth: 1 | 2;
   readonly memory: MobileNavigationMemory;
 }
 
-export function normalizeMobileTab(tab: PrimaryMobileTab | LegacyMobileTab): PrimaryMobileTab {
-  if (tab === "CONTROL") return "TRADE";
+export function normalizeMobileTab(tab: PrimaryMobileTab | SecondaryMobileTab | LegacyMobileTab): PrimaryMobileTab | SecondaryMobileTab {
+  if (tab === "CONTROL") return "PAPER";
   if (tab === "SETTINGS") return "MORE";
+  if (tab === "MORE") return "MORE";
   if (!PRIMARY_MOBILE_TABS.includes(tab)) throw new Error("unsupported mobile tab");
   return tab;
 }
@@ -41,3 +48,4 @@ export function createMobileNavigationState(input: MobileNavigationMemory, moreI
 export function restoreMobileNavigationState(memory: MobileNavigationMemory | undefined): MobileNavigationState {
   return createMobileNavigationState(memory ?? { activeTab: "HOME" });
 }
+
