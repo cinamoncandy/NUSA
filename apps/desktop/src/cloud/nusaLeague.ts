@@ -1,6 +1,7 @@
 import type { ResearchBenchmarkSliceScore } from "./researchBenchmarkScorecard";
 import type { DeflatedSharpeEvidence, PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeHealthAssessment } from "./regimeHealth";
+import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import type { AbstentionAssessment } from "./abstentionEngine";
 import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
@@ -9,8 +10,9 @@ import type { PaperPerformanceSummary } from "../../../../packages/contracts/src
 
 /**
  * NUSA League: the research-only ranking layer over the existing evidence primitives
- * (Benchmark Scorecard, DSR/PBO, Regime Health, Abstention, Ghost Execution, Counterfactual,
- * Trial Ledger, and real PAPER performance evidence). It computes no new performance metric --
+ * (Benchmark Scorecard, DSR/PBO, Regime Health, point-in-time regime-aware OOS robustness,
+ * Abstention, Ghost Execution, Counterfactual, Trial Ledger, and real PAPER performance
+ * evidence). It computes no new performance metric --
  * every number here is read directly from evidence those modules already produced -- and it
  * never gains order/broker/capital/LIVE authority. Its only output is a research ranking plus
  * the reasons behind it.
@@ -31,6 +33,13 @@ export interface LeagueCandidateInput {
   readonly benchmark: ResearchBenchmarkSliceScore;
   readonly deflatedSharpe?: DeflatedSharpeEvidence;
   readonly regime?: RegimeHealthAssessment;
+  /**
+   * Point-in-time OOS performance bucketed by regime (bull/mixed/stressed), when available --
+   * a strictly stronger regime-robustness signal than the single current-market-state `regime`
+   * snapshot, because it reflects how this candidate's own walk-forward windows actually behaved
+   * under each regime rather than what regime the market happens to be in right now.
+   */
+  readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   readonly abstention?: AbstentionAssessment;
   readonly ghostExecution?: GhostExecutionResult;
   readonly counterfactual?: CounterfactualAssessment;
@@ -132,6 +141,16 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
     if (candidate.regime.schemaVersion !== 1) throw new NusaLeagueError("UNSUPPORTED_REGIME_SCHEMA", `candidate ${candidate.id} regime schema is unsupported`);
     assertProvenanceCovers(datasetId, candidate.regime.sourceDatasetIds, "REGIME_PROVENANCE_MISMATCH", `candidate ${candidate.id} regime`);
   }
+  if (candidate.regimeAwareEvaluation != null) {
+    const evaluation = candidate.regimeAwareEvaluation;
+    if (evaluation.schemaVersion !== 1) {
+      throw new NusaLeagueError("UNSUPPORTED_REGIME_AWARE_EVALUATION_SCHEMA", `candidate ${candidate.id} regime-aware evaluation schema is unsupported`);
+    }
+    assertProvenanceCovers(datasetId, evaluation.sourceDatasetIds, "REGIME_AWARE_EVALUATION_PROVENANCE_MISMATCH", `candidate ${candidate.id} regime-aware evaluation`);
+    if (evaluation.datasetId !== datasetId) {
+      throw new NusaLeagueError("REGIME_AWARE_EVALUATION_IDENTITY_MISMATCH", `candidate ${candidate.id} regime-aware evaluation does not describe this candidate's own dataset`);
+    }
+  }
   if (candidate.abstention != null) {
     if (candidate.abstention.schemaVersion !== 1) throw new NusaLeagueError("UNSUPPORTED_ABSTENTION_SCHEMA", `candidate ${candidate.id} abstention schema is unsupported`);
     assertProvenanceCovers(datasetId, candidate.abstention.sourceDatasetIds, "ABSTENTION_PROVENANCE_MISMATCH", `candidate ${candidate.id} abstention`);
@@ -180,6 +199,7 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
 function candidateProvenance(candidate: LeagueCandidateInput): readonly string[] {
   const ids = new Set<string>([candidate.benchmark.datasetId]);
   for (const id of candidate.regime?.sourceDatasetIds ?? []) ids.add(id);
+  for (const id of candidate.regimeAwareEvaluation?.sourceDatasetIds ?? []) ids.add(id);
   for (const id of candidate.abstention?.sourceDatasetIds ?? []) ids.add(id);
   for (const id of candidate.ghostExecution?.sourceDatasetIds ?? []) ids.add(id);
   for (const id of candidate.counterfactual?.sourceDatasetIds ?? []) ids.add(id);
@@ -217,6 +237,9 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
     : undefined;
   if (candidate.deflatedSharpe != null && !candidate.deflatedSharpe.passes) reasons.push("DEFLATED_SHARPE_BELOW_CONFIDENCE_THRESHOLD");
   if (candidate.regime?.state === "STRESSED") reasons.push("STRESSED_REGIME_CONTEXT");
+  if (candidate.regimeAwareEvaluation != null && candidate.regimeAwareEvaluation.regimeRobustnessScore == null) {
+    reasons.push("NARROW_REGIME_ROBUSTNESS_EVIDENCE");
+  }
   if (candidate.abstention?.decision === "ABSTAIN") reasons.push("ABSTAINED_SOUND_DECISION");
   if (candidate.ghostExecution?.status === "SKIPPED") reasons.push("GHOST_EXECUTION_SKIPPED_BY_ABSTENTION");
   if (candidate.counterfactual != null && candidate.counterfactual.regret > 0) reasons.push("COUNTERFACTUAL_REGRET_OBSERVED");
@@ -229,7 +252,17 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
     benchmarkExcess: candidate.benchmark.averageOutperformance,
     maximumDrawdown: candidate.benchmark.maximumDrawdown,
     ...(candidate.deflatedSharpe == null ? {} : { riskAdjusted: candidate.deflatedSharpe.deflatedSharpeProbability }),
-    ...(candidate.regime == null ? {} : { regimeRobustness: candidate.regime.score }),
+    // Once a candidate carries real multi-regime OOS evaluation, that evidence -- not the single
+    // current-market-state snapshot -- is authoritative for regimeRobustness. If that deeper
+    // evaluation itself concluded there is not yet enough regime diversity/robustness evidence
+    // (regimeRobustnessScore undefined), the component stays absent rather than quietly falling
+    // back to the unrelated, weaker snapshot score -- narrow evidence must not be repackaged as
+    // if it were robust.
+    ...(candidate.regimeAwareEvaluation != null
+      ? (candidate.regimeAwareEvaluation.regimeRobustnessScore == null
+        ? {}
+        : { regimeRobustness: candidate.regimeAwareEvaluation.regimeRobustnessScore })
+      : candidate.regime == null ? {} : { regimeRobustness: candidate.regime.score }),
     ...(candidate.ghostExecution?.status === "SIMULATED" ? { costAdjustedGhostReturn: candidate.ghostExecution.netReturn } : {}),
     ...(candidate.abstention == null ? {} : { abstentionQuality: abstentionQuality(candidate.abstention) }),
     ...(candidate.counterfactual == null ? {} : { counterfactualRegret: candidate.counterfactual.regret }),
@@ -241,7 +274,7 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
     }),
   });
 
-  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
+  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.regimeAwareEvaluation, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
   const evidenceBreadth = evidenceCategories.filter((value) => value != null).length / evidenceCategories.length;
 
   const leagueScore = eligible

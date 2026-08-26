@@ -4,6 +4,7 @@ import { evaluateLeague, NusaLeagueError, type LeagueCandidateInput } from "./nu
 import type { ResearchBenchmarkSliceScore } from "./researchBenchmarkScorecard";
 import type { DeflatedSharpeEvidence, PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeHealthAssessment } from "./regimeHealth";
+import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import type { AbstentionAssessment } from "./abstentionEngine";
 import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
@@ -46,6 +47,23 @@ function regime(overrides: Partial<RegimeHealthAssessment> = {}): RegimeHealthAs
     score: 0.8,
     components: { breadth: 0.7, medianReturn: 0.02, medianDrawdown: -0.05, medianVolatility: 0.01, dispersion: 0.02 },
     reasons: ["BROAD_POSITIVE_PARTICIPATION"],
+    sourceDatasetIds: ["dataset-a"],
+    ...overrides,
+  };
+}
+
+function regimeAwareEvaluation(overrides: Partial<RegimeAwareStrategyEvaluation> = {}): RegimeAwareStrategyEvaluation {
+  return {
+    schemaVersion: 1,
+    datasetId: "dataset-a",
+    contentSha256: "a".repeat(64),
+    generatedAt: "2026-08-26T00:00:00.000Z",
+    policy: { minimumWindowsPerRegime: 2 },
+    slices: [],
+    observedRegimeCount: 2,
+    sufficientRegimeCount: 2,
+    regimeRobustnessScore: 0.9,
+    reasons: [],
     sourceDatasetIds: ["dataset-a"],
     ...overrides,
   };
@@ -303,6 +321,45 @@ describe("evaluateLeague", () => {
     // from the backtest or exposed unresolved reliability risk, all else equal.
     assert.ok(confirmedEntry.leagueScore! > divergedEntry.leagueScore!);
     assert.ok(confirmedEntry.leagueScore! > unreliableEntry.leagueScore!);
+  });
+
+  it("prefers real multi-regime OOS robustness evidence over the single current-market-state regime snapshot", () => {
+    // regime.score (a snapshot of current market health) says 0.8; the candidate's own walk-forward
+    // regime-bucketed OOS evidence says 0.2 (poor robustness once actually tested across regimes).
+    // League must trust the stronger, candidate-specific evidence, not the generic market snapshot.
+    const standing = evaluateLeague([fullCandidate("candidate-a", {
+      regime: regime({ score: 0.8 }),
+      regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.2 }),
+    })]);
+    assert.equal(standing.entries[0]!.components.regimeRobustness, 0.2);
+  });
+
+  it("falls back to the regime snapshot when no regime-aware OOS evaluation is supplied", () => {
+    const standing = evaluateLeague([fullCandidate("candidate-a", { regime: regime({ score: 0.8 }), regimeAwareEvaluation: undefined })]);
+    assert.equal(standing.entries[0]!.components.regimeRobustness, 0.8);
+  });
+
+  it("surfaces narrow regime-robustness evidence instead of silently defaulting to neutral", () => {
+    const standing = evaluateLeague([fullCandidate("candidate-a", {
+      regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: undefined, sufficientRegimeCount: 0, reasons: ["INSUFFICIENT_ROBUSTNESS_EVIDENCE"] }),
+    })]);
+    assert.ok(standing.entries[0]!.reasons.includes("NARROW_REGIME_ROBUSTNESS_EVIDENCE"));
+    assert.equal(standing.entries[0]!.components.regimeRobustness, undefined, "must not fall back to the snapshot when the deeper evidence was explicitly supplied but insufficient");
+  });
+
+  it("fails closed when regime-aware evaluation evidence does not actually describe this candidate", () => {
+    assert.throws(
+      () => evaluateLeague([fullCandidate("candidate-a", { regimeAwareEvaluation: regimeAwareEvaluation({ schemaVersion: 2 as 1 }) })]),
+      (error) => error instanceof NusaLeagueError && error.code === "UNSUPPORTED_REGIME_AWARE_EVALUATION_SCHEMA",
+    );
+    assert.throws(
+      () => evaluateLeague([fullCandidate("candidate-a", { regimeAwareEvaluation: regimeAwareEvaluation({ sourceDatasetIds: ["dataset-other"], datasetId: "dataset-a" }) })]),
+      (error) => error instanceof NusaLeagueError && error.code === "REGIME_AWARE_EVALUATION_PROVENANCE_MISMATCH",
+    );
+    assert.throws(
+      () => evaluateLeague([fullCandidate("candidate-a", { regimeAwareEvaluation: regimeAwareEvaluation({ datasetId: "dataset-other", sourceDatasetIds: ["dataset-a", "dataset-other"] }) })]),
+      (error) => error instanceof NusaLeagueError && error.code === "REGIME_AWARE_EVALUATION_IDENTITY_MISMATCH",
+    );
   });
 
   it("never produces an order, broker call, or LIVE/capital-allocation authority", () => {
