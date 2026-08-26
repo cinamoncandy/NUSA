@@ -362,6 +362,101 @@ describe("evaluateLeague", () => {
     );
   });
 
+  it("does not let a fragile single-regime edge outrank a genuinely robust one on headline return alone", () => {
+    // The fragile candidate's backtest return is nearly four times the robust one's, but its edge
+    // collapses outside one regime. Raw return must not buy the top rank.
+    const standing = evaluateLeague([
+      fullCandidate("fragile", {
+        benchmark: benchmark({ id: "fragile", datasetId: "dataset-fragile", totalReturn: 0.30 }),
+        regime: regime({ sourceDatasetIds: ["dataset-fragile"] }),
+        regimeAwareEvaluation: regimeAwareEvaluation({ datasetId: "dataset-fragile", sourceDatasetIds: ["dataset-fragile"], regimeRobustnessScore: 0.05 }),
+        abstention: abstention({ sourceDatasetIds: ["dataset-fragile"] }),
+        ghostExecution: ghost({ sourceDatasetIds: ["dataset-fragile"] }),
+        counterfactual: counterfactual({ sourceDatasetIds: ["dataset-fragile"] }),
+      }),
+      fullCandidate("robust", {
+        benchmark: benchmark({ id: "robust", totalReturn: 0.08 }),
+        regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.95 }),
+      }),
+    ]);
+    const fragile = standing.entries.find((entry) => entry.id === "fragile")!;
+    const robust = standing.entries.find((entry) => entry.id === "robust")!;
+
+    assert.equal(fragile.components.regimeRobustnessClass, "FRAGILE");
+    assert.equal(robust.components.regimeRobustnessClass, "ROBUST");
+    assert.ok(fragile.reasons.includes("REGIME_FRAGILE_EDGE"));
+    assert.ok(robust.reasons.includes("REGIME_ROBUST_EDGE"));
+    assert.equal(robust.rank, 1, "durable multi-regime evidence must outrank a bigger but fragile backtest return");
+    assert.equal(fragile.rank, 2);
+  });
+
+  it("never shrinks a losing candidate's losses via the regime evidence discount", () => {
+    // The discount exists to stop a fragile edge buying rank, never to flatter a bad candidate.
+    const losing = { benchmark: benchmark({ id: "loser", totalReturn: -0.20 }), regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.05 }) };
+    const fragileLoss = evaluateLeague([fullCandidate("loser", losing)]).entries[0]!;
+    const undiscountedLoss = evaluateLeague([fullCandidate("loser", { ...losing, regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.95 }) })]).entries[0]!;
+    // Same negative return contribution in both: the fragile one must not score *higher*.
+    assert.ok(fragileLoss.leagueScore! <= undiscountedLoss.leagueScore!);
+  });
+
+  it("surfaces insufficient regime coverage explicitly instead of scoring it as robust", () => {
+    const standing = evaluateLeague([fullCandidate("candidate-a", {
+      regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: undefined, sufficientRegimeCount: 0 }),
+    })]);
+    const entry = standing.entries[0]!;
+    assert.equal(entry.components.regimeRobustnessClass, "INSUFFICIENT");
+    assert.ok(entry.reasons.includes("INSUFFICIENT_REGIME_COVERAGE"));
+    assert.equal(entry.reasons.includes("REGIME_ROBUST_EDGE"), false);
+    assert.ok(entry.components.regimeEvidenceDiscount! < 1, "unproven regime coverage must not receive full backtest credit");
+  });
+
+  it("treats a single sufficiently-evidenced regime as INSUFFICIENT, never ROBUST", () => {
+    // One regime holding up says nothing about durability across regimes.
+    const standing = evaluateLeague([fullCandidate("candidate-a", {
+      regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.99, sufficientRegimeCount: 1 }),
+    })]);
+    assert.equal(standing.entries[0]!.components.regimeRobustnessClass, "INSUFFICIENT");
+  });
+
+  it("does not classify regime robustness at all from the current-market-state snapshot alone", () => {
+    // The snapshot describes the market right now, not this candidate's durability -- it must
+    // never be laundered into a ROBUST classification.
+    const standing = evaluateLeague([fullCandidate("candidate-a", { regime: regime({ score: 0.99 }), regimeAwareEvaluation: undefined })]);
+    const entry = standing.entries[0]!;
+    assert.equal(entry.components.regimeRobustnessClass, undefined);
+    assert.equal(entry.components.regimeEvidenceDiscount, undefined);
+    assert.equal(entry.leagueScore, evaluateLeague([fullCandidate("candidate-a", { regime: regime({ score: 0.99 }), regimeAwareEvaluation: undefined })]).entries[0]!.leagueScore);
+  });
+
+  it("fails closed on an incoherent regime evidence policy instead of silently clamping it", () => {
+    for (const bad of [
+      { regimeRobustnessThreshold: 1.5 },
+      { fragileEvidenceDiscount: -0.1 },
+      { insufficientRegimeEvidenceDiscount: Number.NaN },
+      // A fragile edge must never be credited more generously than a merely under-evidenced one.
+      { fragileEvidenceDiscount: 0.9, insufficientRegimeEvidenceDiscount: 0.2 },
+    ]) {
+      assert.throws(
+        () => evaluateLeague([fullCandidate("candidate-a")], { policy: { probabilityBacktestOverfittingPenaltyWeight: 200, ...bad } }),
+        (error) => error instanceof NusaLeagueError && error.code === "INVALID_POLICY",
+        JSON.stringify(bad),
+      );
+    }
+  });
+
+  it("keeps regime classification deterministic and independent of candidate input order", () => {
+    const build = () => [
+      fullCandidate("candidate-a", { regimeAwareEvaluation: regimeAwareEvaluation({ regimeRobustnessScore: 0.95 }) }),
+      fullCandidate("candidate-b", { benchmark: benchmark({ id: "candidate-b", datasetId: "dataset-b" }), regime: regime({ sourceDatasetIds: ["dataset-b"] }), abstention: abstention({ sourceDatasetIds: ["dataset-b"] }), ghostExecution: ghost({ sourceDatasetIds: ["dataset-b"] }), counterfactual: counterfactual({ sourceDatasetIds: ["dataset-b"] }), regimeAwareEvaluation: regimeAwareEvaluation({ datasetId: "dataset-b", sourceDatasetIds: ["dataset-b"], regimeRobustnessScore: 0.95 }) }),
+    ];
+    const forward = evaluateLeague(build());
+    const reversed = evaluateLeague([...build()].reverse());
+    assert.deepEqual(
+      forward.entries.map((entry) => [entry.id, entry.rank, entry.leagueScore, entry.components.regimeRobustnessClass]),
+      reversed.entries.map((entry) => [entry.id, entry.rank, entry.leagueScore, entry.components.regimeRobustnessClass]),
+    );
+  });
+
   it("never produces an order, broker call, or LIVE/capital-allocation authority", () => {
     const standing = evaluateLeague([fullCandidate("candidate-a")]);
     const serialized = JSON.stringify(standing).toLowerCase();

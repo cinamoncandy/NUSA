@@ -54,7 +54,22 @@ export interface LeagueCandidateInput {
 
 export interface LeaguePolicy {
   readonly probabilityBacktestOverfittingPenaltyWeight: number;
+  /** Minimum multi-regime OOS robustness score at which an edge counts as ROBUST rather than FRAGILE. */
+  readonly regimeRobustnessThreshold?: number;
+  /** Fraction of backtest-derived return credit a FRAGILE (single-regime) edge is allowed to keep. */
+  readonly fragileEvidenceDiscount?: number;
+  /** Fraction of backtest-derived return credit kept while regime coverage is still INSUFFICIENT. */
+  readonly insufficientRegimeEvidenceDiscount?: number;
 }
+
+/**
+ * How much a candidate's headline OOS edge is actually supported by evidence across market
+ * regimes. ROBUST: the edge held up in at least two regimes. FRAGILE: the edge exists in some
+ * regimes and collapses in others -- a strong average return here is largely one regime's luck.
+ * INSUFFICIENT: regime coverage is too thin to judge either way, which is never treated as
+ * equivalent to robustness.
+ */
+export type RegimeRobustnessClass = "ROBUST" | "FRAGILE" | "INSUFFICIENT";
 
 export interface LeagueCandidateComponents {
   readonly outOfSamplePerformance: number;
@@ -62,6 +77,9 @@ export interface LeagueCandidateComponents {
   readonly maximumDrawdown: number;
   readonly riskAdjusted?: number;
   readonly regimeRobustness?: number;
+  readonly regimeRobustnessClass?: RegimeRobustnessClass;
+  /** Fraction of backtest-derived return credit retained after the regime-evidence discount. */
+  readonly regimeEvidenceDiscount?: number;
   readonly costAdjustedGhostReturn?: number;
   readonly abstentionQuality?: number;
   readonly counterfactualRegret?: number;
@@ -102,6 +120,9 @@ export class NusaLeagueError extends Error {
 
 const DEFAULT_POLICY: Required<LeaguePolicy> = Object.freeze({
   probabilityBacktestOverfittingPenaltyWeight: 200,
+  regimeRobustnessThreshold: 0.5,
+  fragileEvidenceDiscount: 0.25,
+  insufficientRegimeEvidenceDiscount: 0.5,
 });
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -229,7 +250,20 @@ function paperReliabilityPenalty(paper: PaperPerformanceSummary): number {
   return clamp01(Math.max(faultPenalty, killSwitchPenalty, availabilityPenalty));
 }
 
-function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
+/**
+ * Classifies how well a candidate's edge is evidenced across regimes. Only the candidate's own
+ * multi-regime OOS evaluation can establish ROBUST -- the single current-market-state snapshot
+ * says nothing about durability, so a candidate carrying only that snapshot stays unclassified
+ * rather than being credited with robustness it has not demonstrated.
+ */
+function classifyRegimeRobustness(candidate: LeagueCandidateInput, threshold: number): RegimeRobustnessClass | undefined {
+  const evaluation = candidate.regimeAwareEvaluation;
+  if (evaluation == null) return undefined;
+  if (evaluation.regimeRobustnessScore == null || evaluation.sufficientRegimeCount < 2) return "INSUFFICIENT";
+  return evaluation.regimeRobustnessScore >= threshold ? "ROBUST" : "FRAGILE";
+}
+
+function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<LeaguePolicy>): LeagueRankedEntry {
   const reasons: string[] = [...candidate.benchmark.reasons];
   const eligible = candidate.benchmark.eligible;
   const trialFailureRatio = candidate.trialLedgerSummary != null && candidate.trialLedgerSummary.trialCount > 0
@@ -240,6 +274,15 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
   if (candidate.regimeAwareEvaluation != null && candidate.regimeAwareEvaluation.regimeRobustnessScore == null) {
     reasons.push("NARROW_REGIME_ROBUSTNESS_EVIDENCE");
   }
+  const robustnessClass = classifyRegimeRobustness(candidate, policy.regimeRobustnessThreshold);
+  // A headline OOS return earned in one regime and given back in another is not evidence of a
+  // durable edge, so it must not be allowed to buy a top League rank on size alone.
+  const regimeEvidenceDiscount = robustnessClass === "FRAGILE"
+    ? policy.fragileEvidenceDiscount
+    : robustnessClass === "INSUFFICIENT" ? policy.insufficientRegimeEvidenceDiscount : 1;
+  if (robustnessClass === "FRAGILE") reasons.push("REGIME_FRAGILE_EDGE");
+  if (robustnessClass === "INSUFFICIENT") reasons.push("INSUFFICIENT_REGIME_COVERAGE");
+  if (robustnessClass === "ROBUST") reasons.push("REGIME_ROBUST_EDGE");
   if (candidate.abstention?.decision === "ABSTAIN") reasons.push("ABSTAINED_SOUND_DECISION");
   if (candidate.ghostExecution?.status === "SKIPPED") reasons.push("GHOST_EXECUTION_SKIPPED_BY_ABSTENTION");
   if (candidate.counterfactual != null && candidate.counterfactual.regret > 0) reasons.push("COUNTERFACTUAL_REGRET_OBSERVED");
@@ -263,6 +306,7 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
         ? {}
         : { regimeRobustness: candidate.regimeAwareEvaluation.regimeRobustnessScore })
       : candidate.regime == null ? {} : { regimeRobustness: candidate.regime.score }),
+    ...(robustnessClass == null ? {} : { regimeRobustnessClass: robustnessClass, regimeEvidenceDiscount }),
     ...(candidate.ghostExecution?.status === "SIMULATED" ? { costAdjustedGhostReturn: candidate.ghostExecution.netReturn } : {}),
     ...(candidate.abstention == null ? {} : { abstentionQuality: abstentionQuality(candidate.abstention) }),
     ...(candidate.counterfactual == null ? {} : { counterfactualRegret: candidate.counterfactual.regret }),
@@ -277,9 +321,18 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
   const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.regimeAwareEvaluation, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
   const evidenceBreadth = evidenceCategories.filter((value) => value != null).length / evidenceCategories.length;
 
+  // Only the *backtest-derived* return credit is discounted by regime evidence, and only when it
+  // is positive: a fragile edge must not be able to buy rank with a headline return, but a losing
+  // candidate must never be rewarded by having its losses shrunk. Drawdown, reliability penalties,
+  // regret, and real forward PAPER performance are deliberately left undiscounted -- they are
+  // either risk that stands on its own or forward evidence that is not a regime-selection artifact.
+  const backtestReturnCredit = components.outOfSamplePerformance * 1_000 + components.benchmarkExcess * 500;
+  const discountedBacktestReturnCredit = backtestReturnCredit > 0
+    ? backtestReturnCredit * regimeEvidenceDiscount
+    : backtestReturnCredit;
+
   const leagueScore = eligible
-    ? components.outOfSamplePerformance * 1_000
-      + components.benchmarkExcess * 500
+    ? discountedBacktestReturnCredit
       - components.maximumDrawdown * 500
       + (components.riskAdjusted ?? 0) * 300
       + (components.regimeRobustness ?? 0.5) * 100
@@ -326,6 +379,19 @@ export function evaluateLeague(
   if (!Number.isFinite(policy.probabilityBacktestOverfittingPenaltyWeight) || policy.probabilityBacktestOverfittingPenaltyWeight < 0) {
     throw new NusaLeagueError("INVALID_POLICY", "probabilityBacktestOverfittingPenaltyWeight must be finite and non-negative");
   }
+  for (const [field, value] of [
+    ["regimeRobustnessThreshold", policy.regimeRobustnessThreshold],
+    ["fragileEvidenceDiscount", policy.fragileEvidenceDiscount],
+    ["insufficientRegimeEvidenceDiscount", policy.insufficientRegimeEvidenceDiscount],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new NusaLeagueError("INVALID_POLICY", `${field} must be finite and between 0 and 1`);
+    }
+  }
+  // A fragile edge must never be credited more generously than a merely under-evidenced one.
+  if (policy.fragileEvidenceDiscount > policy.insufficientRegimeEvidenceDiscount) {
+    throw new NusaLeagueError("INVALID_POLICY", "fragileEvidenceDiscount must not exceed insufficientRegimeEvidenceDiscount");
+  }
 
   const pbo = options.probabilityBacktestOverfitting;
   if (pbo != null) {
@@ -337,7 +403,7 @@ export function evaluateLeague(
   if (!Number.isFinite(Date.parse(generatedAt))) throw new NusaLeagueError("INVALID_GENERATED_AT", "generatedAt must be a valid timestamp");
 
   const scored = candidates.map((candidate) => {
-    const entry = scoreCandidate(candidate);
+    const entry = scoreCandidate(candidate, policy);
     // PBO reflects overfitting risk in the selection process across the whole league, not one
     // candidate in isolation, so every eligible entry shares the same penalty.
     if (pbo == null || entry.leagueScore == null) return entry;
