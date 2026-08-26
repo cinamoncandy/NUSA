@@ -35,14 +35,36 @@ describe("PAPER forward evidence admission", () => {
     assert.ok(result.reasons.includes("NARROW_LONGITUDINAL_EVIDENCE"));
   });
 
-  it("admits 30 explicit chronological periods while retaining failed periods", () => {
-    const periods = Array.from({ length: 30 }, (_, index) => period(index, index === 7 ? { status: "HALTED" } : {}));
+  it("admits 30 completed chronological periods while retaining failed periods", () => {
+    const periods = Array.from({ length: 31 }, (_, index) => period(index, index === 7 ? { status: "HALTED" } : {}));
     const result = admitPaperForwardEvidence(periods);
     assert.equal(result.strength, "VERIFIED");
-    assert.equal(result.periodCount, 30);
-    assert.equal(result.completedPeriodCount, 29);
+    assert.equal(result.periodCount, 31);
+    assert.equal(result.completedPeriodCount, 30);
     assert.equal(result.rejectedOrHaltedPeriodCount, 1);
     assert.ok(result.reasons.includes("FAILED_PERIODS_RETAINED"));
+  });
+
+  it("does not verify longitudinal periods without enough realized outcomes", () => {
+    const periods = Array.from({ length: 30 }, (_, index) => period(index, { status: "HALTED" }));
+    const result = admitPaperForwardEvidence(periods);
+    assert.equal(result.strength, "INSUFFICIENT");
+    assert.equal(result.completedPeriodCount, 0);
+    assert.equal(result.rejectedOrHaltedPeriodCount, 30);
+    assert.ok(result.reasons.includes("INSUFFICIENT_COMPLETED_EVIDENCE"));
+    assert.ok(result.reasons.includes("FAILED_PERIODS_RETAINED"));
+  });
+
+  it("allows an explicit completed-evidence threshold without dropping failed periods", () => {
+    const periods = Array.from({ length: 30 }, (_, index) => period(index, index === 7 ? { status: "REJECTED" } : {}));
+    const result = admitPaperForwardEvidence(periods, { minimumLongitudinalPeriods: 30, minimumCompletedPeriods: 29 });
+    assert.equal(result.strength, "VERIFIED");
+    assert.equal(result.completedPeriodCount, 29);
+    assert.equal(result.rejectedOrHaltedPeriodCount, 1);
+  });
+
+  it("rejects invalid completed-evidence policy", () => {
+    assert.equal(code(() => admitPaperForwardEvidence([period(0)], { minimumLongitudinalPeriods: 1, minimumCompletedPeriods: 0 })), "INVALID_POLICY");
   });
 
   it("rejects candidate identity drift", () => {
