@@ -1,6 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-26T14:24:40+09:00"
+updated_at: "2026-08-26T14:35:00+09:00"
+current_execution_target:
+  work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+  status: IN_PROGRESS
+  branch: codex/live-readiness-production-wiring
+  base_sha: c7168ff9ee89f50b4d640cfcd48431f50d103fbf
+  scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
@@ -13,9 +20,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Focused research 9/9; research regressions 54/54; full isolated suite 620 files; typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: agent/issue-661-live-ready-observability
+active_branch: codex/live-readiness-production-wiring
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: 770
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -72,20 +79,20 @@ repository_maintenance:
     merge_commit: 3ae8b387cb6f6476b4758a6d30d1c455341b777b
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
+claimed_state:
+  work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+  status: IN_PROGRESS
+  branch: codex/live-readiness-production-wiring
+  base_commit: c7168ff9ee89f50b4d640cfcd48431f50d103fbf
+  scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
+  safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
+  validation: "focused readiness/runtime 40/40; full isolated suite 621 files; typecheck/build/lint/preflight/architecture/safety/security/AIPOS PASS; exact-head remote validation pending publication."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
   branch: agent/issue-661-live-ready-observability
   base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
   scope: "Issue #661 GET-only LIVE-ready observability over canonical production readiness evidence; remains subordinate to the WO-0051 constitutional human/environment gate and adds no LIVE or real-money authority."
-claimed_state:
-  work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-  status: IN_PROGRESS
-  branch: agent/issue-661-live-ready-observability
-  base_commit: ba5e01c68f8fdd4ff99a3d1abdf5b88f3a3abc69
-  scope: "GET-only canonical LIVE-ready observability over the merged production source; unified PAPER/SHADOW/REAL_READ_ONLY/LIVE_READY visibility with no activation or execution authority."
-  safety: "REAL_READ_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused replay 6/6 including runtime GET integration; REAL_READ_ONLY contract 22/22; preflight/typecheck/build/lint/architecture/safety PASS; security gate previously PASS but rerun interrupted; full pnpm test blocked by pre-existing Windows cloud bootstrap /api/health 401 expectation."
 verified_state:
   work_order: WO-AI-010
   status: COMPLETED
@@ -476,9 +483,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
-    evidence: ".aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml"
-    summary: "Issue #661 GET-only LIVE-ready observability successor is in progress under the unchanged WO-0051 human/environment gate; no LIVE or real-money authority is introduced."
+  - id: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+    evidence: ".aipos/work-orders/WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING.yaml"
+    summary: "Issue #659 production read-only wiring connects only objective Cloud PAPER/runtime-safety evidence to the existing LIVE-readiness readers; unavailable sources remain fail-closed."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -505,8 +512,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-661-LIVE-READY-OBSERVABILITY.yaml
-  reason: "Complete Issue #661 LIVE-ready observability as a read-only successor under the standing WO-0051 human/environment gate; no LIVE activation, real-money mutation, or authority expansion is permitted."
+  work_order: .aipos/work-orders/WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING.yaml
+  reason: "Complete Issue #659 production read-only wiring only where objective canonical evidence exists; unavailable sources remain fail-closed and no LIVE activation, real-money authority, or authority expansion is permitted."
 verification:
   wo_0057:
     parent_pull_request: 552

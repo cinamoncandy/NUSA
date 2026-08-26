@@ -186,3 +186,31 @@ test('production Cloud runtime wires a read-only source accessor', async () => {
     await handle.stop();
   }
 });
+
+test('production Cloud runtime projects canonical PAPER heartbeat into readiness', async () => {
+  const dashboardToken = ['runtime', 'paper', 'readiness', 'test', 'credential'].join('-');
+  const port = 42072;
+  let onTicker;
+  const handle = startCloudRuntime({
+    NUSA_CLOUD_DASHBOARD_PORT: String(port),
+    NUSA_CLOUD_DASHBOARD_TOKEN: dashboardToken,
+    NUSA_CLOUD_UPBIT_PUBLIC_DATA: 'true',
+    NUSA_CLOUD_UPBIT_MARKETS: 'KRW-BTC',
+    NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: '10000000',
+    NUSA_CLOUD_STATE_DB_PATH: ':memory:',
+  }, undefined, undefined, (_markets, tickerCallback, connectionCallback) => ({
+    subscribe() {},
+    start() { onTicker = tickerCallback; connectionCallback('CONNECTED'); },
+    stop() {},
+  }));
+  try {
+    onTicker({ type: 'ticker', code: 'KRW-BTC', trade_price: 50_000, trade_timestamp: Date.now(), signed_change_rate: 0, acc_trade_price_24h: 1_000_000 });
+    const snapshot = handle.getLiveReadinessSourceSnapshot();
+    assert.equal(snapshot.paperAutoLearning, 'STABLE');
+    assert.equal(snapshot.freshness.paperAutoLearning, 'FRESH');
+    assert.equal(snapshot.runtimeSafety.staleMarketData, false);
+    assert.equal(snapshot.freshness.runtimeSafety, 'UNKNOWN');
+    assert.equal(snapshot.authority.liveAuthority, 'NONE');
+    assert.equal(snapshot.authority.productionMutationAllowed, false);
+  } finally { await handle.stop(); }
+});

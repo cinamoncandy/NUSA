@@ -1,0 +1,86 @@
+id: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+title: "Issue #659 LIVE-readiness production reader wiring"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 659
+base_branch: main
+base_commit: c7168ff9ee89f50b4d640cfcd48431f50d103fbf
+implementation_branch: codex/live-readiness-production-wiring
+objective: "Connect only objective canonical Cloud runtime evidence to the existing LiveReadinessSourceReaders contract while keeping unavailable evidence fail-closed."
+architecture_impact:
+  acknowledged: true
+  analysis: "This read-only wiring extends the existing production composition root with canonical PAPER/runtime-safety evidence readers. It reuses LiveReadinessSourceProvider and LiveReadinessGate, adds no evaluator, activation path, broker credential path, order path, or cross-mode accounting, and leaves unavailable evidence fail-closed."
+  references:
+    - .aipos/architecture.md
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - apps/cloud/src/runtime.ts
+    - apps/cloud/src/liveReadinessSourceProvider.ts
+    - apps/cloud/src/liveReadinessGate.ts
+architecture:
+  existing_provider: apps/cloud/src/liveReadinessSourceProvider.ts
+  existing_evaluator: apps/cloud/src/liveReadinessGate.ts
+  production_composition_root: apps/cloud/src/runtime.ts
+  no_new_authority: true
+reader_classification:
+  currentHeadSha: CANONICAL_PRODUCTION_SOURCE_EXISTS
+  authority: CANONICAL_PRODUCTION_SOURCE_EXISTS
+  paperAutoLearning: CANONICAL_PRODUCTION_SOURCE_EXISTS
+  runtimeSafety: CANONICAL_SOURCE_EXISTS_BUT_PARTIAL_READ_ONLY_PROJECTION
+  shadowReplay: CANONICAL_SOURCE_EXISTS_BUT_NOT_WIRED_BY_DEFAULT
+  realAccountMonitor: UNAVAILABLE_EXTERNAL_READ_ONLY_DEPLOYMENT
+  governance: UNAVAILABLE
+  tradePermission: UNAVAILABLE
+  riskAuthority: UNAVAILABLE
+  reconciliationTests: UNAVAILABLE
+  killSwitchTests: UNAVAILABLE
+  idempotencyTests: UNAVAILABLE
+  exchangeFaultTests: UNAVAILABLE
+  workflows: UNAVAILABLE_EXACT_HEAD_RUNTIME_EVIDENCE
+  prohibitedFinancialMutationScan: UNAVAILABLE_RUNTIME_SCAN
+  environmentFingerprint: UNAVAILABLE_CANONICAL_RUNTIME_SOURCE
+  accountFingerprint: UNAVAILABLE_EXTERNAL_ACCOUNT_SOURCE
+  riskLimits: UNAVAILABLE_LIVE_POLICY_SOURCE
+  activationState: UNAVAILABLE_READ_ONLY_ACTIVATION_SOURCE
+  activationLeaseState: UNAVAILABLE_READ_ONLY_LEASE_SOURCE
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  activation: NONE
+  brokerMutation: NONE
+scope:
+  - paper_auto_learning_readiness_from_existing_cloud_paper_heartbeat
+  - partial_runtime_safety_projection_with_unknown_completeness
+  - focused_production_composition_regression
+prohibited:
+  - new_readiness_evaluator
+  - hardcoded_readiness_pass
+  - live_activation_or_lease_issuance
+  - order_cancel_withdrawal_or_transfer
+  - broker_credentials_or_private_api
+  - risk_trade_permission_or_governance_mutation
+acceptance:
+  - canonical_paper_runtime_changes_are_reflected
+  - stale_failure_disconnected_and_missing_paper_evidence_fail_closed
+  - partial_runtime_safety_never_claims_fresh_complete_evidence
+  - existing_live_readiness_gate_remains_the_only_policy_evaluator
+  - unavailable_external_readers_remain_unknown
+  - production_composition_root_wires_the_reader
+  - no_authority_invariant_changes
+validation:
+  focused: PASS_40_OF_40
+  full_isolated_suite: PASS_621_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  aipos_provenance: PASS
+  package_validation: PASS
+  exact_head_remote_validation: PENDING_PR_PUBLICATION
+next: "Complete remaining reader mapping only when an objective canonical source exists; do not turn unavailable external or exact-head evidence into PASS."
