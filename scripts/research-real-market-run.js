@@ -8,18 +8,11 @@ const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/c
 const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/researchRunPboEvidence.js");
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 
-// Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
-// strategy. They therefore share a family id, so the allocation advisory's family concentration
-// cap sees them for what they are instead of treating six tunings as a diversified book.
 const STRATEGY_FAMILY_ID = "sma-crossover";
-
 const MARKET = "KRW-BTC";
 const CANDLE_COUNT = 200;
 const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
 
-// Matches the live desktop runtime's own conservative fee/cost assumptions
-// (apps/desktop/src/main.ts FEE_RATE, FILL_MODEL) so this research run does not
-// silently assume friction-free execution.
 const BACKTEST_CONFIG = {
   market: MARKET,
   feeRate: 0.0005,
@@ -35,12 +28,6 @@ const WALK_FORWARD_CONFIG = {
   selectionPolicy: { minimumClosedTrades: 0 }
 };
 
-// A modest neighborhood around the live desktop app's SMA(5, 20) crossover, per the
-// investment-strategy audit's "test parameter neighborhoods rather than only 5/20"
-// requirement. Each window's selectCandidate() picks whichever of these scores best on
-// that window's training data; stabilityDiagnostics below reports whether 5-20 actually
-// wins consistently or whether selection churns across the neighborhood (a robustness
-// warning sign, not something to paper over).
 const SMA_PARAMETER_NEIGHBORHOOD = [
   { shortPeriod: 3, longPeriod: 15 },
   { shortPeriod: 5, longPeriod: 15 },
@@ -60,11 +47,12 @@ async function fetchRealDayCandles() {
 
 async function main() {
   const raw = await fetchRealDayCandles();
-  const candles = mapUpbitDayCandlesToResearchCandles(raw);
+  const dataAsOf = Date.now();
+  const candles = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
     sourceRequest: `GET ${REQUEST_PATH}`,
-    createdAt: new Date().toISOString()
+    createdAt: new Date(dataAsOf).toISOString()
   });
 
   const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
@@ -81,9 +69,6 @@ async function main() {
     { generatedAt }
   );
 
-  // Each parameterization is also evaluated on its own so it can compete as an individual League
-  // candidate. Point-in-time regime evidence is derived strictly from candles available before
-  // each OOS window begins, so regime classification cannot consume the window's own outcome.
   const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
     const id = `sma-${shortPeriod}-${longPeriod}`;
     const experiment = runWalkForwardExperiment(
@@ -97,24 +82,15 @@ async function main() {
       [{ manifest, candles }],
       { lookbackPeriods: 20 }
     );
-    return {
-      id,
-      familyId: STRATEGY_FAMILY_ID,
-      experiment,
-      regimeAwareEvaluation
-    };
+    return { id, familyId: STRATEGY_FAMILY_ID, experiment, regimeAwareEvaluation };
   });
 
-  // Search-overfitting evidence is computed only from the candidates' already-produced, cost-aware
-  // OOS equity paths. Training returns are excluded, and window boundaries are never bridged.
   const deflatedSharpe = buildResearchRunDsrEvidence(leagueCandidates);
   let probabilityBacktestOverfitting;
   let pboUnavailableReason;
   try {
     probabilityBacktestOverfitting = buildResearchRunPboEvidence(leagueCandidates);
   } catch (error) {
-    // A zero-variance CSCV slice cannot rank candidates. That is insufficient evidence, not a
-    // reason to fabricate a rank or discard the independently valid candidate-level DSR result.
     if (error?.code !== "ZERO_RETURN_VARIANCE") throw error;
     pboUnavailableReason = error.code;
   }
@@ -133,7 +109,8 @@ async function main() {
       candleCount: manifest.candleCount,
       startOpenTime: new Date(manifest.startOpenTime).toISOString(),
       endCloseTime: new Date(manifest.endCloseTime).toISOString(),
-      contentSha256: manifest.contentSha256
+      contentSha256: manifest.contentSha256,
+      completedBy: new Date(dataAsOf).toISOString()
     },
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {

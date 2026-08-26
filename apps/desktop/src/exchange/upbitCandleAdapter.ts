@@ -14,6 +14,14 @@ export interface UpbitDayCandle {
   readonly candle_acc_trade_volume: number;
 }
 
+export interface MapUpbitDayCandlesOptions {
+  /**
+   * When provided, only candles whose full UTC day has closed by this timestamp are returned.
+   * This prevents an in-progress daily candle from entering a historical research manifest.
+   */
+  readonly completedBy?: number;
+}
+
 const DAY_MS = 86_400_000;
 
 /**
@@ -23,8 +31,15 @@ const DAY_MS = 86_400_000;
  * the OPEN_TIME_ASC ordering createHistoricalDatasetManifest requires. Pure and
  * network-free: fetching the raw candles is the caller's responsibility.
  */
-export function mapUpbitDayCandlesToResearchCandles(raw: readonly UpbitDayCandle[]): readonly ResearchCandle[] {
+export function mapUpbitDayCandlesToResearchCandles(
+  raw: readonly UpbitDayCandle[],
+  options: MapUpbitDayCandlesOptions = {},
+): readonly ResearchCandle[] {
   if (raw.length === 0) throw new Error("upbit candle response is empty");
+  if (options.completedBy != null && !Number.isFinite(options.completedBy)) {
+    throw new Error("completedBy must be finite when provided");
+  }
+
   const mapped = raw.map((candle, index) => {
     if (!candle.market || typeof candle.market !== "string") throw new Error(`upbit candle ${index} is missing market`);
     const openTime = Date.parse(`${candle.candle_date_time_utc}Z`);
@@ -52,5 +67,10 @@ export function mapUpbitDayCandlesToResearchCandles(raw: readonly UpbitDayCandle
       volume: candle.candle_acc_trade_volume
     });
   });
-  return Object.freeze([...mapped].sort((left, right) => left.openTime - right.openTime));
+
+  const completed = options.completedBy == null
+    ? mapped
+    : mapped.filter((candle) => candle.closeTime <= options.completedBy!);
+  if (completed.length === 0) throw new Error("upbit candle response contains no completed daily candles");
+  return Object.freeze([...completed].sort((left, right) => left.openTime - right.openTime));
 }
