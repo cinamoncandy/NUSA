@@ -116,3 +116,40 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// Issue #661 acceptance: "rejected trade renders all failed gate reasons." The same real
+// composition root, driven with the same deterministic BUY-decision recipe, but with 0%
+// investment allocation configured so the canonical execution loop computes a zero order
+// quantity and rejects the trade -- this is the real REJECTED path (paperTradingExecutionLoop.ts:
+// "decision allocation is zero"), not a synthetic fixture.
+test("#661: a rejected PAPER trade exposes its real gate rejection reason through paper-operations.paperLearning, not a silent skip", async () => {
+  const token = ["issue-661", "rejected-trade", "e2e", "fixture"].join("-");
+  const { directory, filename } = tempDbPath();
+  const port = 41_961;
+  let handle;
+  try {
+    const capture = capturingFactory();
+    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), undefined, undefined, capture.factory);
+    capture.fire(buyTicker());
+
+    const snapshot = await loadOperations(port, token);
+    assert.equal(snapshot.liveAuthority, "NONE");
+    assert.equal(snapshot.productionMutationAllowed, false);
+
+    const decisionEvent = snapshot.paperLearning.events.find((event) => event.stage === "DECISION");
+    assert.equal(decisionEvent.decision.action, "BUY", "the real CIO decision engine must still have decided BUY");
+
+    const orderIntentEvent = snapshot.paperLearning.events.find((event) => event.stage === "ORDER_INTENT");
+    assert.ok(orderIntentEvent, "a decided trade must still produce an ORDER_INTENT stage, not vanish silently");
+    assert.equal(orderIntentEvent.status, "FAIL", "a rejected order must be reported as FAIL, never SKIP or PASS");
+    assert.match(orderIntentEvent.reason ?? "", /decision allocation is zero/, "the real risk/allocation gate's rejection reason must be visible, not hidden");
+
+    // A rejected trade must never fabricate a fill, and PNL is still reported (unchanged account),
+    // never silently omitted.
+    assert.equal(snapshot.paperLearning.events.some((event) => event.stage === "FILL"), false, "a rejected trade must not produce a fill");
+    assert.ok(snapshot.paperLearning.events.some((event) => event.stage === "PNL"), "PNL must still be reported even when the trade was rejected");
+  } finally {
+    if (handle) await handle.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
