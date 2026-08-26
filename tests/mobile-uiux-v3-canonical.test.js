@@ -52,14 +52,16 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-sorts/);
 });
 
-test("Portfolio and AI use metric-first v3 information hierarchy", () => {
+test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
   assert.match(portfolio, /<ScreenHeader/);
+  assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
+  assert.match(portfolio, /<DataRow label="PAPER 평가자산"/);
+  assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
-  assert.match(portfolio, /<MetricTile label="실현 손익"/);
-  assert.match(portfolio, /<MetricTile label="미실현 손익"/);
-  assert.match(portfolio, /<MetricTile label="시장 노출"/);
+  assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
+  assert.doesNotMatch(portfolio, /<MetricTile/);
   assert.match(ai, /<ScreenHeader/);
   assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);
