@@ -102,24 +102,42 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
+  const attentionLevel = disconnected || readOnlyError || runtimeState === "HALTED"
+    ? "ACTION REQUIRED"
+    : runtimeState === "DEGRADED" || (snapshot != null && !signalReady)
+      ? "WATCH"
+      : "QUIET";
+  const attentionColor = attentionLevel === "ACTION REQUIRED"
+    ? theme.colors.danger
+    : attentionLevel === "WATCH"
+      ? theme.colors.aiSignalEnd
+      : theme.colors.textMuted;
   const supervisorNow = disconnected
     ? "PAPER LINK REQUIRED"
     : readOnlyError
       ? "RECOVERY REQUIRED"
-      : runtimeState === "RUNNING"
-        ? "PAPER SUPERVISION RUNNING"
-        : signalReady
-          ? "PAPER DECISION READY"
-          : "DECISION HOLD";
+      : runtimeState === "HALTED"
+        ? "PAPER RUNTIME HALTED"
+        : runtimeState === "DEGRADED"
+          ? "PAPER RUNTIME DEGRADED"
+          : runtimeState === "RUNNING"
+            ? "PAPER SUPERVISION RUNNING"
+            : signalReady
+              ? "PAPER DECISION READY"
+              : "DECISION HOLD";
   const supervisorWhy = aiInsightAvailable
     ? (ai?.thesis ?? "")
     : disconnected
       ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
       : readOnlyError
         ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
-        : signalReady
-          ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
-          : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
+        : runtimeState === "HALTED"
+          ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
+          : runtimeState === "DEGRADED"
+            ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+            : signalReady
+              ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
+              : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
   const supervisorResult = account == null
     ? "검증된 PAPER 성과 데이터 없음"
     : `PAPER P&L ${totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`} · EQUITY ${krw(account.equity)}`;
@@ -143,13 +161,14 @@ export function HomeView({
       <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
     </View>
 
-    <View style={[styles.supervisorDeck, { borderColor: theme.colors.borderStrong }]} testID="home-supervisor-summary">
+    <View style={[styles.supervisorDeck, { borderColor: attentionLevel === "QUIET" ? theme.colors.borderStrong : attentionColor }]} testID="home-supervisor-summary">
       <View style={styles.deckHeader}>
         <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>SUPERVISOR / EVIDENCE FIRST</Text>
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
+        <Text style={[styles.attentionLabel, { color: attentionColor }]} testID="home-supervisor-attention">{attentionLevel}</Text>
       </View>
+      <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
       <View style={styles.supervisorRow} testID="home-supervisor-now">
-        <Text style={[styles.supervisorKey, { color: theme.colors.aiSignalEnd }]}>NOW</Text>
+        <Text style={[styles.supervisorKey, { color: attentionColor }]}>NOW</Text>
         <Text style={[styles.supervisorValueStrong, { color: theme.colors.text }]}>{supervisorNow}</Text>
       </View>
       <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-why">
@@ -166,8 +185,8 @@ export function HomeView({
       </View>
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
-        <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
-          <Text style={[styles.primaryLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text>
+        <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: attentionLevel === "ACTION REQUIRED" ? attentionColor : theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
+          <Text style={[styles.primaryLabel, { color: attentionLevel === "ACTION REQUIRED" ? attentionColor : theme.colors.aiSignalEnd }]}>{primaryLabel}</Text>
         </Pressable>
       </View>
     </View>
@@ -250,6 +269,8 @@ const styles = StyleSheet.create({
   brandUnderline: { width: 74, height: 3 },
   brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: 2.1 },
   supervisorDeck: { borderWidth: 1, padding: 14, gap: 0 },
+  attentionLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.4 },
+  authorityMode: { marginTop: 4, fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 1.2, textAlign: "right" },
   supervisorRow: { borderTopWidth: 1, paddingVertical: 12, gap: 5 },
   supervisorKey: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.5 },
   supervisorValueStrong: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: 0.3 },
