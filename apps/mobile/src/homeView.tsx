@@ -69,7 +69,7 @@ export function HomeView({
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const runtimeState = snapshot?.operations.runtimeState;
   const statusLabel = snapshot
-    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : signalReady ? "READY" : "CHECK"}`
+    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
     : accountSource === "LOCAL" ? "PAPER · LOCAL" : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
   const statusTone = snapshot ? healthTone(snapshot.health) : accountSource === "LOCAL" ? "info" as const : "warning" as const;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
@@ -102,9 +102,13 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  const attentionLevel = disconnected || readOnlyError || runtimeState === "HALTED"
+  // QA: PersonalPaperRuntimeState has 8 real values (HALTED/READY_OFFLINE/READY/RUNNING/DEGRADED/
+  // ERROR/STOPPING/STOPPED) -- an actual ERROR runtime previously fell through to the same WATCH
+  // tier as an ordinary "no signal yet" wait, and STOPPED/STOPPING had no explicit label at all,
+  // so a stopped runtime could read as generic "DECISION HOLD" rather than saying so truthfully.
+  const attentionLevel = disconnected || readOnlyError || runtimeState === "HALTED" || runtimeState === "ERROR"
     ? "ACTION REQUIRED"
-    : runtimeState === "DEGRADED" || (snapshot != null && !signalReady)
+    : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING" || (snapshot != null && !signalReady)
       ? "WATCH"
       : "QUIET";
   const attentionColor = attentionLevel === "ACTION REQUIRED"
@@ -118,13 +122,17 @@ export function HomeView({
       ? "RECOVERY REQUIRED"
       : runtimeState === "HALTED"
         ? "PAPER RUNTIME HALTED"
-        : runtimeState === "DEGRADED"
-          ? "PAPER RUNTIME DEGRADED"
-          : runtimeState === "RUNNING"
-            ? "PAPER SUPERVISION RUNNING"
-            : signalReady
-              ? "PAPER DECISION READY"
-              : "DECISION HOLD";
+        : runtimeState === "ERROR"
+          ? "PAPER RUNTIME ERROR"
+          : runtimeState === "STOPPED" || runtimeState === "STOPPING"
+            ? "PAPER RUNTIME STOPPED"
+            : runtimeState === "DEGRADED"
+              ? "PAPER RUNTIME DEGRADED"
+              : runtimeState === "RUNNING"
+                ? "PAPER SUPERVISION RUNNING"
+                : signalReady
+                  ? "PAPER DECISION READY"
+                  : "DECISION HOLD";
   const supervisorWhy = aiInsightAvailable
     ? (ai?.thesis ?? "")
     : disconnected
@@ -133,11 +141,15 @@ export function HomeView({
         ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
         : runtimeState === "HALTED"
           ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
-          : runtimeState === "DEGRADED"
-            ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
-            : signalReady
-              ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
-              : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
+          : runtimeState === "ERROR"
+            ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
+            : runtimeState === "STOPPED" || runtimeState === "STOPPING"
+              ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
+              : runtimeState === "DEGRADED"
+                ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+                : signalReady
+                  ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
+                  : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
   const supervisorResult = account == null
     ? "검증된 PAPER 성과 데이터 없음"
     : `PAPER P&L ${totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`} · EQUITY ${krw(account.equity)}`;
