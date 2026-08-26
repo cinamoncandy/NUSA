@@ -99,6 +99,7 @@ export function HomeView({
   const disconnected = notConfigured != null;
   const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const runtimeState = snapshot?.operations.runtimeState;
+  const runtimeNeedsSupervision = runtimeState === "HALTED" || runtimeState === "ERROR" || runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING";
   const statusLabel = snapshot
     ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
     : accountSource === "LOCAL" ? "PAPER · LOCAL" : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
@@ -120,16 +121,19 @@ export function HomeView({
     color: theme.colors.text,
   } as const;
 
-  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
+  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : runtimeNeedsSupervision ? "SUPERVISE PAPER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
   const primaryDetail = notConfigured
     ? "PAPER 연결 후 실제 시장 입력과 모의계좌 상태를 표시합니다."
     : readOnlyError
       ? "현재 연결 상태를 복구한 뒤 판단을 다시 확인합니다."
-      : aiInsightAvailable
-        ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
-        : "시장 데이터는 읽기 전용으로 분석 중입니다.";
+      : runtimeNeedsSupervision
+        ? "현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다."
+        : aiInsightAvailable
+          ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
+          : "시장 데이터는 읽기 전용으로 분석 중입니다.";
   const runPrimaryAction = () => {
     if (notConfigured || readOnlyError) return onGoSettings();
+    if (runtimeNeedsSupervision) return onNavigate("Portfolio");
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
