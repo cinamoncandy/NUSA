@@ -5,7 +5,7 @@ current_execution_target:
   work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
   status: IN_PROGRESS
   branch: codex/live-readiness-production-wiring
-  base_sha: e7bd650a0c3ca3e146958aff77289728b19e2297
+  base_sha: 7c46baf927b2c5b69b7d5aacc8a383b09c6dae64
   scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
@@ -83,10 +83,10 @@ claimed_state:
   work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
   status: IN_PROGRESS
   branch: codex/live-readiness-production-wiring
-  base_commit: e7bd650a0c3ca3e146958aff77289728b19e2297
+  base_commit: 7c46baf927b2c5b69b7d5aacc8a383b09c6dae64
   scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused readiness/runtime 40/40; full isolated suite 621 files; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/package PASS after latest-main merge; exact-head remote validation pending publication."
+  validation: "focused readiness/runtime 51/51; full isolated suite 622 files; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/package PASS after latest-main integration; exact-head remote validation pending publication."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

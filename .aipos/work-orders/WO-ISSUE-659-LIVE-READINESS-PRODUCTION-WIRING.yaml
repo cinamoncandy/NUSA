@@ -5,7 +5,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 659
 base_branch: main
-base_commit: e7bd650a0c3ca3e146958aff77289728b19e2297
+base_commit: 7c46baf927b2c5b69b7d5aacc8a383b09c6dae64
 implementation_branch: codex/live-readiness-production-wiring
 objective: "Connect only objective canonical Cloud runtime evidence to the existing LiveReadinessSourceReaders contract while keeping unavailable evidence fail-closed."
 architecture_impact:
