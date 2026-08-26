@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { assessCounterfactual, CounterfactualError } from "./counterfactualEngine";
 import type { GhostExecutionResult } from "./ghostExecution";
 
@@ -27,12 +28,12 @@ describe("assessCounterfactual", () => {
       { label: "ALT_SIGNAL", netReturn: 0.03, sourceDatasetIds: ["dataset-b"] },
     ]);
 
-    expect(result.bestAlternativeLabel).toBe("ALT_SIGNAL");
-    expect(result.regret).toBeCloseTo(0.02);
-    expect(result.relativeRank).toBe(2);
-    expect(result.evaluatedOutcomeCount).toBe(3);
-    expect(result.reasons).toEqual(["BETTER_ALTERNATIVE_OBSERVED"]);
-    expect(result.sourceDatasetIds).toEqual(["dataset-a", "dataset-b"]);
+    assert.equal(result.bestAlternativeLabel, "ALT_SIGNAL");
+    assert.ok(Math.abs(result.regret - 0.02) < 1e-12);
+    assert.equal(result.relativeRank, 2);
+    assert.equal(result.evaluatedOutcomeCount, 3);
+    assert.deepEqual(result.reasons, ["BETTER_ALTERNATIVE_OBSERVED"]);
+    assert.deepEqual(result.sourceDatasetIds, ["dataset-a", "dataset-b"]);
   });
 
   it("records zero regret when actual is best", () => {
@@ -41,22 +42,22 @@ describe("assessCounterfactual", () => {
       { label: "ALT", netReturn: 0.02, sourceDatasetIds: ["dataset-a"] },
     ]);
 
-    expect(result.regret).toBe(0);
-    expect(result.relativeRank).toBe(1);
-    expect(result.reasons).toEqual(["ACTUAL_WAS_BEST_OR_TIED"]);
+    assert.equal(result.regret, 0);
+    assert.equal(result.relativeRank, 1);
+    assert.deepEqual(result.reasons, ["ACTUAL_WAS_BEST_OR_TIED"]);
   });
 
   it("fails closed when actual execution was skipped", () => {
-    expect(() => assessCounterfactual({ ...actual(), status: "SKIPPED", netReturn: undefined }, [])).toThrowError(CounterfactualError);
+    assert.throws(() => assessCounterfactual({ ...actual(), status: "SKIPPED", netReturn: undefined }, []), CounterfactualError);
   });
 
   it("rejects duplicate labels and malformed evidence", () => {
-    expect(() => assessCounterfactual(actual(), [
+    assert.throws(() => assessCounterfactual(actual(), [
       { label: "ACTUAL_DECISION", netReturn: 0.02, sourceDatasetIds: ["dataset-a"] },
-    ])).toThrowError(CounterfactualError);
+    ]), CounterfactualError);
 
-    expect(() => assessCounterfactual(actual(), [
+    assert.throws(() => assessCounterfactual(actual(), [
       { label: "ALT", netReturn: Number.NaN, sourceDatasetIds: ["dataset-a"] },
-    ])).toThrowError(CounterfactualError);
+    ]), CounterfactualError);
   });
 });
