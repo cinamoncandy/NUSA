@@ -6,6 +6,7 @@ const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/stra
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
 const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/researchRunPboEvidence.js");
+const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 
 // Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
 // strategy. They therefore share a family id, so the allocation advisory's family concentration
@@ -106,8 +107,21 @@ async function main() {
 
   // Search-overfitting evidence is computed only from the candidates' already-produced, cost-aware
   // OOS equity paths. Training returns are excluded, and window boundaries are never bridged.
-  const probabilityBacktestOverfitting = buildResearchRunPboEvidence(leagueCandidates);
-  const league = buildResearchRunLeague(leagueCandidates, { generatedAt, probabilityBacktestOverfitting });
+  const deflatedSharpe = buildResearchRunDsrEvidence(leagueCandidates);
+  let probabilityBacktestOverfitting;
+  let pboUnavailableReason;
+  try {
+    probabilityBacktestOverfitting = buildResearchRunPboEvidence(leagueCandidates);
+  } catch (error) {
+    // A zero-variance CSCV slice cannot rank candidates. That is insufficient evidence, not a
+    // reason to fabricate a rank or discard the independently valid candidate-level DSR result.
+    if (error?.code !== "ZERO_RETURN_VARIANCE") throw error;
+    pboUnavailableReason = error.code;
+  }
+  const league = buildResearchRunLeague(
+    leagueCandidates.map((candidate) => ({ ...candidate, deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id) })),
+    { generatedAt, ...(probabilityBacktestOverfitting == null ? {} : { probabilityBacktestOverfitting }) }
+  );
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -141,12 +155,14 @@ async function main() {
       benchmarkOutperformanceWindowRatio: oos.benchmarkOutperformanceWindowRatio
     },
     searchOverfitting: {
-      strategyCount: probabilityBacktestOverfitting.strategyCount,
-      observationCount: probabilityBacktestOverfitting.observationCount,
-      partitions: probabilityBacktestOverfitting.partitions,
-      splitCount: probabilityBacktestOverfitting.splitCount,
-      probabilityBacktestOverfitting: probabilityBacktestOverfitting.probabilityBacktestOverfitting,
-      medianLogit: probabilityBacktestOverfitting.medianLogit
+      status: probabilityBacktestOverfitting == null ? "INSUFFICIENT" : "AVAILABLE",
+      unavailableReason: pboUnavailableReason ?? null,
+      strategyCount: probabilityBacktestOverfitting?.strategyCount ?? null,
+      observationCount: probabilityBacktestOverfitting?.observationCount ?? null,
+      partitions: probabilityBacktestOverfitting?.partitions ?? null,
+      splitCount: probabilityBacktestOverfitting?.splitCount ?? null,
+      probabilityBacktestOverfitting: probabilityBacktestOverfitting?.probabilityBacktestOverfitting ?? null,
+      medianLogit: probabilityBacktestOverfitting?.medianLogit ?? null
     },
     league: {
       evidenceMode: league.evidenceMode,
@@ -160,6 +176,8 @@ async function main() {
         eligible: entry.eligible,
         leagueScore: entry.leagueScore ?? null,
         evidenceBreadth: entry.evidenceBreadth,
+        deflatedSharpeProbability: entry.components.riskAdjusted ?? null,
+        deflatedSharpeUnavailableReason: deflatedSharpe.unavailableReasons.get(entry.id) ?? null,
         regimeRobustness: entry.components.regimeRobustness ?? null,
         regimeRobustnessClass: entry.components.regimeRobustnessClass ?? null,
         reasons: entry.reasons

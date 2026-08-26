@@ -1,6 +1,7 @@
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
+import type { DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
@@ -33,6 +34,8 @@ export interface ResearchRunCandidate {
   readonly experiment: ResearchExperimentResult;
   /** Optional point-in-time multi-window regime evidence for this candidate's own experiment. */
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
+  /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
+  readonly deflatedSharpe?: DeflatedSharpeEvidence;
 }
 
 export interface ResearchRunLeagueResult {
@@ -94,6 +97,7 @@ export function buildResearchRunLeague(
       id: slice.id,
       familyId: candidate.familyId,
       benchmark: slice,
+      ...(candidate.deflatedSharpe == null ? {} : { deflatedSharpe: candidate.deflatedSharpe }),
       ...(candidate.regimeAwareEvaluation == null ? {} : { regimeAwareEvaluation: candidate.regimeAwareEvaluation }),
     };
   });
