@@ -32,10 +32,18 @@ function oosReturns(candidate: ResearchRunPboCandidate): readonly TimestampedRet
   }
 
   const returns: TimestampedReturn[] = [];
+  let previousWindowEndTimestamp: number | undefined;
   for (const window of candidate.experiment.walkForwardResult.windows) {
     const curve = window.testResult.equityCurve;
     if (curve.length < 2) {
       throw new ResearchRunPboEvidenceError("INSUFFICIENT_OOS_EQUITY_POINTS", `candidate ${candidate.id} has an OOS window with fewer than two equity points`);
+    }
+    const firstTimestamp = curve[0]!.timestamp;
+    if (!Number.isFinite(firstTimestamp)) {
+      throw new ResearchRunPboEvidenceError("INVALID_OOS_TIMESTAMP", `candidate ${candidate.id} OOS equity timestamps must be finite`);
+    }
+    if (previousWindowEndTimestamp != null && firstTimestamp <= previousWindowEndTimestamp) {
+      throw new ResearchRunPboEvidenceError("NON_MONOTONIC_OOS_WINDOWS", `candidate ${candidate.id} OOS windows must be strictly chronological and non-overlapping`);
     }
     for (let index = 1; index < curve.length; index += 1) {
       const prior = curve[index - 1]!;
@@ -43,13 +51,14 @@ function oosReturns(candidate: ResearchRunPboCandidate): readonly TimestampedRet
       if (!Number.isFinite(prior.equity) || prior.equity <= 0 || !Number.isFinite(current.equity) || current.equity <= 0) {
         throw new ResearchRunPboEvidenceError("INVALID_OOS_EQUITY", `candidate ${candidate.id} OOS equity must be positive and finite`);
       }
-      if (!Number.isFinite(current.timestamp) || current.timestamp <= prior.timestamp) {
+      if (!Number.isFinite(prior.timestamp) || !Number.isFinite(current.timestamp) || current.timestamp <= prior.timestamp) {
         throw new ResearchRunPboEvidenceError("INVALID_OOS_TIMESTAMP", `candidate ${candidate.id} OOS equity timestamps must increase within each window`);
       }
       const value = current.equity / prior.equity - 1;
       if (!Number.isFinite(value)) throw new ResearchRunPboEvidenceError("NON_FINITE_OOS_RETURN", `candidate ${candidate.id} produced a non-finite OOS return`);
       returns.push(freeze({ timestamp: current.timestamp, value }));
     }
+    previousWindowEndTimestamp = curve[curve.length - 1]!.timestamp;
   }
   if (returns.length < 8) throw new ResearchRunPboEvidenceError("INSUFFICIENT_OOS_RETURN_POINTS", "real-run PBO requires at least eight OOS return observations");
   return Object.freeze(returns);
