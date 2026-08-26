@@ -4,47 +4,18 @@ const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/sr
 const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
+const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
 
-// Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
-// strategy. They therefore share a family id, so the allocation advisory's family concentration
-// cap sees them for what they are instead of treating six tunings as a diversified book.
 const STRATEGY_FAMILY_ID = "sma-crossover";
-
 const MARKET = "KRW-BTC";
 const CANDLE_COUNT = 200;
 const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
-
-// Matches the live desktop runtime's own conservative fee/cost assumptions
-// (apps/desktop/src/main.ts FEE_RATE, FILL_MODEL) so this research run does not
-// silently assume friction-free execution.
-const BACKTEST_CONFIG = {
-  market: MARKET,
-  feeRate: 0.0005,
-  orderQuantity: 0.001,
-  executionCosts: { spreadBps: 5, slippageBps: 5 }
-};
-
-const WALK_FORWARD_CONFIG = {
-  trainSize: 120,
-  testSize: 20,
-  minimumWindows: 2,
-  backtestConfig: BACKTEST_CONFIG,
-  selectionPolicy: { minimumClosedTrades: 0 }
-};
-
-// A modest neighborhood around the live desktop app's SMA(5, 20) crossover, per the
-// investment-strategy audit's "test parameter neighborhoods rather than only 5/20"
-// requirement. Each window's selectCandidate() picks whichever of these scores best on
-// that window's training data; stabilityDiagnostics below reports whether 5-20 actually
-// wins consistently or whether selection churns across the neighborhood (a robustness
-// warning sign, not something to paper over).
+const BACKTEST_CONFIG = { market: MARKET, feeRate: 0.0005, orderQuantity: 0.001, executionCosts: { spreadBps: 5, slippageBps: 5 } };
+const WALK_FORWARD_CONFIG = { trainSize: 120, testSize: 20, minimumWindows: 2, backtestConfig: BACKTEST_CONFIG, selectionPolicy: { minimumClosedTrades: 0 } };
 const SMA_PARAMETER_NEIGHBORHOOD = [
-  { shortPeriod: 3, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 20 },
-  { shortPeriod: 5, longPeriod: 25 },
-  { shortPeriod: 8, longPeriod: 20 },
-  { shortPeriod: 10, longPeriod: 30 }
+  { shortPeriod: 3, longPeriod: 15 }, { shortPeriod: 5, longPeriod: 15 },
+  { shortPeriod: 5, longPeriod: 20 }, { shortPeriod: 5, longPeriod: 25 },
+  { shortPeriod: 8, longPeriod: 20 }, { shortPeriod: 10, longPeriod: 30 }
 ];
 
 async function fetchRealDayCandles() {
@@ -58,100 +29,44 @@ async function fetchRealDayCandles() {
 async function main() {
   const raw = await fetchRealDayCandles();
   const candles = mapUpbitDayCandlesToResearchCandles(raw);
-  const manifest = createHistoricalDatasetManifest(candles, {
-    source: "upbit-public-api",
-    sourceRequest: `GET ${REQUEST_PATH}`,
-    createdAt: new Date().toISOString()
-  });
-
-  const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
-    id: `sma-${shortPeriod}-${longPeriod}`,
-    strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod),
-    parameters: { shortPeriod, longPeriod }
-  }));
-
+  const manifest = createHistoricalDatasetManifest(candles, { source: "upbit-public-api", sourceRequest: `GET ${REQUEST_PATH}`, createdAt: new Date().toISOString() });
+  const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({ id: `sma-${shortPeriod}-${longPeriod}`, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }));
   const generatedAt = new Date().toISOString();
-  const result = runWalkForwardExperiment(
-    { candles, manifest },
-    candidates,
-    WALK_FORWARD_CONFIG,
-    { generatedAt }
-  );
+  const result = runWalkForwardExperiment({ candles, manifest }, candidates, WALK_FORWARD_CONFIG, { generatedAt });
 
-  // Each parameterization is also evaluated on its own so it can compete as an individual League
-  // candidate. Without this the run produced only aggregate out-of-sample numbers, and the League
-  // ranking and allocation advisory had no caller at all.
   const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
     const id = `sma-${shortPeriod}-${longPeriod}`;
-    return {
-      id,
-      familyId: STRATEGY_FAMILY_ID,
-      experiment: runWalkForwardExperiment(
-        { candles, manifest },
-        [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
-        WALK_FORWARD_CONFIG,
-        { generatedAt }
-      )
-    };
+    const experiment = runWalkForwardExperiment(
+      { candles, manifest },
+      [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
+      WALK_FORWARD_CONFIG,
+      { generatedAt }
+    );
+    const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
+      experiment,
+      [{ manifest, candles }],
+      { lookbackPeriods: 20 }
+    );
+    return { id, familyId: STRATEGY_FAMILY_ID, experiment, regimeAwareEvaluation };
   });
   const league = buildResearchRunLeague(leagueCandidates, { generatedAt });
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
-    dataset: {
-      datasetId: manifest.datasetId,
-      market: manifest.market,
-      interval: manifest.interval,
-      candleCount: manifest.candleCount,
-      startOpenTime: new Date(manifest.startOpenTime).toISOString(),
-      endCloseTime: new Date(manifest.endCloseTime).toISOString(),
-      contentSha256: manifest.contentSha256
-    },
+    dataset: { datasetId: manifest.datasetId, market: manifest.market, interval: manifest.interval, candleCount: manifest.candleCount, startOpenTime: new Date(manifest.startOpenTime).toISOString(), endCloseTime: new Date(manifest.endCloseTime).toISOString(), contentSha256: manifest.contentSha256 },
     windowCount: result.walkForwardResult.windows.length,
-    parameterNeighborhood: {
-      candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts,
-      selectionChurn: result.walkForwardResult.stabilityDiagnostics.selectionChurn,
-      selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio,
-      candidates: result.walkForwardResult.stabilityDiagnostics.candidates
-    },
-    outOfSample: {
-      totalOosPoints: oos.totalOosPoints,
-      totalOosClosedTrades: oos.totalOosClosedTrades,
-      winRate: oos.winRate,
-      totalReturn: oos.totalReturn,
-      maximumDrawdown: oos.maximumDrawdown,
-      profitFactor: oos.profitFactor ?? null,
-      turnover: oos.turnover,
-      totalTradingCost: oos.totalTradingCost,
-      profitableWindowRatio: oos.profitableWindowRatio,
-      benchmarkOutperformanceWindowRatio: oos.benchmarkOutperformanceWindowRatio
-    },
+    parameterNeighborhood: { candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts, selectionChurn: result.walkForwardResult.stabilityDiagnostics.selectionChurn, selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio, candidates: result.walkForwardResult.stabilityDiagnostics.candidates },
+    outOfSample: { totalOosPoints: oos.totalOosPoints, totalOosClosedTrades: oos.totalOosClosedTrades, winRate: oos.winRate, totalReturn: oos.totalReturn, maximumDrawdown: oos.maximumDrawdown, profitFactor: oos.profitFactor ?? null, turnover: oos.turnover, totalTradingCost: oos.totalTradingCost, profitableWindowRatio: oos.profitableWindowRatio, benchmarkOutperformanceWindowRatio: oos.benchmarkOutperformanceWindowRatio },
     league: {
       evidenceMode: league.evidenceMode,
       reasons: league.reasons,
       allocationUnavailableReason: league.allocationUnavailableReason ?? null,
-      standing: league.standing.entries.map((entry) => ({
-        id: entry.id,
-        familyId: entry.familyId,
-        rank: entry.rank ?? null,
-        eligible: entry.eligible,
-        leagueScore: entry.leagueScore ?? null,
-        evidenceBreadth: entry.evidenceBreadth,
-        regimeRobustnessClass: entry.components.regimeRobustnessClass ?? null,
-        reasons: entry.reasons
-      })),
-      researchAllocation: league.allocation == null ? null : league.allocation.entries.map((entry) => ({
-        id: entry.id,
-        familyId: entry.familyId,
-        researchWeight: entry.researchWeight
-      }))
+      standing: league.standing.entries.map((entry) => ({ id: entry.id, familyId: entry.familyId, rank: entry.rank ?? null, eligible: entry.eligible, leagueScore: entry.leagueScore ?? null, evidenceBreadth: entry.evidenceBreadth, regimeRobustness: entry.components.regimeRobustness ?? null, regimeRobustnessClass: entry.components.regimeRobustnessClass ?? null, reasons: entry.reasons })),
+      researchAllocation: league.allocation == null ? null : league.allocation.entries.map((entry) => ({ id: entry.id, familyId: entry.familyId, researchWeight: entry.researchWeight }))
     },
     warnings: result.warnings
   }, null, 2));
 }
 
-main().catch((error) => {
-  console.error("research real-market run failed:", error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+main().catch((error) => { console.error("research real-market run failed:", error instanceof Error ? error.message : String(error)); process.exitCode = 1; });
