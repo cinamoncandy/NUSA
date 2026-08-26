@@ -22,7 +22,12 @@ function standing(entries: readonly LeagueRankedEntry[]): LeagueStanding {
   return {
     schemaVersion: 1,
     generatedAt: "2026-08-26T01:40:00.000Z",
-    policy: { probabilityBacktestOverfittingPenaltyWeight: 200 },
+    policy: {
+      probabilityBacktestOverfittingPenaltyWeight: 200,
+      regimeRobustnessThreshold: 0.5,
+      fragileEvidenceDiscount: 0.25,
+      insufficientRegimeEvidenceDiscount: 0.5,
+    },
     entries,
     coverage: {
       candidateCount: entries.length,
