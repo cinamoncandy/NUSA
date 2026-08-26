@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { evaluateStrategyByRegime, RegimeAwareEvaluationError } from "./regimeAwareStrategyEvaluation";
 import type { ResearchExperimentResult } from "./researchDataset";
-import type { RegimeHealthAssessment } from "./regimeHealth";
+import { assessRegimeHealth, type RegimeHealthAssessment } from "./regimeHealth";
+import type { MarketStateFrame } from "./marketStateFrame";
 
 function experiment(): ResearchExperimentResult {
   const makeWindow = (index: number, totalReturn: number, outperformance: number, drawdown: number, cost: number) => ({
@@ -78,6 +79,48 @@ function regime(windowIndex: number, state: RegimeHealthAssessment["state"], ove
   };
 }
 
+function staggeredRegimeFrame(): MarketStateFrame {
+  return {
+    schemaVersion: 1,
+    generatedAt: "2026-08-26T00:00:00.000Z",
+    lookbackPeriods: 20,
+    markets: [
+      {
+        market: "KRW-BTC",
+        interval: "60m",
+        datasetId: "dataset-a",
+        asOf: 400,
+        lastClose: 100,
+        onePeriodReturn: 0.01,
+        lookbackReturn: 0.02,
+        realizedVolatility: 0.01,
+        maxDrawdown: -0.02,
+        averageVolume: 1,
+      },
+      {
+        market: "KRW-ETH",
+        interval: "60m",
+        datasetId: "dataset-b",
+        asOf: 501,
+        lastClose: 100,
+        onePeriodReturn: 0.01,
+        lookbackReturn: 0.02,
+        realizedVolatility: 0.01,
+        maxDrawdown: -0.02,
+        averageVolume: 1,
+      },
+    ],
+    aggregate: {
+      marketCount: 2,
+      positiveBreadth: 1,
+      medianLookbackReturn: 0.02,
+      medianRealizedVolatility: 0.01,
+      crossSectionalDispersion: 0,
+    },
+    sourceDatasetIds: ["dataset-a", "dataset-b"],
+  };
+}
+
 describe("evaluateStrategyByRegime", () => {
   it("aggregates OOS performance by point-in-time regime and exposes robustness", () => {
     const result = evaluateStrategyByRegime(experiment(), [
@@ -115,6 +158,20 @@ describe("evaluateStrategyByRegime", () => {
     assert.throws(
       () => evaluateStrategyByRegime(experiment(), [
         regime(0, "HEALTHY", { asOf: 501 }),
+        regime(1, "HEALTHY"),
+        regime(2, "STRESSED"),
+        regime(3, "STRESSED"),
+      ]),
+      (error: unknown) => error instanceof RegimeAwareEvaluationError && error.code === "LOOKAHEAD_REGIME_EVIDENCE",
+    );
+  });
+
+  it("uses the latest constituent timestamp for aggregate regime availability", () => {
+    const assessed = assessRegimeHealth(staggeredRegimeFrame());
+    assert.equal(assessed.asOf, 501);
+    assert.throws(
+      () => evaluateStrategyByRegime(experiment(), [
+        { windowIndex: 0, regime: assessed },
         regime(1, "HEALTHY"),
         regime(2, "STRESSED"),
         regime(3, "STRESSED"),
