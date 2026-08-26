@@ -42,6 +42,7 @@ export class PaperForwardEvidenceAdmissionError extends Error {
 }
 
 const DEFAULT_POLICY: PaperForwardEvidenceAdmissionPolicy = Object.freeze({ minimumLongitudinalPeriods: 30 });
+const PAPER_FORWARD_STATUSES = new Set<PaperForwardPeriodEvidence["status"]>(["COMPLETED", "REJECTED", "HALTED"]);
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function finite(value: number, field: string): void {
@@ -88,6 +89,9 @@ export function admitPaperForwardEvidence(
     if (identifier(period.datasetId, "datasetId") !== datasetId || identifier(period.datasetContentSha256, "datasetContentSha256") !== datasetContentSha256) {
       throw new PaperForwardEvidenceAdmissionError("DATASET_PROVENANCE_MISMATCH", "all PAPER periods must preserve the candidate dataset provenance");
     }
+    if (!PAPER_FORWARD_STATUSES.has(period.status)) {
+      throw new PaperForwardEvidenceAdmissionError("INVALID_STATUS", "PAPER evidence status must be COMPLETED, REJECTED or HALTED");
+    }
     for (const [field, value] of [
       ["advisoryGeneratedAt", period.advisoryGeneratedAt],
       ["periodStartAt", period.periodStartAt],
@@ -118,6 +122,9 @@ export function admitPaperForwardEvidence(
         throw new PaperForwardEvidenceAdmissionError("INVALID_NET_RETURN", "cost-adjusted PAPER net return must be finite and greater than -100%");
       }
       cumulativeEquity *= 1 + netReturn;
+      if (!Number.isFinite(cumulativeEquity)) {
+        throw new PaperForwardEvidenceAdmissionError("INVALID_CUMULATIVE_RETURN", "cumulative PAPER return must remain finite");
+      }
       completedPeriodCount += 1;
     } else {
       // Failed/rejected/halted observations remain in the denominator. They never disappear simply
