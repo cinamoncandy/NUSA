@@ -8,7 +8,7 @@ function advisory(weights: Readonly<Record<string, number>>): LeagueCapitalAlloc
   return {
     schemaVersion: 1,
     generatedAt: "2026-08-26T05:00:00.000Z",
-    policy: { maximumCandidateWeight: 0.6, minimumEvidenceBreadth: 0.5, maximumCandidateCount: 5 },
+    policy: { maximumCandidateWeight: 0.6, minimumEvidenceBreadth: 0.5, maximumCandidateCount: 5, maximumFamilyWeight: 0.6 },
     entries: ids.map((id, index) => ({
       id,
       familyId: "family-1",
