@@ -3,6 +3,12 @@
 const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
+
+// Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
+// strategy. They therefore share a family id, so the allocation advisory's family concentration
+// cap sees them for what they are instead of treating six tunings as a diversified book.
+const STRATEGY_FAMILY_ID = "sma-crossover";
 
 const MARKET = "KRW-BTC";
 const CANDLE_COUNT = 200;
@@ -64,12 +70,31 @@ async function main() {
     parameters: { shortPeriod, longPeriod }
   }));
 
+  const generatedAt = new Date().toISOString();
   const result = runWalkForwardExperiment(
     { candles, manifest },
     candidates,
     WALK_FORWARD_CONFIG,
-    { generatedAt: new Date().toISOString() }
+    { generatedAt }
   );
+
+  // Each parameterization is also evaluated on its own so it can compete as an individual League
+  // candidate. Without this the run produced only aggregate out-of-sample numbers, and the League
+  // ranking and allocation advisory had no caller at all.
+  const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
+    const id = `sma-${shortPeriod}-${longPeriod}`;
+    return {
+      id,
+      familyId: STRATEGY_FAMILY_ID,
+      experiment: runWalkForwardExperiment(
+        { candles, manifest },
+        [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
+        WALK_FORWARD_CONFIG,
+        { generatedAt }
+      )
+    };
+  });
+  const league = buildResearchRunLeague(leagueCandidates, { generatedAt });
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -101,6 +126,26 @@ async function main() {
       totalTradingCost: oos.totalTradingCost,
       profitableWindowRatio: oos.profitableWindowRatio,
       benchmarkOutperformanceWindowRatio: oos.benchmarkOutperformanceWindowRatio
+    },
+    league: {
+      evidenceMode: league.evidenceMode,
+      reasons: league.reasons,
+      allocationUnavailableReason: league.allocationUnavailableReason ?? null,
+      standing: league.standing.entries.map((entry) => ({
+        id: entry.id,
+        familyId: entry.familyId,
+        rank: entry.rank ?? null,
+        eligible: entry.eligible,
+        leagueScore: entry.leagueScore ?? null,
+        evidenceBreadth: entry.evidenceBreadth,
+        regimeRobustnessClass: entry.components.regimeRobustnessClass ?? null,
+        reasons: entry.reasons
+      })),
+      researchAllocation: league.allocation == null ? null : league.allocation.entries.map((entry) => ({
+        id: entry.id,
+        familyId: entry.familyId,
+        researchWeight: entry.researchWeight
+      }))
     },
     warnings: result.warnings
   }, null, 2));
