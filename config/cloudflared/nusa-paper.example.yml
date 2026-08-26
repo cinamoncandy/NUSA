@@ -1,0 +1,11 @@
+# Canonical personal-use Cloudflare Tunnel template for Android PAPER access.
+# Replace the placeholders locally. Never commit tunnel credentials or dashboard bearer tokens.
+tunnel: <TUNNEL_UUID>
+credentials-file: <ABSOLUTE_PATH_TO_CLOUDFLARED_CREDENTIALS_JSON>
+
+ingress:
+  - hostname: <PAPER_HOSTNAME>
+    service: http://127.0.0.1:8787
+    originRequest:
+      connectTimeout: 10s
+  - service: http_status:404
