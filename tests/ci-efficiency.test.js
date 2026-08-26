@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8").replace(/\r\n/g, "\n");
 
-test("CI shards the isolated coverage suite without dropping UI or E2E coverage", () => {
+test("CI produces core and UI/E2E coverage in parallel before a merge-only job", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.doesNotMatch(workflow, /- name: UI tests\n/);
   assert.doesNotMatch(workflow, /- name: E2E tests\n/);
@@ -14,14 +14,25 @@ test("CI shards the isolated coverage suite without dropping UI or E2E coverage"
   assert.match(workflow, /coverage-core:\n/);
   assert.match(workflow, /matrix:\n\s+shard: \[0, 1, 2, 3\]/);
   assert.match(workflow, /- name: Core isolated coverage shard\n[\s\S]*?run: node scripts\/run-tests-isolated\.js/);
-  assert.match(workflow, /pattern: coverage-v8-core-\*/);
-  assert.match(workflow, /- name: Coverage baseline \(sharded core \+ UI \+ E2E\)\n[\s\S]*?--reuse-core-v8/);
-  const browserInstall = workflow.lastIndexOf("- name: Install Playwright Chromium");
-  const coverage = workflow.indexOf("- name: Coverage baseline (sharded core + UI + E2E)");
-  assert.ok(browserInstall >= 0 && coverage > browserInstall, "Playwright Chromium must be installed before coverage E2E execution");
+  assert.match(workflow, /coverage-ui-e2e:\n/);
+  assert.match(workflow, /- name: Produce UI and E2E coverage in parallel with core shards\n[\s\S]*?--produce-ui-e2e/);
+  assert.match(workflow, /name: coverage-ui-precomputed/);
+  assert.match(workflow, /name: coverage-v8-e2e/);
+  assert.match(workflow, /needs: \[coverage-core, coverage-ui-e2e\]/);
+  assert.match(workflow, /pattern: coverage-v8-\*/);
+  assert.match(workflow, /- name: Merge coverage baseline\n[\s\S]*?--merge-precomputed/);
+
+  const producer = workflow.split("\n  coverage-ui-e2e:\n")[1].split("\n  coverage:\n")[0];
+  assert.ok(
+    producer.indexOf("- name: Install Playwright Chromium") < producer.indexOf("- name: Produce UI and E2E coverage in parallel with core shards"),
+    "Playwright Chromium must be installed before parallel E2E coverage execution"
+  );
+  const mergeJob = workflow.split("\n  coverage:\n")[1].split("\n  test:\n")[0];
+  assert.doesNotMatch(mergeJob, /Install Playwright Chromium/);
+  assert.doesNotMatch(mergeJob, /playwright test/);
 });
 
-test("prepared paths skip only setup already proven once by CI", () => {
+test("prepared coverage modes skip only setup already proven by their CI producer", () => {
   const workflow = read(".github/workflows/ci.yml");
   const pkg = JSON.parse(read("package.json"));
   const coverage = read("scripts/run-coverage.js");
@@ -37,7 +48,11 @@ test("prepared paths skip only setup already proven once by CI", () => {
   assert.match(pkg.scripts["release:check"], /release-readiness\.js/);
   assert.match(coverage, /process\.argv\.includes\("--prepared"\)/);
   assert.match(coverage, /process\.argv\.includes\("--reuse-core-v8"\)/);
-  assert.match(coverage, /if \(!prepared\)/);
+  assert.match(coverage, /process\.argv\.includes\("--produce-ui-e2e"\)/);
+  assert.match(coverage, /process\.argv\.includes\("--merge-precomputed"\)/);
+  assert.match(coverage, /NUSA_COVERAGE_E2E_V8_DIR/);
+  assert.match(coverage, /NUSA_COVERAGE_COMBINED_V8_DIR/);
+  assert.match(coverage, /if \(!prepared\) runSetup\(\)/);
   assert.match(coverage, /run-tests-isolated\.js/);
   assert.match(coverage, /vitest\.config\.mjs/);
   assert.match(coverage, /playwrightCommand, "test"/);
@@ -56,4 +71,5 @@ test("CI optimization preserves critical safety gates", () => {
     assert.ok(workflow.includes(`- name: ${step}`), `missing critical CI step: ${step}`);
   }
   assert.match(workflow, /run: pnpm run release:check:prepared/);
+  assert.match(workflow, /test:\n\s+name: test\n\s+needs: \[validation, coverage\]/);
 });
