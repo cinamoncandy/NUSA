@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { MotionReveal, NusaButton, TerrainSignal } from "./components";
+import { MotionReveal, TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -34,6 +34,37 @@ function healthTone(health: string | undefined): "success" | "warning" | "danger
     : health === "FAIL_CLOSED" || health === "DOWN"
       ? "danger"
       : "warning";
+}
+
+function SupervisorRow({
+  label,
+  value,
+  borderColor,
+  labelColor,
+  valueColor,
+  strong = false,
+  testID,
+  onPress,
+  actionLabel,
+}: Readonly<{
+  label: string;
+  value: string;
+  borderColor?: string;
+  labelColor: string;
+  valueColor: string;
+  strong?: boolean;
+  testID: string;
+  onPress?: () => void;
+  actionLabel?: string;
+}>) {
+  const content = <View style={[styles.supervisorRow, borderColor == null ? undefined : { borderTopColor: borderColor }]} testID={testID}>
+    <View style={styles.supervisorRowHeader}>
+      <Text style={[styles.supervisorKey, { color: labelColor }]}>{label}</Text>
+      {actionLabel ? <Text style={[styles.supervisorAction, { color: labelColor }]}>{actionLabel}</Text> : null}
+    </View>
+    <Text style={[strong ? styles.supervisorValueStrong : styles.supervisorValue, { color: valueColor }]}>{value}</Text>
+  </View>;
+  return onPress == null ? content : <Pressable accessibilityRole="button" accessibilityHint={`${label} 세부 정보 보기`} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })} testID={`${testID}-action`}>{content}</Pressable>;
 }
 
 export function HomeView({
@@ -179,22 +210,10 @@ export function HomeView({
         <Text style={[styles.attentionLabel, { color: attentionColor }]} testID="home-supervisor-attention">{attentionLevel}</Text>
       </View>
       <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
-      <View style={styles.supervisorRow} testID="home-supervisor-now">
-        <Text style={[styles.supervisorKey, { color: attentionColor }]}>NOW</Text>
-        <Text style={[styles.supervisorValueStrong, { color: theme.colors.text }]}>{supervisorNow}</Text>
-      </View>
-      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-why">
-        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>WHY</Text>
-        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorWhy}</Text>
-      </View>
-      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-result">
-        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>RESULT</Text>
-        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorResult}</Text>
-      </View>
-      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-learning">
-        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>LEARNING</Text>
-        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorLearning}</Text>
-      </View>
+      <SupervisorRow label="NOW" value={supervisorNow} labelColor={attentionColor} valueColor={theme.colors.text} strong testID="home-supervisor-now" />
+      <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" />
+      <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
+      <SupervisorRow label="LEARNING" value={supervisorLearning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
         <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: attentionLevel === "ACTION REQUIRED" ? attentionColor : theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
@@ -253,8 +272,6 @@ export function HomeView({
         above (home-supervisor-primary-action) -- a second "NEXT DECISION" card here duplicated the
         same action and a near-duplicate of the WHY reasoning. Removed rather than repeated. */}
 
-    {!disconnected ? <NusaButton label="PAPER 학습 보기" tone="neutral" onPress={onOpenPaperLearning} testID="home-paper-learning" /> : null}
-
     <View style={[styles.secondaryDiagnostics, { borderTopColor: theme.colors.border }]} testID="safety-card">
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: diagnosticsOpen }} onPress={() => setDiagnosticsOpen((open) => !open)} style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-diagnostics-toggle">
         <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text>
@@ -283,7 +300,9 @@ const styles = StyleSheet.create({
   attentionLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.4 },
   authorityMode: { marginTop: 4, fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 1.2, textAlign: "right" },
   supervisorRow: { borderTopWidth: 1, paddingVertical: 12, gap: 5 },
+  supervisorRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   supervisorKey: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.5 },
+  supervisorAction: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.1 },
   supervisorValueStrong: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: 0.3 },
   supervisorValue: { fontSize: 12, lineHeight: 18, fontWeight: "700" },
   supervisorAuthority: { borderTopWidth: 1, marginTop: 2, paddingTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },

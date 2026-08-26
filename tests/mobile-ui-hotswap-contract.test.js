@@ -38,7 +38,9 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
-  assert.match(home, /\{!disconnected \? <NusaButton label="PAPER 학습 보기"[\s\S]*testID="home-paper-learning" \/> : null\}/);
+  assert.match(home, /testID="home-supervisor-result"[\s\S]*onNavigate\("Portfolio"\)[\s\S]*SUPERVISE →/);
+  assert.match(home, /testID="home-supervisor-learning"[\s\S]*onOpenPaperLearning[\s\S]*EVIDENCE →/);
+  assert.doesNotMatch(home, /label="PAPER 학습 보기"/);
   assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
   assert.match(home, /02 \/\/ SIGNAL TERRAIN/);
   assert.match(home, /<TerrainSignal variant="symbolic"[\s\S]*testID="home-signal-trace" \/>/);
