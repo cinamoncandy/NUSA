@@ -168,20 +168,20 @@ export function HomeView({
                 : signalReady
                   ? "PAPER DECISION READY"
                   : "DECISION HOLD";
-  const supervisorWhy = aiInsightAvailable
-    ? (ai?.thesis ?? "")
-    : disconnected
-      ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
-      : readOnlyError
-        ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
-        : runtimeState === "HALTED"
-          ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
-          : runtimeState === "ERROR"
-            ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
-            : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-              ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
-              : runtimeState === "DEGRADED"
-                ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+  const supervisorWhy = disconnected
+    ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
+    : readOnlyError
+      ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
+      : runtimeState === "HALTED"
+        ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
+        : runtimeState === "ERROR"
+          ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
+          : runtimeState === "STOPPED" || runtimeState === "STOPPING"
+            ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
+            : runtimeState === "DEGRADED"
+              ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
+              : aiInsightAvailable
+                ? (ai?.thesis ?? "")
                 : signalReady
                   ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
                   : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
