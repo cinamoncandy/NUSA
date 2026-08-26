@@ -1,14 +1,17 @@
 const { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } = require("node:fs");
-const { join } = require("node:path");
+const { join, resolve } = require("node:path");
 const { tmpdir } = require("node:os");
 const { spawnSync } = require("node:child_process");
 
 const root = process.cwd();
 const coverageDirectory = join(root, "coverage");
-const tempDirectory = join(tmpdir(), "nusa-v8-coverage");
 const nodeCommand = process.execPath;
 const pnpmDirectory = join(root, "node_modules", ".pnpm");
 const prepared = process.argv.includes("--prepared");
+const reuseCoreV8 = process.argv.includes("--reuse-core-v8");
+const suppliedCoreV8Directory = String(process.env.NUSA_COVERAGE_CORE_V8_DIR || "").trim();
+if (reuseCoreV8 && suppliedCoreV8Directory.length === 0) throw new Error("NUSA_COVERAGE_CORE_V8_DIR is required with --reuse-core-v8");
+const tempDirectory = reuseCoreV8 ? resolve(root, suppliedCoreV8Directory) : join(tmpdir(), "nusa-v8-coverage");
 
 function packageFile(prefix, packageName, file) {
   const directory = readdirSync(pnpmDirectory).find((name) => name.startsWith(`${prefix}@`));
@@ -22,9 +25,15 @@ const playwrightCommand = packageFile("@playwright+test", "@playwright/test", "c
 const c8Command = packageFile("c8", "c8", "bin/c8.js");
 
 rmSync(coverageDirectory, { recursive: true, force: true });
-rmSync(tempDirectory, { recursive: true, force: true });
 mkdirSync(coverageDirectory, { recursive: true });
-mkdirSync(tempDirectory, { recursive: true });
+if (reuseCoreV8) {
+  if (!existsSync(tempDirectory)) throw new Error(`Sharded core V8 coverage directory is missing: ${tempDirectory}`);
+  const rawCoverageFiles = readdirSync(tempDirectory).filter((name) => name.endsWith(".json"));
+  if (rawCoverageFiles.length === 0) throw new Error("Sharded core V8 coverage directory contains no raw coverage JSON");
+} else {
+  rmSync(tempDirectory, { recursive: true, force: true });
+  mkdirSync(tempDirectory, { recursive: true });
+}
 
 if (!prepared) {
   for (const args of [
@@ -44,13 +53,13 @@ if (!prepared) {
 }
 
 const suites = [
-  {
+  ...(reuseCoreV8 ? [] : [{
     name: "core",
     runner: nodeCommand,
     args: [join(root, "scripts", "run-tests-isolated.js")],
     coverage: true,
     note: "Node V8 coverage for the isolated repository suite"
-  },
+  }]),
   {
     name: "ui",
     runner: nodeCommand,
@@ -78,7 +87,15 @@ const suites = [
     note: "Node V8 coverage for the Playwright server process; Chromium page coverage is unavailable"
   }
 ];
-const results = [];
+const results = reuseCoreV8 ? [{
+  name: "core",
+  command: "GitHub Actions deterministic coverage-core shard matrix",
+  startedAt: null,
+  completedAt: null,
+  exitCode: 0,
+  coverage: "NODE_V8",
+  note: "Raw Node V8 coverage merged from deterministic isolated-test shards"
+}] : [];
 
 for (const suite of suites) {
   const startedAt = new Date().toISOString();
@@ -163,6 +180,7 @@ const summaryPath = join(coverageDirectory, "unified-summary.json");
 const summary = existsSync(summaryPath) ? JSON.parse(readFileSync(summaryPath, "utf8")) : null;
 writeManifest(results, "PASS", {
   prepared,
+  shardedCore: reuseCoreV8,
   summary,
   reportFiles: [
     "coverage/unified-report.md",
@@ -175,7 +193,7 @@ writeManifest(results, "PASS", {
   browserCoverage: "NOT_AVAILABLE: Playwright runs application code inside Chromium; the current static-server E2E has no browser instrumentation."
 });
 
-rmSync(tempDirectory, { recursive: true, force: true });
+if (!reuseCoreV8) rmSync(tempDirectory, { recursive: true, force: true });
 
 function writeManifest(suiteResults, status, extra = {}) {
   mkdirSync(coverageDirectory, { recursive: true });

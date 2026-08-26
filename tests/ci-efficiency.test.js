@@ -6,14 +6,18 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8").replace(/\r\n/g, "\n");
 
-test("CI uses instrumented coverage as the single isolated/UI/E2E execution", () => {
+test("CI shards the isolated coverage suite without dropping UI or E2E coverage", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.doesNotMatch(workflow, /- name: UI tests\n/);
   assert.doesNotMatch(workflow, /- name: E2E tests\n/);
   assert.doesNotMatch(workflow, /- name: Full isolated test suite\n/);
-  assert.match(workflow, /- name: Coverage baseline \(isolated \+ UI \+ E2E\)\n\s+run: pnpm run coverage:prepared/);
-  const browserInstall = workflow.indexOf("- name: Install Playwright Chromium");
-  const coverage = workflow.indexOf("- name: Coverage baseline (isolated + UI + E2E)");
+  assert.match(workflow, /coverage-core:\n/);
+  assert.match(workflow, /matrix:\n\s+shard: \[0, 1, 2, 3\]/);
+  assert.match(workflow, /- name: Core isolated coverage shard\n[\s\S]*?run: node scripts\/run-tests-isolated\.js/);
+  assert.match(workflow, /pattern: coverage-v8-core-\*/);
+  assert.match(workflow, /- name: Coverage baseline \(sharded core \+ UI \+ E2E\)\n[\s\S]*?--reuse-core-v8/);
+  const browserInstall = workflow.lastIndexOf("- name: Install Playwright Chromium");
+  const coverage = workflow.indexOf("- name: Coverage baseline (sharded core + UI + E2E)");
   assert.ok(browserInstall >= 0 && coverage > browserInstall, "Playwright Chromium must be installed before coverage E2E execution");
 });
 
@@ -32,6 +36,7 @@ test("prepared paths skip only setup already proven once by CI", () => {
   assert.match(pkg.scripts["release:check"], /build/);
   assert.match(pkg.scripts["release:check"], /release-readiness\.js/);
   assert.match(coverage, /process\.argv\.includes\("--prepared"\)/);
+  assert.match(coverage, /process\.argv\.includes\("--reuse-core-v8"\)/);
   assert.match(coverage, /if \(!prepared\)/);
   assert.match(coverage, /run-tests-isolated\.js/);
   assert.match(coverage, /vitest\.config\.mjs/);

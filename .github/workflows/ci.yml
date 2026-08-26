@@ -201,8 +201,62 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  coverage-core:
+    name: coverage-core-${{ matrix.shard }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Preflight
+        run: pnpm run preflight
+      - name: Build for core coverage
+        run: pnpm run build
+      - name: Prepare core V8 coverage directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "${{ runner.temp }}/nusa-v8-core" | Out-Null
+      - name: Core isolated coverage shard
+        env:
+          NODE_V8_COVERAGE: ${{ runner.temp }}/nusa-v8-core
+          NUSA_TEST_SHARD_COUNT: 4
+          NUSA_TEST_SHARD_INDEX: ${{ matrix.shard }}
+        run: node scripts/run-tests-isolated.js
+      - name: Upload core V8 coverage shard
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-v8-core-${{ matrix.shard }}
+          path: ${{ runner.temp }}/nusa-v8-core
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload isolated shard failure
+        if: failure() && hashFiles('isolated-test-failure.txt') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-isolated-test-failure-${{ matrix.shard }}
+          path: isolated-test-failure.txt
+          if-no-files-found: error
+          retention-days: 7
+
   coverage:
     name: coverage
+    needs: coverage-core
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -216,16 +270,26 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
         run: pnpm run preflight
-      - name: Build for coverage
+      - name: Build for coverage merge
         run: pnpm run build
+      - name: Download core V8 coverage shards
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: coverage-v8-core-*
+          path: .coverage-v8-core
+          merge-multiple: true
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
-      - name: Coverage baseline (isolated + UI + E2E)
-        run: pnpm run coverage:prepared
+      - name: Coverage baseline (sharded core + UI + E2E)
+        env:
+          NUSA_COVERAGE_CORE_V8_DIR: .coverage-v8-core
+        run: node scripts/run-coverage.js --prepared --reuse-core-v8
       - name: Upload coverage baseline
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
