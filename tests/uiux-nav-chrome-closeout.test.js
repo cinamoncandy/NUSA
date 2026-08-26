@@ -45,4 +45,3 @@ test("nav and chrome preserve PAPER-only authority and utility routing", () => {
   assert.match(app, /utilityView === "SETTINGS" \? <SettingsView/);
   assert.match(app, /<HomeView/);
 });
-

@@ -22,4 +22,3 @@ test("secondary navigation is at most two levels and restores memory", () => {
   assert.equal(restoreMobileNavigationState(state.memory).activeTab, "MORE");
   assert.throws(() => createMobileNavigationState({ activeTab: "HOME" }, "SETTINGS"), /requires More/);
 });
-

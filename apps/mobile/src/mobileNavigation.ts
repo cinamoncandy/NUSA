@@ -48,4 +48,3 @@ export function createMobileNavigationState(input: MobileNavigationMemory, moreI
 export function restoreMobileNavigationState(memory: MobileNavigationMemory | undefined): MobileNavigationState {
   return createMobileNavigationState(memory ?? { activeTab: "HOME" });
 }
-

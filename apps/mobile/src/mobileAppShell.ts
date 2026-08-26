@@ -85,4 +85,3 @@ export function buildMobileAppShell(input: MobileAppShellInput): MobileAppShellS
     ...(input.lastSuccessfulSyncAt === undefined ? {} : { lastSuccessfulSyncAt: input.lastSuccessfulSyncAt })
   });
 }
-

@@ -89,4 +89,3 @@ test("market discovery uses compact accessible favorite and sort controls", () =
   assert.match(source, /active \? "관심중" : "관심"/);
   assert.doesNotMatch(source, /★|☆/);
 });
-

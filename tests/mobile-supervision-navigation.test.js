@@ -20,4 +20,3 @@ test("navigation contract keeps utility navigation secondary instead of a fifth 
   assert.match(navigation, /if \(tab === "CONTROL"\) return "PAPER"/);
   assert.match(navigation, /if \(tab === "SETTINGS"\) return "MORE"/);
 });
-

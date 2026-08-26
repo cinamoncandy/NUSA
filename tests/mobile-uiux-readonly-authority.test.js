@@ -82,4 +82,3 @@ test("optional Cloud credential flow remains Settings-owned and never gates loca
   assert.match(app, /isPaperConnectionVerified\(endpoint\)/);
   assert.doesNotMatch(app, /dashboardTokenDraft|testID="dashboard-connect"|testID="dashboard-disconnect"/);
 });
-

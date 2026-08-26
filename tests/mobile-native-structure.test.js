@@ -196,4 +196,3 @@ test("Android mobile workflow cancels obsolete runs and reuses safe dependency c
   assert.equal((workflow.match(/cache: gradle/g) ?? []).length, 2);
   assert.equal(workflow.includes("if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')"), true);
 });
-

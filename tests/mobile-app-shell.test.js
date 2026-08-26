@@ -93,4 +93,3 @@ test("rejects future sync timestamps", () => {
     now: 100
   }), /lastSuccessfulSyncAt is invalid/);
 });
-
