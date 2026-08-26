@@ -13,7 +13,7 @@ export interface ResearchRunPboCandidate {
   readonly experiment: ResearchExperimentResult;
 }
 
-interface TimestampedReturn {
+export interface ResearchRunOosReturn {
   readonly timestamp: number;
   readonly value: number;
 }
@@ -21,7 +21,7 @@ interface TimestampedReturn {
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const PARTITION_PREFERENCE = Object.freeze([16, 14, 12, 10, 8, 6, 4] as const);
 
-function oosReturns(candidate: ResearchRunPboCandidate): readonly TimestampedReturn[] {
+export function researchRunOosReturns(candidate: ResearchRunPboCandidate): readonly ResearchRunOosReturn[] {
   if (!candidate.id.trim()) throw new ResearchRunPboEvidenceError("INVALID_CANDIDATE_ID", "candidate id is required");
   const configured = candidate.experiment.experimentConfig.candidates;
   if (configured.length !== 1 || configured[0]?.id !== candidate.id) {
@@ -31,7 +31,7 @@ function oosReturns(candidate: ResearchRunPboCandidate): readonly TimestampedRet
     );
   }
 
-  const returns: TimestampedReturn[] = [];
+  const returns: ResearchRunOosReturn[] = [];
   let previousWindowEndTimestamp: number | undefined;
   for (const window of candidate.experiment.walkForwardResult.windows) {
     const curve = window.testResult.equityCurve;
@@ -96,7 +96,7 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     }
   }
 
-  const series = candidates.map((candidate) => ({ id: candidate.id, returns: oosReturns(candidate) }));
+  const series = candidates.map((candidate) => ({ id: candidate.id, returns: researchRunOosReturns(candidate) }));
   const reference = series[0]!.returns;
   for (const candidate of series.slice(1)) {
     if (candidate.returns.length !== reference.length) {
