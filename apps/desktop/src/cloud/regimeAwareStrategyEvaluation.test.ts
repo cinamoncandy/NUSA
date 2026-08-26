@@ -68,7 +68,7 @@ function regime(windowIndex: number, state: RegimeHealthAssessment["state"], ove
     windowIndex,
     regime: {
       schemaVersion: 1,
-      asOf: firstOosTimestamp,
+      asOf: firstOosTimestamp - 1,
       state,
       score: state === "HEALTHY" ? 0.8 : state === "MIXED" ? 0.5 : 0.2,
       components: { breadth: 0.5, medianReturn: 0, medianDrawdown: -0.05, medianVolatility: 0.02, dispersion: 0.01 },
@@ -154,10 +154,10 @@ describe("evaluateStrategyByRegime", () => {
     assert.ok(healthy.reasons.includes("INSUFFICIENT_REGIME_WINDOWS"));
   });
 
-  it("fails closed on look-ahead regime evidence", () => {
+  it("fails closed when regime evidence is at or after the first OOS timestamp", () => {
     assert.throws(
       () => evaluateStrategyByRegime(experiment(), [
-        regime(0, "HEALTHY", { asOf: 501 }),
+        regime(0, "HEALTHY", { asOf: 500 }),
         regime(1, "HEALTHY"),
         regime(2, "STRESSED"),
         regime(3, "STRESSED"),
