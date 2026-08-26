@@ -97,6 +97,29 @@ test("evaluator exceptions become inconclusive and deterministic input replay ma
   assert.deepEqual(make().evaluate(input()), make().evaluate(input()));
 });
 
+test("unsupported input values fail closed without fallback string hashing", () => {
+  const coordinator = new ResearchRuntimeCoordinator({ champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1), challenger: evaluator("challenger-1", "1.0.0", "ZERO_AUTHORITY", 0.2) });
+  const malformed = input({ marketData: [{ market: "KRW-BTC", price: 100, observedAt: 1000, unsupported: () => "secret-like value" }] });
+  const first = coordinator.evaluate(malformed);
+  const second = new ResearchRuntimeCoordinator({ champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1), challenger: evaluator("challenger-1", "1.0.0", "ZERO_AUTHORITY", 0.2) }).evaluate(malformed);
+  assert.equal(first.result, "INCONCLUSIVE");
+  assert.equal(first.reason, "NON_CANONICAL_INPUT");
+  assert.equal(first.champion, null);
+  assert.equal(first.challenger, null);
+  assert.equal(first.canonicalInputHash, second.canonicalInputHash);
+  assert.equal(first.canonicalInputHash.includes("secret-like"), false);
+});
+
+test("malformed market data shape fails closed instead of throwing", () => {
+  const coordinator = new ResearchRuntimeCoordinator({ champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1), challenger: evaluator("challenger-1", "1.0.0", "ZERO_AUTHORITY", 0.2) });
+  const missingCollection = coordinator.evaluate(input({ marketData: null }));
+  const malformedPoint = coordinator.evaluate(input({ marketData: [null], evaluationId: "evaluation-malformed-point" }));
+  assert.equal(missingCollection.result, "INCONCLUSIVE");
+  assert.match(missingCollection.reason, /INVALID_MARKET_DATA/);
+  assert.equal(malformedPoint.result, "INCONCLUSIVE");
+  assert.match(malformedPoint.reason, /INVALID_MARKET_DATA/);
+});
+
 test("comparison ledger persists and rejects conflicting evaluation identities", () => {
   const db = new SqliteDatabase(":memory:");
   try {

@@ -1,0 +1,42 @@
+id: WO-MARKET-INTELLIGENCE-INTEGRITY-001
+title: "Research runtime canonicalization integrity"
+status: COMPLETED
+phase: implementation
+base_branch: main
+base_commit: e6aeccdf8ae61965ac4567c52d75259a274f407f
+implementation_branch: codex/market-intelligence-next
+objective: "Make malformed research inputs fail closed without fallback string hashing or evaluator execution."
+scope:
+  - deterministic canonical input hashing
+  - malformed market-data shape rejection
+  - unsupported input value rejection
+  - research coordinator regression coverage
+prohibited:
+  - order, broker, transfer, withdrawal, or LIVE authority
+  - Risk or promotion-policy changes
+  - synthetic market data or research success
+acceptance:
+  - canonicalization failure produces INCONCLUSIVE evidence
+  - malformed input does not throw before evidence persistence
+  - unsupported values are never fallback-string hashed
+  - valid inputs preserve canonical hash and evaluator behavior
+  - safety invariants remain unchanged
+validation:
+  focused_research: PASS_9_OF_9
+  research_regressions: PASS_54_OF_54
+  full_isolated_suite: PASS_620_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  git_diff_check: PASS
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Continue with the next repository-backed research data-integrity gap; keep missing evidence fail-closed."
