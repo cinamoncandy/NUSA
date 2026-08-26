@@ -70,7 +70,9 @@ test("#637: Home renders the shared LOCAL PAPER equity/cash/PnL only when Cloud 
   assert.match(home, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
   assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
   assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
-  assert.match(home, /"home-equity-local" : "home-equity-cloud"/);
+  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
+  assert.match(home, /`PAPER P&L .* · EQUITY \$\{krw\(account\.equity\)\}`/s);
+  assert.match(home, /testID="home-supervisor-summary"/);
   assert.match(home, /testID="home-local-paper-note"/);
 });
 
