@@ -102,7 +102,7 @@ export function assessRegimeHealth(
 
   return Object.freeze({
     schemaVersion: 1,
-    asOf: Math.min(...frame.markets.map((market) => market.asOf)),
+    asOf: Math.max(...frame.markets.map((market) => market.asOf)),
     state,
     score,
     components: Object.freeze({
