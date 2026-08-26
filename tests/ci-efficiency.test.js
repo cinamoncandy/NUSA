@@ -22,6 +22,9 @@ test("CI produces core and UI/E2E coverage in parallel before a merge-only job",
   assert.match(workflow, /pattern: coverage-v8-\*/);
   assert.match(workflow, /- name: Merge coverage baseline\n[\s\S]*?--merge-precomputed/);
 
+  const validation = workflow.split("\n  validation:\n")[1].split("\n  coverage-core:\n")[0];
+  assert.doesNotMatch(validation, /Install Playwright Chromium/);
+
   const producer = workflow.split("\n  coverage-ui-e2e:\n")[1].split("\n  coverage:\n")[0];
   assert.ok(
     producer.indexOf("- name: Install Playwright Chromium") < producer.indexOf("- name: Produce UI and E2E coverage in parallel with core shards"),
