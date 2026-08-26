@@ -22,7 +22,7 @@ test("classic and master presets are materially distinct visual systems", () => 
   assert.match(profile, /master:[\s\S]*?metricGap:\s*6/);
 });
 
-test("HomeView consumes the selected preset for MASTER geometry and composition", () => {
+test("HomeView consumes the selected preset for MASTER geometry and current composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
@@ -30,16 +30,15 @@ test("HomeView consumes the selected preset for MASTER geometry and composition"
   assert.match(home, /gap:\s*tablet \? 24 : 18/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(home, /fontSize:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceSize, 58\) : Math\.max\(profile\.hero\.balanceSize, 42\)/);
-  assert.match(home, /lineHeight:\s*tablet \? Math\.max\(profile\.hero\.tabletBalanceLineHeight, 64\) : Math\.max\(profile\.hero\.balanceLineHeight, 48\)/);
-  assert.match(home, /letterSpacing:\s*profile\.hero\.balanceLetterSpacing/);
   assert.match(home, /testID="home-screen"/);
+  assert.match(home, /testID="home-supervisor-summary"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
   assert.match(home, /testID="home-supervisor-result"[\s\S]*onNavigate\("Portfolio"\)[\s\S]*SUPERVISE →/);
   assert.match(home, /testID="home-supervisor-learning"[\s\S]*onOpenPaperLearning[\s\S]*EVIDENCE →/);
+  assert.doesNotMatch(home, /testID="account-hero-card"/);
   assert.doesNotMatch(home, /label="PAPER 학습 보기"/);
   assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
   assert.match(home, /02 \/\/ SIGNAL TERRAIN/);

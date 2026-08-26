@@ -26,7 +26,7 @@ test("functional motion is bounded and reduced-motion aware", () => {
   assert.match(components, /reduceMotionChanged/);
   assert.match(components, /Animated\.timing/);
   assert.match(components, /useNativeDriver: true/);
-  assert.match(home, /MotionReveal testID="home-hero-reveal"/);
+  assert.doesNotMatch(home, /MotionReveal testID="home-hero-reveal"/);
   assert.match(chart, /MotionReveal testID="chart-data-reveal"/);
 });
 

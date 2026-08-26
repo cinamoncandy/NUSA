@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { MotionReveal, TerrainSignal } from "./components";
+import { TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -114,12 +114,6 @@ export function HomeView({
     paddingBottom: profile.screen.bottomPadding,
     maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth,
   } as const;
-  const balanceStyle = {
-    fontSize: tablet ? Math.max(profile.hero.tabletBalanceSize, 58) : Math.max(profile.hero.balanceSize, 42),
-    lineHeight: tablet ? Math.max(profile.hero.tabletBalanceLineHeight, 64) : Math.max(profile.hero.balanceLineHeight, 48),
-    letterSpacing: profile.hero.balanceLetterSpacing,
-    color: theme.colors.text,
-  } as const;
 
   const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : runtimeNeedsSupervision ? "SUPERVISE PAPER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
   const primaryDetail = notConfigured
@@ -137,10 +131,6 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
-  // QA: PersonalPaperRuntimeState has 8 real values (HALTED/READY_OFFLINE/READY/RUNNING/DEGRADED/
-  // ERROR/STOPPING/STOPPED) -- an actual ERROR runtime previously fell through to the same WATCH
-  // tier as an ordinary "no signal yet" wait, and STOPPED/STOPPING had no explicit label at all,
-  // so a stopped runtime could read as generic "DECISION HOLD" rather than saying so truthfully.
   const attentionLevel = disconnected || readOnlyError || runtimeState === "HALTED" || runtimeState === "ERROR"
     ? "ACTION REQUIRED"
     : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING" || (snapshot != null && !signalReady)
@@ -192,8 +182,6 @@ export function HomeView({
     ? `근거 ${ai?.evidenceReferences.length ?? 0}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
     : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
 
-  const cornerStyle = { borderColor: theme.colors.aiSignalEnd } as const;
-
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}
     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
@@ -226,29 +214,18 @@ export function HomeView({
       </View>
     </View>
 
-    <MotionReveal testID="home-hero-reveal">
-      <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="account-hero-card">
-        <View style={[styles.cornerTL, cornerStyle]} /><View style={[styles.cornerTR, cornerStyle]} /><View style={[styles.cornerBL, cornerStyle]} /><View style={[styles.cornerBR, cornerStyle]} />
-        <View style={styles.deckHeader}>
-          <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>01 // CAPITAL CORE</Text>
-          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
-        </View>
-        <Text style={[styles.heroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
-        {account == null
-          ? <Text style={[styles.placeholderBalance, { color: theme.colors.textMuted }]} testID="home-equity-placeholder">NO LINK</Text>
-          : <Text style={[styles.balance, balanceStyle]} adjustsFontSizeToFit numberOfLines={1} testID={accountSource === "LOCAL" ? "home-equity-local" : "home-equity-cloud"}>{krw(account.equity)}</Text>}
-        {accountSource === "LOCAL" ? <Text style={[styles.meta, { color: theme.colors.textMuted }]} testID="home-local-paper-note">Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다 · 실제 주문 아님</Text> : null}
-        <View style={styles.pnlRow}>
-          <Text style={[styles.pnlValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? theme.colors.aiSignalEnd : theme.colors.danger }]}>{totalPnl == null ? "P&L —" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
-          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>CUMULATIVE PAPER P&L</Text>
-        </View>
-        {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
-          <View style={styles.cashMetric} testID="home-investable-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>DEPLOYABLE {cashEnvelope.investmentPercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text></View>
-          <View style={[styles.cashDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.cashMetric} testID="home-reserved-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>RESERVE {cashEnvelope.reservePercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text></View>
-        </View> : null}
+    {cashEnvelope || accountSource === "LOCAL" ? <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="home-capital-limits">
+      <View style={styles.deckHeader}>
+        <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>01 // CAPITAL LIMITS</Text>
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
       </View>
-    </MotionReveal>
+      {accountSource === "LOCAL" ? <Text style={[styles.meta, { color: theme.colors.textMuted }]} testID="home-local-paper-note">Cloud 연결 없이 기기 내 LOCAL PAPER 잔고를 표시합니다 · 실제 주문 아님</Text> : null}
+      {cashEnvelope ? <View style={[styles.cashRail, { borderTopColor: theme.colors.border }]} testID="home-cash-allocation">
+        <View style={styles.cashMetric} testID="home-investable-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>DEPLOYABLE {cashEnvelope.investmentPercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.investableCash)}</Text></View>
+        <View style={[styles.cashDivider, { backgroundColor: theme.colors.border }]} />
+        <View style={styles.cashMetric} testID="home-reserved-cash"><Text style={[styles.cashLabel, { color: theme.colors.textMuted }]}>RESERVE {cashEnvelope.reservePercent}%</Text><Text style={[styles.cashValue, { color: theme.colors.text }]}>{krw(cashEnvelope.reservedCash)}</Text></View>
+      </View> : null}
+    </View> : null}
 
     <View style={[styles.signalStage, { borderColor: theme.colors.borderStrong }]} testID="ai-card">
       <View style={styles.deckHeader}>
@@ -271,10 +248,6 @@ export function HomeView({
 
     {disconnected ? <OperationalNotice title="PAPER 연결이 필요합니다" detail="연결 전에는 실제 PAPER 계좌와 판단 데이터를 표시하지 않습니다." tone="warning" actionLabel="PAPER 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
     {readOnlyError ? <OperationalNotice title="시장 연결을 확인할 수 없습니다" detail="NUSA는 새로운 PAPER 판단을 보류합니다." tone="danger" actionLabel="설정에서 연결" onAction={onGoSettings} actionTestID="dashboard-open-settings" testID="home-operational-notice" /> : null}
-
-    {/* The one actionable next step already lives in the NOW/WHY/RESULT/LEARNING supervisor deck
-        above (home-supervisor-primary-action) -- a second "NEXT DECISION" card here duplicated the
-        same action and a near-duplicate of the WHY reasoning. Removed rather than repeated. */}
 
     <View style={[styles.secondaryDiagnostics, { borderTopColor: theme.colors.border }]} testID="safety-card">
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: diagnosticsOpen }} onPress={() => setDiagnosticsOpen((open) => !open)} style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-diagnostics-toggle">
@@ -307,27 +280,18 @@ const styles = StyleSheet.create({
   supervisorRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   supervisorKey: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.5 },
   supervisorAction: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.1 },
-  supervisorValueStrong: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: 0.3 },
-  supervisorValue: { fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  supervisorValueStrong: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: 0.3, fontVariant: ["tabular-nums"] },
+  supervisorValue: { fontSize: 12, lineHeight: 18, fontWeight: "700", fontVariant: ["tabular-nums"] },
   supervisorAuthority: { borderTopWidth: 1, marginTop: 2, paddingTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
-  cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
-  cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
-  cornerBL: { position: "absolute", left: -1, bottom: -1, width: 18, height: 18, borderLeftWidth: 3, borderBottomWidth: 3 },
-  cornerBR: { position: "absolute", right: -1, bottom: -1, width: 18, height: 18, borderRightWidth: 3, borderBottomWidth: 3 },
+  commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, overflow: "hidden" },
   deckHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   kicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.6 },
-  heroLabel: { marginTop: 28, fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 2 },
-  balance: { marginTop: 4, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  placeholderBalance: { marginTop: 12, fontSize: 42, lineHeight: 48, fontWeight: "900", letterSpacing: 1 },
-  pnlRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 8 },
-  pnlValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", letterSpacing: 0.3, fontVariant: ["tabular-nums"] },
   meta: { fontSize: 10, lineHeight: 15, fontWeight: "700", letterSpacing: 0.5 },
-  cashRail: { flexDirection: "row", borderTopWidth: 1, marginTop: 22, paddingTop: 14 },
+  cashRail: { flexDirection: "row", borderTopWidth: 1, marginTop: 14, paddingTop: 14 },
   cashMetric: { flex: 1, gap: 5 },
   cashDivider: { width: 1, marginHorizontal: 14 },
   cashLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.2 },
-  cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800" },
+  cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800", fontVariant: ["tabular-nums"] },
   signalStage: { borderWidth: 1, padding: 14, overflow: "hidden" },
   stageTitle: { marginTop: 3, fontSize: 24, lineHeight: 28, fontWeight: "900", letterSpacing: 0.6 },
   decisionState: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 1.3 },
