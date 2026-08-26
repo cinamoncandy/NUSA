@@ -5,13 +5,21 @@ import type { AbstentionAssessment } from "./abstentionEngine";
 import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
 import type { ResearchTrialLedgerSummary } from "./researchTrialLedger";
+import type { PaperPerformanceSummary } from "../../../../packages/contracts/src/strategyGovernance";
 
 /**
  * NUSA League: the research-only ranking layer over the existing evidence primitives
  * (Benchmark Scorecard, DSR/PBO, Regime Health, Abstention, Ghost Execution, Counterfactual,
- * Trial Ledger). It computes no new performance metric -- every number here is read directly
- * from evidence those modules already produced -- and it never gains order/broker/capital/LIVE
- * authority. Its only output is a research ranking plus the reasons behind it.
+ * Trial Ledger, and real PAPER performance evidence). It computes no new performance metric --
+ * every number here is read directly from evidence those modules already produced -- and it
+ * never gains order/broker/capital/LIVE authority. Its only output is a research ranking plus
+ * the reasons behind it.
+ *
+ * PAPER evidence connects League's backtest-derived ranking to what a candidate actually did
+ * once observed live in PAPER mode: real PnL/reliability either confirms or diverges from the
+ * backtest, and unresolved faults or kill-switch activations are surfaced as risk, never hidden
+ * or auto-resolved by League itself (the production strategy governance gate remains the only
+ * place that can hard-disqualify a strategy on that evidence).
  *
  * Deliberately not a second research engine: this module owns composition and scoring only.
  */
@@ -27,6 +35,12 @@ export interface LeagueCandidateInput {
   readonly ghostExecution?: GhostExecutionResult;
   readonly counterfactual?: CounterfactualAssessment;
   readonly trialLedgerSummary?: ResearchTrialLedgerSummary;
+  /**
+   * The candidate's real PAPER execution track record (the same PaperPerformanceSummary the
+   * production strategy governance gate already consumes) -- League treats this as confirming or
+   * disconfirming evidence for the backtest, never as capital-allocation authority.
+   */
+  readonly paperPerformance?: PaperPerformanceSummary;
 }
 
 export interface LeaguePolicy {
@@ -43,6 +57,9 @@ export interface LeagueCandidateComponents {
   readonly abstentionQuality?: number;
   readonly counterfactualRegret?: number;
   readonly trialFailureRatio?: number;
+  readonly paperNetReturn?: number;
+  readonly paperBacktestDivergence?: number;
+  readonly paperReliabilityPenalty?: number;
 }
 
 export interface LeagueRankedEntry {
@@ -136,6 +153,17 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
       throw new NusaLeagueError("INVALID_TRIAL_LEDGER_EVIDENCE", `candidate ${candidate.id} trial ledger outcome counts exceed trialCount`);
     }
   }
+  if (candidate.paperPerformance != null) {
+    const paper = candidate.paperPerformance;
+    for (const [field, value] of Object.entries(paper)) {
+      if (typeof value === "number" && !Number.isFinite(value)) throw new NusaLeagueError("NON_FINITE_PAPER_EVIDENCE", `candidate ${candidate.id} paperPerformance.${field} must be finite`);
+    }
+    if (paper.observationDays < 0 || paper.tradeCount < 0 || paper.unresolvedFaultCount < 0 || paper.killSwitchActivationCount < 0) {
+      throw new NusaLeagueError("INVALID_PAPER_EVIDENCE", `candidate ${candidate.id} paperPerformance counts must be non-negative`);
+    }
+    if (paper.availabilityRatio < 0 || paper.availabilityRatio > 1) throw new NusaLeagueError("INVALID_PAPER_EVIDENCE", `candidate ${candidate.id} paperPerformance.availabilityRatio must be between 0 and 1`);
+    if (paper.endedAt != null && paper.endedAt < paper.startedAt) throw new NusaLeagueError("INVALID_PAPER_EVIDENCE", `candidate ${candidate.id} paperPerformance.endedAt precedes startedAt`);
+  }
 }
 
 function candidateProvenance(candidate: LeagueCandidateInput): readonly string[] {
@@ -157,6 +185,19 @@ function abstentionQuality(abstention: AbstentionAssessment): number {
   return clamp01(0.5 + abstention.netExpectedEdge * 50);
 }
 
+/**
+ * Real PAPER faults, kill-switch activations, and sub-target availability are capital-preservation
+ * signals -- League folds them into a single [0, 1] reliability penalty rather than a raw pass/fail,
+ * because the actual production gate (strategyPromotionEngine) already owns the hard disqualification;
+ * League only needs to make the risk visible in the ranking.
+ */
+function paperReliabilityPenalty(paper: PaperPerformanceSummary): number {
+  const faultPenalty = clamp01(paper.unresolvedFaultCount / 3);
+  const killSwitchPenalty = paper.killSwitchActivationCount > 0 ? 1 : 0;
+  const availabilityPenalty = clamp01((0.99 - paper.availabilityRatio) / 0.1);
+  return clamp01(Math.max(faultPenalty, killSwitchPenalty, availabilityPenalty));
+}
+
 function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
   const reasons: string[] = [...candidate.benchmark.reasons];
   const eligible = candidate.benchmark.eligible;
@@ -168,6 +209,9 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
   if (candidate.abstention?.decision === "ABSTAIN") reasons.push("ABSTAINED_SOUND_DECISION");
   if (candidate.ghostExecution?.status === "SKIPPED") reasons.push("GHOST_EXECUTION_SKIPPED_BY_ABSTENTION");
   if (candidate.counterfactual != null && candidate.counterfactual.regret > 0) reasons.push("COUNTERFACTUAL_REGRET_OBSERVED");
+  if (candidate.paperPerformance != null && candidate.paperPerformance.netReturn < candidate.benchmark.totalReturn) reasons.push("PAPER_PERFORMANCE_BELOW_BACKTEST");
+  if (candidate.paperPerformance?.unresolvedFaultCount) reasons.push("PAPER_UNRESOLVED_FAULT");
+  if (candidate.paperPerformance?.killSwitchActivationCount) reasons.push("PAPER_KILL_SWITCH_ACTIVATED");
 
   const components: LeagueCandidateComponents = freeze({
     outOfSamplePerformance: candidate.benchmark.totalReturn,
@@ -179,9 +223,14 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
     ...(candidate.abstention == null ? {} : { abstentionQuality: abstentionQuality(candidate.abstention) }),
     ...(candidate.counterfactual == null ? {} : { counterfactualRegret: candidate.counterfactual.regret }),
     ...(trialFailureRatio == null ? {} : { trialFailureRatio }),
+    ...(candidate.paperPerformance == null ? {} : {
+      paperNetReturn: candidate.paperPerformance.netReturn,
+      paperBacktestDivergence: candidate.benchmark.totalReturn - candidate.paperPerformance.netReturn,
+      paperReliabilityPenalty: paperReliabilityPenalty(candidate.paperPerformance),
+    }),
   });
 
-  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary];
+  const evidenceCategories = [candidate.deflatedSharpe, candidate.regime, candidate.abstention, candidate.ghostExecution, candidate.counterfactual, candidate.trialLedgerSummary, candidate.paperPerformance];
   const evidenceBreadth = evidenceCategories.filter((value) => value != null).length / evidenceCategories.length;
 
   const leagueScore = eligible
@@ -194,6 +243,9 @@ function scoreCandidate(candidate: LeagueCandidateInput): LeagueRankedEntry {
       + (components.abstentionQuality ?? 0.5) * 100
       - (components.counterfactualRegret ?? 0) * 300
       - (components.trialFailureRatio ?? 0) * 50
+      + (components.paperNetReturn ?? 0) * 400
+      - Math.max(0, components.paperBacktestDivergence ?? 0) * 200
+      - (components.paperReliabilityPenalty ?? 0) * 500
       + evidenceBreadth * 50
     : undefined;
 

@@ -8,6 +8,7 @@ import type { AbstentionAssessment } from "./abstentionEngine";
 import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
 import type { ResearchTrialLedgerSummary } from "./researchTrialLedger";
+import type { PaperPerformanceSummary } from "../../../../packages/contracts/src/strategyGovernance";
 
 function benchmark(overrides: Partial<ResearchBenchmarkSliceScore> = {}): ResearchBenchmarkSliceScore {
   return {
@@ -124,6 +125,24 @@ function pbo(overrides: Partial<PboCscvEvidence> = {}): PboCscvEvidence {
   };
 }
 
+function paperPerformance(overrides: Partial<PaperPerformanceSummary> = {}): PaperPerformanceSummary {
+  return {
+    startedAt: 1_000,
+    endedAt: 2_000,
+    observationDays: 30,
+    tradeCount: 60,
+    netReturn: 0.02,
+    sharpeRatio: 1.1,
+    profitFactor: 1.3,
+    maximumDrawdown: 0.04,
+    availabilityRatio: 0.995,
+    unresolvedFaultCount: 0,
+    killSwitchActivationCount: 0,
+    executionQualityScore: 88,
+    ...overrides,
+  };
+}
+
 function fullCandidate(id = "candidate-a", overrides: Partial<LeagueCandidateInput> = {}): LeagueCandidateInput {
   return {
     id,
@@ -147,6 +166,7 @@ function fullCandidate(id = "candidate-a", overrides: Partial<LeagueCandidateInp
     ghostExecution: ghost(),
     counterfactual: counterfactual(),
     trialLedgerSummary: trialLedgerSummary(),
+    paperPerformance: paperPerformance(),
     ...overrides,
   };
 }
@@ -226,6 +246,44 @@ describe("evaluateLeague", () => {
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { counterfactual: counterfactual({ regret: Number.NaN }) })]), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a")], { probabilityBacktestOverfitting: pbo({ probabilityBacktestOverfitting: 1.5 }) }), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { trialLedgerSummary: trialLedgerSummary({ completedCount: 20 }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ netReturn: Number.NaN }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ availabilityRatio: 1.4 }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ startedAt: 5_000, endedAt: 1_000 }) })]), NusaLeagueError);
+  });
+
+  it("connects League to real PAPER evidence: confirms, diverges, and surfaces reliability risk without hiding it", () => {
+    const confirmed = fullCandidate("candidate-confirmed", { paperPerformance: paperPerformance({ netReturn: 0.09 }) }); // benchmark.totalReturn defaults to 0.08
+    const diverged = fullCandidate("candidate-diverged", { benchmark: benchmark({ id: "candidate-diverged" }), paperPerformance: paperPerformance({ netReturn: -0.02 }) });
+    const unreliable = fullCandidate("candidate-unreliable", { benchmark: benchmark({ id: "candidate-unreliable" }), paperPerformance: paperPerformance({ unresolvedFaultCount: 2, killSwitchActivationCount: 1 }) });
+    const noPaperEvidence = fullCandidate("candidate-no-paper", { benchmark: benchmark({ id: "candidate-no-paper" }), paperPerformance: undefined });
+
+    const standing = evaluateLeague([confirmed, diverged, unreliable, noPaperEvidence]);
+    const byId = (id: string) => standing.entries.find((entry) => entry.id === id)!;
+
+    const confirmedEntry = byId("candidate-confirmed");
+    assert.equal(confirmedEntry.components.paperNetReturn, 0.09);
+    assert.ok(confirmedEntry.components.paperBacktestDivergence! < 0, "real PAPER outperforming the backtest is negative divergence");
+    assert.equal(confirmedEntry.components.paperReliabilityPenalty, 0);
+    assert.equal(confirmedEntry.reasons.includes("PAPER_PERFORMANCE_BELOW_BACKTEST"), false);
+
+    const divergedEntry = byId("candidate-diverged");
+    assert.ok(divergedEntry.reasons.includes("PAPER_PERFORMANCE_BELOW_BACKTEST"));
+    assert.ok(divergedEntry.components.paperBacktestDivergence! > 0);
+
+    const unreliableEntry = byId("candidate-unreliable");
+    assert.ok(unreliableEntry.reasons.includes("PAPER_UNRESOLVED_FAULT"));
+    assert.ok(unreliableEntry.reasons.includes("PAPER_KILL_SWITCH_ACTIVATED"));
+    assert.equal(unreliableEntry.components.paperReliabilityPenalty, 1);
+    assert.equal(unreliableEntry.eligible, true, "League surfaces the risk but does not itself hard-disqualify; that remains the production gate's job");
+
+    const noPaperEntry = byId("candidate-no-paper");
+    assert.equal(noPaperEntry.components.paperNetReturn, undefined);
+    assert.ok(noPaperEntry.evidenceBreadth < confirmedEntry.evidenceBreadth);
+
+    // Confirmed real performance must outrank a candidate whose real PAPER track record diverged
+    // from the backtest or exposed unresolved reliability risk, all else equal.
+    assert.ok(confirmedEntry.leagueScore! > divergedEntry.leagueScore!);
+    assert.ok(confirmedEntry.leagueScore! > unreliableEntry.leagueScore!);
   });
 
   it("never produces an order, broker call, or LIVE/capital-allocation authority", () => {
