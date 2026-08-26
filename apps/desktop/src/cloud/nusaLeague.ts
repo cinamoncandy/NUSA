@@ -140,6 +140,17 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
     if (candidate.ghostExecution.schemaVersion !== 1) throw new NusaLeagueError("UNSUPPORTED_GHOST_SCHEMA", `candidate ${candidate.id} ghost execution schema is unsupported`);
     assertProvenanceCovers(datasetId, candidate.ghostExecution.sourceDatasetIds, "GHOST_EXECUTION_PROVENANCE_MISMATCH", `candidate ${candidate.id} ghost execution`);
     if (candidate.ghostExecution.status === "SIMULATED") assertFinite(candidate.ghostExecution.netReturn!, "NON_FINITE_GHOST_EVIDENCE", `candidate ${candidate.id} ghost netReturn must be finite`);
+    // Ghost execution's own status is derived from an abstention decision (simulateGhostExecution
+    // only ever produces SIMULATED for PROCEED_RESEARCH and SKIPPED for ABSTAIN). If this candidate
+    // also carries an abstention assessment, the two must agree, or one of the two evidence objects
+    // does not actually describe this candidate's real decision -- fail closed rather than silently
+    // scoring a self-contradictory record as if it were coherent.
+    if (candidate.abstention != null) {
+      const expectedStatus = candidate.abstention.decision === "PROCEED_RESEARCH" ? "SIMULATED" : "SKIPPED";
+      if (candidate.ghostExecution.status !== expectedStatus) {
+        throw new NusaLeagueError("GHOST_EXECUTION_ABSTENTION_MISMATCH", `candidate ${candidate.id} ghost execution status does not match its own abstention decision`);
+      }
+    }
   }
   if (candidate.counterfactual != null) {
     if (candidate.counterfactual.schemaVersion !== 1) throw new NusaLeagueError("UNSUPPORTED_COUNTERFACTUAL_SCHEMA", `candidate ${candidate.id} counterfactual schema is unsupported`);
