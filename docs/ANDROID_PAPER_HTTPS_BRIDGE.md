@@ -42,10 +42,10 @@ The origin intentionally remains plain HTTP on loopback because TLS terminates a
 Validate the configuration before starting it:
 
 ```text
-cloudflared tunnel ingress validate --config <path-to-config.yml>
+cloudflared tunnel --config <path-to-config.yml> ingress validate
 ```
 
-Start the named tunnel using the same local configuration. Create the public hostname/DNS route so `<PAPER_HOSTNAME>` resolves through that tunnel.
+Start the named tunnel using the same local configuration and create the public hostname/DNS route so `<PAPER_HOSTNAME>` resolves through that tunnel.
 
 ## Android endpoint
 
@@ -66,7 +66,7 @@ To stop remote exposure, stop the `cloudflared` tunnel process or service. NUSA 
 If Android cannot connect:
 
 1. Confirm NUSA answers locally on `127.0.0.1:8787`.
-2. Run `cloudflared tunnel ingress validate` again.
+2. Run `cloudflared tunnel --config <path-to-config.yml> ingress validate` again.
 3. Confirm the published hostname routes to `http://127.0.0.1:8787`.
 4. Confirm Android is configured with `https://`, not `http://`.
 5. Re-enter the dashboard bearer credential if authentication fails. Do not log or paste the credential into issue comments.
