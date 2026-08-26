@@ -54,7 +54,7 @@ test("Home hierarchy avoids developer-console cards while preserving verified sa
   const app = read("App.tsx");
   const home = read("src/homeView.tsx");
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="home-next-action"/);
+  assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /testID="safety-card"/);
   assert.doesNotMatch(home, /testID="operations-card"/);
