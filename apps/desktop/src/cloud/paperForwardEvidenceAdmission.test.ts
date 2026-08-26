@@ -59,7 +59,7 @@ describe("PAPER forward evidence admission", () => {
   });
 
   it("rejects overlapping chronology", () => {
-    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { periodStartAt: 8_000 })])), "NON_MONOTONIC_PERIODS");
+    assert.equal(code(() => admitPaperForwardEvidence([period(0), period(1, { advisoryGeneratedAt: 7_000, periodStartAt: 8_000 })])), "NON_MONOTONIC_PERIODS");
   });
 
   it("rejects duplicate periods for replay idempotency", () => {
