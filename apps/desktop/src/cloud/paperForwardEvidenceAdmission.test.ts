@@ -74,4 +74,19 @@ describe("PAPER forward evidence admission", () => {
   it("rejects omitted cost evidence represented by non-finite values", () => {
     assert.equal(code(() => admitPaperForwardEvidence([period(0, { slippageRate: Number.NaN })])), "NON_FINITE_VALUE");
   });
+
+  it("rejects unknown persisted runtime status instead of counting it as failed evidence", () => {
+    const invalid = { ...period(0), status: "UNKNOWN" } as unknown as PaperForwardPeriodEvidence;
+    assert.equal(code(() => admitPaperForwardEvidence([invalid])), "INVALID_STATUS");
+  });
+
+  it("rejects finite inputs whose compounded PAPER return overflows", () => {
+    assert.equal(
+      code(() => admitPaperForwardEvidence([
+        period(0, { grossReturn: 1e308, turnover: 0, feeRate: 0, spreadRate: 0, slippageRate: 0 }),
+        period(1, { grossReturn: 1e308, turnover: 0, feeRate: 0, spreadRate: 0, slippageRate: 0 }),
+      ], { minimumLongitudinalPeriods: 1 })),
+      "INVALID_CUMULATIVE_RETURN",
+    );
+  });
 });
