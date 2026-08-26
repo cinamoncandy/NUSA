@@ -164,6 +164,31 @@ test("fails closed on OOS timestamp misalignment", () => {
   assert.throws(() => buildResearchRunPboEvidence(input), ResearchRunPboEvidenceError);
 });
 
+test("fails closed when an OOS window baseline timestamp is non-finite", () => {
+  const input = candidates();
+  const broken = experiment(input[0].id, 0);
+  broken.walkForwardResult.windows[0].testResult.equityCurve[0].timestamp = Number.NaN;
+  input[0] = { ...input[0], experiment: broken };
+  assert.throws(
+    () => buildResearchRunPboEvidence(input),
+    (error) => error instanceof ResearchRunPboEvidenceError && error.code === "INVALID_OOS_TIMESTAMP"
+  );
+});
+
+test("fails closed when OOS windows overlap or move backward in time", () => {
+  const input = candidates();
+  const broken = experiment(input[0].id, 0);
+  const previousEnd = broken.walkForwardResult.windows[0].testResult.equityCurve.at(-1).timestamp;
+  broken.walkForwardResult.windows[1].testResult.equityCurve.forEach((point, index) => {
+    point.timestamp = previousEnd - 10 + index;
+  });
+  input[0] = { ...input[0], experiment: broken };
+  assert.throws(
+    () => buildResearchRunPboEvidence(input),
+    (error) => error instanceof ResearchRunPboEvidenceError && error.code === "NON_MONOTONIC_OOS_WINDOWS"
+  );
+});
+
 test("PBO evidence does not manufacture candidate evidence breadth or execution authority", () => {
   const input = candidates();
   const pbo = buildResearchRunPboEvidence(input);
