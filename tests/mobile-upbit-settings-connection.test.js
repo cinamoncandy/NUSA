@@ -60,12 +60,12 @@ test("real-account monitor remains separate from PAPER and surfaces current trut
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const client = read("apps/mobile/src/upbitLiveClient.ts");
 
-  assert.match(portfolio, /UPBIT · READ ONLY/);
+  assert.match(portfolio, /REAL_READ_ONLY · REFERENCE/);
   assert.match(portfolio, /useUpbitReadOnlyState/);
   assert.match(portfolio, /monitorStatus/);
   assert.match(portfolio, /portfolio-upbit-last-success/);
   assert.match(portfolio, /마지막 성공 조회/);
-  assert.match(portfolio, /실제 잔고와 PAPER는 합산하지 않습니다/);
+  assert.match(portfolio, /REAL_READ_ONLY 기준선은 PAPER 결과와 합산하지 않습니다/);
   assert.match(portfolio, /snapshot\.cash\.available/);
   assert.match(portfolio, /snapshot\.cash\.locked/);
   assert.match(portfolio, /asset\.available/);

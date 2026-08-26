@@ -54,15 +54,15 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
 test("Portfolio screen exposes truthful verified totals without unavailable return UI", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /자산 정보를 표시할 수 없습니다/);
-  assert.match(source, /열린 포지션 없음/);
-  assert.match(source, /자산 정보를 불러오는 중/);
+  assert.match(source, /운용 결과를 표시할 수 없습니다/);
+  assert.match(source, /현재 시장 노출 없음/);
+  assert.match(source, /운용 결과를 불러오는 중/);
   assert.match(source, /RefreshControl/);
-  assert.match(source, /styles\.heroLabel, \{ color: theme\.colors\.textMuted \}\]\}>총 평가자산/);
-  assert.match(source, /계정 전체 집계/);
+  assert.match(source, /styles\.heroLabel, \{ color: theme\.colors\.textMuted \}\]\}>PAPER 평가자산/);
+  assert.match(source, /운용 한도와 계정 집계/);
   assert.match(source, /portfolio-realized-pnl/);
   assert.match(source, /portfolio-unrealized-pnl/);
-  assert.match(source, />열린 포지션 없음</);
+  assert.match(source, />현재 시장 노출 없음</);
   assert.doesNotMatch(source, /대표 포지션|대표 열린 포지션/);
   assert.doesNotMatch(source, /수익률/);
   assert.match(source, /NusaButton label="다시 불러오기"/);
