@@ -102,6 +102,31 @@ export function HomeView({
     onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
   };
 
+  const supervisorNow = disconnected
+    ? "PAPER LINK REQUIRED"
+    : readOnlyError
+      ? "RECOVERY REQUIRED"
+      : runtimeState === "RUNNING"
+        ? "PAPER SUPERVISION RUNNING"
+        : signalReady
+          ? "PAPER DECISION READY"
+          : "DECISION HOLD";
+  const supervisorWhy = aiInsightAvailable
+    ? (ai?.thesis ?? "")
+    : disconnected
+      ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
+      : readOnlyError
+        ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
+        : signalReady
+          ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
+          : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
+  const supervisorResult = account == null
+    ? "검증된 PAPER 성과 데이터 없음"
+    : `PAPER P&L ${totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`} · EQUITY ${krw(account.equity)}`;
+  const supervisorLearning = aiInsightAvailable
+    ? `근거 ${ai?.evidenceReferences.length ?? 0}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
+    : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
+
   const cornerStyle = { borderColor: theme.colors.aiSignalEnd } as const;
 
   return <ScrollView
@@ -116,6 +141,35 @@ export function HomeView({
         <Text style={[styles.brandMeta, { color: theme.colors.textMuted }]}>INTELLIGENCE / PAPER CONTROL</Text>
       </View>
       <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
+    </View>
+
+    <View style={[styles.supervisorDeck, { borderColor: theme.colors.borderStrong }]} testID="home-supervisor-summary">
+      <View style={styles.deckHeader}>
+        <Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>SUPERVISOR / EVIDENCE FIRST</Text>
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
+      </View>
+      <View style={styles.supervisorRow} testID="home-supervisor-now">
+        <Text style={[styles.supervisorKey, { color: theme.colors.aiSignalEnd }]}>NOW</Text>
+        <Text style={[styles.supervisorValueStrong, { color: theme.colors.text }]}>{supervisorNow}</Text>
+      </View>
+      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-why">
+        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>WHY</Text>
+        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorWhy}</Text>
+      </View>
+      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-result">
+        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>RESULT</Text>
+        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorResult}</Text>
+      </View>
+      <View style={[styles.supervisorRow, { borderTopColor: theme.colors.border }]} testID="home-supervisor-learning">
+        <Text style={[styles.supervisorKey, { color: theme.colors.textMuted }]}>LEARNING</Text>
+        <Text style={[styles.supervisorValue, { color: theme.colors.text }]}>{supervisorLearning}</Text>
+      </View>
+      <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
+        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
+        <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.aiSignalEnd, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
+          <Text style={[styles.primaryLabel, { color: theme.colors.aiSignalEnd }]}>{primaryLabel}</Text>
+        </Pressable>
+      </View>
     </View>
 
     <MotionReveal testID="home-hero-reveal">
@@ -195,6 +249,12 @@ const styles = StyleSheet.create({
   wordmark: { fontSize: 32, lineHeight: 34, fontWeight: "900", letterSpacing: 1.8 },
   brandUnderline: { width: 74, height: 3 },
   brandMeta: { fontSize: 9, lineHeight: 12, fontWeight: "800", letterSpacing: 2.1 },
+  supervisorDeck: { borderWidth: 1, padding: 14, gap: 0 },
+  supervisorRow: { borderTopWidth: 1, paddingVertical: 12, gap: 5 },
+  supervisorKey: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.5 },
+  supervisorValueStrong: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: 0.3 },
+  supervisorValue: { fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  supervisorAuthority: { borderTopWidth: 1, marginTop: 2, paddingTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   commandDeck: { position: "relative", borderWidth: 1, paddingHorizontal: 16, paddingVertical: 16, minHeight: 210, overflow: "hidden" },
   cornerTL: { position: "absolute", left: -1, top: -1, width: 18, height: 18, borderLeftWidth: 3, borderTopWidth: 3 },
   cornerTR: { position: "absolute", right: -1, top: -1, width: 18, height: 18, borderRightWidth: 3, borderTopWidth: 3 },
