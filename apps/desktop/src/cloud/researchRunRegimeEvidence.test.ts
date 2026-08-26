@@ -19,14 +19,15 @@ function manifestFor(values: readonly ResearchCandle[]) {
 }
 
 describe("point-in-time research regime evidence", () => {
-  it("does not allow candles after asOf to alter the market-state metrics", () => {
+  it("does not allow the first OOS candle or later candles to alter the pre-OOS market-state metrics", () => {
     const baseline = candles();
     const shocked = candles(200, true);
-    const asOf = baseline[99]!.closeTime;
+    const firstOosTimestamp = baseline[120]!.closeTime;
+    const asOf = firstOosTimestamp - 1;
     const first = buildMarketStateFrame([{ manifest: manifestFor(baseline), candles: baseline }], { asOf, lookbackPeriods: 20 });
     const second = buildMarketStateFrame([{ manifest: manifestFor(shocked), candles: shocked }], { asOf, lookbackPeriods: 20 });
-    assert.equal(first.markets[0]!.asOf, asOf);
-    assert.equal(second.markets[0]!.asOf, asOf);
+    assert.equal(first.markets[0]!.asOf, baseline[119]!.closeTime);
+    assert.equal(second.markets[0]!.asOf, baseline[119]!.closeTime);
     assert.deepEqual(first.aggregate, second.aggregate);
     assert.equal(first.markets[0]!.lookbackReturn, second.markets[0]!.lookbackReturn);
     assert.equal(first.markets[0]!.realizedVolatility, second.markets[0]!.realizedVolatility);
