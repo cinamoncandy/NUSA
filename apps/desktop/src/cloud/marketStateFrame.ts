@@ -77,16 +77,19 @@ function maxDrawdown(closes: readonly number[]): number {
   return worst;
 }
 
-function buildObservation(input: MarketStateInput, lookbackPeriods: number): MarketStateObservation {
+function buildObservation(input: MarketStateInput, lookbackPeriods: number, asOf?: number): MarketStateObservation {
   const validated = verifyHistoricalDatasetManifest(input.manifest, input.candles);
-  if (validated.candles.length < lookbackPeriods + 1) {
+  const eligible = asOf == null
+    ? validated.candles
+    : validated.candles.filter((candle) => candle.closeTime <= asOf);
+  if (eligible.length < lookbackPeriods + 1) {
     throw new MarketStateFrameError(
       "INSUFFICIENT_LOOKBACK",
-      `${input.manifest.datasetId} requires at least ${lookbackPeriods + 1} candles`,
+      `${input.manifest.datasetId} requires at least ${lookbackPeriods + 1} candles available by asOf`,
     );
   }
 
-  const window = validated.candles.slice(-(lookbackPeriods + 1));
+  const window = eligible.slice(-(lookbackPeriods + 1));
   const closes = window.map((candle) => candle.close);
   const returns = closes.slice(1).map((close, index) => Math.log(close / closes[index]!));
   const last = window.at(-1)!;
@@ -119,7 +122,7 @@ function buildObservation(input: MarketStateInput, lookbackPeriods: number): Mar
 
 export function buildMarketStateFrame(
   inputs: readonly MarketStateInput[],
-  options: { readonly lookbackPeriods?: number; readonly generatedAt?: string } = {},
+  options: { readonly lookbackPeriods?: number; readonly generatedAt?: string; readonly asOf?: number } = {},
 ): MarketStateFrame {
   if (inputs.length === 0) throw new MarketStateFrameError("EMPTY_INPUT", "market state frame requires at least one dataset");
 
@@ -132,6 +135,9 @@ export function buildMarketStateFrame(
   if (!Number.isFinite(Date.parse(generatedAt))) {
     throw new MarketStateFrameError("INVALID_GENERATED_AT", "generatedAt must be a valid timestamp");
   }
+  if (options.asOf != null && !Number.isFinite(options.asOf)) {
+    throw new MarketStateFrameError("INVALID_AS_OF", "asOf must be finite when provided");
+  }
 
   const seen = new Set<string>();
   const markets = inputs
@@ -139,7 +145,7 @@ export function buildMarketStateFrame(
       const identity = `${input.manifest.market}::${input.manifest.interval}`;
       if (seen.has(identity)) throw new MarketStateFrameError("DUPLICATE_MARKET_INTERVAL", `duplicate market/interval ${identity}`);
       seen.add(identity);
-      return buildObservation(input, lookbackPeriods);
+      return buildObservation(input, lookbackPeriods, options.asOf);
     })
     .sort((a, b) => a.market.localeCompare(b.market) || a.interval.localeCompare(b.interval));
 

@@ -5,7 +5,7 @@ export type RegimeBucket = "HEALTHY" | "MIXED" | "STRESSED";
 
 export interface RegimeWindowEvidence {
   readonly windowIndex: number;
-  /** Point-in-time regime assessment available no later than the first OOS point. */
+  /** Point-in-time regime assessment available strictly before the first OOS point. */
   readonly regime: RegimeHealthAssessment;
 }
 
@@ -79,8 +79,8 @@ function validateEvidence(experiment: ResearchExperimentResult, evidence: readon
     if (!REGIMES.includes(item.regime.state)) throw new RegimeAwareEvaluationError("INVALID_REGIME", "regime state is unsupported");
     const firstOosTimestamp = window.window.testPoints[0]?.timestamp;
     if (firstOosTimestamp == null) throw new RegimeAwareEvaluationError("EMPTY_OOS_WINDOW", `window ${item.windowIndex} has no OOS points`);
-    if (!Number.isFinite(item.regime.asOf) || item.regime.asOf > firstOosTimestamp) {
-      throw new RegimeAwareEvaluationError("LOOKAHEAD_REGIME_EVIDENCE", `window ${item.windowIndex} regime evidence is later than the first OOS timestamp`);
+    if (!Number.isFinite(item.regime.asOf) || item.regime.asOf >= firstOosTimestamp) {
+      throw new RegimeAwareEvaluationError("LOOKAHEAD_REGIME_EVIDENCE", `window ${item.windowIndex} regime evidence must be strictly earlier than the first OOS timestamp`);
     }
     if (!item.regime.sourceDatasetIds.includes(experiment.manifest.datasetId)) {
       throw new RegimeAwareEvaluationError("REGIME_PROVENANCE_MISMATCH", `window ${item.windowIndex} regime evidence does not cover experiment dataset`);
@@ -153,9 +153,9 @@ function robustnessScore(slices: readonly RegimePerformanceSlice[]): number | un
 }
 
 /**
- * Evaluates already-produced walk-forward OOS windows by the market regime known at each window's
- * start. This function never derives a regime from future data, never reruns a strategy, and never
- * grants promotion, sizing, order, broker, or LIVE authority.
+ * Evaluates already-produced walk-forward OOS windows by the market regime known strictly before
+ * each window starts. This function never derives a regime from future data, never reruns a
+ * strategy, and never grants promotion, sizing, order, broker, or LIVE authority.
  */
 export function evaluateStrategyByRegime(
   experiment: ResearchExperimentResult,

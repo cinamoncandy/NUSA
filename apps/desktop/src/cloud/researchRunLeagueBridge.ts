@@ -1,5 +1,6 @@
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
+import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
@@ -23,13 +24,14 @@ import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
  * tuned variants as separate families would defeat the allocation's family concentration cap,
  * which is the whole reason that cap exists.
  */
-
 export interface ResearchRunCandidate {
   /** Stable candidate id. Must match the benchmark slice id the scorecard produces. */
   readonly id: string;
   /** Strategy family. Tuned variants of one strategy MUST share a familyId. */
   readonly familyId: string;
   readonly experiment: ResearchExperimentResult;
+  /** Optional point-in-time multi-window regime evidence for this candidate's own experiment. */
+  readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
 }
 
 export interface ResearchRunLeagueResult {
@@ -83,15 +85,20 @@ export function buildResearchRunLeague(
   }));
   const scorecard = createResearchBenchmarkScorecard(slices, options.benchmarkPolicy);
 
-  const familyById = new Map(candidates.map((candidate) => [candidate.id, candidate.familyId] as const));
-  const leagueCandidates: readonly LeagueCandidateInput[] = scorecard.slices.map((slice) => ({
-    id: slice.id,
-    familyId: familyById.get(slice.id)!,
-    benchmark: slice,
-  }));
+  const byId = new Map(candidates.map((candidate) => [candidate.id, candidate] as const));
+  const leagueCandidates: readonly LeagueCandidateInput[] = scorecard.slices.map((slice) => {
+    const candidate = byId.get(slice.id)!;
+    return {
+      id: slice.id,
+      familyId: candidate.familyId,
+      benchmark: slice,
+      ...(candidate.regimeAwareEvaluation == null ? {} : { regimeAwareEvaluation: candidate.regimeAwareEvaluation }),
+    };
+  });
 
   const reasons: string[] = ["RESEARCH_TIER_ONLY", "NOT_PAPER_EVIDENCE", "NO_EXECUTION_AUTHORITY"];
-  if (new Set(familyById.values()).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
+  if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
+  if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
 
   const pipelineInput = {
     candidates: leagueCandidates,

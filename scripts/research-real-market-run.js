@@ -4,6 +4,7 @@ const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/sr
 const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
+const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
 
 // Every parameterization below is a tuning of ONE strategy (SMA crossover), not a distinct
 // strategy. They therefore share a family id, so the allocation advisory's family concentration
@@ -79,19 +80,26 @@ async function main() {
   );
 
   // Each parameterization is also evaluated on its own so it can compete as an individual League
-  // candidate. Without this the run produced only aggregate out-of-sample numbers, and the League
-  // ranking and allocation advisory had no caller at all.
+  // candidate. Point-in-time regime evidence is derived strictly from candles available before
+  // each OOS window begins, so regime classification cannot consume the window's own outcome.
   const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
     const id = `sma-${shortPeriod}-${longPeriod}`;
+    const experiment = runWalkForwardExperiment(
+      { candles, manifest },
+      [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
+      WALK_FORWARD_CONFIG,
+      { generatedAt }
+    );
+    const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
+      experiment,
+      [{ manifest, candles }],
+      { lookbackPeriods: 20 }
+    );
     return {
       id,
       familyId: STRATEGY_FAMILY_ID,
-      experiment: runWalkForwardExperiment(
-        { candles, manifest },
-        [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
-        WALK_FORWARD_CONFIG,
-        { generatedAt }
-      )
+      experiment,
+      regimeAwareEvaluation
     };
   });
   const league = buildResearchRunLeague(leagueCandidates, { generatedAt });
@@ -138,6 +146,7 @@ async function main() {
         eligible: entry.eligible,
         leagueScore: entry.leagueScore ?? null,
         evidenceBreadth: entry.evidenceBreadth,
+        regimeRobustness: entry.components.regimeRobustness ?? null,
         regimeRobustnessClass: entry.components.regimeRobustnessClass ?? null,
         reasons: entry.reasons
       })),
