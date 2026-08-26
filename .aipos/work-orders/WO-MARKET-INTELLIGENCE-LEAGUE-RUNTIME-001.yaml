@@ -1,0 +1,57 @@
+id: WO-MARKET-INTELLIGENCE-LEAGUE-RUNTIME-001
+title: "Connect real research run to League allocation advisory"
+status: COMPLETED
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: null
+base_branch: main
+base_commit: 25d5b8d9a0c0b4655b22a39047a75ca62add8d07
+implementation_branch: feat/research-league-runtime-integration
+implementation_head: 5903e93f5a4a55e0a6eda6a856b0ed45f39a6c9d
+objective: "Make the canonical real-market research run reach the existing League ranking and research allocation advisory while preserving research-only semantics."
+architecture_impact:
+  acknowledged: true
+  analysis: "The change adds a thin adapter at the existing research script boundary and extends the existing allocation policy with family concentration bounds. It creates no research engine, execution path, broker path, accounting state, or authority."
+  references:
+    - apps/desktop/src/cloud/researchRunLeagueBridge.ts
+    - apps/desktop/src/cloud/leagueResearchPipeline.ts
+    - apps/desktop/src/cloud/leagueCapitalAllocation.ts
+    - scripts/research-real-market-run.js
+scope:
+  - real_market_research_run_to_league_bridge
+  - existing_benchmark_scorecard_reuse
+  - family_concentration_capped_research_weights
+  - truthful_allocation_refusal_on_insufficient_evidence
+prohibited:
+  - order_or_broker_mutation
+  - capital_amount_or_notional_sizing
+  - PAPER_or_LIVE_promotion
+  - credentials_withdrawal_transfer_or_LIVE_activation
+acceptance:
+  - canonical_run_reaches_existing_league_pipeline
+  - benchmark_oos_cost_and_drawdown_evidence_remain_visible
+  - family_concentration_is_bounded_or_allocation_fails_closed
+  - insufficient_evidence_does_not_create_allocation
+  - deterministic_research_output_and_provenance_are_preserved
+  - research_output_cannot_be_serialized_as_execution_authority
+validation:
+  focused_bridge_allocation: PASS_22_OF_22
+  full_isolated_suite: PASS_627_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  exact_head_remote_validation: PASS_PR_853_HEAD_5903E93F_MERGED_D9B162E7
+implementation_status: MERGED_PR_853
+merge_sha: d9b162e72df75675a950478ed5ab3a980e9488fb
+post_merge_main: d9b162e72df75675a950478ed5ab3a980e9488fb
+next: "Collect additional independent OOS/regime/PAPER evidence before treating any research allocation advisory as stronger evidence; never manufacture missing evidence."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

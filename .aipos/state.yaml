@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-26T15:26:30+09:00"
+updated_at: "2026-08-26T16:20:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
   status: IN_PROGRESS
@@ -12,13 +12,16 @@ phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
-  work_order: WO-MARKET-INTELLIGENCE-INTEGRITY-001
+  work_order: WO-MARKET-INTELLIGENCE-LEAGUE-RUNTIME-001
   status: COMPLETED
-  base_commit: e6aeccdf8ae61965ac4567c52d75259a274f407f
-  implementation_branch: codex/market-intelligence-next
-  scope: "Research coordinator canonicalization and malformed-input fail-closed hardening; no execution or authority change."
+  base_commit: 25d5b8d9a0c0b4655b22a39047a75ca62add8d07
+  implementation_branch: feat/research-league-runtime-integration
+  implementation_head: 5903e93f5a4a55e0a6eda6a856b0ed45f39a6c9d
+  pull_request: 853
+  merge_commit: d9b162e72df75675a950478ed5ab3a980e9488fb
+  scope: "Connect the canonical real-market research run to existing benchmark, League ranking, and research allocation advisory; enforce family concentration bounds without execution authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  validation: "Focused research 9/9; research regressions 54/54; full isolated suite 620 files; typecheck/build/lint/architecture/safety/security/AIPOS PASS."
+  validation: "Bridge/allocation focused 22/22; full isolated suite 627 files; typecheck/build/lint/architecture/safety/security/AIPOS and exact-head CI PASS."
 base_branch: main
 active_branch: codex/live-readiness-production-wiring
 active_successor_branch: feat/production-mobile-enrollment
