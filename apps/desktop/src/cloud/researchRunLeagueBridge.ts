@@ -1,5 +1,6 @@
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
+import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
@@ -63,6 +64,7 @@ export function buildResearchRunLeague(
   candidates: readonly ResearchRunCandidate[],
   options: {
     readonly benchmarkPolicy?: ResearchBenchmarkPolicy;
+    readonly probabilityBacktestOverfitting?: PboCscvEvidence;
     readonly leaguePolicy?: LeaguePolicy;
     readonly allocationPolicy?: Partial<LeagueCapitalAllocationPolicy>;
     readonly generatedAt?: string;
@@ -99,9 +101,13 @@ export function buildResearchRunLeague(
   const reasons: string[] = ["RESEARCH_TIER_ONLY", "NOT_PAPER_EVIDENCE", "NO_EXECUTION_AUTHORITY"];
   if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
   if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
+  if (options.probabilityBacktestOverfitting != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
 
   const pipelineInput = {
     candidates: leagueCandidates,
+    ...(options.probabilityBacktestOverfitting == null
+      ? {}
+      : { probabilityBacktestOverfitting: options.probabilityBacktestOverfitting }),
     ...(options.leaguePolicy == null ? {} : { leaguePolicy: options.leaguePolicy }),
     ...(options.allocationPolicy == null ? {} : { allocationPolicy: options.allocationPolicy }),
     ...(options.generatedAt == null ? {} : { generatedAt: options.generatedAt }),
@@ -120,6 +126,9 @@ export function buildResearchRunLeague(
     // not a reason to discard the ranking, and never a reason to invent an allocation.
     if (!(error instanceof LeagueCapitalAllocationError)) throw error;
     standing = evaluateLeague(leagueCandidates, {
+      ...(options.probabilityBacktestOverfitting == null
+        ? {}
+        : { probabilityBacktestOverfitting: options.probabilityBacktestOverfitting }),
       ...(options.leaguePolicy == null ? {} : { policy: options.leaguePolicy }),
       ...(options.generatedAt == null ? {} : { generatedAt: options.generatedAt }),
     });
