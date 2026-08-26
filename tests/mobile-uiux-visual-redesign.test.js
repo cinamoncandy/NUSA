@@ -21,10 +21,13 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses one truthful state-bound hero signal primitive", () => {
+test("Home uses one truthful supervisor result plus one state-bound signal primitive", () => {
   const home = read("src/homeView.tsx");
   const components = read("src/components.tsx");
-  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="home-supervisor-summary"/);
+  assert.match(home, /testID="home-supervisor-result"/);
+  assert.match(home, /`PAPER P&L .* · EQUITY \$\{krw\(account\.equity\)\}`/s);
+  assert.doesNotMatch(home, /testID="account-hero-card"/);
   assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
   assert.match(home, /const terrainLabel = aiInsightAvailable/);
   assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
