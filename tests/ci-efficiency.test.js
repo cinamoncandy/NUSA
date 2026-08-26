@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8").replace(/\r\n/g, "\n");
 
-test("CI shards the isolated coverage suite without dropping UI or E2E coverage", () => {
+test("CI shards core coverage and collects UI E2E coverage in parallel", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.doesNotMatch(workflow, /- name: UI tests\n/);
   assert.doesNotMatch(workflow, /- name: E2E tests\n/);
@@ -14,11 +14,15 @@ test("CI shards the isolated coverage suite without dropping UI or E2E coverage"
   assert.match(workflow, /coverage-core:\n/);
   assert.match(workflow, /matrix:\n\s+shard: \[0, 1, 2, 3\]/);
   assert.match(workflow, /- name: Core isolated coverage shard\n[\s\S]*?run: node scripts\/run-tests-isolated\.js/);
+  assert.match(workflow, /coverage-ui-e2e:\n/);
+  assert.match(workflow, /- name: Collect UI and E2E coverage\n[\s\S]*?--collect-ui-e2e/);
+  assert.match(workflow, /coverage:\n\s+name: coverage\n\s+needs: \[coverage-core, coverage-ui-e2e\]/);
   assert.match(workflow, /pattern: coverage-v8-core-\*/);
-  assert.match(workflow, /- name: Coverage baseline \(sharded core \+ UI \+ E2E\)\n[\s\S]*?--reuse-core-v8/);
-  const browserInstall = workflow.lastIndexOf("- name: Install Playwright Chromium");
-  const coverage = workflow.indexOf("- name: Coverage baseline (sharded core + UI + E2E)");
-  assert.ok(browserInstall >= 0 && coverage > browserInstall, "Playwright Chromium must be installed before coverage E2E execution");
+  assert.match(workflow, /name: coverage-ui-e2e-artifacts/);
+  assert.match(workflow, /- name: Coverage baseline \(parallel collected\)\n[\s\S]*?--finalize-collected/);
+  const browserInstall = workflow.indexOf("- name: Install Playwright Chromium", workflow.indexOf("coverage-ui-e2e:"));
+  const collection = workflow.indexOf("- name: Collect UI and E2E coverage");
+  assert.ok(browserInstall >= 0 && collection > browserInstall, "Playwright Chromium must be installed before parallel UI/E2E coverage collection");
 });
 
 test("prepared paths skip only setup already proven once by CI", () => {
@@ -37,6 +41,8 @@ test("prepared paths skip only setup already proven once by CI", () => {
   assert.match(pkg.scripts["release:check"], /release-readiness\.js/);
   assert.match(coverage, /process\.argv\.includes\("--prepared"\)/);
   assert.match(coverage, /process\.argv\.includes\("--reuse-core-v8"\)/);
+  assert.match(coverage, /process\.argv\.includes\("--collect-ui-e2e"\)/);
+  assert.match(coverage, /process\.argv\.includes\("--finalize-collected"\)/);
   assert.match(coverage, /if \(!prepared\)/);
   assert.match(coverage, /run-tests-isolated\.js/);
   assert.match(coverage, /vitest\.config\.mjs/);
