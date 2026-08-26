@@ -11,3 +11,15 @@ test("HOME routes degraded PAPER runtime states to supervision before market or 
   assert.match(home, /if \(runtimeNeedsSupervision\) return onNavigate\("Portfolio"\)/);
   assert.match(home, /현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다/);
 });
+
+test("HOME failure-state WHY overrides a stale valid AI thesis", () => {
+  const disconnectedIndex = home.indexOf("const supervisorWhy = disconnected");
+  const aiInsightIndex = home.indexOf(": aiInsightAvailable", disconnectedIndex);
+  const degradedIndex = home.indexOf(': runtimeState === "DEGRADED"', disconnectedIndex);
+
+  assert.notEqual(disconnectedIndex, -1);
+  assert.notEqual(degradedIndex, -1);
+  assert.notEqual(aiInsightIndex, -1);
+  assert.ok(degradedIndex < aiInsightIndex, "runtime failure WHY must win before AI thesis");
+  assert.match(home, /PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다/);
+});
