@@ -113,12 +113,12 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const watchlist = <WatchlistView error={error} onRefresh={refreshMarketView} rawMarkets={rawMarkets} refreshing={refreshing || selectedChartLoading} repository={repository} selectedMarket={selectedMarket} onSelectMarket={handleSelectMarket} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
     <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
-    <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]}>
+    <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
       <View style={styles.tradeCopy}>
-        <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>NEXT</Text>
-        <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>PAPER 워크스페이스를 엽니다. 현재 선택 종목은 차트 탐색 상태이며 주문 화면으로 자동 전달하지 않습니다.</Text>
+        <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>PUBLIC OBSERVATION</Text>
+        <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>현재 선택 시장은 공개 시세 관찰 컨텍스트입니다. NUSA의 AI 판단 대상이나 PAPER 주문 종목으로 자동 승격되지 않습니다.</Text>
       </View>
-      <NusaButton label="PAPER 열기" onPress={onPaperTrade} testID="market-paper-trade" />
+      <NusaButton label="PAPER 감독 보기" onPress={onPaperTrade} testID="market-paper-trade" />
     </View>
   </View>;
 
@@ -129,8 +129,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
     </View> : null}
     {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
       <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
-        {segment("WATCHLIST", "시장", "markets-watchlist-tab")}
-        {segment("CHART", "차트", "markets-chart-tab")}
+        {segment("WATCHLIST", "관찰 목록", "markets-watchlist-tab")}
+        {segment("CHART", "관찰 상세", "markets-chart-tab")}
       </View></View>
     </View> : null}
     {!tabletWorkspace ? (panel === "WATCHLIST" ? watchlist : chart) : null}
