@@ -10,9 +10,11 @@ test("UIUX-002 presents the canonical four-tab product navigation while preservi
   const app = read("App.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKET"/);
-  assert.match(app, /Paper: "TRADE"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Markets: "OBSERVE"/);
+  assert.match(app, /Paper: "PAPER"/);
+  assert.match(app, /Portfolio: "SUPERVISE"/);
+  assert.match(app, /Markets: "공개 시장 관찰"/);
+  assert.match(app, /Portfolio: "PAPER 운용 감독"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);

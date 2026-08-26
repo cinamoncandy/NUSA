@@ -51,12 +51,12 @@ test("keeps loading state fail closed", () => {
 test("allows navigation and emergency stop on ready dashboard", () => {
   const state = buildMobileAppShell({
     session: "SIGNED_IN",
-    activeTab: "PORTFOLIO",
+    activeTab: "SUPERVISE",
     dashboard: dashboard("READY"),
     lastSuccessfulSyncAt: 99,
     now: 100
   });
-  assert.equal(state.title, "포트폴리오");
+  assert.equal(state.title, "감독");
   assert.equal(state.canRefresh, true);
   assert.equal(state.canOpenTradingControl, true);
   assert.equal(state.showEmergencyStop, true);

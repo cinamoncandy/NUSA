@@ -79,7 +79,7 @@ test("mobile foundation exposes a Home screen, theme, and four primary decision-
   assert.match(app, /useState<Tab>\("Home"\)/);
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
-  assert.match(app, /Home: "HOME", Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE"/);
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });

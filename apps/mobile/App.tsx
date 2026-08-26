@@ -41,7 +41,8 @@ const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
 type PrimaryTab = (typeof tabs)[number];
 type Tab = PrimaryTab | "AiSignal" | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE" };
+const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 관찰", Paper: "PAPER 운용", Portfolio: "PAPER 운용 감독" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
@@ -385,7 +386,7 @@ function AuthenticatedApp() {
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
        : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
 
-     <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner}>{tabs.map((tab) => { const active = !paperLearningOpen && utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); setPaperLearningOpen(false); }} style={[styles.navItem, { opacity: active ? 1 : 0.72 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, width: active ? 22 : 4, opacity: active ? 0.95 : 0.35 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
+     <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner} testID="primary-navigation">{tabs.map((tab) => { const active = !paperLearningOpen && utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityHint={tabDescriptions[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); setPaperLearningOpen(false); }} style={[styles.navItem, { opacity: active ? 1 : 0.72 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, width: active ? 22 : 4, opacity: active ? 0.95 : 0.35 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
   </SafeAreaView>;
 }
 

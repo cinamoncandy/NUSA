@@ -3,15 +3,15 @@ const assert = require("node:assert/strict");
 const { PRIMARY_MOBILE_TABS, MORE_NAVIGATION_ITEMS, GLOBAL_NAVIGATION_ACTIONS, createMobileNavigationState, restoreMobileNavigationState } = require("../dist/apps/mobile/src/mobileNavigation.js");
 const { buildMobileAppShell } = require("../dist/apps/mobile/src/mobileAppShell.js");
 
-test("primary navigation has exactly five stable tabs and global actions", () => {
-  assert.deepEqual(PRIMARY_MOBILE_TABS, ["HOME", "MARKET", "TRADE", "PORTFOLIO", "MORE"]);
+test("primary navigation has four supervision jobs and global actions", () => {
+  assert.deepEqual(PRIMARY_MOBILE_TABS, ["HOME", "OBSERVE", "PAPER", "SUPERVISE"]);
   assert.ok(MORE_NAVIGATION_ITEMS.includes("SETTINGS"));
   assert.ok(GLOBAL_NAVIGATION_ACTIONS.includes("EMERGENCY_STOP"));
 });
 
 test("legacy control/settings routes normalize without creating extra primary tabs", () => {
   const dashboard = { phase: "READY", headline: "ready", canTrade: true };
-  assert.equal(buildMobileAppShell({ session: "SIGNED_IN", activeTab: "CONTROL", dashboard, now: 1 }).activeTab, "TRADE");
+  assert.equal(buildMobileAppShell({ session: "SIGNED_IN", activeTab: "CONTROL", dashboard, now: 1 }).activeTab, "PAPER");
   assert.equal(buildMobileAppShell({ session: "SIGNED_IN", activeTab: "SETTINGS", dashboard, now: 1 }).activeTab, "MORE");
 });
 
