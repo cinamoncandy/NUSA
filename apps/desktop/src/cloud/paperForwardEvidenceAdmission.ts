@@ -32,6 +32,7 @@ export interface PaperForwardEvidenceAdmission {
 
 export interface PaperForwardEvidenceAdmissionPolicy {
   readonly minimumLongitudinalPeriods: number;
+  readonly minimumCompletedPeriods?: number;
 }
 
 export class PaperForwardEvidenceAdmissionError extends Error {
@@ -67,6 +68,10 @@ export function admitPaperForwardEvidence(
 ): PaperForwardEvidenceAdmission {
   if (!Number.isSafeInteger(policy.minimumLongitudinalPeriods) || policy.minimumLongitudinalPeriods < 1) {
     throw new PaperForwardEvidenceAdmissionError("INVALID_POLICY", "minimumLongitudinalPeriods must be a positive integer");
+  }
+  const minimumCompletedPeriods = policy.minimumCompletedPeriods ?? policy.minimumLongitudinalPeriods;
+  if (!Number.isSafeInteger(minimumCompletedPeriods) || minimumCompletedPeriods < 1) {
+    throw new PaperForwardEvidenceAdmissionError("INVALID_POLICY", "minimumCompletedPeriods must be a positive integer");
   }
   if (periods.length === 0) throw new PaperForwardEvidenceAdmissionError("EMPTY_EVIDENCE", "at least one PAPER forward period is required");
 
@@ -135,8 +140,11 @@ export function admitPaperForwardEvidence(
   }
 
   const reasons = ["PAPER_SHADOW_EVIDENCE_ONLY", "NO_EXECUTION_AUTHORITY"];
-  const strength: PaperForwardEvidenceStrength = periods.length >= policy.minimumLongitudinalPeriods ? "VERIFIED" : "INSUFFICIENT";
-  if (strength === "INSUFFICIENT") reasons.push("NARROW_LONGITUDINAL_EVIDENCE");
+  const hasLongitudinalCoverage = periods.length >= policy.minimumLongitudinalPeriods;
+  const hasCompletedEvidence = completedPeriodCount >= minimumCompletedPeriods;
+  const strength: PaperForwardEvidenceStrength = hasLongitudinalCoverage && hasCompletedEvidence ? "VERIFIED" : "INSUFFICIENT";
+  if (!hasLongitudinalCoverage) reasons.push("NARROW_LONGITUDINAL_EVIDENCE");
+  if (!hasCompletedEvidence) reasons.push("INSUFFICIENT_COMPLETED_EVIDENCE");
   if (rejectedOrHaltedPeriodCount > 0) reasons.push("FAILED_PERIODS_RETAINED");
 
   return freeze({
