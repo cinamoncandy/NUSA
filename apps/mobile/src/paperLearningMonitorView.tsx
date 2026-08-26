@@ -15,6 +15,16 @@ const formatNumber = (value: number | null | undefined, digits = 2): string => v
   ? "-"
   : value.toLocaleString("ko-KR", { maximumFractionDigits: digits });
 
+// Plain-language label for the raw evidence.outcome enum, so RESULT (실제 손익) and LEARNING
+// (검증된 평가 결론) read as two distinct, human-legible concepts rather than one card of
+// technical performance numbers and one card of raw enum/hash tokens.
+const learningOutcomeLabel: Record<string, string> = { PROMOTE: "전략 승격", REJECT: "전략 거부", PAUSE: "일시 중단", UNCHANGED: "변경 없음" };
+function learningOutcomeSummary(evidence: PaperLearningUiEvent["evidence"] | null | undefined): string {
+  if (evidence?.outcome == null) return "아직 검증된 학습 평가 결론이 없습니다.";
+  const label = learningOutcomeLabel[evidence.outcome] ?? evidence.outcome;
+  return `최근 평가 결론: ${label}${evidence.score == null ? "" : ` · 점수 ${formatNumber(evidence.score, 4)}`}`;
+}
+
 const formatTimestamp = (value: number): string => {
   try { return new Date(value).toLocaleString("ko-KR"); }
   catch { return "-"; }
@@ -165,8 +175,9 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       </View>
     </NusaCard>
 
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Learning / Evaluation</Text>
+    <NusaCard testID="paper-learning-evaluation-card">
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>학습 / 평가</Text>
+      <Text style={[styles.reason, { color: theme.colors.textMuted }]} testID="paper-learning-outcome-summary">{learningOutcomeSummary(state.latestEvidence)}</Text>
       <View style={styles.grid}>
         <Metric label="OUTCOME" value={state.latestEvidence?.outcome ?? "-"} />
         <Metric label="SCORE" value={formatNumber(state.latestEvidence?.score, 4)} />
