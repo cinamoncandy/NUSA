@@ -251,6 +251,25 @@ describe("evaluateLeague", () => {
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ startedAt: 5_000, endedAt: 1_000 }) })]), NusaLeagueError);
   });
 
+  it("QA: fails closed when a candidate's ghost execution status contradicts its own abstention decision", () => {
+    // simulateGhostExecution only ever produces SIMULATED for a PROCEED_RESEARCH abstention and
+    // SKIPPED for an ABSTAIN one. Two evidence objects on the same candidate disagreeing about
+    // which one happened means at least one of them is not real evidence for this candidate.
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", {
+      abstention: abstention({ decision: "ABSTAIN", netExpectedEdge: -0.001 }),
+      ghostExecution: ghost({ status: "SIMULATED" }), // contradicts the ABSTAIN decision above
+    })]), (error) => error instanceof NusaLeagueError && error.code === "GHOST_EXECUTION_ABSTENTION_MISMATCH");
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", {
+      abstention: abstention({ decision: "PROCEED_RESEARCH" }),
+      ghostExecution: ghost({ status: "SKIPPED", modeledEntryPrice: undefined, modeledExitPrice: undefined, grossReturn: undefined, totalCostRate: undefined, netReturn: undefined }), // contradicts PROCEED_RESEARCH
+    })]), (error) => error instanceof NusaLeagueError && error.code === "GHOST_EXECUTION_ABSTENTION_MISMATCH");
+    // A consistent pair on the same candidate must still be accepted.
+    evaluateLeague([fullCandidate("candidate-a", {
+      abstention: abstention({ decision: "PROCEED_RESEARCH" }),
+      ghostExecution: ghost({ status: "SIMULATED" }),
+    })]);
+  });
+
   it("connects League to real PAPER evidence: confirms, diverges, and surfaces reliability risk without hiding it", () => {
     const confirmed = fullCandidate("candidate-confirmed", { paperPerformance: paperPerformance({ netReturn: 0.09 }) }); // benchmark.totalReturn defaults to 0.08
     const diverged = fullCandidate("candidate-diverged", { benchmark: benchmark({ id: "candidate-diverged" }), paperPerformance: paperPerformance({ netReturn: -0.02 }) });
