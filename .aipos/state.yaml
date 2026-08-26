@@ -1,9 +1,17 @@
 version: 1
 project: nusa
-updated_at: "2026-08-24T22:13:58+09:00"
+updated_at: "2026-08-26T14:24:40+09:00"
 phase: constitutional-production-human-environment-gate
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
+latest_research_slice:
+  work_order: WO-MARKET-INTELLIGENCE-INTEGRITY-001
+  status: COMPLETED
+  base_commit: e6aeccdf8ae61965ac4567c52d75259a274f407f
+  implementation_branch: codex/market-intelligence-next
+  scope: "Research coordinator canonicalization and malformed-input fail-closed hardening; no execution or authority change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "Focused research 9/9; research regressions 54/54; full isolated suite 620 files; typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
 active_branch: agent/issue-661-live-ready-observability
 active_successor_branch: feat/production-mobile-enrollment

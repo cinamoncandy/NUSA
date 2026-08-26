@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import {
   canonicalResearchJson,
-  hashResearchInput,
   type ResearchComparisonEvidence,
   type ResearchComparisonResult,
   type ResearchEvaluation,
@@ -50,23 +49,37 @@ export class ResearchRuntimeError extends Error {
 
 const supportedStates = new Set(["RESEARCHING", "VALIDATED", "PAPER_CANDIDATE", "PAPER_ACTIVE", "CHAMPION", "CHALLENGER"]);
 const freeze = <T>(value: T): T => Object.freeze(value);
-const clonePoint = (point: ResearchInputSnapshot["marketData"][number]): ResearchInputSnapshot["marketData"][number] => freeze({ ...point });
+const clonePoint = (point: unknown): ResearchInputSnapshot["marketData"][number] => {
+  if (point !== null && typeof point === "object" && !Array.isArray(point)) {
+    return freeze({ ...(point as ResearchInputSnapshot["marketData"][number]) });
+  }
+  return freeze({ market: "", price: 0, observedAt: 0 });
+};
 const reason = (reasons: readonly string[]): string => [...new Set(reasons)].sort().join(",");
+const invalidInputHash = createHash("sha256").update("NUSA_RESEARCH_INPUT_CANONICALIZATION_FAILED_V1", "utf8").digest("hex");
 
-function safeHash(value: unknown): string {
-  try { return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex"); }
-  catch { return createHash("sha256").update(String(value), "utf8").digest("hex"); }
+interface CanonicalHashResult {
+  readonly hash: string;
+  readonly valid: boolean;
+}
+
+function canonicalHash(value: unknown): CanonicalHashResult {
+  try { return { hash: createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex"), valid: true }; }
+  catch { return { hash: invalidInputHash, valid: false }; }
 }
 
 function snapshot(input: ResearchInputSnapshot): ResearchInputSnapshot {
+  const candidate = input as unknown as Record<string, unknown> | null;
+  const marketData = candidate != null && Array.isArray(candidate.marketData) ? candidate.marketData : undefined;
   return freeze({
-    ...input,
-    marketData: freeze([...input.marketData].map(clonePoint))
-  });
+    ...(candidate != null && typeof candidate === "object" ? candidate : {}),
+    marketData: marketData === undefined ? undefined : freeze(marketData.map(clonePoint))
+  }) as unknown as ResearchInputSnapshot;
 }
 
-function invalidReasons(input: ResearchInputSnapshot): readonly string[] {
+function invalidReasons(input: ResearchInputSnapshot, canonicalInputValid: boolean): readonly string[] {
   const reasons: string[] = [];
+  if (!canonicalInputValid) reasons.push("NON_CANONICAL_INPUT");
   for (const [field, value] of Object.entries({
     researchRunId: input.researchRunId,
     evaluationId: input.evaluationId,
@@ -81,12 +94,15 @@ function invalidReasons(input: ResearchInputSnapshot): readonly string[] {
   if (!Number.isSafeInteger(input.staleWindowMs) || input.staleWindowMs <= 0) reasons.push("INVALID_STALE_WINDOW");
   if (!Number.isFinite(input.startingCash) || input.startingCash < 0 || !Number.isFinite(input.startingPositionQuantity) || input.startingPositionQuantity < 0) reasons.push("INVALID_STARTING_STATE");
   if (!supportedStates.has(input.strategyState)) reasons.push("UNSUPPORTED_STRATEGY_STATE");
-  if (input.marketData.length === 0) reasons.push("MISSING_DATA");
+  if (!Array.isArray(input.marketData)) reasons.push("INVALID_MARKET_DATA");
+  else if (input.marketData.length === 0) reasons.push("MISSING_DATA");
   const ids = new Set<string>();
-  for (const point of input.marketData) {
-    if (!point.market.trim() || !Number.isFinite(point.price) || point.price <= 0 || !Number.isSafeInteger(point.observedAt) || point.observedAt > input.evaluationTimestamp) reasons.push("INVALID_MARKET_DATA");
-    if (input.evaluationTimestamp - point.observedAt >= input.staleWindowMs) reasons.push("STALE_MARKET_DATA");
-    const key = `${point.market}|${point.observedAt}`;
+  if (Array.isArray(input.marketData)) for (const point of input.marketData) {
+    const market = typeof point?.market === "string" ? point.market : "";
+    const observedAt = point?.observedAt;
+    if (!market.trim() || !Number.isFinite(point?.price) || point.price <= 0 || !Number.isSafeInteger(observedAt) || (Number.isSafeInteger(input.evaluationTimestamp) && observedAt > input.evaluationTimestamp)) reasons.push("INVALID_MARKET_DATA");
+    if (Number.isSafeInteger(input.evaluationTimestamp) && Number.isSafeInteger(observedAt) && Number.isSafeInteger(input.staleWindowMs) && input.evaluationTimestamp - observedAt >= input.staleWindowMs) reasons.push("STALE_MARKET_DATA");
+    const key = `${market}|${Number.isSafeInteger(observedAt) ? observedAt : "INVALID"}`;
     if (ids.has(key)) reasons.push("DUPLICATE_MARKET_DATA");
     ids.add(key);
   }
@@ -143,14 +159,14 @@ export class ResearchRuntimeCoordinator {
 
   public evaluate(rawInput: ResearchInputSnapshot): ResearchComparisonEvidence {
     const input = snapshot(rawInput);
-    const inputHash = safeHash(input);
-    const invalid = invalidReasons(input);
+    const inputHashResult = canonicalHash(input);
+    const invalid = invalidReasons(input, inputHashResult.valid);
     if (invalid.length > 0) {
-      const record = evidence(input, inputHash, "INCONCLUSIVE", reason(invalid), null, null);
+      const record = evidence(input, inputHashResult.hash, "INCONCLUSIVE", reason(invalid), null, null);
       this.persist(record);
       return record;
     }
-    const canonicalInputHash = hashResearchInput(input);
+    const canonicalInputHash = inputHashResult.hash;
     const context = freeze({ input, canonicalInputHash, fillModelVersion: input.fillModelVersion, feeModelVersion: input.feeModelVersion, slippageModelVersion: input.slippageModelVersion });
     let champion: ResearchEvaluation;
     let challenger: ResearchEvaluation;
