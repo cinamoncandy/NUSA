@@ -12,7 +12,7 @@ test("Markets defaults to the chart and keeps it reachable even without real can
   // always available; ChartView renders its own truthful unavailable state instead.
   assert.match(source, /useState<Panel>\("CHART"\)/);
   assert.doesNotMatch(source, /chartAvailable/);
-  assert.match(source, /segment\("CHART",\s*"차트",\s*"markets-chart-tab"\)/);
+  assert.match(source, /segment\("CHART",\s*"관찰 상세",\s*"markets-chart-tab"\)/);
   assert.match(source, /panel === "WATCHLIST"/);
   // Real candle wiring landed (see PR #526) -- the chart data source is no longer a placeholder gap.
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
