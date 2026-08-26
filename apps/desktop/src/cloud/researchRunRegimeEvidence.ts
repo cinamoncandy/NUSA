@@ -5,7 +5,8 @@ import { evaluateStrategyByRegime, type RegimeAwareEvaluationPolicy, type Regime
 
 /**
  * Builds point-in-time regime evidence for an already-produced walk-forward experiment.
- * Every frame is truncated at the first OOS timestamp, so later candles cannot leak into regime labels.
+ * Every frame is truncated strictly before the first OOS timestamp, so the first test candle
+ * itself cannot leak into the regime label used to evaluate that OOS window.
  */
 export function buildResearchRunRegimeEvaluation(
   experiment: ResearchExperimentResult,
@@ -18,7 +19,7 @@ export function buildResearchRunRegimeEvaluation(
     const frame = buildMarketStateFrame(marketInputs, {
       lookbackPeriods: options.lookbackPeriods ?? 20,
       generatedAt: experiment.generatedAt,
-      asOf: firstOosTimestamp,
+      asOf: firstOosTimestamp - 1,
     });
     return Object.freeze({ windowIndex: window.window.index, regime: assessRegimeHealth(frame) });
   });
