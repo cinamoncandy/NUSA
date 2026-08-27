@@ -216,7 +216,7 @@ export function HomeView({
       </View>
       <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
       <SupervisorRow label="NOW" value={supervisorNow} labelColor={attentionColor} valueColor={theme.colors.text} strong testID="home-supervisor-now" />
-      <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" />
+      <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" onPress={aiInsightAvailable ? () => onNavigate("AiSignal") : undefined} actionLabel={aiInsightAvailable ? "EVIDENCE →" : undefined} />
       <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
       <SupervisorRow label="RISK" value={supervisorRisk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
       <SupervisorRow label="LEARNING" value={supervisorLearning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
