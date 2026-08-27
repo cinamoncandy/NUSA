@@ -44,15 +44,23 @@ jobs:
         env:
           NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
           NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
-        run: node scripts/dispatch-autopilot-coding-runner.mjs artifacts/autopilot/coding-request.json
+        run: >-
+          node scripts/dispatch-autopilot-coding-runner.mjs
+          artifacts/autopilot/coding-request.json
+          artifacts/autopilot/coding-runner-dispatch-receipt.json
 
       - name: Classify repository-side execution boundary
+        if: always()
         env:
           KIND: ${{ github.event.client_payload.kind }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
           RUNNER_CONFIGURED: ${{ secrets.NUSA_CODING_RUNNER_URL != '' && secrets.NUSA_CODING_RUNNER_TOKEN != '' }}
         run: |
+          RUNNER_STATUS="NO_RECEIPT"
+          if [ -f artifacts/autopilot/coding-runner-dispatch-receipt.json ]; then
+            RUNNER_STATUS="$(node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/autopilot/coding-runner-dispatch-receipt.json','utf8')); process.stdout.write(String(x.status ?? 'UNKNOWN'))")"
+          fi
           {
             echo "## NUSA Autopilot Dispatch Consumer"
             echo ""
@@ -63,25 +71,33 @@ jobs:
             echo "- productionMutationAllowed: false"
             echo "- AI authority: ZERO_AUTHORITY"
             echo "- coding request: READY"
-            if [ "$RUNNER_CONFIGURED" = "true" ]; then
-              echo "- external coding runner: CONFIGURED"
-            else
-              echo "- external coding runner: NOT_CONNECTED"
-            fi
+            echo "- runner configured: ${RUNNER_CONFIGURED}"
+            echo "- runner dispatch receipt: ${RUNNER_STATUS}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dispatch receipt
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: autopilot-dispatch-receipt-${{ github.run_id }}
           path: artifacts/autopilot/dispatch-receipt.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Upload coding runner request
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: autopilot-coding-request-${{ github.run_id }}
           path: artifacts/autopilot/coding-request.json
-          if-no-files-found: error
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload coding runner dispatch receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-coding-runner-dispatch-receipt-${{ github.run_id }}
+          path: artifacts/autopilot/coding-runner-dispatch-receipt.json
+          if-no-files-found: warn
           retention-days: 7
