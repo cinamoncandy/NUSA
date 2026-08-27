@@ -36,6 +36,20 @@ test("daily candle is admitted exactly when its full UTC day has closed", () => 
   assert.equal(result[0]?.closeTime, closeTime);
 });
 
+test("maxCount keeps the most recent completed candles after point-in-time filtering", () => {
+  const result = mapUpbitDayCandlesToResearchCandles([
+    candle("2026-08-27T00:00:00", 130),
+    candle("2026-08-26T00:00:00", 120),
+    candle("2026-08-25T00:00:00", 110),
+    candle("2026-08-24T00:00:00", 100),
+  ], { completedBy: Date.parse("2026-08-27T12:00:00Z"), maxCount: 2 });
+
+  assert.deepEqual(
+    result.map((entry) => entry.openTime),
+    [Date.parse("2026-08-25T00:00:00Z"), Date.parse("2026-08-26T00:00:00Z")],
+  );
+});
+
 test("completedBy fails closed when no historical daily candle is complete", () => {
   assert.throws(
     () => mapUpbitDayCandlesToResearchCandles([
@@ -45,11 +59,17 @@ test("completedBy fails closed when no historical daily candle is complete", () 
   );
 });
 
-test("completedBy must be a finite point-in-time boundary", () => {
+test("point-in-time options reject invalid boundaries", () => {
   assert.throws(
     () => mapUpbitDayCandlesToResearchCandles([
       candle("2026-08-25T00:00:00", 110),
     ], { completedBy: Number.NaN }),
     /completedBy must be finite/,
+  );
+  assert.throws(
+    () => mapUpbitDayCandlesToResearchCandles([
+      candle("2026-08-25T00:00:00", 110),
+    ], { maxCount: 0 }),
+    /maxCount must be a positive integer/,
   );
 });
