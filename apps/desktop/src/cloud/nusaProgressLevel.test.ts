@@ -11,9 +11,28 @@ import { assessNusaProgressLevel } from "./nusaProgressLevel";
 
 const AS_OF = 1_800_000_000_000;
 const policy = { asOf: AS_OF, maximumEvidenceAgeMs: 60_000 };
+const SOURCE_FINGERPRINT = "a".repeat(64);
+const PRODUCT_FINGERPRINT = "b".repeat(64);
+const sourceFor = (kind: NusaProgressEvidenceRef["kind"], id: string): string => ({
+  REPOSITORY: `github://commit/${id}`,
+  CI: `github://actions/run/${id}`,
+  RUNTIME: `runtime://evidence/${id}`,
+  PAPER: `paper://evidence/${id}`,
+  DEVICE: `device://physical/${id}`,
+  HUMAN: `human://acceptance/${id}`,
+  MOCK: `mock://fixture/${id}`,
+})[kind];
 
-function evidence(id: string, kind: NusaProgressEvidenceRef["kind"], status: NusaProgressEvidenceRef["status"] = "PASS", observedAt = AS_OF): NusaProgressEvidenceRef {
-  return { id, kind, status, observedAt, source: `source:${id}` };
+function evidence(id: string, kind: NusaProgressEvidenceRef["kind"], status: NusaProgressEvidenceRef["status"] = "PASS", observedAt = AS_OF, subjectFingerprint?: string): NusaProgressEvidenceRef {
+  return {
+    id,
+    kind,
+    status,
+    observedAt,
+    source: sourceFor(kind, id),
+    sourceFingerprint: SOURCE_FINGERPRINT,
+    ...(subjectFingerprint == null ? {} : { subjectFingerprint }),
+  };
 }
 
 function proof(id: string, domain: NusaProgressDomain, acceptance: NusaAcceptanceClass, status: NusaProgressEvidenceRef["status"] = "PASS", observedAt = AS_OF): NusaProgressItemInput {
@@ -21,7 +40,7 @@ function proof(id: string, domain: NusaProgressDomain, acceptance: NusaAcceptanc
     CODE_COMPLETE: [evidence(`${id}-repo`, "REPOSITORY", status, observedAt), evidence(`${id}-ci`, "CI", status, observedAt)],
     RUNTIME_VERIFIED: [evidence(`${id}-runtime`, "RUNTIME", status, observedAt)],
     EVIDENCE_VERIFIED: [evidence(`${id}-paper`, "PAPER", status, observedAt)],
-    PRODUCT_ACCEPTED: [evidence(`${id}-device`, "DEVICE", status, observedAt), evidence(`${id}-human`, "HUMAN", status, observedAt)],
+    PRODUCT_ACCEPTED: [evidence(`${id}-device`, "DEVICE", status, observedAt, PRODUCT_FINGERPRINT), evidence(`${id}-human`, "HUMAN", status, observedAt, PRODUCT_FINGERPRINT)],
     HUMAN_ONLY: [evidence(`${id}-human`, "HUMAN", status, observedAt)],
   };
   return { id, domain, weight: 1, requiredAcceptance: acceptance, evidence: evidenceByAcceptance[acceptance] };
