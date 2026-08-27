@@ -246,7 +246,7 @@ export function HomeView({
         <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>02 // SIGNAL TERRAIN</Text><Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text></View>
         <Text style={[styles.decisionState, { color: aiInsightAvailable ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}</Text>
       </View>
-      <View style={styles.terrainHero} testID="home-decision-stage">
+      <View style={[styles.terrainHero, { height: tablet ? 300 : 220 }]} testID="home-decision-stage">
         <View style={[styles.crosshairH, { backgroundColor: theme.colors.border }]} />
         <View style={[styles.crosshairV, { backgroundColor: theme.colors.border }]} />
         <View style={[styles.scanlineA, { backgroundColor: theme.colors.aiSignalEnd }]} />
