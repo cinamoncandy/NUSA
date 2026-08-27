@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import test from 'node:test';
 
 const script = path.resolve('scripts/verify-autopilot-runner-progress-github.mjs');
@@ -58,12 +58,19 @@ function run(input, apiBase) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nusa-runner-evidence-'));
   const file = path.join(dir, 'evidence.json');
   fs.writeFileSync(file, JSON.stringify(input));
-  const result = spawnSync(process.execPath, [script, file], {
-    encoding: 'utf8',
-    env: { ...process.env, GITHUB_TOKEN: 'test-token', NUSA_GITHUB_API_BASE_URL: apiBase },
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [script, file], {
+      env: { ...process.env, GITHUB_TOKEN: 'test-token', NUSA_GITHUB_API_BASE_URL: apiBase },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => {
+      fs.rmSync(dir, { recursive: true, force: true });
+      resolve({ status, stdout, stderr });
+    });
   });
-  fs.rmSync(dir, { recursive: true, force: true });
-  return result;
 }
 
 function apiFixture({ workflows = required, merged = false, mergeCommitSha = mergeSha } = {}) {
@@ -96,7 +103,7 @@ function apiFixture({ workflows = required, merged = false, mergeCommitSha = mer
 
 test('accepts CI_GREEN only when exact PR head and all required workflows are green', async () => {
   await withServer(apiFixture(), async (apiBase) => {
-    const result = run(evidence(), apiBase);
+    const result = await run(evidence(), apiBase);
     assert.equal(result.status, 0, result.stderr);
     const output = JSON.parse(result.stdout);
     assert.equal(output.pullRequestVerified, true);
@@ -107,7 +114,7 @@ test('accepts CI_GREEN only when exact PR head and all required workflows are gr
 
 test('rejects forged CI_GREEN when any required workflow is missing', async () => {
   await withServer(apiFixture({ workflows: required.slice(0, -1) }), async (apiBase) => {
-    const result = run(evidence(), apiBase);
+    const result = await run(evidence(), apiBase);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /github-evidence-required-workflow-not-green:Read-only Broker Credential Integration/);
   });
@@ -115,7 +122,7 @@ test('rejects forged CI_GREEN when any required workflow is missing', async () =
 
 test('rejects MERGED when GitHub merge SHA disagrees with runner claim', async () => {
   await withServer(apiFixture({ merged: true, mergeCommitSha: 'e'.repeat(40) }), async (apiBase) => {
-    const result = run(evidence({ status: 'MERGED', merge_sha: mergeSha }), apiBase);
+    const result = await run(evidence({ status: 'MERGED', merge_sha: mergeSha }), apiBase);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /github-evidence-merge-sha-mismatch/);
   });
