@@ -7,6 +7,7 @@ import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
+import { extractResearchRunOosObservations, type OosObservationTrace } from "./researchRunOosObservationEvidence";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -47,6 +48,8 @@ export interface ResearchRunLeagueResult {
   /** Why no allocation advisory could be produced, when that is the case. */
   readonly allocationUnavailableReason?: string;
   readonly reasons: readonly string[];
+  /** Candle-level OOS observations preserved for downstream Ghost/Counterfactual adapters. */
+  readonly oosObservationEvidence?: Readonly<Record<string, readonly OosObservationTrace[]>>;
 }
 
 export class ResearchRunLeagueBridgeError extends Error {
@@ -103,6 +106,16 @@ export function buildResearchRunLeague(
   });
 
   const reasons: string[] = ["RESEARCH_TIER_ONLY", "NOT_PAPER_EVIDENCE", "NO_EXECUTION_AUTHORITY"];
+  const oosObservationEvidence: Record<string, readonly OosObservationTrace[]> = {};
+  for (const candidate of candidates) {
+    try {
+      oosObservationEvidence[candidate.id] = extractResearchRunOosObservations(candidate.id, candidate.experiment);
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message) throw error;
+      reasons.push("INSUFFICIENT_OBSERVATION_EVIDENCE");
+    }
+  }
+  if (Object.keys(oosObservationEvidence).length === candidates.length) reasons.push("OOS_OBSERVATION_PROVENANCE_PRESENT");
   if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
   if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
   if (options.probabilityBacktestOverfitting != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
@@ -146,6 +159,7 @@ export function buildResearchRunLeague(
     standing,
     ...(allocation == null ? {} : { allocation }),
     ...(allocationUnavailableReason == null ? {} : { allocationUnavailableReason }),
+    ...(Object.keys(oosObservationEvidence).length === 0 ? {} : { oosObservationEvidence: freeze(oosObservationEvidence) }),
     reasons: freeze([...new Set(reasons)].sort()),
   });
 }
