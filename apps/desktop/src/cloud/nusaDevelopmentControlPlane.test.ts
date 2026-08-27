@@ -132,6 +132,51 @@ describe("NUSA canonical development queue", () => {
     assert.equal(replay, recovered);
   });
 
+  it("fails closed on unsafe claim and recovery timestamps while preserving the safe integer boundary", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "safe-boundary", priority: "P0" })]);
+
+    assert.throws(() => claimNextNusaDevelopmentWork(queue, {
+      owner: "qa",
+      requestId: "unsafe-now",
+      expectedRevision: 0,
+      now: Number.MAX_VALUE,
+      leaseMs: 1,
+    }), /CLAIM_NOW_INVALID/);
+
+    assert.throws(() => claimNextNusaDevelopmentWork(queue, {
+      owner: "qa",
+      requestId: "unsafe-lease",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: Number.MAX_SAFE_INTEGER,
+    }), /CLAIM_LEASE_EXPIRES_AT_INVALID/);
+
+    assert.throws(() => claimNextNusaDevelopmentWork(queue, {
+      owner: "qa",
+      requestId: "fractional-lease",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 1.5,
+    }), /CLAIM_LEASE_INVALID/);
+
+    assert.throws(() => recoverStaleNusaDevelopmentClaims(queue, Number.MAX_VALUE), /STALE_RECOVERY_NOW_INVALID/);
+
+    const boundary = claimNextNusaDevelopmentWork(queue, {
+      owner: "qa",
+      requestId: "safe-boundary",
+      expectedRevision: 0,
+      now: Number.MAX_SAFE_INTEGER - 1,
+      leaseMs: 1,
+    });
+    assert.equal(boundary.status, "CLAIMED");
+    assert.equal(boundary.item.claim?.leaseExpiresAt, Number.MAX_SAFE_INTEGER);
+  });
+
+  it("fails closed on non-canonical work creation timestamps", () => {
+    assert.throws(() => createNusaDevelopmentQueue([work({ id: "unsafe-created", createdAt: Number.MAX_VALUE })]), /WORK_CREATED_AT_INVALID/);
+    assert.throws(() => createNusaDevelopmentQueue([work({ id: "fractional-created", createdAt: T0 + 0.5 })]), /WORK_CREATED_AT_INVALID/);
+  });
+
   it("fails closed on duplicate ids and unknown dependencies", () => {
     assert.throws(() => createNusaDevelopmentQueue([work({ id: "same" }), work({ id: "same" })]), /WORK_ID_DUPLICATE/);
     assert.throws(() => createNusaDevelopmentQueue([work({ id: "dependent", dependencies: ["missing"] })]), /WORK_DEPENDENCY_UNKNOWN/);
