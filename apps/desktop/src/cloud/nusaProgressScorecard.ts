@@ -29,7 +29,16 @@ export interface NusaProgressEvidenceRef {
   readonly kind: NusaEvidenceKind;
   readonly status: NusaEvidenceStatus;
   readonly observedAt: number;
+  /** Stable locator that an independent verifier can resolve for this evidence class. */
   readonly source: string;
+  /** SHA-256 of the immutable evidence payload or receipt addressed by `source`. */
+  readonly sourceFingerprint: string;
+  /**
+   * Optional SHA-256 identity of the thing being accepted. PRODUCT_ACCEPTED uses this to bind the
+   * physical-device result and human acceptance to the exact same APK/artifact rather than letting
+   * unrelated evidence satisfy the two halves of the gate.
+   */
+  readonly subjectFingerprint?: string;
 }
 
 export interface NusaProgressItemInput {
@@ -98,6 +107,17 @@ const DEFAULT_DOMAIN_WEIGHTS: Readonly<Record<NusaProgressDomain, number>> = Obj
   INFRASTRUCTURE_MODULE_HEALTH: 0.1,
 });
 
+const SOURCE_PREFIX: Readonly<Record<NusaEvidenceKind, string>> = Object.freeze({
+  REPOSITORY: "github://commit/",
+  CI: "github://actions/run/",
+  RUNTIME: "runtime://evidence/",
+  PAPER: "paper://evidence/",
+  DEVICE: "device://physical/",
+  HUMAN: "human://acceptance/",
+  MOCK: "mock://fixture/",
+});
+
+const HEX_64 = /^[a-f0-9]{64}$/;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function assertFiniteNonNegative(value: number, code: string, message: string): void {
@@ -131,9 +151,27 @@ function validatePolicy(policy: NusaProgressScorecardPolicy): Readonly<Record<Nu
 function validateEvidence(evidence: NusaProgressEvidenceRef, policy: NusaProgressScorecardPolicy): void {
   if (!evidence.id.trim()) throw new NusaProgressScorecardError("EMPTY_EVIDENCE_ID", "evidence id is required");
   if (!evidence.source.trim()) throw new NusaProgressScorecardError("EMPTY_EVIDENCE_SOURCE", `evidence ${evidence.id} source is required`);
+  const expectedPrefix = SOURCE_PREFIX[evidence.kind];
+  if (!evidence.source.startsWith(expectedPrefix) || evidence.source.length <= expectedPrefix.length) {
+    throw new NusaProgressScorecardError("EVIDENCE_SOURCE_KIND_MISMATCH", `evidence ${evidence.id} source does not match ${evidence.kind}`);
+  }
+  if (!HEX_64.test(evidence.sourceFingerprint)) {
+    throw new NusaProgressScorecardError("INVALID_EVIDENCE_FINGERPRINT", `evidence ${evidence.id} requires a lowercase SHA-256 sourceFingerprint`);
+  }
+  if (evidence.subjectFingerprint != null && !HEX_64.test(evidence.subjectFingerprint)) {
+    throw new NusaProgressScorecardError("INVALID_SUBJECT_FINGERPRINT", `evidence ${evidence.id} subjectFingerprint must be a lowercase SHA-256 digest`);
+  }
   if (!Number.isSafeInteger(evidence.observedAt) || evidence.observedAt < 0 || evidence.observedAt > policy.asOf) {
     throw new NusaProgressScorecardError("INVALID_EVIDENCE_TIMESTAMP", `evidence ${evidence.id} timestamp is invalid or future-derived`);
   }
+}
+
+function productSubjectBound(fresh: readonly NusaProgressEvidenceRef[]): boolean {
+  const deviceSubjects = new Set(fresh
+    .filter((evidence) => evidence.kind === "DEVICE" && evidence.status === "PASS")
+    .map((evidence) => evidence.subjectFingerprint)
+    .filter((value): value is string => value != null));
+  return fresh.some((evidence) => evidence.kind === "HUMAN" && evidence.status === "PASS" && evidence.subjectFingerprint != null && deviceSubjects.has(evidence.subjectFingerprint));
 }
 
 function scoreItem(item: NusaProgressItemInput, policy: NusaProgressScorecardPolicy): NusaProgressItemResult {
@@ -173,11 +211,14 @@ function scoreItem(item: NusaProgressItemInput, policy: NusaProgressScorecardPol
     accepted.push(...pass.map((evidence) => evidence.id));
   }
 
+  if (item.requiredAcceptance === "PRODUCT_ACCEPTED" && !reasons.some((reason) => reason.startsWith("MISSING_") || reason.endsWith("_EVIDENCE_UNKNOWN") || reason.endsWith("_EVIDENCE_FAILED")) && !productSubjectBound(fresh)) {
+    reasons.push("PRODUCT_EVIDENCE_SUBJECT_MISMATCH");
+  }
   if (staleIds.size > 0) reasons.push("STALE_EVIDENCE_PRESENT");
   if (item.evidence.some((evidence) => evidence.kind === "MOCK" && evidence.status === "PASS")) reasons.push("MOCK_EVIDENCE_NON_ACCEPTING");
 
   const hasFailure = reasons.some((reason) => reason.endsWith("_EVIDENCE_FAILED"));
-  const hasMissingOrUnknown = reasons.some((reason) => reason.startsWith("MISSING_") || reason.endsWith("_EVIDENCE_UNKNOWN"));
+  const hasMissingOrUnknown = reasons.some((reason) => reason.startsWith("MISSING_") || reason.endsWith("_EVIDENCE_UNKNOWN") || reason === "PRODUCT_EVIDENCE_SUBJECT_MISMATCH");
   const status: NusaProgressItemResult["status"] = hasFailure ? "FAIL" : hasMissingOrUnknown ? "UNKNOWN" : "PASS";
 
   return freeze({
