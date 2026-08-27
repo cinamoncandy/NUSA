@@ -60,12 +60,28 @@ function createMountHarness(online = true) {
   };
 }
 
-test("decision states take precedence and preserve abstention", () => {
-  assert.equal(states.resolveState({ decisionState: "NO_QUORUM", online: true, hasPrice: true }), "NO_QUORUM");
-  assert.equal(states.resolveState({ decisionState: "ABSTAIN", online: true, hasPrice: true }), "ABSTAIN");
-  assert.equal(states.resolveState({ decisionState: "DISAGREEMENT", online: true, hasPrice: true }), "DISAGREEMENT");
-  assert.equal(states.resolveState({ decisionState: "SAFETY_BLOCKED", online: true, hasPrice: true }), "SAFETY_BLOCKED");
-  assert.equal(states.resolveState({ decisionState: "APPROVED_PAPER_ACTION", online: true, hasPrice: true }), "APPROVED_PAPER_ACTION");
+test("decision states render when current market state is verified", () => {
+  const verified = { online: true, connectionStatus: "connected", hasPrice: true };
+  assert.equal(states.resolveState({ ...verified, decisionState: "NO_QUORUM" }), "NO_QUORUM");
+  assert.equal(states.resolveState({ ...verified, decisionState: "ABSTAIN" }), "ABSTAIN");
+  assert.equal(states.resolveState({ ...verified, decisionState: "DISAGREEMENT" }), "DISAGREEMENT");
+  assert.equal(states.resolveState({ ...verified, decisionState: "SAFETY_BLOCKED" }), "SAFETY_BLOCKED");
+  assert.equal(states.resolveState({ ...verified, decisionState: "APPROVED_PAPER_ACTION" }), "APPROVED_PAPER_ACTION");
+});
+
+test("current operational blockers outrank stale non-safety decisions", () => {
+  for (const decisionState of ["NO_QUORUM", "ABSTAIN", "DISAGREEMENT", "APPROVED_PAPER_ACTION"]) {
+    assert.equal(states.resolveState({ decisionState, loading: true, online: true, hasPrice: true }), "LOADING");
+    assert.equal(states.resolveState({ decisionState, online: false, hasPrice: true }), "OFFLINE");
+    assert.equal(states.resolveState({ decisionState, online: true, connectionStatus: "reconnecting", hasPrice: true }), "RECONNECTING");
+    assert.equal(states.resolveState({ decisionState, online: true, connectionStatus: "connected", hasPrice: false }), "NO_DATA");
+  }
+});
+
+test("explicit safety block stays authoritative across operational degradation", () => {
+  assert.equal(states.resolveState({ decisionState: "SAFETY_BLOCKED", loading: true }), "SAFETY_BLOCKED");
+  assert.equal(states.resolveState({ decisionState: "SAFETY_BLOCKED", online: false }), "SAFETY_BLOCKED");
+  assert.equal(states.resolveState({ decisionState: "SAFETY_BLOCKED", online: true, connectionStatus: "reconnecting", hasPrice: false }), "SAFETY_BLOCKED");
 });
 
 test("operational state resolution fails closed", () => {

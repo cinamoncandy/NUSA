@@ -23,13 +23,20 @@
 
   function resolveState(input = {}) {
     const decision = normalize(input.decisionState);
-    if (["NO_QUORUM", "ABSTAIN", "DISAGREEMENT", "SAFETY_BLOCKED", "APPROVED_PAPER_ACTION"].includes(decision)) return decision;
+    // A verified safety block remains authoritative across bootstrap/connectivity changes.
+    if (decision === "SAFETY_BLOCKED") return "SAFETY_BLOCKED";
+
+    // Current operational truth must outrank a non-safety decision from an earlier cycle.
+    // Otherwise a stale APPROVED/ABSTAIN/NO_QUORUM verdict can mask that the market is
+    // loading, offline, reconnecting, or has no verified price right now.
     if (input.loading) return "LOADING";
     if (input.online === false) return "OFFLINE";
     const connection = normalize(input.connectionStatus);
     if (connection.includes("RECONNECT") || connection.includes("RETRY")) return "RECONNECTING";
     if (connection && connection !== "CONNECTED" && connection !== "UPBIT 연결됨") return "OFFLINE";
     if (!input.hasPrice) return "NO_DATA";
+
+    if (["NO_QUORUM", "ABSTAIN", "DISAGREEMENT", "APPROVED_PAPER_ACTION"].includes(decision)) return decision;
     if (normalize(input.strategyStatus) === "STOPPED") return "STRATEGY_STOPPED";
     if (!input.autoTradeEnabled) return "PAPER_DISABLED";
     return "READY";
