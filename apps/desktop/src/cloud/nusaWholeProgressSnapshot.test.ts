@@ -36,23 +36,23 @@ function input() {
 }
 
 describe("buildNusaWholeProgressSnapshot", () => {
-  it("keeps all six domains configured instead of shrinking the denominator to operational evidence", () => {
+  it("keeps all six domains configured without crediting unadapted recovery evidence", () => {
     const result = buildNusaWholeProgressSnapshot(input());
     assert.equal(result.scope, "WHOLE_NUSA_EVIDENCE_BASELINE");
     assert.equal(result.scorecard.domains.length, 6);
     assert.equal(result.scorecard.items.length, 6);
-    assert.equal(result.scorecard.overallProgressRatio, 0.25);
-    assert.equal(result.assessment.level, 2);
+    assert.equal(result.scorecard.overallProgressRatio, 0.1);
+    assert.equal(result.assessment.level, 1);
   });
 
-  it("leaves unadapted economic, autonomy, safety, and product evidence UNKNOWN", () => {
+  it("keeps a clean Actual PAPER runtime PASS from masquerading as recovery acceptance", () => {
     const result = buildNusaWholeProgressSnapshot(input());
     const byId = new Map(result.scorecard.items.map((item) => [item.id, item]));
     assert.equal(byId.get("verified-economic-edge")?.status, "UNKNOWN");
     assert.equal(byId.get("autonomy-runtime")?.status, "UNKNOWN");
+    assert.equal(byId.get("paper-recovery-acceptance")?.status, "UNKNOWN");
     assert.equal(byId.get("safety-research-integrity")?.status, "UNKNOWN");
     assert.equal(byId.get("product-physical-acceptance")?.status, "UNKNOWN");
-    assert.equal(byId.get("actual-paper-runtime")?.status, "PASS");
     assert.equal(byId.get("exact-head-repository-ci")?.status, "PASS");
   });
 
@@ -60,6 +60,7 @@ describe("buildNusaWholeProgressSnapshot", () => {
     const result = buildNusaWholeProgressSnapshot(input());
     assert.ok(result.blockers.includes("verified-economic-edge:MISSING_PAPER_EVIDENCE"));
     assert.ok(result.blockers.includes("autonomy-runtime:MISSING_RUNTIME_EVIDENCE"));
+    assert.ok(result.blockers.includes("paper-recovery-acceptance:MISSING_PAPER_EVIDENCE"));
     assert.ok(result.blockers.includes("product-physical-acceptance:MISSING_DEVICE_EVIDENCE"));
     assert.ok(result.blockers.includes("product-physical-acceptance:MISSING_HUMAN_EVIDENCE"));
   });
