@@ -32,6 +32,13 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): void {
   if (!Number.isSafeInteger(record.periodStartAt) || !Number.isSafeInteger(record.periodEndAt) || record.periodStartAt < 0 || record.periodEndAt <= record.periodStartAt) {
     throw new PersistedPaperPeriodStoreError("INVALID_PERIOD_BOUNDS", "PAPER period bounds are invalid", record.recordId);
   }
+  const advisoryAt = Date.parse(record.advisory.generatedAt);
+  if (!Number.isFinite(advisoryAt)) {
+    throw new PersistedPaperPeriodStoreError("INVALID_ADVISORY_TIMESTAMP", "PAPER advisory.generatedAt must be a valid timestamp", record.recordId);
+  }
+  if (advisoryAt >= record.periodStartAt) {
+    throw new PersistedPaperPeriodStoreError("LOOKAHEAD_ADVISORY_SNAPSHOT", "PAPER advisory must predate the realized period it is persisted against", record.recordId);
+  }
   const advisoryIds = new Set(record.advisory.entries.map((entry) => entry.id));
   const provenanceIds = new Set<string>();
   for (const provenance of envelope.candidateProvenance) {
