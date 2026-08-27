@@ -27,12 +27,17 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
  */
 export function buildNusaWholeProgressSnapshot(input: NusaWholeProgressSnapshotInput): NusaWholeProgressSnapshot {
   const github = collectGithubProgressEvidence(input.commit, input.workflows, input.requiredWorkflowNames);
-  const actualPaper = collectActualPaperRuntimeProgressEvidence(input.actualPaperArtifact, input.commit.sha);
+
+  // Validate the exact-head Actual PAPER runtime receipt, but do not promote a clean runtime PASS
+  // into RELIABILITY_RECOVERY credit. #882 requires explicit chaos/recovery drill evidence for
+  // restart, stale feed, replay, corruption, chronology, outage, reconciliation, and duplicate-fill
+  // behavior. Until that canonical adapter exists, the recovery domain must remain UNKNOWN.
+  collectActualPaperRuntimeProgressEvidence(input.actualPaperArtifact, input.commit.sha);
 
   const items: readonly NusaProgressItemInput[] = freeze([
     freeze({ id: "verified-economic-edge", domain: "VERIFIED_ECONOMIC_EDGE", weight: 1, requiredAcceptance: "EVIDENCE_VERIFIED", evidence: freeze([]) }),
     freeze({ id: "autonomy-runtime", domain: "AUTONOMY", weight: 1, requiredAcceptance: "RUNTIME_VERIFIED", evidence: freeze([]) }),
-    freeze({ id: "actual-paper-runtime", domain: "RELIABILITY_RECOVERY", weight: 1, requiredAcceptance: "EVIDENCE_VERIFIED", evidence: freeze([actualPaper.runtime, actualPaper.paper]) }),
+    freeze({ id: "paper-recovery-acceptance", domain: "RELIABILITY_RECOVERY", weight: 1, requiredAcceptance: "EVIDENCE_VERIFIED", evidence: freeze([]) }),
     freeze({ id: "safety-research-integrity", domain: "SAFETY_RESEARCH_INTEGRITY", weight: 1, requiredAcceptance: "EVIDENCE_VERIFIED", evidence: freeze([]) }),
     freeze({ id: "product-physical-acceptance", domain: "PRODUCT_UX", weight: 1, requiredAcceptance: "PRODUCT_ACCEPTED", evidence: freeze([]) }),
     freeze({ id: "exact-head-repository-ci", domain: "INFRASTRUCTURE_MODULE_HEALTH", weight: 1, requiredAcceptance: "CODE_COMPLETE", evidence: freeze([github.repositoryEvidence, ...github.ciEvidence]) }),
