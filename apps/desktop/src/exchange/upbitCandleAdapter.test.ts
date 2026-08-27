@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mapUpbitDayCandlesToResearchCandles, type UpbitDayCandle } from "./upbitCandleAdapter";
+import {
+  evaluateUpbitDailyCandleFreshness,
+  mapUpbitDayCandlesToResearchCandles,
+  type UpbitDayCandle,
+} from "./upbitCandleAdapter";
 
 function candle(utc: string, close: number): UpbitDayCandle {
   return {
@@ -50,6 +54,29 @@ test("maxCount keeps the most recent completed candles after point-in-time filte
   );
 });
 
+test("freshness aligns to the latest fully closed UTC daily interval", () => {
+  const asOf = Date.parse("2026-08-27T12:41:00Z");
+  const candles = mapUpbitDayCandlesToResearchCandles([
+    candle("2026-08-26T00:00:00", 120),
+    candle("2026-08-25T00:00:00", 110),
+  ], { completedBy: asOf });
+  const freshness = evaluateUpbitDailyCandleFreshness(candles, asOf);
+  assert.equal(freshness.expectedLatestCloseTime, Date.parse("2026-08-27T00:00:00Z"));
+  assert.equal(freshness.actualLatestCloseTime, Date.parse("2026-08-27T00:00:00Z"));
+  assert.equal(freshness.lagDays, 0);
+  assert.equal(freshness.fresh, true);
+});
+
+test("freshness exposes whole-day source lag without inventing a tolerance", () => {
+  const asOf = Date.parse("2026-08-27T12:41:00Z");
+  const candles = mapUpbitDayCandlesToResearchCandles([
+    candle("2026-08-25T00:00:00", 110),
+  ], { completedBy: asOf });
+  const freshness = evaluateUpbitDailyCandleFreshness(candles, asOf);
+  assert.equal(freshness.lagDays, 1);
+  assert.equal(freshness.fresh, false);
+});
+
 test("completedBy fails closed when no historical daily candle is complete", () => {
   assert.throws(
     () => mapUpbitDayCandlesToResearchCandles([
@@ -72,4 +99,5 @@ test("point-in-time options reject invalid boundaries", () => {
     ], { maxCount: 0 }),
     /maxCount must be a positive integer/,
   );
+  assert.throws(() => evaluateUpbitDailyCandleFreshness([], Number.NaN), /asOf must be finite/);
 });
