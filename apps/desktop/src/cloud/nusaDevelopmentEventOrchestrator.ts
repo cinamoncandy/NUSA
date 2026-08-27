@@ -25,6 +25,7 @@ export interface NusaDevelopmentEvent {
 export interface NusaDevelopmentEventOrchestratorState {
   readonly queue: NusaDevelopmentQueue;
   readonly processedEventIds: readonly string[];
+  readonly processedEventFingerprints: Readonly<Record<string, string>>;
 }
 
 export type ApplyNusaDevelopmentEventResult =
@@ -34,7 +35,7 @@ export type ApplyNusaDevelopmentEventResult =
       readonly item: NusaDevelopmentWorkItem;
     }
   | {
-      readonly status: "REVISION_CONFLICT" | "WORK_NOT_FOUND" | "INVALID_TRANSITION";
+      readonly status: "REVISION_CONFLICT" | "WORK_NOT_FOUND" | "INVALID_TRANSITION" | "EVENT_ID_CONFLICT";
       readonly state: NusaDevelopmentEventOrchestratorState;
       readonly item: NusaDevelopmentWorkItem | null;
     };
@@ -56,24 +57,39 @@ const TRANSITIONS: Readonly<Record<NusaDevelopmentEventType, Readonly<Record<str
   }),
 });
 
-function freezeState(queue: NusaDevelopmentQueue, processedEventIds: readonly string[]): NusaDevelopmentEventOrchestratorState {
+function eventFingerprint(event: NusaDevelopmentEvent): string {
+  return JSON.stringify([
+    event.type,
+    event.workId,
+    event.expectedRevision,
+    event.occurredAt,
+    event.reason ?? null,
+  ]);
+}
+
+function freezeState(
+  queue: NusaDevelopmentQueue,
+  processedEventFingerprints: Readonly<Record<string, string>>,
+): NusaDevelopmentEventOrchestratorState {
+  const fingerprints = Object.freeze({ ...processedEventFingerprints });
   return Object.freeze({
     queue,
-    processedEventIds: Object.freeze([...processedEventIds]),
+    processedEventIds: Object.freeze(Object.keys(fingerprints)),
+    processedEventFingerprints: fingerprints,
   });
 }
 
 export function createNusaDevelopmentEventOrchestratorState(
   queue: NusaDevelopmentQueue,
-  processedEventIds: readonly string[] = [],
+  processedEvents: readonly NusaDevelopmentEvent[] = [],
 ): NusaDevelopmentEventOrchestratorState {
-  const ids = new Set<string>();
-  for (const eventId of processedEventIds) {
-    if (!eventId.trim()) throw new Error("EVENT_ID_REQUIRED");
-    if (ids.has(eventId)) throw new Error(`EVENT_ID_DUPLICATE:${eventId}`);
-    ids.add(eventId);
+  const fingerprints: Record<string, string> = {};
+  for (const event of processedEvents) {
+    if (!event.eventId.trim()) throw new Error("EVENT_ID_REQUIRED");
+    if (fingerprints[event.eventId]) throw new Error(`EVENT_ID_DUPLICATE:${event.eventId}`);
+    fingerprints[event.eventId] = eventFingerprint(event);
   }
-  return freezeState(queue, processedEventIds);
+  return freezeState(queue, fingerprints);
 }
 
 function nextActionFor(event: NusaDevelopmentEvent): string {
@@ -96,9 +112,13 @@ export function applyNusaDevelopmentEvent(
   if (!event.workId.trim()) throw new Error("EVENT_WORK_ID_REQUIRED");
   if (!Number.isFinite(event.occurredAt)) throw new Error("EVENT_OCCURRED_AT_INVALID");
 
-  const replay = state.processedEventIds.includes(event.eventId);
-  if (replay) {
+  const fingerprint = eventFingerprint(event);
+  const processedFingerprint = state.processedEventFingerprints[event.eventId];
+  if (processedFingerprint !== undefined) {
     const item = state.queue.items.find((candidate) => candidate.id === event.workId) ?? null;
+    if (processedFingerprint !== fingerprint) {
+      return { status: "EVENT_ID_CONFLICT", state, item };
+    }
     return item
       ? { status: "IDEMPOTENT_REPLAY", state, item }
       : { status: "WORK_NOT_FOUND", state, item: null };
@@ -124,6 +144,9 @@ export function applyNusaDevelopmentEvent(
     state.queue.items.map((item) => item.id === current.id ? updated : item),
     state.queue.revision + 1,
   );
-  const next = freezeState(queue, [...state.processedEventIds, event.eventId]);
+  const next = freezeState(queue, {
+    ...state.processedEventFingerprints,
+    [event.eventId]: fingerprint,
+  });
   return { status: "APPLIED", state: next, item: updated };
 }
