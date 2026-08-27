@@ -85,6 +85,117 @@ describe("NUSA canonical development queue", () => {
     assert.equal(unblockedResult.item?.id, "dependent");
   });
 
+  it("skips higher-priority file-conflicting work and uses safe overflow", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "active", state: "IMPLEMENTING", priority: "P0", canonicalOwner: "research", touchedFiles: ["shared.ts"] }),
+      work({ id: "conflicting", priority: "P0", touchedFiles: ["shared.ts"] }),
+      work({ id: "safe-overflow", priority: "P1", touchedFiles: ["independent.ts"] }),
+    ]);
+    const result = claimNextNusaDevelopmentWork(queue, {
+      owner: "development",
+      requestId: "conflict-aware",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      allocationPolicy: { maximumActiveWorkPerOwner: 2, preventTouchedFileConflicts: true },
+    });
+    assert.equal(result.status, "CLAIMED");
+    assert.equal(result.item?.id, "safe-overflow");
+  });
+
+  it("treats CLAIMED through MERGE_READY as active conflicts but not MERGED or BLOCKED_HUMAN", () => {
+    const activeStates = ["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY"] as const;
+    for (const [index, state] of activeStates.entries()) {
+      const queue = createNusaDevelopmentQueue([
+        work({ id: `active-${state}`, state, canonicalOwner: "other", touchedFiles: ["same.ts"] }),
+        work({ id: `candidate-${state}`, priority: "P0", touchedFiles: ["same.ts"] }),
+      ]);
+      const result = claimNextNusaDevelopmentWork(queue, {
+        owner: "development",
+        requestId: `active-${index}`,
+        expectedRevision: 0,
+        now: T0,
+        leaseMs: 60_000,
+        allocationPolicy: { maximumActiveWorkPerOwner: 2, preventTouchedFileConflicts: true },
+      });
+      assert.equal(result.status, "NO_READY_WORK", state);
+    }
+
+    for (const state of ["MERGED", "BLOCKED_HUMAN"] as const) {
+      const queue = createNusaDevelopmentQueue([
+        work({ id: `inactive-${state}`, state, touchedFiles: ["same.ts"] }),
+        work({ id: `candidate-${state}`, priority: "P0", touchedFiles: ["same.ts"] }),
+      ]);
+      const result = claimNextNusaDevelopmentWork(queue, {
+        owner: "development",
+        requestId: `inactive-${state}`,
+        expectedRevision: 0,
+        now: T0,
+        leaseMs: 60_000,
+        allocationPolicy: { maximumActiveWorkPerOwner: 2, preventTouchedFileConflicts: true },
+      });
+      assert.equal(result.status, "CLAIMED", state);
+    }
+  });
+
+  it("enforces per-owner WIP without blocking independent owners", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "owned", state: "CI", canonicalOwner: "development" }),
+      work({ id: "ready", priority: "P0" }),
+    ]);
+    const blocked = claimNextNusaDevelopmentWork(queue, {
+      owner: "development",
+      requestId: "wip-blocked",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      allocationPolicy: { maximumActiveWorkPerOwner: 1, preventTouchedFileConflicts: true },
+    });
+    assert.equal(blocked.status, "WIP_LIMIT_REACHED");
+    assert.equal(blocked.queue, queue);
+
+    const other = claimNextNusaDevelopmentWork(queue, {
+      owner: "qa",
+      requestId: "wip-other",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      allocationPolicy: { maximumActiveWorkPerOwner: 1, preventTouchedFileConflicts: true },
+    });
+    assert.equal(other.status, "CLAIMED");
+    assert.equal(other.item?.id, "ready");
+  });
+
+  it("preserves legacy deterministic claiming when no allocation policy is supplied", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "active", state: "CI", canonicalOwner: "development", touchedFiles: ["same.ts"] }),
+      work({ id: "ready", priority: "P0", touchedFiles: ["same.ts"] }),
+    ]);
+    const result = claimNextNusaDevelopmentWork(queue, {
+      owner: "development",
+      requestId: "legacy",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+    });
+    assert.equal(result.status, "CLAIMED");
+    assert.equal(result.item?.id, "ready");
+  });
+
+  it("fails closed on invalid WIP allocation policy", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "ready" })]);
+    for (const maximumActiveWorkPerOwner of [0, -1, 1.5, Number.MAX_VALUE]) {
+      assert.throws(() => claimNextNusaDevelopmentWork(queue, {
+        owner: "development",
+        requestId: `bad-wip-${maximumActiveWorkPerOwner}`,
+        expectedRevision: 0,
+        now: T0,
+        leaseMs: 60_000,
+        allocationPolicy: { maximumActiveWorkPerOwner, preventTouchedFileConflicts: true },
+      }), /ALLOCATION_WIP_LIMIT_INVALID/);
+    }
+  });
+
   it("makes the same claim request idempotent and rejects stale competing revisions", () => {
     const queue = createNusaDevelopmentQueue([work({ id: "p0", priority: "P0" })]);
     const request = {
