@@ -40,11 +40,18 @@ jobs:
       - name: Build bounded coding runner request
         run: node scripts/build-autopilot-coding-request.mjs "$RUNNER_TEMP/autopilot-event.json"
 
+      - name: Dispatch to authenticated external coding runner
+        env:
+          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
+          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+        run: node scripts/dispatch-autopilot-coding-runner.mjs artifacts/autopilot/coding-request.json
+
       - name: Classify repository-side execution boundary
         env:
           KIND: ${{ github.event.client_payload.kind }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+          RUNNER_CONFIGURED: ${{ secrets.NUSA_CODING_RUNNER_URL != '' && secrets.NUSA_CODING_RUNNER_TOKEN != '' }}
         run: |
           {
             echo "## NUSA Autopilot Dispatch Consumer"
@@ -56,7 +63,11 @@ jobs:
             echo "- productionMutationAllowed: false"
             echo "- AI authority: ZERO_AUTHORITY"
             echo "- coding request: READY"
-            echo "- external coding runner: NOT_CONNECTED"
+            if [ "$RUNNER_CONFIGURED" = "true" ]; then
+              echo "- external coding runner: CONFIGURED"
+            else
+              echo "- external coding runner: NOT_CONNECTED"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dispatch receipt
