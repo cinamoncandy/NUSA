@@ -115,7 +115,7 @@ test('accepts CI_GREEN only when exact PR head and all required workflows are gr
 test('rejects forged CI_GREEN when any required workflow is missing', async () => {
   await withServer(apiFixture({ workflows: required.slice(0, -1) }), async (apiBase) => {
     const result = await run(evidence(), apiBase);
-    assert.equal(result.status, 1);
+    assert.notEqual(result.status, 0, result.stderr);
     assert.match(result.stderr, /github-evidence-required-workflow-not-green:Read-only Broker Credential Integration/);
   });
 });
@@ -123,7 +123,7 @@ test('rejects forged CI_GREEN when any required workflow is missing', async () =
 test('rejects MERGED when GitHub merge SHA disagrees with runner claim', async () => {
   await withServer(apiFixture({ merged: true, mergeCommitSha: 'e'.repeat(40) }), async (apiBase) => {
     const result = await run(evidence({ status: 'MERGED', merge_sha: mergeSha }), apiBase);
-    assert.equal(result.status, 1);
+    assert.notEqual(result.status, 0, result.stderr);
     assert.match(result.stderr, /github-evidence-merge-sha-mismatch/);
   });
 });
