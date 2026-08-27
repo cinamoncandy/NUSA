@@ -59,6 +59,7 @@ export class ResearchDatasetError extends Error {
 
 const INTERVAL_MS: Readonly<Record<ResearchInterval, number>> = Object.freeze({ "1m": 60_000, "3m": 180_000, "5m": 300_000, "10m": 600_000, "15m": 900_000, "30m": 1_800_000, "60m": 3_600_000, "240m": 14_400_000, "1d": 86_400_000 });
 const DEFAULT_MANIFEST_CREATED_AT = "1970-01-01T00:00:00.000Z";
+const DEFAULT_EXPERIMENT_GENERATED_AT = DEFAULT_MANIFEST_CREATED_AT;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const finiteInteger = (value: number): boolean => Number.isFinite(value) && Number.isInteger(value);
 const validInterval = (value: string): value is ResearchInterval => Object.prototype.hasOwnProperty.call(INTERVAL_MS, value);
@@ -68,6 +69,19 @@ function assertManifestCreatedAt(createdAt: string, endCloseTime: number): void 
   if (!Number.isFinite(createdAtMs)) throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt must be a valid timestamp");
   if (createdAt !== DEFAULT_MANIFEST_CREATED_AT && createdAtMs < endCloseTime) {
     throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt cannot precede the final candle closeTime");
+  }
+}
+
+function assertExperimentGeneratedAt(generatedAt: string, manifest: HistoricalDatasetManifest): void {
+  const generatedAtMs = Date.parse(generatedAt);
+  if (!Number.isFinite(generatedAtMs)) throw new ResearchDatasetError("INVALID_GENERATED_AT", "experiment generatedAt must be a valid timestamp");
+  if (generatedAt === DEFAULT_EXPERIMENT_GENERATED_AT) return;
+  const manifestCreatedAtMs = Date.parse(manifest.createdAt);
+  const minimumGeneratedAt = manifest.createdAt === DEFAULT_MANIFEST_CREATED_AT
+    ? manifest.endCloseTime
+    : Math.max(manifest.endCloseTime, manifestCreatedAtMs);
+  if (generatedAtMs < minimumGeneratedAt) {
+    throw new ResearchDatasetError("INVALID_GENERATED_AT", "experiment generatedAt cannot precede its dataset provenance");
   }
 }
 
@@ -150,8 +164,11 @@ export function candlesToBacktestPoints(candles: readonly ResearchCandle[]): rea
 }
 
 export function runWalkForwardExperiment(dataset: ResearchDataset, candidates: readonly WalkForwardCandidate[], config: WalkForwardConfig, options: { readonly generatedAt?: string } = {}): ResearchExperimentResult {
-  const validated = verifyHistoricalDatasetManifest(dataset.manifest, dataset.candles); const walkForwardResult = runWalkForward(candlesToBacktestPoints(validated.candles), candidates, config);
+  const validated = verifyHistoricalDatasetManifest(dataset.manifest, dataset.candles);
+  const generatedAt = options.generatedAt ?? DEFAULT_EXPERIMENT_GENERATED_AT;
+  assertExperimentGeneratedAt(generatedAt, dataset.manifest);
+  const walkForwardResult = runWalkForward(candlesToBacktestPoints(validated.candles), candidates, config);
   const warnings = [...validated.warnings, ...walkForwardResult.warnings];
   if (walkForwardResult.windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") && !warnings.includes("OPEN_POSITION_MARKED_AT_WINDOW_END")) warnings.push("OPEN_POSITION_MARKED_AT_WINDOW_END");
-  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt: options.generatedAt ?? "1970-01-01T00:00:00.000Z", warnings: Object.freeze(warnings) });
+  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt, warnings: Object.freeze(warnings) });
 }
