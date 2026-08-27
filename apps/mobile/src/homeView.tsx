@@ -178,6 +178,19 @@ export function HomeView({
   const supervisorResult = account == null
     ? "검증된 PAPER 성과 데이터 없음"
     : `PAPER P&L ${totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`} · EQUITY ${krw(account.equity)}`;
+  const supervisorRisk = disconnected
+    ? "BLOCKED · PAPER LINK REQUIRED"
+    : readOnlyError
+      ? "BLOCKED · READ-ONLY RECOVERY REQUIRED"
+      : runtimeState === "HALTED" || runtimeState === "ERROR"
+        ? "BLOCKED · PAPER RUNTIME REQUIRES ACTION"
+        : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING"
+          ? "WATCH · PAPER RUNTIME REQUIRES SUPERVISION"
+          : snapshot == null
+            ? "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE"
+            : signalReady
+              ? "PAPER ONLY · SAFETY GATES READY · LIVE NONE"
+              : "WATCH · PAPER SAFETY GATES NOT READY";
   const supervisorLearning = aiInsightAvailable
     ? `근거 ${ai?.evidenceReferences.length ?? 0}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
     : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
@@ -205,6 +218,7 @@ export function HomeView({
       <SupervisorRow label="NOW" value={supervisorNow} labelColor={attentionColor} valueColor={theme.colors.text} strong testID="home-supervisor-now" />
       <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" />
       <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
+      <SupervisorRow label="RISK" value={supervisorRisk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
       <SupervisorRow label="LEARNING" value={supervisorLearning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
