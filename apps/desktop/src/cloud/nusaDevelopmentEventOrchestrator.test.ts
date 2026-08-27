@@ -84,6 +84,29 @@ describe("NUSA development event orchestrator", () => {
     assert.equal(replay.state.queue.revision, first.state.queue.revision);
   });
 
+  it("rejects an event id reused with a different payload", () => {
+    const state = claimedState();
+    const event = {
+      eventId: "same-event",
+      type: "IMPLEMENTATION_STARTED" as const,
+      workId: "w1",
+      expectedRevision: state.queue.revision,
+      occurredAt: T0 + 1,
+    };
+    const first = applyNusaDevelopmentEvent(state, event);
+    assert.equal(first.status, "APPLIED");
+
+    const conflict = applyNusaDevelopmentEvent(first.state, {
+      ...event,
+      type: "HUMAN_BLOCKED",
+      reason: "different-delivery",
+    });
+    assert.equal(conflict.status, "EVENT_ID_CONFLICT");
+    assert.equal(conflict.state, first.state);
+    assert.equal(conflict.item?.state, "IMPLEMENTING");
+    assert.equal(conflict.state.queue.revision, first.state.queue.revision);
+  });
+
   it("fails closed on stale revisions and impossible event ordering", () => {
     const state = claimedState();
     const stale = applyNusaDevelopmentEvent(state, {
