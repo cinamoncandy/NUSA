@@ -24,7 +24,44 @@ export interface MapUpbitDayCandlesOptions {
   readonly maxCount?: number;
 }
 
+export interface UpbitDailyCandleFreshness {
+  readonly asOf: number;
+  readonly expectedLatestCloseTime: number;
+  readonly actualLatestCloseTime: number;
+  readonly lagDays: number;
+  readonly fresh: boolean;
+}
+
 const DAY_MS = 86_400_000;
+
+/**
+ * Evaluates whether a completed UTC daily series reaches the latest interval that could have
+ * fully closed by `asOf`. No arbitrary age threshold is used: freshness is aligned to the
+ * exchange's UTC daily interval boundary. Callers decide whether a stale result is fatal.
+ */
+export function evaluateUpbitDailyCandleFreshness(
+  candles: readonly ResearchCandle[],
+  asOf: number,
+): UpbitDailyCandleFreshness {
+  if (!Number.isFinite(asOf)) throw new Error("asOf must be finite");
+  if (candles.length === 0) throw new Error("daily candle freshness requires at least one candle");
+  const actualLatestCloseTime = Math.max(...candles.map((candle) => candle.closeTime));
+  const expectedLatestCloseTime = Math.floor(asOf / DAY_MS) * DAY_MS;
+  if (!Number.isFinite(actualLatestCloseTime) || actualLatestCloseTime > asOf) {
+    throw new Error("daily candle freshness requires completed finite candle timestamps");
+  }
+  const lagMs = expectedLatestCloseTime - actualLatestCloseTime;
+  if (lagMs < 0 || lagMs % DAY_MS !== 0) {
+    throw new Error("daily candle freshness requires UTC-aligned daily close timestamps");
+  }
+  return Object.freeze({
+    asOf,
+    expectedLatestCloseTime,
+    actualLatestCloseTime,
+    lagDays: lagMs / DAY_MS,
+    fresh: lagMs === 0,
+  });
+}
 
 /**
  * Converts Upbit's public daily-candle response into ResearchCandle records this
