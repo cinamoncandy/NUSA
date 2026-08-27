@@ -1,6 +1,9 @@
 "use strict";
 
-const { mapUpbitDayCandlesToResearchCandles } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
+const {
+  evaluateUpbitDailyCandleFreshness,
+  mapUpbitDayCandlesToResearchCandles
+} = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
@@ -66,6 +69,10 @@ async function main() {
   if (candles.length !== CANDLE_COUNT) {
     throw new Error(`Upbit returned only ${candles.length} completed daily candles; expected ${CANDLE_COUNT}`);
   }
+  const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
+  if (!freshness.fresh) {
+    throw new Error(`Upbit completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+  }
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
     sourceRequest: sourceRequests.join(" | "),
@@ -127,7 +134,13 @@ async function main() {
       startOpenTime: new Date(manifest.startOpenTime).toISOString(),
       endCloseTime: new Date(manifest.endCloseTime).toISOString(),
       contentSha256: manifest.contentSha256,
-      completedBy: new Date(dataAsOf).toISOString()
+      completedBy: new Date(dataAsOf).toISOString(),
+      freshness: {
+        status: "FRESH",
+        expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
+        actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
+        lagDays: freshness.lagDays
+      }
     },
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
