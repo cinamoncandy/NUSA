@@ -43,14 +43,13 @@ function standing(entries: readonly LeagueRankedEntry[]): LeagueStanding {
   };
 }
 
-/** Runs attribution on a single-candidate standing and returns that one attribution directly. */
 function attributeSingle(componentOverrides: Partial<LeagueCandidateComponents> = {}, entryOverrides: Partial<LeagueRankedEntry> = {}) {
   const [attribution] = attributeCandidateFailures(standing([entry("a", { components: components(componentOverrides), ...entryOverrides })]));
   return attribution!;
 }
 
 describe("attributeCandidateFailures", () => {
-  it("attributes no failure category to a clean candidate with full evidence", () => {
+  it("attributes no observed failure category to a clean candidate while calibration remains fail-closed", () => {
     const attribution = attributeSingle({
       benchmarkExcess: 0.03,
       maximumDrawdown: 0.04,
@@ -64,7 +63,8 @@ describe("attributeCandidateFailures", () => {
       paperReliabilityPenalty: 0,
     });
     assert.deepEqual(attribution.categories, []);
-    assert.deepEqual(attribution.insufficientEvidenceFor, []);
+    assert.deepEqual(attribution.insufficientEvidenceFor, ["CALIBRATION_ERROR"]);
+    assert.ok(attribution.reasons.includes("CALIBRATION_ERROR_NO_DEDICATED_CALIBRATION_EVIDENCE"));
   });
 
   it("attributes REGIME_ERROR only for a real FRAGILE classification, never for INSUFFICIENT coverage", () => {
@@ -72,8 +72,7 @@ describe("attributeCandidateFailures", () => {
 
     const insufficient = attributeSingle({ regimeRobustnessClass: "INSUFFICIENT" });
     assert.equal(insufficient.categories.includes("REGIME_ERROR"), false);
-    assert.ok(insufficient.insufficientEvidenceFor.includes("REGIME_ERROR"), "INSUFFICIENT coverage must not be silently read as no failure");
-
+    assert.ok(insufficient.insufficientEvidenceFor.includes("REGIME_ERROR"));
     assert.ok(attributeSingle().insufficientEvidenceFor.includes("REGIME_ERROR"));
   });
 
@@ -87,17 +86,16 @@ describe("attributeCandidateFailures", () => {
     assert.ok(attributeSingle().insufficientEvidenceFor.includes("STRATEGY_DECAY"));
   });
 
-  it("attributes CALIBRATION_ERROR only when high statistical confidence still missed the real outcome", () => {
-    assert.ok(attributeSingle({ riskAdjusted: 0.98, paperBacktestDivergence: 0.06 }).categories.includes("CALIBRATION_ERROR"));
+  it("does not fabricate CALIBRATION_ERROR from high DSR probability plus one PAPER miss", () => {
+    const highDsrMiss = attributeSingle({ riskAdjusted: 0.98, paperBacktestDivergence: 0.06 });
+    assert.equal(highDsrMiss.categories.includes("CALIBRATION_ERROR"), false);
+    assert.ok(highDsrMiss.categories.includes("STRATEGY_DECAY"));
+    assert.ok(highDsrMiss.insufficientEvidenceFor.includes("CALIBRATION_ERROR"));
+    assert.ok(highDsrMiss.reasons.includes("CALIBRATION_ERROR_NO_DEDICATED_CALIBRATION_EVIDENCE"));
 
-    // High confidence AND the outcome matched it: not a calibration error, that is success.
-    assert.equal(attributeSingle({ riskAdjusted: 0.98, paperBacktestDivergence: -0.02 }).categories.includes("CALIBRATION_ERROR"), false);
-
-    // Low confidence that missed is STRATEGY_DECAY territory, not a calibration failure --
-    // low confidence correctly predicted its own unreliability.
-    const lowConfidenceMiss = attributeSingle({ riskAdjusted: 0.5, paperBacktestDivergence: 0.06 });
-    assert.equal(lowConfidenceMiss.categories.includes("CALIBRATION_ERROR"), false);
-    assert.ok(lowConfidenceMiss.categories.includes("STRATEGY_DECAY"));
+    const highDsrMatch = attributeSingle({ riskAdjusted: 0.98, paperBacktestDivergence: -0.02 });
+    assert.equal(highDsrMatch.categories.includes("CALIBRATION_ERROR"), false);
+    assert.ok(highDsrMatch.insufficientEvidenceFor.includes("CALIBRATION_ERROR"));
   });
 
   it("attributes RISK_ERROR from excessive drawdown or observed counterfactual regret independently", () => {
@@ -110,8 +108,6 @@ describe("attributeCandidateFailures", () => {
     assert.ok(attributeSingle({ outOfSamplePerformance: 0.10, costAdjustedGhostReturn: 0.02 }).categories.includes("EXECUTION_COST"));
     assert.equal(attributeSingle({ outOfSamplePerformance: 0.10, costAdjustedGhostReturn: 0.09 }).categories.includes("EXECUTION_COST"), false);
 
-    // No positive raw edge means there is nothing for cost to erode -- that is SIGNAL_FAILURE's
-    // story, and EXECUTION_COST must neither fire nor be marked insufficient.
     const noEdge = attributeSingle({ outOfSamplePerformance: -0.02 });
     assert.equal(noEdge.categories.includes("EXECUTION_COST"), false);
     assert.equal(noEdge.insufficientEvidenceFor.includes("EXECUTION_COST"), false);
@@ -146,7 +142,6 @@ describe("attributeCandidateFailures", () => {
       { minimumBenchmarkExcess: Number.NaN },
       { significantPaperDivergence: 0 },
       { significantCostErosion: 1.5 },
-      { calibrationConfidenceThreshold: 0 },
     ]) {
       assert.throws(
         () => attributeCandidateFailures(standing([entry("a")]), bad),
