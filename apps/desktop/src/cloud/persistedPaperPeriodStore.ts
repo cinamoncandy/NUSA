@@ -77,6 +77,15 @@ export class SqlitePersistedPaperPeriodStore {
         if (String(existing.checksum) !== digest || String(existing.payload_json) !== payload) throw new PersistedPaperPeriodStoreError("RECORD_ID_CONFLICT", "persisted PAPER recordId was reused with different evidence", envelope.record.recordId);
         return;
       }
+      const chronologyConflict = this.db.connection.prepare(`
+        SELECT record_id FROM ${TABLE}
+        WHERE (period_index < ? AND period_end_at > ?)
+           OR (period_index > ? AND period_start_at < ?)
+        LIMIT 1
+      `).get(envelope.record.periodIndex, envelope.record.periodStartAt, envelope.record.periodIndex, envelope.record.periodEndAt) as { record_id?: string } | undefined;
+      if (chronologyConflict != null) {
+        throw new PersistedPaperPeriodStoreError("PERIOD_CHRONOLOGY_CONFLICT", `PAPER period chronology conflicts with ${String(chronologyConflict.record_id)}`, envelope.record.recordId);
+      }
       try {
         this.db.connection.prepare(`INSERT INTO ${TABLE} (record_id, period_index, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, ?, ?, ?, ?)`)
           .run(envelope.record.recordId, envelope.record.periodIndex, envelope.record.periodStartAt, envelope.record.periodEndAt, payload, digest);
