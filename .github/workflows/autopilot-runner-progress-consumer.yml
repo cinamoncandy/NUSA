@@ -1,0 +1,65 @@
+name: Autopilot Runner Progress Consumer
+
+on:
+  repository_dispatch:
+    types: [nusa_autopilot_runner_progress]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: autopilot-runner-progress-${{ github.event.client_payload.request_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Persist runner progress evidence
+        env:
+          PROGRESS_JSON: ${{ toJson(github.event.client_payload) }}
+        run: |
+          mkdir -p artifacts/autopilot
+          printf '%s' "$PROGRESS_JSON" > artifacts/autopilot/runner-progress.json
+
+      - name: Validate runner progress fail closed
+        id: validate_progress
+        run: |
+          node scripts/validate-autopilot-runner-progress.mjs artifacts/autopilot/runner-progress.json \
+            | tee artifacts/autopilot/runner-progress-validation.json
+
+      - name: Summarize validated runner progress
+        if: success()
+        run: |
+          node <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('artifacts/autopilot/runner-progress-validation.json', 'utf8'));
+          console.log('## NUSA Autopilot Runner Progress');
+          console.log('');
+          console.log(`- status: ${x.status}`);
+          console.log(`- active: ${x.active}`);
+          console.log(`- mergeReady: ${x.mergeReady}`);
+          console.log(`- exactHeadGreen: ${x.exactHeadGreen ?? false}`);
+          console.log(`- requested head: ${x.requested_head_sha ?? 'none'}`);
+          console.log(`- produced commit: ${x.produced_commit_sha ?? 'none'}`);
+          console.log(`- PR: ${x.pr_number ?? 'none'}`);
+          console.log('- liveAuthority: NONE');
+          console.log('- productionMutationAllowed: false');
+          console.log('- AI authority: ZERO_AUTHORITY');
+          NODE
+
+      - name: Upload validated runner progress evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-runner-progress-${{ github.run_id }}
+          path: |
+            artifacts/autopilot/runner-progress.json
+            artifacts/autopilot/runner-progress-validation.json
+          if-no-files-found: warn
+          retention-days: 7
