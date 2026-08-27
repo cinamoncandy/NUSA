@@ -1,0 +1,64 @@
+name: Autopilot Execution Consumer
+
+on:
+  repository_dispatch:
+    types: [nusa_autopilot_execution]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: autopilot-execution-${{ github.event.client_payload.kind }}-${{ github.event.client_payload.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  consume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repository state
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Persist bounded event payload
+        env:
+          EVENT_JSON: ${{ toJson(github.event) }}
+        run: |
+          printf '%s' "$EVENT_JSON" > "$RUNNER_TEMP/autopilot-event.json"
+
+      - name: Validate fail-closed autopilot payload
+        run: node scripts/consume-autopilot-dispatch.mjs "$RUNNER_TEMP/autopilot-event.json"
+
+      - name: Verify requested SHA exists in NUSA history
+        env:
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+        run: |
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Classify repository-side execution boundary
+        env:
+          KIND: ${{ github.event.client_payload.kind }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          {
+            echo "## NUSA Autopilot Dispatch Consumer"
+            echo ""
+            echo "- kind: ${KIND}"
+            echo "- head: ${HEAD_SHA}"
+            echo "- workflow_run_id: ${WORKFLOW_RUN_ID:-none}"
+            echo "- liveAuthority: NONE"
+            echo "- productionMutationAllowed: false"
+            echo "- AI authority: ZERO_AUTHORITY"
+            echo "- coding executor: NOT_CONFIGURED"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dispatch receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-dispatch-receipt-${{ github.run_id }}
+          path: artifacts/autopilot/dispatch-receipt.json
+          if-no-files-found: error
+          retention-days: 7
