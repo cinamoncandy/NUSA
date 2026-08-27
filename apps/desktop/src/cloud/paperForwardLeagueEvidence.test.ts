@@ -2,26 +2,30 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PaperPerformanceSummary } from "../../../../packages/contracts/src/strategyGovernance";
 import type { ResearchBenchmarkSliceScore } from "./researchBenchmarkScorecard";
-import { admitPaperForwardEvidence, type PaperForwardPeriodEvidence } from "./paperForwardEvidenceAdmission";
+import { admitPaperForwardEvidence, type PaperForwardEvidenceAdmission, type PaperForwardPeriodEvidence } from "./paperForwardEvidenceAdmission";
 import { gatePaperForwardLeagueEvidence, PaperForwardLeagueEvidenceError } from "./paperForwardLeagueEvidence";
 import { evaluateLeague } from "./nusaLeague";
 
 const HASH = "a".repeat(64);
 const IDENTITY = Object.freeze({ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: HASH });
 
-const paperPerformance: PaperPerformanceSummary = Object.freeze({
+const paperPerformanceFor = (
+  admission: PaperForwardEvidenceAdmission,
+  overrides: Partial<PaperPerformanceSummary> = {},
+): PaperPerformanceSummary => Object.freeze({
   startedAt: 1_000,
-  endedAt: 31_000,
-  observationDays: 30,
-  tradeCount: 30,
-  netReturn: 0.08,
+  endedAt: 301_000,
+  observationDays: admission.periodCount,
+  tradeCount: admission.completedPeriodCount,
+  netReturn: admission.cumulativeNetReturn,
   sharpeRatio: 1.1,
   profitFactor: 1.2,
   maximumDrawdown: 0.05,
-  availabilityRatio: 1,
-  unresolvedFaultCount: 0,
+  availabilityRatio: admission.completedPeriodCount / admission.periodCount,
+  unresolvedFaultCount: admission.rejectedOrHaltedPeriodCount,
   killSwitchActivationCount: 0,
   executionQualityScore: 0.9,
+  ...overrides,
 });
 
 const period = (index: number, overrides: Partial<PaperForwardPeriodEvidence> = {}): PaperForwardPeriodEvidence => ({
@@ -71,7 +75,7 @@ const benchmark: ResearchBenchmarkSliceScore = Object.freeze({
 describe("gatePaperForwardLeagueEvidence", () => {
   it("keeps 29 real longitudinal periods visible but unable to increase League evidence breadth", () => {
     const admission = admitPaperForwardEvidence(Array.from({ length: 29 }, (_, index) => period(index)));
-    const decision = gatePaperForwardLeagueEvidence(IDENTITY, { admission, paperPerformance });
+    const decision = gatePaperForwardLeagueEvidence(IDENTITY, { admission, paperPerformance: paperPerformanceFor(admission) });
     assert.equal(decision.strength, "INSUFFICIENT");
     assert.equal(decision.paperPerformance, undefined);
     assert.ok(decision.reasons.includes("PAPER_FORWARD_EVIDENCE_INSUFFICIENT"));
@@ -80,11 +84,13 @@ describe("gatePaperForwardLeagueEvidence", () => {
     assert.equal(standing.entries[0]!.evidenceBreadth, 0, "29 periods must not buy a PAPER evidence category");
   });
 
-  it("allows 30 completed provenance-matched periods to populate PAPER evidence breadth", () => {
+  it("allows 30 completed provenance-matched reconciled periods to populate PAPER evidence breadth", () => {
     const admission = admitPaperForwardEvidence(Array.from({ length: 30 }, (_, index) => period(index)));
+    const paperPerformance = paperPerformanceFor(admission);
     const decision = gatePaperForwardLeagueEvidence(IDENTITY, { admission, paperPerformance });
     assert.equal(decision.strength, "VERIFIED");
-    assert.equal(decision.paperPerformance?.netReturn, paperPerformance.netReturn);
+    assert.equal(decision.paperPerformance?.netReturn, admission.cumulativeNetReturn);
+    assert.ok(decision.reasons.includes("PAPER_PERFORMANCE_RECONCILED_TO_ADMISSION"));
 
     const standing = evaluateLeague([{ id: IDENTITY.candidateId, familyId: "family-a", benchmark, paperPerformance: decision.paperPerformance! }]);
     assert.equal(standing.entries[0]!.evidenceBreadth, 1 / 8);
@@ -92,6 +98,7 @@ describe("gatePaperForwardLeagueEvidence", () => {
 
   it("fails closed on candidate, dataset, or content-hash mismatch", () => {
     const admission = admitPaperForwardEvidence(Array.from({ length: 30 }, (_, index) => period(index)));
+    const paperPerformance = paperPerformanceFor(admission);
     for (const [expected, code] of [
       [{ ...IDENTITY, candidateId: "other" }, "CANDIDATE_IDENTITY_MISMATCH"],
       [{ ...IDENTITY, datasetId: "other" }, "DATASET_IDENTITY_MISMATCH"],
@@ -104,9 +111,43 @@ describe("gatePaperForwardLeagueEvidence", () => {
     }
   });
 
+  it("rejects a flattering PAPER return that does not equal admitted cost-adjusted performance", () => {
+    const admission = admitPaperForwardEvidence(Array.from({ length: 30 }, (_, index) => period(index)));
+    assert.throws(
+      () => gatePaperForwardLeagueEvidence(IDENTITY, {
+        admission,
+        paperPerformance: paperPerformanceFor(admission, { netReturn: admission.cumulativeNetReturn + 0.01 }),
+      }),
+      (error) => error instanceof PaperForwardLeagueEvidenceError && error.code === "PAPER_NET_RETURN_MISMATCH",
+    );
+  });
+
+  it("rejects availability or failure summaries that hide admitted rejected/halted periods", () => {
+    const admission = admitPaperForwardEvidence(
+      Array.from({ length: 31 }, (_, index) => period(index, index === 7 ? { status: "HALTED" } : {})),
+    );
+    assert.equal(admission.strength, "VERIFIED");
+    assert.equal(admission.rejectedOrHaltedPeriodCount, 1);
+
+    assert.throws(
+      () => gatePaperForwardLeagueEvidence(IDENTITY, {
+        admission,
+        paperPerformance: paperPerformanceFor(admission, { availabilityRatio: 1 }),
+      }),
+      (error) => error instanceof PaperForwardLeagueEvidenceError && error.code === "PAPER_AVAILABILITY_OVERCLAIM",
+    );
+    assert.throws(
+      () => gatePaperForwardLeagueEvidence(IDENTITY, {
+        admission,
+        paperPerformance: paperPerformanceFor(admission, { unresolvedFaultCount: 0, killSwitchActivationCount: 0 }),
+      }),
+      (error) => error instanceof PaperForwardLeagueEvidenceError && error.code === "PAPER_FAILURE_EVIDENCE_OMITTED",
+    );
+  });
+
   it("does not emit execution or LIVE authority fields", () => {
     const admission = admitPaperForwardEvidence(Array.from({ length: 30 }, (_, index) => period(index)));
-    const serialized = JSON.stringify(gatePaperForwardLeagueEvidence(IDENTITY, { admission, paperPerformance })).toLowerCase();
+    const serialized = JSON.stringify(gatePaperForwardLeagueEvidence(IDENTITY, { admission, paperPerformance: paperPerformanceFor(admission) })).toLowerCase();
     for (const forbidden of ["liveauthority", "productionmutationallowed", "broker", "withdraw", "transfer", "credential", "capitalamount"]) {
       assert.equal(serialized.includes(forbidden), false, forbidden);
     }
