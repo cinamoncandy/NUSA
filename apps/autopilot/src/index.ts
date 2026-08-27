@@ -1,4 +1,5 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
+import { planAutopilotExecution } from "./executionPlanner";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
@@ -24,13 +25,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 export async function computeGithubWebhookSignature(secret: string, body: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
   const hex = Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `sha256=${hex}`;
@@ -45,38 +40,19 @@ export async function verifyGithubWebhookSignature(secret: string, body: string,
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-
     if (request.method === "GET" && url.pathname === "/health") {
-      return json({
-        service: "nusa-autopilot",
-        status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY",
-        liveAuthority: "NONE",
-        productionMutationAllowed: false,
-        aiAuthority: "ZERO_AUTHORITY",
-      });
+      return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", executionPlanning: "ENABLED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
     }
-
-    if (request.method !== "POST" || url.pathname !== "/github/webhook") {
-      return json({ error: "NOT_FOUND" }, 404);
-    }
-
-    if (!env.NUSA_WEBHOOK_SECRET) {
-      return json({ error: "WEBHOOK_SECRET_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-    }
+    if (request.method !== "POST" || url.pathname !== "/github/webhook") return json({ error: "NOT_FOUND" }, 404);
+    if (!env.NUSA_WEBHOOK_SECRET) return json({ error: "WEBHOOK_SECRET_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
 
     const deliveryId = request.headers.get("x-github-delivery");
     if (!deliveryId?.trim()) return json({ error: "GITHUB_DELIVERY_ID_REQUIRED" }, 400);
-
     const event = classifyGithubEvent(request.headers.get("x-github-event"));
     if (!event) return json({ error: "GITHUB_EVENT_UNSUPPORTED" }, 422);
 
     const body = await request.text();
-    const signatureValid = await verifyGithubWebhookSignature(
-      env.NUSA_WEBHOOK_SECRET,
-      body,
-      request.headers.get("x-hub-signature-256"),
-    );
-    if (!signatureValid) return json({ error: "GITHUB_SIGNATURE_INVALID" }, 401);
+    if (!await verifyGithubWebhookSignature(env.NUSA_WEBHOOK_SECRET, body, request.headers.get("x-hub-signature-256"))) return json({ error: "GITHUB_SIGNATURE_INVALID" }, 401);
 
     let dispatch;
     try {
@@ -85,16 +61,7 @@ export default {
       return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400);
     }
 
-    return json({
-      accepted: true,
-      status: "DISPATCH_PLANNED",
-      deliveryId,
-      event,
-      dispatch,
-      execution: "NOT_YET_ENABLED",
-      liveAuthority: "NONE",
-      productionMutationAllowed: false,
-      aiAuthority: "ZERO_AUTHORITY",
-    }, 202);
+    const execution = planAutopilotExecution(dispatch);
+    return json({ accepted: true, status: execution.kind === "NOOP" ? "NO_ACTION" : "EXECUTION_REQUEST_PLANNED", deliveryId, event, dispatch, execution, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
   },
 };
