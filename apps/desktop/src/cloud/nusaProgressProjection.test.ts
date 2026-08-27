@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import type { NusaProgressScorecard } from "./nusaProgressScorecard";
 import type { NusaProgressLevelAssessment } from "./nusaProgressLevel";
 import { projectNusaProgressForSupervisor } from "./nusaProgressProjection";
@@ -21,7 +22,7 @@ describe("projectNusaProgressForSupervisor", () => {
       blockedCriteria: ["LV5_RUNTIME_EVIDENCE_PRESENT"],
     };
 
-    expect(projectNusaProgressForSupervisor(scorecard, assessment)).toEqual({
+    assert.deepEqual(projectNusaProgressForSupervisor(scorecard, assessment), {
       schemaVersion: 1,
       asOf: 123,
       level: 4,
