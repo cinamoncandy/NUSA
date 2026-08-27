@@ -16,7 +16,7 @@ function signal(overrides: Partial<NusaEngineeringOpportunitySignal> & Pick<Nusa
     observedAt: overrides.observedAt ?? T0,
     evidenceState: overrides.evidenceState ?? "VERIFIED",
     occurrences: overrides.occurrences ?? 1,
-    sourceFingerprint: overrides.sourceFingerprint ?? FP(overrides.signalId.slice(-1) || "a"),
+    sourceFingerprint: overrides.sourceFingerprint ?? FP("a"),
     existingIssueNumber: overrides.existingIssueNumber ?? null,
     existingWorkId: overrides.existingWorkId ?? null,
   };
@@ -77,17 +77,17 @@ describe("discoverNusaEngineeringOpportunities", () => {
   });
 
   it("fails closed on duplicate identities, reused fingerprints, malformed evidence, and conflicting canonical identity", () => {
-    const base = signal({ signalId: "sig-i", kind: "ARCHITECTURE_DRIFT", subject: "duplicate engine", sourceFingerprint: FP("i") });
+    const base = signal({ signalId: "sig-i", kind: "ARCHITECTURE_DRIFT", subject: "duplicate engine", sourceFingerprint: FP("9") });
     assert.throws(() => discoverNusaEngineeringOpportunities([base, { ...base }]), /OPPORTUNITY_SIGNAL_ID_DUPLICATE/);
     assert.throws(() => discoverNusaEngineeringOpportunities([
       base,
-      signal({ signalId: "sig-j", kind: "UI_FRICTION", subject: "tap", sourceFingerprint: FP("i") }),
+      signal({ signalId: "sig-j", kind: "UI_FRICTION", subject: "tap", sourceFingerprint: FP("9") }),
     ]), /OPPORTUNITY_SOURCE_FINGERPRINT_REUSED/);
     assert.throws(() => discoverNusaEngineeringOpportunities([{ ...base, observedAt: Number.MAX_VALUE }]), /OPPORTUNITY_OBSERVED_AT_INVALID/);
     assert.throws(() => discoverNusaEngineeringOpportunities([{ ...base, sourceFingerprint: "bad" }]), /OPPORTUNITY_SOURCE_FINGERPRINT_INVALID/);
     assert.throws(() => discoverNusaEngineeringOpportunities([
       { ...base, existingIssueNumber: 903 },
-      signal({ signalId: "sig-k", kind: "ARCHITECTURE_DRIFT", subject: "duplicate engine", existingIssueNumber: 905, sourceFingerprint: FP("k") }),
+      signal({ signalId: "sig-k", kind: "ARCHITECTURE_DRIFT", subject: "duplicate engine", existingIssueNumber: 905, sourceFingerprint: FP("a") }),
     ]), /OPPORTUNITY_ISSUE_IDENTITY_CONFLICT/);
   });
 });
