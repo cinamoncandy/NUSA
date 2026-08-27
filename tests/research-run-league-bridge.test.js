@@ -82,6 +82,24 @@ const candidate = (id, familyId, overrides = {}) => ({
   experiment: experiment({ datasetId: `ds-${id}`, ...overrides })
 });
 
+
+function regimeEvaluation(datasetId, overrides = {}) {
+  return {
+    schemaVersion: 1,
+    datasetId,
+    contentSha256: 'a'.repeat(64),
+    generatedAt: '2026-08-26T06:00:00.000Z',
+    policy: { minimumWindowsPerRegime: 2 },
+    slices: [],
+    observedRegimeCount: 2,
+    sufficientRegimeCount: 2,
+    regimeRobustnessScore: 0.9,
+    reasons: [],
+    sourceDatasetIds: [datasetId],
+    ...overrides
+  };
+}
+
 const entryOf = (result, id) => result.standing.entries.find((entry) => entry.id === id);
 
 test("bridges a real research run through benchmark scorecard, League ranking, and allocation", () => {
@@ -237,6 +255,55 @@ test("is deterministic and independent of candidate input order", () => {
     .map((entry) => [entry.id, entry.rank, entry.leagueScore])
     .sort((left, right) => String(left[0]).localeCompare(String(right[0])));
   assert.deepEqual(key(forward), key(reversed));
+});
+
+
+test("case A through the real bridge: a fragile single-regime winner does not outrank a robust candidate", () => {
+  const fragile = candidate("fragile", "family-a", { totalReturn: 0.30 });
+  fragile.regimeAwareEvaluation = regimeEvaluation("ds-fragile", { regimeRobustnessScore: 0.05 });
+  const robust = candidate("robust", "family-b", { totalReturn: 0.08 });
+  robust.regimeAwareEvaluation = regimeEvaluation("ds-robust", { regimeRobustnessScore: 0.95 });
+
+  const result = buildResearchRunLeague([fragile, robust]);
+  const fragileEntry = entryOf(result, "fragile");
+  const robustEntry = entryOf(result, "robust");
+  assert.equal(fragileEntry.components.regimeRobustness, 0.05);
+  assert.equal(robustEntry.components.regimeRobustness, 0.95);
+  assert.ok(
+    robustEntry.rank < fragileEntry.rank,
+    "a high raw return earned in one regime and given back in another must not outrank real cross-regime robustness"
+  );
+});
+
+test("an INSUFFICIENT regime-aware result through the bridge does not inflate evidence breadth", () => {
+  const thin = candidate("thin", "family-a");
+  thin.regimeAwareEvaluation = regimeEvaluation("ds-thin", { regimeRobustnessScore: undefined, sufficientRegimeCount: 0 });
+  const withoutRegime = candidate("bare", "family-b");
+
+  const result = buildResearchRunLeague([thin, withoutRegime]);
+  const thinEntry = entryOf(result, "thin");
+  const bareEntry = entryOf(result, "bare");
+  // INSUFFICIENT regime evidence must not count toward evidence breadth (fix in bb38cce4).
+  assert.equal(thinEntry.evidenceBreadth, bareEntry.evidenceBreadth);
+  assert.equal(thinEntry.components.regimeRobustness, undefined);
+});
+
+test("regime evidence that does not describe the candidate's own dataset fails closed through the bridge", () => {
+  const mismatched = candidate("mismatched", "family-a");
+  mismatched.regimeAwareEvaluation = regimeEvaluation("ds-someone-else");
+  assert.throws(() => buildResearchRunLeague([mismatched, candidate("other", "family-b")]));
+});
+
+test("discloses when every candidate in the run carries point-in-time regime evidence", () => {
+  const a = candidate("a", "family-a");
+  a.regimeAwareEvaluation = regimeEvaluation("ds-a");
+  const b = candidate("b", "family-b");
+  b.regimeAwareEvaluation = regimeEvaluation("ds-b");
+  const withRegime = buildResearchRunLeague([a, b]);
+  assert.ok(withRegime.reasons.includes("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT"));
+
+  const withoutRegime = buildResearchRunLeague([candidate("c", "family-a"), candidate("d", "family-b")]);
+  assert.equal(withoutRegime.reasons.includes("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT"), false);
 });
 
 test("never introduces execution, broker, capital, or LIVE authority fields", () => {
