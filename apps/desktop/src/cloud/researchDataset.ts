@@ -58,9 +58,18 @@ export class ResearchDatasetError extends Error {
 }
 
 const INTERVAL_MS: Readonly<Record<ResearchInterval, number>> = Object.freeze({ "1m": 60_000, "3m": 180_000, "5m": 300_000, "10m": 600_000, "15m": 900_000, "30m": 1_800_000, "60m": 3_600_000, "240m": 14_400_000, "1d": 86_400_000 });
+const DEFAULT_MANIFEST_CREATED_AT = "1970-01-01T00:00:00.000Z";
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const finiteInteger = (value: number): boolean => Number.isFinite(value) && Number.isInteger(value);
 const validInterval = (value: string): value is ResearchInterval => Object.prototype.hasOwnProperty.call(INTERVAL_MS, value);
+
+function assertManifestCreatedAt(createdAt: string, endCloseTime: number): void {
+  const createdAtMs = Date.parse(createdAt);
+  if (!Number.isFinite(createdAtMs)) throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt must be a valid timestamp");
+  if (createdAt !== DEFAULT_MANIFEST_CREATED_AT && createdAtMs < endCloseTime) {
+    throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt cannot precede the final candle closeTime");
+  }
+}
 
 function assertCandle(candle: ResearchCandle, index: number): void {
   if (!candle.market.trim()) throw new ResearchDatasetError("EMPTY_MARKET", `candle ${index} market is required`);
@@ -115,15 +124,17 @@ function datasetId(source: string, candles: readonly ResearchCandle[], hash: str
 export function createHistoricalDatasetManifest(candles: readonly ResearchCandle[], options: CreateManifestOptions): HistoricalDatasetManifest {
   if (!options.source.trim()) throw new ResearchDatasetError("EMPTY_SOURCE", "manifest source is required");
   const validated = validateResearchCandles(candles, { allowMissing: options.allowMissing }); const first = validated.candles[0]!; const last = validated.candles.at(-1)!; const contentSha256 = calculateCandleSha256(validated.candles);
-  return freeze({ schemaVersion: 1, datasetId: datasetId(options.source, validated.candles, contentSha256), source: options.source, market: first.market, interval: first.interval, candleCount: validated.candles.length, startOpenTime: first.openTime, endCloseTime: last.closeTime, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: options.allowMissing ? "ALLOW" : "REJECT", missingCandleCount: validated.missingCandleCount, createdAt: options.createdAt ?? "1970-01-01T00:00:00.000Z", contentSha256, sourceRequest: options.sourceRequest, notes: options.notes });
+  const createdAt = options.createdAt ?? DEFAULT_MANIFEST_CREATED_AT;
+  assertManifestCreatedAt(createdAt, last.closeTime);
+  return freeze({ schemaVersion: 1, datasetId: datasetId(options.source, validated.candles, contentSha256), source: options.source, market: first.market, interval: first.interval, candleCount: validated.candles.length, startOpenTime: first.openTime, endCloseTime: last.closeTime, timezone: "UTC", ordering: "OPEN_TIME_ASC", missingCandlePolicy: options.allowMissing ? "ALLOW" : "REJECT", missingCandleCount: validated.missingCandleCount, createdAt, contentSha256, sourceRequest: options.sourceRequest, notes: options.notes });
 }
 
 export function verifyHistoricalDatasetManifest(manifest: HistoricalDatasetManifest, candles: readonly ResearchCandle[]): ResearchDatasetValidation {
   if (manifest.schemaVersion !== 1) throw new ResearchDatasetError("UNSUPPORTED_SCHEMA_VERSION", "manifest schemaVersion is unsupported");
   if (!manifest.source.trim()) throw new ResearchDatasetError("EMPTY_SOURCE", "manifest source is required");
-  if (!Number.isFinite(Date.parse(manifest.createdAt))) throw new ResearchDatasetError("INVALID_CREATED_AT", "manifest createdAt must be a valid timestamp");
   if (manifest.ordering !== "OPEN_TIME_ASC" || manifest.timezone !== "UTC") throw new ResearchDatasetError("INVALID_MANIFEST_ORDERING", "manifest ordering or timezone is unsupported");
   const validated = validateResearchCandles(candles, { allowMissing: manifest.missingCandlePolicy === "ALLOW" }); const first = validated.candles[0]!; const last = validated.candles.at(-1)!;
+  assertManifestCreatedAt(manifest.createdAt, last.closeTime);
   if (manifest.market !== first.market || manifest.interval !== first.interval) throw new ResearchDatasetError("MANIFEST_METADATA_MISMATCH", "manifest market or interval does not match candles");
   if (manifest.candleCount !== validated.candles.length || manifest.startOpenTime !== first.openTime || manifest.endCloseTime !== last.closeTime) throw new ResearchDatasetError("MANIFEST_RANGE_MISMATCH", "manifest count or candle range does not match candles");
   if (manifest.missingCandleCount !== validated.missingCandleCount) throw new ResearchDatasetError("MANIFEST_MISSING_POLICY_MISMATCH", "manifest missing candle count does not match candles");
