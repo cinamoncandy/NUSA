@@ -26,10 +26,7 @@ describe("NUSA autopilot GitHub webhook", () => {
   it("fails closed when the secret is absent", async () => {
     const response = await worker.fetch(new Request("https://example.test/github/webhook", {
       method: "POST",
-      headers: {
-        "x-github-delivery": "delivery-1",
-        "x-github-event": "push",
-      },
+      headers: { "x-github-delivery": "delivery-1", "x-github-event": "push" },
       body: "{}",
     }), {});
     assert.equal(response.status, 503);
@@ -45,17 +42,18 @@ describe("NUSA autopilot GitHub webhook", () => {
 
     const unsupported = await worker.fetch(new Request("https://example.test/github/webhook", {
       method: "POST",
-      headers: {
-        "x-github-delivery": "delivery-2",
-        "x-github-event": "issues",
-      },
+      headers: { "x-github-delivery": "delivery-2", "x-github-event": "issues" },
       body: "{}",
     }), { NUSA_WEBHOOK_SECRET: "secret" });
     assert.equal(unsupported.status, 422);
   });
 
-  it("rejects invalid signatures and accepts a valid bounded event without dispatching it", async () => {
-    const body = "{\"ref\":\"refs/heads/main\"}";
+  it("rejects invalid signatures and plans a valid bounded event without executing mutation", async () => {
+    const body = JSON.stringify({
+      ref: "refs/heads/main",
+      after: "a".repeat(40),
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
     const invalid = await worker.fetch(new Request("https://example.test/github/webhook", {
       method: "POST",
       headers: {
@@ -78,16 +76,32 @@ describe("NUSA autopilot GitHub webhook", () => {
       body,
     }), { NUSA_WEBHOOK_SECRET: "secret" });
     assert.equal(valid.status, 202);
-    const payload = await valid.json() as { accepted: boolean; dispatch: string; event: string };
-    assert.deepEqual(payload, {
-      accepted: true,
-      status: "SIGNATURE_VERIFIED",
-      deliveryId: "delivery-4",
-      event: "push",
-      dispatch: "NOT_YET_ENABLED",
-      liveAuthority: "NONE",
-      productionMutationAllowed: false,
-      aiAuthority: "ZERO_AUTHORITY",
-    });
+    const payload = await valid.json() as {
+      accepted: boolean;
+      status: string;
+      dispatch: { kind: string; headSha: string; mutationAllowed: boolean };
+      execution: string;
+    };
+    assert.equal(payload.accepted, true);
+    assert.equal(payload.status, "DISPATCH_PLANNED");
+    assert.equal(payload.dispatch.kind, "MAIN_PUSH");
+    assert.equal(payload.dispatch.headSha, "a".repeat(40));
+    assert.equal(payload.dispatch.mutationAllowed, false);
+    assert.equal(payload.execution, "NOT_YET_ENABLED");
+  });
+
+  it("rejects malformed signed JSON instead of planning from partial data", async () => {
+    const body = "{";
+    const signature = await computeGithubWebhookSignature("secret", body);
+    const response = await worker.fetch(new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: {
+        "x-github-delivery": "delivery-json",
+        "x-github-event": "push",
+        "x-hub-signature-256": signature,
+      },
+      body,
+    }), { NUSA_WEBHOOK_SECRET: "secret" });
+    assert.equal(response.status, 400);
   });
 });

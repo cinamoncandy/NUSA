@@ -1,3 +1,5 @@
+import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
+
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
 }
@@ -8,8 +10,6 @@ const json = (body: unknown, status = 200): Response => new Response(JSON.string
 });
 
 const encoder = new TextEncoder();
-
-export type SupportedGithubEvent = "ping" | "push" | "pull_request" | "workflow_run";
 
 export function classifyGithubEvent(value: string | null): SupportedGithubEvent | null {
   if (value === "ping" || value === "push" || value === "pull_request" || value === "workflow_run") return value;
@@ -78,12 +78,20 @@ export default {
     );
     if (!signatureValid) return json({ error: "GITHUB_SIGNATURE_INVALID" }, 401);
 
+    let dispatch;
+    try {
+      dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body));
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400);
+    }
+
     return json({
       accepted: true,
-      status: "SIGNATURE_VERIFIED",
+      status: "DISPATCH_PLANNED",
       deliveryId,
       event,
-      dispatch: "NOT_YET_ENABLED",
+      dispatch,
+      execution: "NOT_YET_ENABLED",
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
