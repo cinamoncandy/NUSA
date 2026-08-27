@@ -37,8 +37,8 @@ const SMA_PARAMETER_NEIGHBORHOOD = [
   { shortPeriod: 10, longPeriod: 30 }
 ];
 
-async function fetchRealDayCandles() {
-  const response = await fetch(`https://api.upbit.com${REQUEST_PATH}`);
+async function fetchDayCandlePage(path) {
+  const response = await fetch(`https://api.upbit.com${path}`);
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
@@ -46,12 +46,29 @@ async function fetchRealDayCandles() {
 }
 
 async function main() {
-  const raw = await fetchRealDayCandles();
   const dataAsOf = Date.now();
-  const candles = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
+  const primaryRaw = await fetchDayCandlePage(REQUEST_PATH);
+  const sourceRequests = [`GET ${REQUEST_PATH}`];
+  let allRaw = primaryRaw;
+  let candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
+
+  if (candles.length < CANDLE_COUNT) {
+    const missingCount = CANDLE_COUNT - candles.length;
+    const oldestCompletedOpenTime = candles[0]?.openTime;
+    if (oldestCompletedOpenTime == null) throw new Error("Upbit completed-candle backfill has no anchor");
+    const backfillPath = `/v1/candles/days?market=${MARKET}&count=${missingCount}&to=${encodeURIComponent(new Date(oldestCompletedOpenTime).toISOString())}`;
+    const backfillRaw = await fetchDayCandlePage(backfillPath);
+    sourceRequests.push(`GET ${backfillPath}`);
+    allRaw = [...primaryRaw, ...backfillRaw];
+    candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
+  }
+
+  if (candles.length !== CANDLE_COUNT) {
+    throw new Error(`Upbit returned only ${candles.length} completed daily candles; expected ${CANDLE_COUNT}`);
+  }
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
-    sourceRequest: `GET ${REQUEST_PATH}`,
+    sourceRequest: sourceRequests.join(" | "),
     createdAt: new Date(dataAsOf).toISOString()
   });
 
