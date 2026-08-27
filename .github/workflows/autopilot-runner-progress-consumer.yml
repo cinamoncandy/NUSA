@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
   group: autopilot-runner-progress-${{ github.event.client_payload.request_id || github.run_id }}
@@ -33,12 +34,20 @@ jobs:
           node scripts/validate-autopilot-runner-progress.mjs artifacts/autopilot/runner-progress.json \
             | tee artifacts/autopilot/runner-progress-validation.json
 
+      - name: Verify claimed progress against GitHub evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/verify-autopilot-runner-progress-github.mjs artifacts/autopilot/runner-progress.json \
+            | tee artifacts/autopilot/runner-progress-github-verification.json
+
       - name: Summarize validated runner progress
         if: success()
         run: |
           node <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           const fs = require('fs');
           const x = JSON.parse(fs.readFileSync('artifacts/autopilot/runner-progress-validation.json', 'utf8'));
+          const g = JSON.parse(fs.readFileSync('artifacts/autopilot/runner-progress-github-verification.json', 'utf8'));
           console.log('## NUSA Autopilot Runner Progress');
           console.log('');
           console.log(`- status: ${x.status}`);
@@ -48,6 +57,10 @@ jobs:
           console.log(`- requested head: ${x.requested_head_sha ?? 'none'}`);
           console.log(`- produced commit: ${x.produced_commit_sha ?? 'none'}`);
           console.log(`- PR: ${x.pr_number ?? 'none'}`);
+          console.log(`- branch evidence verified: ${g.branchVerified}`);
+          console.log(`- PR evidence verified: ${g.pullRequestVerified}`);
+          console.log(`- exact-head CI evidence verified: ${g.exactHeadCiVerified}`);
+          console.log(`- merge evidence verified: ${g.mergeVerified}`);
           console.log('- liveAuthority: NONE');
           console.log('- productionMutationAllowed: false');
           console.log('- AI authority: ZERO_AUTHORITY');
@@ -61,5 +74,6 @@ jobs:
           path: |
             artifacts/autopilot/runner-progress.json
             artifacts/autopilot/runner-progress-validation.json
+            artifacts/autopilot/runner-progress-github-verification.json
           if-no-files-found: warn
           retention-days: 7
