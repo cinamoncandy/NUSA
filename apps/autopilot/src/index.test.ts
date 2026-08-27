@@ -48,7 +48,7 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.equal(unsupported.status, 422);
   });
 
-  it("rejects invalid signatures and plans a valid bounded event without executing mutation", async () => {
+  it("rejects invalid signatures and plans a valid bounded execution request without mutation authority", async () => {
     const body = JSON.stringify({
       ref: "refs/heads/main",
       after: "a".repeat(40),
@@ -80,14 +80,28 @@ describe("NUSA autopilot GitHub webhook", () => {
       accepted: boolean;
       status: string;
       dispatch: { kind: string; headSha: string; mutationAllowed: boolean };
-      execution: string;
+      execution: {
+        kind: string;
+        repository: string | null;
+        headSha: string | null;
+        workflowRunId: number | null;
+        reason: string;
+        mutationAllowed: boolean;
+      };
     };
     assert.equal(payload.accepted, true);
-    assert.equal(payload.status, "DISPATCH_PLANNED");
+    assert.equal(payload.status, "EXECUTION_REQUEST_PLANNED");
     assert.equal(payload.dispatch.kind, "MAIN_PUSH");
     assert.equal(payload.dispatch.headSha, "a".repeat(40));
     assert.equal(payload.dispatch.mutationAllowed, false);
-    assert.equal(payload.execution, "NOT_YET_ENABLED");
+    assert.deepEqual(payload.execution, {
+      kind: "REPOSITORY_AUTOPILOT",
+      repository: "cinamoncandy/NUSA",
+      headSha: "a".repeat(40),
+      workflowRunId: null,
+      reason: "continue-from:main_push",
+      mutationAllowed: false,
+    });
   });
 
   it("rejects malformed signed JSON instead of planning from partial data", async () => {
