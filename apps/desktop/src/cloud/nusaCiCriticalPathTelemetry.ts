@@ -147,7 +147,7 @@ export function analyzeNusaCiCriticalPathTelemetry(
   }).sort((left, right) => left.runId - right.runId || left.runAttempt - right.runAttempt));
 
   const workflowDurations = runs.map((run) => run.wallClockDurationMs);
-  const retryObservations = normalized.filter((entry) => entry.receipt.runAttempt > 1).length;
+  const retryObservations = runs.filter((run) => run.runAttempt > 1).length;
   const reasons = ["GITHUB_JOB_TIMESTAMPS_ONLY", "CACHE_EFFECTIVENESS_REQUIRES_STRONGER_EVIDENCE", "DUPLICATE_WORK_REQUIRES_STEP_LEVEL_EVIDENCE"];
 
   return freeze({
@@ -158,7 +158,7 @@ export function analyzeNusaCiCriticalPathTelemetry(
     runs,
     workflowP50Ms: percentileNearestRank(workflowDurations, 0.5),
     workflowP95Ms: percentileNearestRank(workflowDurations, 0.95),
-    retryObservationRate: retryObservations / normalized.length,
+    retryObservationRate: retryObservations / runs.length,
     cacheEffectiveness: "INSUFFICIENT_EVIDENCE",
     duplicateBuildTestWork: "INSUFFICIENT_EVIDENCE",
     reasons: freeze(reasons),
