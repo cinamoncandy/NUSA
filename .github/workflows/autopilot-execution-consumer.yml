@@ -37,6 +37,9 @@ jobs:
         run: |
           git cat-file -e "${HEAD_SHA}^{commit}"
 
+      - name: Build bounded coding runner request
+        run: node scripts/build-autopilot-coding-request.mjs "$RUNNER_TEMP/autopilot-event.json"
+
       - name: Classify repository-side execution boundary
         env:
           KIND: ${{ github.event.client_payload.kind }}
@@ -52,7 +55,8 @@ jobs:
             echo "- liveAuthority: NONE"
             echo "- productionMutationAllowed: false"
             echo "- AI authority: ZERO_AUTHORITY"
-            echo "- coding executor: NOT_CONFIGURED"
+            echo "- coding request: READY"
+            echo "- external coding runner: NOT_CONNECTED"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dispatch receipt
@@ -60,5 +64,13 @@ jobs:
         with:
           name: autopilot-dispatch-receipt-${{ github.run_id }}
           path: artifacts/autopilot/dispatch-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload coding runner request
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-coding-request-${{ github.run_id }}
+          path: artifacts/autopilot/coding-request.json
           if-no-files-found: error
           retention-days: 7
