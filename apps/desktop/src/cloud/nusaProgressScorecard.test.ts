@@ -8,12 +8,34 @@ import {
 } from "./nusaProgressScorecard";
 
 const AS_OF = 1_800_000_000_000;
+const SOURCE_FINGERPRINT = "a".repeat(64);
+const PRODUCT_FINGERPRINT = "b".repeat(64);
+const OTHER_PRODUCT_FINGERPRINT = "c".repeat(64);
+const sourceFor = (kind: NusaProgressEvidenceRef["kind"], id: string): string => ({
+  REPOSITORY: `github://commit/${id}`,
+  CI: `github://actions/run/${id}`,
+  RUNTIME: `runtime://evidence/${id}`,
+  PAPER: `paper://evidence/${id}`,
+  DEVICE: `device://physical/${id}`,
+  HUMAN: `human://acceptance/${id}`,
+  MOCK: `mock://fixture/${id}`,
+})[kind];
+
 const evidence = (
   id: string,
   kind: NusaProgressEvidenceRef["kind"],
   status: NusaProgressEvidenceRef["status"] = "PASS",
   observedAt = AS_OF,
-): NusaProgressEvidenceRef => ({ id, kind, status, observedAt, source: `source:${id}` });
+  subjectFingerprint?: string,
+): NusaProgressEvidenceRef => ({
+  id,
+  kind,
+  status,
+  observedAt,
+  source: sourceFor(kind, id),
+  sourceFingerprint: SOURCE_FINGERPRINT,
+  ...(subjectFingerprint == null ? {} : { subjectFingerprint }),
+});
 
 const item = (overrides: Partial<NusaProgressItemInput> = {}): NusaProgressItemInput => ({
   id: "edge-runtime",
@@ -64,16 +86,44 @@ test("PAPER evidence cannot masquerade as runtime or product acceptance", () => 
   assert.ok(product.items[0]?.reasons.includes("MISSING_HUMAN_EVIDENCE"));
 });
 
-test("product acceptance requires both physical-device and human evidence", () => {
+test("product acceptance requires physical-device and human evidence bound to the same artifact", () => {
   const scorecard = computeNusaProgressScorecard([
     item({
       id: "galaxy-home",
       domain: "PRODUCT_UX",
       requiredAcceptance: "PRODUCT_ACCEPTED",
-      evidence: [evidence("galaxy", "DEVICE"), evidence("owner", "HUMAN")],
+      evidence: [evidence("galaxy", "DEVICE", "PASS", AS_OF, PRODUCT_FINGERPRINT), evidence("owner", "HUMAN", "PASS", AS_OF, PRODUCT_FINGERPRINT)],
     }),
   ], policy);
   assert.equal(scorecard.items[0]?.status, "PASS");
+});
+
+test("human acceptance for a different APK cannot complete product acceptance", () => {
+  const scorecard = computeNusaProgressScorecard([
+    item({
+      id: "galaxy-home",
+      domain: "PRODUCT_UX",
+      requiredAcceptance: "PRODUCT_ACCEPTED",
+      evidence: [evidence("galaxy", "DEVICE", "PASS", AS_OF, PRODUCT_FINGERPRINT), evidence("owner", "HUMAN", "PASS", AS_OF, OTHER_PRODUCT_FINGERPRINT)],
+    }),
+  ], policy);
+  assert.equal(scorecard.items[0]?.status, "UNKNOWN");
+  assert.ok(scorecard.items[0]?.reasons.includes("PRODUCT_EVIDENCE_SUBJECT_MISMATCH"));
+  assert.equal(scorecard.overallProgressRatio, 0);
+});
+
+test("evidence source scheme must match its declared evidence kind", () => {
+  assert.throws(
+    () => computeNusaProgressScorecard([item({ evidence: [{ ...evidence("runtime", "RUNTIME"), source: "github://actions/run/123" }] })], policy),
+    (error: unknown) => error instanceof NusaProgressScorecardError && error.code === "EVIDENCE_SOURCE_KIND_MISMATCH",
+  );
+});
+
+test("evidence receipts require immutable SHA-256 fingerprints", () => {
+  assert.throws(
+    () => computeNusaProgressScorecard([item({ evidence: [{ ...evidence("runtime", "RUNTIME"), sourceFingerprint: "not-a-digest" }] })], policy),
+    (error: unknown) => error instanceof NusaProgressScorecardError && error.code === "INVALID_EVIDENCE_FINGERPRINT",
+  );
 });
 
 test("human-only gates never pass from machine evidence", () => {
