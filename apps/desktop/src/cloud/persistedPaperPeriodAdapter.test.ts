@@ -49,35 +49,20 @@ describe("adaptPersistedPaperPeriods", () => {
     assert.equal(result.periods.length, 1);
     assert.deepEqual(result.appliedRecordIds, ["record-0"]);
     assert.deepEqual(result.skippedDuplicateRecordIds, []);
-    // Must actually be consumable by the real evaluator, not just structurally similar.
     const evaluation = evaluateShadowAllocation(result.periods);
     assert.equal(evaluation.periodCount, 1);
   });
 
   it("rejects an advisory generated at or after the period it is scored against as look-ahead", () => {
     const sameInstant = record({ advisory: advisory(new Date(BASE).toISOString(), { a: 1 }), realizedReturns: { a: 0.01 } });
-    assert.throws(
-      () => adaptPersistedPaperPeriods([sameInstant]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "LOOKAHEAD_ADVISORY_SNAPSHOT",
-    );
+    assert.throws(() => adaptPersistedPaperPeriods([sameInstant]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "LOOKAHEAD_ADVISORY_SNAPSHOT");
     const afterPeriod = record({ advisory: advisory(new Date(BASE + DAY * 2).toISOString(), { a: 1 }), realizedReturns: { a: 0.01 } });
-    assert.throws(
-      () => adaptPersistedPaperPeriods([afterPeriod]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "LOOKAHEAD_ADVISORY_SNAPSHOT",
-    );
+    assert.throws(() => adaptPersistedPaperPeriods([afterPeriod]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "LOOKAHEAD_ADVISORY_SNAPSHOT");
   });
 
   it("blocks on broken candidate identity linkage in either direction rather than treating it as zero return", () => {
-    // Advisory allocates to "c", but no realized return was supplied for it.
-    assert.throws(
-      () => adaptPersistedPaperPeriods([record({ advisory: advisory(new Date(BASE - DAY).toISOString(), { c: 1 }), realizedReturns: {} })]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "MISSING_REALIZED_RETURN_FOR_ADVISORY_ENTRY",
-    );
-    // A realized return exists for a candidate the advisory never allocated to.
-    assert.throws(
-      () => adaptPersistedPaperPeriods([record({ realizedReturns: { a: 0.01, b: 0.02, ghost: 0.5 } })]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "UNKNOWN_REALIZED_RETURN_CANDIDATE",
-    );
+    assert.throws(() => adaptPersistedPaperPeriods([record({ advisory: advisory(new Date(BASE - DAY).toISOString(), { c: 1 }), realizedReturns: {} })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "MISSING_REALIZED_RETURN_FOR_ADVISORY_ENTRY");
+    assert.throws(() => adaptPersistedPaperPeriods([record({ realizedReturns: { a: 0.01, b: 0.02, ghost: 0.5 } })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "UNKNOWN_REALIZED_RETURN_CANDIDATE");
   });
 
   it("skips a previously-applied recordId instead of double-counting it on replay", () => {
@@ -85,17 +70,17 @@ describe("adaptPersistedPaperPeriods", () => {
     assert.deepEqual(first.appliedRecordIds, ["r1"]);
 
     const alreadyApplied = new Set(first.appliedRecordIds);
-    const replay = adaptPersistedPaperPeriods([record({ recordId: "r1" }), record({ recordId: "r2", periodIndex: 1 })], alreadyApplied);
+    const replay = adaptPersistedPaperPeriods([
+      record({ recordId: "r1" }),
+      record({ recordId: "r2", periodIndex: 1, advisory: advisory(new Date(BASE).toISOString(), { a: 0.5, b: 0.5 }), periodStartAt: BASE + DAY, periodEndAt: BASE + DAY * 2 }),
+    ], alreadyApplied);
     assert.deepEqual(replay.appliedRecordIds, ["r2"]);
     assert.deepEqual(replay.skippedDuplicateRecordIds, ["r1"]);
     assert.equal(replay.periods.length, 1, "a skipped duplicate must not reappear as a period");
   });
 
   it("fails closed on a duplicate recordId within the same call rather than silently applying it twice", () => {
-    assert.throws(
-      () => adaptPersistedPaperPeriods([record({ recordId: "dup" }), record({ recordId: "dup", periodIndex: 1 })]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "DUPLICATE_RECORD_ID_IN_BATCH",
-    );
+    assert.throws(() => adaptPersistedPaperPeriods([record({ recordId: "dup" }), record({ recordId: "dup", periodIndex: 1 })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "DUPLICATE_RECORD_ID_IN_BATCH");
   });
 
   it("orders periods chronologically regardless of input order and preserves real cost evidence", () => {
@@ -103,7 +88,6 @@ describe("adaptPersistedPaperPeriods", () => {
     const first = record({ recordId: "r1", periodIndex: 0 });
     const result = adaptPersistedPaperPeriods([second, first]);
     assert.deepEqual(result.periods.map((period) => period.periodIndex), [0, 1]);
-    // Real cost evidence must survive the transform -- never silently zeroed.
     assert.equal(result.periods[0]!.turnoverCostRate, 0.001);
   });
 
@@ -120,10 +104,7 @@ describe("adaptPersistedPaperPeriods", () => {
     assert.throws(() => adaptPersistedPaperPeriods([record({ periodEndAt: BASE - DAY })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "INVALID_PERIOD_BOUNDS");
     assert.throws(() => adaptPersistedPaperPeriods([record({ benchmarkReturn: Number.NaN })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "NON_FINITE_BENCHMARK_RETURN");
     assert.throws(() => adaptPersistedPaperPeriods([record({ turnoverCostRate: -0.01 })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "NEGATIVE_COST_RATE");
-    assert.throws(
-      () => adaptPersistedPaperPeriods([record({ advisory: { ...advisory(new Date(BASE - DAY).toISOString(), { a: 1 }), schemaVersion: 2 as 1 } })]),
-      (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "UNSUPPORTED_ADVISORY_SCHEMA",
-    );
+    assert.throws(() => adaptPersistedPaperPeriods([record({ advisory: { ...advisory(new Date(BASE - DAY).toISOString(), { a: 1 }), schemaVersion: 2 as 1 } })]), (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "UNSUPPORTED_ADVISORY_SCHEMA");
   });
 
   it("attaches the offending recordId to every thrown error for traceable replay debugging", () => {
