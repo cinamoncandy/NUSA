@@ -8,6 +8,7 @@ import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type Leag
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
 import { extractResearchRunOosObservations, type OosObservationTrace } from "./researchRunOosObservationEvidence";
+import { gatePaperForwardLeagueEvidence, type PaperForwardLeagueEvidenceDecision, type PaperForwardLeagueEvidenceSource } from "./paperForwardLeagueEvidence";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -37,6 +38,11 @@ export interface ResearchRunCandidate {
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
   readonly deflatedSharpe?: DeflatedSharpeEvidence;
+  /**
+   * Longitudinal PAPER evidence may enter League only through the VERIFIED provenance gate.
+   * INSUFFICIENT evidence remains visible in bridge reasons but never populates paperPerformance.
+   */
+  readonly paperForwardEvidence?: PaperForwardLeagueEvidenceSource;
 }
 
 export interface ResearchRunLeagueResult {
@@ -63,8 +69,9 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 /**
  * Joins real research-run experiments to the existing League ranking and allocation advisory.
- * Research tier only: produces no order, broker call, capital amount, PAPER evidence, or LIVE
- * authority, and never presents a research result as PAPER or LIVE validation.
+ * Research-advisory authority only: produces no order, broker call, capital amount, or LIVE
+ * authority. PAPER evidence, when supplied, is accepted only after VERIFIED candidate/dataset/hash
+ * admission and remains PAPER/SHADOW evidence inside the research ranking.
  */
 export function buildResearchRunLeague(
   candidates: readonly ResearchRunCandidate[],
@@ -94,18 +101,36 @@ export function buildResearchRunLeague(
   const scorecard = createResearchBenchmarkScorecard(slices, options.benchmarkPolicy);
 
   const byId = new Map(candidates.map((candidate) => [candidate.id, candidate] as const));
+  const paperDecisions = new Map<string, PaperForwardLeagueEvidenceDecision>();
   const leagueCandidates: readonly LeagueCandidateInput[] = scorecard.slices.map((slice) => {
     const candidate = byId.get(slice.id)!;
+    const paperDecision = candidate.paperForwardEvidence == null
+      ? undefined
+      : gatePaperForwardLeagueEvidence(
+          {
+            candidateId: candidate.id,
+            datasetId: candidate.experiment.manifest.datasetId,
+            datasetContentSha256: candidate.experiment.manifest.contentSha256,
+          },
+          candidate.paperForwardEvidence,
+        );
+    if (paperDecision != null) paperDecisions.set(candidate.id, paperDecision);
     return {
       id: slice.id,
       familyId: candidate.familyId,
       benchmark: slice,
       ...(candidate.deflatedSharpe == null ? {} : { deflatedSharpe: candidate.deflatedSharpe }),
       ...(candidate.regimeAwareEvaluation == null ? {} : { regimeAwareEvaluation: candidate.regimeAwareEvaluation }),
+      ...(paperDecision?.paperPerformance == null ? {} : { paperPerformance: paperDecision.paperPerformance }),
     };
   });
 
-  const reasons: string[] = ["RESEARCH_TIER_ONLY", "NOT_PAPER_EVIDENCE", "NO_EXECUTION_AUTHORITY"];
+  const reasons: string[] = ["RESEARCH_TIER_ONLY", "NO_EXECUTION_AUTHORITY"];
+  const paperDecisionValues = [...paperDecisions.values()];
+  if (paperDecisionValues.some((decision) => decision.strength === "VERIFIED")) reasons.push("VERIFIED_PAPER_FORWARD_EVIDENCE_PRESENT");
+  else reasons.push("NOT_PAPER_EVIDENCE");
+  if (paperDecisionValues.some((decision) => decision.strength === "INSUFFICIENT")) reasons.push("PAPER_FORWARD_EVIDENCE_INSUFFICIENT");
+
   const oosObservationEvidence: Record<string, readonly OosObservationTrace[]> = {};
   for (const candidate of candidates) {
     try {
