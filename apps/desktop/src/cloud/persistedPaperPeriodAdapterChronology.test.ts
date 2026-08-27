@@ -27,6 +27,16 @@ test("PAPER adapter rejects wall-clock overlap even when period indexes increase
   );
 });
 
+test("PAPER adapter preserves the replayed period as chronology anchor", () => {
+  assert.throws(
+    () => adaptPersistedPaperPeriods(
+      [period("p0", 0, BASE, BASE + DAY), period("p1", 1, BASE + DAY / 2, BASE + DAY * 1.5)],
+      new Set(["p0"]),
+    ),
+    (error) => error instanceof PersistedPaperPeriodAdapterError && error.code === "NON_MONOTONIC_PERIOD_CHRONOLOGY" && error.recordId === "p1",
+  );
+});
+
 test("PAPER adapter accepts contiguous non-overlapping wall-clock periods", () => {
   const result = adaptPersistedPaperPeriods([period("p0", 0, BASE, BASE + DAY), period("p1", 1, BASE + DAY, BASE + DAY * 2)]);
   assert.deepEqual(result.appliedRecordIds, ["p0", "p1"]);
