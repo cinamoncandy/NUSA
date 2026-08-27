@@ -44,7 +44,7 @@ export function adaptPersistedPaperPeriods(
   const applied: string[] = [];
   const skippedDuplicates: string[] = [];
   const periods: ShadowAllocationPeriodInput[] = [];
-  let previousAppliedPeriodEndAt: number | undefined;
+  let previousPeriodEndAt: number | undefined;
 
   const ordered = [...records].sort((left, right) => left.periodIndex - right.periodIndex);
 
@@ -53,19 +53,21 @@ export function adaptPersistedPaperPeriods(
     if (seenInThisCall.has(record.recordId)) throw new PersistedPaperPeriodAdapterError("DUPLICATE_RECORD_ID_IN_BATCH", `recordId ${record.recordId} appears twice in one adapter call`, record.recordId);
     seenInThisCall.add(record.recordId);
 
+    if (!Number.isInteger(record.periodIndex) || record.periodIndex < 0) throw new PersistedPaperPeriodAdapterError("INVALID_PERIOD_INDEX", `record ${record.recordId} periodIndex must be a non-negative integer`, record.recordId);
+    assertFinite(record.periodStartAt, "NON_FINITE_PERIOD_BOUND", `record ${record.recordId} periodStartAt must be finite`, record.recordId);
+    assertFinite(record.periodEndAt, "NON_FINITE_PERIOD_BOUND", `record ${record.recordId} periodEndAt must be finite`, record.recordId);
+    if (record.periodEndAt <= record.periodStartAt) throw new PersistedPaperPeriodAdapterError("INVALID_PERIOD_BOUNDS", `record ${record.recordId} periodEndAt must be after periodStartAt`, record.recordId);
+    if (previousPeriodEndAt != null && record.periodStartAt < previousPeriodEndAt) {
+      throw new PersistedPaperPeriodAdapterError("NON_MONOTONIC_PERIOD_CHRONOLOGY", `record ${record.recordId} overlaps or moves backward relative to the preceding PAPER period`, record.recordId);
+    }
+    previousPeriodEndAt = record.periodEndAt;
+
     if (alreadyAppliedRecordIds.has(record.recordId)) {
       skippedDuplicates.push(record.recordId);
       continue;
     }
 
     if (record.advisory.schemaVersion !== 1) throw new PersistedPaperPeriodAdapterError("UNSUPPORTED_ADVISORY_SCHEMA", `record ${record.recordId} advisory schema is unsupported`, record.recordId);
-    if (!Number.isInteger(record.periodIndex) || record.periodIndex < 0) throw new PersistedPaperPeriodAdapterError("INVALID_PERIOD_INDEX", `record ${record.recordId} periodIndex must be a non-negative integer`, record.recordId);
-    assertFinite(record.periodStartAt, "NON_FINITE_PERIOD_BOUND", `record ${record.recordId} periodStartAt must be finite`, record.recordId);
-    assertFinite(record.periodEndAt, "NON_FINITE_PERIOD_BOUND", `record ${record.recordId} periodEndAt must be finite`, record.recordId);
-    if (record.periodEndAt <= record.periodStartAt) throw new PersistedPaperPeriodAdapterError("INVALID_PERIOD_BOUNDS", `record ${record.recordId} periodEndAt must be after periodStartAt`, record.recordId);
-    if (previousAppliedPeriodEndAt != null && record.periodStartAt < previousAppliedPeriodEndAt) {
-      throw new PersistedPaperPeriodAdapterError("NON_MONOTONIC_PERIOD_CHRONOLOGY", `record ${record.recordId} overlaps or moves backward relative to the preceding PAPER period`, record.recordId);
-    }
 
     const advisoryAt = Date.parse(record.advisory.generatedAt);
     if (!Number.isFinite(advisoryAt)) throw new PersistedPaperPeriodAdapterError("INVALID_ADVISORY_TIMESTAMP", `record ${record.recordId} advisory.generatedAt is not a valid timestamp`, record.recordId);
@@ -83,7 +85,6 @@ export function adaptPersistedPaperPeriods(
 
     periods.push(freeze({ periodIndex: record.periodIndex, advisory: record.advisory, realizedReturns: freeze({ ...record.realizedReturns }), benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate }));
     applied.push(record.recordId);
-    previousAppliedPeriodEndAt = record.periodEndAt;
   }
 
   return freeze({ periods: freeze(periods), appliedRecordIds: freeze(applied), skippedDuplicateRecordIds: freeze(skippedDuplicates) });
