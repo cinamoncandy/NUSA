@@ -20,6 +20,8 @@ export interface MapUpbitDayCandlesOptions {
    * This prevents an in-progress daily candle from entering a historical research manifest.
    */
   readonly completedBy?: number;
+  /** Keep only the most recent N completed candles after point-in-time filtering. */
+  readonly maxCount?: number;
 }
 
 const DAY_MS = 86_400_000;
@@ -38,6 +40,9 @@ export function mapUpbitDayCandlesToResearchCandles(
   if (raw.length === 0) throw new Error("upbit candle response is empty");
   if (options.completedBy != null && !Number.isFinite(options.completedBy)) {
     throw new Error("completedBy must be finite when provided");
+  }
+  if (options.maxCount != null && (!Number.isInteger(options.maxCount) || options.maxCount <= 0)) {
+    throw new Error("maxCount must be a positive integer when provided");
   }
 
   const mapped = raw.map((candle, index) => {
@@ -72,5 +77,7 @@ export function mapUpbitDayCandlesToResearchCandles(
     ? mapped
     : mapped.filter((candle) => candle.closeTime <= options.completedBy!);
   if (completed.length === 0) throw new Error("upbit candle response contains no completed daily candles");
-  return Object.freeze([...completed].sort((left, right) => left.openTime - right.openTime));
+  const ordered = [...completed].sort((left, right) => left.openTime - right.openTime);
+  const bounded = options.maxCount == null ? ordered : ordered.slice(-options.maxCount);
+  return Object.freeze(bounded);
 }
