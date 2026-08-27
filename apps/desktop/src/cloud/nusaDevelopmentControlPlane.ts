@@ -42,19 +42,28 @@ export interface NusaDevelopmentQueue {
   readonly items: readonly NusaDevelopmentWorkItem[];
 }
 
+export interface NusaDevelopmentAllocationPolicy {
+  /** Maximum active work items owned by the requesting lane. Omit the policy to preserve legacy unconstrained claiming. */
+  readonly maximumActiveWorkPerOwner: number;
+  /** Prevent a READY item from being claimed when any active item touches the same canonical file path. */
+  readonly preventTouchedFileConflicts: boolean;
+}
+
 export interface ClaimNextWorkRequest {
   readonly owner: string;
   readonly requestId: string;
   readonly expectedRevision: number;
   readonly now: number;
   readonly leaseMs: number;
+  readonly allocationPolicy?: NusaDevelopmentAllocationPolicy;
 }
 
 export type ClaimNextWorkResult =
   | { readonly status: "CLAIMED" | "IDEMPOTENT_REPLAY"; readonly queue: NusaDevelopmentQueue; readonly item: NusaDevelopmentWorkItem }
-  | { readonly status: "NO_READY_WORK" | "REVISION_CONFLICT"; readonly queue: NusaDevelopmentQueue; readonly item: null };
+  | { readonly status: "NO_READY_WORK" | "REVISION_CONFLICT" | "WIP_LIMIT_REACHED"; readonly queue: NusaDevelopmentQueue; readonly item: null };
 
 const PRIORITY_RANK: Readonly<Record<NusaDevelopmentPriority, number>> = Object.freeze({ P0: 0, P1: 1, P2: 2, P3: 3 });
+const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set(["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY"]);
 
 const isCanonicalTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
 
@@ -100,6 +109,25 @@ function compareReadyWork(a: NusaDevelopmentWorkItem, b: NusaDevelopmentWorkItem
     || a.id.localeCompare(b.id);
 }
 
+function validateAllocationPolicy(policy: NusaDevelopmentAllocationPolicy | undefined): void {
+  if (policy == null) return;
+  if (!Number.isSafeInteger(policy.maximumActiveWorkPerOwner) || policy.maximumActiveWorkPerOwner <= 0) {
+    throw new Error("ALLOCATION_WIP_LIMIT_INVALID");
+  }
+}
+
+function activeOwnerCount(queue: NusaDevelopmentQueue, owner: string): number {
+  return queue.items.filter((item) => ACTIVE_STATES.has(item.state) && item.canonicalOwner === owner).length;
+}
+
+function hasTouchedFileConflict(item: NusaDevelopmentWorkItem, queue: NusaDevelopmentQueue): boolean {
+  if (item.touchedFiles.length === 0) return false;
+  const files = new Set(item.touchedFiles);
+  return queue.items.some((active) => active.id !== item.id
+    && ACTIVE_STATES.has(active.state)
+    && active.touchedFiles.some((file) => files.has(file)));
+}
+
 export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, request: ClaimNextWorkRequest): ClaimNextWorkResult {
   if (!request.owner.trim()) throw new Error("CLAIM_OWNER_REQUIRED");
   if (!request.requestId.trim()) throw new Error("CLAIM_REQUEST_ID_REQUIRED");
@@ -107,14 +135,20 @@ export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, reques
   if (!Number.isSafeInteger(request.leaseMs) || request.leaseMs <= 0) throw new Error("CLAIM_LEASE_INVALID");
   const leaseExpiresAt = request.now + request.leaseMs;
   if (!isCanonicalTimestamp(leaseExpiresAt) || leaseExpiresAt <= request.now) throw new Error("CLAIM_LEASE_EXPIRES_AT_INVALID");
+  validateAllocationPolicy(request.allocationPolicy);
 
   const replay = queue.items.find((item) => item.claim?.requestId === request.requestId && item.claim.owner === request.owner);
   if (replay) return { status: "IDEMPOTENT_REPLAY", queue, item: replay };
 
   if (request.expectedRevision !== queue.revision) return { status: "REVISION_CONFLICT", queue, item: null };
 
+  if (request.allocationPolicy != null && activeOwnerCount(queue, request.owner) >= request.allocationPolicy.maximumActiveWorkPerOwner) {
+    return { status: "WIP_LIMIT_REACHED", queue, item: null };
+  }
+
   const selected = queue.items
     .filter((item) => item.state === "READY" && dependenciesMerged(item, queue))
+    .filter((item) => request.allocationPolicy?.preventTouchedFileConflicts !== true || !hasTouchedFileConflict(item, queue))
     .sort(compareReadyWork)[0];
   if (!selected) return { status: "NO_READY_WORK", queue, item: null };
 
