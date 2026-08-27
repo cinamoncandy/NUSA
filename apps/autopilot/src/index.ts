@@ -1,9 +1,14 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { planAutopilotExecution } from "./executionPlanner";
+import { executeGithubDispatch } from "./githubExecutor";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
+  NUSA_GITHUB_TOKEN?: string;
+  NUSA_GITHUB_REPOSITORY?: string;
 }
+
+const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
@@ -40,8 +45,18 @@ export async function verifyGithubWebhookSignature(secret: string, body: string,
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
     if (request.method === "GET" && url.pathname === "/health") {
-      return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", executionPlanning: "ENABLED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+      return json({
+        service: "nusa-autopilot",
+        status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY",
+        executionPlanning: "ENABLED",
+        authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY",
+        allowedRepository,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
     }
     if (request.method !== "POST" || url.pathname !== "/github/webhook") return json({ error: "NOT_FOUND" }, 404);
     if (!env.NUSA_WEBHOOK_SECRET) return json({ error: "WEBHOOK_SECRET_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
@@ -62,6 +77,21 @@ export default {
     }
 
     const execution = planAutopilotExecution(dispatch);
-    return json({ accepted: true, status: execution.kind === "NOOP" ? "NO_ACTION" : "EXECUTION_REQUEST_PLANNED", deliveryId, event, dispatch, execution, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+    const executor = await executeGithubDispatch(execution, {
+      token: env.NUSA_GITHUB_TOKEN,
+      allowedRepository,
+    });
+    return json({
+      accepted: true,
+      status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED",
+      deliveryId,
+      event,
+      dispatch,
+      execution,
+      executor,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 202);
   },
 };
