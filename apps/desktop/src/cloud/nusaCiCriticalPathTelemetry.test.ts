@@ -50,11 +50,13 @@ describe("analyzeNusaCiCriticalPathTelemetry", () => {
     assert.equal(validation?.sampleCount, 5);
   });
 
-  it("reports retry observations from actual run_attempt rather than guessing flakes", () => {
+  it("reports retry observations per run attempt without job-count skew", () => {
     const result = analyzeNusaCiCriticalPathTelemetry([
       receipt("validation", 1, 0, 10_000),
-      receipt("validation", 2, 0, 9_000, { runId: 101, runAttempt: 2, sourceFingerprint: "2".repeat(64) }),
+      receipt("coverage-core-0", 2, 0, 8_000, { runId: 101, runAttempt: 2, sourceFingerprint: "2".repeat(64) }),
+      receipt("coverage-core-1", 3, 0, 9_000, { runId: 101, runAttempt: 2, sourceFingerprint: "3".repeat(64) }),
     ], HEAD);
+    assert.equal(result.runs.length, 2);
     assert.equal(result.retryObservationRate, 0.5);
   });
 
