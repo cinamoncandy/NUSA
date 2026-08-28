@@ -18,6 +18,12 @@ scope:
 architecture_impact:
   acknowledged: true
   analysis: "Extend the existing PaperTradingExecutionLoop and SqliteCloudPaperAccountRepository boundaries; no second PAPER engine, cost engine, accounting path, broker adapter, or authority."
+  references:
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
+    - apps/cloud/src/paperOrderBookQuoteReceipt.ts
+    - packages/storage/src/index.ts
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
   reused:
     - apps/cloud/src/paperTradingExecutionLoop.ts
     - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
