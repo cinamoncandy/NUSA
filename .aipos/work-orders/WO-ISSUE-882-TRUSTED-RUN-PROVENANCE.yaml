@@ -1,0 +1,66 @@
+version: 1
+id: WO-ISSUE-882-TRUSTED-RUN-PROVENANCE
+title: "Issue #882 trusted GitHub workflow provenance adapter"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 882
+base_branch: main
+base_commit: 441deaa03e33837952012be2a44ebf9461b8ad7f
+implementation_branch: codex/paper-chaos-trusted-run
+objective: "Add a canonical read-only GitHub Actions run lookup so PAPER chaos evidence can be promoted only from a successful exact repository, workflow, head, event, run, attempt, and branch binding."
+architecture_impact:
+  acknowledged: true
+  analysis: "The adapter reuses the existing chaos evidence provenance and promotion contract, adds GET-only external verification, and creates no execution, accounting, broker, or authority path."
+  references:
+    - apps/cloud/src/paperChaosEvidenceProvenance.ts
+    - apps/cloud/src/paperChaosGitHubRunLookup.ts
+architecture:
+  existing_evidence_provenance: apps/cloud/src/paperChaosEvidenceProvenance.ts
+  canonical_adapter: apps/cloud/src/paperChaosGitHubRunLookup.ts
+  no_new_authority: true
+  transport: GET_ONLY_GITHUB_ACTIONS_API
+  credential_scope: READ_ONLY_VERIFICATION_ONLY
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+scope:
+  - exact_github_run_identity_lookup
+  - successful_run_and_workflow_binding
+  - fail_closed_missing_or_mismatched_evidence
+  - secret_minimization
+prohibited:
+  - live_execution
+  - real_broker_mutation
+  - order_cancel_withdraw_transfer
+  - activation_or_lease_creation
+  - local_self_attestation
+acceptance:
+  - lookup_uses_get_only
+  - successful_exact_run_promotes_to_verified
+  - missing_unsuccessful_or_mismatched_run_rejected
+  - malformed_response_rejected
+  - token_not_in_output_or_verified_evidence
+  - existing_chaos_provenance_regressions_green
+  - full_isolated_suite_green
+validation:
+  focused_adapter: PASS_3_OF_3
+  existing_chaos_and_provenance: PASS_16_OF_16
+  full_isolated_suite: PASS_688_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS
+  diff_check: PASS
+implementation_status: READY_FOR_PR
+implementation_files:
+  - apps/cloud/src/paperChaosGitHubRunLookup.ts
+  - apps/cloud/src/paperChaosGitHubRunLookup.test.ts
+next: "Publish the focused branch, validate exact-head protected workflows, and keep Issue #882 open for real elapsed soak evidence unless separately proven."
