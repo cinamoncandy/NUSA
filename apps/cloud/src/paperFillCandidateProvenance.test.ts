@@ -62,7 +62,7 @@ class CapturingRepository implements PaperAccountRepository {
   public clear(): void { this.saved = undefined; }
 }
 
-test("canonical strategy fill persists the exact candidate binding from its CIO decision", () => {
+test("canonical strategy fill persists candidate provenance and truthful incomplete runtime cost evidence", () => {
   const repository = new CapturingRepository();
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000, repository });
   const expected = binding();
@@ -76,16 +76,28 @@ test("canonical strategy fill persists the exact candidate binding from its CIO 
     decisionAt: 3_000,
     binding: expected,
   });
-  assert.deepEqual(repository.saved?.fills[0]?.candidateProvenance, result.fills[0]?.candidateProvenance);
+  const evidence = result.fills[0]?.runtimeExecutionCostEvidence;
+  assert.equal(evidence?.source, "PAPER_EXECUTION_BOUNDARY");
+  assert.equal(evidence?.evidenceKind, "OBSERVED");
+  assert.equal(evidence?.completeness, "INCOMPLETE");
+  assert.equal(evidence?.candidateId, "candidate-alpha");
+  assert.equal(evidence?.quotePrice, 100);
+  assert.equal(evidence?.fillPrice, 100);
+  assert.equal(evidence?.feeAmount, 0.05);
+  assert.equal(evidence?.spreadAmount, null);
+  assert.equal(evidence?.slippageAmount, null);
+  assert.match(evidence?.evidenceFingerprintSha256 ?? "", /^[a-f0-9]{64}$/);
+  assert.deepEqual(repository.saved?.fills[0]?.runtimeExecutionCostEvidence, evidence);
   assert.equal(result.fills[0]?.candidateProvenance?.binding.liveAuthority, "NONE");
   assert.equal(result.fills[0]?.candidateProvenance?.binding.productionMutationAllowed, false);
 });
 
-test("unbound strategy fills remain explicitly unattributed and therefore non-promotable", () => {
+test("unbound strategy fills remain explicitly unattributed and have no cost evidence", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000 });
   const result = loop.processTick(tick([decision()]));
   assert.equal(result.status, "FILLED");
   assert.equal(result.fills[0]?.candidateProvenance, undefined);
+  assert.equal(result.fills[0]?.runtimeExecutionCostEvidence, undefined);
 });
 
 test("restored canonical state rejects mutated candidate provenance fail closed", () => {
@@ -104,4 +116,22 @@ test("restored canonical state rejects mutated candidate provenance fail closed"
     }],
   };
   assert.throws(() => new PaperTradingExecutionLoop({ initialCapital: 10_000, restoredState: corrupted }), /candidateId is invalid/);
+});
+
+test("restored canonical state rejects mutated runtime execution-cost evidence fail closed", () => {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000 });
+  const result = loop.processTick(tick([decision(binding())]));
+  assert.equal(result.status, "FILLED");
+  const fill = result.state.fills[0]!;
+  const corrupted: PaperAccountState = {
+    ...result.state,
+    fills: [{
+      ...fill,
+      runtimeExecutionCostEvidence: {
+        ...fill.runtimeExecutionCostEvidence!,
+        feeAmount: fill.runtimeExecutionCostEvidence!.feeAmount + 1,
+      },
+    }],
+  };
+  assert.throws(() => new PaperTradingExecutionLoop({ initialCapital: 10_000, restoredState: corrupted }), /runtime execution-cost evidence is invalid/);
 });
