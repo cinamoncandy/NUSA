@@ -67,4 +67,37 @@ describe("canonical PAPER account history migration", () => {
       db.close();
     }
   });
+
+  it("fails closed on non-monotonic canonical account chronology without rolling back current truth", () => {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      insertAccount(db.connection, 500, JSON.stringify({ version: 1, updatedAt: 500, equity: 100 }));
+      assert.throws(
+        () => insertAccount(db.connection, 400, JSON.stringify({ version: 1, updatedAt: 400, equity: 90 })),
+        /PAPER_ACCOUNT_HISTORY_CHRONOLOGY_REGRESSION/,
+      );
+      const current = db.connection.prepare("SELECT updated_at, state_json FROM cloud_paper_accounts WHERE account_id = 'paper-default'").get() as { updated_at: number; state_json: string };
+      assert.equal(Number(current.updated_at), 500);
+      assert.equal(JSON.parse(current.state_json).equity, 100);
+      const rows = db.connection.prepare("SELECT updated_at FROM cloud_paper_account_history WHERE account_id = 'paper-default' ORDER BY updated_at").all() as Array<{ updated_at: number }>;
+      assert.deepEqual(rows.map((row) => Number(row.updated_at)), [500]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("keeps identical replay idempotent while preserving one historical receipt", () => {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      const stateJson = JSON.stringify({ version: 1, updatedAt: 600, equity: 102 });
+      insertAccount(db.connection, 600, stateJson);
+      insertAccount(db.connection, 600, stateJson);
+      const rows = db.connection.prepare("SELECT updated_at, state_json FROM cloud_paper_account_history WHERE account_id = 'paper-default'").all() as Array<{ updated_at: number; state_json: string }>;
+      assert.equal(rows.length, 1);
+      assert.equal(Number(rows[0]?.updated_at), 600);
+      assert.equal(rows[0]?.state_json, stateJson);
+    } finally {
+      db.close();
+    }
+  });
 });
