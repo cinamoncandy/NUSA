@@ -34,18 +34,36 @@ describe("NUSA autopilot dispatch planner", () => {
     });
   });
 
-  it("distinguishes completed workflow success and failure", () => {
+  it("distinguishes canonical CI success and workflow failure", () => {
     const success = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
-      workflow_run: { id: 7, head_sha: "c".repeat(40), status: "completed", conclusion: "success" },
+      workflow_run: { id: 7, name: "CI", head_sha: "c".repeat(40), status: "completed", conclusion: "success" },
     });
     assert.equal(success.kind, "CI_SUCCEEDED");
 
     const failure = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
-      workflow_run: { id: 8, head_sha: "d".repeat(40), status: "completed", conclusion: "failure" },
+      workflow_run: { id: 8, name: "Actual PAPER Public-Market Runtime Evidence", head_sha: "d".repeat(40), status: "completed", conclusion: "failure" },
     });
     assert.equal(failure.kind, "CI_FAILED");
+  });
+
+  it("does not advance the development loop for successful auxiliary workflows", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 12,
+        name: "Actual PAPER Public-Market Runtime Evidence",
+        head_sha: "2".repeat(40),
+        status: "completed",
+        conclusion: "success",
+        event: "push",
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "IGNORED");
+    assert.equal(plan.reason, "workflow-run-success-not-canonical-ci");
+    assert.equal(plan.mutationAllowed, false);
   });
 
   it("does not redispatch completion of a repository_dispatch consumer workflow", () => {
@@ -69,13 +87,13 @@ describe("NUSA autopilot dispatch planner", () => {
   it("does not turn incomplete or neutral workflow states into success", () => {
     const incomplete = planGithubWebhookDispatch("workflow_run", {
       action: "requested",
-      workflow_run: { id: 9, head_sha: "e".repeat(40), status: "queued", conclusion: null },
+      workflow_run: { id: 9, name: "CI", head_sha: "e".repeat(40), status: "queued", conclusion: null },
     });
     assert.equal(incomplete.kind, "IGNORED");
 
     const neutral = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
-      workflow_run: { id: 10, head_sha: "f".repeat(40), status: "completed", conclusion: "skipped" },
+      workflow_run: { id: 10, name: "CI", head_sha: "f".repeat(40), status: "completed", conclusion: "skipped" },
     });
     assert.equal(neutral.kind, "IGNORED");
   });
