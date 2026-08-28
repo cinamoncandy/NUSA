@@ -5,6 +5,7 @@ import { createNusaDevelopmentQueue } from "../../desktop/src/cloud/nusaDevelopm
 import {
   buildNusaEngineeringOperatingSnapshot,
   createNusaEngineeringOperatingReadModel,
+  validateNusaEngineeringOperatingSnapshot,
   type NusaEngineeringOperatingInput,
 } from "./engineeringOperatingReadModel";
 
@@ -98,6 +99,7 @@ describe("NUSA Engineering OS production read model", () => {
     assert.deepEqual(result.queue, { status: "AVAILABLE", revision: 0, totalItems: 1, activeItems: 1, mergeReadyItems: 1 });
     assert.deepEqual(result.blockers, []);
     assert.deepEqual(result.authority, { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY", mutationAllowed: false });
+    assert.equal(validateNusaEngineeringOperatingSnapshot(result), result);
   });
 
   it("keeps unknown telemetry insufficient instead of creating a green optimization claim", () => {
@@ -109,6 +111,7 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(result.outcome.classification, "INSUFFICIENT");
     assert.ok(result.blockers.some((reason) => reason.startsWith("OUTCOME:")));
     assert.ok(result.blockers.some((reason) => reason.startsWith("SELF_OPTIMIZER:")));
+    assert.equal(validateNusaEngineeringOperatingSnapshot(result), result);
   });
 
   it("projects unavailable production sources without mutating the queue or inventing metrics", () => {
@@ -119,6 +122,7 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(unavailable.outcome.classification, "INSUFFICIENT");
     assert.equal(unavailable.queue.status, "UNAVAILABLE");
     assert.equal(unavailable.authority.productionMutationAllowed, false);
+    assert.equal(validateNusaEngineeringOperatingSnapshot(unavailable), unavailable);
 
     let reads = 0;
     const model = createNusaEngineeringOperatingReadModel(() => { reads += 1; return input(); });
@@ -133,5 +137,25 @@ describe("NUSA Engineering OS production read model", () => {
     const result = createNusaEngineeringOperatingReadModel(() => { throw new Error("source unavailable"); }).getSnapshot();
     assert.equal(result.status, "UNAVAILABLE");
     assert.deepEqual(result.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
+  });
+
+  it("rejects incomplete or internally inconsistent snapshots instead of trusting the top-level status", () => {
+    const verified = buildNusaEngineeringOperatingSnapshot(input());
+    const { queue: _queue, ...missingQueue } = verified;
+    assert.throws(
+      () => validateNusaEngineeringOperatingSnapshot(missingQueue),
+      /ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID/,
+    );
+    assert.throws(
+      () => validateNusaEngineeringOperatingSnapshot({ ...verified, blockers: ["FORGED_BLOCKER"] }),
+      /ENGINEERING_OPERATIONS_SNAPSHOT_VERIFIED_INCONSISTENT/,
+    );
+    assert.throws(
+      () => validateNusaEngineeringOperatingSnapshot({
+        ...verified,
+        queue: { ...verified.queue, totalItems: 1, activeItems: 2 },
+      }),
+      /ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INCONSISTENT/,
+    );
   });
 });
