@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { planOpportunity, rankOpportunities } from "./opportunityPlanner";
 
 const verified = (key: string, expectedValue: number) => ({
@@ -16,21 +17,21 @@ const verified = (key: string, expectedValue: number) => ({
 describe("opportunityPlanner", () => {
   it("deduplicates against canonical existing work", () => {
     const result = planOpportunity(verified("issue:903", 5), [{ key: "issue:903" }]);
-    expect(result.score).toBeNull();
-    expect(result.reason).toBe("deduplicated-existing-canonical-work");
-    expect(result.mutationAllowed).toBe(false);
+    assert.equal(result.score, null);
+    assert.equal(result.reason, "deduplicated-existing-canonical-work");
+    assert.equal(result.mutationAllowed, false);
   });
 
   it("does not promote UNKNOWN evidence into a ranked candidate", () => {
     const result = planOpportunity({ ...verified("ci:p95", 5), confidence: "UNKNOWN" }, []);
-    expect(result.score).toBeNull();
-    expect(result.reason).toBe("insufficient-evidence-for-ranking");
+    assert.equal(result.score, null);
+    assert.equal(result.reason, "insufficient-evidence-for-ranking");
   });
 
   it("fails closed when a ranking input is absent", () => {
     const result = planOpportunity({ ...verified("queue:age", 5), effortCost: null }, []);
-    expect(result.score).toBeNull();
-    expect(result.reason).toBe("insufficient-evidence-for-ranking");
+    assert.equal(result.score, null);
+    assert.equal(result.reason, "insufficient-evidence-for-ranking");
   });
 
   it("ranks only evidence-backed advisory candidates deterministically", () => {
@@ -38,12 +39,12 @@ describe("opportunityPlanner", () => {
     const high = planOpportunity(verified("candidate:a", 8), []);
     const unknown = planOpportunity({ ...verified("candidate:c", 100), confidence: "INSUFFICIENT" }, []);
 
-    expect(rankOpportunities([low, unknown, high]).map((candidate) => candidate.key)).toEqual([
+    assert.deepEqual(rankOpportunities([low, unknown, high]).map((candidate) => candidate.key), [
       "candidate:a",
       "candidate:b",
       "candidate:c",
     ]);
-    expect(high.reason).toBe("evidence-backed-advisory-ranking");
-    expect(high.mutationAllowed).toBe(false);
+    assert.equal(high.reason, "evidence-backed-advisory-ranking");
+    assert.equal(high.mutationAllowed, false);
   });
 });
