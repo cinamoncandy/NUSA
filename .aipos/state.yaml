@@ -1,13 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T14:40:00+09:00"
+updated_at: "2026-08-29T00:01:47+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
+  work_order: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
   status: VERIFYING
-  branch: codex/issue-889-cost-evidence
-  base_sha: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
-  scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
-  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
+  branch: codex/issue-905-outcome-evaluator-adapter
+  base_sha: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
+  scope: "Use one canonical evidence-gated outcome evaluator and preserve the legacy feedback contract through a compatibility adapter."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -24,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-889-cost-evidence
+active_branch: codex/issue-905-outcome-evaluator-adapter
 active_successor_branch: null
-active_pull_request: 995
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -84,14 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
-  status: IN_PROGRESS
-  branch: codex/issue-889-cost-evidence
-  base_commit: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
-  scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
-  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
+  work_order: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
+  status: VERIFYING
+  branch: codex/issue-905-outcome-evaluator-adapter
+  base_commit: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
+  scope: "Consolidate duplicate outcome classification behind the existing canonical evaluator while preserving read-only advisory semantics."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 76/76 PASS after main integration; full isolated 693 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/read-only broker/package validation PASS; PR #995 published, final exact-head CI pending."
+  validation: "Focused outcome tests 13/13 PASS; autopilot regression 65/65 PASS; full isolated suite 700 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker/package validation PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -430,6 +428,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
+    evidence: ".aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml"
+    summary: "Issue #889 cost-evidence provenance slice merged in PR #995 at exact head 4137044923c633165fffda8b81fa39d37b7dcb46 as f72dba72dbfc6475ee08d8cc9f429ea5cd579e23; focused 76/76 and repository gates passed, while missing benchmark and incomplete friction remain fail-closed."
   - id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
     evidence: ".aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml"
     summary: "Issue #882 deterministic chaos/recovery slice merged in PR #942 as 864274b9; remaining long-duration and physical/runtime acceptance is separately tracked."
@@ -491,9 +492,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
-    evidence: ".aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml"
-    summary: "Issue #889 preserves canonical PAPER execution-cost evidence provenance through reconciliation and durable realized-period persistence."
+  - id: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
+    evidence: ".aipos/work-orders/WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION.yaml"
+    summary: "Consolidate duplicate engineering outcome classification behind the canonical evidence-gated evaluator with a backward-compatible read-only adapter."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -520,8 +521,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml
-  reason: "Preserve canonical PAPER execution-cost evidence provenance through realized-period persistence; missing benchmark and incomplete friction evidence remain fail-closed."
+  work_order: .aipos/work-orders/WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION.yaml
+  reason: "Consolidate duplicate outcome classification behind the canonical evidence-gated evaluator; preserve #905 advisory-only semantics."
 verification:
   wo_0057:
     parent_pull_request: 552

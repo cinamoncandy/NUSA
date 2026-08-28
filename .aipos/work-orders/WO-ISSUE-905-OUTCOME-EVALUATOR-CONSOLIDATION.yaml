@@ -1,0 +1,57 @@
+id: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
+title: "Issue #905 consolidate engineering outcome evaluation"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 905
+base_branch: main
+base_commit: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
+implementation_branch: codex/issue-905-outcome-evaluator-adapter
+objective: "Make the existing outcomeEvaluator the single deterministic classification authority while preserving the outcomeFeedback compatibility contract for existing callers."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing evidence-gated outcome evaluator and adapt the legacy metric-shaped feedback contract at its boundary; no second optimizer, scheduler, execution path, or authority is introduced."
+  references:
+    - apps/autopilot/src/outcomeEvaluator.ts
+    - apps/autopilot/src/outcomeFeedback.ts
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+    - .aipos/decisions/ADR-0012-governed-outcome-attribution-learning.md
+scope:
+  - canonical_outcome_classification
+  - backward_compatible_feedback_adapter
+  - deterministic_evidence_gated_recommendation
+  - duplicate_engine_regression_coverage
+prohibited:
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - strategy_or_risk_mutation
+  - synthetic_performance_evidence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - outcomeFeedback_delegates_classification_to_outcomeEvaluator
+  - legacy_metric_direction_and_delta_contract_is_preserved
+  - unknown_or_invalid_evidence_remains_insufficient
+  - deterministic_recommendation_and_no_mutation_authority
+  - canonical_and_legacy_contracts_have_parity
+  - no_execution_or_accounting_path_is_added
+validation:
+  focused: PASS_13_OF_13
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  aipos: PASS
+implementation_status: LOCAL_VALIDATED_PENDING_PR
+known_limitations:
+  - "Issue #905 still requires measured pre/post optimization telemetry, AUTO_BACKGROUND versus USER_TRIGGERED evidence, and any remaining owner-exception UX work; this slice only removes duplicate outcome classification logic."
+next: "Publish the validated branch, then verify required checks on the exact PR head."
