@@ -71,6 +71,7 @@ implementation_head: 33492def5802a1004c8efbcc6cb6b589c97bb0cb
 merge_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
 post_merge_integration_commit: 7a613c2fd073b125de1df868452803bf471d4d19
 remediation_commit: 2508f70c7403499725fe817b30915e6f9ab59ecc
+local_validation_head: 23d05ec8f579143633b1c48aa2e477a7cfb4a6cf
 remediation_scope: "Replace the duplicate cloud paper_realized_periods path with the canonical #885 research_paper_forward_periods store, require explicit execution cost provenance, preserve candidate/advisory identity, emit structured period lifecycle events, and recover pending periods across restart without changing PAPER execution authority."
 remediation_validation: "Focused producer/storage/runtime suite 30/30 PASS; full isolated suite 678 files PASS; typecheck/build/lint/preflight/package/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 known_limitations:
