@@ -6,6 +6,15 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
+export { runEvolutionLifecycle } from "./evolveLifecycle";
+export type {
+  EvolutionExecutionResult,
+  EvolutionLifecycleEvent,
+  EvolutionLifecycleHandlers,
+  EvolutionLifecycleOptions,
+  EvolutionLifecycleResult,
+  EvolutionLifecycleStatus,
+} from "./evolveLifecycle";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
