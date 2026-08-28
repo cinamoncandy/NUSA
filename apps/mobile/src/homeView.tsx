@@ -5,6 +5,7 @@ import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./u
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
+import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
@@ -26,14 +27,6 @@ interface HomeViewProps {
 
 function krw(value: number): string {
   return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function healthTone(health: string | undefined): "success" | "warning" | "danger" {
-  return health === "HEALTHY" || health === "READY" || health === "ONLINE" || health === "RUNNING"
-    ? "success"
-    : health === "FAIL_CLOSED" || health === "DOWN"
-      ? "danger"
-      : "warning";
 }
 
 function SupervisorRow({
@@ -94,22 +87,31 @@ export function HomeView({
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const ai = snapshot?.ai ?? null;
-  const aiInsightAvailable = ai?.status === "AVAILABLE" && Boolean(ai.thesis?.trim()) && ai.evidenceReferences.length > 0;
-  const calibratedConfidence = aiInsightAvailable && ai?.calibrationStatus === "CALIBRATED" ? `${Math.round(ai.confidence * 100)}%` : undefined;
   const disconnected = notConfigured != null;
-  const signalReady = snapshot?.health === "HEALTHY" && snapshot.readyForPaperOperations;
   const runtimeState = snapshot?.operations.runtimeState;
-  const runtimeNeedsSupervision = runtimeState === "HALTED" || runtimeState === "ERROR" || runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING";
-  const statusLabel = snapshot
-    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
-    : accountSource === "LOCAL" ? "PAPER · LOCAL" : notConfigured ? "PAPER · OFFLINE" : "PAPER · STANDBY";
-  const statusTone = snapshot
-    ? runtimeState === "HALTED" || runtimeState === "ERROR"
-      ? "danger" as const
-      : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING"
-        ? "warning" as const
-        : healthTone(snapshot.health)
-    : accountSource === "LOCAL" ? "info" as const : "warning" as const;
+  const decisionSurface = buildHomeDecisionSurface({
+    runtimeState,
+    health: snapshot?.health,
+    readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
+    disconnected,
+    readOnlyError: readOnlyError != null,
+    accountSource,
+    paperEquity: account?.equity,
+    paperTotalPnl: totalPnl,
+    aiThesis: ai?.status === "AVAILABLE" ? ai.thesis : null,
+    aiEvidenceCount: ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0,
+    aiCalibrationStatus: ai?.calibrationStatus,
+    aiConfidence: ai?.confidence,
+  });
+  const {
+    aiInsightAvailable,
+    calibratedConfidence,
+    signalReady,
+    statusLabel,
+    statusTone,
+    primaryLabel,
+    primaryDetail,
+  } = decisionSurface;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
 
@@ -121,85 +123,30 @@ export function HomeView({
     maxWidth: tablet ? Math.max(profile.screen.maxWidth, 980) : profile.screen.maxWidth,
   } as const;
 
-  const primaryLabel = notConfigured ? "CONNECT PAPER" : readOnlyError ? "RECOVER" : runtimeNeedsSupervision ? "SUPERVISE PAPER" : aiInsightAvailable ? "OPEN SIGNAL" : "OPEN MARKET";
-  const primaryDetail = notConfigured
-    ? "PAPER 연결 후 실제 시장 입력과 모의계좌 상태를 표시합니다."
-    : readOnlyError
-      ? "현재 연결 상태를 복구한 뒤 판단을 다시 확인합니다."
-      : runtimeNeedsSupervision
-        ? "현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다."
-        : aiInsightAvailable
-          ? "검증된 근거와 현재 NUSA 판단을 확인합니다."
-          : "시장 데이터는 읽기 전용으로 분석 중입니다.";
   const runPrimaryAction = () => {
-    if (notConfigured || readOnlyError) return onGoSettings();
-    if (runtimeNeedsSupervision) return onNavigate("Portfolio");
-    onNavigate(aiInsightAvailable ? "AiSignal" : "Markets");
+    switch (decisionSurface.primaryAction) {
+      case "SETTINGS":
+        return onGoSettings();
+      case "PORTFOLIO":
+        return onNavigate("Portfolio");
+      case "AI_SIGNAL":
+        return onNavigate("AiSignal");
+      case "MARKETS":
+        return onNavigate("Markets");
+    }
   };
 
-  const attentionLevel = disconnected || readOnlyError || runtimeState === "HALTED" || runtimeState === "ERROR"
-    ? "ACTION REQUIRED"
-    : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING" || (snapshot != null && !signalReady)
-      ? "WATCH"
-      : "QUIET";
+  const attentionLevel = decisionSurface.attention;
   const attentionColor = attentionLevel === "ACTION REQUIRED"
     ? theme.colors.danger
     : attentionLevel === "WATCH"
       ? theme.colors.aiSignalEnd
       : theme.colors.textMuted;
-  const supervisorNow = disconnected
-    ? "PAPER LINK REQUIRED"
-    : readOnlyError
-      ? "RECOVERY REQUIRED"
-      : runtimeState === "HALTED"
-        ? "PAPER RUNTIME HALTED"
-        : runtimeState === "ERROR"
-          ? "PAPER RUNTIME ERROR"
-          : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-            ? "PAPER RUNTIME STOPPED"
-            : runtimeState === "DEGRADED"
-              ? "PAPER RUNTIME DEGRADED"
-              : runtimeState === "RUNNING"
-                ? "PAPER SUPERVISION RUNNING"
-                : signalReady
-                  ? "PAPER DECISION READY"
-                  : "DECISION HOLD";
-  const supervisorWhy = disconnected
-    ? "PAPER 데이터 연결 전에는 판단을 생성하지 않습니다."
-    : readOnlyError
-      ? "시장 연결의 신뢰성이 확인될 때까지 새로운 판단을 보류합니다."
-      : runtimeState === "HALTED"
-        ? "PAPER runtime이 중단되어 새로운 판단을 진행하지 않습니다."
-        : runtimeState === "ERROR"
-          ? "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다."
-          : runtimeState === "STOPPED" || runtimeState === "STOPPING"
-            ? "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다."
-            : runtimeState === "DEGRADED"
-              ? "PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다."
-              : aiInsightAvailable
-                ? (ai?.thesis ?? "")
-                : signalReady
-                  ? "검증 가능한 AI 근거가 축적될 때까지 판단을 확대하지 않습니다."
-                  : "운영·시장 입력이 안전 게이트를 통과할 때까지 대기합니다.";
-  const supervisorResult = account == null
-    ? "검증된 PAPER 성과 데이터 없음"
-    : `PAPER P&L ${totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`} · EQUITY ${krw(account.equity)}`;
-  const supervisorRisk = disconnected
-    ? "BLOCKED · PAPER LINK REQUIRED"
-    : readOnlyError
-      ? "BLOCKED · READ-ONLY RECOVERY REQUIRED"
-      : runtimeState === "HALTED" || runtimeState === "ERROR"
-        ? "BLOCKED · PAPER RUNTIME REQUIRES ACTION"
-        : runtimeState === "DEGRADED" || runtimeState === "STOPPED" || runtimeState === "STOPPING"
-          ? "WATCH · PAPER RUNTIME REQUIRES SUPERVISION"
-          : snapshot == null
-            ? "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE"
-            : signalReady
-              ? "PAPER ONLY · SAFETY GATES READY · LIVE NONE"
-              : "WATCH · PAPER SAFETY GATES NOT READY";
-  const supervisorLearning = aiInsightAvailable
-    ? `근거 ${ai?.evidenceReferences.length ?? 0}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
-    : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
+  const supervisorNow = decisionSurface.now;
+  const supervisorWhy = decisionSurface.why;
+  const supervisorResult = decisionSurface.result;
+  const supervisorRisk = decisionSurface.risk;
+  const supervisorLearning = decisionSurface.learning;
 
   return <ScrollView
     contentContainerStyle={[styles.content, contentStyle]}

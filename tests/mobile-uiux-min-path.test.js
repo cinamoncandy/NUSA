@@ -8,10 +8,12 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("premium UI minimum path keeps one actionable Home next step and truthful PAPER naming", () => {
   const home = read("src/homeView.tsx");
+  const decisionSurface = read("src/homeDecisionSurface.ts");
   assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.match(home, /<CompactMetric label="PAPER 연결"/);
   assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /const statusLabel = snapshot[\s\S]*PAPER · \$\{runtimeState[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
+  assert.match(home, /const decisionSurface = buildHomeDecisionSurface/);
+  assert.match(decisionSurface, /const statusLabel = input\.accountSource === "CLOUD"[\s\S]*PAPER · \$\{[\s\S]*PAPER · LOCAL[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
   assert.match(home, /<QuietStatus label=\{statusLabel\} tone=\{statusTone\} testID="home-paper-status" \/>/);
   assert.match(home, /accessibilityLabel=\{terrainLabel\}/);
   assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);

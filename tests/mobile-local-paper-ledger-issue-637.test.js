@@ -66,12 +66,16 @@ test("#637: ledger state is not tied to any component lifecycle (tab navigation/
 
 test("#637: Home renders the shared LOCAL PAPER equity/cash/PnL only when Cloud PAPER is not active, and Cloud always wins when present", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
   assert.match(home, /import \{ buildLocalPortfolio, isLocalPaperActive \} from "\.\/localPaperLedger"/);
   assert.match(home, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
   assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
   assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
   assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
-  assert.match(home, /`PAPER P&L .* · EQUITY \$\{krw\(account\.equity\)\}`/s);
+  assert.match(home, /paperEquity: account\?\.equity/);
+  assert.match(home, /paperTotalPnl: totalPnl/);
+  assert.match(home, /const supervisorResult = decisionSurface\.result/);
+  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
   assert.match(home, /testID="home-supervisor-summary"/);
   assert.match(home, /testID="home-local-paper-note"/);
 });
