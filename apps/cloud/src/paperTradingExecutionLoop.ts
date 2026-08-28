@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
-import type { CioDecision } from "./cioDecisionEngine";
+import { validatePaperCandidateExecutionBinding, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
@@ -39,6 +39,12 @@ export interface PaperOrderRecord {
   readonly filledAt: number;
   readonly requestFingerprint?: string;
 }
+export interface PaperFillCandidateProvenance {
+  readonly schemaVersion: 1;
+  readonly source: "CIO_DECISION_BINDING";
+  readonly decisionAt: number;
+  readonly binding: PaperCandidateExecutionBinding;
+}
 export interface PaperFillRecord {
   readonly id: string;
   readonly orderId: string;
@@ -48,6 +54,11 @@ export interface PaperFillRecord {
   readonly price: number;
   readonly fee: number;
   readonly filledAt: number;
+  /**
+   * Point-in-time candidate binding copied from the exact CIO decision that caused
+   * this strategy fill. Absence is deliberate and remains non-promotable.
+   */
+  readonly candidateProvenance?: PaperFillCandidateProvenance;
 }
 export interface PaperAccountState {
   readonly version: 1;
@@ -174,6 +185,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
 }
 
 function accountChecksum(state: PaperAccountState): string { return createHash("sha256").update(JSON.stringify(state), "utf8").digest("hex"); }
+function validateFillCandidateProvenance(fill: PaperFillRecord): void {
+  const provenance = fill.candidateProvenance;
+  if (provenance == null) return;
+  if (provenance.schemaVersion !== 1 || provenance.source !== "CIO_DECISION_BINDING") throw new Error("paper fill candidate provenance is invalid");
+  if (!Number.isSafeInteger(provenance.decisionAt) || provenance.decisionAt < 0 || provenance.decisionAt > fill.filledAt) throw new Error("paper fill candidate decision time is invalid");
+  validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt);
+}
 function validateState(state: PaperAccountState): void {
   if (state.version !== 1) throw new Error("unsupported paper account state version");
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
@@ -202,6 +220,7 @@ function validateState(state: PaperAccountState): void {
     fillIds.add(fill.id); fillsByOrder.set(fill.orderId, fill);
     finiteNonNegative(fill.quantity, "paper fill quantity"); finiteNonNegative(fill.price, "paper fill price"); finiteNonNegative(fill.fee, "paper fill fee");
     if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
+    validateFillCandidateProvenance(fill);
   }
   for (const order of state.orders) {
     const fill = fillsByOrder.get(order.id);
@@ -346,7 +365,7 @@ export class PaperTradingExecutionLoop {
       const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
       if (existingKeys.has(key)) return this.result("DUPLICATE", key);
       const position = working.positions.find((item) => item.market === tick.market);
-      let quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * (investmentPercent / 100) * decision.allocation / tick.price));
+      const quantity = round8(tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * (investmentPercent / 100) * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
       const side = decision.action === "BUY" ? "BUY" : "SELL";
       if (side === "BUY") {
@@ -358,8 +377,14 @@ export class PaperTradingExecutionLoop {
           return this.result("REJECTED", error instanceof Error ? error.message : "cash investment allocation exceeded");
         }
       }
+      const candidateProvenance: PaperFillCandidateProvenance | undefined = decision.paperCandidateBinding == null ? undefined : Object.freeze({
+        schemaVersion: 1,
+        source: "CIO_DECISION_BINDING",
+        decisionAt: decision.decidedAt,
+        binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
+      });
       let order: ReturnType<typeof executeOrder>;
-      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate); }
+      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
       working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
     }
@@ -393,7 +418,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -419,7 +444,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
-  const fill: PaperFillRecord = Object.freeze({ id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now });
+  const fill: PaperFillRecord = Object.freeze({ id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }) });
   // Order/fill display history is bounded, but execution tombstones must never expire:
   // replaying an old idempotency key after restart must remain fail-closed indefinitely.
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys], updatedAt: now }, order, fill };
