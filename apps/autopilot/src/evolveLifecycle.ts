@@ -89,6 +89,36 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       ...(lastOutcome ? { lastOutcome } : {}),
     });
 
+  if (input.circuit.state.state === "OPEN") {
+    const promotion = Object.freeze({ eligible: false, exactHeadSha: input.validation.exactHeadSha, reason: "blocked:circuit-open" });
+    return freezeResult({
+      status: "CIRCUIT_OPEN",
+      opportunity,
+      plan,
+      execution,
+      promotion,
+      circuit: input.circuit.state,
+      schedule,
+      control: baseControl(true),
+      reason: "circuit-open",
+    });
+  }
+
+  if (!schedule.allowed) {
+    const promotion = Object.freeze({ eligible: false, exactHeadSha: input.validation.exactHeadSha, reason: `blocked:schedule:${schedule.reason}` });
+    return freezeResult({
+      status: "ABSTAINED",
+      opportunity,
+      plan,
+      execution,
+      promotion,
+      circuit: input.circuit.state,
+      schedule,
+      control: baseControl(false),
+      reason: `schedule-blocked:${schedule.reason}`,
+    });
+  }
+
   if (plan.status !== "PLANNED") {
     const promotion = decideEvolutionPromotion(input.validation, input.targetBranch);
     return freezeResult({
@@ -99,7 +129,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       promotion,
       circuit: input.circuit.state,
       schedule,
-      control: baseControl(input.circuit.state.state === "OPEN"),
+      control: baseControl(false),
       reason: "plan-abstained",
     });
   }
@@ -114,7 +144,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       promotion,
       circuit: input.circuit.state,
       schedule,
-      control: baseControl(input.circuit.state.state === "OPEN"),
+      control: baseControl(false),
       reason: "validation-opportunity-mismatch",
     });
   }
@@ -129,7 +159,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       promotion,
       circuit: input.circuit.state,
       schedule,
-      control: baseControl(input.circuit.state.state === "OPEN"),
+      control: baseControl(false),
       reason: "stale-exact-head",
     });
   }
@@ -150,6 +180,24 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       schedule,
       control: baseControl(circuit.state === "OPEN"),
       reason: `promotion-blocked:${input.validation.status.toLowerCase()}`,
+    });
+  }
+
+  if (input.observation.revision !== promotion.exactHeadSha) {
+    const recovery = decideEvolutionRecovery({ ...input.recovery, failureClass: "UNKNOWN" });
+    const circuit = recordCircuitFailure(input.circuit.state, input.circuit.policy, input.circuit.now);
+    const status: EvolutionLifecycleStatus = circuit.state === "OPEN" ? "CIRCUIT_OPEN" : "ABSTAINED";
+    return freezeResult({
+      status,
+      opportunity,
+      plan,
+      execution,
+      promotion,
+      recovery,
+      circuit,
+      schedule,
+      control: baseControl(circuit.state === "OPEN"),
+      reason: "runtime-revision-mismatch",
     });
   }
 
@@ -205,7 +253,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
     learning,
     circuit: input.circuit.state,
     schedule,
-    control: baseControl(input.circuit.state.state === "OPEN", outcome.outcome),
+    control: baseControl(false, outcome.outcome),
     reason: "bounded-lifecycle-complete",
   });
 }
