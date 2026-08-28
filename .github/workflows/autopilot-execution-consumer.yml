@@ -38,7 +38,9 @@ jobs:
           if (payload.kind !== 'REPOSITORY_AUTOPILOT') fail(`unexpected kind: ${payload.kind}`);
           if (payload.repository !== process.env.GITHUB_REPOSITORY) fail(`repository mismatch: ${payload.repository}`);
           if (!/^[0-9a-f]{40}$/i.test(payload.head_sha || '')) fail('head_sha must be an exact 40-character commit SHA');
-          if (payload.mutation_allowed !== false) fail('mutation_allowed must remain false');
+          if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
+          if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
+          if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
           console.log(`validated ${payload.repository}@${payload.head_sha}`);
           console.log('liveAuthority=NONE');
           console.log('productionMutationAllowed=false');
