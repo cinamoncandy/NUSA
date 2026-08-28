@@ -1,16 +1,6 @@
-import type { LeagueCapitalAllocationAdvisory } from "./leagueCapitalAllocation";
+import type { PersistedPaperPeriodRecord } from "../../../../packages/contracts/src/persistedPaperPeriod";
+export type { PersistedPaperPeriodRecord } from "../../../../packages/contracts/src/persistedPaperPeriod";
 import type { ShadowAllocationPeriodInput } from "./shadowAllocationEvaluation";
-
-export interface PersistedPaperPeriodRecord {
-  readonly recordId: string;
-  readonly periodIndex: number;
-  readonly advisory: LeagueCapitalAllocationAdvisory;
-  readonly periodStartAt: number;
-  readonly periodEndAt: number;
-  readonly realizedReturns: Readonly<Record<string, number>>;
-  readonly benchmarkReturn: number;
-  readonly turnoverCostRate: number;
-}
 
 export interface PersistedPaperPeriodAdapterResult {
   readonly periods: readonly ShadowAllocationPeriodInput[];
@@ -82,6 +72,12 @@ export function adaptPersistedPaperPeriods(
     assertFinite(record.benchmarkReturn, "NON_FINITE_BENCHMARK_RETURN", `record ${record.recordId} benchmarkReturn must be finite`, record.recordId);
     assertFinite(record.turnoverCostRate, "NON_FINITE_COST_RATE", `record ${record.recordId} turnoverCostRate must be finite`, record.recordId);
     if (record.turnoverCostRate < 0) throw new PersistedPaperPeriodAdapterError("NEGATIVE_COST_RATE", `record ${record.recordId} turnoverCostRate must be non-negative`, record.recordId);
+    if (record.status !== "COMPLETED" && record.status !== "REJECTED" && record.status !== "HALTED") throw new PersistedPaperPeriodAdapterError("INVALID_STATUS", `record ${record.recordId} status is unsupported`, record.recordId);
+    if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || !record.costEvidence.evidenceId.trim() || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) {
+      throw new PersistedPaperPeriodAdapterError("MISSING_COST_PROVENANCE", `record ${record.recordId} has no attributable execution cost evidence`, record.recordId);
+    }
+    for (const [field, value] of Object.entries({ feeRate: record.costEvidence.feeRate, spreadRate: record.costEvidence.spreadRate, slippageRate: record.costEvidence.slippageRate })) assertFinite(value, `NON_FINITE_${field.toUpperCase()}`, `record ${record.recordId} ${field} must be finite`, record.recordId);
+    if (record.costEvidence.feeRate < 0 || record.costEvidence.spreadRate < 0 || record.costEvidence.slippageRate < 0) throw new PersistedPaperPeriodAdapterError("NEGATIVE_COST_RATE", `record ${record.recordId} execution cost rates must be non-negative`, record.recordId);
 
     periods.push(freeze({ periodIndex: record.periodIndex, advisory: record.advisory, realizedReturns: freeze({ ...record.realizedReturns }), benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate }));
     applied.push(record.recordId);

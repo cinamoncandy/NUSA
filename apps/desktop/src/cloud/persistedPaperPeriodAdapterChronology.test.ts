@@ -17,7 +17,7 @@ function advisory(generatedAt: string): LeagueCapitalAllocationAdvisory {
 }
 
 function period(recordId: string, periodIndex: number, start: number, end: number): PersistedPaperPeriodRecord {
-  return { recordId, periodIndex, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: end, realizedReturns: { a: 0.01 }, benchmarkReturn: 0, turnoverCostRate: 0.001 };
+  return { recordId, periodIndex, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: end, realizedReturns: { a: 0.01 }, benchmarkReturn: 0, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
 }
 
 test("PAPER adapter rejects wall-clock overlap even when period indexes increase", () => {

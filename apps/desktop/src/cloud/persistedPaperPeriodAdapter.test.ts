@@ -39,6 +39,8 @@ function record(overrides: Partial<PersistedPaperPeriodRecord> = {}): PersistedP
     realizedReturns: { a: 0.01, b: 0.02 },
     benchmarkReturn: 0.005,
     turnoverCostRate: 0.001,
+    costEvidence: { evidenceId: "cost-record-0", source: "PAPER_EXECUTION_RECEIPT", observedAt: BASE + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 },
+    status: "COMPLETED",
     ...overrides,
   };
 }
@@ -72,7 +74,7 @@ describe("adaptPersistedPaperPeriods", () => {
     const alreadyApplied = new Set(first.appliedRecordIds);
     const replay = adaptPersistedPaperPeriods([
       record({ recordId: "r1" }),
-      record({ recordId: "r2", periodIndex: 1, advisory: advisory(new Date(BASE).toISOString(), { a: 0.5, b: 0.5 }), periodStartAt: BASE + DAY, periodEndAt: BASE + DAY * 2 }),
+      record({ recordId: "r2", periodIndex: 1, advisory: advisory(new Date(BASE).toISOString(), { a: 0.5, b: 0.5 }), periodStartAt: BASE + DAY, periodEndAt: BASE + DAY * 2, costEvidence: { evidenceId: "cost-r2", source: "PAPER_EXECUTION_RECEIPT", observedAt: BASE + DAY + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 } }),
     ], alreadyApplied);
     assert.deepEqual(replay.appliedRecordIds, ["r2"]);
     assert.deepEqual(replay.skippedDuplicateRecordIds, ["r1"]);
@@ -84,7 +86,7 @@ describe("adaptPersistedPaperPeriods", () => {
   });
 
   it("orders periods chronologically regardless of input order and preserves real cost evidence", () => {
-    const second = record({ recordId: "r2", periodIndex: 1, advisory: advisory(new Date(BASE).toISOString(), { a: 1 }), periodStartAt: BASE + DAY, periodEndAt: BASE + DAY * 2, realizedReturns: { a: 0.03 } });
+    const second = record({ recordId: "r2", periodIndex: 1, advisory: advisory(new Date(BASE).toISOString(), { a: 1 }), periodStartAt: BASE + DAY, periodEndAt: BASE + DAY * 2, realizedReturns: { a: 0.03 }, costEvidence: { evidenceId: "cost-r2", source: "PAPER_EXECUTION_RECEIPT", observedAt: BASE + DAY + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 } });
     const first = record({ recordId: "r1", periodIndex: 0 });
     const result = adaptPersistedPaperPeriods([second, first]);
     assert.deepEqual(result.periods.map((period) => period.periodIndex), [0, 1]);

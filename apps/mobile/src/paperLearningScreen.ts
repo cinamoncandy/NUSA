@@ -15,7 +15,7 @@ export type PaperLearningDataSource =
   | "LOCAL_FALLBACK"
   | "SERVER_STREAM";
 
-export type PaperLearningUiStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
+export type PaperLearningUiStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY" | "PERIOD_OPEN" | "PERIOD_REALIZED_PERSISTED" | "PERIOD_REJECTED";
 export interface PaperLearningGateUi { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
 export interface PaperLearningUiEvent {
   readonly id: string;
