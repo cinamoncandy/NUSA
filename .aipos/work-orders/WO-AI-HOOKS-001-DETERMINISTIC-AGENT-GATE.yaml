@@ -40,8 +40,13 @@ acceptance:
 validation:
   focused_local_harness: PASS_6_OF_6
   hook_json_parse: PASS
-  repository_full_suite: PENDING_REMOTE_CI
-  preflight: PENDING_REMOTE_CI
-  safety: PENDING_REMOTE_CI
+  base_exact_head_ci: PASS_RUN_33153278610_SHA_74d3acb3e3a81df25f98d04a1bf45e8a97fdd621
+  base_exact_head_preflight: PASS
+  delta_portability_audit: PASS_NO_FORBIDDEN_PATH_OR_RECONSTRUCTED_VERSION_PATTERNS
+  branch_relation: AHEAD_4_BEHIND_0_BEFORE_EVIDENCE_UPDATE
+  repository_full_suite: PENDING_EXACT_BRANCH_VALIDATION
+  preflight_exact_branch: PENDING_EXECUTABLE_LOCAL_NODE24_REPOSITORY_CHECKOUT
+  safety_exact_branch: PENDING_PROTECTED_CI
 implementation_status: IMPLEMENTED_BRANCH_VALIDATION_PENDING_PR
-next: "Verify exact branch contents, then open one PR only after available validation evidence is truthful; merge only if protected checks pass."
+blocker: "Current execution container cannot resolve github.com and provides Node 22 rather than NUSA-required Node 24, while the connected GitHub interface has no arbitrary workflow-dispatch action. Do not claim exact-branch pnpm preflight until it actually runs."
+next: "Run pnpm run preflight on an exact checkout of this branch with Node 24; if PASS, open exactly one PR, verify exact-head protected checks, and merge only when green."
