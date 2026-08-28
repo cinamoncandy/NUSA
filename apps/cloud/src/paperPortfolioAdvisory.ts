@@ -52,7 +52,6 @@ export interface PaperPortfolioAdvisoryResult {
   readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
-const round = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
 const sha256 = /^[a-f0-9]{64}$/i;
 
 const requireFinite = (value: number, label: string): void => {
@@ -62,6 +61,19 @@ const requireFinite = (value: number, label: string): void => {
 const requireRatio = (value: number, label: string): void => {
   requireFinite(value, label);
   if (value < 0 || value > 1) throw new Error(`${label} must be between 0 and 1`);
+};
+
+const roundFinite = (value: number, label: string): number => {
+  requireFinite(value, label);
+  const rounded = Math.round(value * 1_000_000) / 1_000_000;
+  requireFinite(rounded, label);
+  return rounded;
+};
+
+const validateConsumedPolicy = (policy: CapitalAllocationPolicy): void => {
+  requireRatio(policy.maximumPortfolioWeight, "maximumPortfolioWeight");
+  requireRatio(policy.maximumStrategyWeight, "maximumStrategyWeight");
+  requireRatio(policy.maximumCorrelation, "maximumCorrelation");
 };
 
 const freezeResult = (result: PaperPortfolioAdvisoryResult): PaperPortfolioAdvisoryResult => {
@@ -87,9 +99,13 @@ export const evaluatePaperPortfolioAdvisory = (
   if (!Number.isInteger(input.minimumEvidencePeriods) || input.minimumEvidencePeriods <= 0) {
     throw new Error("minimumEvidencePeriods must be a positive integer");
   }
+  if (!Number.isInteger(input.evidence.evidencePeriods) || input.evidence.evidencePeriods < 0) {
+    throw new Error("evidencePeriods must be a non-negative integer");
+  }
   if (!Number.isFinite(input.maximumEvidenceAgeMs) || input.maximumEvidenceAgeMs < 0) {
     throw new Error("maximumEvidenceAgeMs must be non-negative");
   }
+  validateConsumedPolicy(policy);
   requireRatio(input.maximumRegimeCoFailureRate, "maximumRegimeCoFailureRate");
   requireRatio(input.evidence.currentPortfolioGrossWeight, "currentPortfolioGrossWeight");
   requireRatio(input.evidence.currentStrategyWeight, "currentStrategyWeight");
@@ -110,22 +126,25 @@ export const evaluatePaperPortfolioAdvisory = (
 
   const costDrag = input.evidence.estimatedTurnover
     * (input.evidence.estimatedFeeRate + input.evidence.estimatedSlippageRate);
-  const netExpectedEdge = round(input.evidence.grossExpectedEdge - costDrag);
+  const netExpectedEdge = roundFinite(input.evidence.grossExpectedEdge - costDrag, "netExpectedEdge");
   if (netExpectedEdge <= 0) reasons.push("NON_POSITIVE_EDGE_AFTER_COSTS");
 
   const availablePortfolioWeight = Math.max(
     0,
     policy.maximumPortfolioWeight - input.evidence.currentPortfolioGrossWeight + input.evidence.currentStrategyWeight
   );
-  const maximumWeight = round(Math.min(policy.maximumStrategyWeight, availablePortfolioWeight));
+  const maximumWeight = roundFinite(Math.min(policy.maximumStrategyWeight, availablePortfolioWeight), "maximumWeight");
   if (maximumWeight <= 0) reasons.push("PORTFOLIO_CONCENTRATION_LIMIT_REACHED");
 
   const failClosed = reasons.length > 0;
+  const recommendedWeight = failClosed ? 0 : maximumWeight;
+  requireFinite(recommendedWeight, "recommendedWeight");
+
   return freezeResult({
     advisoryId: input.advisoryId,
     strategyId: input.strategyId,
     decision: failClosed ? "ABSTAIN" : "ADVISE",
-    recommendedWeight: failClosed ? 0 : maximumWeight,
+    recommendedWeight,
     maximumWeight,
     netExpectedEdge,
     reasons: Object.freeze(reasons),
