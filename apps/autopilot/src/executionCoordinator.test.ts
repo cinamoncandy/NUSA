@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { acquirePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import {
+  acquirePersistentExecution,
+  type DurableObjectIdLike,
+  type DurableObjectStubLike,
+  type ExecutionCoordinatorNamespace,
+} from "./executionCoordinator";
 
 function fakeNamespace(status: number, body: object): ExecutionCoordinatorNamespace {
-  const id = {} as DurableObjectId;
+  const id: DurableObjectIdLike = {};
   return {
     idFromName: () => id,
-    get: () => ({ fetch: async () => new Response(JSON.stringify(body), { status }) } as unknown as DurableObjectStub),
+    get: () => ({ fetch: async () => new Response(JSON.stringify(body), { status }) } as DurableObjectStubLike),
   };
 }
 
