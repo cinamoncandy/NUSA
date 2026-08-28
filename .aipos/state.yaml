@@ -88,6 +88,7 @@ claimed_state:
   branch: codex/issue-905-outcome-evaluator-adapter
   base_commit: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
   scope: "Consolidate duplicate outcome classification behind the existing canonical evaluator while preserving read-only advisory semantics."
+  implementation_commit: 54b20d0602f927ee3b39010c63fae1f9a4b5d62a
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "Focused outcome tests 13/13 PASS; autopilot regression 65/65 PASS; full isolated suite 700 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker/package validation PASS."
 previous_claimed_state:
