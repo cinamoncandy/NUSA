@@ -5,7 +5,7 @@ current_execution_target:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: VERIFYING
   branch: codex/issue-889-realized-period-producer
-  base_sha: 96d509238e6b25d035bf4c74b7122c1648fe7943
+  base_sha: 107331226451137ad5c74247ed2596b98a520598
   scope: "Issue #889 canonical producer is integrated with current main, reusing the #885 durable store and preserving #970 candidate provenance; local validation is complete and remote publication/exact-head CI remain pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
@@ -86,7 +86,7 @@ claimed_state:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: VERIFYING
   branch: codex/issue-889-realized-period-producer
-  base_commit: 96d509238e6b25d035bf4c74b7122c1648fe7943
+  base_commit: 107331226451137ad5c74247ed2596b98a520598
   scope: "Issue #889 producer remediation is locally validated on current main; verification remains limited to exact remote publication/CI and must not manufacture longitudinal PAPER performance."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "focused producer/runtime/admission 44/44; full isolated suite 686 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."

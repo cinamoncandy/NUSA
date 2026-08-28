@@ -5,7 +5,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
 base_branch: main
-base_commit: 96d509238e6b25d035bf4c74b7122c1648fe7943
+base_commit: 107331226451137ad5c74247ed2596b98a520598
 implementation_branch: codex/issue-889-realized-period-producer
 objective: "Connect the canonical Cloud PAPER execution observation path to a durable, server-owned realized-period producer. Persist only explicit candidate/dataset/provenance-bound outcomes after a genuinely realized interval, preserve rejected/halted denominator evidence, and expose a restart-safe read path for the existing research admission/League bridge."
 architecture_impact:
@@ -67,11 +67,11 @@ validation:
   read_only_broker: PASS
 implementation_status: LOCAL_INTEGRATION_VALIDATED_PENDING_REMOTE_PR
 pull_request: null
-implementation_head: 95509711959540d188edba93639e157ae3b87667
+implementation_head: b53895c840872f675ba8e7a9d5565ef3c0e1b3c4
 merge_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
 post_merge_integration_commit: 7a613c2fd073b125de1df868452803bf471d4d19
 remediation_commit: 2508f70c7403499725fe817b30915e6f9ab59ecc
-local_validation_head: 95509711959540d188edba93639e157ae3b87667
+local_validation_head: b53895c840872f675ba8e7a9d5565ef3c0e1b3c4
 remediation_scope: "Replace the duplicate cloud paper_realized_periods path with the canonical #885 research_paper_forward_periods store, require explicit execution cost provenance, preserve candidate/advisory identity, emit structured period lifecycle events, and recover pending periods across restart without changing PAPER execution authority."
 remediation_validation: "Focused producer/storage/runtime suite 44/44 PASS; full isolated suite 686 files PASS; typecheck/build/lint/preflight/package/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 known_limitations:
