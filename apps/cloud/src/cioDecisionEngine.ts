@@ -2,6 +2,28 @@ export type CioAction = "BUY" | "SELL" | "HOLD" | "REDUCE" | "EXIT" | "WAIT";
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type SignalSource = "MACRO" | "NEWS" | "CHART" | "ONCHAIN" | "ETF" | "FUNDING" | "OI" | "RISK";
 
+/**
+ * Fail-closed transport form of the research-side PAPER candidate binding receipt.
+ *
+ * This remains BOUND_UNVERIFIED. Carrying it on a CIO decision proves only that an
+ * upstream governance receipt was supplied at a valid point in time. It does not
+ * grant LIVE authority and does not by itself make a PAPER fill promotable evidence.
+ */
+export interface PaperCandidateExecutionBinding {
+  readonly schemaVersion: 1;
+  readonly status: "BOUND_UNVERIFIED";
+  readonly authority: "PAPER_RESEARCH_ONLY";
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+  readonly candidateId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly advisoryGeneratedAt: number;
+  readonly periodStartAt: number;
+  readonly advisoryFingerprintSha256: string;
+  readonly bindingFingerprintSha256: string;
+}
+
 export interface CioSignal {
   readonly source: SignalSource;
   readonly score: number;
@@ -19,6 +41,7 @@ export interface CioDecisionInput {
   readonly maxLeverage: number;
   readonly risk: RiskLevel;
   readonly tradingEnabled: boolean;
+  readonly paperCandidateBinding?: PaperCandidateExecutionBinding;
 }
 
 export interface CioDecision {
@@ -31,6 +54,7 @@ export interface CioDecision {
   readonly score: number;
   readonly reasons: readonly string[];
   readonly decidedAt: number;
+  readonly paperCandidateBinding?: PaperCandidateExecutionBinding;
 }
 
 const WEIGHTS: Readonly<Record<SignalSource, number>> = Object.freeze({
@@ -44,6 +68,8 @@ const WEIGHTS: Readonly<Record<SignalSource, number>> = Object.freeze({
   RISK: 1.4
 });
 
+const SHA256 = /^[a-f0-9]{64}$/;
+
 const assertUnit = (value: number, field: string): void => {
   if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${field} must be between 0 and 1`);
 };
@@ -55,6 +81,31 @@ const assertScore = (value: number): void => {
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
+export function validatePaperCandidateExecutionBinding(
+  binding: PaperCandidateExecutionBinding,
+  decisionAt: number,
+): PaperCandidateExecutionBinding {
+  if (binding.schemaVersion !== 1 || binding.status !== "BOUND_UNVERIFIED" || binding.authority !== "PAPER_RESEARCH_ONLY") {
+    throw new Error("paper candidate binding contract is invalid");
+  }
+  if (binding.liveAuthority !== "NONE" || binding.productionMutationAllowed !== false) {
+    throw new Error("paper candidate binding authority must remain fail-closed");
+  }
+  const candidateId = binding.candidateId.trim();
+  const datasetId = binding.datasetId.trim();
+  if (!candidateId || candidateId === "CIO_PAPER") throw new Error("paper candidate binding candidateId is invalid");
+  if (!datasetId) throw new Error("paper candidate binding datasetId is required");
+  if (!SHA256.test(binding.datasetContentSha256) || !SHA256.test(binding.advisoryFingerprintSha256) || !SHA256.test(binding.bindingFingerprintSha256)) {
+    throw new Error("paper candidate binding fingerprint is invalid");
+  }
+  for (const [name, value] of [["advisoryGeneratedAt", binding.advisoryGeneratedAt], ["periodStartAt", binding.periodStartAt], ["decisionAt", decisionAt]] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name} must be a non-negative safe integer`);
+  }
+  if (binding.advisoryGeneratedAt >= binding.periodStartAt) throw new Error("paper candidate binding contains lookahead advisory provenance");
+  if (binding.periodStartAt > decisionAt) throw new Error("paper candidate binding period starts after decision time");
+  return Object.freeze({ ...binding, candidateId, datasetId });
+}
+
 export function decideCio(input: CioDecisionInput): CioDecision {
   if (!input.symbol.trim()) throw new Error("symbol is required");
   if (!Number.isSafeInteger(input.now) || input.now < 0) throw new Error("now must be a non-negative safe integer");
@@ -64,6 +115,9 @@ export function decideCio(input: CioDecisionInput): CioDecision {
   if (!Number.isInteger(input.maxLeverage) || input.maxLeverage < 1 || input.maxLeverage > 20) throw new Error("maxLeverage must be an integer between 1 and 20");
   if (input.signals.length === 0) throw new Error("at least one signal is required");
 
+  const candidateBinding = input.paperCandidateBinding == null
+    ? undefined
+    : validatePaperCandidateExecutionBinding(input.paperCandidateBinding, input.now);
   const seen = new Set<SignalSource>();
   let weightedScore = 0;
   let totalWeight = 0;
@@ -120,6 +174,7 @@ export function decideCio(input: CioDecisionInput): CioDecision {
     leverage,
     score,
     reasons: Object.freeze(reasons),
-    decidedAt: input.now
+    decidedAt: input.now,
+    ...(candidateBinding == null ? {} : { paperCandidateBinding: candidateBinding })
   });
 }
