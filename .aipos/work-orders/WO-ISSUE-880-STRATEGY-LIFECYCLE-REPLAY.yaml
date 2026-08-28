@@ -7,7 +7,7 @@ owner: codex
 repository: cinamoncandy/NUSA
 issue: 880
 base_branch: main
-base_commit: c3b94e6b0146301806f647f16121e4680f92656b
+base_commit: f283358c52e658c0a8ff59b379356731a0e36ef7
 implementation_branch: codex/issue-880-lifecycle-replay
 objective: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
 architecture_impact:
@@ -45,9 +45,9 @@ acceptance:
   - existing governance, promotion, rollback, and candidate regressions remain green
   - no execution, accounting, risk, broker, or LIVE authority changes
 validation:
-  focused: PASS_25_OF_25
-  relevant_regressions: PASS_25_OF_25
-  full_isolated_suite: PASS_730_FILES
+  focused: PASS_28_OF_28
+  relevant_regressions: PASS_28_OF_28
+  full_isolated_suite: PASS_731_FILES
   preflight: PASS
   typecheck: PASS
   build: PASS
@@ -61,7 +61,9 @@ validation:
   aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
   package_validation: PASS
   git_diff_check: PASS
-implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PUBLICATION
+implementation_status: IMPLEMENTED_LATEST_MAIN_LOCAL_VALIDATION_PENDING_PUBLICATION
+implementation_commit: 3830ebed21ed42f9c186c551eb93a4d28d8e8cbd
+validation_head: b27a4bb5759d870fa9b23eaeb70e0505254e5379
 known_limitations:
   - "This slice closes restart-safe lifecycle projection; evidence-driven quarantine, demotion, and retirement orchestration remain a separate #880 follow-up."
-next: "Publish this bounded restart-safe projection fix, validate the exact remote head, and keep full strategy lifecycle acceptance open until evidence-driven containment orchestration is implemented."
+next: "Publish this bounded restart-safe projection fix, validate its exact remote head, and keep full strategy lifecycle acceptance open until evidence-driven containment orchestration is implemented."

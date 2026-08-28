@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T06:27:12+09:00"
+updated_at: "2026-08-29T06:32:31+09:00"
 current_execution_target:
   work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
   status: VERIFYING
   branch: codex/issue-880-lifecycle-replay
-  base_sha: c3b94e6b0146301806f647f16121e4680f92656b
+  base_sha: f283358c52e658c0a8ff59b379356731a0e36ef7
   scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: repository-validation
@@ -86,11 +86,11 @@ claimed_state:
   work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
   status: VERIFYING
   branch: codex/issue-880-lifecycle-replay
-  base_commit: c3b94e6b0146301806f647f16121e4680f92656b
+  base_commit: f283358c52e658c0a8ff59b379356731a0e36ef7
   scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
-  implementation_commit: null
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 25/25 and full 730-file isolated validation PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package gates PASS; awaiting exact-head publication."
+  implementation_commit: 3830ebed21ed42f9c186c551eb93a4d28d8e8cbd
+  validation: "Latest-main merge b27a4bb5 validated: focused 28/28 and full 731-file isolated suite PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package gates PASS; awaiting exact-head publication."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -498,7 +498,7 @@ in_progress:
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
   - id: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
     evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml"
-    summary: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority; local implementation and validation PASS, exact-head publication pending."
+    summary: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority; latest-main implementation and 731-file local validation PASS, exact-head publication pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -526,7 +526,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml
-  reason: "Publish and exact-head validate the concrete restart-safe strategy lifecycle projection gap using the existing governance ledger and SQLite store."
+  reason: "Publish and exact-head validate the latest-main concrete restart-safe strategy lifecycle projection gap using the existing governance ledger and SQLite store."
 verification:
   wo_0057:
     parent_pull_request: 552
