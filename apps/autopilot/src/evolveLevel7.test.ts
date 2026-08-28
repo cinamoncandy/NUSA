@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { coordinateLevel7Evolution, type EvolutionLevel7Input } from "./evolveLevel7";
+import type { EvolutionLearningMemoryRepository, EvolutionLearningRecord } from "./evolveLearningMemory";
 import type { EvolutionOpportunity } from "./evolveOpportunity";
 
 const HEAD = "3333333333333333333333333333333333333333";
@@ -139,4 +140,26 @@ test("Level 7 fails closed if validation evidence belongs to a different selecte
   assert.equal(result.status, "COORDINATED");
   assert.equal(result.lifecycle?.status, "ABSTAINED");
   assert.equal(result.lifecycle?.reason, "validation-opportunity-mismatch");
+});
+
+test("Level 7 persists only the existing lifecycle learning record through an injected evidence sink", () => {
+  const input = baseInput();
+  const persistedRecords: EvolutionLearningRecord[] = [];
+  const learningMemory: EvolutionLearningMemoryRepository = {
+    append(record) { persistedRecords.push(record); },
+    list() { return persistedRecords; },
+  };
+  const result = coordinateLevel7Evolution({ ...input, learningMemory });
+  assert.equal(result.lifecycle?.status, "COMPLETED");
+  assert.equal(persistedRecords.length, 1);
+  assert.equal(persistedRecords[0]?.opportunityId, "opp:higher");
+});
+
+test("Level 7 does not report a cycle when injected learning persistence fails", () => {
+  const input = baseInput();
+  const learningMemory = {
+    append() { throw new Error("storage unavailable"); },
+    list() { return []; },
+  } satisfies NonNullable<EvolutionLevel7Input["learningMemory"]>;
+  assert.throws(() => coordinateLevel7Evolution({ ...input, learningMemory }), /EVOLVE_LEARNING_PERSISTENCE_FAILED/);
 });
