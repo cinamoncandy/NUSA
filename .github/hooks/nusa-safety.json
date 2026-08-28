@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "node scripts/copilot-safety-hook.js",
+        "powershell": "node scripts/copilot-safety-hook.js",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
