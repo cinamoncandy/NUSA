@@ -1,0 +1,53 @@
+version: 1
+id: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
+title: "Reconcile Control Room risk and reconciliation evidence assertions"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: null
+pull_request: 1030
+base_branch: main
+base_commit: bfaac61e652210178eeab78200aa4af4a48adc24
+implementation_branch: auto/ui-truth-risk-reconciliation-evidence
+objective: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
+scope:
+  - control_room_risk_evidence_projection
+  - control_room_reconciliation_evidence_projection
+  - stale_regression_assertion_reconciliation
+architecture_impact:
+  acknowledged: true
+  analysis: "Update the existing renderer regression contract for the already-authored evidence-truthful projection; no new state engine, authority path, scheduler, queue, execution, or accounting path."
+  references:
+    - apps/desktop/renderer/control-room.js
+    - tests/control-room-risk-semantics.test.js
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+  reused:
+    - canonical_shadow_diagnostics_snapshot
+    - existing_control_room_renderer
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paperOnly: true
+  brokerMutation: NONE
+prohibited:
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - fabricated_risk_or_reconciliation_evidence
+acceptance:
+  - missing_risk_evidence_is_explicitly_unknown
+  - missing_reconciliation_evidence_is_explicitly_unknown
+  - observed_risk_decision_remains_visible
+  - observed_reconciliation_blocker_remains_visible
+  - renderer_regression_contract_matches_evidence_projection
+  - no_authority_or_mutation_path_is_added
+validation:
+  focused_control_room: PASS_43_OF_43
+  build: PASS
+  exact_head_ci: PENDING
+  non_required_cloudflare_build: FAILURE_NOT_REQUIRED
+known_limitations:
+  - "Cloudflare Workers Builds failure is an external non-required check and is not used to claim required CI success."
+next: "Publish the stale-assertion test fix, then verify all required checks on the resulting exact PR head."

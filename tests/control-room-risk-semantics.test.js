@@ -29,7 +29,11 @@ test("Shadow risk verdict is distinct from the final execution Risk Gateway", ()
   assert.equal(renderedStageLabels[1].textContent, "신호 리스크 판단");
   assert.match(controlRoomSource, /whyField\("리스크 판단", signal\.riskDecision\)/);
 
-  // Final execution authority stays separately fail-closed until risk-gate composition lands.
-  assert.match(controlRoomSource, /tile\("Risk Gateway", riskValue, "RISK_GATE_NOT_CONFIGURED"\)/);
-  assert.match(controlRoomSource, /riskValue\.replaceChildren\(badge\("bad", "■", "HALT"\)\)/);
+  // Final execution authority stays separately fail-closed, and missing evidence is not
+  // presented as either a HALT or a successful risk verdict.
+  assert.match(controlRoomSource, /const riskDecision = signal && signal\.riskDecision;/);
+  assert.match(controlRoomSource, /badge\("neutral", "○", "증거 없음"\)/);
+  assert.match(controlRoomSource, /riskDecision \? "최근 신호의 Risk 판단" : "Risk 판단 증거 미제공"/);
+  assert.match(controlRoomSource, /blockers\.includes\("RECONCILIATION_REQUIRED"\)/);
+  assert.match(controlRoomSource, /reconciliationRequired \? "runtime blocker 근거" : "정합성 상태 증거 미제공"/);
 });

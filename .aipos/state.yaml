@@ -2,13 +2,13 @@ version: 1
 project: nusa
 updated_at: "2026-08-29T00:00:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT
+  work_order: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
   status: VERIFYING
-  branch: codex/paper-orderbook-quote-receipt
-  base_sha: cc180618e9786987f2afb34b52cd5bee39da9c3d
-  scope: "Persist canonical public PAPER order-book quote receipts with fills and revalidate observed cost attribution after restart without adding authority."
+  branch: auto/ui-truth-risk-reconciliation-evidence
+  base_sha: bfaac61e652210178eeab78200aa4af4a48adc24
+  scope: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: constitutional-production-human-environment-gate
+phase: exact-head-ci-recovery
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/paper-orderbook-quote-receipt
+active_branch: auto/ui-truth-risk-reconciliation-evidence
 active_successor_branch: null
-active_pull_request: 1029
+active_pull_request: 1030
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT
+  work_order: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
   status: VERIFYING
-  branch: codex/paper-orderbook-quote-receipt
-  base_commit: cc180618e9786987f2afb34b52cd5bee39da9c3d
-  scope: "Persist canonical public PAPER order-book quote receipts with fills and revalidate observed cost attribution after restart without adding authority."
-  implementation_commit: 93718e898487aae1fc4112439aeb688382db9b01
+  branch: auto/ui-truth-risk-reconciliation-evidence
+  base_commit: bfaac61e652210178eeab78200aa4af4a48adc24
+  scope: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
+  implementation_commit: PENDING_EXACT_HEAD_CI
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused quote receipt/persistence 41/41 PASS; typecheck/build PASS; full repository and exact-head validation pending."
+  validation: "Focused Control Room 43/43 PASS; full isolated suite 726/726 PASS; typecheck/build/lint/preflight/architecture/safety/security PASS; exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -493,9 +493,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT
-    evidence: ".aipos/work-orders/WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT.yaml"
-    summary: "Persist canonical public PAPER order-book quote receipts with fills and revalidate observed cost attribution after restart without adding authority."
+  - id: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
+    evidence: ".aipos/work-orders/WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH.yaml"
+    summary: "Reconcile the Control Room risk and reconciliation evidence assertions without adding authority or mutation."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +522,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT.yaml
-  reason: "Complete canonical PAPER order-book quote receipt persistence and exact-head validation for Issue #1016."
+  work_order: .aipos/work-orders/WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH.yaml
+  reason: "Publish the stale-assertion test fix, then verify all required checks on the resulting exact PR head."
 verification:
   wo_0057:
     parent_pull_request: 552
