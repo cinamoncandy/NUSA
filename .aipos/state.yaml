@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-905-outcome-evaluator-adapter
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 999
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is

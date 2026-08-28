@@ -56,7 +56,8 @@ validation:
   safety: PASS
   security: PASS
   aipos: PASS
-implementation_status: LOCAL_VALIDATED_PENDING_PR
+implementation_status: PUBLISHED_PENDING_EXACT_HEAD_CI
+pull_request: 999
 known_limitations:
   - "Issue #905 still requires measured pre/post optimization telemetry, AUTO_BACKGROUND versus USER_TRIGGERED evidence, and any remaining owner-exception UX work; this slice only removes duplicate outcome classification logic."
-next: "Publish the validated branch, then verify required checks on the exact PR head."
+next: "Verify all required checks on PR #999 exact head; merge only after they are green."
