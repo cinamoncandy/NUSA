@@ -1,6 +1,20 @@
 import { createHash } from "node:crypto";
-import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
-import type { PaperFillRecord } from "./paperTradingExecutionLoop";
+import { validatePaperCandidateExecutionBinding, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
+
+export interface PaperRuntimeCostEvidenceCandidateProvenance {
+  readonly schemaVersion: 1;
+  readonly source: "CIO_DECISION_BINDING";
+  readonly decisionAt: number;
+  readonly binding: PaperCandidateExecutionBinding;
+}
+
+export interface PaperRuntimeCostEvidenceFillInput {
+  readonly id: string;
+  readonly price: number;
+  readonly fee: number;
+  readonly filledAt: number;
+  readonly candidateProvenance?: PaperRuntimeCostEvidenceCandidateProvenance;
+}
 
 export interface PaperRuntimeExecutionCostEvidence {
   readonly schemaVersion: 1;
@@ -44,16 +58,7 @@ function fingerprint(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }
 
-/**
- * Captures only facts the current canonical PAPER simulator actually knows at fill time.
- * Spread and slippage stay explicitly unknown. This evidence must therefore remain
- * non-promotable until a trusted observed source or an accepted conservative model
- * completes those components.
- */
-export function buildPaperRuntimeExecutionCostEvidence(
-  fill: PaperFillRecord,
-  quotePrice: number,
-): PaperRuntimeExecutionCostEvidence {
+function canonicalCandidateId(fill: PaperRuntimeCostEvidenceFillInput): string {
   const provenance = fill.candidateProvenance;
   if (provenance == null) {
     throw new PaperRuntimeExecutionCostEvidenceError("MISSING_CANDIDATE_PROVENANCE", `fill ${fill.id} has no canonical candidate provenance`);
@@ -64,34 +69,43 @@ export function buildPaperRuntimeExecutionCostEvidence(
   if (!Number.isSafeInteger(provenance.decisionAt) || provenance.decisionAt < 0 || provenance.decisionAt > fill.filledAt) {
     throw new PaperRuntimeExecutionCostEvidenceError("INVALID_CANDIDATE_PROVENANCE", `fill ${fill.id} candidate provenance time is invalid`);
   }
-
-  let candidateId: string;
   try {
-    candidateId = validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt).candidateId;
+    return validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt).candidateId;
   } catch {
     throw new PaperRuntimeExecutionCostEvidenceError("INVALID_CANDIDATE_PROVENANCE", `fill ${fill.id} candidate binding is invalid`);
   }
+}
 
-  const normalizedQuotePrice = finitePositive(quotePrice, "quotePrice");
-  const fillPrice = finitePositive(fill.price, "fill.price");
-  const feeAmount = finiteNonNegative(fill.fee, "fill.fee");
+function buildCore(fill: PaperRuntimeCostEvidenceFillInput, quotePrice: number) {
   if (!fill.id.trim()) {
     throw new PaperRuntimeExecutionCostEvidenceError("INVALID_FILL_IDENTITY", "fill identity is required");
   }
-
-  const core = Object.freeze({
+  return Object.freeze({
     schemaVersion: 1 as const,
     source: "PAPER_EXECUTION_BOUNDARY" as const,
     evidenceKind: "OBSERVED" as const,
     completeness: "INCOMPLETE" as const,
     fillId: fill.id,
-    candidateId,
-    quotePrice: normalizedQuotePrice,
-    fillPrice,
-    feeAmount,
+    candidateId: canonicalCandidateId(fill),
+    quotePrice: finitePositive(quotePrice, "quotePrice"),
+    fillPrice: finitePositive(fill.price, "fill.price"),
+    feeAmount: finiteNonNegative(fill.fee, "fill.fee"),
     spreadAmount: null,
     slippageAmount: null,
   });
+}
+
+/**
+ * Captures only facts the current canonical PAPER simulator actually knows at fill time.
+ * Spread and slippage stay explicitly unknown. This evidence must therefore remain
+ * non-promotable until a trusted observed source or an accepted conservative model
+ * completes those components.
+ */
+export function buildPaperRuntimeExecutionCostEvidence(
+  fill: PaperRuntimeCostEvidenceFillInput,
+  quotePrice: number,
+): PaperRuntimeExecutionCostEvidence {
+  const core = buildCore(fill, quotePrice);
   const evidenceFingerprintSha256 = fingerprint(core);
   if (!SHA256.test(evidenceFingerprintSha256)) {
     throw new PaperRuntimeExecutionCostEvidenceError("INVALID_EVIDENCE_FINGERPRINT", "runtime execution-cost evidence fingerprint is invalid");
@@ -104,11 +118,38 @@ export function buildPaperRuntimeExecutionCostEvidence(
     completeness: "INCOMPLETE",
     evidenceId,
     evidenceFingerprintSha256,
-    candidateId,
-    quotePrice: normalizedQuotePrice,
-    fillPrice,
-    feeAmount,
+    candidateId: core.candidateId,
+    quotePrice: core.quotePrice,
+    fillPrice: core.fillPrice,
+    feeAmount: core.feeAmount,
     spreadAmount: null,
     slippageAmount: null,
   });
+}
+
+export function validatePaperRuntimeExecutionCostEvidence(
+  fill: PaperRuntimeCostEvidenceFillInput,
+  evidence: PaperRuntimeExecutionCostEvidence,
+): PaperRuntimeExecutionCostEvidence {
+  if (
+    evidence.schemaVersion !== 1 ||
+    evidence.source !== "PAPER_EXECUTION_BOUNDARY" ||
+    evidence.evidenceKind !== "OBSERVED" ||
+    evidence.completeness !== "INCOMPLETE" ||
+    evidence.spreadAmount !== null ||
+    evidence.slippageAmount !== null
+  ) {
+    throw new PaperRuntimeExecutionCostEvidenceError("INVALID_RUNTIME_COST_EVIDENCE", `fill ${fill.id} runtime cost evidence contract is invalid`);
+  }
+  const expected = buildPaperRuntimeExecutionCostEvidence(fill, evidence.quotePrice);
+  if (
+    evidence.evidenceId !== expected.evidenceId ||
+    evidence.evidenceFingerprintSha256 !== expected.evidenceFingerprintSha256 ||
+    evidence.candidateId !== expected.candidateId ||
+    evidence.fillPrice !== expected.fillPrice ||
+    evidence.feeAmount !== expected.feeAmount
+  ) {
+    throw new PaperRuntimeExecutionCostEvidenceError("RUNTIME_COST_EVIDENCE_MISMATCH", `fill ${fill.id} runtime cost evidence does not match canonical fill facts`);
+  }
+  return expected;
 }

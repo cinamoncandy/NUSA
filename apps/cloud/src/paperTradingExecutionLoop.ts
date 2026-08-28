@@ -4,6 +4,7 @@ import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } fro
 import { validatePaperCandidateExecutionBinding, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
+import { buildPaperRuntimeExecutionCostEvidence, type PaperRuntimeExecutionCostEvidence } from "./paperRuntimeExecutionCostEvidence";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
 
 const ACCOUNT_ID = "paper-default";
@@ -54,11 +55,14 @@ export interface PaperFillRecord {
   readonly price: number;
   readonly fee: number;
   readonly filledAt: number;
-  /**
-   * Point-in-time candidate binding copied from the exact CIO decision that caused
-   * this strategy fill. Absence is deliberate and remains non-promotable.
-   */
+  /** Point-in-time candidate binding copied from the exact CIO decision that caused this strategy fill. */
   readonly candidateProvenance?: PaperFillCandidateProvenance;
+  /**
+   * Canonical boundary evidence for only the execution costs the simulator actually observed.
+   * This remains INCOMPLETE until trusted spread/slippage evidence completes it, so it cannot
+   * satisfy realized-period admission on its own.
+   */
+  readonly runtimeExecutionCostEvidence?: PaperRuntimeExecutionCostEvidence;
 }
 export interface PaperAccountState {
   readonly version: 1;
@@ -80,9 +84,7 @@ export interface PaperWriterLeaseOptions {
   readonly leaseDurationMs?: number;
   readonly heartbeatIntervalMs?: number;
   readonly ownerId?: string;
-  /** Maximum wall-clock advance accepted by an already-running writer. */
   readonly maxClockAdvanceMs?: number;
-  /** Maximum age of a previous heartbeat accepted for takeover. */
   readonly maxTakeoverAgeMs?: number;
 }
 
@@ -192,6 +194,13 @@ function validateFillCandidateProvenance(fill: PaperFillRecord): void {
   if (!Number.isSafeInteger(provenance.decisionAt) || provenance.decisionAt < 0 || provenance.decisionAt > fill.filledAt) throw new Error("paper fill candidate decision time is invalid");
   validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt);
 }
+function validateRuntimeExecutionCostEvidence(fill: PaperFillRecord): void {
+  const evidence = fill.runtimeExecutionCostEvidence;
+  if (evidence == null) return;
+  if (fill.candidateProvenance == null) throw new Error("paper runtime execution-cost evidence requires candidate provenance");
+  const rebuilt = buildPaperRuntimeExecutionCostEvidence(fill, evidence.quotePrice);
+  if (JSON.stringify(evidence) !== JSON.stringify(rebuilt)) throw new Error("paper runtime execution-cost evidence is invalid");
+}
 function validateState(state: PaperAccountState): void {
   if (state.version !== 1) throw new Error("unsupported paper account state version");
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
@@ -221,6 +230,7 @@ function validateState(state: PaperAccountState): void {
     finiteNonNegative(fill.quantity, "paper fill quantity"); finiteNonNegative(fill.price, "paper fill price"); finiteNonNegative(fill.fee, "paper fill fee");
     if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
     validateFillCandidateProvenance(fill);
+    validateRuntimeExecutionCostEvidence(fill);
   }
   for (const order of state.orders) {
     const fill = fillsByOrder.get(order.id);
@@ -258,7 +268,6 @@ export interface PaperExecutionTick {
   readonly tradingAllowed: boolean;
   readonly overallHealth: MobileDashboardApiInput["overallHealth"];
   readonly decisions: readonly CioDecision[];
-  /** Percentage of current deployable cash available for new BUY exposure. */
   readonly investmentPercent?: number;
 }
 export interface PaperManualOrderContext {
@@ -276,7 +285,6 @@ export interface PaperExecutionResult {
   readonly orders: readonly PaperOrderRecord[];
   readonly fills: readonly PaperFillRecord[];
   readonly state: PaperAccountState;
-  /** Canonical risk result observed at the PAPER boundary; never grants authority. */
   readonly risk?: Readonly<{ readonly status: "ALLOW" | "REJECT" | "HALT"; readonly reasonCodes: readonly string[] }>;
 }
 export interface PaperExecutionSafetyState { readonly openP0: boolean; }
@@ -334,17 +342,10 @@ export class PaperTradingExecutionLoop {
       if (!marketable) return this.result("REJECTED", "PAPER_LIMIT_NOT_MARKETABLE");
     }
     let executed: ReturnType<typeof executeOrder>;
-    try {
-      executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint);
-    } catch (error) {
-      return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected");
-    }
+    try { executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint); }
+    catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
     const working = markToMarket(executed.state, market, context.marketPrice, context.now);
-    try {
-      this.repository?.save(working);
-    } catch {
-      return this.result("FAILED", "paper account persistence failed");
-    }
+    try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
     return Object.freeze({ status: "FILLED", orders: Object.freeze([executed.order]), fills: Object.freeze([executed.fill]), state: this.state });
   }
@@ -371,11 +372,8 @@ export class PaperTradingExecutionLoop {
       if (side === "BUY") {
         const treasury = { totalAssets: working.cash, tradingCapital: working.cash, reserveCapital: 0, pendingDepositCapital: 0, reservations: [], reservedWithdrawalCapital: 0, deployableCapital: working.cash, activeReservations: [] };
         const requestedAmount = quantity * tick.price * (1 + this.feeRate);
-        try {
-          guardCashInvestmentAllocation(treasury, [{ id: key, bucket: "SPOT", amount: requestedAmount }], investmentPercent);
-        } catch (error) {
-          return this.result("REJECTED", error instanceof Error ? error.message : "cash investment allocation exceeded");
-        }
+        try { guardCashInvestmentAllocation(treasury, [{ id: key, bucket: "SPOT", amount: requestedAmount }], investmentPercent); }
+        catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "cash investment allocation exceeded"); }
       }
       const candidateProvenance: PaperFillCandidateProvenance | undefined = decision.paperCandidateBinding == null ? undefined : Object.freeze({
         schemaVersion: 1,
@@ -384,7 +382,7 @@ export class PaperTradingExecutionLoop {
         binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
       });
       let order: ReturnType<typeof executeOrder>;
-      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance); }
+      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance, tick.price); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
       working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
     }
@@ -418,7 +416,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -444,9 +442,9 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
-  const fill: PaperFillRecord = Object.freeze({ id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }) });
-  // Order/fill display history is bounded, but execution tombstones must never expire:
-  // replaying an old idempotency key after restart must remain fail-closed indefinitely.
+  const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }) };
+  const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
+  const fill: PaperFillRecord = Object.freeze({ ...baseFill, ...(runtimeExecutionCostEvidence === undefined ? {} : { runtimeExecutionCostEvidence }) });
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys], updatedAt: now }, order, fill };
 }
 
