@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T13:17:58+09:00"
+updated_at: "2026-08-28T14:02:17+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: VERIFYING
-  branch: main
-  base_sha: 733365ed2cb56f0196e3a3d1e57b557a423061d3
-  scope: "Issue #889 canonical PAPER realized-period producer merged through PR #945 and retained by the current main integration; authenticated exact-head CI audit remains pending and no non-synthetic longitudinal performance evidence is implied."
+  branch: codex/aipos-issue-889-merged
+  base_sha: 7a613c2fd073b125de1df868452803bf471d4d19
+  scope: "Issue #889 producer remediation is locally implemented on top of current main: the canonical #885 store is reused, cost provenance is required, lifecycle rejection is observable, and restart-safe pending state remains fail-closed; remote publication and exact-head CI remain pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/paper-realized-period-producer-v2
+active_branch: codex/aipos-issue-889-merged
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
@@ -85,9 +85,9 @@ repository_maintenance:
 claimed_state:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: VERIFYING
-  branch: main
-  base_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
-  scope: "Issue #889 producer implementation is merged through PR #945 and retained on current main; verification is limited to recording authenticated exact-head CI evidence and must not manufacture longitudinal PAPER performance."
+  branch: codex/aipos-issue-889-merged
+  base_commit: 7a613c2fd073b125de1df868452803bf471d4d19
+  scope: "Issue #889 producer remediation is locally validated on current main; verification remains limited to exact remote publication/CI and must not manufacture longitudinal PAPER performance."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "focused producer/runtime/admission 25/25; full isolated suite 676 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 previous_claimed_state:
@@ -491,7 +491,7 @@ in_progress:
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
   - id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
     evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml"
-    summary: "Issue #889 canonical server-owned PAPER realized-period producer is merged through PR #945; exact-head CI evidence remains to be recorded and actual longitudinal performance stays fail-closed until real runtime orchestration exists."
+    summary: "Issue #889 remediation is locally validated on current main; canonical #885 storage, required cost provenance, lifecycle rejection evidence, and restart-safe pending recovery are covered, while exact-head remote validation and real longitudinal orchestration remain pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -519,7 +519,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
-  reason: "Record authenticated exact-head CI evidence for the merged Issue #889 producer, then select the next ready non-LIVE research work order from current main; preserve fail-closed longitudinal evidence semantics and zero authority expansion."
+  reason: "Publish the local Issue #889 remediation branch and record exact-head remote evidence; preserve fail-closed longitudinal evidence semantics and zero authority expansion until real orchestration exists."
 verification:
   wo_0057:
     parent_pull_request: 552
