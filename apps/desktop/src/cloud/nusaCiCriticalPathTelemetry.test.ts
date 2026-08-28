@@ -36,6 +36,7 @@ describe("analyzeNusaCiCriticalPathTelemetry", () => {
     assert.equal(result.runs[0]?.coreShardImbalanceRatio, 2);
     assert.equal(result.workflowP50Ms, 21_000);
     assert.equal(result.workflowP95Ms, 21_000);
+    assert.deepEqual(result.sourceFingerprints, [FP]);
   });
 
   it("computes deterministic nearest-rank p50/p95 per job across real observations", () => {

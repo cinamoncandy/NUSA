@@ -1,3 +1,5 @@
+import type { NusaCiCriticalPathTelemetry } from "./nusaCiCriticalPathTelemetry";
+
 export type NusaEngineeringOutcomeClassification =
   | "VERIFIED_IMPROVEMENT"
   | "NEUTRAL"
@@ -23,7 +25,37 @@ export interface NusaEngineeringOutcomeAssessment {
   readonly reasons: readonly string[];
 }
 
+export interface NusaEngineeringCiOutcomeEvidence {
+  /** Exact-head telemetry derived from immutable completed GitHub job receipts. */
+  readonly baseline: NusaCiCriticalPathTelemetry | null;
+  /** Exact-head telemetry for the post-change observation. */
+  readonly postMerge: NusaCiCriticalPathTelemetry | null;
+  readonly minimumMeaningfulChange: number;
+}
+
+export interface NusaEngineeringCiOutcomeAssessment extends NusaEngineeringOutcomeAssessment {
+  readonly metricId: "ci-workflow-p95-ms";
+  readonly baselineHeadSha: string | null;
+  readonly postMergeHeadSha: string | null;
+  readonly baselineSourceFingerprints: readonly string[];
+  readonly postMergeSourceFingerprints: readonly string[];
+}
+
 const finiteOrNull = (value: number | null): boolean => value === null || Number.isFinite(value);
+const SHA_40 = /^[a-f0-9]{40}$/;
+const SHA_64 = /^[a-f0-9]{64}$/;
+
+function validateCiTelemetry(telemetry: NusaCiCriticalPathTelemetry, label: string): void {
+  if (telemetry.schemaVersion !== 1 || !SHA_40.test(telemetry.headSha)) throw new Error(`OUTCOME_${label.toUpperCase()}_HEAD_INVALID`);
+  if (!Number.isSafeInteger(telemetry.jobSampleCount) || telemetry.jobSampleCount < 1) throw new Error(`OUTCOME_${label.toUpperCase()}_SAMPLES_MISSING`);
+  if (!Number.isFinite(telemetry.workflowP95Ms) || telemetry.workflowP95Ms < 0) throw new Error(`OUTCOME_${label.toUpperCase()}_P95_INVALID`);
+  if (!Array.isArray(telemetry.sourceFingerprints)
+    || telemetry.sourceFingerprints.length === 0
+    || new Set(telemetry.sourceFingerprints).size !== telemetry.sourceFingerprints.length
+    || telemetry.sourceFingerprints.some((fingerprint) => !SHA_64.test(fingerprint))) {
+    throw new Error(`OUTCOME_${label.toUpperCase()}_PROVENANCE_INVALID`);
+  }
+}
 
 export function assessNusaEngineeringOutcome(evidence: NusaEngineeringOutcomeEvidence): NusaEngineeringOutcomeAssessment {
   if (!evidence.metricId.trim()) throw new Error("OUTCOME_METRIC_ID_REQUIRED");
@@ -72,5 +104,42 @@ export function assessNusaEngineeringOutcome(evidence: NusaEngineeringOutcomeEvi
     delta,
     recommendation,
     reasons: Object.freeze([reason]),
+  });
+}
+
+/**
+ * Evaluates a CI optimization only from two distinct exact-head telemetry summaries. The helper
+ * intentionally cannot infer a speedup from a single head, an empty receipt set, or summaries
+ * whose source provenance is absent. Callers may pass null while a real post-merge observation is
+ * unavailable; that state remains INSUFFICIENT rather than becoming a success claim.
+ */
+export function assessNusaCiCriticalPathOutcome(
+  evidence: NusaEngineeringCiOutcomeEvidence,
+): NusaEngineeringCiOutcomeAssessment {
+  const baseline = evidence.baseline;
+  const postMerge = evidence.postMerge;
+  if (!Number.isFinite(evidence.minimumMeaningfulChange) || evidence.minimumMeaningfulChange < 0) {
+    throw new Error("OUTCOME_THRESHOLD_INVALID");
+  }
+  if (baseline != null) validateCiTelemetry(baseline, "baseline");
+  if (postMerge != null) validateCiTelemetry(postMerge, "post_merge");
+  if (baseline != null && postMerge != null && baseline.headSha === postMerge.headSha) {
+    throw new Error("OUTCOME_HEADS_NOT_DISTINCT");
+  }
+
+  const assessment = assessNusaEngineeringOutcome({
+    metricId: "ci-workflow-p95-ms",
+    direction: "LOWER_IS_BETTER",
+    baseline: baseline?.workflowP95Ms ?? null,
+    postMerge: postMerge?.workflowP95Ms ?? null,
+    minimumMeaningfulChange: evidence.minimumMeaningfulChange,
+  });
+  return Object.freeze({
+    ...assessment,
+    metricId: "ci-workflow-p95-ms" as const,
+    baselineHeadSha: baseline?.headSha ?? null,
+    postMergeHeadSha: postMerge?.headSha ?? null,
+    baselineSourceFingerprints: Object.freeze([...(baseline?.sourceFingerprints ?? [])]),
+    postMergeSourceFingerprints: Object.freeze([...(postMerge?.sourceFingerprints ?? [])]),
   });
 }

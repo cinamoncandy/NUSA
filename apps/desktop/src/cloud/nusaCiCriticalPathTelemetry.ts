@@ -32,6 +32,8 @@ export interface NusaCiRunTimingSummary {
 export interface NusaCiCriticalPathTelemetry {
   readonly schemaVersion: 1;
   readonly headSha: string;
+  /** The immutable GitHub job-receipt fingerprints used to derive this summary. */
+  readonly sourceFingerprints: readonly string[];
   readonly jobSampleCount: number;
   readonly jobTimings: readonly NusaCiJobTimingSummary[];
   readonly runs: readonly NusaCiRunTimingSummary[];
@@ -153,6 +155,7 @@ export function analyzeNusaCiCriticalPathTelemetry(
   return freeze({
     schemaVersion: 1,
     headSha: expectedHeadSha,
+    sourceFingerprints: freeze([...new Set(normalized.map((entry) => entry.receipt.sourceFingerprint))].sort()),
     jobSampleCount: normalized.length,
     jobTimings,
     runs,
