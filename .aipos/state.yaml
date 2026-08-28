@@ -89,7 +89,7 @@ claimed_state:
   base_commit: adc74b132aea172b9d2e15456be82500b9899e17
   scope: "Persist the existing zero-authority evolution learning record through one bounded, integrity-checked SQLite ledger with restart replay and idempotent conflict rejection."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: PENDING
+  implementation_commit: ef040d15
   validation: "Focused evolution/storage tests PASS (30/30 + storage regressions 26/26); full isolated suite PASS (734/734); preflight/typecheck/build/lint/architecture/safety/security/AIPOS/package validation PASS; git diff --check PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY

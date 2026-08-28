@@ -9,6 +9,7 @@ issue: 865
 base_branch: main
 base_commit: adc74b132aea172b9d2e15456be82500b9899e17
 implementation_branch: codex/issue-865-evolution-learning-ledger
+implementation_commit: ef040d15
 objective: "Persist the existing bounded zero-authority EvolutionLearningRecord output through one canonical SQLite ledger so evolution evidence survives restart and cannot be double-counted or silently conflicted."
 architecture_impact:
   acknowledged: true
