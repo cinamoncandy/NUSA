@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-880-STRATEGY-CONTAINMENT
 title: "Issue #880 evidence-driven strategy containment decision"
-status: IN_PROGRESS
+status: VERIFYING
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -45,25 +45,26 @@ acceptance:
   - evidence identity, timestamp, fingerprint, and references are validated
   - evaluation performs no persistence or lifecycle mutation
   - existing strategy governance, promotion, rollback, and restart regressions remain green
+implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PASS_PENDING_PUBLICATION
+implementation_commit: b87714f5
 validation:
-  focused: PENDING
-  relevant_regressions: PENDING
-  full_isolated_suite: PENDING
-  preflight: PENDING
-  typecheck: PENDING
-  build: PENDING
-  lint: PENDING
-  architecture_truth: PENDING
-  architecture_check: PENDING
-  safety: PENDING
-  security: PENDING
-  restricted_live: PENDING
-  read_only_broker: PENDING
-  aipos: PENDING
-  package_validation: PENDING
-  git_diff_check: PENDING
-implementation_status: IMPLEMENTING
-remote_validation: NOT_STARTED
+  focused: PASS_25_OF_25
+  relevant_regressions: PASS_25_OF_25
+  full_isolated_suite: PASS_732_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+  package_validation: PASS
+  git_diff_check: PASS
+remote_validation: PENDING_PR_EXACT_HEAD_CI
 known_limitations:
   - "This slice emits advisory containment decisions only; a separate explicit human-approved command remains necessary to append governance lifecycle events."
   - "Issue #880 evidence producers and long-horizon policy calibration remain separate research/runtime work."

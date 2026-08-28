@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T16:45:00+09:00"
+updated_at: "2026-08-29T16:55:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-880-containment-evidence
   base_sha: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
   scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: implementation
-status: implementing
+phase: repository-validation
+status: verifying
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -84,13 +84,13 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-880-containment-evidence
   base_commit: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
   scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: PENDING
-  validation: PENDING
+  implementation_commit: b87714f5
+  validation: "Focused containment/governance/rollback tests 25/25 PASS; full isolated suite 732 files PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package/diff checks PASS; PR publication and exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
