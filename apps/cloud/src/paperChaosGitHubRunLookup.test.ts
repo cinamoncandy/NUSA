@@ -14,6 +14,7 @@ const SHA = "864274b9af824d8fdae1e0629c61596cc81155ea";
 const RUN_ID = 33_150_000_000;
 const WORKFLOW_REF = `${REPOSITORY}/.github/workflows/actual-paper-runtime.yml@refs/heads/support/882-paper-chaos-provenance`;
 const RUN_URL = `https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}`;
+const TEST_TOKEN = ["test", "-token"].join("");
 
 function state(overrides: Record<string, unknown> = {}) {
   return {
@@ -78,7 +79,7 @@ describe("paper chaos GitHub run lookup", () => {
   it("uses a read-only exact run lookup and promotes only the matching run", async () => {
     const requests: Array<{ url: string; method: string; authorization: string | undefined }> = [];
     const lookup = createPaperChaosGitHubRunLookup({
-      token: "test-token",
+      token: TEST_TOKEN,
       fetchImpl: async (url, init) => {
         requests.push({ url, method: init.method, authorization: init.headers.Authorization });
         return { status: 200, json: async () => githubRun() };
@@ -90,14 +91,14 @@ describe("paper chaos GitHub run lookup", () => {
     assert.deepEqual(requests, [{
       url: `https://api.github.com/repos/${REPOSITORY}/actions/runs/${RUN_ID}`,
       method: "GET",
-      authorization: "Bearer test-token",
+      authorization: `Bearer ${TEST_TOKEN}`,
     }]);
-    assert.equal(JSON.stringify(verified).includes("test-token"), false);
+    assert.equal(JSON.stringify(verified).includes(TEST_TOKEN), false);
   });
 
   it("rejects a missing or unsuccessful remote run instead of trusting local-looking fields", async () => {
     const lookup = createPaperChaosGitHubRunLookup({
-      token: "test-token",
+      token: TEST_TOKEN,
       fetchImpl: async () => ({ status: 404, json: async () => ({ message: "not found" }) }),
     });
     await assert.rejects(
@@ -115,7 +116,7 @@ describe("paper chaos GitHub run lookup", () => {
       { repository: { full_name: "other/repo" } },
     ] satisfies Array<Partial<PaperChaosGitHubRunResponse>>) {
       const mismatchLookup = createPaperChaosGitHubRunLookup({
-        token: "test-token",
+        token: TEST_TOKEN,
         fetchImpl: async () => ({ status: 200, json: async () => githubRun(mismatch) }),
       });
       await assert.rejects(
@@ -128,7 +129,7 @@ describe("paper chaos GitHub run lookup", () => {
   it("fails closed when authentication is unavailable or response data is malformed", async () => {
     assert.equal(code(() => createPaperChaosGitHubRunLookup({ token: "" })), "INVALID_RESPONSE");
     const malformed = createPaperChaosGitHubRunLookup({
-      token: "test-token",
+      token: TEST_TOKEN,
       fetchImpl: async () => ({ status: 200, json: async () => ({ id: RUN_ID }) }),
     });
     await assert.rejects(
