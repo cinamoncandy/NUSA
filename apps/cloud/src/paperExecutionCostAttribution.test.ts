@@ -19,7 +19,7 @@ const binding: PaperCandidateExecutionBinding = Object.freeze({
   datasetId: "dataset-alpha",
   datasetContentSha256: "a".repeat(64),
   advisoryGeneratedAt: 900,
-  periodStartAt: 950,
+  periodStartAt: 925,
   advisoryFingerprintSha256: "b".repeat(64),
   bindingFingerprintSha256: "c".repeat(64),
 });
