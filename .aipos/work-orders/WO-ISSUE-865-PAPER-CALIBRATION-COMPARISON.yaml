@@ -4,7 +4,7 @@ status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 865
-pull_request: null
+pull_request: 1036
 base_branch: main
 base_commit: 6e90cc3528adba5d3b7e95be5dda31202847a184
 implementation_branch: codex/issue-865-paper-calibration-comparison
@@ -61,7 +61,8 @@ validation:
   aipos: PASS
   git_diff_check: PASS
 implementation_commit: d520f6d5
+validation_head: e7c789b5
 known_limitations:
   - "The comparison is a read-only evidence projection; it does not mutate confidence or promote a strategy."
   - "Actual long-running PAPER evidence remains dependent on canonical runtime persistence and external/human gates outside this slice."
-next: "Publish this focused Issue #865 comparison slice and validate its exact head; no second confidence or promotion engine is permitted."
+next: "Validate PR #1036 exact head; no second confidence or promotion engine is permitted."

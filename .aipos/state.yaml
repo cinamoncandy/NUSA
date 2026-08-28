@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-865-paper-calibration-comparison
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1036
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -90,7 +90,7 @@ claimed_state:
   scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
   implementation_commit: d520f6d5
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused calibration comparison 14/14 PASS; full isolated suite 730 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; no confidence, promotion, execution, broker, or LIVE authority is added; exact-head remote validation is pending."
+  validation: "Focused calibration comparison 14/14 PASS; full isolated suite 730 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; PR #1036 exact head e7c789b5 is published; no confidence, promotion, execution, broker, or LIVE authority is added; remote validation is pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
