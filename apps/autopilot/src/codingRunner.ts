@@ -4,6 +4,8 @@ export interface CodingRunnerRequest {
   readonly headSha: string;
   readonly workflowRunId: number;
   readonly reason: string;
+  readonly executionId: string;
+  readonly dedupeKey: string;
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -27,6 +29,8 @@ interface HttpResponse {
 type FetchImpl = (input: string, init?: RequestInit) => Promise<HttpResponse>;
 
 const SHA40 = /^[0-9a-f]{40}$/i;
+const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
+const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
 
@@ -36,6 +40,8 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (request.kind !== "REPOSITORY_AUTOPILOT") throw new Error("CODING_RUNNER_KIND_INVALID");
   if (request.repository !== allowedRepository) throw new Error("CODING_RUNNER_REPOSITORY_INVALID");
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
+  if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
+  if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
@@ -90,13 +96,20 @@ export async function executeCodingRunner(
 
   const response = await fetchImpl(endpoint, {
     method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "x-nusa-execution-id": request.executionId,
+      "x-nusa-dedupe-key": request.dedupeKey,
+    },
     body: JSON.stringify({
       task: "Implement the next safe NUSA repository improvement, run tests, and open a pull request. Never mutate LIVE trading or production authority.",
       repository: request.repository,
       headSha: request.headSha,
       workflowRunId: request.workflowRunId,
       reason: request.reason,
+      executionId: request.executionId,
+      dedupeKey: request.dedupeKey,
       constraints: { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
     }),
   });
