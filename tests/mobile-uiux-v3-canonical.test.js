@@ -20,8 +20,10 @@ test("App shell routes the canonical four-tab decision flow and preserves deeper
 
 test("Home uses MASTER hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
+  const decisionSurface = read("src/homeDecisionSurface.ts");
   assert.match(source, />NUSA<\/Text>/);
-  assert.match(source, /PAPER P&L .*EQUITY/);
+  assert.match(source, /const supervisorResult = decisionSurface\.result/);
+  assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.match(source, /CAPITAL LIMITS/);
   assert.doesNotMatch(source, />TOTAL EQUITY<\/Text>/);
   assert.match(source, />PAPER ONLY<\/Text>/);
@@ -78,7 +80,7 @@ test("Notification utility is honest about unavailable runtime capability", () =
 });
 
 test("UI v3 never introduces live execution authority", () => {
-  const files = ["App.tsx", "src/homeView.tsx", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
+  const files = ["App.tsx", "src/homeView.tsx", "src/homeDecisionSurface.ts", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
   const source = files.map(read).join("\n");
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
