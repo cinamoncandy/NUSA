@@ -89,6 +89,8 @@ export function prepareProductionExecution(
     headSha: runner.headSha,
     workflowRunId: runner.workflowRunId,
     reason: runner.reason,
+    executionId: envelope.executionId,
+    dedupeKey: envelope.dedupeKey,
     mutationAllowed: false,
   });
   return Object.freeze({ state, envelope, request });

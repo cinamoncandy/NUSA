@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: autopilot-execution-${{ github.event.client_payload.kind }}-${{ github.event.client_payload.head_sha }}
+  group: autopilot-execution-${{ github.event.client_payload.dedupe_key }}
   cancel-in-progress: false
 
 jobs:
@@ -39,10 +39,15 @@ jobs:
           if (payload.kind !== 'REPOSITORY_AUTOPILOT') fail(`unexpected kind: ${payload.kind}`);
           if (payload.repository !== process.env.GITHUB_REPOSITORY) fail(`repository mismatch: ${payload.repository}`);
           if (!/^[0-9a-f]{40}$/i.test(payload.head_sha || '')) fail('head_sha must be an exact 40-character commit SHA');
+          if (!Number.isSafeInteger(payload.workflow_run_id) || payload.workflow_run_id <= 0) fail('workflow_run_id must be a positive safe integer');
+          if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(payload.execution_id || '')) fail('execution_id must be a bounded lifecycle identity');
+          if (!/^[A-Za-z0-9_.:-]{1,256}$/.test(payload.dedupe_key || '')) fail('dedupe_key must be a bounded lifecycle identity');
           if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
           if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
           console.log(`validated ${payload.repository}@${payload.head_sha}`);
+          console.log(`executionId=${payload.execution_id}`);
+          console.log(`dedupeKey=${payload.dedupe_key}`);
           console.log('liveAuthority=NONE');
           console.log('productionMutationAllowed=false');
           console.log('AI authority=ZERO_AUTHORITY');
@@ -62,8 +67,10 @@ jobs:
             kind: payload.kind,
             repository: payload.repository,
             headSha: payload.head_sha,
-            workflowRunId: payload.workflow_run_id ?? null,
+            workflowRunId: payload.workflow_run_id,
             reason: payload.reason,
+            executionId: payload.execution_id,
+            dedupeKey: payload.dedupe_key,
             mutationAllowed: false,
             liveAuthority: 'NONE',
             productionMutationAllowed: false,
@@ -96,6 +103,8 @@ jobs:
             headers: {
               'authorization': `Bearer ${token}`,
               'content-type': 'application/json',
+              'x-nusa-execution-id': request.executionId,
+              'x-nusa-dedupe-key': request.dedupeKey,
             },
             body: JSON.stringify(request),
           }).then(async (response) => {
@@ -119,6 +128,8 @@ jobs:
           const fs = require('fs');
           const result = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-result.json', 'utf8'));
           console.log(`executor=${result.status}`);
+          console.log(`executionId=${result.request?.executionId ?? 'UNVERIFIED'}`);
+          console.log(`dedupeKey=${result.request?.dedupeKey ?? 'UNVERIFIED'}`);
           console.log('liveAuthority=NONE');
           console.log('productionMutationAllowed=false');
           console.log('AI authority=ZERO_AUTHORITY');

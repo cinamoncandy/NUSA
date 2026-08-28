@@ -8,6 +8,8 @@ const request = {
   headSha: "a".repeat(40),
   workflowRunId: 123,
   reason: "continue-from:ci_succeeded",
+  executionId: "github:delivery-123",
+  dedupeKey: `ci:123:${"a".repeat(40)}`,
   mutationAllowed: false as const,
   liveAuthority: "NONE" as const,
   productionMutationAllowed: false as const,
@@ -21,8 +23,13 @@ const response = (status: number, body: unknown) => ({
 });
 
 describe("coding runner", () => {
-  it("accepts only the fail-closed repository contract", () => {
+  it("accepts only the fail-closed repository contract with lifecycle identity", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
+  });
+
+  it("rejects missing or malformed lifecycle identity", () => {
+    assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
+    assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
   });
 
   it("rejects production mutation authority", () => {
@@ -81,6 +88,38 @@ describe("coding runner", () => {
       });
     });
     assert.equal(urls.length, 2);
+  });
+
+  it("preserves lifecycle identity when calling the configured coding engine", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fakeFetch = async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/actions/runs/")) return response(200, {
+        id: request.workflowRunId,
+        head_sha: request.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: request.repository },
+      });
+      return response(202, { accepted: true });
+    };
+
+    const result = await executeCodingRunner(request, {
+      NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+      NUSA_AI_CODING_TOKEN: "ai-token",
+      NUSA_GITHUB_TOKEN: "github-token",
+    }, fakeFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    const dispatch = calls.at(-1);
+    assert.equal(dispatch?.url, "https://coding.example.test/execute");
+    const body = JSON.parse(String(dispatch?.init?.body));
+    assert.equal(body.executionId, request.executionId);
+    assert.equal(body.dedupeKey, request.dedupeKey);
+    const headers = dispatch?.init?.headers as Record<string, string>;
+    assert.equal(headers["x-nusa-execution-id"], request.executionId);
+    assert.equal(headers["x-nusa-dedupe-key"], request.dedupeKey);
   });
 
   it("stays interface-ready until a real AI coding engine is configured", async () => {
