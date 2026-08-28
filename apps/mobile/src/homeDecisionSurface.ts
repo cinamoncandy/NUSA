@@ -64,7 +64,7 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
 
   const attention: HomeDecisionAttention = input.disconnected || input.readOnlyError || runtimeActionRequired
     ? "ACTION REQUIRED"
-    : runtimeWatch || (input.accountSource === "CLOUD" && !signalReady)
+    : runtimeWatch || input.accountSource === "LOCAL" || (input.accountSource === "CLOUD" && !signalReady)
       ? "WATCH"
       : "QUIET";
 
