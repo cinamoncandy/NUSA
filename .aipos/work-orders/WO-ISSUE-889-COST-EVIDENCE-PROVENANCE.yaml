@@ -1,6 +1,6 @@
 id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
 title: "Issue #889 preserve canonical PAPER execution-cost evidence provenance"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
@@ -45,24 +45,25 @@ acceptance:
   - no_benchmark_or_missing_spread_slippage_is_interpreted_as_pass
   - paper_account_and_broker_mutation_counts_unchanged
 validation:
-  focused: PENDING
-  paper_regression: PENDING
-  full_isolated_suite: PENDING
-  typecheck: PENDING
-  build: PENDING
-  lint: PENDING
-  architecture: PENDING
-  safety: PENDING
-  security: PENDING
-  aipos: PENDING
-  package_validation: PENDING
-  restricted_live_readiness: PENDING
-  read_only_broker: PENDING
-implementation_status: LOCAL_IMPLEMENTATION_IN_PROGRESS
+  focused: PASS_76_OF_76
+  paper_regression: PASS_INCLUDED_IN_FULL_SUITE
+  full_isolated_suite: PASS_693_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  aipos: PASS
+  package_validation: PASS_CANONICAL_PACKAGE_VALIDATE
+  restricted_live_readiness: PASS
+  read_only_broker: PASS
+implementation_status: VALIDATED_LOCAL_PENDING_PR
 pull_request: null
-implementation_head: null
+implementation_head: 4a6fc22c
+post_main_integration_head: 43ff1eab0c1ce9ff99571433a721eb31f83db719
 merge_commit: null
 known_limitations:
   - "No canonical production benchmark reader exists in the current Cloud runtime; benchmark evidence remains fail-closed."
   - "The current Cloud execution-cost source reports incomplete observed spread/slippage; this slice preserves that fact and does not promote it."
-next: "Complete focused cost-provenance validation, then run affected repository gates and publish only this coherent #889 slice."
+next: "Publish this validated slice; benchmark and incomplete spread/slippage evidence remain fail-closed and are not claimed complete."

@@ -1,12 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T14:05:00+09:00"
+updated_at: "2026-08-28T14:35:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-889-cost-evidence
   base_sha: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
   scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
+  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -88,8 +89,9 @@ claimed_state:
   branch: codex/issue-889-cost-evidence
   base_commit: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
   scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
+  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 53/53 PASS; typecheck/build PASS; broader repository gates pending."
+  validation: "Focused 76/76 PASS after main integration; full isolated 693 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/read-only broker/package validation PASS; exact-head CI pending PR publication."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
