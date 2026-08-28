@@ -61,7 +61,7 @@ validation:
   aipos: PASS
   git_diff_check: PASS
 implementation_commit: d520f6d5
-validation_head: e7c789b5
+validation_head: 37799b45
 known_limitations:
   - "The comparison is a read-only evidence projection; it does not mutate confidence or promote a strategy."
   - "Actual long-running PAPER evidence remains dependent on canonical runtime persistence and external/human gates outside this slice."
