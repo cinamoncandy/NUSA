@@ -1,15 +1,18 @@
 name: Autopilot Execution Consumer
 
+# EMERGENCY FAIL-CLOSED PAUSE:
+# repository_dispatch is intentionally disabled until the Cloudflare webhook
+# recursion guard is confirmed deployed. Manual invocation remains available
+# for controlled verification only.
 on:
-  repository_dispatch:
-    types: [nusa_autopilot_execution]
+  workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: autopilot-execution-${{ github.event.client_payload.kind }}-${{ github.event.client_payload.head_sha }}
+  group: autopilot-execution-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -17,87 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout exact repository state
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          fetch-depth: 0
-
-      - name: Persist bounded event payload
-        env:
-          EVENT_JSON: ${{ toJson(github.event) }}
+      - name: Fail closed while repository dispatch is paused
         run: |
-          printf '%s' "$EVENT_JSON" > "$RUNNER_TEMP/autopilot-event.json"
-
-      - name: Validate fail-closed autopilot payload
-        run: node scripts/consume-autopilot-dispatch.mjs "$RUNNER_TEMP/autopilot-event.json"
-
-      - name: Verify requested SHA exists in NUSA history
-        env:
-          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
-        run: |
-          git cat-file -e "${HEAD_SHA}^{commit}"
-
-      - name: Build bounded coding runner request
-        run: node scripts/build-autopilot-coding-request.mjs "$RUNNER_TEMP/autopilot-event.json"
-
-      - name: Dispatch to authenticated external coding runner
-        env:
-          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
-          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
-        run: >-
-          node scripts/dispatch-autopilot-coding-runner.mjs
-          artifacts/autopilot/coding-request.json
-          artifacts/autopilot/coding-runner-dispatch-receipt.json
-
-      - name: Classify repository-side execution boundary
-        if: always()
-        env:
-          KIND: ${{ github.event.client_payload.kind }}
-          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
-          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
-          RUNNER_CONFIGURED: ${{ secrets.NUSA_CODING_RUNNER_URL != '' && secrets.NUSA_CODING_RUNNER_TOKEN != '' }}
-        run: |
-          RUNNER_STATUS="NO_RECEIPT"
-          if [ -f artifacts/autopilot/coding-runner-dispatch-receipt.json ]; then
-            RUNNER_STATUS="$(node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/autopilot/coding-runner-dispatch-receipt.json','utf8')); process.stdout.write(String(x.status ?? 'UNKNOWN'))")"
-          fi
-          {
-            echo "## NUSA Autopilot Dispatch Consumer"
-            echo ""
-            echo "- kind: ${KIND}"
-            echo "- head: ${HEAD_SHA}"
-            echo "- workflow_run_id: ${WORKFLOW_RUN_ID:-none}"
-            echo "- liveAuthority: NONE"
-            echo "- productionMutationAllowed: false"
-            echo "- AI authority: ZERO_AUTHORITY"
-            echo "- coding request: READY"
-            echo "- runner configured: ${RUNNER_CONFIGURED}"
-            echo "- runner dispatch receipt: ${RUNNER_STATUS}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload dispatch receipt
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: autopilot-dispatch-receipt-${{ github.run_id }}
-          path: artifacts/autopilot/dispatch-receipt.json
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Upload coding runner request
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: autopilot-coding-request-${{ github.run_id }}
-          path: artifacts/autopilot/coding-request.json
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Upload coding runner dispatch receipt
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: autopilot-coding-runner-dispatch-receipt-${{ github.run_id }}
-          path: artifacts/autopilot/coding-runner-dispatch-receipt.json
-          if-no-files-found: warn
-          retention-days: 7
+          echo "Autopilot repository_dispatch consumer is temporarily paused."
+          echo "liveAuthority=NONE"
+          echo "productionMutationAllowed=false"
+          echo "AI authority=ZERO_AUTHORITY"
