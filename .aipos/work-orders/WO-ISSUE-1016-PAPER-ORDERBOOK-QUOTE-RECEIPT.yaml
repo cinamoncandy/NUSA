@@ -1,0 +1,51 @@
+version: 1
+id: WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT
+title: "Persist canonical PAPER order-book quote receipts"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1016
+base_branch: main
+base_commit: cc180618e9786987f2afb34b52cd5bee39da9c3d
+implementation_branch: codex/paper-orderbook-quote-receipt
+objective: "Persist an immutable public Upbit order-book receipt with the existing PAPER fill and derive observed execution-cost evidence only from that canonical receipt."
+scope:
+  - canonical_public_orderbook_receipt
+  - paper_fill_receipt_persistence
+  - restart_safe_quote_revalidation
+  - observed_execution_cost_attribution
+  - fail_closed_stale_or_tampered_quote
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing PaperTradingExecutionLoop and SqliteCloudPaperAccountRepository boundaries; no second PAPER engine, cost engine, accounting path, broker adapter, or authority."
+  reused:
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
+    - apps/cloud/src/paperOrderBookQuoteReceipt.ts
+    - packages/storage/src/index.ts
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  paperOnly: true
+  brokerMutation: NONE
+prohibited:
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - synthetic_quote_or_cost_evidence
+acceptance:
+  - receipt_is_derived_from_public_orderbook_input
+  - receipt_is_persisted_atomically_with_canonical_paper_fill
+  - receipt_fingerprint_is_revalidated_after_restart
+  - stale_future_crossed_wrong_market_and_tampered_receipts_fail_closed
+  - paper_accounting_remains_unchanged_by_quote_validation
+  - invalid_quote_is_rejected_before_repository_mutation
+validation:
+  focused_quote_receipt_and_persistence: PASS_41_OF_41
+  typecheck: PASS
+  build: PASS
+known_limitations:
+  - "Missing public order-book evidence preserves the existing incomplete-cost fail-closed research semantics; no synthetic spread or slippage is created."
+next: "Run full repository regression and exact-head validation, then publish/update PR #1018 without changing PAPER/LIVE authority."
