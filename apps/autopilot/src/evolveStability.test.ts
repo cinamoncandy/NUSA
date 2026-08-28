@@ -3,6 +3,7 @@ import test from "node:test";
 import { selectNextEvolutionOpportunity } from "./evolveAutonomousSelector";
 import { createEvolutionExecutionEnvelope } from "./evolveExecutionAdapter";
 import { coordinateEvolutionLifecycle, type EvolutionLifecycleInput } from "./evolveLifecycle";
+import type { EvolutionOpportunity } from "./evolveOpportunity";
 import { decideEvolutionRecovery } from "./evolveRecovery";
 
 const HEAD = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -128,7 +129,7 @@ test("open circuit remains fail-closed even after the scheduler window elapses",
 });
 
 test("autonomous selection never bypasses an open circuit under repeated calls", () => {
-  const opportunity = lifecycleInput().opportunity;
+  const opportunity: EvolutionOpportunity = lifecycleInput().opportunity;
   for (let i = 0; i < 100; i += 1) {
     const result = selectNextEvolutionOpportunity({
       opportunities: [opportunity],
