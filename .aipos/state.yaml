@@ -89,7 +89,7 @@ claimed_state:
   base_commit: 65fc2011193ad2e495a5b24826d24a059b17615e
   scope: "Issue #882 deterministic bounded PAPER chaos/recovery receipts and non-monotonic observation fail-closed guard; existing PAPER execution remains the sole mutation authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused PAPER chaos/recovery 15/15; PAPER/recovery regression 173/173 before final clock coverage; full isolated suite 674 files before final clock coverage; build/typecheck/lint/preflight/architecture/truth/architecture/safety/security/AIPOS validation passed before final clock coverage."
+  validation: "focused PAPER chaos/recovery 15/15; PAPER/recovery regression 174/174; full isolated suite 674 files; build/typecheck/lint/preflight/architecture/truth/architecture/safety/security/AIPOS validation PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

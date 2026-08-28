@@ -53,7 +53,7 @@ acceptance:
   - existing_paper_regressions_remain_green
 validation:
   focused: PASS_15_OF_15
-  paper_regression: PASS_173_OF_173
+  paper_regression: PASS_174_OF_174
   full_isolated_suite: PASS_674_FILES
   preflight: PASS
   typecheck: PASS
