@@ -62,12 +62,28 @@ function quoteCore(orderBook: UpbitOrderBook, observedAt: number) {
   if (!market) throw new PaperOrderBookQuoteReceiptError("INVALID_MARKET", "order-book market is required");
   safeTime(observedAt, "observedAt");
 
-  const bids = orderBook.orderbook_units
-    .filter((unit) => Number.isFinite(unit.bid_size) && unit.bid_size > 0)
-    .map((unit) => ({ price: positive(unit.bid_price, "bid_price"), size: positive(unit.bid_size, "bid_size") }));
-  const asks = orderBook.orderbook_units
-    .filter((unit) => Number.isFinite(unit.ask_size) && unit.ask_size > 0)
-    .map((unit) => ({ price: positive(unit.ask_price, "ask_price"), size: positive(unit.ask_size, "ask_size") }));
+  if (!Number.isFinite(orderBook.total_ask_size) || orderBook.total_ask_size < 0 || !Number.isFinite(orderBook.total_bid_size) || orderBook.total_bid_size < 0) {
+    throw new PaperOrderBookQuoteReceiptError("INVALID_ORDERBOOK_VALUE", "order-book aggregate sizes must be finite and non-negative");
+  }
+  if (!Array.isArray(orderBook.orderbook_units) || orderBook.orderbook_units.length === 0) {
+    throw new PaperOrderBookQuoteReceiptError("INVALID_ORDERBOOK", "order book units are required");
+  }
+
+  const units = orderBook.orderbook_units.map((unit, index) => {
+    const bidPrice = positive(unit.bid_price, `orderbook_units[${index}].bid_price`);
+    const askPrice = positive(unit.ask_price, `orderbook_units[${index}].ask_price`);
+    if (!Number.isFinite(unit.bid_size) || unit.bid_size < 0 || !Number.isFinite(unit.ask_size) || unit.ask_size < 0) {
+      throw new PaperOrderBookQuoteReceiptError("INVALID_ORDERBOOK_VALUE", `orderbook_units[${index}] sizes must be finite and non-negative`);
+    }
+    return { bidPrice, askPrice, bidSize: unit.bid_size, askSize: unit.ask_size };
+  });
+
+  const bids = units
+    .filter((unit) => unit.bidSize > 0)
+    .map((unit) => ({ price: unit.bidPrice, size: unit.bidSize }));
+  const asks = units
+    .filter((unit) => unit.askSize > 0)
+    .map((unit) => ({ price: unit.askPrice, size: unit.askSize }));
 
   if (bids.length === 0 || asks.length === 0) {
     throw new PaperOrderBookQuoteReceiptError("MISSING_BOOK_SIDE", "order book must contain observable bid and ask liquidity");

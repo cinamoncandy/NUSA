@@ -4,7 +4,7 @@ import type { PaperFillRecord } from "./paperTradingExecutionLoop";
 import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import {
-  buildPaperCompletedExecutionCostEvidence,
+  buildPaperObservedExecutionCostAttribution,
   buildPaperRuntimeExecutionCostEvidence,
   PaperRuntimeExecutionCostEvidenceError,
 } from "./paperRuntimeExecutionCostEvidence";
@@ -50,10 +50,10 @@ function fill(overrides: Partial<PaperFillRecord> = {}): PaperFillRecord {
   };
 }
 
-function quote(observedAt = 3_900) {
-  return buildPaperOrderBookQuoteReceipt({
+function observedQuote(observedAt = 3_900, market = "KRW-BTC") {
+  const receipt = buildPaperOrderBookQuoteReceipt({
     type: "orderbook",
-    code: "KRW-BTC",
+    code: market,
     total_ask_size: 10,
     total_bid_size: 10,
     orderbook_units: [
@@ -61,6 +61,17 @@ function quote(observedAt = 3_900) {
       { ask_price: 102, bid_price: 98, ask_size: 5, bid_size: 5 },
     ],
   }, observedAt);
+  return {
+    schemaVersion: 1 as const,
+    source: "UPBIT_PUBLIC_ORDERBOOK" as const,
+    market: receipt.market,
+    observedAt: receipt.observedAt,
+    bidPrice: receipt.bestBidPrice,
+    askPrice: receipt.bestAskPrice,
+    evidenceId: `paper-orderbook:${receipt.market}:${receipt.observedAt}:${receipt.fingerprintSha256.slice(0, 24)}`,
+    evidenceFingerprintSha256: receipt.fingerprintSha256,
+    receipt,
+  };
 }
 
 function errorCode(fn: () => unknown): string {
@@ -92,50 +103,41 @@ test("runtime evidence identity is deterministic for the same canonical facts", 
   assert.deepEqual(left, right);
 });
 
-test("derives complete observed spread and slippage only from the quote receipt and exact fill", () => {
-  const evidence = buildPaperCompletedExecutionCostEvidence(fill(), quote(), 500);
-  assert.equal(evidence.completeness, "COMPLETE");
+test("derives observed spread and slippage only from the canonical quote receipt and exact fill", () => {
+  const evidence = buildPaperObservedExecutionCostAttribution(fill(), observedQuote());
   assert.equal(evidence.evidenceKind, "OBSERVED");
   assert.equal(evidence.candidateId, "candidate-alpha");
   assert.equal(evidence.quotePrice, 101);
   assert.equal(evidence.fillPrice, 101.5);
   assert.equal(evidence.spreadAmount, 2);
   assert.equal(evidence.slippageAmount, 1);
-  assert.equal(evidence.quoteReceiptFingerprintSha256, quote().fingerprintSha256);
   assert.match(evidence.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
 });
 
 test("sell-side cost attribution uses observed bid touch and refuses to invent negative slippage", () => {
-  const evidence = buildPaperCompletedExecutionCostEvidence(fill({ side: "SELL", price: 99.5 }), quote(), 500);
+  const evidence = buildPaperObservedExecutionCostAttribution(fill({ side: "SELL", price: 99.5 }), observedQuote());
   assert.equal(evidence.quotePrice, 99);
   assert.equal(evidence.spreadAmount, 2);
   assert.equal(evidence.slippageAmount, 0);
 });
 
-test("complete evidence fails closed on stale, future, or wrong-market quote receipts", () => {
-  assert.equal(errorCode(() => buildPaperCompletedExecutionCostEvidence(fill(), quote(3_000), 500)), "STALE_QUOTE");
-  assert.equal(errorCode(() => buildPaperCompletedExecutionCostEvidence(fill(), quote(4_001), 500)), "FUTURE_QUOTE");
-  const wrongMarket = buildPaperOrderBookQuoteReceipt({
-    type: "orderbook",
-    code: "KRW-ETH",
-    total_ask_size: 1,
-    total_bid_size: 1,
-    orderbook_units: [{ ask_price: 101, bid_price: 99, ask_size: 1, bid_size: 1 }],
-  }, 3_900);
-  assert.equal(errorCode(() => buildPaperCompletedExecutionCostEvidence(fill(), wrongMarket, 500)), "QUOTE_MARKET_MISMATCH");
+test("observed evidence fails closed on stale, future, or wrong-market quote receipts", () => {
+  assert.equal(errorCode(() => buildPaperObservedExecutionCostAttribution(fill({ filledAt: 10_000 }), observedQuote(3_000))), "STALE_QUOTE");
+  assert.equal(errorCode(() => buildPaperObservedExecutionCostAttribution(fill(), observedQuote(4_001))), "FUTURE_QUOTE");
+  assert.equal(errorCode(() => buildPaperObservedExecutionCostAttribution(fill(), observedQuote(3_900, "KRW-ETH"))), "ORDERBOOK_MARKET_MISMATCH");
 });
 
-test("complete evidence identity changes when immutable quote provenance changes", () => {
-  const first = buildPaperCompletedExecutionCostEvidence(fill(), quote(3_900), 500);
-  const second = buildPaperCompletedExecutionCostEvidence(fill(), quote(3_901), 500);
+test("observed evidence identity changes when immutable quote provenance changes", () => {
+  const first = buildPaperObservedExecutionCostAttribution(fill(), observedQuote(3_900));
+  const second = buildPaperObservedExecutionCostAttribution(fill(), observedQuote(3_901));
   assert.notEqual(first.evidenceFingerprintSha256, second.evidenceFingerprintSha256);
-  assert.notEqual(first.quoteReceiptFingerprintSha256, second.quoteReceiptFingerprintSha256);
+  assert.notEqual(first.quoteEvidenceFingerprintSha256, second.quoteEvidenceFingerprintSha256);
 });
 
 test("unbound fills cannot manufacture candidate-specific cost evidence", () => {
   const unbound = fill({ candidateProvenance: undefined });
   assert.equal(errorCode(() => buildPaperRuntimeExecutionCostEvidence(unbound, 100)), "MISSING_CANDIDATE_PROVENANCE");
-  assert.equal(errorCode(() => buildPaperCompletedExecutionCostEvidence(unbound, quote(), 500)), "MISSING_CANDIDATE_PROVENANCE");
+  assert.equal(errorCode(() => buildPaperObservedExecutionCostAttribution(unbound, observedQuote())), "MISSING_CANDIDATE_PROVENANCE");
 });
 
 test("generic or corrupted candidate provenance is rejected fail closed", () => {
@@ -148,7 +150,7 @@ test("generic or corrupted candidate provenance is rejected fail closed", () => 
     },
   });
   assert.equal(errorCode(() => buildPaperRuntimeExecutionCostEvidence(corrupted, 100)), "INVALID_CANDIDATE_PROVENANCE");
-  assert.equal(errorCode(() => buildPaperCompletedExecutionCostEvidence(corrupted, quote(), 500)), "INVALID_CANDIDATE_PROVENANCE");
+  assert.equal(errorCode(() => buildPaperObservedExecutionCostAttribution(corrupted, observedQuote())), "INVALID_CANDIDATE_PROVENANCE");
 });
 
 test("invalid quote prices cannot become observed evidence", () => {

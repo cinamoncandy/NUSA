@@ -5,6 +5,7 @@ import {
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
+import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
@@ -30,6 +31,8 @@ export { SqliteResearchSessionRepository } from "./researchAutomation";
 export type { ResearchAutomationDatabase } from "./researchAutomation";
 export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from "./persistedPaperPeriodStore";
 export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
+export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
+export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -255,7 +258,7 @@ CREATE TABLE IF NOT EXISTS investment_committee_events (sequence INTEGER PRIMARY
 CREATE TABLE IF NOT EXISTS investment_committee_snapshot (id INTEGER PRIMARY KEY CHECK(id = 1), hash TEXT NOT NULL);
 ` }, { id: "004_compliance_control_plane", sql: `
 CREATE TABLE IF NOT EXISTS compliance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
-CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id = 1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS compliance_rules (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
 CREATE TABLE IF NOT EXISTS compliance_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS surveillance_alerts (alert_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
@@ -423,4 +426,14 @@ CREATE TABLE IF NOT EXISTS paper_realized_periods (
 );
 CREATE INDEX IF NOT EXISTS idx_paper_realized_periods_order
   ON paper_realized_periods (lifecycle_state, period_index ASC, period_id ASC);
+` }, cloudPaperAccountHistoryMigration, { id: "019_paper_public_market_observations", sql: `
+CREATE TABLE IF NOT EXISTS paper_public_market_observations (
+  observation_id TEXT PRIMARY KEY,
+  market TEXT NOT NULL,
+  observed_at_ms INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  evidence_fingerprint_sha256 TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_public_market_observations_window
+  ON paper_public_market_observations (market, observed_at_ms ASC, observation_id ASC);
 ` }];

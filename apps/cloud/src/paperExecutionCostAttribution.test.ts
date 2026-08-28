@@ -11,13 +11,17 @@ import type { UpbitOrderBook } from "./upbitWebSocket";
 
 const binding: PaperCandidateExecutionBinding = Object.freeze({
   schemaVersion: 1,
-  source: "RESEARCH_CANDIDATE",
+  status: "BOUND_UNVERIFIED",
+  authority: "PAPER_RESEARCH_ONLY",
+  liveAuthority: "NONE",
+  productionMutationAllowed: false,
   candidateId: "candidate-alpha",
   datasetId: "dataset-alpha",
   datasetContentSha256: "a".repeat(64),
   advisoryGeneratedAt: 900,
+  periodStartAt: 950,
   advisoryFingerprintSha256: "b".repeat(64),
-  boundAt: 950,
+  bindingFingerprintSha256: "c".repeat(64),
 });
 
 const fill: PaperFillRecord = Object.freeze({
@@ -50,10 +54,9 @@ const orderBook: UpbitOrderBook = Object.freeze({
 
 const receipt = buildPaperOrderBookQuoteReceipt(orderBook, 990);
 
-test("binds immutable quote provenance and complete attribution to the exact fill", () => {
+test("binds immutable quote provenance and observed attribution to the exact fill", () => {
   const attributed = bindPaperExecutionCostAttribution(fill, receipt, 30_000);
   assert.equal(attributed.orderBookQuoteReceipt.fingerprintSha256, receipt.fingerprintSha256);
-  assert.equal(attributed.executionCostAttribution.completeness, "COMPLETE");
   assert.equal(attributed.executionCostAttribution.candidateId, "candidate-alpha");
   assert.equal(attributed.executionCostAttribution.quotePrice, 100);
   assert.equal(attributed.executionCostAttribution.spreadAmount, 2);
@@ -72,7 +75,7 @@ test("rejects tampered persisted attribution", () => {
     ...attributed,
     executionCostAttribution: Object.freeze({ ...attributed.executionCostAttribution, slippageAmount: 0 }),
   });
-  assert.throws(() => validatePersistedPaperExecutionCostAttribution(tampered, 30_000), /complete|mismatch/i);
+  assert.throws(() => validatePersistedPaperExecutionCostAttribution(tampered, 30_000), /does not match|mismatch/i);
 });
 
 test("fails closed when canonical candidate provenance is missing", () => {

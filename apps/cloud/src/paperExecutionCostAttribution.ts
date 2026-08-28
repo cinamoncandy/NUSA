@@ -1,7 +1,8 @@
 import {
-  buildPaperCompletedExecutionCostEvidence,
-  validatePaperCompletedExecutionCostEvidence,
-  type PaperCompletedExecutionCostEvidence,
+  buildPaperObservedExecutionCostAttribution,
+  validatePaperObservedExecutionCostAttribution,
+  type PaperExecutionCostAttribution,
+  type PaperObservedExecutionQuote,
 } from "./paperRuntimeExecutionCostEvidence";
 import {
   validatePaperOrderBookQuoteReceipt,
@@ -11,7 +12,7 @@ import type { PaperFillRecord } from "./paperTradingExecutionLoop";
 
 export interface PaperFillWithExecutionCostAttribution extends PaperFillRecord {
   readonly orderBookQuoteReceipt: PaperOrderBookQuoteReceipt;
-  readonly executionCostAttribution: PaperCompletedExecutionCostEvidence;
+  readonly executionCostAttribution: PaperExecutionCostAttribution;
 }
 
 export class PaperExecutionCostAttributionError extends Error {
@@ -19,6 +20,20 @@ export class PaperExecutionCostAttributionError extends Error {
     super(message);
     this.name = "PaperExecutionCostAttributionError";
   }
+}
+
+function quoteFromReceipt(receipt: PaperOrderBookQuoteReceipt): PaperObservedExecutionQuote {
+  return Object.freeze({
+    schemaVersion: 1,
+    source: "UPBIT_PUBLIC_ORDERBOOK",
+    market: receipt.market,
+    observedAt: receipt.observedAt,
+    bidPrice: receipt.bestBidPrice,
+    askPrice: receipt.bestAskPrice,
+    evidenceId: "paper-orderbook:" + receipt.market + ":" + receipt.observedAt + ":" + receipt.fingerprintSha256.slice(0, 24),
+    evidenceFingerprintSha256: receipt.fingerprintSha256,
+    receipt,
+  });
 }
 
 /**
@@ -38,9 +53,14 @@ export function bindPaperExecutionCostAttribution(
     );
   }
 
-  let validatedReceipt: PaperOrderBookQuoteReceipt;
   try {
-    validatedReceipt = validatePaperOrderBookQuoteReceipt(receipt, fill.market, fill.filledAt, maximumQuoteAgeMs);
+    const validatedReceipt = validatePaperOrderBookQuoteReceipt(receipt, fill.market, fill.filledAt, maximumQuoteAgeMs);
+    const attribution = buildPaperObservedExecutionCostAttribution(fill, quoteFromReceipt(validatedReceipt));
+    return Object.freeze({
+      ...fill,
+      orderBookQuoteReceipt: validatedReceipt,
+      executionCostAttribution: attribution,
+    });
   } catch (error) {
     const code = error != null && typeof error === "object" && "code" in error
       ? String((error as { code: unknown }).code)
@@ -51,14 +71,6 @@ export function bindPaperExecutionCostAttribution(
     );
   }
 
-  const attribution = buildPaperCompletedExecutionCostEvidence(fill, validatedReceipt, maximumQuoteAgeMs);
-  validatePaperCompletedExecutionCostEvidence(fill, validatedReceipt, maximumQuoteAgeMs, attribution);
-
-  return Object.freeze({
-    ...fill,
-    orderBookQuoteReceipt: validatedReceipt,
-    executionCostAttribution: attribution,
-  });
 }
 
 /**
@@ -69,17 +81,17 @@ export function validatePersistedPaperExecutionCostAttribution(
   fill: PaperFillWithExecutionCostAttribution,
   maximumQuoteAgeMs: number,
 ): PaperFillWithExecutionCostAttribution {
-  const receipt = validatePaperOrderBookQuoteReceipt(
-    fill.orderBookQuoteReceipt,
-    fill.market,
-    fill.filledAt,
-    maximumQuoteAgeMs,
-  );
-  const attribution = validatePaperCompletedExecutionCostEvidence(
-    fill,
-    receipt,
-    maximumQuoteAgeMs,
-    fill.executionCostAttribution,
-  );
-  return Object.freeze({ ...fill, orderBookQuoteReceipt: receipt, executionCostAttribution: attribution });
+  try {
+    const receipt = validatePaperOrderBookQuoteReceipt(fill.orderBookQuoteReceipt, fill.market, fill.filledAt, maximumQuoteAgeMs);
+    const attribution = validatePaperObservedExecutionCostAttribution(fill, quoteFromReceipt(receipt), fill.executionCostAttribution);
+    return Object.freeze({ ...fill, orderBookQuoteReceipt: receipt, executionCostAttribution: attribution });
+  } catch (error) {
+    const code = error != null && typeof error === "object" && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "INVALID_PERSISTED_COST_ATTRIBUTION";
+    throw new PaperExecutionCostAttributionError(
+      code,
+      error instanceof Error ? error.message : "persisted execution-cost attribution is invalid",
+    );
+  }
 }

@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T00:01:47+09:00"
+updated_at: "2026-08-29T00:00:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
+  work_order: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
   status: VERIFYING
-  branch: codex/issue-905-outcome-evaluator-adapter
-  base_sha: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
-  scope: "Use one canonical evidence-gated outcome evaluator and preserve the legacy feedback contract through a compatibility adapter."
+  branch: codex/issue-889-cost-benchmark-followup
+  base_sha: 3364f6bf1f15a214bb0cf9a13b7b26ffa771708f
+  scope: "Wire observed public PAPER market evidence into the existing canonical realized-period producer without inventing missing benchmark or execution-cost facts."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-905-outcome-evaluator-adapter
+active_branch: codex/issue-889-cost-benchmark-followup
 active_successor_branch: null
-active_pull_request: 999
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
+  work_order: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
   status: VERIFYING
-  branch: codex/issue-905-outcome-evaluator-adapter
-  base_commit: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
-  scope: "Consolidate duplicate outcome classification behind the existing canonical evaluator while preserving read-only advisory semantics."
-  implementation_commit: 54b20d0602f927ee3b39010c63fae1f9a4b5d62a
+  branch: codex/issue-889-cost-benchmark-followup
+  base_commit: 3364f6bf1f15a214bb0cf9a13b7b26ffa771708f
+  scope: "Connect only observed public market evidence to the existing canonical PAPER realized-period producer; preserve fail-closed admission when benchmark or friction evidence is absent."
+  implementation_commit: 1e986c28f7d01c4d4eb7d0da0dbd2b779716193e
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused outcome tests 13/13 PASS; autopilot regression 65/65 PASS; full isolated suite 700 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker/package validation PASS."
+  validation: "Focused 23/23 PASS; full isolated suite 723 files PASS; typecheck/build/lint/preflight/architecture/safety/security/Restricted LIVE/Read-only Broker PASS after latest main integration; package/AIPOS final state sync pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -493,9 +493,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION
-    evidence: ".aipos/work-orders/WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION.yaml"
-    summary: "Consolidate duplicate engineering outcome classification behind the canonical evidence-gated evaluator with a backward-compatible read-only adapter."
+  - id: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
+    evidence: ".aipos/work-orders/WO-ISSUE-889-TRUSTED-PAPER-SOURCES.yaml"
+    summary: "Connect trusted observed PAPER market and execution-cost evidence to the existing canonical realized-period producer; preserve #889 fail-closed semantics."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +522,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-905-OUTCOME-EVALUATOR-CONSOLIDATION.yaml
-  reason: "Consolidate duplicate outcome classification behind the canonical evidence-gated evaluator; preserve #905 advisory-only semantics."
+  work_order: .aipos/work-orders/WO-ISSUE-889-TRUSTED-PAPER-SOURCES.yaml
+  reason: "Connect trusted observed PAPER market and execution-cost evidence to the existing canonical realized-period producer; preserve #889 fail-closed semantics."
 verification:
   wo_0057:
     parent_pull_request: 552

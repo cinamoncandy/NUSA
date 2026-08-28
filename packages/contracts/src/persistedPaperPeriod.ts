@@ -28,6 +28,8 @@ export interface PersistedPaperCandidateProvenance {
 export interface PersistedPaperPeriodRecord {
   readonly recordId: string;
   readonly periodIndex: number;
+  /** Canonical market identity for benchmark evidence; legacy manual records may omit it. */
+  readonly market?: string;
   readonly advisory: LeagueCapitalAllocationAdvisory;
   readonly periodStartAt: number;
   readonly periodEndAt: number;
