@@ -96,6 +96,19 @@ describe("paper chaos GitHub run lookup", () => {
     assert.equal(JSON.stringify(verified).includes(TEST_TOKEN), false);
   });
 
+  it("rejects an untrusted API origin before any credential-bearing request", () => {
+    let fetchCalled = false;
+    assert.equal(code(() => createPaperChaosGitHubRunLookup({
+      token: TEST_TOKEN,
+      apiBaseUrl: "https://attacker.example",
+      fetchImpl: async () => {
+        fetchCalled = true;
+        return { status: 200, json: async () => githubRun() };
+      },
+    })), "API_BASE_UNTRUSTED");
+    assert.equal(fetchCalled, false);
+  });
+
   it("rejects a missing or unsuccessful remote run instead of trusting local-looking fields", async () => {
     const lookup = createPaperChaosGitHubRunLookup({
       token: TEST_TOKEN,
