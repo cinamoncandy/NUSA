@@ -4,7 +4,7 @@ import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } fro
 import { validatePaperCandidateExecutionBinding, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
-import { buildPaperRuntimeExecutionCostEvidence, type PaperRuntimeExecutionCostEvidence } from "./paperRuntimeExecutionCostEvidence";
+import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
 
 const ACCOUNT_ID = "paper-default";
@@ -18,6 +18,7 @@ function divideRound8(numerator: bigint, denominator: bigint): number {
   return fromScaledLedgerAmount((numerator + denominator / 2n) / denominator);
 }
 const finiteNonNegative = (value: number, name: string): void => { if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`); };
+const SHA256 = /^[a-f0-9]{64}$/;
 
 export interface PaperAccountPosition {
   readonly market: string;
@@ -63,6 +64,8 @@ export interface PaperFillRecord {
    * satisfy realized-period admission on its own.
    */
   readonly runtimeExecutionCostEvidence?: PaperRuntimeExecutionCostEvidence;
+  /** Complete observed cost attribution, present only when a fresh public quote was captured. */
+  readonly executionCostAttribution?: PaperExecutionCostAttribution;
 }
 export interface PaperAccountState {
   readonly version: 1;
@@ -201,6 +204,39 @@ function validateRuntimeExecutionCostEvidence(fill: PaperFillRecord): void {
   const rebuilt = buildPaperRuntimeExecutionCostEvidence(fill, evidence.quotePrice);
   if (JSON.stringify(evidence) !== JSON.stringify(rebuilt)) throw new Error("paper runtime execution-cost evidence is invalid");
 }
+function validateObservedExecutionCostAttribution(fill: PaperFillRecord): void {
+  const attribution = fill.executionCostAttribution;
+  if (attribution == null) return;
+  if (attribution.evidenceKind !== "OBSERVED") {
+    if (attribution.source !== "PAPER_EXECUTION_BOUNDARY" || attribution.schemaVersion !== 1 || !attribution.evidenceId.trim() || !SHA256.test(attribution.evidenceFingerprintSha256)) throw new Error("paper modeled execution-cost attribution identity is invalid");
+    if (attribution.candidateId !== canonicalCandidateIdForFill(fill) || attribution.fillPrice !== fill.price || attribution.feeAmount !== fill.fee || ![attribution.quotePrice, attribution.spreadAmount, attribution.slippageAmount].every(Number.isFinite) || attribution.quotePrice <= 0 || attribution.fillPrice <= 0 || attribution.feeAmount < 0 || attribution.spreadAmount < 0 || attribution.slippageAmount < 0) throw new Error("paper modeled execution-cost attribution is invalid");
+    return;
+  }
+  const quoteEvidenceId = attribution.quoteEvidenceId;
+  const quoteFingerprint = attribution.quoteEvidenceFingerprintSha256;
+  const quoteObservedAt = attribution.quoteObservedAt;
+  const quoteBidPrice = attribution.quoteBidPrice;
+  const quoteAskPrice = attribution.quoteAskPrice;
+  if (typeof quoteEvidenceId !== "string" || typeof quoteFingerprint !== "string" || !Number.isSafeInteger(quoteObservedAt) || typeof quoteBidPrice !== "number" || typeof quoteAskPrice !== "number") throw new Error("paper observed execution-cost quote provenance is missing");
+  validatePaperObservedExecutionCostAttribution(fill, {
+    schemaVersion: 1,
+    source: "UPBIT_PUBLIC_ORDERBOOK",
+    market: fill.market,
+    observedAt: quoteObservedAt as number,
+    bidPrice: quoteBidPrice,
+    askPrice: quoteAskPrice,
+    evidenceId: quoteEvidenceId,
+    evidenceFingerprintSha256: quoteFingerprint,
+  }, attribution);
+}
+
+function canonicalCandidateIdForFill(fill: PaperFillRecord): string {
+  const provenance = fill.candidateProvenance;
+  if (provenance == null) throw new Error("paper execution-cost attribution requires candidate provenance");
+  try { return validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt).candidateId; }
+  catch { throw new Error("paper execution-cost attribution candidate provenance is invalid"); }
+}
+
 function validateState(state: PaperAccountState): void {
   if (state.version !== 1) throw new Error("unsupported paper account state version");
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
@@ -231,6 +267,7 @@ function validateState(state: PaperAccountState): void {
     if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
     validateFillCandidateProvenance(fill);
     validateRuntimeExecutionCostEvidence(fill);
+    validateObservedExecutionCostAttribution(fill);
   }
   for (const order of state.orders) {
     const fill = fillsByOrder.get(order.id);
@@ -269,6 +306,7 @@ export interface PaperExecutionTick {
   readonly overallHealth: MobileDashboardApiInput["overallHealth"];
   readonly decisions: readonly CioDecision[];
   readonly investmentPercent?: number;
+  readonly observedQuote?: PaperObservedExecutionQuote;
 }
 export interface PaperManualOrderContext {
   readonly now: number;
@@ -382,7 +420,7 @@ export class PaperTradingExecutionLoop {
         binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
       });
       let order: ReturnType<typeof executeOrder>;
-      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance, tick.price); }
+      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance, tick.price, tick.observedQuote); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
       working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
     }
@@ -416,7 +454,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -444,7 +482,16 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
   const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }) };
   const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
-  const fill: PaperFillRecord = Object.freeze({ ...baseFill, ...(runtimeExecutionCostEvidence === undefined ? {} : { runtimeExecutionCostEvidence }) });
+  let executionCostAttribution: PaperExecutionCostAttribution | undefined;
+  if (candidateProvenance != null && observedQuote != null) {
+    try { executionCostAttribution = buildPaperObservedExecutionCostAttribution({ ...baseFill, candidateProvenance }, observedQuote); }
+    catch { /* A missing/stale/invalid quote must remain non-promotable, never become zero cost. */ }
+  }
+  const fill: PaperFillRecord = Object.freeze({
+    ...baseFill,
+    ...(executionCostAttribution === undefined ? {} : { executionCostAttribution }),
+    ...(executionCostAttribution === undefined && runtimeExecutionCostEvidence !== undefined ? { runtimeExecutionCostEvidence } : {})
+  });
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys], updatedAt: now }, order, fill };
 }
 

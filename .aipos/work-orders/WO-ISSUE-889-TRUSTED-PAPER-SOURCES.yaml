@@ -1,0 +1,62 @@
+id: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
+title: "Issue #889 wire trusted public PAPER benchmark and execution-friction sources"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 889
+base_branch: main
+base_commit: 213468eee23c2b18f36dcb8bd063044dc9231365
+implementation_branch: codex/issue-889-cost-benchmark-followup
+objective: "Connect only observed public market evidence to the existing canonical PAPER realized-period producer; preserve fail-closed admission when benchmark or friction evidence is absent."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing PAPER execution and persistence boundaries with a bounded public observation source and observed quote attribution. No second PAPER engine, benchmark engine, accounting path, promotion authority, broker mutation, or LIVE capability."
+  references:
+    - apps/cloud/src/runtime.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+    - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
+    - apps/cloud/src/paperMarketBenchmark.ts
+    - packages/storage/src/index.ts
+    - packages/storage/src/paperMarketObservationRepository.ts
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - bounded_public_ticker_observation_persistence
+  - canonical_benchmark_reader
+  - observed_orderbook_execution_cost_attribution
+  - restart_safe_source_recovery
+  - fail_closed_missing_or_stale_evidence
+prohibited:
+  - synthetic_spread_or_slippage
+  - synthetic_benchmark
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - new_cost_or_performance_engine
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - public_observations_are_canonical_and_bounded
+  - benchmark_requires_real_window_evidence_and_provenance
+  - observed_quote_costs_are_complete_only_with_fresh_valid_orderbook
+  - missing_or_stale_inputs_fail_closed
+  - restart_recovery_preserves_source_evidence
+  - paper_accounting_and_broker_mutation_counts_unchanged
+validation:
+  focused: PENDING
+  full_isolated_suite: PENDING
+  typecheck: PENDING
+  build: PENDING
+  lint: PENDING
+  architecture: PENDING
+  safety: PENDING
+  security: PENDING
+  aipos: PENDING
+known_limitations:
+  - "Longitudinal admission still requires candidate-bound chronology and all existing League gates."
+next: "Validate the smallest source wiring on exact current main, then preserve any remaining unavailable evidence as fail-closed."

@@ -2,20 +2,8 @@ import { createHash } from "node:crypto";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 import type { PaperPeriodCostEvidenceKind } from "../../../packages/contracts/src/persistedPaperPeriod";
-
-export interface PaperExecutionCostAttribution {
-  readonly schemaVersion: 1;
-  readonly source: "PAPER_EXECUTION_BOUNDARY";
-  readonly evidenceKind: PaperPeriodCostEvidenceKind;
-  readonly evidenceId: string;
-  readonly evidenceFingerprintSha256: string;
-  readonly candidateId: string;
-  readonly quotePrice: number;
-  readonly fillPrice: number;
-  readonly feeAmount: number;
-  readonly spreadAmount: number;
-  readonly slippageAmount: number;
-}
+import type { PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
+export type { PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 
 export interface CanonicalPaperOutcomeReconciliationInput {
   readonly periodStartAt: number;
