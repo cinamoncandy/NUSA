@@ -7,7 +7,7 @@ owner: codex
 repository: cinamoncandy/NUSA
 issue: 880
 base_branch: main
-base_commit: 6e841cb987e544c5cabd3909e27db5546bcdacfa
+base_commit: f86ed120292c6b37646558dc526f696760d03366
 implementation_branch: codex/issue-880-strategy-lifecycle-hardening
 objective: "Harden the existing strategy rollback recommendation boundary so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
 architecture_impact:

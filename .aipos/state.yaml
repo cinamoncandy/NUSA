@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28 12:46:34.568+00:00"
+updated_at: "2026-08-28 12:59:01.716+00:00"
 current_execution_target:
   work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
   status: VERIFYING
   branch: codex/issue-880-strategy-lifecycle-hardening
-  base_sha: 6e841cb987e544c5cabd3909e27db5546bcdacfa
+  base_sha: f86ed120292c6b37646558dc526f696760d03366
   scope: "Harden the existing strategy rollback evaluator so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
@@ -86,7 +86,7 @@ claimed_state:
   work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
   status: VERIFYING
   branch: codex/issue-880-strategy-lifecycle-hardening
-  base_commit: 6e841cb987e544c5cabd3909e27db5546bcdacfa
+  base_commit: f86ed120292c6b37646558dc526f696760d03366
   scope: "Harden the existing strategy rollback evaluator so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "Focused 15/15; adjacent strategy regressions 74/74; full isolated suite 693 files; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package validation PASS."
