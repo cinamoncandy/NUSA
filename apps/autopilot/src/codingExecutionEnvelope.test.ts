@@ -45,13 +45,15 @@ describe("coding execution envelope", () => {
     assert.throws(() => validateCodingExecutionEnvelope({ ...envelope, aiAuthority: "WRITE" }), /CODING_EXECUTION_AI_AUTHORITY_INVALID/);
   });
 
-  it("projects the bounded envelope onto the existing coding runner without creating a second executor", () => {
+  it("projects lifecycle identity onto the existing coding runner without creating a second executor", () => {
     assert.deepEqual(toCodingRunnerRequest(envelope), {
       kind: "REPOSITORY_AUTOPILOT",
       repository: envelope.repository,
       headSha: envelope.baseSha,
       workflowRunId: envelope.workflowRunId,
       reason: `work:${envelope.workItemId};execution:${envelope.executionId};origin:${envelope.origin};dedupe:${envelope.dedupeKey}`,
+      executionId: envelope.executionId,
+      dedupeKey: envelope.dedupeKey,
       mutationAllowed: false,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
