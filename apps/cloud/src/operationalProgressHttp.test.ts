@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { handleOperationalProgressHttp } from "./operationalProgressHttp";
+
+const tokenVerifier = Object.freeze({ verify: (token: string) => token === "ok" ? Object.freeze({ userId: "owner", email: "owner@example.test" }) : undefined });
+const snapshot = () => Object.freeze({
+  schemaVersion: 1 as const,
+  scope: "OPERATIONAL_EVIDENCE_ONLY" as const,
+  authority: "READ_ONLY" as const,
+  headSha: "b".repeat(40),
+  asOf: Date.now(),
+  level: 1,
+  overallProgressRatio: 0.5,
+  domains: Object.freeze([{ domain: "INFRASTRUCTURE_MODULE_HEALTH", completionRatio: 1 }]),
+  achievedCriteria: Object.freeze(["exact-head-repository-ci"]),
+  blockedCriteria: Object.freeze(["actual-paper-runtime"]),
+  reasons: Object.freeze([]),
+  blockers: Object.freeze(["actual-paper-runtime:not verified"])
+});
+
+test("requires dashboard read authorization", () => {
+  const response = handleOperationalProgressHttp({ method: "GET", headers: {} }, { tokenVerifier, loadSnapshot: snapshot });
+  assert.equal(response.status, 401);
+});
+
+test("returns validated read-only snapshot", () => {
+  const response = handleOperationalProgressHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, { tokenVerifier, loadSnapshot: snapshot });
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(response.body).authority, "READ_ONLY");
+});
+
+test("fails closed when source projection is invalid", () => {
+  const response = handleOperationalProgressHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+    tokenVerifier,
+    loadSnapshot: () => ({ ...snapshot(), authority: "LIVE" } as never)
+  });
+  assert.equal(response.status, 503);
+});
