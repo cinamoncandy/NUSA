@@ -1,18 +1,15 @@
 name: Autopilot Execution Consumer
 
-# EMERGENCY FAIL-CLOSED PAUSE:
-# repository_dispatch is intentionally disabled after recursive dispatch activity
-# was observed again following consumer restoration. Manual invocation remains
-# available only for controlled verification.
 on:
-  workflow_dispatch:
+  repository_dispatch:
+    types: [nusa_autopilot_execution]
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: autopilot-execution-${{ github.run_id }}
+  group: autopilot-execution-${{ github.event.client_payload.kind }}-${{ github.event.client_payload.head_sha }}
   cancel-in-progress: false
 
 jobs:
@@ -20,9 +17,113 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Fail closed while repository dispatch is paused
+      - name: Checkout exact requested SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.head_sha }}
+          fetch-depth: 0
+
+      - name: Persist dispatch event
         run: |
-          echo "Autopilot repository_dispatch consumer is temporarily paused."
-          echo "liveAuthority=NONE"
-          echo "productionMutationAllowed=false"
-          echo "AI authority=ZERO_AUTHORITY"
+          mkdir -p artifacts/autopilot-execution
+          cat "$GITHUB_EVENT_PATH" > artifacts/autopilot-execution/repository-dispatch.json
+
+      - name: Validate fail-closed execution payload
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const payload = event.client_payload || {};
+          const fail = (message) => { console.error(message); process.exit(1); };
+          if (payload.kind !== 'REPOSITORY_AUTOPILOT') fail(`unexpected kind: ${payload.kind}`);
+          if (payload.repository !== process.env.GITHUB_REPOSITORY) fail(`repository mismatch: ${payload.repository}`);
+          if (!/^[0-9a-f]{40}$/i.test(payload.head_sha || '')) fail('head_sha must be an exact 40-character commit SHA');
+          if (payload.mutation_allowed !== false) fail('mutation_allowed must remain false');
+          console.log(`validated ${payload.repository}@${payload.head_sha}`);
+          console.log('liveAuthority=NONE');
+          console.log('productionMutationAllowed=false');
+          console.log('AI authority=ZERO_AUTHORITY');
+          NODE
+
+      - name: Verify checkout matches requested SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.client_payload.head_sha }}"
+
+      - name: Build coding runner request
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const payload = event.client_payload || {};
+          const request = {
+            kind: payload.kind,
+            repository: payload.repository,
+            headSha: payload.head_sha,
+            workflowRunId: payload.workflow_run_id ?? null,
+            reason: payload.reason,
+            mutationAllowed: false,
+            liveAuthority: 'NONE',
+            productionMutationAllowed: false,
+            aiAuthority: 'ZERO_AUTHORITY',
+          };
+          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-request.json', JSON.stringify(request, null, 2));
+          NODE
+
+      - name: Dispatch to external coding runner
+        env:
+          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
+          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const url = process.env.NUSA_CODING_RUNNER_URL?.trim();
+          const token = process.env.NUSA_CODING_RUNNER_TOKEN?.trim();
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          if (!url || !token) {
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
+              status: 'INTERFACE_READY',
+              reason: 'external-coding-runner-not-configured',
+              request,
+            }, null, 2));
+            console.log('External coding runner is not configured; request persisted fail-closed.');
+            process.exit(0);
+          }
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'authorization': `Bearer ${token}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(request),
+          }).then(async (response) => {
+            const text = await response.text();
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
+              status: response.ok ? 'DISPATCHED' : 'DISPATCH_FAILED',
+              httpStatus: response.status,
+              response: text,
+              request,
+            }, null, 2));
+            if (!response.ok) process.exit(1);
+          }).catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Classify execution boundary
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-result.json', 'utf8'));
+          console.log(`executor=${result.status}`);
+          console.log('liveAuthority=NONE');
+          console.log('productionMutationAllowed=false');
+          console.log('AI authority=ZERO_AUTHORITY');
+          NODE
+
+      - name: Upload execution artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autopilot-execution-${{ github.run_id }}
+          path: artifacts/autopilot-execution
