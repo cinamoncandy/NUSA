@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T14:35:00+09:00"
+updated_at: "2026-08-28T14:40:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
   status: VERIFYING
@@ -26,7 +26,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-889-cost-evidence
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 995
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -91,7 +91,7 @@ claimed_state:
   scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
   latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 76/76 PASS after main integration; full isolated 693 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/read-only broker/package validation PASS; exact-head CI pending PR publication."
+  validation: "Focused 76/76 PASS after main integration; full isolated 693 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/read-only broker/package validation PASS; PR #995 published, final exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
