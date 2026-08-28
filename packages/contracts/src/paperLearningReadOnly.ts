@@ -1,4 +1,4 @@
-export type PaperLearningReadOnlyStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
+export type PaperLearningReadOnlyStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY" | "PERIOD_OPEN" | "PERIOD_REALIZED_PERSISTED" | "PERIOD_REJECTED";
 export type PaperLearningReadOnlyStatus = "PASS" | "SKIP" | "FAIL";
 export type PaperLearningRuntimeStatus = "RUNNING" | "PAUSED" | "HALTED" | "ERROR";
 
@@ -40,7 +40,7 @@ export interface PaperLearningReadOnlySnapshot {
   readonly events: readonly PaperLearningReadOnlyEvent[];
 }
 
-const stages = new Set<PaperLearningReadOnlyStage>(["MARKET_DATA", "SIGNAL", "CANDIDATE", "DECISION", "PERMISSION", "RISK", "ORDER_INTENT", "FILL", "PNL", "LEARNING", "HALT", "ERROR", "IDEMPOTENCY"]);
+const stages = new Set<PaperLearningReadOnlyStage>(["MARKET_DATA", "SIGNAL", "CANDIDATE", "DECISION", "PERMISSION", "RISK", "ORDER_INTENT", "FILL", "PNL", "LEARNING", "HALT", "ERROR", "IDEMPOTENCY", "PERIOD_OPEN", "PERIOD_REALIZED_PERSISTED", "PERIOD_REJECTED"]);
 const statuses = new Set<PaperLearningReadOnlyStatus>(["PASS", "SKIP", "FAIL"]);
 const runtimeStatuses = new Set<PaperLearningRuntimeStatus>(["RUNNING", "PAUSED", "HALTED", "ERROR"]);
 const forbiddenKey = /(authorization|bearer|token|secret|api[_-]?key|access[_-]?key|account[_-]?id|order[_-]?id|fill[_-]?id)/i;

@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { CioDecision } from "./cioDecisionEngine";
 import type { PaperAccountState, PaperExecutionResult, PaperFillRecord } from "./paperTradingExecutionLoop";
 
-export type PaperLearningStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY";
+export type PaperLearningStage = "MARKET_DATA" | "SIGNAL" | "CANDIDATE" | "DECISION" | "PERMISSION" | "RISK" | "ORDER_INTENT" | "FILL" | "PNL" | "LEARNING" | "HALT" | "ERROR" | "IDEMPOTENCY" | "PERIOD_OPEN" | "PERIOD_REALIZED_PERSISTED" | "PERIOD_REJECTED";
 export interface PaperLearningGate { readonly name: string; readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; }
 export interface PaperLearningRisk { readonly status: "PASS" | "FAIL" | "SKIP"; readonly reason: string; readonly limits?: Readonly<Record<string, number>>; }
 export interface PaperLearningEvidence { readonly evidenceId?: string; readonly inputHash?: string; readonly score?: number; readonly outcome?: "PROMOTE" | "REJECT" | "PAUSE" | "UNCHANGED"; }
@@ -124,7 +124,7 @@ function decodePersisted(value: unknown): PaperLearningEvent | undefined {
   const stage = raw.stage;
   const status = raw.status;
   const occurredAt = safeNumber(raw.occurredAt);
-  const stages: readonly PaperLearningStage[] = ["MARKET_DATA", "SIGNAL", "CANDIDATE", "DECISION", "PERMISSION", "RISK", "ORDER_INTENT", "FILL", "PNL", "LEARNING", "HALT", "ERROR", "IDEMPOTENCY"];
+  const stages: readonly PaperLearningStage[] = ["MARKET_DATA", "SIGNAL", "CANDIDATE", "DECISION", "PERMISSION", "RISK", "ORDER_INTENT", "FILL", "PNL", "LEARNING", "HALT", "ERROR", "IDEMPOTENCY", "PERIOD_OPEN", "PERIOD_REALIZED_PERSISTED", "PERIOD_REJECTED"];
   if (raw.mode !== "PAPER" || id == null || cycleId == null || market == null || occurredAt == null || !Number.isSafeInteger(occurredAt) || occurredAt < 0 || !stages.includes(stage as PaperLearningStage) || !["PASS", "SKIP", "FAIL"].includes(String(status))) return undefined;
   try {
     return sanitizedForPersistence({ ...(raw as unknown as PaperLearningEvent), id, cycleId, market, occurredAt, stage: stage as PaperLearningStage, status: status as PaperLearningEvent["status"], mode: "PAPER" });
