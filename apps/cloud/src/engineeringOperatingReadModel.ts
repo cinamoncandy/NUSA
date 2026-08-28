@@ -243,15 +243,55 @@ export function createNusaEngineeringOperatingReadModel(source?: NusaEngineering
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateQueueProjection(value: unknown): void {
+  if (!isRecord(value)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID");
+  const { status, revision, totalItems, activeItems, mergeReadyItems } = value;
+  if (status !== "AVAILABLE" && status !== "UNAVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID");
+  for (const count of [totalItems, activeItems, mergeReadyItems]) {
+    if (!Number.isSafeInteger(count) || (count as number) < 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID");
+  }
+  if ((activeItems as number) > (totalItems as number) || (mergeReadyItems as number) > (activeItems as number)) {
+    throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INCONSISTENT");
+  }
+  if (status === "AVAILABLE") {
+    if (!Number.isSafeInteger(revision) || (revision as number) < 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID");
+  } else if (revision !== null || totalItems !== 0 || activeItems !== 0 || mergeReadyItems !== 0) {
+    throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INCONSISTENT");
+  }
+}
+
+function validateProjectionObject(value: unknown, errorCode: string): void {
+  if (!isRecord(value)) throw new Error(errorCode);
+}
+
 export function validateNusaEngineeringOperatingSnapshot(value: unknown): NusaEngineeringOperatingSnapshot {
-  if (value == null || typeof value !== "object") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_INVALID");
+  if (!isRecord(value)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_INVALID");
   const candidate = value as Partial<NusaEngineeringOperatingSnapshot>;
   if (candidate.schemaVersion !== 1 || candidate.scope !== "ENGINEERING_OPERATIONS_READ_ONLY") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_SCHEMA_INVALID");
   if (candidate.status !== "VERIFIED" && candidate.status !== "INSUFFICIENT" && candidate.status !== "UNAVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_STATUS_INVALID");
   if (!Number.isSafeInteger(candidate.observedAt) || (candidate.observedAt as number) < 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_TIME_INVALID");
   if (candidate.currentHeadSha != null && !SHA40.test(candidate.currentHeadSha)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_HEAD_INVALID");
-  if (!Array.isArray(candidate.blockers) || candidate.blockers.some((reason) => typeof reason !== "string")) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_BLOCKERS_INVALID");
+  if (!Array.isArray(candidate.blockers) || candidate.blockers.some((reason) => typeof reason !== "string" || reason.trim() === "")) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_BLOCKERS_INVALID");
   if (!Array.isArray(candidate.sourceFingerprints) || candidate.sourceFingerprints.some((fingerprint) => typeof fingerprint !== "string" || !SHA64.test(fingerprint))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_PROVENANCE_INVALID");
+  if (new Set(candidate.sourceFingerprints).size !== candidate.sourceFingerprints.length) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_PROVENANCE_DUPLICATE");
+  if (!Array.isArray(candidate.opportunityPriority)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_PRIORITY_INVALID");
+  if (candidate.opportunityPriority.some((decision) => !isRecord(decision))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_PRIORITY_INVALID");
+  validateProjectionObject(candidate.selfOptimizer, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_INVALID");
+  validateProjectionObject(candidate.adaptiveConcurrency, "ENGINEERING_OPERATIONS_SNAPSHOT_CONCURRENCY_INVALID");
+  validateProjectionObject(candidate.executionOrigin, "ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_ORIGIN_INVALID");
+  validateProjectionObject(candidate.outcome, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_INVALID");
+  validateQueueProjection(candidate.queue);
+  if (candidate.status === "VERIFIED") {
+    if (candidate.blockers.length !== 0 || candidate.currentHeadSha == null || candidate.queue?.status !== "AVAILABLE") {
+      throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_VERIFIED_INCONSISTENT");
+    }
+  } else if (candidate.blockers.length === 0) {
+    throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_NONVERIFIED_WITHOUT_BLOCKER");
+  }
   if (candidate.authority?.liveAuthority !== "NONE" || candidate.authority?.productionMutationAllowed !== false || candidate.authority?.aiAuthority !== "ZERO_AUTHORITY" || candidate.authority?.mutationAllowed !== false) throw new Error("ENGINEERING_OPERATIONS_AUTHORITY_VIOLATION");
   return value as NusaEngineeringOperatingSnapshot;
 }
