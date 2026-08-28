@@ -8,22 +8,27 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("Home exposes exactly one real safety-first next action from verified runtime state", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  // Issue: a standalone "NEXT DECISION" card used to duplicate this exact action and reasoning
-  // a second time below the supervisor deck. The one actionable button now lives only in the
-  // NOW/WHY/RESULT/LEARNING supervisor deck (home-supervisor-primary-action) -- asserted as the
-  // ONLY primary-action testID in the file, so a duplicate cannot silently return.
+  const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
+  // The one actionable button lives only in the supervisor deck; the canonical projection decides
+  // its label/destination so presentation never reconstructs runtime truth independently.
   assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.equal((home.match(/testID="home-supervisor-primary-action"/g) ?? []).length, 1);
   assert.doesNotMatch(home, /testID="home-next-action"/);
   assert.doesNotMatch(home, /testID="home-next-action-button"/);
   assert.match(home, /설정에서 연결/);
   assert.match(home, /PAPER 연결/);
-  assert.match(home, /OPEN SIGNAL/);
-  assert.match(home, /OPEN MARKET/);
+  assert.match(home, /switch \(decisionSurface\.primaryAction\)/);
+  assert.match(home, /case "SETTINGS"[\s\S]*onGoSettings\(\)/);
+  assert.match(home, /case "PORTFOLIO"[\s\S]*onNavigate\("Portfolio"\)/);
+  assert.match(home, /case "AI_SIGNAL"[\s\S]*onNavigate\("AiSignal"\)/);
+  assert.match(home, /case "MARKETS"[\s\S]*onNavigate\("Markets"\)/);
   assert.match(home, /const disconnected = notConfigured != null/);
-  assert.match(home, /onNavigate\(aiInsightAvailable \? "AiSignal" : "Markets"\)/);
-  assert.match(home, /aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
-  assert.match(home, /const primaryLabel = notConfigured \? "CONNECT PAPER" : readOnlyError \? "RECOVER" : runtimeNeedsSupervision \? "SUPERVISE PAPER" : aiInsightAvailable \? "OPEN SIGNAL" : "OPEN MARKET"/);
+  assert.match(decisionSurface, /"CONNECT PAPER"/);
+  assert.match(decisionSurface, /"RECOVER"/);
+  assert.match(decisionSurface, /"SUPERVISE PAPER"/);
+  assert.match(decisionSurface, /"OPEN SIGNAL"/);
+  assert.match(decisionSurface, /"OPEN MARKET"/);
+  assert.match(decisionSurface, /const primaryAction: HomeDecisionPrimaryAction/);
 });
 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
