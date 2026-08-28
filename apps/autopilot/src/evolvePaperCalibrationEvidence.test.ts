@@ -86,7 +86,11 @@ test("rejects duplicate and overlapping observations", () => {
   );
 
   const overlap = observations();
-  overlap[5] = { ...overlap[5]!, periodStartAt: overlap[4]!.periodEndAt - 1 };
+  overlap[5] = {
+    ...overlap[5]!,
+    predictedAt: overlap[4]!.periodStartAt,
+    periodStartAt: overlap[4]!.periodEndAt - 1,
+  };
   assert.throws(
     () => buildPaperCalibrationEvidence({ admission: admission(), observations: overlap }),
     /EVOLVE_PAPER_CALIBRATION_CHRONOLOGY_INVALID/,
