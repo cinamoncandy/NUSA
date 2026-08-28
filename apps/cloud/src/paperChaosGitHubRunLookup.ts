@@ -103,8 +103,8 @@ function assertRunMatches(evidence: BoundPaperChaosOperationalEvidence, run: Pap
 
 export function createPaperChaosGitHubRunLookup(options: PaperChaosGitHubRunLookupOptions): PaperChaosGitHubRunLookup {
   const token = requiredText(options.token, "token");
-  const apiBaseUrl = (options.apiBaseUrl ?? DEFAULT_API_BASE_URL).trim().replace(/\/$/, "");
-  if (!/^https:\/\/[^/]+(?:\/[^/]*)*$/.test(apiBaseUrl)) throw new PaperChaosGitHubRunLookupError("API_BASE_INVALID", "GitHub API base URL must use HTTPS");
+  const apiBaseUrl = (options.apiBaseUrl ?? DEFAULT_API_BASE_URL).trim().replace(/\/+$/, "");
+  if (apiBaseUrl !== DEFAULT_API_BASE_URL) throw new PaperChaosGitHubRunLookupError("API_BASE_UNTRUSTED", "GitHub API base URL must be the canonical public GitHub API origin");
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) throw new PaperChaosGitHubRunLookupError("TIMEOUT_INVALID", "GitHub API timeout is invalid");
   const fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
