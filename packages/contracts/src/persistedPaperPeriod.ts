@@ -28,6 +28,10 @@ export interface PersistedPaperPeriodRecord {
   readonly benchmarkReturn: number;
   readonly turnoverCostRate: number;
   readonly costEvidence: PaperPeriodCostEvidence;
+  /** Optional canonical benchmark provenance; legacy records may omit it. */
+  readonly benchmarkEvidenceId?: string;
+  /** Fingerprint of the canonical account outcome used to derive this period. */
+  readonly canonicalOutcomeReceiptFingerprint?: string;
   readonly status: PaperPeriodLifecycleStatus;
 }
 

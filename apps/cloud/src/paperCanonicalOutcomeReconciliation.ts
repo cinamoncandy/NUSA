@@ -102,6 +102,9 @@ function candidateIdFromFill(fill: PaperFillRecord): string {
 
 function validateCostAttribution(fill: PaperFillRecord, attribution: PaperExecutionCostAttribution | undefined): PaperExecutionCostAttribution {
   if (attribution == null) {
+    if (fill.runtimeExecutionCostEvidence != null) {
+      throw new PaperCanonicalOutcomeReconciliationError("INCOMPLETE_EXECUTION_COST_EVIDENCE", `fill ${fill.id} execution-cost evidence is incomplete`);
+    }
     throw new PaperCanonicalOutcomeReconciliationError("MISSING_EXECUTION_COST_EVIDENCE", `fill ${fill.id} has no execution-cost attribution`);
   }
   if (attribution.schemaVersion !== 1 || attribution.source !== "PAPER_EXECUTION_BOUNDARY") {

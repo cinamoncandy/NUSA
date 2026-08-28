@@ -1,0 +1,74 @@
+version: 1
+id: WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION
+title: "Issue #889 canonical realized PAPER period producer"
+status: VERIFYING
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 889
+base_branch: main
+base_commit: 6b86b29dfd010a3996f64cffdc2ab86a86fee1bc
+implementation_branch: codex/issue-889-paper-outcome-reconciliation
+objective: "Close the repository-side gap between canonical PAPER execution outcomes and the existing persisted candidate-bound realized-period contract without fabricating research evidence or creating a parallel execution/accounting engine."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing canonical PAPER execution boundary, outcome reconciliation, and persisted realized-period producer/store. The change remains a PAPER/research evidence projection and does not create execution, broker, Risk, promotion, or LIVE authority."
+  references:
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - apps/cloud/src/paperCanonicalOutcomeReconciliation.ts
+    - apps/cloud/src/paperRuntimeExecutionCostEvidence.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+    - packages/storage/src/persistedPaperPeriodStore.ts
+    - apps/desktop/src/cloud/persistedPaperForwardEvidenceAdapter.ts
+    - .aipos/decisions/ADR-0012-governed-outcome-attribution-learning.md
+scope:
+  - canonical_paper_outcome_reconciliation
+  - candidate_and_dataset_provenance_binding
+  - persisted_realized_period_recovery
+  - deterministic_identity_and_chronology
+  - explicit_execution_cost_evidence
+  - bounded_read_only_research_projection
+prohibited:
+  - inferred_candidate_attribution
+  - fabricated_zero_cost_or_performance_evidence
+  - second_paper_or_research_engine
+  - parallel_accounting_state
+  - broker_or_order_mutation
+  - risk_or_promotion_authority
+  - live_activation
+  - withdrawal_or_transfer
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - canonical fill/outcome data is the only source of realized return and cost fields
+  - candidate and dataset provenance must be explicitly bound or the period remains non-promotable
+  - unknown spread/slippage/fee attribution is preserved as unknown and fails closed for VERIFIED evidence
+  - period chronology, replay, identity, and provenance conflicts fail closed
+  - durable records survive restart and are idempotent under reconciliation/replay
+  - finalized-source versus persisted-period lag is observable or remains explicitly unresolved
+  - retention is bounded and deterministic
+  - failed or incomplete periods remain visible without increasing evidence breadth
+  - no PAPER accounting or broker mutation semantics change
+validation:
+  focused: PASS_21_OF_21
+  relevant_regressions: PASS_14_OF_14
+  full_isolated_suite: PASS_692_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+  package_validation: PASS
+known_limitations:
+  - "The current canonical PAPER runtime carries explicit INCOMPLETE spread/slippage evidence; canonical period close remains fail-closed until complete trusted cost attribution exists."
+  - "A canonical benchmark reader is not wired in the Cloud runtime; no benchmark or longitudinal performance evidence is fabricated."
+  - "External deployment, credentials, and physical-device acceptance are out of scope."
+next: "Publish the validated branch and obtain exact-head remote evidence if GitHub authentication permits; do not claim full longitudinal evidence until canonical cost and benchmark sources are complete."
