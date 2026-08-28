@@ -1,14 +1,14 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T00:00:00+09:00"
+updated_at: "2026-08-29T01:55:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: VERIFYING
-  branch: codex/issue-905-measured-concurrency-wiring
-  base_sha: e125e6a39207e6245d257b736d460b22eff6e014
-  scope: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: exact-head-ci-recovery
+  branch: codex/engineering-operations-validation-hardening
+  base_sha: 8c6f2f71979ef4d624486a58615014747a5c2e78
+  scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+phase: focused-validation
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-905-measured-concurrency-wiring
+active_branch: codex/engineering-operations-validation-hardening
 active_successor_branch: null
-active_pull_request: 1032
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -85,12 +85,12 @@ repository_maintenance:
 claimed_state:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: VERIFYING
-  branch: codex/issue-905-measured-concurrency-wiring
-  base_commit: e125e6a39207e6245d257b736d460b22eff6e014
-  scope: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
-  implementation_commit: 93a279728b080e835019a1166891b368313aa4df
+  branch: codex/engineering-operations-validation-hardening
+  base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
+  scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
+  implementation_commit: pending-local-commit
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Implementation 93a279728b080e835019a1166891b368313aa4df; focused 8/8 PASS; full isolated 729 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/git diff --check PASS; PR #1032 exact-head CI pending."
+  validation: "Focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -495,7 +495,7 @@ in_progress:
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
   - id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
     evidence: ".aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml"
-    summary: "Wire one read-only production Engineering OS composition over existing measured evidence contracts without synthetic telemetry or authority."
+    summary: "Harden the canonical read-only Engineering OS projection against malformed nested evidence and credential-shaped fields while preserving fail-closed absent telemetry."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -523,7 +523,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml
-  reason: "Compose and validate the read-only production Engineering OS snapshot over existing canonical evidence contracts."
+  reason: "Publish and exact-head validate the read-only Engineering OS boundary hardening; keep absent production telemetry fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552

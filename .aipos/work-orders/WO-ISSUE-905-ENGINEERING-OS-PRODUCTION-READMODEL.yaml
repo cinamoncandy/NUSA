@@ -6,9 +6,9 @@ repository: cinamoncandy/NUSA
 issue: 905
 pull_request: 1032
 base_branch: main
-base_commit: e125e6a39207e6245d257b736d460b22eff6e014
-implementation_branch: codex/issue-905-measured-concurrency-wiring
-objective: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
+base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
+implementation_branch: codex/engineering-operations-validation-hardening
+objective: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority, and fail closed before malformed nested snapshots cross the HTTP boundary."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
@@ -48,9 +48,11 @@ acceptance:
   - exact_head_outcome_requires_distinct_provenance_bound_telemetry
   - execution_origin_is_projected_only_from_actual_evidence
   - production_runtime_wires_accessor_without_mutation
+  - nested_snapshot_shape_and_provenance_are_validated_before_serialization
+  - credential-shaped_fields_are_rejected_at_the_read_only_boundary
   - safety_authority_remains_unchanged
 validation:
-  focused: PASS_8_OF_8
+  focused: PASS_10_OF_10
   production_wiring: PASS
   full_isolated_suite: PASS_729_FILES
   preflight: PASS
@@ -66,4 +68,4 @@ validation:
 implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
-next: "Publish the focused PR, verify its exact-head protected checks, and merge only when all required checks are green."
+next: "Publish the validation-hardening slice, verify its exact-head protected checks, and merge only when all required checks are green; do not fabricate absent production telemetry."
