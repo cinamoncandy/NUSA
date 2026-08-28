@@ -81,6 +81,24 @@ const freezeQueue = (revision: number, items: readonly NusaDevelopmentWorkItem[]
   items: Object.freeze(items.map(freezeItem)),
 });
 
+function assertAcyclicDependencies(items: readonly NusaDevelopmentWorkItem[]): void {
+  const byId = new Map(items.map((item) => [item.id, item] as const));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (id: string): void => {
+    if (visited.has(id)) return;
+    if (visiting.has(id)) throw new Error(`WORK_DEPENDENCY_CYCLE:${id}`);
+    visiting.add(id);
+    const item = byId.get(id);
+    for (const dependency of item?.dependencies ?? []) visit(dependency);
+    visiting.delete(id);
+    visited.add(id);
+  };
+
+  for (const item of items) visit(item.id);
+}
+
 export function createNusaDevelopmentQueue(items: readonly NusaDevelopmentWorkItem[], revision = 0): NusaDevelopmentQueue {
   if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("QUEUE_REVISION_INVALID");
   const ids = new Set<string>();
@@ -96,6 +114,7 @@ export function createNusaDevelopmentQueue(items: readonly NusaDevelopmentWorkIt
       if (dependency === item.id) throw new Error(`WORK_DEPENDENCY_SELF:${item.id}`);
     }
   }
+  assertAcyclicDependencies(items);
   return freezeQueue(revision, items);
 }
 
