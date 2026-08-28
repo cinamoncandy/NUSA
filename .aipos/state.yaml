@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-889-realized-period-producer
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: null
+active_pull_request: 973
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -519,7 +519,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
-  reason: "Commit and publish the latest-main integration, then record exact-head remote evidence; preserve fail-closed longitudinal evidence semantics and zero authority expansion until real orchestration exists."
+  reason: "Validate exact-head PR #973, then preserve fail-closed longitudinal evidence semantics and zero authority expansion until real orchestration exists."
 verification:
   wo_0057:
     parent_pull_request: 552

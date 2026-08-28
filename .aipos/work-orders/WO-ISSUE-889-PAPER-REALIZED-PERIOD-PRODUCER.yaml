@@ -65,8 +65,8 @@ validation:
   package_validation: PASS
   restricted_live_readiness: PASS
   read_only_broker: PASS
-implementation_status: LOCAL_INTEGRATION_VALIDATED_PENDING_REMOTE_PR
-pull_request: null
+implementation_status: REMOTE_VALIDATION_PENDING
+pull_request: 973
 implementation_head: b53895c840872f675ba8e7a9d5565ef3c0e1b3c4
 merge_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
 post_merge_integration_commit: 7a613c2fd073b125de1df868452803bf471d4d19
@@ -77,4 +77,4 @@ remediation_validation: "Focused producer/storage/runtime suite 44/44 PASS; full
 known_limitations:
   - "Remote publication and authenticated exact-head CI are pending."
   - "Real longitudinal PAPER orchestration and non-synthetic performance evidence remain unavailable; research admission must remain fail-closed."
-next: "Commit and publish the latest-main integration, then record exact-head remote evidence. Do not claim full Issue #889 closure until real non-synthetic longitudinal orchestration evidence exists."
+next: "Validate exact-head PR #973, then record remote evidence. Do not claim full Issue #889 closure until real non-synthetic longitudinal orchestration evidence exists."
