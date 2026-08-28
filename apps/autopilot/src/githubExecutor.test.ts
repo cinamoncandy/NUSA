@@ -7,8 +7,8 @@ const request: AutopilotExecutionRequest = {
   kind: "REPOSITORY_AUTOPILOT",
   repository: "cinamoncandy/NUSA",
   headSha: "a".repeat(40),
-  workflowRunId: null,
-  reason: "continue-from:main_push",
+  workflowRunId: 123456789,
+  reason: "continue-from:ci_succeeded",
   mutationAllowed: false,
 };
 
@@ -28,6 +28,23 @@ describe("executeGithubDispatch", () => {
       token: "secret",
       allowedRepository: "cinamoncandy/NUSA",
     })).status, "REJECTED");
+  });
+
+  it("rejects dispatch without a trusted workflow run id before network access", async () => {
+    let called = false;
+    const fakeFetch = (async () => {
+      called = true;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const value = await executeGithubDispatch({ ...request, workflowRunId: null }, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+    }, fakeFetch);
+
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-workflow-run-id-required");
+    assert.equal(called, false);
   });
 
   it("sends one bounded repository dispatch with no authority escalation", async () => {
@@ -51,6 +68,7 @@ describe("executeGithubDispatch", () => {
     const payload = JSON.parse(String(capturedInit?.body));
     assert.equal(payload.event_type, "nusa_autopilot_execution");
     assert.equal(payload.client_payload.kind, "REPOSITORY_AUTOPILOT");
+    assert.equal(payload.client_payload.workflow_run_id, 123456789);
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
     assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");
