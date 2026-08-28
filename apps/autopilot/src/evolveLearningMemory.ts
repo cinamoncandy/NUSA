@@ -7,7 +7,7 @@ export interface EvolutionLearningRecord {
   readonly hypothesis: string;
   readonly changeReference: string;
   readonly validationStatus: string;
-  readonly outcome: EvolutionOutcome["status"];
+  readonly outcome: EvolutionOutcome;
   readonly failureReason: string | null;
   readonly rollbackReference: string | null;
   readonly reusable: boolean;
@@ -25,11 +25,14 @@ export function createEvolutionLearningRecord(input: EvolutionLearningRecord): E
   if (!clean(input.validationStatus, 80)) throw new Error("EVOLVE_MEMORY_VALIDATION_REQUIRED");
   if (Number.isNaN(Date.parse(input.recordedAt))) throw new Error("EVOLVE_MEMORY_RECORDED_AT_INVALID");
 
+  const evidenceReferences = input.evidenceReferences.map((value) => clean(value, 240)).filter(Boolean);
+  if (!evidenceReferences.length) throw new Error("EVOLVE_MEMORY_EVIDENCE_REQUIRED");
+
   return Object.freeze({
     ...input,
     opportunityId: clean(input.opportunityId, 160),
     problem: clean(input.problem, 2000),
-    evidenceReferences: Object.freeze(input.evidenceReferences.map((value) => clean(value, 240)).filter(Boolean)),
+    evidenceReferences: Object.freeze(evidenceReferences),
     hypothesis: clean(input.hypothesis, 2000),
     changeReference: clean(input.changeReference, 240),
     validationStatus: clean(input.validationStatus, 80),
