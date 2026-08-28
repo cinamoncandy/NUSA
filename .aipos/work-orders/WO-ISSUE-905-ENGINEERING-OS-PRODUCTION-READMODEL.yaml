@@ -65,6 +65,8 @@ validation:
   security: PASS
   aipos: PASS
   git_diff_check: PASS
+  origin_branch: PUSHED
+  remote_pr: PENDING_GITHUB_AUTH
 implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."

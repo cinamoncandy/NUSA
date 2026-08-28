@@ -90,7 +90,7 @@ claimed_state:
   scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
   implementation_commit: 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Implementation 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4; focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated. GitHub authentication is unavailable for PR publication."
+  validation: "Implementation 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4; focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated. Feature branch was pushed to origin; GitHub CLI authentication is invalid, so PR/exact-head CI remain pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -523,7 +523,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml
-  reason: "Publish and exact-head validate the read-only Engineering OS boundary hardening; keep absent production telemetry fail-closed."
+  reason: "Create the read-only Engineering OS boundary hardening PR and exact-head validate it after GitHub CLI re-authentication; keep absent production telemetry fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552
