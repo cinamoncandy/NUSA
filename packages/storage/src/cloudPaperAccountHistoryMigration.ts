@@ -25,11 +25,19 @@ WHEN NEW.status = 'VALID'
 BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at > NEW.updated_at
+  ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_CHRONOLOGY_REGRESSION') END;
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
     WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
       AND (checksum <> NEW.checksum OR state_json <> NEW.state_json OR schema_version <> NEW.schema_version)
   ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_IDENTITY_CONFLICT') END;
-  INSERT OR IGNORE INTO cloud_paper_account_history (account_id, schema_version, updated_at, state_json, checksum)
-  VALUES (NEW.account_id, NEW.schema_version, NEW.updated_at, NEW.state_json, NEW.checksum);
+  INSERT INTO cloud_paper_account_history (account_id, schema_version, updated_at, state_json, checksum)
+  SELECT NEW.account_id, NEW.schema_version, NEW.updated_at, NEW.state_json, NEW.checksum
+  WHERE NOT EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
+  );
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_cloud_paper_account_history_update
@@ -38,11 +46,19 @@ WHEN NEW.status = 'VALID'
 BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at > NEW.updated_at
+  ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_CHRONOLOGY_REGRESSION') END;
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
     WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
       AND (checksum <> NEW.checksum OR state_json <> NEW.state_json OR schema_version <> NEW.schema_version)
   ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_IDENTITY_CONFLICT') END;
-  INSERT OR IGNORE INTO cloud_paper_account_history (account_id, schema_version, updated_at, state_json, checksum)
-  VALUES (NEW.account_id, NEW.schema_version, NEW.updated_at, NEW.state_json, NEW.checksum);
+  INSERT INTO cloud_paper_account_history (account_id, schema_version, updated_at, state_json, checksum)
+  SELECT NEW.account_id, NEW.schema_version, NEW.updated_at, NEW.state_json, NEW.checksum
+  WHERE NOT EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
+  );
 END;
 
 INSERT OR IGNORE INTO cloud_paper_account_history (account_id, schema_version, updated_at, state_json, checksum)
