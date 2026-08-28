@@ -1,4 +1,17 @@
-import { DurableObject } from "cloudflare:workers";
+interface DurableObjectStorageLike {
+  get<T>(key: string): Promise<T | undefined>;
+  put<T>(key: string, value: T): Promise<void>;
+}
+
+interface DurableObjectStateLike {
+  storage: DurableObjectStorageLike;
+}
+
+export interface DurableObjectIdLike {}
+
+export interface DurableObjectStubLike {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
 
 interface ExecutionRecord {
   dedupeKey: string;
@@ -34,7 +47,9 @@ function validAcquire(value: unknown): value is AcquireRequest {
     && Number(candidate.leaseExpiresAt) > Number(candidate.now);
 }
 
-export class ExecutionCoordinator extends DurableObject {
+export class ExecutionCoordinator {
+  constructor(private readonly ctx: DurableObjectStateLike) {}
+
   async fetch(request: Request): Promise<Response> {
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     const url = new URL(request.url);
@@ -77,8 +92,8 @@ export class ExecutionCoordinator extends DurableObject {
 }
 
 export interface ExecutionCoordinatorNamespace {
-  idFromName(name: string): DurableObjectId;
-  get(id: DurableObjectId): DurableObjectStub;
+  idFromName(name: string): DurableObjectIdLike;
+  get(id: DurableObjectIdLike): DurableObjectStubLike;
 }
 
 export async function acquirePersistentExecution(
