@@ -25,6 +25,10 @@ WHEN NEW.status = 'VALID'
 BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at > NEW.updated_at
+  ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_CHRONOLOGY_REGRESSION') END;
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
     WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
       AND (checksum <> NEW.checksum OR state_json <> NEW.state_json OR schema_version <> NEW.schema_version)
   ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_IDENTITY_CONFLICT') END;
@@ -36,6 +40,10 @@ CREATE TRIGGER IF NOT EXISTS trg_cloud_paper_account_history_update
 AFTER UPDATE OF schema_version, updated_at, state_json, checksum, status ON cloud_paper_accounts
 WHEN NEW.status = 'VALID'
 BEGIN
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM cloud_paper_account_history
+    WHERE account_id = NEW.account_id AND updated_at > NEW.updated_at
+  ) THEN RAISE(ABORT, 'PAPER_ACCOUNT_HISTORY_CHRONOLOGY_REGRESSION') END;
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM cloud_paper_account_history
     WHERE account_id = NEW.account_id AND updated_at = NEW.updated_at
