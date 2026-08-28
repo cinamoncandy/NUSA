@@ -1,0 +1,71 @@
+version: 1
+id: WO-ISSUE-880-STRATEGY-CONTAINMENT
+title: "Issue #880 evidence-driven strategy containment decision"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 880
+base_branch: main
+base_commit: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
+implementation_branch: codex/issue-880-containment-evidence
+objective: "Reuse the existing rollback and governance contracts to produce deterministic, provenance-bound, advisory containment decisions for degraded strategies without mutating lifecycle, capital, risk, execution, or LIVE authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing strategy rollback evaluator with a fail-closed containment adapter; the adapter emits a human-reviewable decision and never applies a governance transition."
+  references:
+    - apps/cloud/src/strategyRollbackEngine.ts
+    - apps/cloud/src/strategyGovernanceService.ts
+    - packages/contracts/src/strategyGovernance.ts
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - evidence_driven_containment_projection
+  - fail_closed_missing_stale_conflicting_evidence
+  - deterministic_retirement_advisory
+  - no_mutation_regression_coverage
+prohibited:
+  - new_strategy_lifecycle_engine
+  - automatic_lifecycle_mutation
+  - automatic_promotion_or_retirement
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_limit_mutation
+  - live_activation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - existing rollback evaluator remains the policy authority
+  - verified evidence maps deterministically to HOLD, SUSPEND, or ROLLBACK advice
+  - missing, stale, and conflicting evidence never produces permissive promotion advice
+  - retirement is advisory, thresholded, and requires human approval
+  - evidence identity, timestamp, fingerprint, and references are validated
+  - evaluation performs no persistence or lifecycle mutation
+  - existing strategy governance, promotion, rollback, and restart regressions remain green
+implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PASS_PENDING_PUBLICATION
+implementation_commit: b87714f5
+validation:
+  focused: PASS_25_OF_25
+  relevant_regressions: PASS_25_OF_25
+  full_isolated_suite: PASS_732_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+  package_validation: PASS
+  git_diff_check: PASS
+remote_validation: PENDING_PR_EXACT_HEAD_CI
+known_limitations:
+  - "This slice emits advisory containment decisions only; a separate explicit human-approved command remains necessary to append governance lifecycle events."
+  - "Issue #880 evidence producers and long-horizon policy calibration remain separate research/runtime work."
+next: "Validate the containment decision slice, then select the next highest-value P1/P2 gap from current main."
