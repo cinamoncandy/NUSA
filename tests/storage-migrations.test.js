@@ -68,6 +68,7 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
     assert.deepEqual(names, [
       "applied_ledger_markers",
       "cloud_dashboard_snapshots",
+      "cloud_paper_account_history",
       "cloud_paper_accounts",
       "compliance_events",
       "compliance_state",
@@ -75,7 +76,6 @@ test("SqliteDatabase fresh file applies accounting schema and exposes all tables
       "investment_committee_events",
       "multi_agent_governance_events",
       "multi_agent_governance_state",
-      "cloud_paper_account_history",
       "paper_realized_periods",
       "position_ledger_entries",
       "research_candidates",
