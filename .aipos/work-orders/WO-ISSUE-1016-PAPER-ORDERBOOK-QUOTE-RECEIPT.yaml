@@ -54,4 +54,4 @@ validation:
   build: PASS
 known_limitations:
   - "Missing public order-book evidence preserves the existing incomplete-cost fail-closed research semantics; no synthetic spread or slippage is created."
-next: "Run full repository regression and exact-head validation, then publish/update PR #1018 without changing PAPER/LIVE authority."
+next: "Run exact-head validation for PR #1029 without changing PAPER/LIVE authority."
