@@ -141,3 +141,40 @@ test("insufficient longitudinal periods and invalid provenance fail closed", () 
     evidence: { ...evidence, datasetContentSha256: "not-a-hash" }
   }, policy), /sha256/);
 });
+
+test("malformed longitudinal period counts fail closed before decisioning", () => {
+  for (const evidencePeriods of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
+    assert.throws(() => evaluatePaperPortfolioAdvisory({
+      ...input,
+      evidence: { ...evidence, evidencePeriods }
+    }, policy), /evidencePeriods must be a non-negative integer/);
+  }
+});
+
+test("malformed consumed allocation policy limits fail closed", () => {
+  const malformedPolicies = [
+    { ...policy, maximumCorrelation: Number.NaN },
+    { ...policy, maximumCorrelation: Number.POSITIVE_INFINITY },
+    { ...policy, maximumCorrelation: -0.1 },
+    { ...policy, maximumPortfolioWeight: Number.NaN },
+    { ...policy, maximumPortfolioWeight: 1.1 },
+    { ...policy, maximumStrategyWeight: Number.POSITIVE_INFINITY },
+    { ...policy, maximumStrategyWeight: -0.1 }
+  ];
+
+  for (const malformedPolicy of malformedPolicies) {
+    assert.throws(() => evaluatePaperPortfolioAdvisory(input, malformedPolicy), /must be (finite|between 0 and 1)/);
+  }
+});
+
+test("derived advisory numerics can never become non-finite", () => {
+  assert.throws(() => evaluatePaperPortfolioAdvisory({
+    ...input,
+    evidence: { ...evidence, grossExpectedEdge: Number.MAX_VALUE }
+  }, policy), /netExpectedEdge must be finite/);
+
+  const result = evaluatePaperPortfolioAdvisory(input, policy);
+  assert.ok(Number.isFinite(result.netExpectedEdge));
+  assert.ok(Number.isFinite(result.maximumWeight));
+  assert.ok(Number.isFinite(result.recommendedWeight));
+});
