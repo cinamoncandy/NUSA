@@ -436,13 +436,25 @@
         strategyValue.textContent = "—";
       }
 
-      // The risk gateway currently HALTs every path until WO-0032 composition lands. Showing
-      // that plainly is the point: a gate that always says no is not the same as no gate.
+      // These tiles must report only evidence present in the canonical diagnostics snapshot.
+      // Missing evidence is not a HALT, PASS, or action request; it is explicitly unknown.
+      const signal = diagnostics && diagnostics.lastSignal;
+      const riskDecision = signal && signal.riskDecision;
       const riskValue = element("div", "cr-tile__value");
-      riskValue.replaceChildren(badge("bad", "■", "HALT"));
+      if (riskDecision) {
+        const allowed = riskDecision === "ALLOW" || riskDecision === "PASS";
+        riskValue.replaceChildren(badge(allowed ? "ok" : "bad", allowed ? "✔" : "■", riskDecision));
+      } else {
+        riskValue.replaceChildren(badge("neutral", "○", "증거 없음"));
+      }
 
+      const reconciliationRequired = Boolean(
+        diagnostics && Array.isArray(diagnostics.blockers) && diagnostics.blockers.includes("RECONCILIATION_REQUIRED")
+      );
       const reconcileValue = element("div", "cr-tile__value");
-      reconcileValue.replaceChildren(badge("warn", "▲", "확인 필요"));
+      reconcileValue.replaceChildren(reconciliationRequired
+        ? badge("warn", "▲", "확인 필요")
+        : badge("neutral", "○", "증거 없음"));
 
       const sessionId = diagnostics && diagnostics.sessionId ? diagnostics.sessionId : "세션 없음";
       const sessionValue = element("div", "cr-tile__value cr-copy-value");
@@ -461,8 +473,8 @@
         tile("시장 데이터", marketValue, diagnostics ? undefined : "Shadow 진단 대기"),
         tile("예열", warmupValue, warmupNote),
         tile("전략", strategyValue, control ? control.strategyId : undefined),
-        tile("Risk Gateway", riskValue, "RISK_GATE_NOT_CONFIGURED"),
-        tile("정합성", reconcileValue, "reconciliation 미확립"),
+        tile("Risk Gateway", riskValue, riskDecision ? "최근 신호의 Risk 판단" : "Risk 판단 증거 미제공"),
+        tile("정합성", reconcileValue, reconciliationRequired ? "runtime blocker 근거" : "정합성 상태 증거 미제공"),
         tile("현재 세션", sessionValue, diagnostics ? `상태 ${diagnostics.state}` : undefined)
       );
     }
