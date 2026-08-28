@@ -1,12 +1,12 @@
 id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
 title: "Issue #889 canonical PAPER realized-period producer"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
 base_branch: main
-base_commit: 864274b9af824d8fdae1e0629c61596cc81155ea
-implementation_branch: codex/paper-realized-period-producer-v2
+base_commit: 96d509238e6b25d035bf4c74b7122c1648fe7943
+implementation_branch: codex/issue-889-realized-period-producer
 objective: "Connect the canonical Cloud PAPER execution observation path to a durable, server-owned realized-period producer. Persist only explicit candidate/dataset/provenance-bound outcomes after a genuinely realized interval, preserve rejected/halted denominator evidence, and expose a restart-safe read path for the existing research admission/League bridge."
 architecture_impact:
   acknowledged: true
@@ -52,9 +52,9 @@ acceptance:
   - existing_research_admission_can_consume_read_history
   - paper_account_and_broker_mutation_counts_unchanged
 validation:
-  focused: PASS_25_OF_25
+  focused: PASS_44_OF_44
   paper_regression: PASS_INCLUDED_IN_FULL_SUITE
-  full_isolated_suite: PASS_676_FILES
+  full_isolated_suite: PASS_686_FILES
   typecheck: PASS
   build: PASS
   lint: PASS
@@ -62,5 +62,19 @@ validation:
   safety: PASS
   security: PASS_SECRETS_0
   aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
-implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
-next: "Publish the validated producer slice, verify exact-head checks, and merge only when all protected gates are green; do not claim full Issue #889 closure if external orchestration evidence remains absent."
+  package_validation: PASS
+  restricted_live_readiness: PASS
+  read_only_broker: PASS
+implementation_status: LOCAL_INTEGRATION_VALIDATED_PENDING_REMOTE_PR
+pull_request: null
+implementation_head: PENDING_LOCAL_COMMIT
+merge_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
+post_merge_integration_commit: 7a613c2fd073b125de1df868452803bf471d4d19
+remediation_commit: 2508f70c7403499725fe817b30915e6f9ab59ecc
+local_validation_head: PENDING_LOCAL_COMMIT
+remediation_scope: "Replace the duplicate cloud paper_realized_periods path with the canonical #885 research_paper_forward_periods store, require explicit execution cost provenance, preserve candidate/advisory identity, emit structured period lifecycle events, and recover pending periods across restart without changing PAPER execution authority."
+remediation_validation: "Focused producer/storage/runtime suite 44/44 PASS; full isolated suite 686 files PASS; typecheck/build/lint/preflight/package/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+known_limitations:
+  - "Remote publication and authenticated exact-head CI are pending."
+  - "Real longitudinal PAPER orchestration and non-synthetic performance evidence remain unavailable; research admission must remain fail-closed."
+next: "Commit and publish the latest-main integration, then record exact-head remote evidence. Do not claim full Issue #889 closure until real non-synthetic longitudinal orchestration evidence exists."

@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T12:00:00+09:00"
+updated_at: "2026-08-28T14:12:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
-  status: IN_PROGRESS
-  branch: codex/paper-realized-period-producer-v2
-  base_sha: 864274b9af824d8fdae1e0629c61596cc81155ea
-  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
+  status: VERIFYING
+  branch: codex/issue-889-realized-period-producer
+  base_sha: 96d509238e6b25d035bf4c74b7122c1648fe7943
+  scope: "Issue #889 canonical producer is integrated with current main, reusing the #885 durable store and preserving #970 candidate provenance; local validation is complete and remote publication/exact-head CI remain pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/paper-realized-period-producer-v2
+active_branch: codex/issue-889-realized-period-producer
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
@@ -84,12 +84,12 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
-  status: IN_PROGRESS
-  branch: codex/paper-realized-period-producer-v2
-  base_commit: 864274b9af824d8fdae1e0629c61596cc81155ea
-  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
+  status: VERIFYING
+  branch: codex/issue-889-realized-period-producer
+  base_commit: 96d509238e6b25d035bf4c74b7122c1648fe7943
+  scope: "Issue #889 producer remediation is locally validated on current main; verification remains limited to exact remote publication/CI and must not manufacture longitudinal PAPER performance."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused producer/runtime/admission 25/25; full isolated suite 676 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  validation: "focused producer/runtime/admission 44/44; full isolated suite 686 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -491,7 +491,7 @@ in_progress:
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
   - id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
     evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml"
-    summary: "Issue #889 canonical server-owned PAPER realized-period producer is in progress; it persists only explicit provenance-bound outcomes and adds no execution authority."
+    summary: "Issue #889 remediation is locally validated on current main; canonical #885 storage, required cost provenance, lifecycle rejection evidence, and restart-safe pending recovery are covered, while exact-head remote validation and real longitudinal orchestration remain pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -519,7 +519,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
-  reason: "Complete Issue #889 canonical PAPER realized-period producer and provenance-bound restart-safe handoff into existing research admission; preserve fail-closed behavior and zero authority expansion."
+  reason: "Commit and publish the latest-main integration, then record exact-head remote evidence; preserve fail-closed longitudinal evidence semantics and zero authority expansion until real orchestration exists."
 verification:
   wo_0057:
     parent_pull_request: 552

@@ -24,7 +24,7 @@ function advisory(generatedAt: string): LeagueCapitalAllocationAdvisory {
 
 function record(index = 0, id = `record-${index}`): PersistedPaperPeriodRecord {
   const start = BASE + index * DAY;
-  return { recordId: id, periodIndex: index, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: start + DAY, realizedReturns: { a: 0.01, b: -0.02 }, benchmarkReturn: 0.005, turnoverCostRate: 0.001 };
+  return { recordId: id, periodIndex: index, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: start + DAY, realizedReturns: { a: 0.01, b: -0.02 }, benchmarkReturn: 0.005, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${id}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
 }
 
 function envelope(index = 0, id?: string): PersistedPaperPeriodEnvelope {

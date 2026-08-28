@@ -1,4 +1,15 @@
 import type { LeagueStanding, LeagueRankedEntry } from "./nusaLeague";
+import type {
+  LeagueCapitalAllocationAdvisory,
+  LeagueCapitalAllocationEntry,
+  LeagueCapitalAllocationPolicy,
+} from "../../../../packages/contracts/src/leagueCapitalAllocation";
+
+export type {
+  LeagueCapitalAllocationAdvisory,
+  LeagueCapitalAllocationEntry,
+  LeagueCapitalAllocationPolicy,
+} from "../../../../packages/contracts/src/leagueCapitalAllocation";
 
 /**
  * Research-only capital-allocation advisory over an already-evaluated NUSA League standing.
@@ -7,42 +18,6 @@ import type { LeagueStanding, LeagueRankedEntry } from "./nusaLeague";
  * emits normalized research weights that can be compared in PAPER/research evaluation. The
  * production execution/risk stack remains the sole owner of any real position sizing decision.
  */
-
-export interface LeagueCapitalAllocationPolicy {
-  readonly maximumCandidateWeight: number;
-  readonly minimumEvidenceBreadth: number;
-  readonly maximumCandidateCount: number;
-  /**
-   * Maximum share of the research allocation any single strategy family may hold in total.
-   *
-   * Without this, a per-candidate cap only creates the appearance of diversification: N tuned
-   * variants of one family each stay under the candidate cap while collectively owning nearly
-   * the entire allocation, which is exactly the correlated-risk concentration diversification
-   * is supposed to prevent.
-   */
-  readonly maximumFamilyWeight: number;
-}
-
-export interface LeagueCapitalAllocationEntry {
-  readonly id: string;
-  readonly familyId: string;
-  readonly rank: number;
-  readonly leagueScore: number;
-  readonly evidenceBreadth: number;
-  readonly researchWeight: number;
-  readonly reasons: readonly string[];
-  readonly sourceDatasetIds: readonly string[];
-}
-
-export interface LeagueCapitalAllocationAdvisory {
-  readonly schemaVersion: 1;
-  readonly generatedAt: string;
-  readonly policy: LeagueCapitalAllocationPolicy;
-  readonly entries: readonly LeagueCapitalAllocationEntry[];
-  readonly excludedCandidateIds: readonly string[];
-  readonly reasons: readonly string[];
-  readonly provenance: Readonly<{ sourceDatasetIds: readonly string[] }>;
-}
 
 export class LeagueCapitalAllocationError extends Error {
   constructor(readonly code: string, message: string) {
