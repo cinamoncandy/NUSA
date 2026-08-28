@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T12:00:00+09:00"
+updated_at: "2026-08-28T13:17:58+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
-  status: IN_PROGRESS
-  branch: codex/paper-realized-period-producer-v2
-  base_sha: 864274b9af824d8fdae1e0629c61596cc81155ea
-  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
+  status: VERIFYING
+  branch: main
+  base_sha: 733365ed2cb56f0196e3a3d1e57b557a423061d3
+  scope: "Issue #889 canonical PAPER realized-period producer merged through PR #945 and retained by the current main integration; authenticated exact-head CI audit remains pending and no non-synthetic longitudinal performance evidence is implied."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -84,10 +84,10 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
-  status: IN_PROGRESS
-  branch: codex/paper-realized-period-producer-v2
-  base_commit: 864274b9af824d8fdae1e0629c61596cc81155ea
-  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
+  status: VERIFYING
+  branch: main
+  base_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
+  scope: "Issue #889 producer implementation is merged through PR #945 and retained on current main; verification is limited to recording authenticated exact-head CI evidence and must not manufacture longitudinal PAPER performance."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "focused producer/runtime/admission 25/25; full isolated suite 676 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 previous_claimed_state:
@@ -491,7 +491,7 @@ in_progress:
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
   - id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
     evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml"
-    summary: "Issue #889 canonical server-owned PAPER realized-period producer is in progress; it persists only explicit provenance-bound outcomes and adds no execution authority."
+    summary: "Issue #889 canonical server-owned PAPER realized-period producer is merged through PR #945; exact-head CI evidence remains to be recorded and actual longitudinal performance stays fail-closed until real runtime orchestration exists."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -519,7 +519,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
-  reason: "Complete Issue #889 canonical PAPER realized-period producer and provenance-bound restart-safe handoff into existing research admission; preserve fail-closed behavior and zero authority expansion."
+  reason: "Record authenticated exact-head CI evidence for the merged Issue #889 producer, then select the next ready non-LIVE research work order from current main; preserve fail-closed longitudinal evidence semantics and zero authority expansion."
 verification:
   wo_0057:
     parent_pull_request: 552

@@ -1,6 +1,6 @@
 id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
 title: "Issue #889 canonical PAPER realized-period producer"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
@@ -62,5 +62,9 @@ validation:
   safety: PASS
   security: PASS_SECRETS_0
   aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
-implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
-next: "Publish the validated producer slice, verify exact-head checks, and merge only when all protected gates are green; do not claim full Issue #889 closure if external orchestration evidence remains absent."
+implementation_status: MERGED_PR_945
+pull_request: 945
+implementation_head: 33492def5802a1004c8efbcc6cb6b589c97bb0cb
+merge_commit: 733365ed2cb56f0196e3a3d1e57b557a423061d3
+post_merge_integration_commit: 7a613c2fd073b125de1df868452803bf471d4d19
+next: "The producer is on main through PR #945 and preserved by the subsequent main integration. Authenticate GitHub API access before recording the exact-head check result; do not claim full Issue #889 closure unless real non-synthetic longitudinal orchestration evidence exists."
