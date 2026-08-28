@@ -1,11 +1,11 @@
 id: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
 title: "Issue #889 wire trusted public PAPER benchmark and execution-friction sources"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
 base_branch: main
-base_commit: 213468eee23c2b18f36dcb8bd063044dc9231365
+base_commit: 3364f6bf1f15a214bb0cf9a13b7b26ffa771708f
 implementation_branch: codex/issue-889-cost-benchmark-followup
 objective: "Connect only observed public market evidence to the existing canonical PAPER realized-period producer; preserve fail-closed admission when benchmark or friction evidence is absent."
 architecture_impact:
@@ -48,15 +48,23 @@ acceptance:
   - restart_recovery_preserves_source_evidence
   - paper_accounting_and_broker_mutation_counts_unchanged
 validation:
-  focused: PENDING
-  full_isolated_suite: PENDING
-  typecheck: PENDING
-  build: PENDING
-  lint: PENDING
-  architecture: PENDING
-  safety: PENDING
-  security: PENDING
-  aipos: PENDING
+  focused: PASS_23_OF_23_AFTER_MAIN_INTEGRATION
+  full_isolated_suite: PASS_723_ISOLATED_FILES_AFTER_MAIN_INTEGRATION
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  preflight: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  package_validation: PASS_MAP_FREE_PACKAGED_FILE_SET
+  aipos: PASS
+  git_diff_check: PASS
+  production_runtime_wiring: PASS
+implementation_commit: 70b35428e8d2e5e5fb3f266bc0f4ea47b0237bd9
+integration_commit: 1e986c28f7d01c4d4eb7d0da0dbd2b779716193e
 known_limitations:
   - "Longitudinal admission still requires candidate-bound chronology and all existing League gates."
-next: "Validate the smallest source wiring on exact current main, then preserve any remaining unavailable evidence as fail-closed."
+next: "Complete package/AIPOS validation, publish the focused branch, and verify exact-head checks; keep missing longitudinal evidence fail-closed."

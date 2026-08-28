@@ -3,9 +3,9 @@ project: nusa
 updated_at: "2026-08-29T00:00:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-889-cost-benchmark-followup
-  base_sha: 213468eee23c2b18f36dcb8bd063044dc9231365
+  base_sha: 3364f6bf1f15a214bb0cf9a13b7b26ffa771708f
   scope: "Wire observed public PAPER market evidence into the existing canonical realized-period producer without inventing missing benchmark or execution-cost facts."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
@@ -84,13 +84,13 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-889-cost-benchmark-followup
-  base_commit: 213468eee23c2b18f36dcb8bd063044dc9231365
+  base_commit: 3364f6bf1f15a214bb0cf9a13b7b26ffa771708f
   scope: "Connect only observed public market evidence to the existing canonical PAPER realized-period producer; preserve fail-closed admission when benchmark or friction evidence is absent."
-  implementation_commit: null
+  implementation_commit: 1e986c28f7d01c4d4eb7d0da0dbd2b779716193e
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused source and realized-period validation in progress."
+  validation: "Focused 23/23 PASS; full isolated suite 723 files PASS; typecheck/build/lint/preflight/architecture/safety/security/Restricted LIVE/Read-only Broker PASS after latest main integration; package/AIPOS final state sync pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
