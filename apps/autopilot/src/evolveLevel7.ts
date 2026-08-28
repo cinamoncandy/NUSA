@@ -13,7 +13,12 @@ import type { EvolutionOpportunity } from "./evolveOpportunity";
 export interface EvolutionLevel7Input {
   readonly opportunities: readonly EvolutionOpportunity[];
   readonly lifecycle: Omit<EvolutionLifecycleInput, "opportunity">;
-  readonly learningMemory?: EvolutionLearningMemoryRepository;
+  /**
+   * Durable evidence is part of the Level 7 composition contract. A selected
+   * cycle must not be allowed to complete without an injected persistence
+   * boundary; the coordinator never chooses or creates the underlying store.
+   */
+  readonly learningMemory: EvolutionLearningMemoryRepository;
 }
 
 export interface EvolutionLevel7Result {
@@ -60,12 +65,23 @@ export function coordinateLevel7Evolution(input: EvolutionLevel7Input): Evolutio
     });
   }
 
+  // Keep the runtime boundary fail-closed for JavaScript callers and stale
+  // integrations that may not have been compiled against the required field.
+  // No evolution lifecycle is coordinated until its evidence sink exists.
+  if (
+    input.learningMemory == null
+    || typeof input.learningMemory.append !== "function"
+    || typeof input.learningMemory.list !== "function"
+  ) {
+    throw new Error("EVOLVE_LEARNING_PERSISTENCE_UNAVAILABLE");
+  }
+
   const lifecycle = coordinateEvolutionLifecycle({
     ...input.lifecycle,
     opportunity: selection.selectedOpportunity,
   });
 
-  if (input.learningMemory != null && lifecycle.learning != null) {
+  if (lifecycle.learning != null) {
     persistEvolutionLearningRecord(input.learningMemory, lifecycle.learning);
   }
 
