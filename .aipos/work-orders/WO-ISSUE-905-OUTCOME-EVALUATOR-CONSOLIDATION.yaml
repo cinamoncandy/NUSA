@@ -5,7 +5,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
 base_branch: main
-base_commit: c3d714646626cf05d1cbfdfb72a62d1ecd97ffd7
+base_commit: 6b3b61235dc970041c6109545c0821dd17a0aab0
 implementation_branch: codex/issue-905-outcome-evaluator-adapter
 implementation_commit: 54b20d0602f927ee3b39010c63fae1f9a4b5d62a
 objective: "Make the existing outcomeEvaluator the single deterministic classification authority while preserving the outcomeFeedback compatibility contract for existing callers."
@@ -45,8 +45,8 @@ acceptance:
   - no_execution_or_accounting_path_is_added
 validation:
   focused: PASS_13_OF_13
-  autopilot_regression: PASS_65_OF_65
-  full_isolated_suite: PASS_700_FILES
+  autopilot_regression: PASS_76_OF_76
+  full_isolated_suite: PASS_701_FILES
   preflight: PASS
   package_validation: PASS
   typecheck: PASS
