@@ -111,3 +111,39 @@ test("evolve lifecycle opens circuit after repeated blocked validation", () => {
   assert.equal(result.circuit.state, "OPEN");
   assert.equal(result.control.circuitOpen, true);
 });
+
+test("evolve lifecycle refuses execution while circuit is already open", () => {
+  const input = baseInput();
+  const result = coordinateEvolutionLifecycle({
+    ...input,
+    circuit: {
+      ...input.circuit,
+      state: { state: "OPEN", consecutiveFailures: 2, openedAt: "2026-08-29T00:00:00.000Z" },
+    },
+  });
+  assert.equal(result.status, "CIRCUIT_OPEN");
+  assert.equal(result.promotion.eligible, false);
+  assert.equal(result.reason, "circuit-open");
+});
+
+test("evolve lifecycle refuses execution outside the autonomous schedule window", () => {
+  const input = baseInput();
+  const result = coordinateEvolutionLifecycle({
+    ...input,
+    schedule: { ...input.schedule, elapsedSecondsSinceLastRun: 10 },
+  });
+  assert.equal(result.status, "ABSTAINED");
+  assert.equal(result.schedule.allowed, false);
+  assert.equal(result.reason, "schedule-blocked:minimum-interval-not-reached");
+});
+
+test("evolve lifecycle fails closed when observed runtime revision differs from exact head", () => {
+  const input = baseInput();
+  const result = coordinateEvolutionLifecycle({
+    ...input,
+    observation: { ...input.observation, revision: "2222222222222222222222222222222222222222" },
+  });
+  assert.equal(result.status, "ABSTAINED");
+  assert.equal(result.reason, "runtime-revision-mismatch");
+  assert.equal(result.learning, undefined);
+});
