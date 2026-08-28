@@ -10,7 +10,7 @@ pull_request: 983
 base_branch: main
 base_commit: de4eb181c0e06addeb3bdc34dadf21c19ef73760
 implementation_branch: design/979-ai-decision-hierarchy
-implementation_commit: 0107461a
+implementation_commit: 44af4213
 objective: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change, without changing AI, PAPER, LIVE, or production authority."
 architecture_impact:
   acknowledged: true
