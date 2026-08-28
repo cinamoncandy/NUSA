@@ -1,0 +1,70 @@
+name: Autopilot Cloudflare Promote
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nusa-autopilot-cloudflare-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote exact CI-verified Worker revision
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact CI-verified commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Verify autopilot deployment-relevant change
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha='${{ github.event.workflow_run.head_sha }}'
+          changed="$(git diff-tree --no-commit-id --name-only -r "${head_sha}^" "${head_sha}")"
+          if grep -Eq '^(apps/autopilot/)' <<<"$changed"; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'No autopilot deployment-relevant change in CI-verified commit.'
+          fi
+
+      - name: Promote exact verified revision to Cloudflare production branch
+        if: steps.changes.outputs.deploy == 'true'
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin cloudflare-production || true
+          if git show-ref --verify --quiet refs/remotes/origin/cloudflare-production; then
+            current_sha="$(git rev-parse origin/cloudflare-production)"
+            if git merge-base --is-ancestor "$HEAD_SHA" "$current_sha"; then
+              echo "Cloudflare production branch is already ahead of ${HEAD_SHA}; no promotion needed."
+              exit 0
+            fi
+            if ! git merge-base --is-ancestor "$current_sha" "$HEAD_SHA"; then
+              echo 'Refusing non-fast-forward Cloudflare production promotion.'
+              exit 1
+            fi
+          fi
+          git push origin "${HEAD_SHA}:refs/heads/cloudflare-production"
+          echo "Promoted ${HEAD_SHA} to cloudflare-production."
+
+      - name: Record fail-closed authority invariants
+        run: |
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'AI authority=ZERO_AUTHORITY'
