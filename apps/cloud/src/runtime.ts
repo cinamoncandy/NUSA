@@ -55,6 +55,12 @@ import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import {
+  createNusaEngineeringOperatingReadModel,
+  type NusaEngineeringOperatingReadModel,
+  type NusaEngineeringOperatingSnapshot,
+  type NusaEngineeringOperatingSource,
+} from "./engineeringOperatingReadModel";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -66,6 +72,7 @@ export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrinc
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
 export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly getLiveReadinessSourceSnapshot: () => LiveReadinessProductionSourceSnapshot;
+  readonly getEngineeringOperatingSnapshot: () => NusaEngineeringOperatingSnapshot;
   readonly recordRealReadOnlyEvent: (event: RealReadOnlyEvent) => RealReadOnlyEvent;
   readonly openPaperRealizedPeriod: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly observePaperRealizedExecution: (observation: { readonly observationId: string; readonly observedAt: number; readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "FAILED" | "DUPLICATE" }) => "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD";
@@ -135,7 +142,8 @@ export function startCloudRuntime(
   aiRuntime?: CloudAiRuntime,
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
   liveReadinessSourceReaders?: LiveReadinessSourceReaders,
-  realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider
+  realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
+  engineeringOperatingSource?: NusaEngineeringOperatingSource
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -222,6 +230,7 @@ export function startCloudRuntime(
   const operatorPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
   const sourceCommit = env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "";
   const sourceVersion = env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown";
+  const engineeringOperatingReadModel: NusaEngineeringOperatingReadModel = createNusaEngineeringOperatingReadModel(engineeringOperatingSource);
   let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const defaultLiveReadinessReaders: LiveReadinessSourceReaders = {
     ...liveReadinessSourceReaders,
@@ -390,6 +399,7 @@ export function startCloudRuntime(
     ...(shadowObservabilityProvider == null ? {} : { loadShadowOperations: shadowObservabilityProvider }),
     ...(realReadOnlyObservabilityProvider == null ? {} : { loadRealReadOnlyOperations: (principal: DashboardPrincipal) => realReadOnlyObservabilityProvider(principal, realReadOnlyEventRecorder.replay()) }),
     loadLiveReadiness: () => liveReadinessSourceProvider.getSnapshot(),
+    loadEngineeringOperations: () => engineeringOperatingReadModel.getSnapshot(),
     submitPaperOrder,
     investmentAllocationSettings
   });
@@ -401,6 +411,7 @@ export function startCloudRuntime(
   return {
     ...handle,
     getLiveReadinessSourceSnapshot: () => liveReadinessSourceProvider.getSnapshot(),
+    getEngineeringOperatingSnapshot: () => engineeringOperatingReadModel.getSnapshot(),
     recordRealReadOnlyEvent: (event) => realReadOnlyEventRecorder.record(event),
     openPaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().openPeriod(input),
     observePaperRealizedExecution: (observation) => requirePaperRealizedPeriodProducer().observeExecution(observation),
