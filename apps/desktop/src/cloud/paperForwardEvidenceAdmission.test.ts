@@ -35,10 +35,27 @@ describe("PAPER forward evidence admission", () => {
     assert.ok(result.reasons.includes("NARROW_LONGITUDINAL_EVIDENCE"));
   });
 
-  it("consumes the server-owned realized-period source through the existing admission policy", () => {
+  it("fails closed when the server-owned source has not reconciled metrics from canonical persisted PAPER outcomes", () => {
     const result = admitPaperForwardEvidenceFromSource({ listPaperRealizedPeriods: () => [period(0)] }, { minimumLongitudinalPeriods: 1 });
     assert.equal(result.periodCount, 1);
+    assert.equal(result.strength, "INSUFFICIENT");
+    assert.ok(result.reasons.includes("SOURCE_RECONCILIATION_UNVERIFIED"));
+  });
+
+  it("allows source-based verification only after canonical persisted-outcome reconciliation", () => {
+    const result = admitPaperForwardEvidenceFromSource({
+      reconciliationStatus: "CANONICAL_RECONCILED",
+      listPaperRealizedPeriods: () => [period(0)],
+    }, { minimumLongitudinalPeriods: 1 });
+    assert.equal(result.periodCount, 1);
     assert.equal(result.strength, "VERIFIED");
+    assert.ok(!result.reasons.includes("SOURCE_RECONCILIATION_UNVERIFIED"));
+  });
+
+  it("still structurally validates unreconciled source evidence before refusing promotion", () => {
+    assert.equal(code(() => admitPaperForwardEvidenceFromSource({
+      listPaperRealizedPeriods: () => [period(0, { slippageRate: Number.NaN })],
+    }, { minimumLongitudinalPeriods: 1 })), "NON_FINITE_VALUE");
   });
 
   it("admits 30 completed chronological periods while retaining failed periods", () => {
