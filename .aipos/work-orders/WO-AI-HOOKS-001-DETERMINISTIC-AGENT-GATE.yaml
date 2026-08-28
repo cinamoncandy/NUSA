@@ -1,0 +1,52 @@
+id: WO-AI-HOOKS-001-DETERMINISTIC-AGENT-GATE
+title: "Deterministic repository agent safety hook"
+status: IMPLEMENTED_VALIDATION_PENDING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 74d3acb3e3a81df25f98d04a1bf45e8a97fdd621
+implementation_branch: feat/deterministic-agent-safety-hooks
+objective: "Enforce a deterministic fail-closed pre-tool boundary for repository AI agents so explicit authority escalation, destructive Git history mutation, and broker/wallet transfer-like commands are denied before execution while ordinary validation and read-only development remain available."
+architecture_impact:
+  acknowledged: true
+  analysis: "Repository-level Copilot hooks supplement the existing NUSA runtime and AIPOS safety contracts. They do not add a parallel runtime, broker adapter, execution engine, trading authority, or LIVE capability. The hook is a development-agent guardrail only and preserves existing deterministic runtime gates as authoritative."
+scope:
+  - repository_level_pre_tool_hook
+  - explicit_authority_escalation_denial
+  - destructive_git_history_mutation_denial
+  - broker_wallet_transfer_like_denial
+  - malformed_hook_input_fail_closed
+  - focused_node_test_coverage
+prohibited:
+  - live_execution
+  - production_runtime_mutation_authority
+  - broker_order_cancel_withdraw_transfer_authority
+  - automatic_live_activation
+  - risk_governor_bypass
+  - replacement_of_runtime_safety_gates
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+acceptance:
+  - canonical_zero_authority_literals_are_allowed
+  - ordinary_read_only_and_validation_commands_are_allowed
+  - explicit_live_or_production_authority_escalation_is_denied
+  - destructive_git_history_mutation_is_denied
+  - broker_or_wallet_transfer_like_mutation_is_denied
+  - malformed_hook_input_fails_closed
+  - hook_configuration_is_valid_repository_level_github_copilot_schema
+validation:
+  focused_local_harness: PASS_6_OF_6
+  hook_json_parse: PASS
+  base_exact_head_ci: PASS_RUN_33153278610_SHA_74d3acb3e3a81df25f98d04a1bf45e8a97fdd621
+  base_exact_head_preflight: PASS
+  delta_portability_audit: PASS_NO_FORBIDDEN_PATH_OR_RECONSTRUCTED_VERSION_PATTERNS
+  branch_relation: AHEAD_4_BEHIND_0_BEFORE_EVIDENCE_UPDATE
+  repository_full_suite: PENDING_EXACT_BRANCH_VALIDATION
+  preflight_exact_branch: PENDING_EXECUTABLE_LOCAL_NODE24_REPOSITORY_CHECKOUT
+  safety_exact_branch: PENDING_PROTECTED_CI
+implementation_status: IMPLEMENTED_BRANCH_VALIDATION_PENDING_PR
+blocker: "Current execution container cannot resolve github.com and provides Node 22 rather than NUSA-required Node 24, while the connected GitHub interface has no arbitrary workflow-dispatch action. Do not claim exact-branch pnpm preflight until it actually runs."
+next: "Run pnpm run preflight on an exact checkout of this branch with Node 24; if PASS, open exactly one PR, verify exact-head protected checks, and merge only when green."
