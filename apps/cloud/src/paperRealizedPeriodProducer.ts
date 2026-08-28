@@ -7,6 +7,8 @@ import {
   type PersistedPaperPendingPeriod,
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
+import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
+import type { PaperAccountState } from "./paperTradingExecutionLoop";
 
 export interface PaperRealizedPeriodOpenInput {
   readonly periodId: string;
@@ -21,10 +23,29 @@ export interface PersistedPaperRealizedPeriodPlan extends PaperRealizedPeriodOpe
   readonly observationIds: readonly string[];
   readonly observations: readonly PaperRuntimeObservation[];
   readonly lastObservedAt?: number;
+  /** Sanitized canonical PAPER account boundary; raw orders/fills never enter period storage. */
+  readonly accountBoundary?: PaperCanonicalAccountBoundary;
 }
 
 export interface PaperRealizedPeriodCloseInput {
   readonly envelope: PersistedPaperPeriodEnvelope;
+}
+
+export interface PaperCanonicalAccountBoundary {
+  readonly initialCapital: number;
+  readonly equity: number;
+  readonly capturedAt: number;
+}
+
+export interface PaperCanonicalBenchmarkEvidence {
+  readonly evidenceId: string;
+  readonly observedAt: number;
+  readonly benchmarkReturn: number;
+}
+
+export interface PaperRealizedPeriodCanonicalCloseInput {
+  readonly periodId: string;
+  readonly periodEndAt: number;
 }
 
 export interface PaperRuntimeObservation {
@@ -42,6 +63,10 @@ export interface PaperRealizedPeriodProducerOptions {
   readonly onLifecycleEvent?: (event: PaperRealizedPeriodLifecycleEvent) => void;
   readonly now?: () => number;
   readonly maximumPeriods?: number;
+  /** Read-only canonical PAPER account source used by the canonical close path. */
+  readonly readCanonicalPaperAccount?: () => PaperAccountState;
+  /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
+  readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number) => PaperCanonicalBenchmarkEvidence | undefined;
 }
 
 export class PaperRealizedPeriodProducerError extends Error {
@@ -106,6 +131,38 @@ function validateObservation(input: PaperRuntimeObservation): PaperRuntimeObserv
   return observation;
 }
 
+function validateAccountBoundary(input: PaperCanonicalAccountBoundary, expectedAt: number, periodId: string): PaperCanonicalAccountBoundary {
+  if (input == null || typeof input !== "object") throw new PaperRealizedPeriodProducerError("INVALID_ACCOUNT_BOUNDARY", "canonical PAPER account boundary is missing", periodId);
+  if (!Number.isFinite(input.initialCapital) || input.initialCapital <= 0 || !Number.isFinite(input.equity) || input.equity <= 0) {
+    throw new PaperRealizedPeriodProducerError("INVALID_ACCOUNT_BOUNDARY", "canonical PAPER account boundary is invalid", periodId);
+  }
+  if (!Number.isSafeInteger(input.capturedAt) || input.capturedAt < 0 || input.capturedAt !== expectedAt) {
+    throw new PaperRealizedPeriodProducerError("STALE_ACCOUNT_SNAPSHOT", "canonical PAPER account boundary must match the period start", periodId);
+  }
+  return freeze({ initialCapital: input.initialCapital, equity: input.equity, capturedAt: input.capturedAt });
+}
+function validateCanonicalAccountState(state: PaperAccountState, expectedAt: number, periodId: string): PaperAccountState {
+  if (state == null || state.version !== 1) throw new PaperRealizedPeriodProducerError("UNSUPPORTED_ACCOUNT_SCHEMA", "canonical PAPER account schema is unsupported", periodId);
+  if (!Number.isFinite(state.initialCapital) || state.initialCapital <= 0 || !Number.isFinite(state.equity) || state.equity < 0) throw new PaperRealizedPeriodProducerError("INVALID_ACCOUNT_BOUNDARY", "canonical PAPER account state is invalid", periodId);
+  if (!Number.isSafeInteger(state.updatedAt) || state.updatedAt < 0 || state.updatedAt !== expectedAt) throw new PaperRealizedPeriodProducerError("STALE_ACCOUNT_SNAPSHOT", "canonical PAPER account snapshot is not aligned to the period boundary", periodId);
+  return state;
+}
+
+function boundaryFromCanonicalAccount(state: PaperAccountState, expectedAt: number, periodId: string): PaperCanonicalAccountBoundary {
+  const validated = validateCanonicalAccountState(state, expectedAt, periodId);
+  return validateAccountBoundary({ initialCapital: validated.initialCapital, equity: validated.equity, capturedAt: validated.updatedAt }, expectedAt, periodId);
+}
+function boundaryAsAccountState(boundary: PaperCanonicalAccountBoundary): PaperAccountState {
+  return Object.freeze({ version: 1, initialCapital: boundary.initialCapital, cash: boundary.equity, equity: boundary.equity, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: boundary.capturedAt });
+}
+function validateBenchmarkEvidence(input: PaperCanonicalBenchmarkEvidence | undefined, periodStartAt: number, periodEndAt: number, periodId: string): PaperCanonicalBenchmarkEvidence {
+  if (input == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_EVIDENCE", "canonical PAPER period benchmark evidence is unavailable", periodId);
+  const evidenceId = safeText(input.evidenceId, "benchmarkEvidence.evidenceId");
+  const observedAt = safeTime(input.observedAt, "benchmarkEvidence.observedAt");
+  if (observedAt < periodStartAt || observedAt > periodEndAt) throw new PaperRealizedPeriodProducerError("INVALID_BENCHMARK_EVIDENCE", "benchmark evidence is outside the realized PAPER period", periodId);
+  if (typeof input.benchmarkReturn !== "number" || !Number.isFinite(input.benchmarkReturn)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "benchmarkReturn must be finite", periodId);
+  return freeze({ evidenceId, observedAt, benchmarkReturn: input.benchmarkReturn });
+}
 function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRealizedPeriodPlan {
   rejectForbidden(input);
   if (input.schemaVersion !== 1) throw new PaperRealizedPeriodProducerError("UNSUPPORTED_SCHEMA", "PAPER period schema is unsupported", input.periodId);
@@ -125,7 +182,8 @@ function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRe
   const latestObservedAt = observations.reduce<number | undefined>((latest, item) => latest === undefined ? item.observedAt : Math.max(latest, item.observedAt), undefined);
   if (lastObservedAt !== undefined && latestObservedAt !== undefined && lastObservedAt !== latestObservedAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "period observation timestamp is inconsistent", periodId);
   if (lastObservedAt !== undefined && lastObservedAt < periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "runtime observation predates the period start", periodId);
-  const plan = { schemaVersion: 1 as const, periodId, periodIndex, advisory: input.advisory, candidateProvenance, periodStartAt, observationIds, observations, ...(lastObservedAt === undefined ? {} : { lastObservedAt }) } satisfies PersistedPaperRealizedPeriodPlan;
+  const accountBoundary = input.accountBoundary === undefined ? undefined : validateAccountBoundary(input.accountBoundary, periodStartAt, periodId);
+  const plan = { schemaVersion: 1 as const, periodId, periodIndex, advisory: input.advisory, candidateProvenance, periodStartAt, observationIds, observations, ...(lastObservedAt === undefined ? {} : { lastObservedAt }), ...(accountBoundary === undefined ? {} : { accountBoundary }) } satisfies PersistedPaperRealizedPeriodPlan;
   return freeze({ ...plan, candidateProvenance: freeze(candidateProvenance), observationIds: freeze(observationIds), observations: freeze(observations) });
 }
 
@@ -150,6 +208,8 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPape
   for (const [field, value] of Object.entries({ benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate, ...record.realizedReturns, feeRate: record.costEvidence.feeRate, spreadRate: record.costEvidence.spreadRate, slippageRate: record.costEvidence.slippageRate })) if (typeof value !== "number" || !Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", `${field} must be finite`, record.recordId);
   if (record.turnoverCostRate < 0 || record.costEvidence.feeRate < 0 || record.costEvidence.spreadRate < 0 || record.costEvidence.slippageRate < 0) throw new PaperRealizedPeriodProducerError("INVALID_COST_EVIDENCE", "PAPER period costs must be non-negative", record.recordId);
   if (!(record.status === "COMPLETED" || record.status === "REJECTED" || record.status === "HALTED")) throw new PaperRealizedPeriodProducerError("INVALID_STATUS", "PAPER period status is unsupported", record.recordId);
+  if (record.benchmarkEvidenceId !== undefined) safeText(record.benchmarkEvidenceId, "benchmarkEvidenceId");
+  if (record.canonicalOutcomeReceiptFingerprint !== undefined && !SHA256.test(record.canonicalOutcomeReceiptFingerprint)) throw new PaperRealizedPeriodProducerError("INVALID_OUTCOME_PROVENANCE", "canonical PAPER outcome fingerprint is invalid", record.recordId);
   return freeze({ record: freeze({ ...record, realizedReturns: freeze({ ...record.realizedReturns }), costEvidence: freeze({ ...record.costEvidence }) }), candidateProvenance: freeze([...envelope.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId)).map((item) => freeze({ ...item }))) });
 }
 
@@ -177,15 +237,38 @@ export class PaperRealizedPeriodProducer {
   }
 
   public openPeriod(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan {
+    try { return this.openPeriodInternal(input); } catch (error) { throw this.reject(error, input.periodId); }
+  }
+
+  /** Opens a period only from the canonical PAPER account boundary owned by this runtime. */
+  public openPeriodFromCanonicalAccount(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan {
     try {
-      if ([...this.openPeriods.values()].some((plan) => plan.periodId !== input.periodId)) throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_OPEN", "only one canonical PAPER realized period may be open at a time", input.periodId);
-      const plan = validatePlan({ ...input, schemaVersion: 1, observationIds: [], observations: [] });
-      const pending = { periodId: plan.periodId, periodIndex: plan.periodIndex, periodStartAt: plan.periodStartAt, payloadJson: canonical(plan), checksum: digest(plan) } satisfies PersistedPaperPendingPeriod;
-      this.repository.putPending(pending);
-      this.openPeriods.set(plan.periodId, plan);
-      this.emit({ type: "PERIOD_OPEN", periodId: plan.periodId, occurredAt: plan.periodStartAt });
-      return plan;
+      const accountBoundary = this.readCanonicalAccountBoundary(input.periodStartAt, input.periodId);
+      return this.openPeriodInternal(input, accountBoundary);
     } catch (error) { throw this.reject(error, input.periodId); }
+  }
+
+  private openPeriodInternal(input: PaperRealizedPeriodOpenInput, accountBoundary?: PaperCanonicalAccountBoundary): PersistedPaperRealizedPeriodPlan {
+    if ([...this.openPeriods.values()].some((plan) => plan.periodId !== input.periodId)) throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_OPEN", "only one canonical PAPER realized period may be open at a time", input.periodId);
+    const plan = validatePlan({ ...input, schemaVersion: 1, observationIds: [], observations: [], ...(accountBoundary === undefined ? {} : { accountBoundary }) });
+    const pending = { periodId: plan.periodId, periodIndex: plan.periodIndex, periodStartAt: plan.periodStartAt, payloadJson: canonical(plan), checksum: digest(plan) } satisfies PersistedPaperPendingPeriod;
+    this.repository.putPending(pending);
+    this.openPeriods.set(plan.periodId, plan);
+    this.emit({ type: "PERIOD_OPEN", periodId: plan.periodId, occurredAt: plan.periodStartAt });
+    return plan;
+  }
+
+  private readCanonicalAccountState(expectedAt: number, periodId: string): PaperAccountState {
+    const reader = this.options.readCanonicalPaperAccount;
+    if (reader == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source is unavailable", periodId);
+    let state: PaperAccountState;
+    try { state = reader(); } catch { throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source could not be read", periodId); }
+    validateCanonicalAccountState(state, expectedAt, periodId);
+    return state;
+  }
+
+  private readCanonicalAccountBoundary(expectedAt: number, periodId: string): PaperCanonicalAccountBoundary {
+    return boundaryFromCanonicalAccount(this.readCanonicalAccountState(expectedAt, periodId), expectedAt, periodId);
   }
 
   public observeExecution(observation: PaperRuntimeObservation): "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD" {
@@ -215,25 +298,83 @@ export class PaperRealizedPeriodProducer {
 
   public closePeriod(input: PaperRealizedPeriodCloseInput): PersistedPaperPeriodEnvelope {
     const periodId = input.envelope.record.recordId;
+    try { return this.finalizeEnvelope(input.envelope); } catch (error) { throw this.reject(error, periodId); }
+  }
+
+  /** Closes a period from the canonical PAPER account and never accepts caller-supplied returns or costs. */
+  public closePeriodFromCanonicalAccount(input: PaperRealizedPeriodCanonicalCloseInput): PersistedPaperPeriodEnvelope {
+    const periodId = input.periodId;
     try {
-      const envelope = validateEnvelope(input.envelope);
+      safeText(periodId, "periodId");
+      const periodEndAt = safeTime(input.periodEndAt, "periodEndAt");
       const current = this.openPeriods.get(periodId);
       if (current == null) {
         const existing = this.repository.list().find((item) => item.record.recordId === periodId);
-        if (existing != null && canonical(existing) === canonical(envelope)) return existing;
+        if (existing != null && existing.record.periodEndAt === periodEndAt) return existing;
         if (existing != null) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "realized PAPER period was reused with different evidence", periodId);
         throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
       }
+      if (current.accountBoundary == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_BOUNDARY_UNAVAILABLE", "PAPER period was not opened from a canonical account boundary", periodId);
       if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
-      if (!samePlanIdentity(current, { periodId: envelope.record.recordId, periodIndex: envelope.record.periodIndex, advisory: envelope.record.advisory, candidateProvenance: envelope.candidateProvenance, periodStartAt: envelope.record.periodStartAt })) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "realized PAPER outcome does not match its open candidate/advisory provenance", periodId);
-      const pending = this.repository.getPending(periodId);
-      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
-      const stored = this.repository.finalizePending(periodId, pending.checksum, envelope);
-      this.repository.prune(this.options.maximumPeriods ?? 100);
-      this.openPeriods.delete(periodId);
-      this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: envelope.record.periodEndAt });
-      return stored;
+      if (periodEndAt <= current.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "periodEndAt must be after periodStartAt", periodId);
+      const endState = this.readCanonicalAccountState(periodEndAt, periodId);
+      let receipt: ReturnType<typeof reconcileCanonicalPaperOutcomeWindow>;
+      try {
+        receipt = reconcileCanonicalPaperOutcomeWindow({ periodStartAt: current.periodStartAt, periodEndAt, startState: boundaryAsAccountState(current.accountBoundary), endState });
+      } catch (error) {
+        if (error instanceof PaperCanonicalOutcomeReconciliationError) throw new PaperRealizedPeriodProducerError(error.code, error.message, periodId);
+        throw error;
+      }
+      if (receipt.fillCount === 0 || receipt.candidateIds.length !== 1 || current.candidateProvenance.length !== 1) throw new PaperRealizedPeriodProducerError("CANDIDATE_ATTRIBUTION_UNAVAILABLE", "PAPER period outcome cannot be attributed to exactly one candidate", periodId);
+      const candidateId = receipt.candidateIds[0]!;
+      if (current.candidateProvenance[0]!.candidateId !== candidateId) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "canonical PAPER fill candidate does not match the open period", periodId);
+      const benchmarkReader = this.options.readCanonicalBenchmarkEvidence;
+      if (benchmarkReader == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_EVIDENCE", "canonical PAPER benchmark evidence is unavailable", periodId);
+      let benchmark: PaperCanonicalBenchmarkEvidence | undefined;
+      try { benchmark = benchmarkReader(current.periodStartAt, periodEndAt); } catch { throw new PaperRealizedPeriodProducerError("BENCHMARK_EVIDENCE_UNAVAILABLE", "canonical PAPER benchmark evidence could not be read", periodId); }
+      const validatedBenchmark = validateBenchmarkEvidence(benchmark, current.periodStartAt, periodEndAt, periodId);
+      const turnoverCostRate = receipt.feeRate + receipt.spreadRate + receipt.slippageRate;
+      if (!Number.isFinite(turnoverCostRate) || turnoverCostRate < 0) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "canonical PAPER cost rate is invalid", periodId);
+      const envelope: PersistedPaperPeriodEnvelope = {
+        record: {
+          recordId: periodId,
+          periodIndex: current.periodIndex,
+          advisory: current.advisory,
+          periodStartAt: current.periodStartAt,
+          periodEndAt,
+          realizedReturns: { [candidateId]: receipt.netReturn },
+          benchmarkReturn: validatedBenchmark.benchmarkReturn,
+          turnoverCostRate,
+          costEvidence: { evidenceId: `paper-canonical-outcome:${receipt.receiptFingerprint}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: periodEndAt, feeRate: receipt.feeRate, spreadRate: receipt.spreadRate, slippageRate: receipt.slippageRate },
+          status: "COMPLETED",
+          benchmarkEvidenceId: validatedBenchmark.evidenceId,
+          canonicalOutcomeReceiptFingerprint: receipt.receiptFingerprint,
+        },
+        candidateProvenance: current.candidateProvenance,
+      };
+      return this.finalizeEnvelope(envelope);
     } catch (error) { throw this.reject(error, periodId); }
+  }
+
+  private finalizeEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {
+    const periodId = envelope.record.recordId;
+    const validated = validateEnvelope(envelope);
+    const current = this.openPeriods.get(periodId);
+    if (current == null) {
+      const existing = this.repository.list().find((item) => item.record.recordId === periodId);
+      if (existing != null && canonical(existing) === canonical(validated)) return existing;
+      if (existing != null) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "realized PAPER period was reused with different evidence", periodId);
+      throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+    }
+    if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
+    if (!samePlanIdentity(current, { periodId: validated.record.recordId, periodIndex: validated.record.periodIndex, advisory: validated.record.advisory, candidateProvenance: validated.candidateProvenance, periodStartAt: validated.record.periodStartAt })) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "realized PAPER outcome does not match its open candidate/advisory provenance", periodId);
+    const pending = this.repository.getPending(periodId);
+    if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+    const stored = this.repository.finalizePending(periodId, pending.checksum, validated);
+    this.repository.prune(this.options.maximumPeriods ?? 100);
+    this.openPeriods.delete(periodId);
+    this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: validated.record.periodEndAt });
+    return stored;
   }
 
   public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {

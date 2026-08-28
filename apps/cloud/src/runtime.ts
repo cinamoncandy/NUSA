@@ -50,7 +50,7 @@ import {
 import { RealReadOnlyEventRecorder } from "./realReadOnlyObservabilityPersistence";
 import type { RealReadOnlyEvent, RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
 import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveReadinessRuntimeReaders";
-import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCanonicalCloseInput, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
@@ -67,6 +67,9 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly openPaperRealizedPeriod: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly observePaperRealizedExecution: (observation: { readonly observationId: string; readonly observedAt: number; readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "FAILED" | "DUPLICATE" }) => "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD";
   readonly closePaperRealizedPeriod: (input: PaperRealizedPeriodCloseInput) => PersistedPaperPeriodEnvelope;
+  /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
+  readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
+  readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -172,6 +175,7 @@ export function startCloudRuntime(
   const realReadOnlyEventRecorder = new RealReadOnlyEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? { persistencePath: config.cloudStateDbPath } : {}
   );
+  let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
       onLifecycleEvent: (event) => paperLearningRecorder.record({
@@ -182,6 +186,11 @@ export function startCloudRuntime(
         status: event.type === "PERIOD_REJECTED" ? "FAIL" : "PASS",
         ...(event.type === "PERIOD_REJECTED" ? { reason: event.reasonCode } : {}),
       }),
+      readCanonicalPaperAccount: () => {
+        const loop = effectivePaperLoop;
+        if (loop == null) throw new Error("canonical PAPER account source is unavailable");
+        return loop.snapshot();
+      },
     })
     : undefined;
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
@@ -199,7 +208,7 @@ export function startCloudRuntime(
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
-  const effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
+  effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
   const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
     ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
     : undefined;
@@ -380,6 +389,8 @@ export function startCloudRuntime(
     openPaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().openPeriod(input),
     observePaperRealizedExecution: (observation) => requirePaperRealizedPeriodProducer().observeExecution(observation),
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
+    openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
+    closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };

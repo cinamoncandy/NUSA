@@ -29,7 +29,6 @@ function openPeriod(index = 0, periodId = `period-${index}`, candidateId = "cand
   const periodStartAt = BASE + index * 1_000;
   return { periodId, periodIndex: index, advisory: advisory(periodStartAt - 100, candidateId), candidateProvenance: [{ candidateId, datasetId: "dataset-a", datasetContentSha256: HASH }], periodStartAt };
 }
-
 function closePeriod(plan: PaperRealizedPeriodOpenInput, overrides: Partial<PaperRealizedPeriodCloseInput["envelope"]["record"]> = {}): PaperRealizedPeriodCloseInput {
   return {
     envelope: {
