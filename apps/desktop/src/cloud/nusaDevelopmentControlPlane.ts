@@ -81,6 +81,21 @@ const freezeQueue = (revision: number, items: readonly NusaDevelopmentWorkItem[]
   items: Object.freeze(items.map(freezeItem)),
 });
 
+function assertCanonicalTouchedFiles(item: NusaDevelopmentWorkItem): void {
+  const seen = new Set<string>();
+  for (const path of item.touchedFiles) {
+    const segments = path.split("/");
+    const invalid = path.length === 0
+      || path.startsWith("/")
+      || path.endsWith("/")
+      || path.includes("\\")
+      || segments.some((segment) => segment.length === 0 || segment === "." || segment === "..");
+    if (invalid) throw new Error(`WORK_TOUCHED_FILE_NOT_CANONICAL:${item.id}:${path || "empty"}`);
+    if (seen.has(path)) throw new Error(`WORK_TOUCHED_FILE_DUPLICATE:${item.id}:${path}`);
+    seen.add(path);
+  }
+}
+
 function assertAcyclicDependencies(items: readonly NusaDevelopmentWorkItem[]): void {
   const byId = new Map(items.map((item) => [item.id, item] as const));
   const visiting = new Set<string>();
@@ -107,6 +122,7 @@ export function createNusaDevelopmentQueue(items: readonly NusaDevelopmentWorkIt
     if (ids.has(item.id)) throw new Error(`WORK_ID_DUPLICATE:${item.id}`);
     ids.add(item.id);
     if (!isCanonicalTimestamp(item.createdAt)) throw new Error(`WORK_CREATED_AT_INVALID:${item.id}`);
+    assertCanonicalTouchedFiles(item);
   }
   for (const item of items) {
     for (const dependency of item.dependencies) {
