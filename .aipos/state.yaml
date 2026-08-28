@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T05:15:55+09:00"
+updated_at: "2026-08-29T05:41:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+  work_order: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
   status: VERIFYING
-  branch: codex/engineering-operations-validation-hardening
-  base_sha: 8c6f2f71979ef4d624486a58615014747a5c2e78
-  scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
+  branch: codex/issue-865-paper-calibration-boundary
+  base_sha: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
+  scope: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and reject chronology violations without adding promotion or execution authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: focused-validation
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/engineering-operations-validation-hardening
+active_branch: codex/issue-865-paper-calibration-boundary
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1034
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+  work_order: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
   status: VERIFYING
-  branch: codex/engineering-operations-validation-hardening
-  base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
-  scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
-  implementation_commit: 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4
+  branch: codex/issue-865-paper-calibration-boundary
+  base_commit: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
+  scope: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and reject chronology violations without adding promotion or execution authority."
+  implementation_commit: d6d31883673f0eb069c56b9edecec0f73b2bd7c5
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Implementation 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4; focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated. Feature branch was pushed to origin; GitHub CLI authentication is invalid, so PR/exact-head CI remain pending."
+  validation: "PR #1034 root cause is a test fixture ordering error; focused calibration tests 8/8 PASS and full isolated suite 730 files PASS after the minimal fixture correction; latest-main merge is present; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; exact-head CI is pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -493,9 +493,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
-    evidence: ".aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml"
-    summary: "Harden the canonical read-only Engineering OS projection against malformed nested evidence and credential-shaped fields while preserving fail-closed absent telemetry."
+  - id: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
+    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE.yaml"
+    summary: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and fail closed on duplicate, overlap, lookahead, and regime-mixing inputs."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +522,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml
-  reason: "Create the read-only Engineering OS boundary hardening PR and exact-head validate it after GitHub CLI re-authentication; keep absent production telemetry fail-closed."
+  work_order: .aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE.yaml
+  reason: "Push the minimal chronology-fixture correction to existing PR #1034 and exact-head validate it without creating a duplicate PR."
 verification:
   wo_0057:
     parent_pull_request: 552

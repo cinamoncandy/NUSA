@@ -1,0 +1,64 @@
+id: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
+title: "Issue #865 bind point-in-time PAPER calibration evidence"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 865
+pull_request: 1034
+base_branch: main
+base_commit: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
+implementation_branch: codex/issue-865-paper-calibration-boundary
+objective: "Summarize candidate-bound, point-in-time PAPER calibration observations without promoting confidence or execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Add one evidence-only calibration boundary in the existing autopilot research layer; no second evaluator, promotion engine, accounting path, broker adapter, or execution authority is introduced."
+  references:
+    - apps/autopilot/src/evolvePaperCalibrationEvidence.ts
+    - apps/autopilot/src/evolvePaperCalibrationEvidence.test.ts
+scope:
+  - point_in_time_paper_calibration
+  - candidate_and_dataset_provenance_binding
+  - rejected_and_halted_period_retention
+  - chronology_and_lookahead_validation
+prohibited:
+  - confidence_promotion
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - paper_or_live_accounting_mix
+  - synthetic_performance_evidence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - prediction_precedes_realized_period
+  - periods_are_non_overlapping_and_deterministically_ordered
+  - duplicate_observations_are_rejected
+  - candidate_and_dataset_provenance_must_match
+  - rejected_and_halted_periods_remain_in_the_observation_count
+  - insufficient_admission_never_becomes_verified
+  - calibration_alone_cannot_increase_confidence
+  - no_execution_or_live_authority_is_exposed
+validation:
+  focused: PASS_8_OF_8
+  full_isolated_suite: PASS_730_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  git_diff_check: PASS
+implementation_status: IMPLEMENTED_VERIFYING
+known_limitations:
+  - "Calibration is evidence-only and never makes a strategy promotion or confidence decision by itself."
+  - "External exact-head CI is required before merge; physical-device and credential-gated evidence remain outside this repository slice."
+next: "Complete local gates, push the chronology fixture fix to existing PR #1034, then validate its new exact head without creating a duplicate PR."
