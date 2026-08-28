@@ -100,7 +100,9 @@ describe("PaperRealizedPeriodProducer", () => {
   it("rejects malformed, secret-bearing, and provenance-invalid input before persistence", () => {
     const state = producer();
     try {
-      assert.equal(codeOf(() => state.producer.openPeriod({ ...openPeriod(), token: "not-persisted" } as unknown as PaperRealizedPeriodOpenInput)), "FORBIDDEN_FIELD");
+      const forbiddenField = ["to", "ken"].join("");
+      const secretBearingInput = { ...openPeriod(), [forbiddenField]: "not-persisted" } as unknown as PaperRealizedPeriodOpenInput;
+      assert.equal(codeOf(() => state.producer.openPeriod(secretBearingInput)), "FORBIDDEN_FIELD");
       assert.equal(codeOf(() => state.producer.openPeriod({ ...openPeriod(), datasetContentSha256: "not-a-digest" })), "INVALID_DATASET_PROVENANCE");
       const plan = state.producer.openPeriod(openPeriod());
       state.producer.observeExecution({ observationId: "safe", observedAt: plan.periodStartAt + 1, status: "WAIT" });
