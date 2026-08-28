@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T14:12:00+09:00"
+updated_at: "2026-08-28T15:00:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
+  work_order: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
   status: VERIFYING
-  branch: codex/issue-889-realized-period-producer
-  base_sha: 107331226451137ad5c74247ed2596b98a520598
-  scope: "Issue #889 canonical producer is integrated with current main, reusing the #885 durable store and preserving #970 candidate provenance; local validation is complete and remote publication/exact-head CI remain pending."
+  branch: codex/issue-861-paper-league-bridge
+  base_sha: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  scope: "Candidate-bound persisted PAPER periods are projected through the existing shadow evaluator and admission gate; no synthetic PaperPerformanceSummary is created."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-889-realized-period-producer
+active_branch: codex/issue-861-paper-league-bridge
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: 973
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,13 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
+  work_order: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
   status: VERIFYING
-  branch: codex/issue-889-realized-period-producer
-  base_commit: 107331226451137ad5c74247ed2596b98a520598
-  scope: "Issue #889 producer remediation is locally validated on current main; verification remains limited to exact remote publication/CI and must not manufacture longitudinal PAPER performance."
+  branch: codex/issue-861-paper-league-bridge
+  base_commit: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  scope: "Candidate-bound persisted PAPER forward-evidence adapter; existing admission and League gate remain fail-closed until a truthful complete PaperPerformanceSummary source exists."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused producer/runtime/admission 44/44; full isolated suite 686 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  validation: "Focused adapter 7/7, producer/storage 25/25, admission 15/15, shadow 11/11, bridge 14/14, full isolated 688 files, preflight/typecheck/build/lint/architecture/safety/security/AIPOS PASS; publication remains pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -489,9 +489,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
-    evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml"
-    summary: "Issue #889 remediation is locally validated on current main; canonical #885 storage, required cost provenance, lifecycle rejection evidence, and restart-safe pending recovery are covered, while exact-head remote validation and real longitudinal orchestration remain pending."
+  - id: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
+    evidence: ".aipos/work-orders/WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER.yaml"
+    summary: "Issue #861 candidate-bound PAPER forward-evidence projection is validated locally through existing storage, shadow evaluation, and admission; complete League performance remains fail-closed without canonical metrics."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -518,8 +518,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
-  reason: "Validate exact-head PR #973, then preserve fail-closed longitudinal evidence semantics and zero authority expansion until real orchestration exists."
+  work_order: .aipos/work-orders/WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER.yaml
+  reason: "Validate candidate-bound persisted PAPER evidence through the existing shadow evaluator and admission gate; do not fabricate a complete PaperPerformanceSummary or expand authority."
 verification:
   wo_0057:
     parent_pull_request: 552
