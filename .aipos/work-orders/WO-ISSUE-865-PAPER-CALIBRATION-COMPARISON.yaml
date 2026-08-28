@@ -1,0 +1,62 @@
+id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+title: "Issue #865 compare independent PAPER calibration windows"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 865
+pull_request: null
+base_branch: main
+base_commit: 6e90cc3528adba5d3b7e95be5dda31202847a184
+implementation_branch: codex/issue-865-paper-calibration-comparison
+objective: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing PAPER calibration evidence boundary with deterministic independent-window comparison and reuse the existing Evolution confidence guard; no second calibration engine, promotion engine, accounting path, broker adapter, or execution authority is introduced."
+  references:
+    - apps/autopilot/src/evolvePaperCalibrationEvidence.ts
+    - apps/autopilot/src/evolveConfidenceGuard.ts
+scope:
+  - independent_paper_calibration_comparison
+  - temporal_window_separation
+  - deterministic_comparison_identity
+  - confidence_guard_projection
+  - forbidden_metadata_rejection
+prohibited:
+  - automatic_strategy_promotion
+  - confidence_policy_mutation
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - paper_or_live_accounting_mix
+  - synthetic_performance_evidence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - only_verified_disjoint_windows_can_produce_independent_comparison_evidence
+  - candidate_dataset_hash_and_regime_provenance_must_match
+  - duplicate_cross_window_observations_are_rejected
+  - fewer_than_thirty_completed_periods_remain_insufficient
+  - improved_brier_score_is_evaluated_by_the_existing_confidence_guard
+  - regression_never_increases_confidence
+  - comparison_identity_is_deterministic_across_input_order
+  - forbidden_metadata_is_rejected_before_hashing
+  - no_execution_or_live_authority_is_exposed
+validation:
+  focused: PENDING
+  typecheck: PENDING
+  build: PENDING
+  lint: PENDING
+  architecture: PENDING
+  safety: PENDING
+  security: PENDING
+  aipos: PENDING
+  git_diff_check: PENDING
+known_limitations:
+  - "The comparison is a read-only evidence projection; it does not mutate confidence or promote a strategy."
+  - "Actual long-running PAPER evidence remains dependent on canonical runtime persistence and external/human gates outside this slice."
+next: "Run focused and repository gates, then publish only this Issue #865 comparison slice if all exact-head checks remain green."

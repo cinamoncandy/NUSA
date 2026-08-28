@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T05:41:00+09:00"
+updated_at: "2026-08-29T06:05:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
-  status: VERIFYING
-  branch: codex/issue-865-paper-calibration-boundary
-  base_sha: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
-  scope: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and reject chronology violations without adding promotion or execution authority."
+  work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+  status: IMPLEMENTING
+  branch: codex/issue-865-paper-calibration-comparison
+  base_sha: 6e90cc3528adba5d3b7e95be5dda31202847a184
+  scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: focused-validation
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-865-paper-calibration-boundary
+active_branch: codex/issue-865-paper-calibration-comparison
 active_successor_branch: null
-active_pull_request: 1034
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
-  status: VERIFYING
-  branch: codex/issue-865-paper-calibration-boundary
-  base_commit: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
-  scope: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and reject chronology violations without adding promotion or execution authority."
-  implementation_commit: d6d31883673f0eb069c56b9edecec0f73b2bd7c5
+  work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+  status: IMPLEMENTING
+  branch: codex/issue-865-paper-calibration-comparison
+  base_commit: 6e90cc3528adba5d3b7e95be5dda31202847a184
+  scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
+  implementation_commit: null
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "PR #1034 root cause is a test fixture ordering error; focused calibration tests 8/8 PASS and full isolated suite 730 files PASS after the minimal fixture correction; latest-main merge is present; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; exact-head CI is pending."
+  validation: "Focused validation is pending for the independent calibration comparison; no confidence, promotion, execution, broker, or LIVE authority is added."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -493,9 +493,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
-    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE.yaml"
-    summary: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and fail closed on duplicate, overlap, lookahead, and regime-mixing inputs."
+  - id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml"
+    summary: "Compare independent, provenance-identical PAPER calibration windows through the existing confidence guard with deterministic fail-closed semantics."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +522,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE.yaml
-  reason: "Push the minimal chronology-fixture correction to existing PR #1034 and exact-head validate it without creating a duplicate PR."
+  work_order: .aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml
+  reason: "Complete the independent-window calibration comparison and validate it without creating a second confidence or promotion engine."
 verification:
   wo_0057:
     parent_pull_request: 552
