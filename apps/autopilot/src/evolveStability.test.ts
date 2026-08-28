@@ -129,7 +129,7 @@ test("open circuit remains fail-closed even after the scheduler window elapses",
 });
 
 test("autonomous selection never bypasses an open circuit under repeated calls", () => {
-  const opportunity: EvolutionOpportunity = lifecycleInput().opportunity;
+  const opportunity = lifecycleInput().opportunity as EvolutionOpportunity;
   for (let i = 0; i < 100; i += 1) {
     const result = selectNextEvolutionOpportunity({
       opportunities: [opportunity],
