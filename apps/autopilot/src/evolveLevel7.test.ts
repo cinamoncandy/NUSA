@@ -19,9 +19,18 @@ const opportunity = (id: string, impact: number): EvolutionOpportunity => ({
   createdAt: "2026-08-29T00:00:00.000Z",
 });
 
+function inMemoryLearningMemory(): EvolutionLearningMemoryRepository {
+  const records: EvolutionLearningRecord[] = [];
+  return {
+    append(record) { records.push(record); },
+    list() { return records; },
+  };
+}
+
 function baseInput(): EvolutionLevel7Input {
   return {
     opportunities: [opportunity("opp:lower", 0.4), opportunity("opp:higher", 0.9)],
+    learningMemory: inMemoryLearningMemory(),
     lifecycle: {
       execution: {
         executionId: "exec:level7:1",
@@ -162,4 +171,12 @@ test("Level 7 does not report a cycle when injected learning persistence fails",
     list() { return []; },
   } satisfies NonNullable<EvolutionLevel7Input["learningMemory"]>;
   assert.throws(() => coordinateLevel7Evolution({ ...input, learningMemory }), /EVOLVE_LEARNING_PERSISTENCE_FAILED/);
+});
+
+test("Level 7 fails closed before lifecycle coordination when durable learning persistence is unavailable", () => {
+  const input = { ...baseInput(), learningMemory: undefined } as unknown as EvolutionLevel7Input;
+  assert.throws(
+    () => coordinateLevel7Evolution(input),
+    /EVOLVE_LEARNING_PERSISTENCE_UNAVAILABLE/,
+  );
 });

@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
 title: "Issue #865 durable evolution learning ledger"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -9,7 +9,9 @@ issue: 865
 base_branch: main
 base_commit: adc74b132aea172b9d2e15456be82500b9899e17
 implementation_branch: codex/issue-865-evolution-learning-ledger
-implementation_commit: ef040d15
+pull_request: 1043
+implementation_commit: ffead4811f5f60848c7574cee1e36ea626792d7e
+merge_commit: bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5
 objective: "Persist the existing bounded zero-authority EvolutionLearningRecord output through one canonical SQLite ledger so evolution evidence survives restart and cannot be double-counted or silently conflicted."
 architecture_impact:
   acknowledged: true
@@ -52,7 +54,7 @@ acceptance:
   - malformed_or_secret_like_records_are_rejected_before_persistence
   - timestamp_regression_and_capacity_overflow_fail_closed
   - no_execution_risk_promotion_or_live_authority_is_exposed
-implementation_status: LOCAL_VALIDATED_PENDING_PUBLICATION
+implementation_status: MERGED_PR_1043
 validation:
   focused_autopilot: PASS_147_OF_147
   focused_storage: PASS_26_OF_26
@@ -70,6 +72,7 @@ validation:
   aipos: PASS
   package_validation: PASS
   git_diff_check: PASS
+remote_validation: "PR #1043 exact head ffead4811f5f60848c7574cee1e36ea626792d7e passed required CI and merged to main as bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5."
 known_limitations:
   - "This slice persists the existing learning record shape; richer candidate/dataset/regime lineage must be supplied by canonical upstream evidence before it can be claimed."
-next: "Publish the validated durable ledger, verify exact-head protected checks, and then reassess remaining Issue #865 gaps from current main."
+next: "Harden the Level 7 composition boundary so a selected cycle cannot complete without the existing durable learning sink."
