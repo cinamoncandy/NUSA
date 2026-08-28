@@ -22,24 +22,27 @@ test("HOME supervisor decision spine preserves NOW -> WHY -> RESULT -> RISK -> L
   }
 });
 
-test("HOME RISK is fail-closed and derives only from existing PAPER runtime/safety evidence", () => {
+test("HOME RISK is fail-closed and derives only from canonical PAPER runtime/safety evidence", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /const supervisorRisk = disconnected/);
-  assert.match(home, /"BLOCKED · PAPER LINK REQUIRED"/);
-  assert.match(home, /"BLOCKED · READ-ONLY RECOVERY REQUIRED"/);
-  assert.match(home, /runtimeState === "HALTED" \|\| runtimeState === "ERROR"/);
-  assert.match(home, /runtimeState === "DEGRADED" \|\| runtimeState === "STOPPED" \|\| runtimeState === "STOPPING"/);
-  assert.match(home, /snapshot == null\s*\n\s*\? "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE"/);
-  assert.match(home, /signalReady\s*\n\s*\? "PAPER ONLY · SAFETY GATES READY · LIVE NONE"/);
-  assert.match(home, /"WATCH · PAPER SAFETY GATES NOT READY"/);
+  const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
+  assert.match(home, /const supervisorRisk = decisionSurface\.risk/);
+  assert.match(decisionSurface, /const risk = input\.disconnected/);
+  assert.match(decisionSurface, /"BLOCKED · PAPER LINK REQUIRED"/);
+  assert.match(decisionSurface, /"BLOCKED · READ-ONLY RECOVERY REQUIRED"/);
+  assert.match(decisionSurface, /runtimeActionRequired/);
+  assert.match(decisionSurface, /runtimeWatch/);
+  assert.match(decisionSurface, /input\.accountSource !== "CLOUD"\s*\n\s*\? "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE"/);
+  assert.match(decisionSurface, /signalReady\s*\n\s*\? "PAPER ONLY · SAFETY GATES READY · LIVE NONE"/);
+  assert.match(decisionSurface, /"WATCH · PAPER SAFETY GATES NOT READY"/);
 });
 
 test("HOME RISK cannot imply LIVE authority or introduce a second action", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
   const riskRow = home.match(/<SupervisorRow label=\"RISK\"[^>]+\/>/)?.[0] ?? "";
   assert.match(riskRow, /value=\{supervisorRisk\}/);
   assert.doesNotMatch(riskRow, /onPress=|actionLabel=/);
   assert.match(home, /PAPER ONLY · LIVE NONE/);
   assert.match(home, /AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE/);
-  assert.doesNotMatch(home, /supervisorRisk[^;]*(?:LIVE READY|LIVE ACTIVE|LIVE ENABLED|LIVE AUTHORIZED)/s);
+  assert.doesNotMatch(decisionSurface, /(?:LIVE READY|LIVE ACTIVE|LIVE ENABLED|LIVE AUTHORIZED)/);
 });
