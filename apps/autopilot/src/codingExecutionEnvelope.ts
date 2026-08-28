@@ -64,6 +64,8 @@ export function toCodingRunnerRequest(envelope: CodingExecutionEnvelope): Coding
     headSha: envelope.baseSha,
     workflowRunId: envelope.workflowRunId,
     reason: `work:${envelope.workItemId};execution:${envelope.executionId};origin:${envelope.origin};dedupe:${envelope.dedupeKey}`,
+    executionId: envelope.executionId,
+    dedupeKey: envelope.dedupeKey,
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,

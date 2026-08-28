@@ -31,6 +31,7 @@ export * from "./researchAutomation";
 export * from "./researchHardening";
 export * from "./researchMemoryLifecycle";
 export * from "./personalPaperOperations";
+export * from "./operationalProgress";
 export * from "./aiInference";
 export * from "./aiCalibrationDurability";
 export * from "./aiInferenceResources";
