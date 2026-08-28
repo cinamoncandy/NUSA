@@ -5,6 +5,7 @@ import type { LeagueCapitalAllocationAdvisory } from "./leagueCapitalAllocation"
 
 const DAY = 86_400_000;
 const BASE = Date.parse("2026-08-01T00:00:00.000Z");
+const HASH = "a".repeat(64);
 
 function advisory(generatedAt: string): LeagueCapitalAllocationAdvisory {
   return {
@@ -17,7 +18,7 @@ function advisory(generatedAt: string): LeagueCapitalAllocationAdvisory {
 }
 
 function period(recordId: string, periodIndex: number, start: number, end: number): PersistedPaperPeriodRecord {
-  return { recordId, periodIndex, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: end, realizedReturns: { a: 0.01 }, benchmarkReturn: 0, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
+  return { recordId, periodIndex, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: end, realizedReturns: { a: 0.01 }, benchmarkReturn: 0, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "CONSERVATIVE_MODEL", evidenceFingerprintSha256: HASH, observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
 }
 
 test("PAPER adapter rejects wall-clock overlap even when period indexes increase", () => {

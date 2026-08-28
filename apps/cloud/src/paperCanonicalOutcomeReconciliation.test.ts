@@ -10,6 +10,7 @@ import {
 const START = 1_000;
 const END = 2_000;
 const HASH = "a".repeat(64);
+const HASH_B = "b".repeat(64);
 
 const baseState = (updatedAt: number, equity: number, fills: readonly PaperFillRecord[] = []): PaperAccountState => Object.freeze({
   version: 1,
@@ -142,6 +143,44 @@ describe("canonical PAPER outcome reconciliation", () => {
     assert.equal(result.spreadRate, 0);
     assert.equal(result.slippageRate, 0);
     assert.match(result.receiptFingerprint, /^[a-f0-9]{64}$/);
+  });
+
+  it("preserves deterministic aggregate execution-cost provenance", () => {
+    const secondFill = fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceId: "paper-cost-model:v2", evidenceFingerprintSha256: HASH_B, feeAmount: 0.05 }) });
+    const forward = reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [fill(), secondFill]),
+    });
+    const reversed = reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [secondFill, fill()]),
+    });
+    assert.equal(forward.executionCostEvidenceKind, "CONSERVATIVE_MODEL");
+    assert.match(forward.executionCostEvidenceFingerprint ?? "", /^[a-f0-9]{64}$/);
+    assert.equal(forward.executionCostEvidenceFingerprint, reversed.executionCostEvidenceFingerprint);
+    assert.deepEqual(forward.executionCostEvidenceIds, ["paper-cost-model:v1", "paper-cost-model:v2"]);
+  });
+
+  it("fails closed when a period mixes observed and modeled cost evidence", () => {
+    assert.equal(code(() => reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [fill(), fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceId: "observed-cost", evidenceKind: "OBSERVED", evidenceFingerprintSha256: HASH_B }) })]),
+    })), "MIXED_EXECUTION_COST_EVIDENCE");
+  });
+
+  it("fails closed when one cost-evidence identity is reused with a different fingerprint", () => {
+    assert.equal(code(() => reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [fill(), fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceFingerprintSha256: HASH_B }) })]),
+    })), "EXECUTION_COST_PROVENANCE_CONFLICT");
   });
 
   it("keeps a no-fill interval explicit without fabricating execution costs", () => {

@@ -203,6 +203,7 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPape
   safeTime(record.periodStartAt, "periodStartAt"); safeTime(record.periodEndAt, "periodEndAt");
   if (!(Date.parse(record.advisory.generatedAt) < record.periodStartAt && record.periodStartAt < record.periodEndAt)) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "PAPER period chronology is invalid", record.recordId);
   if (!record.costEvidence || record.costEvidence.source !== "PAPER_EXECUTION_RECEIPT" || !safeText(record.costEvidence.evidenceId, "costEvidence.evidenceId")) throw new PaperRealizedPeriodProducerError("MISSING_COST_PROVENANCE", "PAPER realized period requires an attributable execution cost receipt", record.recordId);
+  if ((record.costEvidence.evidenceKind !== "OBSERVED" && record.costEvidence.evidenceKind !== "CONSERVATIVE_MODEL") || !SHA256.test(record.costEvidence.evidenceFingerprintSha256)) throw new PaperRealizedPeriodProducerError("INVALID_COST_PROVENANCE", "PAPER realized period cost evidence provenance is invalid", record.recordId);
   safeTime(record.costEvidence.observedAt, "costEvidence.observedAt");
   if (record.costEvidence.observedAt < record.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_COST_EVIDENCE", "cost receipt must be observed during the PAPER period", record.recordId);
   for (const [field, value] of Object.entries({ benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate, ...record.realizedReturns, feeRate: record.costEvidence.feeRate, spreadRate: record.costEvidence.spreadRate, slippageRate: record.costEvidence.slippageRate })) if (typeof value !== "number" || !Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", `${field} must be finite`, record.recordId);
@@ -210,6 +211,7 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPape
   if (!(record.status === "COMPLETED" || record.status === "REJECTED" || record.status === "HALTED")) throw new PaperRealizedPeriodProducerError("INVALID_STATUS", "PAPER period status is unsupported", record.recordId);
   if (record.benchmarkEvidenceId !== undefined) safeText(record.benchmarkEvidenceId, "benchmarkEvidenceId");
   if (record.canonicalOutcomeReceiptFingerprint !== undefined && !SHA256.test(record.canonicalOutcomeReceiptFingerprint)) throw new PaperRealizedPeriodProducerError("INVALID_OUTCOME_PROVENANCE", "canonical PAPER outcome fingerprint is invalid", record.recordId);
+  if (record.canonicalOutcomeReceiptFingerprint !== undefined && record.costEvidence.evidenceId !== "paper-canonical-outcome:" + record.canonicalOutcomeReceiptFingerprint) throw new PaperRealizedPeriodProducerError("INVALID_COST_PROVENANCE", "canonical PAPER cost evidence is not bound to its outcome receipt", record.recordId);
   return freeze({ record: freeze({ ...record, realizedReturns: freeze({ ...record.realizedReturns }), costEvidence: freeze({ ...record.costEvidence }) }), candidateProvenance: freeze([...envelope.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId)).map((item) => freeze({ ...item }))) });
 }
 
@@ -328,6 +330,7 @@ export class PaperRealizedPeriodProducer {
       if (receipt.fillCount === 0 || receipt.candidateIds.length !== 1 || current.candidateProvenance.length !== 1) throw new PaperRealizedPeriodProducerError("CANDIDATE_ATTRIBUTION_UNAVAILABLE", "PAPER period outcome cannot be attributed to exactly one candidate", periodId);
       const candidateId = receipt.candidateIds[0]!;
       if (current.candidateProvenance[0]!.candidateId !== candidateId) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "canonical PAPER fill candidate does not match the open period", periodId);
+      if (receipt.executionCostEvidenceKind === undefined || receipt.executionCostEvidenceFingerprint === undefined) throw new PaperRealizedPeriodProducerError("MISSING_COST_PROVENANCE", "canonical PAPER execution-cost provenance is unavailable", periodId);
       const benchmarkReader = this.options.readCanonicalBenchmarkEvidence;
       if (benchmarkReader == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_EVIDENCE", "canonical PAPER benchmark evidence is unavailable", periodId);
       let benchmark: PaperCanonicalBenchmarkEvidence | undefined;
@@ -345,7 +348,7 @@ export class PaperRealizedPeriodProducer {
           realizedReturns: { [candidateId]: receipt.netReturn },
           benchmarkReturn: validatedBenchmark.benchmarkReturn,
           turnoverCostRate,
-          costEvidence: { evidenceId: `paper-canonical-outcome:${receipt.receiptFingerprint}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: periodEndAt, feeRate: receipt.feeRate, spreadRate: receipt.spreadRate, slippageRate: receipt.slippageRate },
+          costEvidence: { evidenceId: "paper-canonical-outcome:" + receipt.receiptFingerprint, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: receipt.executionCostEvidenceKind, evidenceFingerprintSha256: receipt.executionCostEvidenceFingerprint, observedAt: periodEndAt, feeRate: receipt.feeRate, spreadRate: receipt.spreadRate, slippageRate: receipt.slippageRate },
           status: "COMPLETED",
           benchmarkEvidenceId: validatedBenchmark.evidenceId,
           canonicalOutcomeReceiptFingerprint: receipt.receiptFingerprint,

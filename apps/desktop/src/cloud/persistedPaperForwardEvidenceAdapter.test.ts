@@ -48,7 +48,7 @@ function envelope(index: number, overrides: Partial<PersistedPaperPeriodRecord> 
       realizedReturns: { "candidate-a": 0.01, "candidate-b": 0.02 },
       benchmarkReturn: 0.005,
       turnoverCostRate: 0.001,
-      costEvidence: { evidenceId: `cost-${index}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 },
+      costEvidence: { evidenceId: `cost-${index}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "CONSERVATIVE_MODEL", evidenceFingerprintSha256: HASH_A, observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 },
       status: "COMPLETED",
       ...overrides,
     },
@@ -123,6 +123,12 @@ describe("adaptPersistedPaperForwardEvidence", () => {
     const unsafe = { ...source, record: { ...source.record, [forbiddenField]: ["opaque", "fixture"].join("-") } };
     assert.equal(code(() => adaptPersistedPaperForwardEvidence([unsafe])), "FORBIDDEN_FIELD");
     assert.equal(Object.prototype.hasOwnProperty.call(source.record, forbiddenField), false);
+  });
+
+  it("rejects malformed execution-cost provenance before admission", () => {
+    const source = envelope(0);
+    const malformed = { ...source, record: { ...source.record, costEvidence: { ...source.record.costEvidence, evidenceFingerprintSha256: "invalid" } } };
+    assert.throws(() => adaptPersistedPaperForwardEvidence([malformed]), (error) => error instanceof Error && "code" in error && error.code === "MISSING_COST_PROVENANCE");
   });
 
   it("is idempotent and does not fabricate a League performance summary", () => {

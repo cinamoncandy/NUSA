@@ -1,12 +1,13 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T13:25:00+09:00"
+updated_at: "2026-08-28T14:40:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
+  work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
   status: VERIFYING
-  branch: design/979-ai-decision-hierarchy
-  base_sha: de4eb181c0e06addeb3bdc34dadf21c19ef73760
-  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
+  branch: codex/issue-889-cost-evidence
+  base_sha: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+  scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
+  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,9 +24,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: design/979-ai-decision-hierarchy
-active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: 983
+active_branch: codex/issue-889-cost-evidence
+active_successor_branch: null
+active_pull_request: 995
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,13 +84,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
-  status: VERIFYING
-  branch: design/979-ai-decision-hierarchy
-  base_commit: de4eb181c0e06addeb3bdc34dadf21c19ef73760
-  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
+  work_order: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
+  status: IN_PROGRESS
+  branch: codex/issue-889-cost-evidence
+  base_commit: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+  scope: "Preserve canonical PAPER execution-cost evidence kind and fingerprint through realized-period reconciliation and durable persistence without inventing missing cost or benchmark evidence."
+  latest_integrated_main_sha: c17069dff8c403cf66a793c03e805e373d72f007
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 18/18; full isolated 692 files; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/diff PASS."
+  validation: "Focused 76/76 PASS after main integration; full isolated 693 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/read-only broker/package validation PASS; PR #995 published, final exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -489,9 +491,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
-    evidence: ".aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml"
-    summary: "Issue #979 AI decision hierarchy CI recovery preserves the explicit AI ZERO AUTHORITY safety marker and read-only UI semantics."
+  - id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
+    evidence: ".aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml"
+    summary: "Issue #889 preserves canonical PAPER execution-cost evidence provenance through reconciliation and durable realized-period persistence."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -518,8 +520,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml
-  reason: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change; preserve read-only UI and authority semantics."
+  work_order: .aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml
+  reason: "Preserve canonical PAPER execution-cost evidence provenance through realized-period persistence; missing benchmark and incomplete friction evidence remain fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552

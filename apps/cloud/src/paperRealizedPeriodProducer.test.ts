@@ -41,7 +41,7 @@ function closePeriod(plan: PaperRealizedPeriodOpenInput, overrides: Partial<Pape
         realizedReturns: { [plan.candidateProvenance[0]!.candidateId]: 0.02 },
         benchmarkReturn: 0.01,
         turnoverCostRate: 1,
-        costEvidence: { evidenceId: `cost-${plan.periodId}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: plan.periodStartAt + 1, feeRate: 0.001, spreadRate: 0.0005, slippageRate: 0.0005 },
+        costEvidence: { evidenceId: `cost-${plan.periodId}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "CONSERVATIVE_MODEL", evidenceFingerprintSha256: HASH, observedAt: plan.periodStartAt + 1, feeRate: 0.001, spreadRate: 0.0005, slippageRate: 0.0005 },
         status: "COMPLETED",
         ...overrides,
       },
