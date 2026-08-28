@@ -2,9 +2,18 @@ import type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/
 export type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/src/paperForwardEvidence";
 
 export type PaperForwardEvidenceStrength = "INSUFFICIENT" | "VERIFIED";
+export type PaperForwardEvidenceSourceReconciliationStatus = "UNVERIFIED" | "CANONICAL_RECONCILED";
 
 export interface PaperForwardEvidenceSource {
   readonly listPaperRealizedPeriods: () => readonly PaperForwardPeriodEvidence[];
+  /**
+   * Omitted/UNVERIFIED means the source has not proven that gross return, turnover and execution
+   * costs were reconciled from canonical persisted PAPER outcomes. This is intentionally
+   * fail-closed so caller-supplied realized metrics cannot become VERIFIED merely because they are
+   * durable. Only the canonical persisted-outcome reconciliation boundary may set
+   * CANONICAL_RECONCILED.
+   */
+  readonly reconciliationStatus?: PaperForwardEvidenceSourceReconciliationStatus;
 }
 
 export interface PaperForwardEvidenceAdmission {
@@ -123,8 +132,6 @@ export function admitPaperForwardEvidence(
       }
       completedPeriodCount += 1;
     } else {
-      // Failed/rejected/halted observations remain in the denominator. They never disappear simply
-      // because they do not have a flattering realized return.
       rejectedOrHaltedPeriodCount += 1;
     }
     previousEndAt = period.periodEndAt;
@@ -154,13 +161,20 @@ export function admitPaperForwardEvidence(
 }
 
 /**
- * The existing admission policy remains the only evaluator. This read adapter lets the
- * server-owned Cloud PAPER realized-period source feed that policy without duplicating or
- * reshaping evidence in the renderer/research consumer.
+ * The existing admission policy remains the only evaluator. The source adapter additionally owns
+ * the trust boundary for server-owned realized-period feeds: persisted/caller-supplied metrics are
+ * structurally validated, but cannot become VERIFIED until the canonical persisted PAPER outcome
+ * reconciliation path explicitly marks the source CANONICAL_RECONCILED.
  */
 export function admitPaperForwardEvidenceFromSource(
   source: PaperForwardEvidenceSource,
   policy: PaperForwardEvidenceAdmissionPolicy = DEFAULT_POLICY,
 ): PaperForwardEvidenceAdmission {
-  return admitPaperForwardEvidence(source.listPaperRealizedPeriods(), policy);
+  const admission = admitPaperForwardEvidence(source.listPaperRealizedPeriods(), policy);
+  if (source.reconciliationStatus === "CANONICAL_RECONCILED") return admission;
+  return freeze({
+    ...admission,
+    strength: "INSUFFICIENT",
+    reasons: freeze([...new Set([...admission.reasons, "SOURCE_RECONCILIATION_UNVERIFIED"])].sort()),
+  });
 }
