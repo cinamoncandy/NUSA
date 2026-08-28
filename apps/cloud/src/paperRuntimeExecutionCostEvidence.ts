@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { validatePaperCandidateExecutionBinding, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
+import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 
 export interface PaperRuntimeCostEvidenceCandidateProvenance {
   readonly schemaVersion: 1;
@@ -16,6 +17,12 @@ export interface PaperRuntimeCostEvidenceFillInput {
   readonly candidateProvenance?: PaperRuntimeCostEvidenceCandidateProvenance;
 }
 
+export interface PaperRuntimeCompleteCostEvidenceFillInput extends PaperRuntimeCostEvidenceFillInput {
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly quantity: number;
+}
+
 export interface PaperRuntimeExecutionCostEvidence {
   readonly schemaVersion: 1;
   readonly source: "PAPER_EXECUTION_BOUNDARY";
@@ -29,6 +36,27 @@ export interface PaperRuntimeExecutionCostEvidence {
   readonly feeAmount: number;
   readonly spreadAmount: null;
   readonly slippageAmount: null;
+}
+
+/**
+ * Complete execution-cost attribution derived only from immutable public order-book evidence
+ * plus the exact persisted PAPER fill. This shape intentionally matches the canonical realized-
+ * period reconciler contract and never grants execution authority.
+ */
+export interface PaperCompletedExecutionCostEvidence {
+  readonly schemaVersion: 1;
+  readonly source: "PAPER_EXECUTION_BOUNDARY";
+  readonly evidenceKind: "OBSERVED";
+  readonly completeness: "COMPLETE";
+  readonly evidenceId: string;
+  readonly evidenceFingerprintSha256: string;
+  readonly candidateId: string;
+  readonly quotePrice: number;
+  readonly fillPrice: number;
+  readonly feeAmount: number;
+  readonly spreadAmount: number;
+  readonly slippageAmount: number;
+  readonly quoteReceiptFingerprintSha256: string;
 }
 
 export class PaperRuntimeExecutionCostEvidenceError extends Error {
@@ -127,6 +155,73 @@ export function buildPaperRuntimeExecutionCostEvidence(
   });
 }
 
+/**
+ * Converts a validated point-in-time order-book receipt and the exact PAPER fill into complete,
+ * observed cost evidence. Spread is the side-touch distance from mid; slippage is only additional
+ * adverse movement beyond that observed touch. Favorable movement never becomes a negative cost.
+ */
+export function buildPaperCompletedExecutionCostEvidence(
+  fill: PaperRuntimeCompleteCostEvidenceFillInput,
+  receipt: PaperOrderBookQuoteReceipt,
+  maximumQuoteAgeMs: number,
+): PaperCompletedExecutionCostEvidence {
+  if (!fill.market.trim()) throw new PaperRuntimeExecutionCostEvidenceError("INVALID_MARKET", "fill market is required");
+  const quantity = finitePositive(fill.quantity, "fill.quantity");
+  let validatedReceipt: PaperOrderBookQuoteReceipt;
+  try {
+    validatedReceipt = validatePaperOrderBookQuoteReceipt(receipt, fill.market, fill.filledAt, maximumQuoteAgeMs);
+  } catch (error) {
+    const code = error != null && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "INVALID_QUOTE_RECEIPT";
+    throw new PaperRuntimeExecutionCostEvidenceError(code, error instanceof Error ? error.message : "quote receipt is invalid");
+  }
+
+  const candidateId = canonicalCandidateId(fill);
+  const fillPrice = finitePositive(fill.price, "fill.price");
+  const feeAmount = finiteNonNegative(fill.fee, "fill.fee");
+  const midPrice = (validatedReceipt.bestBidPrice + validatedReceipt.bestAskPrice) / 2;
+  const quotePrice = fill.side === "BUY" ? validatedReceipt.bestAskPrice : validatedReceipt.bestBidPrice;
+  const spreadPerUnit = Math.abs(quotePrice - midPrice);
+  const adverseSlippagePerUnit = fill.side === "BUY"
+    ? Math.max(0, fillPrice - quotePrice)
+    : Math.max(0, quotePrice - fillPrice);
+  const spreadAmount = finiteNonNegative(spreadPerUnit * quantity, "spreadAmount");
+  const slippageAmount = finiteNonNegative(adverseSlippagePerUnit * quantity, "slippageAmount");
+
+  const core = Object.freeze({
+    schemaVersion: 1 as const,
+    source: "PAPER_EXECUTION_BOUNDARY" as const,
+    evidenceKind: "OBSERVED" as const,
+    completeness: "COMPLETE" as const,
+    fillId: fill.id,
+    candidateId,
+    quotePrice,
+    fillPrice,
+    feeAmount,
+    spreadAmount,
+    slippageAmount,
+    quoteReceiptFingerprintSha256: validatedReceipt.fingerprintSha256,
+  });
+  const evidenceFingerprintSha256 = fingerprint(core);
+  if (!SHA256.test(evidenceFingerprintSha256)) {
+    throw new PaperRuntimeExecutionCostEvidenceError("INVALID_EVIDENCE_FINGERPRINT", "completed execution-cost evidence fingerprint is invalid");
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    source: "PAPER_EXECUTION_BOUNDARY",
+    evidenceKind: "OBSERVED",
+    completeness: "COMPLETE",
+    evidenceId: `paper-cost:${fill.id}:${evidenceFingerprintSha256.slice(0, 24)}`,
+    evidenceFingerprintSha256,
+    candidateId,
+    quotePrice,
+    fillPrice,
+    feeAmount,
+    spreadAmount,
+    slippageAmount,
+    quoteReceiptFingerprintSha256: validatedReceipt.fingerprintSha256,
+  });
+}
+
 export function validatePaperRuntimeExecutionCostEvidence(
   fill: PaperRuntimeCostEvidenceFillInput,
   evidence: PaperRuntimeExecutionCostEvidence,
@@ -150,6 +245,19 @@ export function validatePaperRuntimeExecutionCostEvidence(
     evidence.feeAmount !== expected.feeAmount
   ) {
     throw new PaperRuntimeExecutionCostEvidenceError("RUNTIME_COST_EVIDENCE_MISMATCH", `fill ${fill.id} runtime cost evidence does not match canonical fill facts`);
+  }
+  return expected;
+}
+
+export function validatePaperCompletedExecutionCostEvidence(
+  fill: PaperRuntimeCompleteCostEvidenceFillInput,
+  receipt: PaperOrderBookQuoteReceipt,
+  maximumQuoteAgeMs: number,
+  evidence: PaperCompletedExecutionCostEvidence,
+): PaperCompletedExecutionCostEvidence {
+  const expected = buildPaperCompletedExecutionCostEvidence(fill, receipt, maximumQuoteAgeMs);
+  if (JSON.stringify(evidence) !== JSON.stringify(expected)) {
+    throw new PaperRuntimeExecutionCostEvidenceError("COMPLETE_COST_EVIDENCE_MISMATCH", `fill ${fill.id} completed execution-cost evidence does not match canonical quote/fill facts`);
   }
   return expected;
 }
