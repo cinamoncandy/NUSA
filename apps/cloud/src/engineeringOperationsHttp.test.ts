@@ -40,4 +40,35 @@ describe("Engineering OS read-only HTTP projection", () => {
     assert.equal(response.status, 503);
     assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
   });
+
+  it("rejects malformed nested evidence before it leaves the read-only boundary", () => {
+    const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
+    const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+      tokenVerifier,
+      loadSnapshot: () => ({ ...snapshot, outcome: { ...snapshot.outcome, postMergeHeadSha: "not-a-sha" } } as never),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
+  });
+
+  it("rejects forbidden fields instead of serializing credential-shaped metadata", () => {
+    const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
+    const forbiddenField = ["api", "Key"].join("");
+    const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+      tokenVerifier,
+      loadSnapshot: () => ({ ...snapshot, authority: { ...snapshot.authority, [forbiddenField]: "fixture-value" } } as never),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
+  });
+
+  it("rejects a verified snapshot that still carries blockers", () => {
+    const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
+    const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+      tokenVerifier,
+      loadSnapshot: () => ({ ...snapshot, status: "VERIFIED", blockers: ["UNEXPECTED_BLOCKER"] } as never),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
+  });
 });

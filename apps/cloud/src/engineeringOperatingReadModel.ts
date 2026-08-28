@@ -78,6 +78,10 @@ export interface NusaEngineeringOperatingReadModel {
 
 const SHA40 = /^[a-f0-9]{40}$/;
 const SHA64 = /^[a-f0-9]{64}$/;
+const SAFE_IDENTIFIER = /^[A-Za-z0-9._:-]{1,256}$/;
+const SAFE_REASON = /^[A-Z0-9_.:-]{1,160}$/;
+const SAFE_URI = /^[a-z][a-z0-9+.-]*:\/\/[A-Za-z0-9._:/-]+$/;
+const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
 const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set([
   "CLAIMED",
   "IMPLEMENTING",
@@ -245,6 +249,7 @@ export function createNusaEngineeringOperatingReadModel(source?: NusaEngineering
 
 export function validateNusaEngineeringOperatingSnapshot(value: unknown): NusaEngineeringOperatingSnapshot {
   if (value == null || typeof value !== "object") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_INVALID");
+  rejectForbiddenKeys(value);
   const candidate = value as Partial<NusaEngineeringOperatingSnapshot>;
   if (candidate.schemaVersion !== 1 || candidate.scope !== "ENGINEERING_OPERATIONS_READ_ONLY") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_SCHEMA_INVALID");
   if (candidate.status !== "VERIFIED" && candidate.status !== "INSUFFICIENT" && candidate.status !== "UNAVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_STATUS_INVALID");
@@ -252,6 +257,108 @@ export function validateNusaEngineeringOperatingSnapshot(value: unknown): NusaEn
   if (candidate.currentHeadSha != null && !SHA40.test(candidate.currentHeadSha)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_HEAD_INVALID");
   if (!Array.isArray(candidate.blockers) || candidate.blockers.some((reason) => typeof reason !== "string")) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_BLOCKERS_INVALID");
   if (!Array.isArray(candidate.sourceFingerprints) || candidate.sourceFingerprints.some((fingerprint) => typeof fingerprint !== "string" || !SHA64.test(fingerprint))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_PROVENANCE_INVALID");
+  validateSnapshotCollections(candidate);
+  if (candidate.status === "VERIFIED" && candidate.blockers.length !== 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_VERIFIED_WITH_BLOCKERS");
+  if (candidate.status === "INSUFFICIENT" && candidate.blockers.length === 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_INSUFFICIENT_WITHOUT_BLOCKER");
   if (candidate.authority?.liveAuthority !== "NONE" || candidate.authority?.productionMutationAllowed !== false || candidate.authority?.aiAuthority !== "ZERO_AUTHORITY" || candidate.authority?.mutationAllowed !== false) throw new Error("ENGINEERING_OPERATIONS_AUTHORITY_VIOLATION");
   return value as NusaEngineeringOperatingSnapshot;
+}
+
+function rejectForbiddenKeys(value: unknown, seen = new Set<object>()): void {
+  if (value == null || typeof value !== "object") return;
+  if (seen.has(value)) throw new Error("ENGINEERING_OPERATIONS_CYCLIC_VALUE");
+  seen.add(value);
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEY.test(key)) throw new Error("ENGINEERING_OPERATIONS_FORBIDDEN_FIELD");
+    rejectForbiddenKeys(child, seen);
+  }
+  seen.delete(value);
+}
+
+function record(value: unknown, code: string): Record<string, unknown> {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error(code);
+  return value as Record<string, unknown>;
+}
+
+function identifier(value: unknown, code: string): void {
+  if (typeof value !== "string" || !SAFE_IDENTIFIER.test(value)) throw new Error(code);
+}
+
+function reasons(value: unknown, code: string): void {
+  if (!Array.isArray(value) || value.some((reason) => typeof reason !== "string" || !SAFE_REASON.test(reason))) throw new Error(code);
+}
+
+function nonNegativeInteger(value: unknown, code: string): void {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error(code);
+}
+
+function nullableFinite(value: unknown, code: string): void {
+  if (value !== null && (typeof value !== "number" || !Number.isFinite(value))) throw new Error(code);
+}
+
+function boundedMetric(value: unknown, code: string): void {
+  if (value === "UNKNOWN") return;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) throw new Error(code);
+}
+
+function validateSnapshotCollections(candidate: Partial<NusaEngineeringOperatingSnapshot>): void {
+  if (!Array.isArray(candidate.opportunityPriority)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITIES_INVALID");
+  for (const raw of candidate.opportunityPriority) {
+    const item = record(raw, "ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_INVALID");
+    identifier(item.opportunityId, "ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_ID_INVALID");
+    if (item.classification !== "RANKABLE" && item.classification !== "INSUFFICIENT") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_CLASSIFICATION_INVALID");
+    nullableFinite(item.score, "ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_SCORE_INVALID");
+    const components = record(item.components, "ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_COMPONENTS_INVALID");
+    for (const name of ["expectedProductValue", "riskReduction", "evidenceGain", "criticalPathUnlock", "effortCost", "dependencyFanOut", "uncertainty"] as const) {
+      const component = components[name];
+      if (component !== "UNKNOWN" && (typeof component !== "number" || !Number.isFinite(component) || component < 0 || component > 100)) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_COMPONENT_INVALID");
+    }
+    reasons(item.reasons, "ENGINEERING_OPERATIONS_SNAPSHOT_OPPORTUNITY_REASONS_INVALID");
+  }
+
+  const selfOptimizer = record(candidate.selfOptimizer, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_INVALID");
+  if (!["CI_CRITICAL_PATH", "CONFLICT_ALLOCATION", "REWORK_REDUCTION", "IDLE_DEPENDENCY_FLOW", "BLOCKED_TIME_REDUCTION", "INSUFFICIENT_EVIDENCE"].includes(String(selfOptimizer.target))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_TARGET_INVALID");
+  if (selfOptimizer.classification !== "MEASURED" && selfOptimizer.classification !== "INSUFFICIENT") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_CLASSIFICATION_INVALID");
+  const selfEvidence = record(selfOptimizer.evidence, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_EVIDENCE_INVALID");
+  nonNegativeInteger(selfEvidence.observationCount, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_COUNT_INVALID");
+  for (const name of ["ciP95Normalized", "conflictRate", "reworkRate", "idleRatio", "blockedTimeRatio"] as const) boundedMetric(selfEvidence[name], "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_METRIC_INVALID");
+  if (selfOptimizer.dominantMetric !== null && typeof selfOptimizer.dominantMetric !== "string") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_DOMINANT_INVALID");
+  nullableFinite(selfOptimizer.dominantValue, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_VALUE_INVALID");
+  reasons(selfOptimizer.reasons, "ENGINEERING_OPERATIONS_SNAPSHOT_SELF_OPTIMIZER_REASONS_INVALID");
+
+  const concurrency = record(candidate.adaptiveConcurrency, "ENGINEERING_OPERATIONS_SNAPSHOT_CONCURRENCY_INVALID");
+  if (concurrency.classification !== "CONSERVATIVE" && concurrency.classification !== "MEASURED") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_CONCURRENCY_CLASSIFICATION_INVALID");
+  if (!Number.isSafeInteger(concurrency.maximumActiveWorkPerOwner) || (concurrency.maximumActiveWorkPerOwner as number) < 1) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_CONCURRENCY_LIMIT_INVALID");
+  reasons(concurrency.reasons, "ENGINEERING_OPERATIONS_SNAPSHOT_CONCURRENCY_REASONS_INVALID");
+
+  const executionOrigin = record(candidate.executionOrigin, "ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_ORIGIN_INVALID");
+  if (executionOrigin.schemaVersion !== 1 || (executionOrigin.status !== "VERIFIED" && executionOrigin.status !== "UNKNOWN")) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_ORIGIN_SCHEMA_INVALID");
+  if (executionOrigin.origin !== null && executionOrigin.origin !== "AUTO_BACKGROUND" && executionOrigin.origin !== "USER_TRIGGERED") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_ORIGIN_VALUE_INVALID");
+  if (executionOrigin.executionId !== null) identifier(executionOrigin.executionId, "ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_ID_INVALID");
+  if (executionOrigin.observedAt !== null) nonNegativeInteger(executionOrigin.observedAt, "ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_TIME_INVALID");
+  if (executionOrigin.sourceRef !== null && (typeof executionOrigin.sourceRef !== "string" || !SAFE_URI.test(executionOrigin.sourceRef))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_SOURCE_INVALID");
+  if (executionOrigin.sourceFingerprint !== null && (typeof executionOrigin.sourceFingerprint !== "string" || !SHA64.test(executionOrigin.sourceFingerprint))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_FINGERPRINT_INVALID");
+  if (!Array.isArray(executionOrigin.evidenceRefs) || executionOrigin.evidenceRefs.some((ref) => typeof ref !== "string" || !SAFE_URI.test(ref))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_REFS_INVALID");
+  reasons(executionOrigin.reasons, "ENGINEERING_OPERATIONS_SNAPSHOT_EXECUTION_REASONS_INVALID");
+
+  const outcome = record(candidate.outcome, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_INVALID");
+  if (outcome.schemaVersion !== 1 || outcome.metricId !== "ci-workflow-p95-ms") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_SCHEMA_INVALID");
+  if (!["VERIFIED_IMPROVEMENT", "NEUTRAL", "REGRESSION", "INSUFFICIENT"].includes(String(outcome.classification))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_CLASSIFICATION_INVALID");
+  if (outcome.recommendation !== "KEEP" && outcome.recommendation !== "OBSERVE" && outcome.recommendation !== "ROLLBACK_OR_REWORK") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_RECOMMENDATION_INVALID");
+  nullableFinite(outcome.baseline, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_BASELINE_INVALID");
+  nullableFinite(outcome.postMerge, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_POST_MERGE_INVALID");
+  nullableFinite(outcome.delta, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_DELTA_INVALID");
+  if (outcome.baselineHeadSha !== null && (typeof outcome.baselineHeadSha !== "string" || !SHA40.test(outcome.baselineHeadSha))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_BASELINE_HEAD_INVALID");
+  if (outcome.postMergeHeadSha !== null && (typeof outcome.postMergeHeadSha !== "string" || !SHA40.test(outcome.postMergeHeadSha))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_POST_HEAD_INVALID");
+  for (const name of ["baselineSourceFingerprints", "postMergeSourceFingerprints"] as const) {
+    const fingerprints = outcome[name];
+    if (!Array.isArray(fingerprints) || fingerprints.some((fingerprint) => typeof fingerprint !== "string" || !SHA64.test(fingerprint))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_PROVENANCE_INVALID");
+  }
+  reasons(outcome.reasons, "ENGINEERING_OPERATIONS_SNAPSHOT_OUTCOME_REASONS_INVALID");
+
+  const queue = record(candidate.queue, "ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_INVALID");
+  if (queue.status !== "AVAILABLE" && queue.status !== "UNAVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_STATUS_INVALID");
+  if (queue.revision !== null) nonNegativeInteger(queue.revision, "ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_REVISION_INVALID");
+  for (const name of ["totalItems", "activeItems", "mergeReadyItems"] as const) nonNegativeInteger(queue[name], "ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_COUNT_INVALID");
+  if (queue.status === "AVAILABLE" && queue.revision === null) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_REVISION_MISSING");
 }
