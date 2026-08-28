@@ -138,6 +138,8 @@ describe("canonical PAPER realized-period producer", () => {
       const realized = first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END });
       assert.ok(Math.abs(realized.record.realizedReturns["candidate-a"]! - 0.00995) < 1e-12);
       assert.equal(realized.record.turnoverCostRate, 0.0005);
+      assert.equal(realized.record.costEvidence.evidenceKind, "OBSERVED");
+      assert.match(realized.record.costEvidence.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
       assert.equal(realized.record.benchmarkEvidenceId, "benchmark-canonical");
       assert.match(realized.record.canonicalOutcomeReceiptFingerprint ?? "", /^[a-f0-9]{64}$/);
 

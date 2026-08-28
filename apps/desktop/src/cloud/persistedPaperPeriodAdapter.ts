@@ -15,6 +15,7 @@ export class PersistedPaperPeriodAdapterError extends Error {
   }
 }
 
+const SHA256 = /^[a-f0-9]{64}$/;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function assertFinite(value: number, code: string, message: string, recordId: string): void {
@@ -73,7 +74,7 @@ export function adaptPersistedPaperPeriods(
     assertFinite(record.turnoverCostRate, "NON_FINITE_COST_RATE", `record ${record.recordId} turnoverCostRate must be finite`, record.recordId);
     if (record.turnoverCostRate < 0) throw new PersistedPaperPeriodAdapterError("NEGATIVE_COST_RATE", `record ${record.recordId} turnoverCostRate must be non-negative`, record.recordId);
     if (record.status !== "COMPLETED" && record.status !== "REJECTED" && record.status !== "HALTED") throw new PersistedPaperPeriodAdapterError("INVALID_STATUS", `record ${record.recordId} status is unsupported`, record.recordId);
-    if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || !record.costEvidence.evidenceId.trim() || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) {
+    if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || !record.costEvidence.evidenceId.trim() || (record.costEvidence.evidenceKind !== "OBSERVED" && record.costEvidence.evidenceKind !== "CONSERVATIVE_MODEL") || !SHA256.test(record.costEvidence.evidenceFingerprintSha256) || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) {
       throw new PersistedPaperPeriodAdapterError("MISSING_COST_PROVENANCE", `record ${record.recordId} has no attributable execution cost evidence`, record.recordId);
     }
     for (const [field, value] of Object.entries({ feeRate: record.costEvidence.feeRate, spreadRate: record.costEvidence.spreadRate, slippageRate: record.costEvidence.slippageRate })) assertFinite(value, `NON_FINITE_${field.toUpperCase()}`, `record ${record.recordId} ${field} must be finite`, record.recordId);

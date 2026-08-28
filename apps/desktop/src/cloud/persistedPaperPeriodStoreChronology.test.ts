@@ -31,7 +31,7 @@ function envelope(generatedAt: string, periodIndex = 0, periodStartAt = START, p
       realizedReturns: { a: 0.01 },
       benchmarkReturn: 0,
       turnoverCostRate: 0,
-      costEvidence: { evidenceId: `cost-${periodIndex}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: periodStartAt + 1, feeRate: 0, spreadRate: 0, slippageRate: 0 },
+      costEvidence: { evidenceId: `cost-${periodIndex}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "CONSERVATIVE_MODEL", evidenceFingerprintSha256: HASH, observedAt: periodStartAt + 1, feeRate: 0, spreadRate: 0, slippageRate: 0 },
       status: "COMPLETED",
     },
     candidateProvenance: [{ candidateId: "a", datasetId: "dataset-a", datasetContentSha256: HASH }],
