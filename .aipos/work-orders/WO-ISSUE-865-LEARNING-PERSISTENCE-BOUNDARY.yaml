@@ -9,6 +9,7 @@ issue: 865
 base_branch: main
 base_commit: daa077b4b855e8f6296f5ad96fa7516732a7f982
 implementation_branch: codex/issue-865-learning-attribution
+implementation_commit: 5e46a20431a42aef63c6ac0ba06448bfc2bf1ba6
 objective: "Prevent a selected Level 7 evolution cycle from completing without the existing injected durable learning evidence sink."
 architecture_impact:
   acknowledged: true

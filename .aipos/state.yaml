@@ -3,7 +3,7 @@ project: nusa
 updated_at: "2026-08-29T16:48:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-865-learning-attribution
   base_sha: daa077b4b855e8f6296f5ad96fa7516732a7f982
   scope: "Require the existing durable learning sink at the Level 7 composition boundary and fail closed before lifecycle coordination when runtime persistence is unavailable."
@@ -84,12 +84,12 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/issue-865-learning-attribution
   base_commit: daa077b4b855e8f6296f5ad96fa7516732a7f982
   scope: "Require the existing durable learning sink at the Level 7 composition boundary and fail closed before lifecycle coordination when runtime persistence is unavailable."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: WORKTREE_UNCOMMITTED
+  implementation_commit: 5e46a20431a42aef63c6ac0ba06448bfc2bf1ba6
   validation: "Focused autopilot evolution suite PASS (69/69); preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/git diff check PASS; full isolated suite blocked by Windows TEMP mkdtemp EPERM before test execution."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
