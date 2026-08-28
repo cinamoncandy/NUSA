@@ -3,18 +3,18 @@ export type HomeDecisionTone = "success" | "warning" | "danger" | "info";
 export type HomeDecisionPrimaryAction = "SETTINGS" | "PORTFOLIO" | "AI_SIGNAL" | "MARKETS";
 
 export interface HomeDecisionSurfaceInput {
-  readonly runtimeState?: string;
-  readonly health?: string;
+  readonly runtimeState: string | undefined;
+  readonly health: string | undefined;
   readonly readyForPaperOperations: boolean;
   readonly disconnected: boolean;
   readonly readOnlyError: boolean;
   readonly accountSource: "CLOUD" | "LOCAL" | null;
-  readonly paperEquity?: number;
-  readonly paperTotalPnl?: number | null;
-  readonly aiThesis?: string | null;
+  readonly paperEquity: number | undefined;
+  readonly paperTotalPnl: number | null | undefined;
+  readonly aiThesis: string | null | undefined;
   readonly aiEvidenceCount: number;
-  readonly aiCalibrationStatus?: string | null;
-  readonly aiConfidence?: number | null;
+  readonly aiCalibrationStatus: string | null | undefined;
+  readonly aiConfidence: number | null | undefined;
 }
 
 export interface HomeDecisionSurface {
@@ -30,7 +30,7 @@ export interface HomeDecisionSurface {
   readonly primaryDetail: string;
   readonly primaryAction: HomeDecisionPrimaryAction;
   readonly aiInsightAvailable: boolean;
-  readonly calibratedConfidence?: string;
+  readonly calibratedConfidence: string | undefined;
   readonly signalReady: boolean;
   readonly runtimeNeedsSupervision: boolean;
 }
