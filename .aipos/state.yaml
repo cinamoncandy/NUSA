@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-865-learning-attribution
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1047
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -90,7 +90,7 @@ claimed_state:
   scope: "Require the existing durable learning sink at the Level 7 composition boundary and fail closed before lifecycle coordination when runtime persistence is unavailable."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   implementation_commit: 5e46a20431a42aef63c6ac0ba06448bfc2bf1ba6
-  validation: "Focused autopilot evolution suite PASS (69/69); preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/git diff check PASS; full isolated suite blocked by Windows TEMP mkdtemp EPERM before test execution."
+  validation: "Focused autopilot evolution suite PASS (69/69); preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/git diff check PASS; full isolated suite blocked by Windows TEMP mkdtemp EPERM before test execution; PR #1047 exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
