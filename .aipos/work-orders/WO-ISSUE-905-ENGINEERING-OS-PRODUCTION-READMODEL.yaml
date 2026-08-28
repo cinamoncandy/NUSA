@@ -1,0 +1,68 @@
+id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+title: "Issue #905 wire the measured Engineering OS read model into production"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 905
+base_branch: main
+base_commit: e125e6a39207e6245d257b736d460b22eff6e014
+implementation_branch: codex/issue-905-measured-concurrency-wiring
+objective: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
+  references:
+    - apps/desktop/src/cloud/nusaEngineeringOpportunityDiscovery.ts
+    - apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.ts
+    - apps/desktop/src/cloud/nusaEngineeringSelfOptimizer.ts
+    - apps/desktop/src/cloud/nusaAdaptiveConcurrency.ts
+    - apps/desktop/src/cloud/nusaEngineeringExecutionOrigin.ts
+    - apps/desktop/src/cloud/nusaEngineeringOutcomeFeedback.ts
+    - apps/desktop/src/cloud/nusaDevelopmentControlPlane.ts
+    - apps/cloud/src/runtime.ts
+scope:
+  - engineering_os_read_only_production_composition
+  - measured_concurrency_and_optimizer_projection
+  - exact_head_outcome_projection
+  - production_runtime_accessor_regression
+prohibited:
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - queue_claim_or_merge_mutation
+  - synthetic_engineering_metrics
+  - paper_or_real_accounting_mix
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - one_canonical_read_only_production_accessor_composes_existing_engines
+  - missing_or_unknown_metrics_remain_insufficient
+  - no_numeric_proxy_is_substituted_for_missing_telemetry
+  - queue_projection_is_read_only_and_reuses_903_contract
+  - exact_head_outcome_requires_distinct_provenance_bound_telemetry
+  - execution_origin_is_projected_only_from_actual_evidence
+  - production_runtime_wires_accessor_without_mutation
+  - safety_authority_remains_unchanged
+validation:
+  focused: PASS_8_OF_8
+  production_wiring: PASS
+  full_isolated_suite: PASS_729_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS
+  aipos: PASS
+  git_diff_check: PASS
+implementation_status: IMPLEMENTED_VERIFYING
+known_limitations:
+  - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
+next: "Publish the focused PR, verify its exact-head protected checks, and merge only when all required checks are green."

@@ -2,11 +2,11 @@ version: 1
 project: nusa
 updated_at: "2026-08-29T00:00:00+09:00"
 current_execution_target:
-  work_order: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
+  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: VERIFYING
-  branch: auto/ui-truth-risk-reconciliation-evidence
-  base_sha: bfaac61e652210178eeab78200aa4af4a48adc24
-  scope: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
+  branch: codex/issue-905-measured-concurrency-wiring
+  base_sha: e125e6a39207e6245d257b736d460b22eff6e014
+  scope: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: exact-head-ci-recovery
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: auto/ui-truth-risk-reconciliation-evidence
+active_branch: codex/issue-905-measured-concurrency-wiring
 active_successor_branch: null
-active_pull_request: 1030
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
+  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: VERIFYING
-  branch: auto/ui-truth-risk-reconciliation-evidence
-  base_commit: bfaac61e652210178eeab78200aa4af4a48adc24
-  scope: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
-  implementation_commit: 45e152d5
+  branch: codex/issue-905-measured-concurrency-wiring
+  base_commit: e125e6a39207e6245d257b736d460b22eff6e014
+  scope: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
+  implementation_commit: null
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused Control Room 43/43 PASS; full isolated suite 726 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS PASS; exact-head validation pending."
+  validation: "Focused 8/8 PASS; full isolated 729 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/git diff --check PASS; exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -493,9 +493,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH
-    evidence: ".aipos/work-orders/WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH.yaml"
-    summary: "Reconcile the Control Room risk and reconciliation evidence assertions without adding authority or mutation."
+  - id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+    evidence: ".aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml"
+    summary: "Wire one read-only production Engineering OS composition over existing measured evidence contracts without synthetic telemetry or authority."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +522,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-PR-1030-CONTROL-ROOM-EVIDENCE-TRUTH.yaml
-  reason: "Publish the stale-assertion test fix, then verify all required checks on the resulting exact PR head."
+  work_order: .aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml
+  reason: "Compose and validate the read-only production Engineering OS snapshot over existing canonical evidence contracts."
 verification:
   wo_0057:
     parent_pull_request: 552
