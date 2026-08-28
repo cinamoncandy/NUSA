@@ -1,0 +1,69 @@
+version: 1
+id: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
+title: "Issue #861 candidate-bound PAPER forward-evidence adapter"
+status: VERIFYING
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 861
+base_branch: main
+base_commit: aeae72d9ca612b77d0bc5f7c7dda709643eea7c2
+implementation_branch: codex/issue-861-paper-league-bridge
+objective: "Project authoritative persisted PAPER realized periods into the existing candidate-specific admission and shadow-evaluation contracts without inferring attribution or fabricating a PaperPerformanceSummary."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing persisted PAPER period adapter and research admission boundary. The adapter is a read-only research projection; it creates no execution, accounting, broker, Risk, promotion, or LIVE authority."
+  references:
+    - apps/desktop/src/cloud/persistedPaperPeriodAdapter.ts
+    - apps/desktop/src/cloud/paperForwardEvidenceAdmission.ts
+    - apps/desktop/src/cloud/shadowAllocationEvaluation.ts
+    - apps/desktop/src/cloud/paperForwardLeagueEvidence.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+scope:
+  - candidate_bound_persisted_paper_period_projection
+  - deterministic_period_ordering_and_turnover_attribution
+  - existing_admission_and_shadow_evaluator_reuse
+  - provenance_and_cost_reconciliation
+  - fail_closed_candidate_dataset_and_chronology_validation
+prohibited:
+  - inferred_candidate_attribution
+  - fabricated_paper_performance_summary
+  - new_paper_or_research_engine
+  - broker_or_order_mutation
+  - risk_or_promotion_authority
+  - live_activation
+  - withdrawal_or_transfer
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - persisted candidate and dataset provenance remains linked to advisory and realized returns
+  - periods are normalized deterministically before existing shadow evaluation
+  - candidate set or dataset provenance drift fails closed
+  - explicit execution cost evidence is reconciled before admission
+  - narrow and failed periods remain visible without increasing evidence breadth
+  - only existing admission semantics determine VERIFIED versus INSUFFICIENT
+  - no PaperPerformanceSummary is created without canonical metrics for every required field
+  - secret-bearing or malformed input is rejected before research projection
+  - projection is read-only and idempotent
+validation:
+  focused: PASS_7_OF_7
+  existing_paper_admission: PASS_15_OF_15
+  existing_paper_shadow: PASS_11_OF_11
+  producer_storage_regression: PASS_25_OF_25
+  research_bridge_regression: PASS_14_OF_14
+  full_isolated_suite: PASS_688_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+known_limitations:
+  - "The current persisted period contract does not contain truthful trade-count, execution-quality, or kill-switch metrics required by PaperPerformanceSummary; this slice must not synthesize them or populate League paperPerformance."
+  - "A real Cloud runtime caller that opens/closes candidate-bound longitudinal periods remains a separate integration gap; this adapter consumes only records already persisted by the canonical producer."
+next: "Publish this scoped adapter only; keep League paperPerformance unset until a canonical source supplies every required PaperPerformanceSummary metric."
