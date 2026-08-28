@@ -2,18 +2,9 @@ import type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/
 export type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/src/paperForwardEvidence";
 
 export type PaperForwardEvidenceStrength = "INSUFFICIENT" | "VERIFIED";
-export type PaperForwardEvidenceSourceReconciliationStatus = "UNVERIFIED" | "CANONICAL_RECONCILED";
 
 export interface PaperForwardEvidenceSource {
   readonly listPaperRealizedPeriods: () => readonly PaperForwardPeriodEvidence[];
-  /**
-   * Omitted/UNVERIFIED means the source has not proven that gross return, turnover and execution
-   * costs were reconciled from canonical persisted PAPER outcomes. This is intentionally
-   * fail-closed so caller-supplied realized metrics cannot become VERIFIED merely because they are
-   * durable. Only the canonical persisted-outcome reconciliation boundary may set
-   * CANONICAL_RECONCILED.
-   */
-  readonly reconciliationStatus?: PaperForwardEvidenceSourceReconciliationStatus;
 }
 
 export interface PaperForwardEvidenceAdmission {
@@ -161,17 +152,16 @@ export function admitPaperForwardEvidence(
 }
 
 /**
- * The existing admission policy remains the only evaluator. The source adapter additionally owns
- * the trust boundary for server-owned realized-period feeds: persisted/caller-supplied metrics are
- * structurally validated, but cannot become VERIFIED until the canonical persisted PAPER outcome
- * reconciliation path explicitly marks the source CANONICAL_RECONCILED.
+ * Server-owned realized-period feeds are structurally validated here, but they remain
+ * non-promotable until an end-to-end canonical candidate binding and persisted outcome/cost
+ * reconciliation path is wired. A caller-controlled marker must never be sufficient to promote
+ * evidence. The future canonical adapter should be a concrete trusted boundary, not a string flag.
  */
 export function admitPaperForwardEvidenceFromSource(
   source: PaperForwardEvidenceSource,
   policy: PaperForwardEvidenceAdmissionPolicy = DEFAULT_POLICY,
 ): PaperForwardEvidenceAdmission {
   const admission = admitPaperForwardEvidence(source.listPaperRealizedPeriods(), policy);
-  if (source.reconciliationStatus === "CANONICAL_RECONCILED") return admission;
   return freeze({
     ...admission,
     strength: "INSUFFICIENT",
