@@ -489,9 +489,6 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
-    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED.yaml"
-    summary: "Issue #880 existing strategy rollback boundary is being hardened to reject malformed evidence without adding lifecycle or execution authority."
   - id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
     evidence: ".aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml"
     summary: "Issue #979 AI decision hierarchy CI recovery preserves the explicit AI ZERO AUTHORITY safety marker and read-only UI semantics."
