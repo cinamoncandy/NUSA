@@ -88,9 +88,9 @@ claimed_state:
   branch: auto/ui-truth-risk-reconciliation-evidence
   base_commit: bfaac61e652210178eeab78200aa4af4a48adc24
   scope: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
-  implementation_commit: PENDING_EXACT_HEAD_CI
+  implementation_commit: 45e152d5
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused Control Room 43/43 PASS; full isolated suite 726/726 PASS; typecheck/build/lint/preflight/architecture/safety/security PASS; exact-head validation pending."
+  validation: "Focused Control Room 43/43 PASS; full isolated suite 726 files PASS; typecheck/build/lint/preflight/architecture/safety/security/AIPOS PASS; exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

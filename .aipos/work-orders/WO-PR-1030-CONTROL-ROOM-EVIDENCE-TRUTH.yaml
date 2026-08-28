@@ -9,6 +9,7 @@ pull_request: 1030
 base_branch: main
 base_commit: bfaac61e652210178eeab78200aa4af4a48adc24
 implementation_branch: auto/ui-truth-risk-reconciliation-evidence
+implementation_commit: 45e152d5
 objective: "Keep the Control Room read-only projection truthful when canonical risk or reconciliation evidence is absent, and align its regression contract with the evidence-derived UI."
 scope:
   - control_room_risk_evidence_projection
@@ -45,7 +46,15 @@ acceptance:
   - no_authority_or_mutation_path_is_added
 validation:
   focused_control_room: PASS_43_OF_43
+  full_isolated_suite: PASS_726_FILES
+  preflight: PASS
+  typecheck: PASS
   build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  aipos: PASS
   exact_head_ci: PENDING
   non_required_cloudflare_build: FAILURE_NOT_REQUIRED
 known_limitations:
