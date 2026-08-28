@@ -14,17 +14,20 @@ export function rankEvolutionOpportunity(opportunity: EvolutionOpportunity): Evo
   const evidenceQuality = opportunity.evidence.length === 0
     ? 0
     : opportunity.evidence.reduce((sum, item) => sum + clamp(item.quality), 0) / opportunity.evidence.length;
-  const score =
+  const eligible =
+    opportunity.status === "DISCOVERED" || opportunity.status === "READY";
+  const rawScore =
     opportunity.impact *
     opportunity.confidence *
     evidenceQuality *
     opportunity.reversibility /
     Math.max(opportunity.risk, 0.05);
-  const eligible =
-    opportunity.status === "DISCOVERED" || opportunity.status === "READY";
+  // Ineligible opportunities remain observable, but must never outrank work
+  // that can actually be selected for execution.
+  const score = eligible && Number.isFinite(rawScore) ? rawScore : 0;
   return Object.freeze({
     opportunityId: opportunity.id,
-    score: Number.isFinite(score) ? score : 0,
+    score,
     evidenceQuality,
     eligible,
     reason: eligible ? "bounded-evidence-priority" : "opportunity-status-not-rankable",
