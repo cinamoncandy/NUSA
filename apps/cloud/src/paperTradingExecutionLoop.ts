@@ -4,7 +4,8 @@ import { validatePersonalPaperOrderCommand, type PersonalPaperOrderCommand } fro
 import { validatePaperCandidateExecutionBinding, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { PortfolioPlan } from "./portfolioOrchestrator";
-import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
+import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
+import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
 
 const ACCOUNT_ID = "paper-default";
@@ -56,6 +57,8 @@ export interface PaperFillRecord {
   readonly price: number;
   readonly fee: number;
   readonly filledAt: number;
+  /** Canonical public order-book receipt retained with the fill for restart-safe attribution. */
+  readonly orderBookQuoteReceipt?: PaperOrderBookQuoteReceipt;
   /** Point-in-time candidate binding copied from the exact CIO decision that caused this strategy fill. */
   readonly candidateProvenance?: PaperFillCandidateProvenance;
   /**
@@ -217,16 +220,17 @@ function validateObservedExecutionCostAttribution(fill: PaperFillRecord): void {
   const quoteObservedAt = attribution.quoteObservedAt;
   const quoteBidPrice = attribution.quoteBidPrice;
   const quoteAskPrice = attribution.quoteAskPrice;
-  if (typeof quoteEvidenceId !== "string" || typeof quoteFingerprint !== "string" || !Number.isSafeInteger(quoteObservedAt) || typeof quoteBidPrice !== "number" || typeof quoteAskPrice !== "number") throw new Error("paper observed execution-cost quote provenance is missing");
+  if (fill.orderBookQuoteReceipt == null || typeof quoteEvidenceId !== "string" || typeof quoteFingerprint !== "string" || !Number.isSafeInteger(quoteObservedAt) || typeof quoteBidPrice !== "number" || typeof quoteAskPrice !== "number") throw new Error("paper observed execution-cost quote provenance is missing");
   validatePaperObservedExecutionCostAttribution(fill, {
     schemaVersion: 1,
     source: "UPBIT_PUBLIC_ORDERBOOK",
     market: fill.market,
-    observedAt: quoteObservedAt as number,
-    bidPrice: quoteBidPrice,
-    askPrice: quoteAskPrice,
+    observedAt: fill.orderBookQuoteReceipt.observedAt,
+    bidPrice: fill.orderBookQuoteReceipt.bestBidPrice,
+    askPrice: fill.orderBookQuoteReceipt.bestAskPrice,
     evidenceId: quoteEvidenceId,
     evidenceFingerprintSha256: quoteFingerprint,
+    receipt: fill.orderBookQuoteReceipt,
   }, attribution);
 }
 
@@ -265,6 +269,10 @@ function validateState(state: PaperAccountState): void {
     fillIds.add(fill.id); fillsByOrder.set(fill.orderId, fill);
     finiteNonNegative(fill.quantity, "paper fill quantity"); finiteNonNegative(fill.price, "paper fill price"); finiteNonNegative(fill.fee, "paper fill fee");
     if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
+    if (fill.orderBookQuoteReceipt != null) {
+      try { validatePaperOrderBookQuoteReceipt(fill.orderBookQuoteReceipt, fill.market, fill.filledAt, 5_000); }
+      catch (error) { throw new Error(`paper fill order-book quote receipt is invalid: ${error instanceof Error ? error.message : "unknown error"}`); }
+    }
     validateFillCandidateProvenance(fill);
     validateRuntimeExecutionCostEvidence(fill);
     validateObservedExecutionCostAttribution(fill);
@@ -455,6 +463,7 @@ function initialState(initialCapital: number): PaperAccountState { return Object
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
 
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+  const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -480,12 +489,11 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
-  const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }) };
+  const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }), ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }) };
   const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
   let executionCostAttribution: PaperExecutionCostAttribution | undefined;
-  if (candidateProvenance != null && observedQuote != null) {
-    try { executionCostAttribution = buildPaperObservedExecutionCostAttribution({ ...baseFill, candidateProvenance }, observedQuote); }
-    catch { /* A missing/stale/invalid quote must remain non-promotable, never become zero cost. */ }
+  if (candidateProvenance != null && canonicalObservedQuote != null) {
+    executionCostAttribution = buildPaperObservedExecutionCostAttribution({ ...baseFill, candidateProvenance }, canonicalObservedQuote);
   }
   const fill: PaperFillRecord = Object.freeze({
     ...baseFill,

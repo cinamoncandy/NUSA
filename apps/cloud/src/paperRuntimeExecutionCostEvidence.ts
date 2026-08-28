@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { validatePaperCandidateExecutionBinding, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
+import { buildPaperOrderBookQuoteReceipt, validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
+import type { UpbitOrderBook } from "./upbitWebSocket";
 
 export interface PaperRuntimeCostEvidenceCandidateProvenance {
   readonly schemaVersion: 1;
@@ -40,6 +42,8 @@ export interface PaperObservedExecutionQuote {
   readonly askPrice: number;
   readonly evidenceId: string;
   readonly evidenceFingerprintSha256: string;
+  /** Full canonical receipt retained with the PAPER fill before account persistence. */
+  readonly receipt: PaperOrderBookQuoteReceipt;
 }
 
 export interface PaperExecutionCostAttribution {
@@ -264,23 +268,66 @@ export function buildPaperObservedExecutionQuote(input: PaperOrderBookObservatio
     throw new PaperRuntimeExecutionCostEvidenceError("INVALID_ORDERBOOK_DEPTH", "public orderbook depth is invalid");
   }
   const units = input.units.map(orderBookUnit);
-  const bidPrice = Math.max(...units.map((unit) => unit.bidPrice));
-  const askPrice = Math.min(...units.map((unit) => unit.askPrice));
-  if (!Number.isFinite(bidPrice) || !Number.isFinite(askPrice) || askPrice < bidPrice) {
-    throw new PaperRuntimeExecutionCostEvidenceError("INVALID_ORDERBOOK_QUOTE", "public orderbook best quote is invalid");
-  }
-  const evidence = { schemaVersion: 1, source: "UPBIT_PUBLIC_ORDERBOOK", market, observedAt, totalAskSize, totalBidSize, units };
-  const evidenceFingerprintSha256 = stableDigest(evidence);
+  const receipt = buildPaperOrderBookQuoteReceipt({
+    type: "orderbook",
+    code: market,
+    total_ask_size: totalAskSize,
+    total_bid_size: totalBidSize,
+    orderbook_units: units.map((unit) => ({
+      ask_price: unit.askPrice,
+      bid_price: unit.bidPrice,
+      ask_size: unit.askSize,
+      bid_size: unit.bidSize,
+    })),
+  } satisfies UpbitOrderBook, observedAt);
   return Object.freeze({
     schemaVersion: 1,
     source: "UPBIT_PUBLIC_ORDERBOOK",
     market,
     observedAt,
-    bidPrice,
-    askPrice,
-    evidenceId: "paper-orderbook:" + market + ":" + observedAt + ":" + evidenceFingerprintSha256.slice(0, 24),
-    evidenceFingerprintSha256,
+    bidPrice: receipt.bestBidPrice,
+    askPrice: receipt.bestAskPrice,
+    evidenceId: "paper-orderbook:" + market + ":" + observedAt + ":" + receipt.fingerprintSha256.slice(0, 24),
+    evidenceFingerprintSha256: receipt.fingerprintSha256,
+    receipt,
   });
+}
+
+function quoteReceiptError(error: unknown): PaperRuntimeExecutionCostEvidenceError {
+  const code = error != null && typeof error === "object" && "code" in error
+    ? String((error as { code: unknown }).code)
+    : "INVALID_ORDERBOOK_QUOTE";
+  return new PaperRuntimeExecutionCostEvidenceError(code, error instanceof Error ? error.message : "public orderbook quote is invalid");
+}
+
+/** Validates the receipt and the summary together before a PAPER fill can use the quote. */
+export function validatePaperObservedExecutionQuote(
+  quote: PaperObservedExecutionQuote,
+  expectedMarket: string,
+  filledAt: number,
+): PaperObservedExecutionQuote {
+  const market = normalizeObservedMarket(expectedMarket);
+  if (quote == null || quote.schemaVersion !== 1 || quote.source !== "UPBIT_PUBLIC_ORDERBOOK" || quote.market !== market) {
+    throw new PaperRuntimeExecutionCostEvidenceError("INVALID_ORDERBOOK_QUOTE", "public orderbook quote provenance is invalid");
+  }
+  const observedAt = safeObservedTimestamp(quote.observedAt, "quote.observedAt");
+  const fillTime = safeObservedTimestamp(filledAt, "fill.filledAt");
+  let receipt: PaperOrderBookQuoteReceipt;
+  try {
+    receipt = validatePaperOrderBookQuoteReceipt(quote.receipt, market, fillTime, OBSERVED_QUOTE_MAX_AGE_MS);
+  } catch (error) {
+    throw quoteReceiptError(error);
+  }
+  if (
+    observedAt !== receipt.observedAt
+    || quote.bidPrice !== receipt.bestBidPrice
+    || quote.askPrice !== receipt.bestAskPrice
+    || quote.evidenceFingerprintSha256 !== receipt.fingerprintSha256
+    || quote.evidenceId !== "paper-orderbook:" + market + ":" + receipt.observedAt + ":" + receipt.fingerprintSha256.slice(0, 24)
+  ) {
+    throw new PaperRuntimeExecutionCostEvidenceError("ORDERBOOK_QUOTE_PROVENANCE_MISMATCH", "public orderbook quote summary does not match its canonical receipt");
+  }
+  return Object.freeze({ ...quote, receipt });
 }
 
 function compareObservedAttribution(left: PaperExecutionCostAttribution, right: PaperExecutionCostAttribution): boolean {
@@ -294,7 +341,12 @@ function compareObservedAttribution(left: PaperExecutionCostAttribution, right: 
     && left.fillPrice === right.fillPrice
     && left.feeAmount === right.feeAmount
     && left.spreadAmount === right.spreadAmount
-    && left.slippageAmount === right.slippageAmount;
+    && left.slippageAmount === right.slippageAmount
+    && left.quoteEvidenceId === right.quoteEvidenceId
+    && left.quoteEvidenceFingerprintSha256 === right.quoteEvidenceFingerprintSha256
+    && left.quoteObservedAt === right.quoteObservedAt
+    && left.quoteBidPrice === right.quoteBidPrice
+    && left.quoteAskPrice === right.quoteAskPrice;
 }
 
 /**
@@ -312,15 +364,16 @@ export function buildPaperObservedExecutionCostAttribution(
   const fillPrice = finitePositive(fill.price, "fill.price");
   const feeAmount = finiteNonNegative(fill.fee, "fill.fee");
   const filledAt = safeObservedTimestamp(fill.filledAt, "fill.filledAt");
-  if (quote.schemaVersion !== 1 || quote.source !== "UPBIT_PUBLIC_ORDERBOOK" || quote.market !== market || !SHA256.test(quote.evidenceFingerprintSha256) || !quote.evidenceId.trim()) {
-    throw new PaperRuntimeExecutionCostEvidenceError("INVALID_ORDERBOOK_QUOTE", "fill " + fill.id + " orderbook quote is invalid");
+  let canonicalQuote: PaperObservedExecutionQuote;
+  try {
+    canonicalQuote = validatePaperObservedExecutionQuote(quote, market, filledAt);
+  } catch (error) {
+    if (error instanceof PaperRuntimeExecutionCostEvidenceError) throw error;
+    throw quoteReceiptError(error);
   }
-  const observedAt = safeObservedTimestamp(quote.observedAt, "quote.observedAt");
-  if (observedAt > filledAt || filledAt - observedAt > OBSERVED_QUOTE_MAX_AGE_MS) {
-    throw new PaperRuntimeExecutionCostEvidenceError("STALE_ORDERBOOK_QUOTE", "fill " + fill.id + " orderbook quote is stale");
-  }
-  const bidPrice = finitePositive(quote.bidPrice, "quote.bidPrice");
-  const askPrice = finitePositive(quote.askPrice, "quote.askPrice");
+  const observedAt = canonicalQuote.receipt.observedAt;
+  const bidPrice = finitePositive(canonicalQuote.receipt.bestBidPrice, "quote.bidPrice");
+  const askPrice = finitePositive(canonicalQuote.receipt.bestAskPrice, "quote.askPrice");
   if (askPrice < bidPrice) throw new PaperRuntimeExecutionCostEvidenceError("INVALID_ORDERBOOK_QUOTE", "fill " + fill.id + " orderbook quote is crossed");
   const quotePrice = fill.side === "BUY" ? askPrice : bidPrice;
   const halfSpread = (askPrice - bidPrice) / 2;
@@ -337,7 +390,7 @@ export function buildPaperObservedExecutionCostAttribution(
     side: fill.side,
     quantity: fill.quantity,
     candidateId,
-    quote: { evidenceId: quote.evidenceId, evidenceFingerprintSha256: quote.evidenceFingerprintSha256, observedAt, bidPrice, askPrice },
+    quote: { evidenceId: canonicalQuote.evidenceId, evidenceFingerprintSha256: canonicalQuote.evidenceFingerprintSha256, observedAt, bidPrice, askPrice },
     quotePrice,
     fillPrice,
     feeAmount,
@@ -357,8 +410,8 @@ export function buildPaperObservedExecutionCostAttribution(
     feeAmount,
     spreadAmount,
     slippageAmount,
-    quoteEvidenceId: quote.evidenceId,
-    quoteEvidenceFingerprintSha256: quote.evidenceFingerprintSha256,
+    quoteEvidenceId: canonicalQuote.evidenceId,
+    quoteEvidenceFingerprintSha256: canonicalQuote.evidenceFingerprintSha256,
     quoteObservedAt: observedAt,
     quoteBidPrice: bidPrice,
     quoteAskPrice: askPrice,

@@ -77,7 +77,7 @@ test("stale, crossed, and tampered public quote evidence fail closed", () => {
     totalBidSize: 1,
     units: [{ askPrice: 101, bidPrice: 99, askSize: 1, bidSize: 1 }],
   });
-  assert.equal(code(() => buildPaperObservedExecutionCostAttribution(fill({ filledAt: 7_000 }), quote)), "STALE_ORDERBOOK_QUOTE");
+  assert.equal(code(() => buildPaperObservedExecutionCostAttribution(fill({ filledAt: 7_000 }), quote)), "STALE_QUOTE");
   assert.equal(code(() => buildPaperObservedExecutionQuote({
     market: "KRW-BTC",
     observedAt: 3_000,
