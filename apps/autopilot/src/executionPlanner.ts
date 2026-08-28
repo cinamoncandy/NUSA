@@ -8,6 +8,8 @@ export interface AutopilotExecutionRequest {
   readonly headSha: string | null;
   readonly workflowRunId: number | null;
   readonly reason: string;
+  readonly executionId?: string | null;
+  readonly dedupeKey?: string | null;
   readonly mutationAllowed: false;
 }
 
