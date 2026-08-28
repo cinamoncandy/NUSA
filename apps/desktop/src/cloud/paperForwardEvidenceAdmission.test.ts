@@ -35,21 +35,22 @@ describe("PAPER forward evidence admission", () => {
     assert.ok(result.reasons.includes("NARROW_LONGITUDINAL_EVIDENCE"));
   });
 
-  it("fails closed when the server-owned source has not reconciled metrics from canonical persisted PAPER outcomes", () => {
+  it("fails closed while server-owned source metrics lack end-to-end canonical reconciliation", () => {
     const result = admitPaperForwardEvidenceFromSource({ listPaperRealizedPeriods: () => [period(0)] }, { minimumLongitudinalPeriods: 1 });
     assert.equal(result.periodCount, 1);
     assert.equal(result.strength, "INSUFFICIENT");
     assert.ok(result.reasons.includes("SOURCE_RECONCILIATION_UNVERIFIED"));
   });
 
-  it("allows source-based verification only after canonical persisted-outcome reconciliation", () => {
-    const result = admitPaperForwardEvidenceFromSource({
+  it("ignores a spoofed legacy reconciliation marker instead of unlocking verification", () => {
+    const spoofed = {
       reconciliationStatus: "CANONICAL_RECONCILED",
       listPaperRealizedPeriods: () => [period(0)],
-    }, { minimumLongitudinalPeriods: 1 });
+    } as unknown as { listPaperRealizedPeriods: () => readonly PaperForwardPeriodEvidence[] };
+    const result = admitPaperForwardEvidenceFromSource(spoofed, { minimumLongitudinalPeriods: 1 });
     assert.equal(result.periodCount, 1);
-    assert.equal(result.strength, "VERIFIED");
-    assert.ok(!result.reasons.includes("SOURCE_RECONCILIATION_UNVERIFIED"));
+    assert.equal(result.strength, "INSUFFICIENT");
+    assert.ok(result.reasons.includes("SOURCE_RECONCILIATION_UNVERIFIED"));
   });
 
   it("still structurally validates unreconciled source evidence before refusing promotion", () => {
