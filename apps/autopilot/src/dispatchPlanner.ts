@@ -20,6 +20,7 @@ export interface AutopilotDispatchPlan {
 
 type JsonObject = Record<string, unknown>;
 
+const CANONICAL_CI_WORKFLOW = "CI";
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value : null;
@@ -74,6 +75,7 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
   const headSha = text(run?.head_sha);
   const status = text(run?.status);
   const conclusion = text(run?.conclusion);
+  const workflowName = text(run?.name);
   if (action !== "completed" || !run || !workflowRunId || !headSha || status !== "completed") return ignored(payload, "workflow-run-not-completed");
 
   // repository_dispatch is the output edge of this autopilot. Dispatching again when the
@@ -81,6 +83,10 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
   if (text(run.event) === "repository_dispatch") return ignored(payload, "workflow-run-originated-from-repository-dispatch");
 
   if (conclusion === "success") {
+    // A single commit can complete several successful workflows. Only the canonical full CI
+    // workflow may advance the development loop; auxiliary evidence/workflows remain signals,
+    // not duplicate execution edges for the same head SHA.
+    if (workflowName !== CANONICAL_CI_WORKFLOW) return ignored(payload, "workflow-run-success-not-canonical-ci");
     return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, reason: "workflow-run-success", mutationAllowed: false });
   }
   if (["failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"].includes(conclusion ?? "")) {
