@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T01:55:00+09:00"
+updated_at: "2026-08-29T05:15:55+09:00"
 current_execution_target:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: VERIFYING
@@ -88,9 +88,9 @@ claimed_state:
   branch: codex/engineering-operations-validation-hardening
   base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
   scope: "Harden the canonical read-only Engineering OS HTTP boundary so malformed nested evidence and credential-shaped fields fail closed before serialization."
-  implementation_commit: pending-local-commit
+  implementation_commit: 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated."
+  validation: "Implementation 64d61e928d5c2ae5aecc7c0809c97890e5dfb0b4; focused read model/HTTP/production-wiring tests 11/11 PASS; full isolated suite 729 files PASS; preflight/build/typecheck/lint/architecture/safety/AI/security/AIPOS PASS; no production telemetry is fabricated. GitHub authentication is unavailable for PR publication."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
