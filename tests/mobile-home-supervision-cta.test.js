@@ -4,22 +4,25 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
+const decisionSurface = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeDecisionSurface.ts"), "utf8");
 
 test("HOME routes degraded PAPER runtime states to supervision before market or signal exploration", () => {
-  assert.match(home, /const runtimeNeedsSupervision = runtimeState === "HALTED" \|\| runtimeState === "ERROR" \|\| runtimeState === "DEGRADED" \|\| runtimeState === "STOPPED" \|\| runtimeState === "STOPPING"/);
-  assert.match(home, /runtimeNeedsSupervision \? "SUPERVISE PAPER"/);
-  assert.match(home, /if \(runtimeNeedsSupervision\) return onNavigate\("Portfolio"\)/);
-  assert.match(home, /현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다/);
+  assert.match(home, /const decisionSurface = buildHomeDecisionSurface/);
+  assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);
+  assert.match(decisionSurface, /runtimeNeedsSupervision\s*\n\s*\? "SUPERVISE PAPER"/);
+  assert.match(decisionSurface, /runtimeNeedsSupervision\s*\n\s*\? "PORTFOLIO"/);
+  assert.match(decisionSurface, /현재 PAPER runtime 상태와 계좌 결과를 먼저 감독합니다/);
 });
 
 test("HOME failure-state WHY overrides a stale valid AI thesis", () => {
-  const disconnectedIndex = home.indexOf("const supervisorWhy = disconnected");
-  const aiInsightIndex = home.indexOf(": aiInsightAvailable", disconnectedIndex);
-  const degradedIndex = home.indexOf(': runtimeState === "DEGRADED"', disconnectedIndex);
+  const whyStart = decisionSurface.indexOf("const why = input.disconnected");
+  const degradedIndex = decisionSurface.indexOf(': runtimeState === "DEGRADED"', whyStart);
+  const aiInsightIndex = decisionSurface.indexOf(": aiInsightAvailable", whyStart);
 
-  assert.notEqual(disconnectedIndex, -1);
+  assert.notEqual(whyStart, -1);
   assert.notEqual(degradedIndex, -1);
   assert.notEqual(aiInsightIndex, -1);
   assert.ok(degradedIndex < aiInsightIndex, "runtime failure WHY must win before AI thesis");
-  assert.match(home, /PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다/);
+  assert.match(decisionSurface, /PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다/);
+  assert.match(home, /const supervisorWhy = decisionSurface\.why/);
 });
