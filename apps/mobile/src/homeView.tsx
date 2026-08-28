@@ -98,8 +98,8 @@ export function HomeView({
     accountSource,
     paperEquity: account?.equity,
     paperTotalPnl: totalPnl,
-    aiThesis: ai?.thesis,
-    aiEvidenceCount: ai?.evidenceReferences.length ?? 0,
+    aiThesis: ai?.status === "AVAILABLE" ? ai.thesis : null,
+    aiEvidenceCount: ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0,
     aiCalibrationStatus: ai?.calibrationStatus,
     aiConfidence: ai?.confidence,
   });
@@ -107,7 +107,6 @@ export function HomeView({
     aiInsightAvailable,
     calibratedConfidence,
     signalReady,
-    runtimeNeedsSupervision,
     statusLabel,
     statusTone,
     primaryLabel,
