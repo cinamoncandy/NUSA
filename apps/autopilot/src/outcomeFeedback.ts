@@ -1,9 +1,8 @@
-export type OutcomeConfidence = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN";
-export type OutcomeClassification =
-  | "VERIFIED_IMPROVEMENT"
-  | "NEUTRAL"
-  | "REGRESSION"
-  | "INSUFFICIENT";
+import { evaluateOutcome } from "./outcomeEvaluator";
+import type { OutcomeClassification, OutcomeConfidence } from "./outcomeEvaluator";
+
+export type { OutcomeClassification, OutcomeConfidence } from "./outcomeEvaluator";
+
 export type MetricDirection = "MAXIMIZE" | "MINIMIZE";
 
 export interface OutcomeEvidence {
@@ -33,66 +32,37 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const finite = (value: number | null): value is number => value !== null && Number.isFinite(value);
 
 export function assessOutcome(evidence: OutcomeEvidence): OutcomeAssessment {
-  if (
-    evidence.confidence !== "VERIFIED" ||
-    !finite(evidence.baseline) ||
-    !finite(evidence.observed) ||
-    !Number.isFinite(evidence.neutralTolerance) ||
-    evidence.neutralTolerance < 0
-  ) {
-    return freeze({
-      key: evidence.key,
-      metric: evidence.metric,
-      classification: "INSUFFICIENT",
-      baseline: evidence.baseline,
-      observed: evidence.observed,
-      delta: null,
-      reason: "insufficient-evidence-for-outcome-verification",
-      recommendation: "GATHER_MORE_EVIDENCE",
-      mutationAllowed: false,
-    });
-  }
+  const evaluation = evaluateOutcome({
+    key: evidence.key,
+    source: evidence.source,
+    confidence: evidence.confidence,
+    baseline: evidence.baseline,
+    current: evidence.observed,
+    direction: evidence.direction === "MAXIMIZE" ? "HIGHER_IS_BETTER" : "LOWER_IS_BETTER",
+    minimumMeaningfulDelta: evidence.neutralTolerance,
+  });
 
-  const rawDelta = evidence.observed - evidence.baseline;
-  const signedImprovement = evidence.direction === "MAXIMIZE" ? rawDelta : -rawDelta;
-
-  if (Math.abs(signedImprovement) <= evidence.neutralTolerance) {
-    return freeze({
-      key: evidence.key,
-      metric: evidence.metric,
-      classification: "NEUTRAL",
-      baseline: evidence.baseline,
-      observed: evidence.observed,
-      delta: rawDelta,
-      reason: "verified-change-within-neutral-tolerance",
-      recommendation: "KEEP",
-      mutationAllowed: false,
-    });
-  }
-
-  if (signedImprovement > 0) {
-    return freeze({
-      key: evidence.key,
-      metric: evidence.metric,
-      classification: "VERIFIED_IMPROVEMENT",
-      baseline: evidence.baseline,
-      observed: evidence.observed,
-      delta: rawDelta,
-      reason: "verified-post-change-improvement",
-      recommendation: "KEEP",
-      mutationAllowed: false,
-    });
-  }
+  const delta = finite(evidence.baseline) && finite(evidence.observed)
+    ? evidence.observed - evidence.baseline
+    : null;
+  const reason = {
+    VERIFIED_IMPROVEMENT: "verified-post-change-improvement",
+    NEUTRAL: "verified-change-within-neutral-tolerance",
+    REGRESSION: "verified-post-change-regression",
+    INSUFFICIENT: "insufficient-evidence-for-outcome-verification",
+  }[evaluation.classification];
 
   return freeze({
     key: evidence.key,
     metric: evidence.metric,
-    classification: "REGRESSION",
+    classification: evaluation.classification,
     baseline: evidence.baseline,
     observed: evidence.observed,
-    delta: rawDelta,
-    reason: "verified-post-change-regression",
-    recommendation: "REWORK_OR_ROLLBACK",
+    delta,
+    reason,
+    recommendation: evaluation.recommendation === "GATHER_EVIDENCE"
+      ? "GATHER_MORE_EVIDENCE"
+      : evaluation.recommendation,
     mutationAllowed: false,
   });
 }

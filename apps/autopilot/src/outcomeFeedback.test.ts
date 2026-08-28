@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { evaluateOutcome } from "./outcomeEvaluator";
 import { assessOutcome } from "./outcomeFeedback";
 
 const evidence = (overrides = {}) => ({
@@ -46,6 +47,22 @@ describe("outcomeFeedback", () => {
     assert.equal(result.recommendation, "GATHER_MORE_EVIDENCE");
   });
 
+  it("delegates classification to the canonical outcome evaluator", () => {
+    const legacyResult = assessOutcome(evidence());
+    const canonicalResult = evaluateOutcome({
+      key: "ci:p95",
+      source: "github-actions",
+      confidence: "VERIFIED",
+      baseline: 100,
+      current: 80,
+      direction: "LOWER_IS_BETTER",
+      minimumMeaningfulDelta: 2,
+    });
+
+    assert.equal(legacyResult.classification, canonicalResult.classification);
+    assert.equal(legacyResult.recommendation, "KEEP");
+    assert.equal(legacyResult.mutationAllowed, false);
+  });
   it("fails closed on missing or invalid measurements", () => {
     assert.equal(assessOutcome(evidence({ baseline: null })).classification, "INSUFFICIENT");
     assert.equal(assessOutcome(evidence({ observed: Number.NaN })).classification, "INSUFFICIENT");
