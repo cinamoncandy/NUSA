@@ -15,7 +15,7 @@ const decision = (action, decidedAt, allocation = action === "BUY" ? 0.5 : 0) =>
   reasons: Object.freeze(["deterministic test decision"]),
   decidedAt
 });
-const observation = (now, price = 100) => Object.freeze({ market: "KRW-BTC", price, observedAt: now, now, trusted: true });
+const observation = (now, price = 100, observedAt = now) => Object.freeze({ market: "KRW-BTC", price, observedAt, now, trusted: true });
 
 function runtime(options = {}) {
   const execution = options.execution ?? new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0 });
@@ -112,6 +112,24 @@ test("untrusted and stale market inputs fail closed", () => {
   assert.equal(staleState.status, "ERROR");
   assert.equal(staleState.lastError, "PAPER_MARKET_INPUT_STALE");
   assert.equal(staleState.account.fills.length, 0);
+});
+
+test("non-monotonic PAPER observations fail closed before a second simulated fill", () => {
+  const subject = runtime();
+  subject.instance.onMarketObservation(observation(2_000));
+  const regressed = subject.instance.onMarketObservation(observation(1_000, 110));
+  assert.equal(regressed.status, "ERROR");
+  assert.equal(regressed.lastError, "PAPER_MARKET_CHRONOLOGY_REGRESSION");
+  assert.equal(regressed.account.fills.length, 1);
+});
+
+test("PAPER runtime clock regression fails closed even when market observation order is monotonic", () => {
+  const subject = runtime();
+  subject.instance.onMarketObservation(observation(3_000, 100, 1_000));
+  const regressed = subject.instance.onMarketObservation(observation(2_000, 110, 1_500));
+  assert.equal(regressed.status, "ERROR");
+  assert.equal(regressed.lastError, "PAPER_RUNTIME_CLOCK_REGRESSION");
+  assert.equal(regressed.account.fills.length, 1);
 });
 
 test("persistence or research failure transitions auto-learning to ERROR and stops future orders", () => {

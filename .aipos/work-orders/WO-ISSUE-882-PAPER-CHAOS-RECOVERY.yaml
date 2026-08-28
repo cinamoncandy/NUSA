@@ -1,0 +1,68 @@
+id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
+title: "Issue #882 PAPER chaos and recovery acceptance drills"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 882
+base_branch: main
+base_commit: 65fc2011193ad2e495a5b24826d24a059b17615e
+implementation_branch: codex/paper-chaos-recovery
+objective: "Extend the canonical PAPER runtime recovery boundary with deterministic, bounded, machine-readable chaos receipts while preserving fail-closed recovery and zero mutation outside the existing PAPER execution loop."
+architecture_impact:
+  acknowledged: true
+  analysis: "The change reuses PaperAutoLearningRuntime and PaperTradingExecutionLoop, adds no trading engine, accounting engine, broker adapter, event store, or authority boundary, and emits only sanitized read-only drill receipts."
+  references:
+    - apps/cloud/src/paperAutoLearningRuntime.ts
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - apps/cloud/src/paperChaosRecovery.ts
+    - apps/execution/src/chaos-recovery-harness.ts
+architecture:
+  existing_paper_runtime: apps/cloud/src/paperAutoLearningRuntime.ts
+  existing_paper_execution: apps/cloud/src/paperTradingExecutionLoop.ts
+  existing_recovery_harness: apps/execution/src/chaos-recovery-harness.ts
+  no_new_authority: true
+  receipt_scope: SANITIZED_READ_ONLY_DRILL_EVIDENCE
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+scope:
+  - non_monotonic_paper_observation_fail_closed
+  - bounded_paper_chaos_recovery_receipts
+  - deterministic_receipt_integrity_and_ordering
+  - actual_paper_runtime_chaos_regression_coverage
+prohibited:
+  - live_execution
+  - real_broker_mutation
+  - withdrawal_or_transfer
+  - synthetic_accounting
+  - automatic_recovery_after_unsafe_state
+acceptance:
+  - process_restart_state_identity_preserved
+  - stale_or_paused_feed_no_mutation
+  - duplicate_replay_no_double_fill
+  - persistence_write_interruption_halts
+  - persistence_read_corruption_halts
+  - clock_regression_halts
+  - upstream_outage_halts
+  - reconciliation_mismatch_halts
+  - malformed_or_unobserved_receipts_rejected
+  - receipt_integrity_and_bounded_deterministic_report
+  - existing_paper_regressions_remain_green
+validation:
+  focused: PASS_15_OF_15
+  paper_regression: PASS_174_OF_174
+  full_isolated_suite: PASS_674_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS
+implementation_status: IMPLEMENTED_LOCAL_PENDING_PR
+implementation_head: 5f08cf838f82f3d33fc39ef5c083d0db4587a281
+next: "Push the focused branch, verify exact-head checks, and merge only when all repository gates are green."

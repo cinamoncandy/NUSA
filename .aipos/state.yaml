@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-26T16:28:00+09:00"
+updated_at: "2026-08-28T11:10:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+  work_order: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
   status: IN_PROGRESS
-  branch: codex/live-readiness-production-wiring
-  base_sha: 93d9165537bb33440b6cb5488aa8d34e76f1e70b
-  scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
+  branch: codex/paper-chaos-recovery
+  base_sha: 65fc2011193ad2e495a5b24826d24a059b17615e
+  scope: "Issue #882 deterministic bounded PAPER chaos/recovery receipts and non-monotonic observation fail-closed guard; existing PAPER execution remains the sole mutation authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/live-readiness-production-wiring
+active_branch: codex/paper-chaos-recovery
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
@@ -83,13 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
+  work_order: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
   status: IN_PROGRESS
-  branch: codex/live-readiness-production-wiring
-  base_commit: 93d9165537bb33440b6cb5488aa8d34e76f1e70b
-  scope: "Production read-only wiring of objective Cloud PAPER/runtime safety evidence into existing LIVE-readiness readers; unavailable sources remain fail-closed."
+  branch: codex/paper-chaos-recovery
+  base_commit: 65fc2011193ad2e495a5b24826d24a059b17615e
+  scope: "Issue #882 deterministic bounded PAPER chaos/recovery receipts and non-monotonic observation fail-closed guard; existing PAPER execution remains the sole mutation authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused readiness/runtime plus latest-main research regression 51/51; full isolated suite 623 files; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/package PASS after main integration; PR #849 exact-head required checks PASS and merged as 93d91655."
+  validation: "focused PAPER chaos/recovery 15/15; PAPER/recovery regression 174/174; full isolated suite 674 files; build/typecheck/lint/preflight/architecture/truth/architecture/safety/security/AIPOS validation PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -486,9 +486,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING
-    evidence: ".aipos/work-orders/WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING.yaml"
-    summary: "Issue #659 production read-only wiring connects only objective Cloud PAPER/runtime-safety evidence to the existing LIVE-readiness readers; unavailable sources remain fail-closed."
+  - id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
+    evidence: ".aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml"
+    summary: "Issue #882 extends the canonical PAPER runtime recovery boundary with bounded sanitized chaos receipts and non-monotonic observation fail-closed behavior; no mutation authority is added."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -515,8 +515,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-659-LIVE-READINESS-PRODUCTION-WIRING.yaml
-  reason: "Complete Issue #659 production read-only wiring only where objective canonical evidence exists; unavailable sources remain fail-closed and no LIVE activation, real-money authority, or authority expansion is permitted."
+  work_order: .aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml
+  reason: "Complete Issue #882 canonical PAPER chaos/recovery acceptance drills; preserve fail-closed behavior and no LIVE activation, real-money authority, or authority expansion."
 verification:
   wo_0057:
     parent_pull_request: 552

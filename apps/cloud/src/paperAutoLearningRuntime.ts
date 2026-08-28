@@ -73,6 +73,8 @@ export class PaperAutoLearningRuntime {
   private lastExecutionStatus?: PaperExecutionResult["status"];
   private lastReason?: string;
   private lastError?: string;
+  private lastChronologyObservationAt?: number;
+  private lastChronologyNow?: number;
   private readonly maxObservationAgeMs: number;
   private readonly investmentPercent: number;
 
@@ -180,7 +182,11 @@ export class PaperAutoLearningRuntime {
     if (!observation.market.trim()) throw new Error("PAPER_MARKET_INVALID");
     if (!Number.isFinite(observation.price) || observation.price <= 0) throw new Error("PAPER_MARKET_PRICE_INVALID");
     if (!Number.isSafeInteger(observation.now) || !Number.isSafeInteger(observation.observedAt) || observation.now < 0 || observation.observedAt < 0 || observation.observedAt > observation.now) throw new Error("PAPER_MARKET_CLOCK_INVALID");
+    if (this.lastChronologyObservationAt !== undefined && observation.observedAt < this.lastChronologyObservationAt) throw new Error("PAPER_MARKET_CHRONOLOGY_REGRESSION");
+    if (this.lastChronologyNow !== undefined && observation.now < this.lastChronologyNow) throw new Error("PAPER_RUNTIME_CLOCK_REGRESSION");
     if (observation.now - observation.observedAt >= this.maxObservationAgeMs) throw new Error("PAPER_MARKET_INPUT_STALE");
+    this.lastChronologyObservationAt = observation.observedAt;
+    this.lastChronologyNow = observation.now;
   }
 
   private fail(message: string): void {
