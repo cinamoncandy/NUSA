@@ -29,6 +29,9 @@ export async function executeGithubDispatch(
   if (!REPOSITORY.test(config.allowedRepository)) return result("REJECTED", "github-executor-allowlist-invalid");
   if (request.repository !== config.allowedRepository) return result("REJECTED", "github-executor-repository-not-allowed");
   if (!request.headSha || !SHA40.test(request.headSha)) return result("REJECTED", "github-executor-head-sha-invalid");
+  if (!Number.isSafeInteger(request.workflowRunId) || (request.workflowRunId ?? 0) <= 0) {
+    return result("REJECTED", "github-executor-workflow-run-id-required");
+  }
 
   const base = (config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
   const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {
