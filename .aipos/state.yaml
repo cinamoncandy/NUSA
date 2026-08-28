@@ -1,14 +1,14 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T06:05:00+09:00"
+updated_at: "2026-08-29T06:15:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
-  status: IMPLEMENTING
+  status: VERIFYING
   branch: codex/issue-865-paper-calibration-comparison
   base_sha: 6e90cc3528adba5d3b7e95be5dda31202847a184
   scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: focused-validation
+phase: repository-validation
 status: in_progress
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
@@ -84,13 +84,13 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
-  status: IMPLEMENTING
+  status: VERIFYING
   branch: codex/issue-865-paper-calibration-comparison
   base_commit: 6e90cc3528adba5d3b7e95be5dda31202847a184
   scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
-  implementation_commit: null
+  implementation_commit: d520f6d5
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused validation is pending for the independent calibration comparison; no confidence, promotion, execution, broker, or LIVE authority is added."
+  validation: "Focused calibration comparison 14/14 PASS; full isolated suite 730 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; no confidence, promotion, execution, broker, or LIVE authority is added; exact-head remote validation is pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

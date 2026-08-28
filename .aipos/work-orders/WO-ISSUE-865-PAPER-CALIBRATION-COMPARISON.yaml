@@ -1,6 +1,6 @@
 id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
 title: "Issue #865 compare independent PAPER calibration windows"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 865
@@ -47,16 +47,21 @@ acceptance:
   - forbidden_metadata_is_rejected_before_hashing
   - no_execution_or_live_authority_is_exposed
 validation:
-  focused: PENDING
-  typecheck: PENDING
-  build: PENDING
-  lint: PENDING
-  architecture: PENDING
-  safety: PENDING
-  security: PENDING
-  aipos: PENDING
-  git_diff_check: PENDING
+  focused: PASS_14_OF_14
+  full_isolated_suite: PASS_730_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  git_diff_check: PASS
+implementation_commit: d520f6d5
 known_limitations:
   - "The comparison is a read-only evidence projection; it does not mutate confidence or promote a strategy."
   - "Actual long-running PAPER evidence remains dependent on canonical runtime persistence and external/human gates outside this slice."
-next: "Run focused and repository gates, then publish only this Issue #865 comparison slice if all exact-head checks remain green."
+next: "Publish this focused Issue #865 comparison slice and validate its exact head; no second confidence or promotion engine is permitted."
