@@ -4,7 +4,7 @@ status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
-pull_request: 1032
+pull_request: null
 base_branch: main
 base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
 implementation_branch: codex/engineering-operations-validation-hardening
@@ -68,4 +68,5 @@ validation:
 implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
+  - "GitHub CLI authentication is unavailable in this environment; remote PR publication and exact-head validation remain pending."
 next: "Publish the validation-hardening slice, verify its exact-head protected checks, and merge only when all required checks are green; do not fabricate absent production telemetry."
