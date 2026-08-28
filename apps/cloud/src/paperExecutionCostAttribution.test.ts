@@ -11,13 +11,17 @@ import type { UpbitOrderBook } from "./upbitWebSocket";
 
 const binding: PaperCandidateExecutionBinding = Object.freeze({
   schemaVersion: 1,
-  source: "RESEARCH_CANDIDATE",
+  status: "BOUND_UNVERIFIED",
+  authority: "PAPER_RESEARCH_ONLY",
+  liveAuthority: "NONE",
+  productionMutationAllowed: false,
   candidateId: "candidate-alpha",
   datasetId: "dataset-alpha",
   datasetContentSha256: "a".repeat(64),
   advisoryGeneratedAt: 900,
+  periodStartAt: 925,
   advisoryFingerprintSha256: "b".repeat(64),
-  boundAt: 950,
+  bindingFingerprintSha256: "c".repeat(64),
 });
 
 const fill: PaperFillRecord = Object.freeze({
